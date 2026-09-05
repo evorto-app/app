@@ -12,10 +12,10 @@ import {
   PlatformEventRegistrationOptionRecord,
   type PlatformEventsCreateInput,
   type PlatformEventsReviewInput,
+  type PlatformEventsUpdateAnnouncementDiscoveryInput,
   type PlatformEventsUpdateInput,
-  type PlatformEventsUpdateListingInput,
 } from '@shared/rpc-contracts/app-rpcs/platform-events.rpcs';
-import { and, asc, count, desc, eq, inArray } from 'drizzle-orm';
+import { and, asc, count, desc, eq, exists, inArray } from 'drizzle-orm';
 import { DateTime, Effect, Schema } from 'effect';
 
 import { Database, type DatabaseClient } from '../../../../../db';
@@ -46,6 +46,7 @@ import {
 import {
   lockTenantRoleGraph,
   tenantRoleIdsExist,
+  uniqueTenantRoleIds,
 } from '../../../../roles/tenant-role-graph';
 import {
   isMeaningfulRichTextHtml,
@@ -177,6 +178,7 @@ export const platformEventAddonMappingRemovalError = (
 
 const PlatformEventAuditState = Schema.Struct({
   addOns: Schema.Array(PlatformEventAddonRecord),
+  announcementRoles: Schema.Array(Schema.NonEmptyString),
   creatorId: Schema.NonEmptyString,
   description: Schema.NonEmptyString,
   end: Schema.NonEmptyString,
@@ -193,7 +195,6 @@ const PlatformEventAuditState = Schema.Struct({
   status: Schema.Literals(['APPROVED', 'DRAFT', 'PENDING_REVIEW']),
   statusComment: Schema.NullOr(Schema.String),
   title: Schema.NonEmptyString,
-  unlisted: Schema.Boolean,
 });
 
 const databaseEffect = <A, R>(
@@ -224,6 +225,7 @@ export const loadPlatformEventDetail = Effect.fn(
 ) {
   const eventRows = yield* database
     .select({
+      announcementRoleIds: eventInstances.announcementRoleIds,
       creatorEmail: users.email,
       creatorFirstName: users.firstName,
       creatorId: users.id,
@@ -239,7 +241,6 @@ export const loadPlatformEventDetail = Effect.fn(
       status: eventInstances.status,
       statusComment: eventInstances.statusComment,
       title: eventInstances.title,
-      unlisted: eventInstances.unlisted,
     })
     .from(eventInstances)
     .innerJoin(users, eq(users.id, eventInstances.creatorId))
@@ -254,6 +255,33 @@ export const loadPlatformEventDetail = Effect.fn(
   const event = eventRows[0];
   if (!event) {
     return yield* Effect.fail(eventNotFound(eventId));
+  }
+
+  const announcementRoles =
+    event.announcementRoleIds.length === 0
+      ? []
+      : yield* database
+          .select({ id: roles.id, name: roles.name })
+          .from(roles)
+          .where(
+            and(
+              eq(roles.tenantId, targetTenantId),
+              inArray(roles.id, event.announcementRoleIds),
+            ),
+          )
+          .pipe(Effect.orDie);
+  const announcementRoleNamesById = new Map(
+    announcementRoles.map((role) => [role.id, role.name]),
+  );
+  const announcementRoleNames: string[] = [];
+  for (const roleId of event.announcementRoleIds) {
+    const roleName = announcementRoleNamesById.get(roleId);
+    if (!roleName) {
+      return yield* Effect.die(
+        new Error(`Event ${eventId} references missing role ${roleId}`),
+      );
+    }
+    announcementRoleNames.push(roleName);
   }
 
   const registrationOptions = yield* database
@@ -447,6 +475,8 @@ export const loadPlatformEventDetail = Effect.fn(
       registrationOptions: addOnOptionsById.get(addOn.id) ?? [],
       stripeTaxRateId: addOn.stripeTaxRateId ?? null,
     })),
+    announcementRoleIds: [...event.announcementRoleIds],
+    announcementRoleNames,
     creator: {
       email: event.creatorEmail,
       firstName: event.creatorFirstName,
@@ -478,7 +508,6 @@ export const loadPlatformEventDetail = Effect.fn(
     status: event.status,
     statusComment: event.statusComment ?? null,
     title: event.title,
-    unlisted: event.unlisted,
   } satisfies PlatformEventDetailRecord;
 });
 
@@ -489,6 +518,7 @@ export const platformEventAuditSnapshot = (
   resourceType: 'event',
   state: Schema.decodeUnknownSync(PlatformEventAuditState)({
     addOns: event.addOns,
+    announcementRoles: event.announcementRoleNames,
     creatorId: event.creator.id,
     description: event.description,
     end: event.end,
@@ -505,7 +535,6 @@ export const platformEventAuditSnapshot = (
     status: event.status,
     statusComment: event.statusComment,
     title: event.title,
-    unlisted: event.unlisted,
   }),
 });
 
@@ -1316,23 +1345,39 @@ export const platformEventHandlers = {
         databaseEffect((database) =>
           database
             .select({
+              announcementRoleIds: eventInstances.announcementRoleIds,
               end: eventInstances.end,
+              hasRegistrationOptions: exists(
+                database
+                  .select()
+                  .from(eventRegistrationOptions)
+                  .where(
+                    eq(eventRegistrationOptions.eventId, eventInstances.id),
+                  ),
+              ),
               id: eventInstances.id,
               start: eventInstances.start,
               status: eventInstances.status,
               title: eventInstances.title,
-              unlisted: eventInstances.unlisted,
             })
             .from(eventInstances)
             .where(eq(eventInstances.tenantId, input.targetTenantId))
             .orderBy(desc(eventInstances.start))
             .pipe(
               Effect.map((events) =>
-                events.map((event) => ({
-                  ...event,
-                  end: event.end.toISOString(),
-                  start: event.start.toISOString(),
-                })),
+                events.map(
+                  ({
+                    announcementRoleIds,
+                    hasRegistrationOptions,
+                    ...event
+                  }) => ({
+                    ...event,
+                    announcementRoleCount: announcementRoleIds.length,
+                    end: event.end.toISOString(),
+                    hasRegistrationOptions: Boolean(hasRegistrationOptions),
+                    start: event.start.toISOString(),
+                  }),
+                ),
               ),
             ),
         ),
@@ -1527,6 +1572,10 @@ export const platformEventHandlers = {
           const updatedEvents = yield* database
             .update(eventInstances)
             .set({
+              ...((before.registrationOptions.length > 0 ||
+                input.registrationOptions.length > 0) && {
+                announcementRoleIds: [],
+              }),
               description: sanitizedDescription,
               end,
               icon: input.icon,
@@ -1566,32 +1615,60 @@ export const platformEventHandlers = {
         }),
     );
   },
-  'platform.events.updateListing': (
-    input: PlatformEventsUpdateListingInput,
+  'platform.events.updateAnnouncementDiscovery': (
+    input: PlatformEventsUpdateAnnouncementDiscoveryInput,
     _options: unknown,
   ) =>
     runEventMutation(
       input,
-      'events:changeListing',
-      'event.updateListing',
-      (database) =>
-        database
-          .update(eventInstances)
-          .set({ unlisted: input.unlisted })
-          .where(
-            and(
-              eq(eventInstances.id, input.eventId),
-              eq(eventInstances.tenantId, input.targetTenantId),
-            ),
-          )
-          .returning({ id: eventInstances.id })
-          .pipe(
+      'events:changeAnnouncementDiscovery',
+      'event.updateAnnouncementDiscovery',
+      (database, before) =>
+        Effect.gen(function* () {
+          const announcementRoleIds = uniqueTenantRoleIds(
+            input.announcementRoleIds,
+          );
+          yield* lockTenantRoleGraph(database, input.targetTenantId).pipe(
             Effect.orDie,
-            Effect.flatMap((updatedEvents) =>
-              updatedEvents.length > 0
-                ? Effect.void
-                : Effect.fail(eventNotFound(input.eventId)),
-            ),
-          ),
+          );
+          const roleIdsExist = yield* tenantRoleIdsExist(
+            database,
+            input.targetTenantId,
+            announcementRoleIds,
+          ).pipe(Effect.orDie);
+          if (!roleIdsExist) {
+            return yield* Effect.fail(
+              new RpcBadRequestError({
+                message:
+                  'One of the selected roles is no longer available. Go back to the role list, review the current choices, then try again.',
+                reason: 'invalidAnnouncementRole',
+              }),
+            );
+          }
+          if (before.registrationOptions.length > 0) {
+            return yield* Effect.fail(
+              new RpcBadRequestError({
+                message:
+                  'This setting is only available for information-only events. Events with sign-up choices are shown according to those choices.',
+                reason: 'announcementRolesRequireOptionlessEvent',
+              }),
+            );
+          }
+
+          const updatedEvents = yield* database
+            .update(eventInstances)
+            .set({ announcementRoleIds })
+            .where(
+              and(
+                eq(eventInstances.id, input.eventId),
+                eq(eventInstances.tenantId, input.targetTenantId),
+              ),
+            )
+            .returning({ id: eventInstances.id })
+            .pipe(Effect.orDie);
+          if (updatedEvents.length === 0) {
+            return yield* Effect.fail(eventNotFound(input.eventId));
+          }
+        }),
     ),
 };

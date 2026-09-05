@@ -33,6 +33,8 @@ import {
   RpcRequestContextMiddleware,
   type RpcRequestContextShape,
 } from '../../../../../shared/rpc-contracts/app-rpcs';
+import { EventsUpdateAnnouncementDiscovery } from '../../../../../shared/rpc-contracts/app-rpcs/events.rpcs';
+import { createRegistrationDatabaseTestLayer } from '../../../../testing/registration-database';
 import { RpcAccess } from '../shared/rpc-access.service';
 import {
   buildEventAddonInsert,
@@ -886,7 +888,7 @@ describe('eventLifecycleHandlers', () => {
           expect(insertedEventValues).toHaveBeenCalledWith(
             expect.objectContaining({ simpleModeEnabled: true }),
           );
-          expect(eventInstances.unlisted.default).toBe(false);
+          expect(eventInstances.announcementRoleIds.default).toEqual([]);
           expect(insertedRegistrationOptionValues).toHaveBeenCalledWith(
             expect.arrayContaining([
               expect.objectContaining({
@@ -1802,6 +1804,240 @@ describe('eventLifecycleHandlers', () => {
             title: 'Experience',
           },
         ]);
+      }),
+  );
+});
+
+const announcementDiscoveryRequestContextLayer = Layer.mergeAll(
+  RpcAccess.Default,
+  Layer.succeed(RpcRequestContext, {
+    ...requestContext,
+    permissions: ['events:changeAnnouncementDiscovery'],
+    user: {
+      ...user,
+      permissions: ['events:changeAnnouncementDiscovery'],
+    },
+  }),
+);
+
+const announcementDiscoveryRpcOptions = () => ({
+  client: new Rpc.ServerClient(1),
+  headers: Headers.empty,
+  requestId: RpcMessage.RequestId(1),
+  rpc: EventsUpdateAnnouncementDiscovery.middleware(
+    RpcRequestContextMiddleware,
+  ),
+});
+
+const createAnnouncementDiscoveryDatabase = ({
+  eventExists = true,
+  registrationOptionExists = false,
+  roleIds = [],
+}: {
+  eventExists?: boolean;
+  registrationOptionExists?: boolean;
+  roleIds?: readonly string[];
+} = {}) => {
+  const lockOrder: string[] = [];
+  const writes =
+    vi.fn<(statement: string, parameters: readonly unknown[]) => void>();
+  const transactionCommands: string[] = [];
+  const databaseLayer = createRegistrationDatabaseTestLayer({
+    executeValues: (statement, parameters) =>
+      Effect.sync(() => {
+        if (
+          statement.startsWith('select ') &&
+          statement.includes('from "event_instances"')
+        ) {
+          expect(statement).toContain('"event_instances"."tenantId" = $1');
+          expect(statement).toContain('"event_instances"."id" = $2');
+          expect(statement.endsWith(' for update')).toBe(true);
+          expect(parameters).toEqual([
+            'tenant-1',
+            eventExists ? 'event-1' : 'missing-event',
+          ]);
+          lockOrder.push('event');
+          return eventExists ? [['event-1']] : [];
+        }
+        if (statement.startsWith('select pg_advisory_xact_lock(')) {
+          expect(parameters).toEqual(['evorto:tenant-role-graph:tenant-1']);
+          lockOrder.push('role-graph');
+          return [];
+        }
+        if (statement.includes('from "roles"')) {
+          expect(statement).toContain('"roles"."tenantId" = $1');
+          expect(statement).toContain('"roles"."id" in (');
+          expect(parameters[0]).toBe('tenant-1');
+          lockOrder.push('roles');
+          return roleIds
+            .filter((id) => parameters.slice(1).includes(id))
+            .map((id) => [id]);
+        }
+        if (statement.includes('from "event_registration_options"')) {
+          expect(statement).toContain(
+            '"event_registration_options"."eventId" = $1',
+          );
+          expect(parameters).toEqual(['event-1', 1]);
+          lockOrder.push('choices');
+          return registrationOptionExists ? [['option-1']] : [];
+        }
+        if (statement.startsWith('update "event_instances" set ')) {
+          expect(statement).toContain('"announcementRoleIds" = $');
+          expect(statement).toContain('"event_instances"."tenantId" = $');
+          expect(statement).toContain('"event_instances"."id" = $');
+          expect(parameters.slice(-2)).toEqual(['tenant-1', 'event-1']);
+          lockOrder.push('write');
+          writes(statement, parameters);
+          return [['event-1']];
+        }
+        throw new Error(`Unexpected announcement discovery SQL: ${statement}`);
+      }),
+    transactionControl: (command) =>
+      Effect.sync(() => {
+        transactionCommands.push(command);
+      }),
+  });
+  return { databaseLayer, lockOrder, transactionCommands, writes };
+};
+
+describe('announcement discovery lifecycle', () => {
+  it.effect('reports a missing event before changing who can find it', () =>
+    Effect.gen(function* () {
+      const fixture = createAnnouncementDiscoveryDatabase({
+        eventExists: false,
+      });
+      const error = yield* eventLifecycleHandlers[
+        'events.updateAnnouncementDiscovery'
+      ](
+        { announcementRoleIds: [], eventId: 'missing-event' },
+        announcementDiscoveryRpcOptions(),
+      ).pipe(
+        Effect.flip,
+        Effect.provide(
+          Layer.mergeAll(
+            announcementDiscoveryRequestContextLayer,
+            fixture.databaseLayer,
+          ),
+        ),
+      );
+      expect(error).toMatchObject({
+        _tag: 'EventNotFoundError',
+        id: 'missing-event',
+      });
+      expect(fixture.writes).not.toHaveBeenCalled();
+      expect(fixture.lockOrder).toEqual(['event']);
+      expect(fixture.transactionCommands).toEqual(['BEGIN', 'ROLLBACK']);
+    }),
+  );
+
+  it.effect(
+    'rejects an unauthorized visibility change before database work',
+    () =>
+      Effect.gen(function* () {
+        const error = yield* eventLifecycleHandlers[
+          'events.updateAnnouncementDiscovery'
+        ](
+          { announcementRoleIds: [], eventId: 'event-1' },
+          announcementDiscoveryRpcOptions(),
+        ).pipe(
+          Effect.flip,
+          Effect.provide(
+            Layer.mergeAll(requestContextLayer, createDatabaseTestLayer()),
+          ),
+        );
+        expect(error).toMatchObject({
+          _tag: 'RpcForbiddenError',
+          permission: 'events:changeAnnouncementDiscovery',
+        });
+      }),
+  );
+
+  it.effect(
+    'canonicalizes selected roles after locking the information-only event',
+    () =>
+      Effect.gen(function* () {
+        const fixture = createAnnouncementDiscoveryDatabase({
+          roleIds: ['role-a', 'role-b'],
+        });
+        yield* eventLifecycleHandlers['events.updateAnnouncementDiscovery'](
+          {
+            announcementRoleIds: ['role-b', 'role-a', 'role-b'],
+            eventId: 'event-1',
+          },
+          announcementDiscoveryRpcOptions(),
+        ).pipe(
+          Effect.provide(
+            Layer.mergeAll(
+              announcementDiscoveryRequestContextLayer,
+              fixture.databaseLayer,
+            ),
+          ),
+        );
+        expect(fixture.lockOrder).toEqual([
+          'event',
+          'role-graph',
+          'roles',
+          'choices',
+          'write',
+        ]);
+        expect(fixture.writes).toHaveBeenCalledTimes(1);
+        expect(fixture.writes.mock.calls[0]?.[1]).toContain(
+          '{"role-a","role-b"}',
+        );
+        expect(fixture.transactionCommands).toEqual(['BEGIN', 'COMMIT']);
+      }),
+  );
+
+  it.effect(
+    'rejects unavailable roles and every visibility change on sign-up events',
+    () =>
+      Effect.gen(function* () {
+        const invalidRole = createAnnouncementDiscoveryDatabase({
+          roleIds: [],
+        });
+        const invalidRoleError = yield* eventLifecycleHandlers[
+          'events.updateAnnouncementDiscovery'
+        ](
+          { announcementRoleIds: ['foreign-role'], eventId: 'event-1' },
+          announcementDiscoveryRpcOptions(),
+        ).pipe(
+          Effect.flip,
+          Effect.provide(
+            Layer.mergeAll(
+              announcementDiscoveryRequestContextLayer,
+              invalidRole.databaseLayer,
+            ),
+          ),
+        );
+        expect(invalidRoleError).toMatchObject({
+          _tag: 'RpcBadRequestError',
+          reason: 'invalidAnnouncementRole',
+        });
+        expect(invalidRole.writes).not.toHaveBeenCalled();
+        expect(invalidRole.transactionCommands).toEqual(['BEGIN', 'ROLLBACK']);
+        const optionful = createAnnouncementDiscoveryDatabase({
+          registrationOptionExists: true,
+        });
+        const optionfulError = yield* eventLifecycleHandlers[
+          'events.updateAnnouncementDiscovery'
+        ](
+          { announcementRoleIds: [], eventId: 'event-1' },
+          announcementDiscoveryRpcOptions(),
+        ).pipe(
+          Effect.flip,
+          Effect.provide(
+            Layer.mergeAll(
+              announcementDiscoveryRequestContextLayer,
+              optionful.databaseLayer,
+            ),
+          ),
+        );
+        expect(optionfulError).toMatchObject({
+          _tag: 'RpcBadRequestError',
+          reason: 'announcementRolesRequireOptionlessEvent',
+        });
+        expect(optionful.writes).not.toHaveBeenCalled();
+        expect(optionful.transactionCommands).toEqual(['BEGIN', 'ROLLBACK']);
       }),
   );
 });

@@ -611,7 +611,6 @@ export const seedPostRegistrationAddonPurchaseScenario = async (
       templateId: template.id,
       tenantId: input.tenant.id,
       title: input.title,
-      unlisted: false,
       updatedAt: nowDate,
     });
     await tx.insert(schema.eventRegistrationOptions).values({

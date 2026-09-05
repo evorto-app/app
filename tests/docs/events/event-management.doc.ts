@@ -91,8 +91,8 @@ Use an account that can create events and manage all events.
 
 # Event Management
 
-The event management feature allows you to create, edit, and manage events in the application. This includes setting up registration options, managing attendees, and controlling event visibility.
-The current management surface is intentionally focused: event details, registration options, review/listing actions, organizer participant overview, and event receipts.
+The event management feature allows you to create, edit, and manage events in the application. This includes setting up registration options, managing attendees, and publishing events.
+The current management surface is intentionally focused: event details, registration options, review and announcement discovery actions, organizer participant overview, and event receipts.
 
 ## Event List
 
@@ -113,13 +113,14 @@ Start by navigating to the **Events** section from the main menu to see a list o
 
   await testInfo.attach('markdown', {
     body: `
-The event list shows all events with their basic information:
+The event list groups the events available to you by date. Each card shows:
 
-- Event title
-- Date and time
-- Location
-- Status (draft, pending review, or published)
-- Listing state (listed or unlisted)
+- Event title and start time
+- Whether it is a sign-up event or an announcement
+- Draft or pending-review status when applicable
+- Your sign-up status when you have started signing up
+
+Open the event details to see its location and full schedule.
 `,
   });
 
@@ -193,7 +194,7 @@ The event details page has several sections:
 
 - **Basic Information**: Title, description, date, location
 - **Your sign-up**: Available choices or your active ticket
-- **Review and listing actions**: Status, submit/review actions, edit link, and listing controls when your account has access
+- **Review and discovery actions**: Status, submit/review actions, edit link, and announcement discovery controls when your account has access
 - **Organize this event**: A link to the organizer surface when you are allowed to organize the event
 
 Let's look at each section in detail.
@@ -384,7 +385,6 @@ Already selected roles are hidden from suggestions so the same eligibility role 
     templateId: sourceEvent.templateId,
     tenantId: target.tenantId,
     title: initialEditableTitle,
-    unlisted: true,
   });
 
   try {
@@ -649,9 +649,9 @@ Reload the event details page and check the new title and description. Open **Ed
 
   await testInfo.attach('markdown', {
     body: `
-## Event Status and Visibility
+## Event Status and Discovery
 
-You can control how your event appears in the app with event status and listing visibility.
+Event status controls publication. Sign-up events appear in **Events** according to their sign-up choices.
 
 Event status values:
 
@@ -662,7 +662,9 @@ Event status values:
 When a reviewer requests changes, the event returns to **Draft** and the
 review feedback remains visible on its details page.
 
-Listing visibility can be updated from the event actions menu.
+Sign-up events have no separate listing setting. A published upcoming event appears when at least one sign-up choice allows one of your organization roles, including attendee and organizer/helper choices. Registration windows, remaining places, and payment requirements still apply when you open the event. Before signing in, visitors can discover choices open to the organization's default new-member roles or unrestricted choices, but must sign in before signing up. A shared link to a published event still opens its public details; it does not bypass sign-up requirements.
+
+Announcements have no sign-up choices. **Choose who can find this announcement** selects the organization roles that should see it in **Events**. Without a selected role, the announcement opens only through a shared link. This setting does not give anyone a role or send a message. Announcements do not appear before sign-in.
 
 For a full walkthrough of the review and approval lifecycle, see the dedicated Event Approval guide.
 `,

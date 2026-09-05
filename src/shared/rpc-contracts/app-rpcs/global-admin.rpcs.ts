@@ -44,6 +44,7 @@ export type GlobalAdminTenantUpdateError = Schema.Schema.Type<
 
 export const GlobalAdminPlatformAuditState = Schema.Struct({
   addOnCount: Schema.optional(Schema.Number),
+  announcementRoleCount: Schema.optional(Schema.Number),
   attendeeCheckedIn: Schema.optional(Schema.Boolean),
   checkedInGuestCount: Schema.optional(Schema.Number),
   currency: Schema.optional(PlatformTenantAuditSnapshot.fields.currency),
@@ -81,7 +82,6 @@ export const GlobalAdminPlatformAuditState = Schema.Struct({
   timezone: Schema.optional(PlatformTenantAuditSnapshot.fields.timezone),
   title: Schema.optional(Schema.NonEmptyString),
   transferStatus: Schema.optional(Schema.NullOr(Schema.NonEmptyString)),
-  unlisted: Schema.optional(Schema.Boolean),
 });
 
 export type GlobalAdminPlatformAuditState = Schema.Schema.Type<

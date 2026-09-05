@@ -25,6 +25,7 @@ import {
   EventsCancelRegistration,
   EventsCreateRegistrationOptionInput,
   EventsEventListInput,
+  EventsEventListRecord,
   EventsFindOneAddon,
   EventsFindOneForEditRegistrationOption,
   EventsFindOneRegistrationOption,
@@ -49,15 +50,13 @@ describe('events RPC list input schema', () => {
         offset: 0,
         startAfter: '2026-07-15T14:30:00.000Z',
         status: ['APPROVED'],
-        userId: 'current-client-user',
+        userId: 'untrusted-client-user',
       }),
     ).toEqual({
-      includeUnlisted: true,
       limit: 100,
       offset: 0,
       startAfter: '2026-07-15T14:30:00.000Z',
       status: ['APPROVED'],
-      userId: 'current-client-user',
     });
 
     for (const input of [
@@ -77,6 +76,46 @@ describe('events RPC list input schema', () => {
         Schema.decodeUnknownSync(EventsEventListInput)({
           status: ['APPROVED'],
           ...input,
+        }),
+      ).toThrow();
+    }
+  });
+});
+
+describe('events RPC list record schema', () => {
+  const record = {
+    announcementRoleCount: 0,
+    hasRegistrationOptions: true,
+    icon: { iconColor: 0, iconName: 'circle' },
+    id: 'event-1',
+    start: '2026-07-15T14:30:00.000Z',
+    status: 'APPROVED',
+    title: 'Example event',
+  };
+
+  it('accepts absence and every explicit participant sign-up state', () => {
+    for (const userSignUpState of [
+      null,
+      'approvalPending',
+      'confirmed',
+      'paymentRequired',
+      'waitlisted',
+    ]) {
+      expect(() =>
+        Schema.decodeUnknownSync(EventsEventListRecord)({
+          ...record,
+          userSignUpState,
+        }),
+      ).not.toThrow();
+    }
+  });
+
+  it('rejects the former boolean and unknown sign-up states', () => {
+    for (const userSignUpState of [true, false, 'unknown']) {
+      expect(() =>
+        Schema.decodeUnknownSync(EventsEventListRecord)({
+          ...record,
+          userSignUpState,
         }),
       ).toThrow();
     }

@@ -21,7 +21,7 @@ const currentRoleInput = {
   description: 'Default tenant member',
   displayInHub: true,
   name: 'Member',
-  permissions: ['events:viewPublic', 'events:*'],
+  permissions: ['events:create', 'events:*'],
 };
 
 describe('admin role input schemas', () => {

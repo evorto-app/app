@@ -27,7 +27,6 @@ export async function addRoles(database: Database, tenant: { id: string }) {
           'events:create',
           'events:editAll',
           'events:seeDrafts',
-          'events:viewPublic',
           'templates:view',
           'internal:viewInternalPages',
         ],
@@ -40,7 +39,6 @@ export async function addRoles(database: Database, tenant: { id: string }) {
         name: 'Trial member',
         permissions: [
           'events:create',
-          'events:viewPublic',
           'templates:view',
           'internal:viewInternalPages',
         ],
@@ -50,11 +48,7 @@ export async function addRoles(database: Database, tenant: { id: string }) {
         description: 'Helpers of the section',
         id: createId(),
         name: 'Helper',
-        permissions: [
-          'events:viewPublic',
-          'templates:view',
-          'internal:viewInternalPages',
-        ],
+        permissions: ['templates:view', 'internal:viewInternalPages'],
         tenantId: tenant.id,
       },
       {
@@ -62,7 +56,7 @@ export async function addRoles(database: Database, tenant: { id: string }) {
         description: 'Default role for all users',
         id: createId(),
         name: 'Regular user',
-        permissions: ['events:viewPublic'],
+        permissions: [],
         tenantId: tenant.id,
       },
     ])

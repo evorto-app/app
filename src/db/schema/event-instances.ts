@@ -36,6 +36,7 @@ export const eventInstances = pgTable(
   'event_instances',
   {
     ...modelOfTenant,
+    announcementRoleIds: varchar({ length: 20 }).array().notNull().default([]),
     creatorId: varchar({ length: 20 })
       .notNull()
       .references(() => users.id),
@@ -53,8 +54,6 @@ export const eventInstances = pgTable(
       .notNull()
       .references(() => eventTemplates.id),
     title: text().notNull(),
-    // Unlisted events do not show up in public lists unless user has permission
-    unlisted: boolean().notNull().default(false),
   },
   (table) => [
     check(eventTimeOrderCheckName, sql`${table.start} < ${table.end}`),
