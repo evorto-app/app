@@ -1,0 +1,25 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "c907d16b18a9",
+  "strategy": "manual-commit",
+  "branch": "codex/relaunch-stack-assembly-20260904",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "tests/specs/resilience/core-load-recovery.spec.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/c9/07d16b18a9/0/metadata.json",
+      "transcript": "/c9/07d16b18a9/0/full.jsonl",
+      "content_hash": "/c9/07d16b18a9/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 294394,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 13864192,
+    "output_tokens": 45481,
+    "api_call_count": 125
+  }
+}
