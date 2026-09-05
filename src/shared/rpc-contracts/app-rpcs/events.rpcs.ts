@@ -927,26 +927,6 @@ export const EventsUpdateAnnouncementDiscovery = asRpcMutation(
   }),
 );
 
-export const EventsUpdateRegistrationOptionInput = Schema.Struct({
-  cancellationDeadlineHoursBeforeStart: NullablePolicyHoursInput,
-  closeRegistrationTime: Schema.NonEmptyString,
-  description: Schema.NullOr(Schema.NonEmptyString),
-  esnCardDiscountedPrice: Schema.optional(Schema.NullOr(nonNegativeNumber)),
-  id: Schema.NonEmptyString,
-  isPaid: Schema.Boolean,
-  openRegistrationTime: Schema.NonEmptyString,
-  organizingRegistration: Schema.Boolean,
-  price: nonNegativeNumber,
-  refundFeesOnCancellation: NullableRefundFeesInput,
-  registeredDescription: Schema.NullOr(Schema.NonEmptyString),
-  registrationMode: EventsRegistrationMode,
-  roleIds: Schema.Array(Schema.NonEmptyString),
-  spots: nonNegativeNumber,
-  stripeTaxRateId: Schema.optional(Schema.NullOr(Schema.NonEmptyString)),
-  title: Schema.NonEmptyString,
-  transferDeadlineHoursBeforeStart: NullablePolicyHoursInput,
-});
-
 export const EventGraphRegistrationOptionInput = Schema.Struct({
   cancellationDeadlineHoursBeforeStart: NullablePolicyHoursInput,
   closeRegistrationTime: Schema.NonEmptyString,
@@ -1096,25 +1076,6 @@ export const EventsUpdateGraph = asRpcMutation(
   }),
 );
 
-export const EventsUpdate = asRpcMutation(
-  Rpc.make('events.update', {
-    error: EventsUpdateRpcError,
-    payload: Schema.Struct({
-      description: Schema.NonEmptyString,
-      end: Schema.NonEmptyString,
-      eventId: Schema.NonEmptyString,
-      icon: iconSchema,
-      location: Schema.NullOr(EventLocation),
-      registrationOptions: Schema.Array(EventsUpdateRegistrationOptionInput),
-      start: Schema.NonEmptyString,
-      title: Schema.NonEmptyString,
-    }),
-    success: Schema.Struct({
-      id: Schema.NonEmptyString,
-    }),
-  }),
-);
-
 export class EventsRpcs extends RpcGroup.make(
   EventsApproveRegistration,
   EventsCancelPendingRegistration,
@@ -1139,7 +1100,6 @@ export class EventsRpcs extends RpcGroup.make(
   EventsRegistrationScanned,
   EventsReviewEvent,
   EventsSubmitForReview,
-  EventsUpdate,
   EventsUpdateGraph,
   EventsUpdateAnnouncementDiscovery,
   EventsUndoRegistrationAddonRedemption,
