@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  ErrorHandler,
   inject,
   signal,
 } from '@angular/core';
@@ -16,9 +17,27 @@ import {
 } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+import { firstReceiptCountry } from '@shared/finance/receipt-countries';
+import {
+  receiptFileAccept,
+  validateReceiptFileMetadata,
+} from '@shared/finance/receipt-media';
+import {
+  isFinanceReceiptCalendarDate,
+  validateFinanceReceiptAmounts,
+} from '@shared/finance/receipt-values';
 
 import { ReceiptFormFieldsComponent } from '../../finance/shared/receipt-form/receipt-form-fields.component';
 import { createReceiptForm } from '../../finance/shared/receipt-form/receipt-form.model';
+import { majorCurrencyInputToMinorUnits } from '../../shared/components/controls/currency-amount-input/currency-amount-input.component';
+
+export interface ReceiptSubmitDialogData {
+  countries: readonly string[];
+  defaultCountry: string;
+  save: (
+    result: ReceiptSubmitDialogResult,
+  ) => Promise<ReceiptSubmitSaveOutcome>;
+}
 
 export type ReceiptSubmitDialogPayloadResult =
   | {
@@ -38,7 +57,7 @@ export interface ReceiptSubmitDialogResult {
     hasAlcohol: boolean;
     hasDeposit: boolean;
     purchaseCountry: string;
-    receiptDate: Date;
+    receiptDate: string;
     taxAmount: number;
     totalAmount: number;
   };
@@ -51,13 +70,21 @@ export interface ReceiptSubmitFormValue {
   hasAlcohol: boolean;
   hasDeposit: boolean;
   purchaseCountry: string;
-  receiptDate: Date;
+  receiptDate: string;
   taxAmount: number;
   totalAmount: number;
 }
 
-const supportedReceiptFile = (file: File): boolean =>
-  file.type.startsWith('image/') || file.type === 'application/pdf';
+export type ReceiptSubmitSaveOutcome =
+  | { message: string; retryAllowed: boolean; submitted: false }
+  | { message?: string; submitted: true };
+
+const parseRequiredMinorUnits = (value: number): null | number => {
+  const parsed = majorCurrencyInputToMinorUnits(String(value), false);
+  return 'value' in parsed && typeof parsed.value === 'number'
+    ? parsed.value
+    : null;
+};
 
 export const receiptSubmitDialogResultFromFormValue = ({
   attachmentName,
@@ -74,14 +101,18 @@ export const receiptSubmitDialogResultFromFormValue = ({
 }): ReceiptSubmitDialogPayloadResult => {
   if (!file) {
     return {
-      errorMessage: 'Choose an image or PDF receipt file.',
+      errorMessage: 'Choose a receipt image or document.',
       result: null,
     };
   }
 
-  if (!supportedReceiptFile(file)) {
+  const fileValidationError = validateReceiptFileMetadata({
+    mimeType: file.type,
+    sizeBytes: file.size,
+  });
+  if (fileValidationError) {
     return {
-      errorMessage: 'Only image and PDF files are supported.',
+      errorMessage: fileValidationError,
       result: null,
     };
   }
@@ -100,26 +131,51 @@ export const receiptSubmitDialogResultFromFormValue = ({
     };
   }
 
-  const totalAmount = Math.round(formValue.totalAmount * 100);
-  const taxAmount = Math.round(formValue.taxAmount * 100);
-  const depositAmount = formValue.hasDeposit
-    ? Math.round(formValue.depositAmount * 100)
-    : 0;
-  const alcoholAmount = formValue.hasAlcohol
-    ? Math.round(formValue.alcoholAmount * 100)
-    : 0;
-
-  if (depositAmount + alcoholAmount > totalAmount) {
+  const totalAmount = parseRequiredMinorUnits(formValue.totalAmount);
+  const taxAmount = parseRequiredMinorUnits(formValue.taxAmount);
+  const depositAmount = parseRequiredMinorUnits(formValue.depositAmount);
+  const alcoholAmount = parseRequiredMinorUnits(formValue.alcoholAmount);
+  if (
+    totalAmount === null ||
+    taxAmount === null ||
+    depositAmount === null ||
+    alcoholAmount === null
+  ) {
     return {
-      errorMessage: 'Deposit and alcohol cannot exceed the total amount.',
+      errorMessage: 'Enter amounts with no more than two decimal places.',
       result: null,
     };
   }
 
-  const receiptDate = new Date(formValue.receiptDate);
-  if (Number.isNaN(receiptDate.getTime())) {
+  const amountError = validateFinanceReceiptAmounts({
+    alcoholAmount,
+    depositAmount,
+    hasAlcohol: formValue.hasAlcohol,
+    hasDeposit: formValue.hasDeposit,
+    taxAmount,
+    totalAmount,
+  });
+  if (amountError) {
+    const errorMessage = {
+      alcoholAmountOutOfRange: 'Alcohol amount is outside the allowed range.',
+      alcoholFlagContradiction:
+        'Alcohol amount must be positive when alcohol is included and zero otherwise.',
+      depositAmountOutOfRange: 'Deposit amount is outside the allowed range.',
+      depositAndAlcoholExceedTotal:
+        'Deposit and alcohol cannot exceed the total amount.',
+      depositFlagContradiction:
+        'Deposit amount must be positive when a deposit is included and zero otherwise.',
+      taxAmountExceedsTotal: 'Tax amount cannot exceed the total amount.',
+      taxAmountOutOfRange: 'Tax amount is outside the allowed range.',
+      totalAmountOutOfRange:
+        'Total amount must be at least 0.01 and within the allowed range.',
+    } as const;
+    return { errorMessage: errorMessage[amountError], result: null };
+  }
+
+  if (!isFinanceReceiptCalendarDate(formValue.receiptDate)) {
     return {
-      errorMessage: 'Invalid receipt date.',
+      errorMessage: 'Choose a valid receipt date.',
       result: null,
     };
   }
@@ -134,7 +190,7 @@ export const receiptSubmitDialogResultFromFormValue = ({
         hasAlcohol: formValue.hasAlcohol,
         hasDeposit: formValue.hasDeposit,
         purchaseCountry: formValue.purchaseCountry,
-        receiptDate,
+        receiptDate: formValue.receiptDate,
         taxAmount,
         totalAmount,
       },
@@ -161,10 +217,7 @@ export const receiptSubmitDialogResultFromFormValue = ({
 })
 export class ReceiptSubmitDialogComponent {
   protected readonly attachmentName = signal('');
-  protected readonly data = inject(MAT_DIALOG_DATA) as {
-    countries: string[];
-    defaultCountry: string;
-  };
+  protected readonly data = inject<ReceiptSubmitDialogData>(MAT_DIALOG_DATA);
   protected readonly errorMessage = signal('');
   protected readonly file = signal<File | null>(null);
   protected readonly formBuilder = inject(NonNullableFormBuilder);
@@ -172,18 +225,27 @@ export class ReceiptSubmitDialogComponent {
   private readonly defaultCountry =
     this.selectableCountries.find(
       (country) => country === this.data.defaultCountry,
-    ) ??
-    this.selectableCountries[0] ??
-    'DE';
+    ) ?? firstReceiptCountry(this.selectableCountries);
   protected readonly form = createReceiptForm(
     this.formBuilder,
     this.defaultCountry,
   );
+  protected readonly receiptFileAccept = receiptFileAccept;
+  protected readonly saving = signal(false);
+  protected readonly submissionConfirmed = signal(false);
+  protected readonly submissionUncertain = signal(false);
   private readonly dialogRef = inject(
     MatDialogRef<ReceiptSubmitDialogComponent, ReceiptSubmitDialogResult>,
   );
+  private readonly errorHandler = inject(ErrorHandler);
 
   protected clearFile(): void {
+    if (
+      this.saving() ||
+      this.submissionConfirmed() ||
+      this.submissionUncertain()
+    )
+      return;
     this.file.set(null);
     this.errorMessage.set('');
   }
@@ -199,8 +261,15 @@ export class ReceiptSubmitDialogComponent {
   }
 
   protected onFileSelected(event: Event): void {
-    const target = event.target as HTMLInputElement | undefined;
-    const selectedFile = target?.files?.[0] ?? null;
+    if (
+      this.saving() ||
+      this.submissionConfirmed() ||
+      this.submissionUncertain()
+    )
+      return;
+    const target = event.target;
+    if (!(target instanceof HTMLInputElement)) return;
+    const selectedFile = target.files?.[0] ?? null;
     this.file.set(selectedFile);
     this.errorMessage.set('');
     if (selectedFile && this.attachmentName().trim().length === 0) {
@@ -210,6 +279,12 @@ export class ReceiptSubmitDialogComponent {
 
   protected async onSubmit(event: Event): Promise<void> {
     event.preventDefault();
+    if (
+      this.saving() ||
+      this.submissionConfirmed() ||
+      this.submissionUncertain()
+    )
+      return;
     this.errorMessage.set('');
 
     const payload = receiptSubmitDialogResultFromFormValue({
@@ -227,10 +302,42 @@ export class ReceiptSubmitDialogComponent {
       return;
     }
 
-    this.dialogRef.close(payload.result);
+    if (!payload.result) return;
+    this.saving.set(true);
+    this.form.disable({ emitEvent: false });
+    const previousDisableClose = this.dialogRef.disableClose;
+    this.dialogRef.disableClose = true;
+    try {
+      const outcome = await this.data.save(payload.result);
+      this.submissionConfirmed.set(outcome.submitted);
+      this.submissionUncertain.set(!outcome.submitted && !outcome.retryAllowed);
+      this.errorMessage.set(outcome.message ?? '');
+      if (outcome.submitted && !outcome.message) {
+        this.dialogRef.close(payload.result);
+      }
+    } catch (error) {
+      this.submissionUncertain.set(!this.submissionConfirmed());
+      this.errorMessage.set(
+        this.submissionConfirmed()
+          ? 'The receipt was submitted, but this dialog could not be completed. Close it and load the event page again to see it.'
+          : 'The receipt submission outcome could not be confirmed. Your file and entries are still here. Close this dialog and load the event page again to check its receipts before trying again.',
+      );
+      this.errorHandler.handleError(error);
+    } finally {
+      this.saving.set(false);
+      this.dialogRef.disableClose = previousDisableClose;
+      if (!this.submissionConfirmed() && !this.submissionUncertain())
+        this.form.enable({ emitEvent: false });
+    }
   }
 
   protected updateAttachmentName(value: string): void {
+    if (
+      this.saving() ||
+      this.submissionConfirmed() ||
+      this.submissionUncertain()
+    )
+      return;
     this.attachmentName.set(value);
   }
 }

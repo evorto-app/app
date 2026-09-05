@@ -1507,7 +1507,7 @@ The previous owner can reopen the event at any time. **Transferred registrations
     body: `
 ## Operator recovery
 
-A platform administrator opens the affected organization, selects **Review finance**, and then opens **Refund recovery**. Find the failed refund by its event, amount, failed state, and related registration-transfer activity. Select **Review recovery**, enter the required operational reason, and choose **Retry failed refund**.
+A platform administrator opens the affected organization, selects **Review finance**, and then opens **Refunds needing attention**. Find the failed refund by its event, amount, failed state, and related registration-transfer activity. Select **Review refund**, enter the required **Reason for this action**, and choose **Try failed refund again**.
 
 Evorto keeps the failed Stripe refund in payment history, starts a new refund attempt for the same amount, and returns the participant page to **Transfer complete — refund processing**. Recovery never creates a second transfer, registration, payment, or refund obligation.
 `,
@@ -1527,7 +1527,9 @@ Evorto keeps the failed Stripe refund in payment history, starts a new refund at
       name: 'Organization finance',
     }),
   ).toBeVisible();
-  await operatorPage.page.getByRole('tab', { name: 'Refund recovery' }).click();
+  await operatorPage.page
+    .getByRole('tab', { name: 'Refunds needing attention' })
+    .click();
   const formattedFailedRefundAmount = new Intl.NumberFormat(
     TENANT_FORMATTING_LOCALE,
     {
@@ -1540,16 +1542,14 @@ Evorto keeps the failed Stripe refund in payment history, starts a new refund at
     .locator('div.border-b')
     .filter({ hasText: 'Paid transfer refund guide' })
     .filter({ hasText: formattedFailedRefundAmount })
-    .filter({ hasText: 'Related to a registration transfer' })
-    .filter({ hasText: 'Stripe marked the previous refund as failed.' });
+    .filter({ hasText: 'Related to a ticket transfer' })
+    .filter({ hasText: 'The previous refund failed.' });
   await expect(recoveryRow).toBeVisible({ timeout: 20_000 });
   await expect(recoveryRow).toHaveCount(1);
   await expect(recoveryRow).toContainText('Paid transfer refund guide');
   await expect(recoveryRow).toContainText(formattedFailedRefundAmount);
-  await expect(recoveryRow).toContainText('Related to a registration transfer');
-  await expect(recoveryRow).toContainText(
-    'Stripe marked the previous refund as failed.',
-  );
+  await expect(recoveryRow).toContainText('Related to a ticket transfer');
+  await expect(recoveryRow).toContainText('The previous refund failed.');
   for (const hiddenIdentifier of [
     scenario.transferId,
     registrationRefundPlan.id,
@@ -1559,10 +1559,10 @@ Evorto keeps the failed Stripe refund in payment history, starts a new refund at
     await expect(platformFinance).not.toContainText(hiddenIdentifier);
   }
   await expect(platformFinance).not.toContainText(rawProviderError);
-  await recoveryRow.getByRole('button', { name: 'Review recovery' }).click();
+  await recoveryRow.getByRole('button', { name: 'Review refund' }).click();
   const refundRecoveryHeading = operatorPage.page.getByRole('heading', {
     level: 2,
-    name: 'Retry failed refund',
+    name: 'Try failed refund again',
   });
   await expect(refundRecoveryHeading).toBeVisible();
   const refundRecoveryForm = refundRecoveryHeading.locator('..');
@@ -1576,15 +1576,13 @@ Evorto keeps the failed Stripe refund in payment history, starts a new refund at
     refundRecoveryForm.getByText('Amount', { exact: true }).locator('..'),
   ).toContainText(formattedFailedRefundAmount);
   await expect(
-    refundRecoveryForm
-      .getByText('Safe next step', { exact: true })
-      .locator('..'),
-  ).toContainText('Retry this failed refund');
+    refundRecoveryForm.getByText('Next step', { exact: true }).locator('..'),
+  ).toContainText('Try this refund again');
   await expect(
     refundRecoveryForm
       .getByText('Related activity', { exact: true })
       .locator('..'),
-  ).toContainText('Registration transfer');
+  ).toContainText('Ticket transfer');
   for (const hiddenIdentifier of [
     scenario.transferId,
     registrationRefundPlan.id,
@@ -1595,7 +1593,7 @@ Evorto keeps the failed Stripe refund in payment history, starts a new refund at
   }
   await expect(refundRecoveryForm).not.toContainText(rawProviderError);
   const refundRecoveryReason = refundRecoveryForm.getByLabel(
-    'Operational recovery reason',
+    'Reason for this action',
   );
   await refundRecoveryReason.fill(operatorRecoveryReason);
   await expect(refundRecoveryReason).toHaveValue(operatorRecoveryReason);
@@ -1606,19 +1604,19 @@ Evorto keeps the failed Stripe refund in payment history, starts a new refund at
     'Review and retry one failed refund',
   );
   const scheduleNewRefundGeneration = refundRecoveryForm.getByRole('button', {
-    name: 'Retry failed refund',
+    name: 'Try failed refund again',
   });
   await expect(scheduleNewRefundGeneration).toBeEnabled();
   await scheduleNewRefundGeneration.click();
   await expect(
-    operatorPage.page.getByText('Failed refund scheduled for retry', {
+    operatorPage.page.getByText('The refund will be tried again', {
       exact: true,
     }),
   ).toBeVisible({ timeout: 20_000 });
   await expect(
     operatorPage.page.getByRole('heading', {
       level: 2,
-      name: 'Retry failed refund',
+      name: 'Try failed refund again',
     }),
   ).toHaveCount(0);
   await openRegistrationTransferClaim(recipientPage.page, scenario.claimCode);

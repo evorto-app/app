@@ -7,8 +7,6 @@ import {
 } from '@angular/core';
 import { ReactiveFormsModule } from '@angular/forms';
 import { MatCheckboxModule } from '@angular/material/checkbox';
-import { MatNativeDateModule } from '@angular/material/core';
-import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
@@ -24,10 +22,8 @@ import { ReceiptFormGroup } from './receipt-form.model';
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     MatCheckboxModule,
-    MatDatepickerModule,
     MatFormFieldModule,
     MatInputModule,
-    MatNativeDateModule,
     MatSelectModule,
     ReactiveFormsModule,
   ],
@@ -39,6 +35,15 @@ export class ReceiptFormFieldsComponent {
   readonly currencyCode = input(this.defaultCurrencyCode);
   readonly form = input.required<ReceiptFormGroup>();
   readonly selectableCountries = input.required<readonly string[]>();
+
+  protected clearExcludedAmount(
+    field: 'alcoholAmount' | 'depositAmount',
+    included: boolean,
+  ): void {
+    if (!included) {
+      this.form().controls[field].setValue(0);
+    }
+  }
 
   protected countryLabel(countryCode: string): string {
     if (countryCode === OTHER_RECEIPT_COUNTRY_CODE) {

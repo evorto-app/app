@@ -1,13 +1,7 @@
 <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
   <mat-form-field>
     <mat-label>Receipt date</mat-label>
-    <input
-      matInput
-      [matDatepicker]="receiptDatePicker"
-      [formControl]="form().controls.receiptDate"
-    />
-    <mat-datepicker-toggle matIconSuffix [for]="receiptDatePicker" />
-    <mat-datepicker #receiptDatePicker />
+    <input matInput type="date" [formControl]="form().controls.receiptDate" />
   </mat-form-field>
 
   <mat-form-field>
@@ -25,7 +19,7 @@
     <mat-label>Total amount ({{ currencyCode() }})</mat-label>
     <input
       matInput
-      min="0"
+      min="0.01"
       step="0.01"
       type="number"
       [formControl]="form().controls.totalAmount"
@@ -46,7 +40,10 @@
 
 <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
   <div class="grid gap-2">
-    <mat-checkbox [formControl]="form().controls.hasDeposit">
+    <mat-checkbox
+      [formControl]="form().controls.hasDeposit"
+      (change)="clearExcludedAmount('depositAmount', $event.checked)"
+    >
       Deposit involved
     </mat-checkbox>
     @if (form().controls.hasDeposit.value) {
@@ -64,7 +61,10 @@
   </div>
 
   <div class="grid gap-2">
-    <mat-checkbox [formControl]="form().controls.hasAlcohol">
+    <mat-checkbox
+      [formControl]="form().controls.hasAlcohol"
+      (change)="clearExcludedAmount('alcoholAmount', $event.checked)"
+    >
       Alcohol purchased
     </mat-checkbox>
     @if (form().controls.hasAlcohol.value) {

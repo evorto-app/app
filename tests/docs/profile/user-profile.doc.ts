@@ -9,15 +9,13 @@ import {
 import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
-import {
-  seedProfileEventCards,
-  type SeededProfileEventCards,
-} from '../../support/utils/profile-event-cards';
+import { seedProfileEventCards } from '../../support/utils/profile-event-cards';
 
 test.use({ storageState: defaultStateFile });
 
 test('Manage user profile', async ({
   database,
+  registerDatabaseCleanup,
   page,
   seedDate,
   seeded,
@@ -39,7 +37,7 @@ test('Manage user profile', async ({
   const documentedPaypalEmail = `profile-docs-paypal-${seedDate.getTime()}@evorto.app`;
   const profileReceiptId = getId();
   const profileReceiptFileName = `profile-docs-receipt-${seedDate.getTime()}.pdf`;
-  let profileReceiptUploadId: string | undefined;
+  const profileReceiptUploadId = getId();
   const profileEventId = seeded.scenario.events.freeOpen.eventId;
   const profileEvent = seeded.events.find(
     (event) => event.id === profileEventId,
@@ -47,16 +45,38 @@ test('Manage user profile', async ({
   if (!profileEvent) {
     throw new Error('Expected seeded free profile event');
   }
-  let profileEventCards: SeededProfileEventCards | undefined;
-
-  try {
-    profileEventCards = await seedProfileEventCards({
+  registerDatabaseCleanup(async (cleanupDatabase) => {
+    await cleanupDatabase
+      .delete(schema.financeReceiptUploads)
+      .where(eq(schema.financeReceiptUploads.id, profileReceiptUploadId));
+  });
+  registerDatabaseCleanup(async (cleanupDatabase) => {
+    await cleanupDatabase
+      .delete(schema.financeReceipts)
+      .where(eq(schema.financeReceipts.id, profileReceiptId));
+  });
+  registerDatabaseCleanup(async (cleanupDatabase) => {
+    await cleanupDatabase
+      .update(schema.users)
+      .set({
+        communicationEmail: originalUser.communicationEmail,
+        firstName: originalUser.firstName,
+        iban: originalUser.iban,
+        lastName: originalUser.lastName,
+        paypalEmail: originalUser.paypalEmail,
+      })
+      .where(eq(schema.users.id, profileUser.id));
+  });
+  {
+    const profileEventCards = await seedProfileEventCards({
       database,
       seedDate,
       seeded,
       userId: profileUser.id,
     });
-    profileReceiptUploadId = await addConsumedFinanceReceiptUpload(database, {
+    registerDatabaseCleanup(profileEventCards.cleanup);
+    await addConsumedFinanceReceiptUpload(database, {
+      uploadId: profileReceiptUploadId,
       eventId: profileEventId,
       fileName: profileReceiptFileName,
       mimeType: 'application/pdf',
@@ -65,15 +85,17 @@ test('Manage user profile', async ({
       uploadedByUserId: profileUser.id,
     });
     await database.insert(schema.financeReceipts).values({
+      alcoholAmount: 0,
       attachmentFileName: profileReceiptFileName,
-      attachmentMimeType: 'application/pdf',
-      attachmentSizeBytes: 2048,
       attachmentUploadId: profileReceiptUploadId,
       currency: seeded.tenant.currency,
+      depositAmount: 0,
       eventId: profileEventId,
+      hasAlcohol: false,
+      hasDeposit: false,
       id: profileReceiptId,
       purchaseCountry: 'DE',
-      receiptDate: seedDate,
+      receiptDate: seedDate.toISOString().slice(0, 10),
       status: 'submitted',
       submittedByUserId: profileUser.id,
       taxAmount: 300,
@@ -482,25 +504,5 @@ The user profile now uses a two-column layout:
       page,
       'Profile receipts tab',
     );
-  } finally {
-    await database
-      .update(schema.users)
-      .set({
-        communicationEmail: originalUser.communicationEmail,
-        firstName: originalUser.firstName,
-        iban: originalUser.iban,
-        lastName: originalUser.lastName,
-        paypalEmail: originalUser.paypalEmail,
-      })
-      .where(eq(schema.users.id, profileUser.id));
-    await database
-      .delete(schema.financeReceipts)
-      .where(eq(schema.financeReceipts.id, profileReceiptId));
-    if (profileReceiptUploadId) {
-      await database
-        .delete(schema.financeReceiptUploads)
-        .where(eq(schema.financeReceiptUploads.id, profileReceiptUploadId));
-    }
-    await profileEventCards?.cleanup();
   }
 });
