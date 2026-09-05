@@ -113,7 +113,7 @@ test('Manage one organization and review change history', async ({
       );
   });
 
-  let receiptUploadId: string | undefined;
+  const receiptUploadId = getId();
   let temporaryRecordsInserted = false;
 
   const expectPersistedAudit = async (
@@ -199,18 +199,15 @@ test('Manage one organization and review change history', async ({
       );
   });
 
-  const createdReceiptUploadId = await addConsumedFinanceReceiptUpload(
-    database,
-    {
-      eventId: checkInEvent.id,
-      fileName: receiptFileName,
-      mimeType: 'application/pdf',
-      sizeBytes: 2048,
-      tenantId: tenant.id,
-      uploadedByUserId: assignmentScenario.user.id,
-    },
-  );
-  receiptUploadId = createdReceiptUploadId;
+  await addConsumedFinanceReceiptUpload(database, {
+    eventId: checkInEvent.id,
+    fileName: receiptFileName,
+    uploadId: receiptUploadId,
+    mimeType: 'application/pdf',
+    sizeBytes: 2048,
+    tenantId: tenant.id,
+    uploadedByUserId: assignmentScenario.user.id,
+  });
   await database.transaction(async (transaction) => {
     await transaction
       .update(schema.eventInstances)
@@ -224,9 +221,7 @@ test('Manage one organization and review change history', async ({
     await transaction.insert(schema.financeReceipts).values({
       alcoholAmount: 0,
       attachmentFileName: receiptFileName,
-      attachmentMimeType: 'application/pdf',
-      attachmentSizeBytes: 2048,
-      attachmentUploadId: createdReceiptUploadId,
+      attachmentUploadId: receiptUploadId,
       currency: tenant.currency,
       depositAmount: 0,
       eventId: checkInEvent.id,
@@ -234,7 +229,7 @@ test('Manage one organization and review change history', async ({
       hasDeposit: false,
       id: receiptId,
       purchaseCountry: 'DE',
-      receiptDate: seedDate,
+      receiptDate: seedDate.toISOString().slice(0, 10),
       status: 'submitted',
       submittedByUserId: assignmentScenario.user.id,
       taxAmount: 100,
@@ -506,18 +501,21 @@ To remove that role, select **Manage roles** again, deselect it in **Assigned ro
     body: `
 ## Reject an unverifiable receipt
 
-Return to the organization, choose **Review finance**, and open **Receipt approval**. Select the submitted receipt. When its stored evidence is unavailable, approval stays disabled, but rejection remains available. Choose **Reject**, enter a participant-facing **Rejection reason**, then enter a separate **Platform operational reason** for the change history. Select **Save decision**.
+Return to the organization, choose **Review finance**, and open **Receipt approval**. Select the submitted receipt. When its stored evidence is unavailable, approval stays disabled, but rejection remains available. Choose **Reject**, enter a participant-facing **Rejection reason**, then enter a separate **Reason for this decision** for the change history. Select **Save decision**.
 
 This action records a decision and schedules a receipt-review notification; it does not reimburse the member or transfer money. Reimbursement, refund recovery, and Stripe tax-rate import are separate operations and are not performed by this walkthrough.
 `,
   });
   await expect(
-    page.getByText('Receipt evidence is unavailable.', { exact: false }),
+    page.getByText(
+      'The uploaded receipt file is unavailable. Approval is disabled until it can be checked. You can still reject this receipt.',
+      { exact: true },
+    ),
   ).toBeVisible();
   await page.getByRole('combobox', { name: 'Decision' }).click();
   await page.getByRole('option', { exact: true, name: 'Reject' }).click();
   await page.getByLabel('Rejection reason').fill(rejectionReason);
-  await page.getByLabel('Platform operational reason').fill(receiptReason);
+  await page.getByLabel('Reason for this decision').fill(receiptReason);
   await takeScreenshot(
     testInfo,
     platformFinance,

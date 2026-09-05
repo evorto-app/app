@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from '@effect/vitest';
+import { RpcBadRequestError } from '@shared/errors/rpc-errors';
+import { resolveFinanceReimbursementBatch } from '@shared/finance/reimbursement';
 import {
   PlatformFinanceReceiptApprovalDetail,
   PlatformFinanceReceiptApprovalDetailRecord,
@@ -23,7 +25,7 @@ import * as Headers from 'effect/unstable/http/Headers';
 import { Rpc, RpcMessage } from 'effect/unstable/rpc';
 import { readFileSync } from 'node:fs';
 
-import { tenants } from '../../../../../db/schema';
+import { eventInstances, tenants, users } from '../../../../../db/schema';
 import { PlatformAdministratorAuthority } from '../../../../../types/custom/platform-authority';
 import { Tenant } from '../../../../../types/custom/tenant';
 import { RegistrationRefundRequeueError } from '../../../../payments/registration-refund';
@@ -42,7 +44,6 @@ import {
   platformTenantFinanceHandlers,
   refundRecoveryAuditSnapshot,
   reimbursementAuditSnapshot,
-  resolvePlatformReimbursementCurrency,
   toPlatformFinanceTransactionRecord,
   toRefundRecoveryRecord,
 } from './platform-tenant-finance.handlers';
@@ -60,10 +61,8 @@ const receiptWithSubmitterInput = (
   hasAlcohol: false,
   hasDeposit: false,
   id: 'receipt-1',
-  previewImageUrl: 'https://example.test/receipt.pdf',
   purchaseCountry: 'DE',
   receiptDate: '2026-07-09',
-  receiptEvidenceAvailable: true,
   refundedAt: null,
   refundTransactionId: null,
   rejectionReason: null,
@@ -132,7 +131,6 @@ const submittedReceiptEvidence = {
   attachmentFileName: 'receipt.pdf',
   attachmentMimeType: 'application/pdf',
   attachmentStorageKey: 'receipts/tenant-1/event-1/user-1/upload-1-receipt.pdf',
-  attachmentStorageUrl: 'https://storage.example.test/receipt.pdf',
   attachmentUploadConsumedAt: new Date('2026-07-10T08:00:00.000Z'),
   attachmentUploadedAt: new Date('2026-07-10T07:59:00.000Z'),
   attachmentUploadedByUserId: 'user-1',
@@ -147,9 +145,8 @@ const submittedReceiptEvidence = {
   hasAlcohol: false,
   hasDeposit: false,
   id: 'receipt-1',
-  previewImageUrl: null,
   purchaseCountry: 'DE',
-  receiptDate: new Date('2026-07-09T00:00:00.000Z'),
+  receiptDate: '2026-07-09',
   refundedAt: null,
   refundTransactionId: null,
   rejectionReason: null,
@@ -165,12 +162,72 @@ const submittedReceiptEvidence = {
 const platformTargetTenantSql =
   'select "d0"."cancellation_deadline_hours_before_start" as "cancellationDeadlineHoursBeforeStart", "d0"."createdAt"::text as "createdAt", "d0"."currency" as "currency", "d0"."default_location" as "defaultLocation", "d0"."discount_providers" as "discountProviders", "d0"."domain" as "domain", "d0"."email_sender_email" as "emailSenderEmail", "d0"."email_sender_name" as "emailSenderName", "d0"."favicon_url" as "faviconUrl", "d0"."id" as "id", "d0"."legal_notice_text" as "legalNoticeText", "d0"."legal_notice_url" as "legalNoticeUrl", "d0"."logo_url" as "logoUrl", "d0"."max_active_registrations_per_user" as "maxActiveRegistrationsPerUser", "d0"."name" as "name", "d0"."receipt_settings" as "receiptSettings", "d0"."refund_fees_on_cancellation" as "refundFeesOnCancellation", "d0"."seoDescription" as "seoDescription", "d0"."seoTitle" as "seoTitle", "d0"."stripeAccountId" as "stripeAccountId", "d0"."terms_text" as "termsText", "d0"."terms_url" as "termsUrl", "d0"."theme" as "theme", "d0"."timezone" as "timezone", "d0"."transfer_deadline_hours_before_start" as "transferDeadlineHoursBeforeStart", "d0"."updatedAt"::text as "updatedAt" from "tenants" as "d0" where "d0"."id" = $1 limit $2';
 const receiptApprovalEvidenceSql =
-  'select "finance_receipts"."alcoholAmount", "finance_receipts"."attachmentFileName", "finance_receipt_uploads"."mimeType", "finance_receipt_uploads"."storageKey", "finance_receipt_uploads"."storageUrl", "finance_receipt_uploads"."consumedAt"::text, "finance_receipt_uploads"."uploadedAt"::text, "finance_receipt_uploads"."uploadedByUserId", "finance_receipt_uploads"."eventId", "finance_receipt_uploads"."id", "finance_receipt_uploads"."status", "finance_receipt_uploads"."tenantId", "finance_receipts"."createdAt"::text, "finance_receipts"."currency", "finance_receipts"."depositAmount", "finance_receipts"."eventId", "finance_receipts"."hasAlcohol", "finance_receipts"."hasDeposit", "finance_receipts"."id", "finance_receipts"."previewImageUrl", "finance_receipts"."purchaseCountry", "finance_receipts"."receiptDate"::text, "finance_receipts"."refundedAt"::text, "finance_receipts"."refundTransactionId", "finance_receipts"."rejectionReason", "finance_receipts"."reviewedAt"::text, "finance_receipts"."status", "finance_receipts"."submittedByUserId", "finance_receipts"."taxAmount", "finance_receipts"."tenantId", "finance_receipts"."totalAmount", "finance_receipts"."updatedAt"::text from "finance_receipts" inner join "finance_receipt_uploads" on (("finance_receipts"."attachmentUploadId" = "finance_receipt_uploads"."id") and ("finance_receipts"."tenantId" = "finance_receipt_uploads"."tenantId") and ("finance_receipts"."eventId" = "finance_receipt_uploads"."eventId") and ("finance_receipts"."submittedByUserId" = "finance_receipt_uploads"."uploadedByUserId")) where (("finance_receipts"."id" = $1) and ("finance_receipts"."tenantId" = $2)) limit $3';
+  'select "finance_receipts"."alcoholAmount", "finance_receipts"."attachmentFileName", "finance_receipt_uploads"."mimeType", "finance_receipt_uploads"."storageKey", "finance_receipt_uploads"."consumedAt"::text, "finance_receipt_uploads"."uploadedAt"::text, "finance_receipt_uploads"."uploadedByUserId", "finance_receipt_uploads"."eventId", "finance_receipt_uploads"."id", "finance_receipt_uploads"."status", "finance_receipt_uploads"."tenantId", "finance_receipts"."createdAt"::text, "finance_receipts"."currency", "finance_receipts"."depositAmount", "finance_receipts"."eventId", "finance_receipts"."hasAlcohol", "finance_receipts"."hasDeposit", "finance_receipts"."id", "finance_receipts"."purchaseCountry", "finance_receipts"."receiptDate"::text, "finance_receipts"."refundedAt"::text, "finance_receipts"."refundTransactionId", "finance_receipts"."rejectionReason", "finance_receipts"."reviewedAt"::text, "finance_receipts"."status", "finance_receipts"."submittedByUserId", "finance_receipts"."taxAmount", "finance_receipts"."tenantId", "finance_receipts"."totalAmount", "finance_receipts"."updatedAt"::text from "finance_receipts" inner join "finance_receipt_uploads" on (("finance_receipts"."attachmentUploadId" = "finance_receipt_uploads"."id") and ("finance_receipts"."tenantId" = "finance_receipt_uploads"."tenantId") and ("finance_receipts"."eventId" = "finance_receipt_uploads"."eventId") and ("finance_receipts"."submittedByUserId" = "finance_receipt_uploads"."uploadedByUserId")) where (("finance_receipts"."id" = $1) and ("finance_receipts"."tenantId" = $2)) limit $3';
+
+const receiptApprovalDetailSql =
+  'select "finance_receipts"."alcoholAmount", "finance_receipts"."attachmentFileName", "finance_receipt_uploads"."mimeType", "finance_receipt_uploads"."storageKey", "finance_receipt_uploads"."consumedAt"::text, "finance_receipt_uploads"."uploadedAt"::text, "finance_receipt_uploads"."uploadedByUserId", "finance_receipt_uploads"."eventId", "finance_receipt_uploads"."id", "finance_receipt_uploads"."status", "finance_receipt_uploads"."tenantId", "finance_receipts"."createdAt"::text, "finance_receipts"."currency", "finance_receipts"."depositAmount", "finance_receipts"."eventId", "finance_receipts"."hasAlcohol", "finance_receipts"."hasDeposit", "finance_receipts"."id", "finance_receipts"."purchaseCountry", "finance_receipts"."receiptDate"::text, "finance_receipts"."refundedAt"::text, "finance_receipts"."refundTransactionId", "finance_receipts"."rejectionReason", "finance_receipts"."reviewedAt"::text, "finance_receipts"."status", "finance_receipts"."submittedByUserId", "finance_receipts"."taxAmount", "finance_receipts"."tenantId", "finance_receipts"."totalAmount", "finance_receipts"."updatedAt"::text, "event_instances"."start"::text, "event_instances"."title", "users"."communicationEmail", "users"."email", "users"."firstName", "users"."lastName" from "finance_receipts" inner join "finance_receipt_uploads" on (("finance_receipts"."attachmentUploadId" = "finance_receipt_uploads"."id") and ("finance_receipts"."tenantId" = "finance_receipt_uploads"."tenantId") and ("finance_receipts"."eventId" = "finance_receipt_uploads"."eventId") and ("finance_receipts"."submittedByUserId" = "finance_receipt_uploads"."uploadedByUserId")) inner join "event_instances" on (("event_instances"."id" = "finance_receipts"."eventId") and ("event_instances"."tenantId" = $1)) inner join "users" on "users"."id" = "finance_receipts"."submittedByUserId" where (("finance_receipts"."id" = $2) and ("finance_receipts"."tenantId" = $3)) limit $4';
+const receiptApprovalQueueSql =
+  'select "finance_receipts"."alcoholAmount", "finance_receipts"."attachmentFileName", "finance_receipt_uploads"."mimeType", "finance_receipt_uploads"."storageKey", "finance_receipt_uploads"."consumedAt"::text, "finance_receipt_uploads"."uploadedAt"::text, "finance_receipt_uploads"."uploadedByUserId", "finance_receipt_uploads"."eventId", "finance_receipt_uploads"."id", "finance_receipt_uploads"."status", "finance_receipt_uploads"."tenantId", "finance_receipts"."createdAt"::text, "finance_receipts"."currency", "finance_receipts"."depositAmount", "finance_receipts"."eventId", "finance_receipts"."hasAlcohol", "finance_receipts"."hasDeposit", "finance_receipts"."id", "finance_receipts"."purchaseCountry", "finance_receipts"."receiptDate"::text, "finance_receipts"."refundedAt"::text, "finance_receipts"."refundTransactionId", "finance_receipts"."rejectionReason", "finance_receipts"."reviewedAt"::text, "finance_receipts"."status", "finance_receipts"."submittedByUserId", "finance_receipts"."taxAmount", "finance_receipts"."tenantId", "finance_receipts"."totalAmount", "finance_receipts"."updatedAt"::text, "event_instances"."start"::text, "event_instances"."title", "users"."communicationEmail", "users"."email", "users"."firstName", "users"."lastName" from "finance_receipts" inner join "finance_receipt_uploads" on (("finance_receipts"."attachmentUploadId" = "finance_receipt_uploads"."id") and ("finance_receipts"."tenantId" = "finance_receipt_uploads"."tenantId") and ("finance_receipts"."eventId" = "finance_receipt_uploads"."eventId") and ("finance_receipts"."submittedByUserId" = "finance_receipt_uploads"."uploadedByUserId")) inner join "event_instances" on (("event_instances"."id" = "finance_receipts"."eventId") and ("event_instances"."tenantId" = $1)) inner join "users" on "users"."id" = "finance_receipts"."submittedByUserId" where (("finance_receipts"."tenantId" = $2) and ("finance_receipts"."status" = $3)) order by "event_instances"."start" desc, "finance_receipts"."createdAt" desc';
+const receiptReimbursementQueueSql =
+  'select "finance_receipts"."alcoholAmount", "finance_receipts"."attachmentFileName", "finance_receipt_uploads"."mimeType", "finance_receipt_uploads"."storageKey", "finance_receipt_uploads"."consumedAt"::text, "finance_receipt_uploads"."uploadedAt"::text, "finance_receipt_uploads"."uploadedByUserId", "finance_receipt_uploads"."eventId", "finance_receipt_uploads"."id", "finance_receipt_uploads"."status", "finance_receipt_uploads"."tenantId", "finance_receipts"."createdAt"::text, "finance_receipts"."currency", "finance_receipts"."depositAmount", "finance_receipts"."eventId", "finance_receipts"."hasAlcohol", "finance_receipts"."hasDeposit", "finance_receipts"."id", "finance_receipts"."purchaseCountry", "finance_receipts"."receiptDate"::text, "finance_receipts"."refundedAt"::text, "finance_receipts"."refundTransactionId", "finance_receipts"."rejectionReason", "finance_receipts"."reviewedAt"::text, "finance_receipts"."status", "finance_receipts"."submittedByUserId", "finance_receipts"."taxAmount", "finance_receipts"."tenantId", "finance_receipts"."totalAmount", "finance_receipts"."updatedAt"::text, "event_instances"."start"::text, "event_instances"."title", "users"."iban", "users"."paypalEmail", "users"."communicationEmail", "users"."email", "users"."firstName", "users"."lastName" from "finance_receipts" inner join "finance_receipt_uploads" on (("finance_receipts"."attachmentUploadId" = "finance_receipt_uploads"."id") and ("finance_receipts"."tenantId" = "finance_receipt_uploads"."tenantId") and ("finance_receipts"."eventId" = "finance_receipt_uploads"."eventId") and ("finance_receipts"."submittedByUserId" = "finance_receipt_uploads"."uploadedByUserId")) inner join "event_instances" on (("event_instances"."id" = "finance_receipts"."eventId") and ("event_instances"."tenantId" = $1)) inner join "users" on "users"."id" = "finance_receipts"."submittedByUserId" where (("finance_receipts"."tenantId" = $2) and ("finance_receipts"."status" = $3)) order by "users"."lastName", "users"."firstName", "finance_receipts"."createdAt" desc';
 
 const financeDatabaseTimestamp = (value: Date | null) =>
   value === null
     ? null
     : value.toISOString().replace('T', ' ').replace('Z', '');
+
+const receiptEvidenceValues = (receipt: ReceiptEvidenceRow) => [
+  receipt.alcoholAmount,
+  receipt.attachmentFileName,
+  receipt.attachmentMimeType,
+  receipt.attachmentStorageKey,
+  financeDatabaseTimestamp(receipt.attachmentUploadConsumedAt),
+  financeDatabaseTimestamp(receipt.attachmentUploadedAt),
+  receipt.attachmentUploadedByUserId,
+  receipt.attachmentUploadEventId,
+  receipt.attachmentUploadId,
+  receipt.attachmentUploadStatus,
+  receipt.attachmentUploadTenantId,
+  financeDatabaseTimestamp(receipt.createdAt),
+  receipt.currency,
+  receipt.depositAmount,
+  receipt.eventId,
+  receipt.hasAlcohol,
+  receipt.hasDeposit,
+  receipt.id,
+  receipt.purchaseCountry,
+  receipt.receiptDate,
+  financeDatabaseTimestamp(receipt.refundedAt),
+  receipt.refundTransactionId,
+  receipt.rejectionReason,
+  financeDatabaseTimestamp(receipt.reviewedAt),
+  receipt.status,
+  receipt.submittedByUserId,
+  receipt.taxAmount,
+  receipt.tenantId,
+  receipt.totalAmount,
+  financeDatabaseTimestamp(receipt.updatedAt),
+];
+
+const receiptReadContext = {
+  eventStart: new Date('2026-07-20T10:00:00.000Z'),
+  eventTitle: 'Welcome dinner',
+  recipientIban: 'DE89370400440532013000',
+  recipientPaypalEmail: 'participant@example.test',
+  submittedByCommunicationEmail: '',
+  submittedByEmail: 'participant@example.test',
+  submittedByFirstName: 'Pat',
+  submittedByLastName: 'Example',
+} satisfies {
+  eventStart: GetColumnData<typeof eventInstances.start>;
+  eventTitle: GetColumnData<typeof eventInstances.title>;
+  recipientIban: GetColumnData<typeof users.iban>;
+  recipientPaypalEmail: GetColumnData<typeof users.paypalEmail>;
+  submittedByCommunicationEmail: GetColumnData<typeof users.communicationEmail>;
+  submittedByEmail: GetColumnData<typeof users.email>;
+  submittedByFirstName: GetColumnData<typeof users.firstName>;
+  submittedByLastName: GetColumnData<typeof users.lastName>;
+};
 
 const createReceiptApprovalDatabase = () => {
   const targetTenantRecord = {
@@ -241,44 +298,47 @@ const createReceiptApprovalDatabase = () => {
             targetTenant.id,
             1,
           ]);
+          return [receiptEvidenceValues(submittedReceiptEvidence)];
+        }
+        if (
+          statement === receiptApprovalDetailSql ||
+          statement === receiptApprovalQueueSql ||
+          statement === receiptReimbursementQueueSql
+        ) {
+          const reimbursement = statement === receiptReimbursementQueueSql;
+          expect(parameters).toEqual(
+            statement === receiptApprovalDetailSql
+              ? [
+                  targetTenant.id,
+                  submittedReceiptEvidence.id,
+                  targetTenant.id,
+                  1,
+                ]
+              : [
+                  targetTenant.id,
+                  targetTenant.id,
+                  reimbursement ? 'approved' : 'submitted',
+                ],
+          );
+          const receipt: ReceiptEvidenceRow = {
+            ...submittedReceiptEvidence,
+            status: reimbursement ? 'approved' : 'submitted',
+          };
           return [
             [
-              submittedReceiptEvidence.alcoholAmount,
-              submittedReceiptEvidence.attachmentFileName,
-              submittedReceiptEvidence.attachmentMimeType,
-              submittedReceiptEvidence.attachmentStorageKey,
-              submittedReceiptEvidence.attachmentStorageUrl,
-              financeDatabaseTimestamp(
-                submittedReceiptEvidence.attachmentUploadConsumedAt,
-              ),
-              financeDatabaseTimestamp(
-                submittedReceiptEvidence.attachmentUploadedAt,
-              ),
-              submittedReceiptEvidence.attachmentUploadedByUserId,
-              submittedReceiptEvidence.attachmentUploadEventId,
-              submittedReceiptEvidence.attachmentUploadId,
-              submittedReceiptEvidence.attachmentUploadStatus,
-              submittedReceiptEvidence.attachmentUploadTenantId,
-              financeDatabaseTimestamp(submittedReceiptEvidence.createdAt),
-              submittedReceiptEvidence.currency,
-              submittedReceiptEvidence.depositAmount,
-              submittedReceiptEvidence.eventId,
-              submittedReceiptEvidence.hasAlcohol,
-              submittedReceiptEvidence.hasDeposit,
-              submittedReceiptEvidence.id,
-              submittedReceiptEvidence.previewImageUrl,
-              submittedReceiptEvidence.purchaseCountry,
-              financeDatabaseTimestamp(submittedReceiptEvidence.receiptDate),
-              financeDatabaseTimestamp(submittedReceiptEvidence.refundedAt),
-              submittedReceiptEvidence.refundTransactionId,
-              submittedReceiptEvidence.rejectionReason,
-              financeDatabaseTimestamp(submittedReceiptEvidence.reviewedAt),
-              submittedReceiptEvidence.status,
-              submittedReceiptEvidence.submittedByUserId,
-              submittedReceiptEvidence.taxAmount,
-              submittedReceiptEvidence.tenantId,
-              submittedReceiptEvidence.totalAmount,
-              financeDatabaseTimestamp(submittedReceiptEvidence.updatedAt),
+              ...receiptEvidenceValues(receipt),
+              financeDatabaseTimestamp(receiptReadContext.eventStart),
+              receiptReadContext.eventTitle,
+              ...(reimbursement
+                ? [
+                    receiptReadContext.recipientIban,
+                    receiptReadContext.recipientPaypalEmail,
+                  ]
+                : []),
+              receiptReadContext.submittedByCommunicationEmail,
+              receiptReadContext.submittedByEmail,
+              receiptReadContext.submittedByFirstName,
+              receiptReadContext.submittedByLastName,
             ],
           ];
         }
@@ -470,15 +530,12 @@ describe('platform tenant finance handlers', () => {
   });
 
   it.effect(
-    'blocks platform approval before mutation when evidence cannot be signed',
+    'returns a typed storage outage before mutating a platform approval',
     () =>
       Effect.gen(function* () {
         const { databaseLayer, transaction } = createReceiptApprovalDatabase();
         const objectExists = vi.fn<
           Context.Service.Shape<typeof ReceiptMediaService>['objectExists']
-        >(() => Effect.succeed(true));
-        const signedPreviewUrl = vi.fn<
-          Context.Service.Shape<typeof ReceiptMediaService>['signedPreviewUrl']
         >(() =>
           Effect.fail(
             new ReceiptMediaServiceUnavailableError({
@@ -486,6 +543,9 @@ describe('platform tenant finance handlers', () => {
             }),
           ),
         );
+        const signedPreviewUrl = vi.fn<
+          Context.Service.Shape<typeof ReceiptMediaService>['signedPreviewUrl']
+        >(() => Effect.die(new Error('Approval must not sign a preview URL')));
         const error = yield* platformTenantFinanceHandlers[
           'platform.finance.receipts.review'
         ](
@@ -534,15 +594,173 @@ describe('platform tenant finance handlers', () => {
                 inspectUpload: () =>
                   Effect.die(new Error('Unexpected receipt inspection')),
                 objectExists,
+                promoteUpload: () =>
+                  Effect.die(new Error('Unexpected receipt promotion')),
                 signedPreviewUrl,
               }),
             ),
           ),
         );
 
-        expect(error['_tag']).toBe('RpcBadRequestError');
-        expect(error).toMatchObject({ reason: 'receiptEvidenceUnavailable' });
+        expect(error['_tag']).toBe('ReceiptMediaServiceUnavailableError');
+        expect(error.message).toBe('Receipt storage is unavailable');
         expect(transaction).not.toHaveBeenCalled();
+        expect(objectExists).toHaveBeenCalledOnce();
+        expect(objectExists).toHaveBeenCalledWith({
+          storageKey: submittedReceiptEvidence.attachmentStorageKey,
+        });
+        expect(signedPreviewUrl).not.toHaveBeenCalled();
+      }),
+  );
+
+  it.effect(
+    'does not call receipt storage for platform approval and reimbursement queues',
+    () =>
+      Effect.gen(function* () {
+        const { databaseLayer, transaction } = createReceiptApprovalDatabase();
+        const objectExists = vi.fn<
+          Context.Service.Shape<typeof ReceiptMediaService>['objectExists']
+        >(() => Effect.die(new Error('Queue must not check receipt storage')));
+        const signedPreviewUrl = vi.fn<
+          Context.Service.Shape<typeof ReceiptMediaService>['signedPreviewUrl']
+        >(() => Effect.die(new Error('Queue must not sign receipt previews')));
+        const layer = Layer.mergeAll(
+          RpcAccess.Default,
+          Layer.succeed(RpcRequestContext, {
+            authData: { sub: platformAuthority.actorId },
+            authenticated: true,
+            permissions: [],
+            platformAuthority,
+            tenant: targetTenant,
+            user: null,
+            userAssigned: false,
+          }),
+          databaseLayer,
+          Layer.succeed(ReceiptMediaService, {
+            createUploadPolicy: () =>
+              Effect.die(new Error('Unexpected receipt upload')),
+            discardPromotedUpload: () =>
+              Effect.die(new Error('Unexpected promoted upload discard')),
+            inspectUpload: () =>
+              Effect.die(new Error('Unexpected receipt inspection')),
+            objectExists,
+            promoteUpload: () =>
+              Effect.die(new Error('Unexpected receipt promotion')),
+            signedPreviewUrl,
+          }),
+        );
+        const approvalQueue = yield* platformTenantFinanceHandlers[
+          'platform.finance.receipts.approvalQueue'
+        ](
+          { targetTenantId: targetTenant.id },
+          {
+            client: new Rpc.ServerClient(1),
+            headers: Headers.empty,
+            requestId: RpcMessage.RequestId(1),
+            rpc: PlatformFinanceReceiptApprovalQueue.middleware(
+              RpcRequestContextMiddleware,
+            ),
+          },
+        ).pipe(Effect.provide(layer));
+        const reimbursementQueue = yield* platformTenantFinanceHandlers[
+          'platform.finance.receipts.reimbursementQueue'
+        ](
+          { targetTenantId: targetTenant.id },
+          {
+            client: new Rpc.ServerClient(1),
+            headers: Headers.empty,
+            requestId: RpcMessage.RequestId(2),
+            rpc: PlatformFinanceReimbursementQueue.middleware(
+              RpcRequestContextMiddleware,
+            ),
+          },
+        ).pipe(Effect.provide(layer));
+
+        expect(approvalQueue.groups).toHaveLength(1);
+        expect(approvalQueue.groups[0]?.receipts[0]).not.toHaveProperty(
+          'previewImageUrl',
+        );
+        expect(approvalQueue.groups[0]?.receipts[0]).toMatchObject({
+          receiptDate: '2026-07-09',
+          submittedByEmail: receiptReadContext.submittedByEmail,
+        });
+        expect(reimbursementQueue.groups).toHaveLength(1);
+        expect(reimbursementQueue.groups[0]?.receipts[0]).not.toHaveProperty(
+          'receiptEvidenceAvailable',
+        );
+        expect(reimbursementQueue.groups[0]).toMatchObject({
+          currency: 'EUR',
+          submittedByEmail: receiptReadContext.submittedByEmail,
+          totalAmount: submittedReceiptEvidence.totalAmount,
+        });
+        expect(objectExists).not.toHaveBeenCalled();
+        expect(signedPreviewUrl).not.toHaveBeenCalled();
+        expect(transaction).not.toHaveBeenCalled();
+      }),
+  );
+
+  it.effect(
+    'propagates a preview signing outage from platform receipt detail',
+    () =>
+      Effect.gen(function* () {
+        const { databaseLayer, transaction } = createReceiptApprovalDatabase();
+        const objectExists = vi.fn<
+          Context.Service.Shape<typeof ReceiptMediaService>['objectExists']
+        >(() => Effect.succeed(true));
+        const signedPreviewUrl = vi.fn<
+          Context.Service.Shape<typeof ReceiptMediaService>['signedPreviewUrl']
+        >(() =>
+          Effect.fail(
+            new ReceiptMediaServiceUnavailableError({
+              message: 'Receipt storage is unavailable',
+            }),
+          ),
+        );
+        const error = yield* platformTenantFinanceHandlers[
+          'platform.finance.receipts.approvalDetail'
+        ](
+          { id: submittedReceiptEvidence.id, targetTenantId: targetTenant.id },
+          {
+            client: new Rpc.ServerClient(1),
+            headers: Headers.empty,
+            requestId: RpcMessage.RequestId(1),
+            rpc: PlatformFinanceReceiptApprovalDetail.middleware(
+              RpcRequestContextMiddleware,
+            ),
+          },
+        ).pipe(
+          Effect.flip,
+          Effect.provide(
+            Layer.mergeAll(
+              RpcAccess.Default,
+              Layer.succeed(RpcRequestContext, {
+                authData: { sub: platformAuthority.actorId },
+                authenticated: true,
+                permissions: [],
+                platformAuthority,
+                tenant: targetTenant,
+                user: null,
+                userAssigned: false,
+              }),
+              databaseLayer,
+              Layer.succeed(ReceiptMediaService, {
+                createUploadPolicy: () =>
+                  Effect.die(new Error('Unexpected receipt upload')),
+                discardPromotedUpload: () =>
+                  Effect.die(new Error('Unexpected promoted upload discard')),
+                inspectUpload: () =>
+                  Effect.die(new Error('Unexpected receipt inspection')),
+                objectExists,
+                promoteUpload: () =>
+                  Effect.die(new Error('Unexpected receipt promotion')),
+                signedPreviewUrl,
+              }),
+            ),
+          ),
+        );
+
+        expect(error['_tag']).toBe('ReceiptMediaServiceUnavailableError');
+        expect(error.message).toBe('Receipt storage is unavailable');
         expect(objectExists).toHaveBeenCalledOnce();
         expect(objectExists).toHaveBeenCalledWith({
           storageKey: submittedReceiptEvidence.attachmentStorageKey,
@@ -552,6 +770,7 @@ describe('platform tenant finance handlers', () => {
           expiresInSeconds: 900,
           storageKey: submittedReceiptEvidence.attachmentStorageKey,
         });
+        expect(transaction).not.toHaveBeenCalled();
       }),
   );
 
@@ -573,11 +792,20 @@ describe('platform tenant finance handlers', () => {
   });
 
   it('versions payout details without sending them back in a mutation or audit', () => {
-    const first = payoutDetailsVersion('iban', 'DE89 3704 0044');
-    const sameNormalized = payoutDetailsVersion('iban', ' DE89 3704 0044 ');
-    const changed = payoutDetailsVersion('iban', 'DE89 3704 0045');
+    const first = payoutDetailsVersion('iban', 'DE89370400440532013000');
+    const sameCanonical = payoutDetailsVersion(
+      'iban',
+      'DE89370400440532013000',
+    );
+    const changed = payoutDetailsVersion('iban', 'NL91ABNA0417164300');
 
-    expect(first).toBe(sameNormalized);
+    expect(first).toBe(sameCanonical);
+    expect(() =>
+      payoutDetailsVersion('iban', ' DE89 3704 0044 0532 0130 00 '),
+    ).toThrow(/non-canonical iban/u);
+    expect(() =>
+      payoutDetailsVersion('paypal', 'Participant@Example.Test'),
+    ).toThrow(/non-canonical paypal/u);
     expect(first).not.toBe(changed);
     expect(first).toMatch(/^[a-f\d]{64}$/u);
   });
@@ -598,7 +826,7 @@ describe('platform tenant finance handlers', () => {
         hasAlcohol: false,
         hasDeposit: false,
         purchaseCountry: 'DE',
-        receiptDate: new Date('2026-07-09T00:00:00.000Z'),
+        receiptDate: '2026-07-09',
         rejectionReason: null,
         reviewedAt,
         status: 'approved',
@@ -619,6 +847,9 @@ describe('platform tenant finance handlers', () => {
     });
     expect(transaction.executiveUserId).toBeNull();
     expect(transaction.currency).toBe('CZK');
+    expect(transaction.comment).toBe(
+      'Receipt reimbursement recorded by an Evorto administrator via bank transfer for 1 receipt across 1 event',
+    );
     expect(transaction).not.toHaveProperty('payoutReference');
 
     expect(
@@ -630,8 +861,14 @@ describe('platform tenant finance handlers', () => {
   });
 
   it('creates a typed reimbursement audit envelope without payout or participant PII', () => {
+    const payoutFingerprint = payoutDetailsVersion(
+      'paypal',
+      'participant@example.test',
+    );
     const snapshot = reimbursementAuditSnapshot({
       currency: 'EUR',
+      payoutDestinationMasked: 'p•••@e•••.test',
+      payoutFingerprint,
       payoutType: 'paypal',
       receiptIds: ['receipt-1', 'receipt-2'],
       refundedAt: new Date('2026-07-10T10:00:00.000Z'),
@@ -645,6 +882,8 @@ describe('platform tenant finance handlers', () => {
       resourceType: 'receipt',
       state: {
         currency: 'EUR',
+        payoutDestinationMasked: 'p•••@e•••.test',
+        payoutFingerprint,
         payoutType: 'paypal',
         receiptCount: 2,
         receiptIds: ['receipt-1', 'receipt-2'],
@@ -656,6 +895,7 @@ describe('platform tenant finance handlers', () => {
     });
 
     const encoded = JSON.stringify(snapshot);
+    expect(encoded).not.toContain('participant@example.test');
     for (const forbiddenField of [
       'email',
       'iban',
@@ -670,17 +910,22 @@ describe('platform tenant finance handlers', () => {
 
   it.effect('accepts only one recorded currency per reimbursement batch', () =>
     Effect.gen(function* () {
-      expect(
-        yield* resolvePlatformReimbursementCurrency([
-          { currency: 'CZK' },
-          { currency: 'CZK' },
-        ]),
-      ).toBe('CZK');
+      const sameCurrency = resolveFinanceReimbursementBatch([
+        { currency: 'CZK', submittedByUserId: 'user-1', totalAmount: 100 },
+        { currency: 'CZK', submittedByUserId: 'user-1', totalAmount: 200 },
+      ]);
+      expect(sameCurrency.currency).toBe('CZK');
+      expect(sameCurrency.error).toBeNull();
+      expect(sameCurrency.totalAmount).toBe(300);
 
-      const error = yield* resolvePlatformReimbursementCurrency([
-        { currency: 'EUR' },
-        { currency: 'AUD' },
-      ]).pipe(Effect.flip);
+      const mixedCurrency = resolveFinanceReimbursementBatch([
+        { currency: 'EUR', submittedByUserId: 'user-1', totalAmount: 100 },
+        { currency: 'AUD', submittedByUserId: 'user-1', totalAmount: 200 },
+      ]);
+      if (!mixedCurrency.error) {
+        return yield* Effect.die(new Error('Expected mixed-currency denial'));
+      }
+      const error = new RpcBadRequestError(mixedCurrency.error);
       expect(error['_tag']).toBe('RpcBadRequestError');
       expect(error).toMatchObject({ reason: 'mismatchedReceiptCurrency' });
     }),
@@ -1091,6 +1336,8 @@ describe('platform tenant finance handlers', () => {
       ...receiptWithSubmitterInput('submitted'),
       eventStart: '2026-07-20T10:00:00.000Z',
       eventTitle: 'Welcome event',
+      previewImageUrl: 'https://example.test/receipt.pdf',
+      receiptEvidenceAvailable: true,
     });
 
     expect(

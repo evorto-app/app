@@ -46,8 +46,7 @@ export const RECEIPT_COUNTRY_OPTIONS: readonly ReceiptCountryOption[] = [
 ];
 
 export const OTHER_RECEIPT_COUNTRY_CODE = 'OTHER';
-export const OTHER_RECEIPT_COUNTRY_LABEL =
-  'Other (outside configured countries)';
+export const OTHER_RECEIPT_COUNTRY_LABEL = 'Other country';
 
 export const DEFAULT_RECEIPT_COUNTRIES: readonly string[] = [
   'DE',
@@ -113,3 +112,11 @@ export const buildSelectableReceiptCountries = (
   settings.allowOther
     ? [...settings.receiptCountries, OTHER_RECEIPT_COUNTRY_CODE]
     : [...settings.receiptCountries];
+
+export const firstReceiptCountry = (countries: readonly string[]): string => {
+  const first = countries[0];
+  if (!first) {
+    throw new Error('At least one receipt country must be configured');
+  }
+  return first;
+};

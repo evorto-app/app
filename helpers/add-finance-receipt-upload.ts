@@ -9,7 +9,6 @@ import { buildReceiptStorageKey } from '@server/effect/rpc/handlers/finance/rece
 
 import { relations } from '../src/db/relations';
 import * as schema from '../src/db/schema';
-import { getId } from './get-id';
 
 const execFileAsync = promisify(execFile);
 const localReceiptUploadScript = path.resolve(
@@ -25,9 +24,10 @@ export const addAvailableConsumedFinanceReceiptUpload = async (
     sourceFilePath: string;
     tenantId: string;
     uploadedByUserId: string;
+    uploadId: string;
   },
 ): Promise<{ id: string; sizeBytes: number; storageKey: string }> => {
-  const uploadId = getId();
+  const uploadId = input.uploadId;
   const sourceBody = await readFile(input.sourceFilePath);
   const storageKey = buildReceiptStorageKey({
     contentDigest: createHash('sha256').update(sourceBody).digest('hex'),
@@ -57,7 +57,6 @@ export const addAvailableConsumedFinanceReceiptUpload = async (
   );
 
   const now = new Date();
-  const bucket = process.env['S3_BUCKET'] || 'evorto-testing';
   await database.insert(schema.financeReceiptUploads).values({
     consumedAt: now,
     eventId: input.eventId,
@@ -67,7 +66,6 @@ export const addAvailableConsumedFinanceReceiptUpload = async (
     sizeBytes: source.size,
     status: 'consumed',
     storageKey,
-    storageUrl: `http://minio:9000/${bucket}/${storageKey}`,
     tenantId: input.tenantId,
     uploadedAt: now,
     uploadedByUserId: input.uploadedByUserId,
@@ -85,9 +83,10 @@ export const addConsumedFinanceReceiptUpload = async (
     sizeBytes: number;
     tenantId: string;
     uploadedByUserId: string;
+    uploadId: string;
   },
 ): Promise<string> => {
-  const uploadId = getId();
+  const uploadId = input.uploadId;
   const now = new Date();
   await database.insert(schema.financeReceiptUploads).values({
     consumedAt: now,
@@ -105,7 +104,6 @@ export const addConsumedFinanceReceiptUpload = async (
       uploadId,
       userId: input.uploadedByUserId,
     }),
-    storageUrl: 'local-unavailable://receipt',
     tenantId: input.tenantId,
     uploadedAt: now,
     uploadedByUserId: input.uploadedByUserId,

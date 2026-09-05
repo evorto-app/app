@@ -303,6 +303,9 @@
               color="primary"
               (click)="openReceiptDialog()"
               [disabled]="
+                receiptDialogOpen() ||
+                uncertainReceiptSubmission() !== null ||
+                receiptReconciliationPending() ||
                 receiptSubmissionActionDisabled({
                   submissionUnavailable:
                     !!receiptSubmissionUnavailableMessage(),
@@ -311,12 +314,61 @@
                 })
               "
             >
-              Add receipt
+              {{
+                receiptUploadPending()
+                  ? "Uploading receipt…"
+                  : submitReceiptMutation.isPending()
+                    ? "Submitting receipt…"
+                    : receiptDialogOpen()
+                      ? "Receipt dialog open"
+                      : "Add receipt"
+              }}
             </button>
           </div>
+          @if (uncertainReceiptSubmission() && !receiptDialogOpen()) {
+            <div
+              role="alert"
+              class="bg-error-container text-on-error-container grid gap-3 rounded-lg p-4"
+            >
+              <p>
+                {{
+                  submitReceiptMutation.isPending()
+                    ? "The receipt submission is still in progress. Wait for its outcome before checking the latest receipts."
+                    : (receiptReconciliationMessage() ??
+                      "The previous receipt submission could not be confirmed. Select Show latest receipts and check whether it is listed before adding another receipt for the same expense.")
+                }}
+              </p>
+              <button
+                mat-stroked-button
+                type="button"
+                [disabled]="
+                  receiptReconciliationPending() ||
+                  submitReceiptMutation.isPending()
+                "
+                (click)="reconcileReceiptSubmission()"
+              >
+                {{
+                  submitReceiptMutation.isPending()
+                    ? "Waiting for receipt submission…"
+                    : receiptReconciliationPending()
+                      ? "Checking receipt lists…"
+                      : "Show latest receipts"
+                }}
+              </button>
+            </div>
+          } @else if (receiptReconciliationMessage() && !receiptDialogOpen()) {
+            <p role="status" class="text-on-surface-variant text-sm">
+              {{ receiptReconciliationMessage() }}
+            </p>
+          }
           @if (receiptSubmissionUnavailableMessage(); as message) {
             <p class="text-on-surface-variant text-sm">
               {{ message }}
+            </p>
+          }
+          @if (receiptUploadPending()) {
+            <p class="text-on-surface-variant text-sm" role="status">
+              Uploading and checking your receipt file. Keep this page open.
             </p>
           }
 
@@ -400,6 +452,13 @@
                     >
                       Open preview
                     </a>
+                  }
+                  @if (
+                    receipt.status === "rejected" && receipt.rejectionReason
+                  ) {
+                    <p class="mt-2 whitespace-pre-line text-sm">
+                      Reason for rejection: {{ receipt.rejectionReason }}
+                    </p>
                   }
                 </article>
               }

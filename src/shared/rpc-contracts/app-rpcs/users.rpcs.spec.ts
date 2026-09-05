@@ -1,9 +1,11 @@
 import { Schema } from 'effect';
 import { describe, expect, it } from 'vitest';
 
+import { RpcBadRequestError } from '../../errors/rpc-errors';
 import {
   UsersEventSummaryRecord,
   UsersFindManyInput,
+  UsersUpdateProfile,
   UsersUpdateProfileInput,
 } from './users.rpcs';
 
@@ -102,5 +104,76 @@ describe('users RPC input schemas', () => {
         title: 'Event',
       }),
     ).not.toThrow();
+  });
+});
+
+describe('profile payout input prerequisite', () => {
+  it('canonicalizes payout fields without changing the notification email contract', () => {
+    const payload = Schema.decodeUnknownSync(UsersUpdateProfileInput)({
+      communicationEmail: 'Events@Example.COM',
+      firstName: 'Alice',
+      iban: ' nl91 abna 0417 1643 00 ',
+      lastName: 'Doe',
+      paypalEmail: ' PayPal@Example.COM ',
+    });
+    const expected = {
+      communicationEmail: 'Events@Example.COM',
+      firstName: 'Alice',
+      iban: 'NL91ABNA0417164300',
+      lastName: 'Doe',
+      paypalEmail: 'paypal@example.com',
+    };
+
+    expect(payload).toEqual(expected);
+    expect(
+      Schema.encodeSync(UsersUpdateProfileInput)(
+        UsersUpdateProfileInput.make(payload),
+      ),
+    ).toEqual(expected);
+  });
+
+  it('preserves omitted and null payout fields', () => {
+    const required = {
+      communicationEmail: 'events@example.com',
+      firstName: 'Alice',
+      lastName: 'Doe',
+    };
+    expect(Schema.decodeUnknownSync(UsersUpdateProfileInput)(required)).toEqual(
+      required,
+    );
+    const cleared = { ...required, iban: null, paypalEmail: null };
+    expect(Schema.decodeUnknownSync(UsersUpdateProfileInput)(cleared)).toEqual(
+      cleared,
+    );
+  });
+
+  it('rejects invalid payout values before a profile request is decoded', () => {
+    for (const payout of [
+      { iban: 'DE88370400440532013000' },
+      { iban: '' },
+      { paypalEmail: 'payout' },
+      { paypalEmail: '' },
+    ]) {
+      expect(() =>
+        Schema.decodeUnknownSync(UsersUpdateProfileInput)({
+          communicationEmail: 'events@example.com',
+          firstName: 'Alice',
+          lastName: 'Doe',
+          ...payout,
+        }),
+      ).toThrow();
+    }
+  });
+
+  it('declares the two payout writer denials on the profile mutation', () => {
+    for (const reason of ['invalidIban', 'invalidPaypalEmail']) {
+      const error = new RpcBadRequestError({
+        message: 'Review payout details.',
+        reason,
+      });
+      expect(
+        Schema.decodeUnknownSync(UsersUpdateProfile.errorSchema)(error),
+      ).toEqual(error);
+    }
   });
 });

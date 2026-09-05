@@ -2,7 +2,15 @@ import { describe, expect, it } from '@effect/vitest';
 import { is, SQL } from 'drizzle-orm';
 import { getTableConfig, PgDialect } from 'drizzle-orm/pg-core';
 
-import { financeReceipts, financeReceiptUploads } from './finance-receipts';
+import {
+  financeReceiptAlcoholAmountConsistentCheckName,
+  financeReceiptComponentsWithinTotalCheckName,
+  financeReceiptDepositAmountConsistentCheckName,
+  financeReceipts,
+  financeReceiptTaxAmountValidCheckName,
+  financeReceiptTotalAmountPositiveCheckName,
+  financeReceiptUploads,
+} from './finance-receipts';
 
 describe('finance receipt schema', () => {
   it('binds each receipt to one scoped upload and snapshots its currency', () => {
@@ -72,6 +80,105 @@ describe('finance receipt schema', () => {
     }
     expect(new PgDialect().sqlToQuery(expiresAtDefault).sql).toBe(
       `(now() + '00:05:00'::interval)`,
+    );
+  });
+
+  it('enforces tenant ownership and keeps only one copy of upload metadata', () => {
+    const receiptConfig = getTableConfig(financeReceipts);
+    const uploadConfig = getTableConfig(financeReceiptUploads);
+
+    expect(
+      receiptConfig.foreignKeys.map((foreignKey) => foreignKey.getName()),
+    ).toEqual(
+      expect.arrayContaining([
+        'finance_receipts_attachment_upload_scope_fk',
+        'finance_receipts_event_tenant_fk',
+        'finance_receipts_refund_transaction_tenant_fk',
+      ]),
+    );
+    expect(
+      uploadConfig.foreignKeys.map((foreignKey) => foreignKey.getName()),
+    ).toContain('finance_receipt_uploads_event_tenant_fk');
+
+    const receiptColumns = receiptConfig.columns.map((column) => column.name);
+    expect(receiptColumns).not.toEqual(
+      expect.arrayContaining([
+        'attachmentMimeType',
+        'attachmentSizeBytes',
+        'previewImageId',
+        'previewImageUrl',
+        'stripeTaxRateId',
+      ]),
+    );
+    expect(receiptColumns).toContain('attachmentFileName');
+    expect(uploadConfig.columns.map((column) => column.name)).not.toContain(
+      'storageUrl',
+    );
+    expect(
+      uploadConfig.columns.find((column) => column.name === 'status')
+        ?.enumValues,
+    ).toEqual([
+      'pending',
+      'finalizing',
+      'ready',
+      'rejected',
+      'consumed',
+      'cleaning',
+    ]);
+  });
+
+  it('stores calendar dates and requires explicit receipt amount fields', () => {
+    const receiptConfig = getTableConfig(financeReceipts);
+    const receiptDate = receiptConfig.columns.find(
+      (column) => column.name === 'receiptDate',
+    );
+
+    expect(receiptDate?.getSQLType()).toBe('date');
+    expect(receiptDate?.mapFromDriverValue('2026-07-09')).toBe('2026-07-09');
+
+    for (const columnName of [
+      'alcoholAmount',
+      'depositAmount',
+      'hasAlcohol',
+      'hasDeposit',
+      'taxAmount',
+      'totalAmount',
+    ]) {
+      const column = receiptConfig.columns.find(
+        (candidate) => candidate.name === columnName,
+      );
+      expect(column?.notNull).toBe(true);
+      expect(column?.hasDefault).toBe(false);
+    }
+  });
+
+  it('enforces receipt totals and optional amount consistency in PostgreSQL', () => {
+    const receiptConfig = getTableConfig(financeReceipts);
+    const checkSql = (name: string): string => {
+      const constraint = receiptConfig.checks.find(
+        (candidate) => candidate.name === name,
+      );
+      expect(constraint).toBeDefined();
+      if (!constraint) {
+        throw new Error(`Expected receipt check constraint ${name}`);
+      }
+      return new PgDialect().sqlToQuery(constraint.value).sql;
+    };
+
+    expect(checkSql(financeReceiptTotalAmountPositiveCheckName)).toContain(
+      '"totalAmount" > 0',
+    );
+    expect(checkSql(financeReceiptTaxAmountValidCheckName)).toContain(
+      '"taxAmount" <= "finance_receipts"."totalAmount"',
+    );
+    expect(checkSql(financeReceiptDepositAmountConsistentCheckName)).toContain(
+      '"hasDeposit"',
+    );
+    expect(checkSql(financeReceiptAlcoholAmountConsistentCheckName)).toContain(
+      '"hasAlcohol"',
+    );
+    expect(checkSql(financeReceiptComponentsWithinTotalCheckName)).toContain(
+      'AS bigint',
     );
   });
 });
