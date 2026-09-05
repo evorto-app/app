@@ -1,4 +1,4 @@
-import type { WritableRegistrationMode } from '@shared/registration-modes';
+import type { RegistrationMode } from '@shared/registration-modes';
 
 export interface TemplateGraphAddonFormModel {
   allowMultiple: boolean;
@@ -78,7 +78,7 @@ export interface TemplateGraphRegistrationOptionFormModel {
   price: number;
   refundFeesOnCancellation: TemplateGraphRefundFeesChoice;
   registeredDescription: string;
-  registrationMode: WritableRegistrationMode;
+  registrationMode: RegistrationMode;
   roleIds: string[];
   spots: number;
   stripeTaxRateId: string;

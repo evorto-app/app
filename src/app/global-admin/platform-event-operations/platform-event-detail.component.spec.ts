@@ -55,8 +55,6 @@ import {
   platformEventRegistrationWindowHasValidOrder,
   platformEventSimpleModeIssue,
   platformEventTitleIssue,
-  unsupportedPlatformEventRegistrationOptions,
-  writablePlatformEventRegistrationOptions,
 } from './platform-event-detail.component';
 
 describe('platform event registration-mode compatibility', () => {
@@ -79,23 +77,6 @@ describe('platform event registration-mode compatibility', () => {
       '[attr.inert]="eventEditorIsReadOnly(event.status) ? \'\' : null"',
     );
     expect(template).toContain('Return this event to draft before editing it.');
-  });
-
-  it('identifies legacy random options without treating supported modes as blocked', () => {
-    const supportedOptions = [
-      { registrationMode: 'application' as const },
-      { registrationMode: 'fcfs' as const },
-    ] as const;
-    const randomOption = { registrationMode: 'random' as const };
-    const options = [...supportedOptions, randomOption];
-
-    expect(unsupportedPlatformEventRegistrationOptions(options)).toEqual([
-      randomOption,
-    ]);
-    expect(writablePlatformEventRegistrationOptions(options)).toBeUndefined();
-    expect(writablePlatformEventRegistrationOptions(supportedOptions)).toEqual(
-      supportedOptions,
-    );
   });
 
   it('keeps simple events to one organizer and one participant registration', () => {
@@ -131,7 +112,7 @@ describe('platform event registration-mode compatibility', () => {
     expect(template).toContain('@if (simpleModeIssue(); as error)');
   });
 
-  it('shows random allocation as a disabled update state, not a writable option', () => {
+  it('keeps event editing explicit and fail-closed while dependencies load', () => {
     const source = readFileSync(
       nodePath.join(
         process.cwd(),
@@ -154,9 +135,7 @@ describe('platform event registration-mode compatibility', () => {
     expect(source).toContain(
       "getErrorMessage(error, fallback, ['RpcBadRequestError'])",
     );
-    expect(template).toMatch(/<mat-option\s+disabled\s+value="random"/);
     expect(template).not.toContain('<mat-option value="random"');
-    expect(template).toContain('unsupportedRegistrationOptions().length > 0');
     expect(template).toContain('event.simpleModeEnabled');
     expect(source).toContain('globalAdmin.tenants.findOne.queryOptions');
     expect(source).toContain('resetPlatformEventGraphPayments');

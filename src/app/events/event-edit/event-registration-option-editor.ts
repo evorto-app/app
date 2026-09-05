@@ -16,7 +16,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatTimepickerModule } from '@angular/material/timepicker';
 import {
   registrationModeLabel,
-  writableRegistrationModes,
+  registrationModes,
 } from '@shared/registration-modes';
 
 import type { EventGraphRegistrationOptionFormModel } from './event-graph-form.model';
@@ -57,5 +57,5 @@ export class EventRegistrationOptionEditor {
   readonly taxRateState = input.required<'error' | 'loading' | 'ready'>();
 
   protected readonly registrationModeLabel = registrationModeLabel;
-  protected readonly registrationModes = writableRegistrationModes;
+  protected readonly registrationModes = registrationModes;
 }

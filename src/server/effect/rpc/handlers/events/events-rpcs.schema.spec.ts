@@ -25,6 +25,7 @@ import {
   EventsCancelRegistration,
   EventsCreateRegistrationOptionInput,
   EventsFindOneAddon,
+  EventsFindOneForEditRegistrationOption,
   EventsFindOneRegistrationOption,
   EventsGetOrganizeOverviewUser,
   EventsJoinWaitlistPayload,
@@ -701,12 +702,7 @@ describe('events RPC editable graph schema', () => {
             title: 'Dietary requirements',
           },
         ],
-        registrationOptions: [
-          {
-            ...writableOption,
-            registrationMode: 'random',
-          },
-        ],
+        registrationOptions: [writableOption],
         simpleModeEnabled: false,
         start: '2026-09-20T12:00:00.000Z',
         title: 'Event',
@@ -714,12 +710,28 @@ describe('events RPC editable graph schema', () => {
     ).not.toThrow();
   });
 
-  it('keeps legacy random readable but rejects it in graph writes', () => {
+  it('accepts supported modes and rejects retired values in event reads and writes', () => {
+    for (const registrationMode of ['fcfs', 'application']) {
+      const option = { ...writableOption, registrationMode };
+      expect(
+        Schema.decodeUnknownSync(EventsFindOneForEditRegistrationOption)(option)
+          .registrationMode,
+      ).toBe(registrationMode);
+      expect(
+        Schema.decodeUnknownSync(EventGraphRegistrationOptionInput)(option)
+          .registrationMode,
+      ).toBe(registrationMode);
+    }
+    const retiredOption = { ...writableOption, registrationMode: 'random' };
     expect(() =>
-      Schema.decodeUnknownSync(EventGraphRegistrationOptionInput)({
-        ...writableOption,
-        registrationMode: 'random',
-      }),
+      Schema.decodeUnknownSync(EventsFindOneForEditRegistrationOption)(
+        retiredOption,
+      ),
+    ).toThrow();
+    expect(() =>
+      Schema.decodeUnknownSync(EventGraphRegistrationOptionInput)(
+        retiredOption,
+      ),
     ).toThrow();
   });
 

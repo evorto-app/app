@@ -168,27 +168,6 @@
               free.
             </p>
           }
-          @if (unsupportedRegistrationOptions().length > 0) {
-            <section
-              class="bg-error-container text-on-error-container grid gap-2 p-4"
-              role="alert"
-            >
-              <h4 class="title-small">Update registration mode</h4>
-              <p class="body-medium">
-                Random allocation is not supported. Select
-                first-come-first-served or manual approval for every option
-                before saving this event.
-              </p>
-              <ul class="body-small list-disc pl-5">
-                @for (
-                  option of unsupportedRegistrationOptions();
-                  track option.id
-                ) {
-                  <li>{{ option.title }}</li>
-                }
-              </ul>
-            </section>
-          }
           <mat-form-field>
             <mat-label>Title</mat-label>
             <input matInput [formField]="editForm.title" />
@@ -293,12 +272,6 @@
                           <mat-option value="application"
                             >Manual approval</mat-option
                           >
-                          @if (option.registrationMode === "random") {
-                            <mat-option disabled value="random"
-                              >Random allocation (no longer
-                              supported)</mat-option
-                            >
-                          }
                         </mat-select>
                       </mat-form-field>
                       <mat-form-field>
@@ -1197,7 +1170,6 @@
                 invalidRegistrationWindowFields().size > 0 ||
                 hasInvalidRegistrationWindowOrder() ||
                 simpleModeIssue() !== null ||
-                unsupportedRegistrationOptions().length > 0 ||
                 mutationPending()
               "
             >

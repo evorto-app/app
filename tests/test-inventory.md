@@ -159,8 +159,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - `specs/templates/registration-configuration.spec.ts` confirms every
     simple/advanced mode change, proves warning-only advanced states, requires
     the compatible advanced shape to be saved before a separate switch back to
-    simple, preserves stable option IDs and hidden mappings, blocks legacy
-    random graphs, and verifies that later template edits do not rewrite an
+    simple, preserves stable option IDs and hidden mappings, and verifies that later template edits do not rewrite an
     event-owned snapshot
   - shared registration-mode label coverage in `src/shared`
 - Required Google Maps provider path:

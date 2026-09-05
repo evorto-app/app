@@ -3,12 +3,23 @@ import type { DiscountProviderRecord } from '@shared/rpc-contracts/app-rpcs/disc
 import type { EventGraphEditRecord } from '@shared/rpc-contracts/app-rpcs/events.rpcs';
 import type { TaxRatesListActiveRecord } from '@shared/rpc-contracts/app-rpcs/tax-rates.rpcs';
 
-import { signal } from '@angular/core';
+import { Component, inject, input, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideLuxonDateAdapter } from '@angular/material-luxon-adapter';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
-import { provideRouter, Router } from '@angular/router';
+import {
+  provideRouter,
+  Router,
+  withComponentInputBinding,
+} from '@angular/router';
+import { RouterTestingHarness } from '@angular/router/testing';
+import {
+  createRpcMutationOptions,
+  createRpcQueryFilter,
+  createRpcQueryKey,
+  createRpcQueryOptions,
+} from '@heddendorp/effect-angular-query';
 import {
   RpcBadRequestError,
   RpcInternalServerError,
@@ -19,6 +30,8 @@ import {
   EventNotFoundError,
 } from '@shared/rpc-contracts/app-rpcs/events.errors';
 import {
+  injectQuery,
+  isCancelledError,
   provideTanStackQuery,
   QueryClient,
   QueryObserver,
@@ -28,7 +41,8 @@ import nodePath from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ConfigService } from '../../core/config.service';
-import { APP_RPC_CLIENT } from '../../core/effect-rpc-angular-client';
+import { APP_RPC_CLIENT, AppRpc } from '../../core/effect-rpc-angular-client';
+import { EventDetailsOperations } from '../event-details/event-details.component';
 import {
   EventEdit,
   eventEditQueryErrorMessage,
@@ -367,6 +381,57 @@ const saveOutcomeTenant = new ClientTenantConfig({
   transferDeadlineHoursBeforeStart: 24,
 });
 
+type EventDetailRecord = Awaited<
+  ReturnType<
+    ReturnType<typeof AppRpc.injectClient>['events']['findOne']['call']
+  >
+>;
+
+const eventDetailFromGraph = (
+  graph: EventGraphEditRecord,
+): EventDetailRecord => ({
+  addOns: [],
+  creatorId: 'creator-1',
+  description: graph.description,
+  end: graph.end,
+  icon: graph.icon,
+  id: graph.id,
+  location: graph.location,
+  registrationOptions: graph.registrationOptions.map((option) => ({
+    appliedDiscountType: null,
+    checkedInSpots: 0,
+    closeRegistrationTime: option.closeRegistrationTime,
+    confirmedSpots: 0,
+    description: option.description,
+    discountApplied: false,
+    effectivePrice: option.price,
+    esnCardDiscountedPrice: option.esnCardDiscountedPrice ?? null,
+    eventId: graph.id,
+    id: option.id,
+    isPaid: option.isPaid,
+    openRegistrationTime: option.openRegistrationTime,
+    organizingRegistration: option.organizingRegistration,
+    price: option.price,
+    questions: [],
+    registeredDescription: option.registeredDescription ?? null,
+    registrationMode: option.registrationMode,
+    reservedSpots: 0,
+    roleIds: option.roleIds,
+    spots: option.spots,
+    stripeTaxRateId: option.stripeTaxRateId ?? null,
+    taxRateDisplayName: null,
+    taxRatePercentage: null,
+    title: option.title,
+  })),
+  registrationOptionsHiddenByEligibility: false,
+  reviewer: null,
+  start: graph.start,
+  status: 'DRAFT',
+  statusComment: null,
+  title: graph.title,
+  unlisted: false,
+});
+
 const eventEditRoot = (fixture: ComponentFixture<EventEdit>): HTMLElement => {
   const element: unknown = fixture.nativeElement;
   if (!(element instanceof HTMLElement)) {
@@ -433,6 +498,12 @@ describe('EventEdit save outcomes', () => {
                 queryOptions: ({ id }: { id: string }) => ({
                   queryFn: findEvent,
                   queryKey: ['events', 'edit', id],
+                }),
+              },
+              findOne: {
+                queryOptions: ({ id }: { id: string }) => ({
+                  queryFn: async () => eventDetailFromGraph(savedEventGraph),
+                  queryKey: ['events', 'findOne', id],
                 }),
               },
               updateGraph: {
@@ -1262,5 +1333,403 @@ describe('EventEdit save outcomes', () => {
         await submission;
       }
     }
+  });
+});
+
+@Component({
+  selector: 'app-test-event-save-detail-destination',
+  template: `
+    @if (eventQuery.isSuccess()) {
+      <h1>{{ eventQuery.data().title }}</h1>
+      @for (option of eventQuery.data().registrationOptions; track option.id) {
+        <h2>{{ option.title }}</h2>
+      }
+    }
+  `,
+})
+class EventSaveDetailDestination {
+  readonly eventId = input.required<string>();
+  private readonly operations = inject(EventDetailsOperations);
+  readonly eventQuery = injectQuery(() =>
+    this.operations.findEvent(this.eventId()),
+  );
+}
+
+describe('EventEdit return to an inactive detail query', () => {
+  type Client = ReturnType<typeof AppRpc.injectClient>;
+  type DetailOptions = ReturnType<Client['events']['findOne']['queryOptions']>;
+  type SaveMutation = NonNullable<
+    ReturnType<Client['events']['updateGraph']['mutationOptions']>['mutationFn']
+  >;
+  const retainedOption = savedEventGraph.registrationOptions[0];
+  const initialGraph: EventGraphEditRecord = {
+    ...savedEventGraph,
+    registrationOptions: [
+      {
+        ...retainedOption,
+        id: 'deleted-choice',
+        title: 'First attendee choice',
+      },
+      { ...retainedOption, title: 'Old retained choice' },
+    ],
+  };
+  let currentGraph: EventGraphEditRecord;
+  let queryClient: QueryClient;
+  let harness: RouterTestingHarness | undefined;
+  let editor: EventEdit;
+  let root: HTMLElement;
+  let releases: (() => void)[] = [];
+  let observed: Promise<PromiseSettledResult<void>>[] = [];
+  const readDetail = vi.fn<Client['events']['findOne']['call']>();
+  const readGraph = vi.fn<Client['events']['findGraphForEdit']['call']>();
+  const saveGraph = vi.fn<SaveMutation>();
+  const detailOptions = (input: { id: string }): DetailOptions =>
+    createRpcQueryOptions({
+      input,
+      keyPrefix: 'rpc',
+      pathSegments: ['events', 'findOne'],
+      queryFn: () => readDetail(input),
+      type: 'query',
+    });
+  const detailKey = createRpcQueryKey(['events', 'findOne'], {
+    input: { id: 'event-1' },
+    keyPrefix: 'rpc',
+    type: 'query',
+  });
+  const own = (operation: Promise<void>) => {
+    observed.push(
+      operation.then<PromiseSettledResult<void>, PromiseSettledResult<void>>(
+        () => ({ status: 'fulfilled', value: undefined }),
+        (error: unknown) => ({ reason: error, status: 'rejected' }),
+      ),
+    );
+    return operation;
+  };
+  const heldDetail = () => {
+    let release: (value: EventDetailRecord) => void = () => {
+      throw new Error('Detail gate was not initialized');
+    };
+    // Angular's ES2022 library does not expose Promise.withResolvers.
+    // eslint-disable-next-line unicorn/prefer-promise-with-resolvers
+    const promise = new Promise<EventDetailRecord>((resolve) => {
+      release = resolve;
+    });
+    own(
+      promise.then(() => {
+        // Observe settlement without retaining the detail payload.
+      }),
+    );
+    releases.push(() => release(eventDetailFromGraph(currentGraph)));
+    return { promise, release };
+  };
+
+  beforeEach(async () => {
+    harness = undefined;
+    releases = [];
+    observed = [];
+    currentGraph = initialGraph;
+    readDetail
+      .mockReset()
+      .mockImplementation(async () => eventDetailFromGraph(currentGraph));
+    readGraph.mockReset().mockImplementation(async () => currentGraph);
+    saveGraph.mockReset().mockImplementation(async (payload) => {
+      currentGraph = {
+        ...currentGraph,
+        registrationOptions: payload.registrationOptions.map((option) => {
+          if (!option.id)
+            throw new Error('This fixture only edits existing choices');
+          return { ...option, id: option.id };
+        }),
+        title: payload.title,
+      };
+      return { id: currentGraph.id };
+    });
+    queryClient = new QueryClient({
+      defaultOptions: {
+        mutations: { retry: false },
+        queries: { retry: false },
+      },
+    });
+    await TestBed.configureTestingModule({
+      imports: [EventEdit, EventSaveDetailDestination, MatDialogModule],
+      providers: [
+        provideRouter(
+          [
+            { component: EventEdit, path: 'events/:eventId/edit' },
+            { component: EventSaveDetailDestination, path: 'events/:eventId' },
+          ],
+          withComponentInputBinding(),
+        ),
+        provideLuxonDateAdapter(),
+        provideNoopAnimations(),
+        provideTanStackQuery(queryClient),
+        {
+          provide: ConfigService,
+          useValue: {
+            permissions: [],
+            tenantSignal: signal<ClientTenantConfig | null>(saveOutcomeTenant),
+          } satisfies Pick<ConfigService, 'permissions' | 'tenantSignal'>,
+        },
+        {
+          provide: APP_RPC_CLIENT,
+          useValue: {
+            discounts: {
+              getTenantProviders: {
+                queryOptions: () => ({
+                  queryFn: async () => [],
+                  queryKey: ['discount-providers'],
+                }),
+              },
+            },
+            events: {
+              findGraphForEdit: {
+                queryOptions: (input: { id: string }) =>
+                  createRpcQueryOptions({
+                    input,
+                    keyPrefix: 'rpc',
+                    pathSegments: ['events', 'findGraphForEdit'],
+                    queryFn: () => readGraph(input),
+                    type: 'query',
+                  }),
+              },
+              findOne: { queryOptions: detailOptions },
+              updateGraph: {
+                mutationOptions: () =>
+                  createRpcMutationOptions({
+                    keyPrefix: 'rpc',
+                    mutationFn: saveGraph,
+                    pathSegments: ['events', 'updateGraph'],
+                  }),
+              },
+            },
+            queryFilter: (segments: readonly string[]) =>
+              createRpcQueryFilter(segments, { keyPrefix: 'rpc' }),
+            roles: {
+              findMany: {
+                queryOptions: () => ({
+                  queryFn: async () => [],
+                  queryKey: ['roles'],
+                }),
+              },
+            },
+            taxRates: {
+              listActive: {
+                queryOptions: () => ({
+                  queryFn: async () => saveOutcomeTaxRates,
+                  queryKey: ['tax-rates'],
+                }),
+              },
+            },
+          },
+        },
+      ],
+      teardown: { destroyAfterEach: true },
+    }).compileComponents();
+    harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/events/event-1', EventSaveDetailDestination);
+    await vi.waitFor(() => {
+      harness?.detectChanges();
+      expect(harness?.routeNativeElement?.textContent).toContain(
+        'First attendee choice',
+      );
+      expect(harness?.routeNativeElement?.textContent).toContain(
+        'Old retained choice',
+      );
+      expect(readDetail).toHaveBeenCalledOnce();
+    });
+    editor = await harness.navigateByUrl('/events/event-1/edit', EventEdit);
+    const element = harness.routeNativeElement;
+    if (!element) throw new Error('Expected the routed event editor');
+    root = element;
+    await vi.waitFor(() => {
+      harness?.detectChanges();
+      expect(editor['eventModel']().registrationOptions).toHaveLength(2);
+      expect(editor['eventForm']().invalid()).toBe(false);
+      expect(editor['discountProvidersReady']()).toBe(true);
+      expect(editor['taxRatesReady']()).toBe(true);
+    });
+    expect(
+      queryClient
+        .getQueryCache()
+        .find({ exact: true, queryKey: detailKey })
+        ?.isActive(),
+    ).toBe(false);
+    expect(queryClient.getQueryData(detailKey)).toEqual(
+      eventDetailFromGraph(initialGraph),
+    );
+    const firstChoice = root.querySelector(
+      'app-event-registration-option-editor',
+    );
+    const remove = [
+      ...(firstChoice?.querySelectorAll<HTMLButtonElement>('button') ?? []),
+    ].find((button) => button.textContent?.trim() === 'Remove choice');
+    if (!remove)
+      throw new Error('Expected the first public Remove choice action');
+    remove.click();
+    await vi.waitFor(() => {
+      harness?.detectChanges();
+      expect(editor['eventModel']().registrationOptions).toHaveLength(1);
+    });
+    for (const [label, value] of [
+      ['Event title', 'Saved current event'],
+      ['Sign-up choice name', 'Browser retained attendee'],
+    ]) {
+      const input = [...root.querySelectorAll('mat-form-field')]
+        .find(
+          (field) =>
+            field.querySelector('mat-label')?.textContent?.trim() === label,
+        )
+        ?.querySelector('input');
+      if (!(input instanceof HTMLInputElement))
+        throw new Error(`Expected ${label}`);
+      input.value = value;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    harness.detectChanges();
+    expect(editor['eventModel']().title).toBe('Saved current event');
+    expect(editor['eventModel']().registrationOptions[0]?.title).toBe(
+      'Browser retained attendee',
+    );
+  });
+
+  afterEach(async () => {
+    const failures: unknown[] = [];
+    for (const release of releases) {
+      try {
+        release();
+      } catch (error) {
+        failures.push(error);
+      }
+    }
+    const results = await Promise.all(observed);
+    for (const result of results) {
+      if (result.status === 'rejected') failures.push(result.reason);
+    }
+    for (const cleanup of [
+      () => harness?.fixture.destroy(),
+      () => TestBed.resetTestingModule(),
+      () => queryClient?.clear(),
+      () => vi.restoreAllMocks(),
+    ]) {
+      try {
+        cleanup();
+      } catch (error) {
+        failures.push(error);
+      }
+    }
+    if (failures.length > 0)
+      throw new AggregateError(
+        failures,
+        'Event navigation fixture cleanup failed',
+      );
+  });
+
+  it('replaces an older inactive detail read and renders the saved choices on real return navigation', async () => {
+    const olderRead = heldDetail();
+    const currentRead = heldDetail();
+    readDetail.mockImplementationOnce(() => olderRead.promise);
+    const olderFetch = queryClient.fetchQuery(detailOptions({ id: 'event-1' }));
+    const olderRetryer = queryClient.getQueryCache().find({
+      exact: true,
+      queryKey: detailKey,
+    })?.promise;
+    if (!olderRetryer) throw new Error('Expected the older detail retryer');
+    const cancelledRetryer = own(
+      olderRetryer.then(
+        () => {
+          throw new Error(
+            'The superseded detail retryer unexpectedly completed',
+          );
+        },
+        (error: unknown) => {
+          expect(isCancelledError(error)).toBe(true);
+        },
+      ),
+    );
+    // Revert cancellation rejects the retryer but resolves fetchQuery with
+    // the previous cached data when this is not an initial fetch.
+    const revertedFetch = own(
+      olderFetch.then((data) => {
+        expect(data).toEqual(eventDetailFromGraph(initialGraph));
+      }),
+    );
+    await vi.waitFor(() => expect(readDetail).toHaveBeenCalledTimes(2));
+    readDetail.mockImplementationOnce(() => currentRead.promise);
+    const submission = own(
+      editor['saveEvent'](new Event('submit', { cancelable: true })),
+    );
+    await vi.waitFor(() => {
+      harness?.detectChanges();
+      expect(saveGraph).toHaveBeenCalledOnce();
+      expect(readDetail).toHaveBeenCalledTimes(3);
+      expect(TestBed.inject(Router).url).toBe('/events/event-1/edit');
+      expect(editor['eventForm']().submitting()).toBe(true);
+      expect(
+        queryClient
+          .getQueryCache()
+          .find({ exact: true, queryKey: detailKey })
+          ?.isActive(),
+      ).toBe(false);
+    });
+    await cancelledRetryer;
+    await revertedFetch;
+    expect(queryClient.getQueryData(detailKey)).toEqual(
+      eventDetailFromGraph(initialGraph),
+    );
+    await editor['saveEvent'](new Event('submit', { cancelable: true }));
+    expect(saveGraph).toHaveBeenCalledOnce();
+    const submitted = saveGraph.mock.calls[0]?.[0];
+    expect(submitted?.title).toBe('Saved current event');
+    expect(
+      submitted?.registrationOptions.map(({ id, title }) => ({ id, title })),
+    ).toEqual([{ id: 'option-1', title: 'Browser retained attendee' }]);
+    currentRead.release(eventDetailFromGraph(currentGraph));
+    await submission;
+    await vi.waitFor(() => {
+      harness?.detectChanges();
+      expect(TestBed.inject(Router).url).toBe('/events/event-1');
+      expect(
+        harness?.routeNativeElement?.querySelector('h1')?.textContent,
+      ).toBe('Saved current event');
+      expect(
+        [...(harness?.routeNativeElement?.querySelectorAll('h2') ?? [])].map(
+          (heading) => heading.textContent,
+        ),
+      ).toEqual(['Browser retained attendee']);
+    });
+    olderRead.release(eventDetailFromGraph(initialGraph));
+    await olderRead.promise;
+    await harness?.fixture.whenStable();
+    expect(queryClient.getQueryData(detailKey)).toEqual(
+      eventDetailFromGraph(currentGraph),
+    );
+    expect(harness?.routeNativeElement?.textContent).not.toContain(
+      'First attendee choice',
+    );
+    expect(harness?.routeNativeElement?.textContent).not.toContain(
+      'Old retained choice',
+    );
+    expect(saveGraph).toHaveBeenCalledOnce();
+  });
+
+  it('keeps the saved editor and entered values when the inactive destination read fails', async () => {
+    readDetail.mockRejectedValueOnce(
+      new Error('Private destination read failure'),
+    );
+    await own(editor['saveEvent'](new Event('submit', { cancelable: true })));
+    harness?.detectChanges();
+    expect(saveGraph).toHaveBeenCalledOnce();
+    expect(readDetail).toHaveBeenCalledTimes(2);
+    expect(TestBed.inject(Router).url).toBe('/events/event-1/edit');
+    expect(queryClient.getQueryState(detailKey)?.status).toBe('error');
+    expect(editor['eventForm']().submitting()).toBe(false);
+    expect(editor['eventModel']().title).toBe('Saved current event');
+    expect(editor['eventModel']().registrationOptions[0]?.title).toBe(
+      'Browser retained attendee',
+    );
+    expect(root.querySelector('[role="alert"]')?.textContent).toContain(
+      'The event was saved, but its latest details could not be loaded.',
+    );
+    expect(root.textContent).not.toContain('Private destination read failure');
   });
 });

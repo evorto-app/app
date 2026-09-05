@@ -84,13 +84,6 @@ const invalidSourceTemplateRegistrationOptionError = () =>
     reason: 'templateRegistrationOptionMismatch',
   });
 
-const unsupportedSourceTemplateRegistrationModeError = () =>
-  new RpcBadRequestError({
-    message:
-      'Random allocation is unavailable. An authorized template editor must choose First come, first served or Manual approval before anyone can create an event from this template.',
-    reason: 'unsupportedTemplateRegistrationMode',
-  });
-
 const invalidTemplateError = () =>
   new RpcBadRequestError({
     message: 'Template does not exist for this tenant',
@@ -474,20 +467,10 @@ export const createEventGraph = (input: EventCreateInput) =>
       database.query.templateRegistrationOptions.findMany({
         columns: {
           id: true,
-          registrationMode: true,
         },
         where: { templateId: input.templateId },
       }),
     );
-    if (
-      tenantTemplateOptions.some(
-        (option) => option.registrationMode === 'random',
-      )
-    ) {
-      return yield* Effect.fail(
-        unsupportedSourceTemplateRegistrationModeError(),
-      );
-    }
     const templateOptionIds = tenantTemplateOptions.map((option) => option.id);
     if (
       !templateOptionSnapshotIsComplete(
