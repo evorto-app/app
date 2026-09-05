@@ -37,12 +37,9 @@ import {
 } from '@tanstack/angular-query-experimental';
 import { Schema } from 'effect';
 
-import {
-  supportedTenantCurrencies,
-  supportedTenantTimezones,
-} from '../../../types/custom/tenant';
+import { supportedTenantCurrencies } from '../../../types/custom/tenant';
 import { AppRpc } from '../../core/effect-rpc-angular-client';
-import { getErrorMessage } from '../../core/error-message';
+import { tenantTimezoneOptions } from '../../core/geography-labels';
 import { NotificationService } from '../../core/notification.service';
 import {
   globalAdminTenantDomainValidationMessage,
@@ -101,7 +98,7 @@ export class TenantEditComponent {
     );
   });
   protected readonly tenantSubmitDisabled = globalAdminTenantSubmitDisabled;
-  protected readonly timezoneOptions = supportedTenantTimezones;
+  protected readonly timezoneOptions = tenantTimezoneOptions;
   protected readonly settingsConflict = linkedSignal({
     computation: () => false,
     source: this.tenantId,
@@ -115,10 +112,6 @@ export class TenantEditComponent {
   private readonly router = inject(Router);
   private readonly document = inject(DOCUMENT);
   private readonly destroyRef = inject(DestroyRef);
-
-  protected errorMessage(error: unknown): string {
-    return getErrorMessage(error, 'Failed to load organization');
-  }
 
   protected async updateTenant(event: Event): Promise<void> {
     event.preventDefault();

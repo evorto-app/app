@@ -114,6 +114,29 @@ describe('TenantRolePermissionSchema', () => {
 });
 
 describe('PERMISSION_GROUPS', () => {
+  it('describes payment permissions in product language', () => {
+    const adminGroup = PERMISSION_GROUPS.find((group) => group.key === 'admin');
+
+    expect(adminGroup?.permissions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          key: 'admin:changeSettings',
+          label: 'Change organization settings',
+        }),
+        expect.objectContaining({
+          description:
+            'View whether paid sign-ups are ready, and manage currency, accepted receipt countries, cancellation refund fees, and ESNcard discounts.',
+          key: 'admin:managePayments',
+          label: 'Manage payments',
+        }),
+        expect.objectContaining({
+          key: 'admin:tax',
+          label: 'Manage tax rates',
+        }),
+      ]),
+    );
+  });
+
   it('defines admin-facing labels and descriptions for every visible permission', () => {
     for (const permission of PERMISSION_GROUPS.flatMap(
       (group) => group.permissions,
@@ -175,6 +198,25 @@ describe('permissionLabel', () => {
 });
 
 describe('includesPermission', () => {
+  it('grants payment management without organization settings or tax authority', () => {
+    const permission = 'admin:managePayments';
+    expect(Schema.decodeUnknownSync(PermissionSchema)(permission)).toBe(
+      permission,
+    );
+    expect(
+      Schema.decodeUnknownSync(TenantRolePermissionSchema)(permission),
+    ).toBe(permission);
+    expect(includesPermission(permission, [permission])).toBe(true);
+    expect(includesPermission(permission, ['admin:*'])).toBe(true);
+    expect(includesPermission(permission, ['admin:changeSettings'])).toBe(
+      false,
+    );
+    expect(includesPermission('admin:changeSettings', [permission])).toBe(
+      false,
+    );
+    expect(includesPermission('admin:tax', [permission])).toBe(false);
+  });
+
   it('allows direct permissions', () => {
     expect(includesPermission('templates:view', ['templates:view'])).toBe(true);
   });

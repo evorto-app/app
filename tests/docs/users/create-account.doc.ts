@@ -189,7 +189,7 @@ If your login email address is not verified yet, Evorto asks you to verify it be
         body: `
 Review the prefilled first name, last name, and **Notification email** address. Read the organization's current privacy policy and accept it before clicking **Join organization**. Evorto stores both the exact accepted policy version and the notification email as your editable communication address for event and finance messages.
 
-If the organization asks onboarding questions, every current question must be answered. If your login already belongs to another organization, this step adds the same account here. If setup fails or the policy changes while the form is open, Evorto explains what needs attention and lets you review the current requirements before retrying.`,
+If the organization asks onboarding questions, every current question must be answered. If your login already belongs to another organization, this step adds the same account here. If Evorto says the organization changed its questions or privacy policy, review the latest details before submitting again. For another setup error, read the message and load the page again to check whether setup completed before trying again.`,
       });
       const createAccountForm = page
         .locator('form')

@@ -3,7 +3,11 @@ import type { GlobalAdminTenantUpdateError } from '@shared/rpc-contracts/app-rpc
 
 import { afterAll, beforeAll, describe, expect, it } from '@effect/vitest';
 import {
-  adminTenantSettingsSnapshot,
+  adminTenantAppearanceSettingsSnapshot,
+  adminTenantLegalSettingsSnapshot,
+  adminTenantOrganizationSettingsSnapshot,
+  adminTenantPaymentProviderSettingsSnapshot,
+  adminTenantRegistrationSettingsSnapshot,
   platformTenantSettingsSnapshot,
 } from '@shared/tenant-settings-snapshot';
 import { eq } from 'drizzle-orm';
@@ -42,7 +46,13 @@ import {
   RpcRequestContextMiddleware,
   type RpcRequestContextShape,
 } from '../shared/rpc-contracts/app-rpcs';
-import { AdminTenantUpdateSettings } from '../shared/rpc-contracts/app-rpcs/admin.rpcs';
+import {
+  AdminTenantUpdateAppearanceSettings,
+  AdminTenantUpdateLegalSettings,
+  AdminTenantUpdateOrganizationSettings,
+  AdminTenantUpdatePaymentProviderSettings,
+  AdminTenantUpdateRegistrationSettings,
+} from '../shared/rpc-contracts/app-rpcs/admin.rpcs';
 import {
   GlobalAdminTenantsCreate,
   GlobalAdminTenantsUpdate,
@@ -272,66 +282,121 @@ const runUrlMigration = (
     ),
   );
 
-const runSettingsEdit = (tenant: Tenant, kind: 'ordinary' | 'platform') => {
-  const snapshot = adminTenantSettingsSnapshot(tenant);
-  const operation: Effect.Effect<
-    void,
-    AdminTenantRpcError | GlobalAdminTenantUpdateError,
-    Database | RpcAccess | StripeClient
-  > =
-    kind === 'ordinary'
-      ? adminHandlers['admin.tenant.updateSettings'](
-          {
-            allowOther: snapshot.receiptSettings.allowOther,
-            buyEsnCardUrl:
-              snapshot.discountProviders.esnCard.config.buyEsnCardUrl,
-            cancellationDeadlineHoursBeforeStart:
-              snapshot.cancellationDeadlineHoursBeforeStart,
-            currency: snapshot.currency,
-            defaultLocation: snapshot.defaultLocation,
-            emailSenderEmail: snapshot.emailSenderEmail ?? undefined,
-            emailSenderName: snapshot.emailSenderName ?? undefined,
-            esnCardEnabled:
-              snapshot.discountProviders.esnCard.status === 'enabled',
-            expectedSettings: snapshot,
-            faviconUrl: snapshot.faviconUrl ?? undefined,
-            legalNoticeText: snapshot.legalNoticeText ?? undefined,
-            legalNoticeUrl: snapshot.legalNoticeUrl ?? undefined,
-            logoUrl: snapshot.logoUrl ?? undefined,
-            maxActiveRegistrationsPerUser:
-              snapshot.maxActiveRegistrationsPerUser,
-            receiptCountries: snapshot.receiptSettings.receiptCountries,
-            refundFeesOnCancellation: snapshot.refundFeesOnCancellation,
-            seoDescription: snapshot.seoDescription ?? undefined,
-            seoTitle: 'Second editor title',
-            termsText: snapshot.termsText ?? undefined,
-            termsUrl: snapshot.termsUrl ?? undefined,
-            theme: snapshot.theme,
-            timezone: snapshot.timezone,
-            transferDeadlineHoursBeforeStart:
-              snapshot.transferDeadlineHoursBeforeStart,
-          },
-          {
-            ...platformHandlerOptions,
-            rpc: AdminTenantUpdateSettings.middleware(
-              RpcRequestContextMiddleware,
-            ),
-          },
-        ).pipe(Effect.asVoid)
-      : globalAdminHandlers['globalAdmin.tenants.update'](
-          {
-            expectedSettings: platformTenantSettingsSnapshot(tenant),
-            id: tenant.id,
-            reason: 'Second editor correction',
-            tenant: {
-              ...platformTenantSettingsSnapshot(tenant),
-              name: 'Second editor name',
-            },
-          },
-          platformHandlerOptions,
-        ).pipe(Effect.asVoid);
+type SettingsSection =
+  | 'appearance'
+  | 'legal'
+  | 'organization'
+  | 'paymentProvider'
+  | 'platform'
+  | 'registration';
+
+const runSettingsEdit = (tenant: Tenant, kind: SettingsSection) => {
+  const appearance = adminTenantAppearanceSettingsSnapshot(tenant);
+  const legal = adminTenantLegalSettingsSnapshot(tenant);
+  const organization = adminTenantOrganizationSettingsSnapshot(tenant);
+  const payment = adminTenantPaymentProviderSettingsSnapshot(tenant);
+  const registration = adminTenantRegistrationSettingsSnapshot(tenant);
+  const operations: Record<
+    SettingsSection,
+    Effect.Effect<
+      void,
+      AdminTenantRpcError | GlobalAdminTenantUpdateError,
+      Database | RpcAccess | StripeClient
+    >
+  > = {
+    appearance: adminHandlers['admin.tenant.updateAppearanceSettings'](
+      {
+        expectedSettings: appearance,
+        faviconUrl: appearance.faviconUrl ?? undefined,
+        logoUrl: appearance.logoUrl ?? undefined,
+        seoDescription: appearance.seoDescription ?? undefined,
+        seoTitle: 'Second editor title',
+        theme: appearance.theme,
+      },
+      {
+        ...platformHandlerOptions,
+        rpc: AdminTenantUpdateAppearanceSettings.middleware(
+          RpcRequestContextMiddleware,
+        ),
+      },
+    ).pipe(Effect.asVoid),
+    legal: adminHandlers['admin.tenant.updateLegalSettings'](
+      {
+        expectedSettings: legal,
+        legalNoticeText: 'Second editor notice',
+        legalNoticeUrl: legal.legalNoticeUrl ?? undefined,
+        termsText: legal.termsText ?? undefined,
+        termsUrl: legal.termsUrl ?? undefined,
+      },
+      {
+        ...platformHandlerOptions,
+        rpc: AdminTenantUpdateLegalSettings.middleware(
+          RpcRequestContextMiddleware,
+        ),
+      },
+    ).pipe(Effect.asVoid),
+    organization: adminHandlers['admin.tenant.updateOrganizationSettings'](
+      {
+        defaultLocation: organization.defaultLocation,
+        emailSenderEmail: 'second-editor@example.test',
+        emailSenderName: organization.emailSenderName ?? undefined,
+        expectedSettings: organization,
+        timezone: organization.timezone,
+      },
+      {
+        ...platformHandlerOptions,
+        rpc: AdminTenantUpdateOrganizationSettings.middleware(
+          RpcRequestContextMiddleware,
+        ),
+      },
+    ).pipe(Effect.asVoid),
+    paymentProvider: adminHandlers[
+      'admin.tenant.updatePaymentProviderSettings'
+    ](
+      {
+        allowOther: true,
+        buyEsnCardUrl: payment.discountProviders.esnCard.config.buyEsnCardUrl,
+        currency: payment.currency,
+        esnCardEnabled: payment.discountProviders.esnCard.status === 'enabled',
+        expectedSettings: payment,
+        receiptCountries: payment.receiptSettings.receiptCountries,
+        refundFeesOnCancellation: payment.refundFeesOnCancellation,
+      },
+      {
+        ...platformHandlerOptions,
+        rpc: AdminTenantUpdatePaymentProviderSettings.middleware(
+          RpcRequestContextMiddleware,
+        ),
+      },
+    ).pipe(Effect.asVoid),
+    platform: globalAdminHandlers['globalAdmin.tenants.update'](
+      {
+        expectedSettings: platformTenantSettingsSnapshot(tenant),
+        id: tenant.id,
+        reason: 'Second editor correction',
+        tenant: {
+          ...platformTenantSettingsSnapshot(tenant),
+          name: 'Second editor name',
+        },
+      },
+      platformHandlerOptions,
+    ).pipe(Effect.asVoid),
+    registration: adminHandlers['admin.tenant.updateRegistrationSettings'](
+      {
+        ...registration,
+        expectedSettings: registration,
+        maxActiveRegistrationsPerUser: 3,
+      },
+      {
+        ...platformHandlerOptions,
+        rpc: AdminTenantUpdateRegistrationSettings.middleware(
+          RpcRequestContextMiddleware,
+        ),
+      },
+    ).pipe(Effect.asVoid),
+  };
   return Effect.runPromise(
-    operation.pipe(
+    operations[kind].pipe(
       Effect.match({
         onFailure: (error) => ({ error, status: 'failure' as const }),
         onSuccess: () => ({ status: 'success' as const }),
@@ -345,7 +410,10 @@ const runSettingsEdit = (tenant: Tenant, kind: 'ordinary' | 'platform') => {
               ...tenant,
               stripeAccountId: tenant.stripeAccountId ?? null,
             }),
-            permissions: ['admin:changeSettings'],
+            permissions:
+              kind === 'paymentProvider'
+                ? ['admin:managePayments']
+                : ['admin:changeSettings'],
             tenant,
           }),
         ),
@@ -926,7 +994,8 @@ describe('tenant public URL migration serialization', () => {
         expect(result.value).toMatchObject({
           error: {
             _tag: 'RpcBadRequestError',
-            message: 'Organization domain already exists',
+            message:
+              'This website address is already used by another organization.',
             reason: nextDomain,
           },
           status: 'failure',
@@ -981,9 +1050,46 @@ describe('tenant public URL migration serialization', () => {
     30_000,
   );
 
-  it.each(['ordinary', 'platform'] as const)(
-    'rejects a stale %s form after waiting for a concurrent settings commit and allows an explicit reload',
-    async (kind) => {
+  it.each([
+    {
+      firstUpdate: { theme: 'esn' },
+      kind: 'appearance',
+      saved: { seoTitle: 'Second editor title' },
+      unchanged: { seoTitle: null },
+    },
+    {
+      firstUpdate: { termsText: 'First editor terms' },
+      kind: 'legal',
+      saved: { legalNoticeText: 'Second editor notice' },
+      unchanged: { legalNoticeText: null },
+    },
+    {
+      firstUpdate: { emailSenderName: 'First editor sender' },
+      kind: 'organization',
+      saved: { emailSenderEmail: 'second-editor@example.test' },
+      unchanged: { emailSenderEmail: null },
+    },
+    {
+      firstUpdate: { refundFeesOnCancellation: false },
+      kind: 'paymentProvider',
+      saved: { receiptSettings: { allowOther: true } },
+      unchanged: { receiptSettings: { allowOther: false } },
+    },
+    {
+      firstUpdate: { cancellationDeadlineHoursBeforeStart: 96 },
+      kind: 'registration',
+      saved: { maxActiveRegistrationsPerUser: 3 },
+      unchanged: { maxActiveRegistrationsPerUser: 0 },
+    },
+    {
+      firstUpdate: { theme: 'esn' },
+      kind: 'platform',
+      saved: { name: 'Second editor name' },
+      unchanged: { name: 'Original name' },
+    },
+  ] as const)(
+    'rejects a stale $kind form after waiting for a concurrent settings commit and allows an explicit reload',
+    async ({ firstUpdate, kind, saved, unchanged }) => {
       const suffix = randomUUID().replaceAll('-', '').slice(0, 8);
       const tenantId = makeId('edit', suffix);
       fixtures.push({ tenantId });
@@ -996,15 +1102,21 @@ describe('tenant public URL migration serialization', () => {
         await database.query.tenants.findFirst({ where: { id: tenantId } }),
       );
       const writer = await pool.connect();
+      const writerDatabase = drizzle({ client: writer, relations });
+      const failures: unknown[] = [];
+      const recordFailure = (error: unknown) => {
+        if (!failures.includes(error)) failures.push(error);
+      };
       let waitingSave: ReturnType<typeof runSettingsEdit> | undefined;
       try {
         await writer.query('BEGIN');
-        // First editor owns the same row lock as both settings handlers.
-        await writer.query('UPDATE tenants SET theme = $1 WHERE id = $2', [
-          'esn',
-          tenantId,
-        ]);
+        // First editor holds the row lock used by every settings write path.
+        await writerDatabase
+          .update(tenants)
+          .set(firstUpdate)
+          .where(eq(tenants.id, tenantId));
         waitingSave = runSettingsEdit(original, kind);
+        void waitingSave.catch(recordFailure);
         const observation = await Promise.allSettled([
           waitForBlockedTenantLock(pool),
         ]);
@@ -1018,25 +1130,22 @@ describe('tenant public URL migration serialization', () => {
         const current = Schema.decodeUnknownSync(Tenant)(
           await database.query.tenants.findFirst({ where: { id: tenantId } }),
         );
-        expect(current).toMatchObject({ name: 'Original name', theme: 'esn' });
-        expect(current.seoTitle).toBeNull();
+        expect(current).toMatchObject(firstUpdate);
+        expect(current).toMatchObject(unchanged);
         expect(
           await database.query.platformAuditEntries.findMany({
             where: { targetTenantId: tenantId },
           }),
         ).toEqual([]);
 
-        // Reloading supplies the new original values; the other editor's theme survives.
         expect(await runSettingsEdit(current, kind)).toEqual({
           status: 'success',
         });
-        const saved = await database.query.tenants.findFirst({
+        const persisted = await database.query.tenants.findFirst({
           where: { id: tenantId },
         });
-        expect(saved?.theme).toBe('esn');
-        expect(kind === 'ordinary' ? saved?.seoTitle : saved?.name).toBe(
-          kind === 'ordinary' ? 'Second editor title' : 'Second editor name',
-        );
+        expect(persisted).toMatchObject(firstUpdate);
+        expect(persisted).toMatchObject(saved);
         const audits = await database.query.platformAuditEntries.findMany({
           where: { targetTenantId: tenantId },
         });
@@ -1049,14 +1158,28 @@ describe('tenant public URL migration serialization', () => {
             state: { name: 'Second editor name', theme: 'esn' },
           });
         }
+      } catch (error) {
+        recordFailure(error);
       } finally {
         try {
           await writer.query('ROLLBACK');
-        } finally {
-          writer.release();
+        } catch (error) {
+          recordFailure(error);
         }
-        if (waitingSave) await waitingSave;
+        try {
+          writer.release();
+        } catch (error) {
+          recordFailure(error);
+        }
+        if (waitingSave) {
+          for (const result of await Promise.allSettled([waitingSave]))
+            if (result.status === 'rejected') recordFailure(result.reason);
+        }
       }
+      if (failures.length > 0)
+        throw new AggregateError(failures, `${kind} settings race failed`, {
+          cause: failures[0],
+        });
     },
     30_000,
   );

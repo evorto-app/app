@@ -29,7 +29,7 @@ test('global admin reviews active Email Outbox delivery states and read-only his
   await expect(
     page.getByRole('heading', {
       level: 1,
-      name: 'Platform administration',
+      name: 'Evorto administration',
     }),
   ).toBeVisible();
   await page.getByRole('link', { name: 'Email outbox' }).click();

@@ -185,7 +185,7 @@ describe('global admin tenant form model', () => {
     );
   });
 
-  it('trims tenant create/edit payloads and clears blank Stripe account IDs', () => {
+  it('trims tenant create/edit payloads without payment setup fields', () => {
     expect(
       globalAdminTenantPayloadFromForm({
         currency: 'CZK',
@@ -312,8 +312,31 @@ describe('global admin tenant form model', () => {
         tenantId: 'tenant-1',
       }),
     ).toBe(
-      "Failed to update organization. Complete or cancel every active registration transfer before changing the organization's public URL.",
+      'The website address cannot be changed while payments, refunds, or ticket transfers are unfinished. Finish or cancel them and try again.',
     );
+  });
+
+  it('shows expected organization update outcomes without exposing access or internal messages', () => {
+    expect(
+      globalAdminTenantUpdateErrorMessage({
+        _tag: 'RpcBadRequestError',
+        message:
+          'This website address is already used by another organization.',
+      }),
+    ).toBe('This website address is already used by another organization.');
+
+    for (const _tag of [
+      'RpcForbiddenError',
+      'RpcInternalServerError',
+      'RpcUnauthorizedError',
+    ]) {
+      expect(
+        globalAdminTenantUpdateErrorMessage({
+          _tag,
+          message: 'internal details must stay hidden',
+        }),
+      ).toBe('The organization could not be updated. Try again.');
+    }
   });
 
   it('keeps tenant writes disabled while invalid, submitting, or awaiting the mutation', () => {

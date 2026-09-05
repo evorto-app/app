@@ -7,7 +7,6 @@ import { deriveTenantPublicOrigin } from '@shared/tenant-origin';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
-import { getErrorMessage } from '../../core/error-message';
 import { globalAdminTenantRows } from '../tenant-list/tenant-list.rows';
 
 export const globalAdminTenantPublicOrigin = (
@@ -50,8 +49,4 @@ export class TenantDetailComponent {
     }),
   );
   protected readonly tenantRows = globalAdminTenantRows;
-
-  protected errorMessage(error: unknown): string {
-    return getErrorMessage(error, 'Failed to load organization');
-  }
 }

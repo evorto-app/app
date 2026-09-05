@@ -10,7 +10,7 @@ import type {
 import {
   RpcBadRequestError,
   RpcForbiddenError,
-  RpcUnauthorizedError,
+  type RpcUnauthorizedError,
 } from '@shared/errors/rpc-errors';
 import { activeRegistrationTransferStatuses } from '@shared/registration-transfer';
 import {
@@ -81,7 +81,7 @@ const tenantDomainUniqueConstraint = 'tenants_domain_key';
 
 const tenantDomainAlreadyExists = (domain: string) =>
   new RpcBadRequestError({
-    message: 'Organization domain already exists',
+    message: 'This website address is already used by another organization.',
     reason: domain,
   });
 
@@ -152,7 +152,7 @@ const requirePlatformAdministrator = Effect.fn(
 
   if (!authority) {
     return yield* new RpcForbiddenError({
-      message: 'Platform administrator authority required',
+      message: 'You need Evorto administrator access to do this.',
     });
   }
 
@@ -425,8 +425,13 @@ const toGlobalAdminTenantRecord = (tenant: {
   timezone: string;
 }): GlobalAdminTenantRecordType => {
   return Schema.decodeUnknownSync(GlobalAdminTenantRecord)({
-    ...tenant,
+    currency: tenant.currency,
+    domain: tenant.domain,
+    id: tenant.id,
+    name: tenant.name,
     paymentsConfigured: !!tenant.stripeAccountId,
+    theme: tenant.theme,
+    timezone: tenant.timezone,
   });
 };
 
@@ -485,7 +490,8 @@ const normalizeTenantWritePayload = (input: GlobalAdminTenantWriteInput) =>
   Effect.try({
     catch: (error) =>
       new RpcBadRequestError({
-        message: 'Invalid tenant settings',
+        message:
+          'The organization settings are not valid. Review them and try again.',
         reason: error instanceof Error ? error.message : String(error),
       }),
     try: () => normalizeTenantWriteInput(input),
@@ -828,13 +834,15 @@ export const globalAdminHandlers = {
 
       const targetTenant = yield* databaseEffect((database) =>
         database.query.tenants.findFirst({
-          columns: { id: true, stripeAccountId: true },
+          columns: { id: true },
           where: { id },
         }),
       );
       if (!targetTenant) {
         return yield* Effect.fail(
-          new RpcBadRequestError({ message: 'Tenant not found' }),
+          new RpcBadRequestError({
+            message: 'This organization could not be found.',
+          }),
         );
       }
       return yield* databaseEffectWithTenantUpdateError(
@@ -878,7 +886,7 @@ export const globalAdminHandlers = {
                   return yield* new GlobalAdminTenantUrlMigrationBlockedError({
                     activeRegistrationTransfers,
                     message:
-                      'Organization public URL cannot change while issued links are active',
+                      "The organization's public web address cannot change while active links still use it.",
                     pendingStripeObligations,
                     reason: tenantUrlMigrationBlockedReason({
                       activeRegistrationTransfers,
@@ -901,7 +909,9 @@ export const globalAdminHandlers = {
 
               const updatedTenants = yield* transaction
                 .update(tenants)
-                .set(tenantInput)
+                .set({
+                  ...tenantInput,
+                })
                 .where(eq(tenants.id, id))
                 .returning(globalAdminTenantReturningColumns);
               const updatedTenant = updatedTenants[0];

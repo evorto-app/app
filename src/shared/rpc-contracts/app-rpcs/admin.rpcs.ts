@@ -1,7 +1,17 @@
 import { asRpcMutation, asRpcQuery } from '@heddendorp/effect-angular-query';
 import { notificationEmailPattern } from '@shared/notification-email';
-import { literalUnion } from '@shared/schema-utilities';
-import { AdminTenantSettingsSnapshot } from '@shared/tenant-settings-snapshot';
+import {
+  literalUnion,
+  nonNegativePostgresInteger,
+} from '@shared/schema-utilities';
+import { TenantReceiptSettingsSchema } from '@shared/tenant-config';
+import {
+  AdminTenantAppearanceSettingsSnapshot,
+  AdminTenantLegalSettingsSnapshot,
+  AdminTenantOrganizationSettingsSnapshot,
+  AdminTenantPaymentProviderSettingsSnapshot,
+  AdminTenantRegistrationSettingsSnapshot,
+} from '@shared/tenant-settings-snapshot';
 import { Effect, Schema, SchemaTransformation } from 'effect';
 import * as Rpc from 'effect/unstable/rpc/Rpc';
 import * as RpcGroup from 'effect/unstable/rpc/RpcGroup';
@@ -14,7 +24,6 @@ import {
   AdminRoleWriteRpcError,
   AdminTenantRpcError,
 } from './admin.errors';
-import { ClientTenantConfig } from './config.rpcs';
 import { RoleWriteInput } from './role-write.shared';
 
 const UrlString = Schema.String.pipe(
@@ -228,54 +237,92 @@ export const AdminTenantListStripeTaxRates = asRpcQuery(
   }),
 );
 
-const AdminTenantUpdateSettingsPayload = Schema.Struct({
-  allowOther: Schema.Boolean,
-  buyEsnCardUrl: Schema.optional(UrlString),
-  cancellationDeadlineHoursBeforeStart:
-    Tenant.fields.cancellationDeadlineHoursBeforeStart,
-  currency: Tenant.fields.currency,
+export const AdminTenantUpdateAppearanceSettingsInput = Schema.Struct({
+  expectedSettings: AdminTenantAppearanceSettingsSnapshot,
+  faviconUrl: Schema.optional(TenantBrandAssetUrlString),
+  logoUrl: Schema.optional(TenantBrandAssetUrlString),
+  seoDescription: Schema.optional(Schema.String),
+  seoTitle: Schema.optional(Schema.String),
+  theme: Tenant.fields.theme,
+}).annotate({ parseOptions: { onExcessProperty: 'error' } });
+
+export type AdminTenantUpdateAppearanceSettingsInput = Schema.Schema.Type<
+  typeof AdminTenantUpdateAppearanceSettingsInput
+>;
+
+export const AdminTenantUpdateLegalSettingsInput = Schema.Struct({
+  expectedSettings: AdminTenantLegalSettingsSnapshot,
+  legalNoticeText: Schema.optional(Schema.String),
+  legalNoticeUrl: Schema.optional(UrlString),
+  termsText: Schema.optional(Schema.String),
+  termsUrl: Schema.optional(UrlString),
+}).annotate({ parseOptions: { onExcessProperty: 'error' } });
+
+export type AdminTenantUpdateLegalSettingsInput = Schema.Schema.Type<
+  typeof AdminTenantUpdateLegalSettingsInput
+>;
+
+export const AdminTenantUpdateOrganizationSettingsInput = Schema.Struct({
   defaultLocation: Schema.NullOr(GoogleLocation),
   emailSenderEmail: Schema.optional(OptionalSenderEmail),
   emailSenderName: Schema.optional(Schema.NonEmptyString),
-  esnCardEnabled: Schema.Boolean,
-  expectedSettings: AdminTenantSettingsSnapshot,
-  faviconUrl: Schema.optional(TenantBrandAssetUrlString),
-  legalNoticeText: Schema.optional(Schema.String),
-  legalNoticeUrl: Schema.optional(UrlString),
-  logoUrl: Schema.optional(TenantBrandAssetUrlString),
-  maxActiveRegistrationsPerUser: Tenant.fields.maxActiveRegistrationsPerUser,
-  receiptCountries: Tenant.fields.receiptSettings.fields.receiptCountries,
-  refundFeesOnCancellation: Schema.Boolean,
-  seoDescription: Schema.optional(Schema.String),
-  seoTitle: Schema.optional(Schema.String),
-  termsText: Schema.optional(Schema.String),
-  termsUrl: Schema.optional(UrlString),
-  theme: Tenant.fields.theme,
+  expectedSettings: AdminTenantOrganizationSettingsSnapshot,
   timezone: Tenant.fields.timezone,
-  transferDeadlineHoursBeforeStart:
-    Tenant.fields.transferDeadlineHoursBeforeStart,
+}).annotate({ parseOptions: { onExcessProperty: 'error' } });
+
+export type AdminTenantUpdateOrganizationSettingsInput = Schema.Schema.Type<
+  typeof AdminTenantUpdateOrganizationSettingsInput
+>;
+
+const AdminTenantUpdatePaymentProviderSettingsPayload = Schema.Struct({
+  allowOther: Schema.Boolean,
+  buyEsnCardUrl: Schema.optional(UrlString),
+  currency: Tenant.fields.currency,
+  esnCardEnabled: Schema.Boolean,
+  expectedSettings: AdminTenantPaymentProviderSettingsSnapshot,
+  receiptCountries: TenantReceiptSettingsSchema.fields.receiptCountries,
+  refundFeesOnCancellation: Schema.Boolean,
 });
 
-export const AdminTenantUpdateSettingsInput = Schema.Json.pipe(
+export const AdminTenantUpdatePaymentProviderSettingsInput = Schema.Json.pipe(
   Schema.decodeTo(
-    AdminTenantUpdateSettingsPayload,
+    AdminTenantUpdatePaymentProviderSettingsPayload,
     SchemaTransformation.transformOrFail({
       decode: (input) =>
         Schema.decodeUnknownEffect(
-          Schema.toCodecJson(AdminTenantUpdateSettingsPayload),
-        )(input, {
-          onExcessProperty: 'error',
-        }).pipe(Effect.mapError((error) => error.issue)),
+          AdminTenantUpdatePaymentProviderSettingsPayload,
+        )(input, { onExcessProperty: 'error' }).pipe(
+          Effect.mapError((error) => error.issue),
+        ),
       encode: (value) =>
-        Schema.encodeEffect(
-          Schema.toCodecJson(AdminTenantUpdateSettingsPayload),
-        )(value).pipe(Effect.mapError((error) => error.issue)),
+        Effect.succeed({
+          allowOther: value.allowOther,
+          ...(value.buyEsnCardUrl !== undefined && {
+            buyEsnCardUrl: value.buyEsnCardUrl,
+          }),
+          currency: value.currency,
+          esnCardEnabled: value.esnCardEnabled,
+          expectedSettings: value.expectedSettings,
+          receiptCountries: value.receiptCountries,
+          refundFeesOnCancellation: value.refundFeesOnCancellation,
+        }),
     }),
   ),
 );
 
-export type AdminTenantUpdateSettingsInput = Schema.Schema.Type<
-  typeof AdminTenantUpdateSettingsInput
+export type AdminTenantUpdatePaymentProviderSettingsInput = Schema.Schema.Type<
+  typeof AdminTenantUpdatePaymentProviderSettingsInput
+>;
+
+export const AdminTenantUpdateRegistrationSettingsInput = Schema.Struct({
+  cancellationDeadlineHoursBeforeStart: nonNegativePostgresInteger,
+  expectedSettings: AdminTenantRegistrationSettingsSnapshot,
+  maxActiveRegistrationsPerUser: nonNegativePostgresInteger,
+  transferDeadlineHoursBeforeStart: nonNegativePostgresInteger,
+}).annotate({ parseOptions: { onExcessProperty: 'error' } });
+
+export type AdminTenantUpdateRegistrationSettingsInput = Schema.Schema.Type<
+  typeof AdminTenantUpdateRegistrationSettingsInput
 >;
 
 export const AdminTenantBrandAssetKind = literalUnion('favicon', 'logo');
@@ -301,11 +348,43 @@ export const AdminTenantUploadBrandAsset = asRpcMutation(
   }),
 );
 
-export const AdminTenantUpdateSettings = asRpcMutation(
-  Rpc.make('admin.tenant.updateSettings', {
+export const AdminTenantUpdateAppearanceSettings = asRpcMutation(
+  Rpc.make('admin.tenant.updateAppearanceSettings', {
     error: AdminTenantRpcError,
-    payload: AdminTenantUpdateSettingsInput,
-    success: ClientTenantConfig,
+    payload: AdminTenantUpdateAppearanceSettingsInput,
+    success: Schema.Void,
+  }),
+);
+
+export const AdminTenantUpdateLegalSettings = asRpcMutation(
+  Rpc.make('admin.tenant.updateLegalSettings', {
+    error: AdminTenantRpcError,
+    payload: AdminTenantUpdateLegalSettingsInput,
+    success: Schema.Void,
+  }),
+);
+
+export const AdminTenantUpdateOrganizationSettings = asRpcMutation(
+  Rpc.make('admin.tenant.updateOrganizationSettings', {
+    error: AdminTenantRpcError,
+    payload: AdminTenantUpdateOrganizationSettingsInput,
+    success: Schema.Void,
+  }),
+);
+
+export const AdminTenantUpdatePaymentProviderSettings = asRpcMutation(
+  Rpc.make('admin.tenant.updatePaymentProviderSettings', {
+    error: AdminTenantRpcError,
+    payload: AdminTenantUpdatePaymentProviderSettingsInput,
+    success: Schema.Void,
+  }),
+);
+
+export const AdminTenantUpdateRegistrationSettings = asRpcMutation(
+  Rpc.make('admin.tenant.updateRegistrationSettings', {
+    error: AdminTenantRpcError,
+    payload: AdminTenantUpdateRegistrationSettingsInput,
+    success: Schema.Void,
   }),
 );
 
@@ -321,5 +400,9 @@ export class AdminRpcs extends RpcGroup.make(
   AdminTenantListImportedTaxRates,
   AdminTenantListStripeTaxRates,
   AdminTenantUploadBrandAsset,
-  AdminTenantUpdateSettings,
+  AdminTenantUpdateAppearanceSettings,
+  AdminTenantUpdateLegalSettings,
+  AdminTenantUpdateOrganizationSettings,
+  AdminTenantUpdatePaymentProviderSettings,
+  AdminTenantUpdateRegistrationSettings,
 ) {}

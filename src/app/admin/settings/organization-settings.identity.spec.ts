@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { tenantIdentityRows } from './general-settings.identity';
+import { tenantIdentityRows } from './organization-settings.identity';
 
 describe('tenantIdentityRows', () => {
   it('summarizes the read-only organization identity', () => {
@@ -11,7 +11,7 @@ describe('tenantIdentityRows', () => {
       }),
     ).toEqual([
       { label: 'Organization name', value: 'Example Tenant' },
-      { label: 'Public domain', value: 'tenant.example.com' },
+      { label: 'Website address', value: 'tenant.example.com' },
     ]);
   });
 });
