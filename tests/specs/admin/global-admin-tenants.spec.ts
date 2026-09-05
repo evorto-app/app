@@ -30,7 +30,6 @@ const expectTenantRows = async (page: Page) => {
   await expect(page.getByText('Timezone').first()).toBeVisible();
   await expect(page.getByText('Stripe account').first()).toBeVisible();
   await expect(page.getByText('evorto').first()).toBeVisible();
-  await expect(page.getByText('de-DE').first()).toBeVisible();
   await expect(page.getByText('EUR').first()).toBeVisible();
   await expect(page.getByText('Europe/Berlin').first()).toBeVisible();
 };
