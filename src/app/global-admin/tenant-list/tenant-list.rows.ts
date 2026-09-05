@@ -1,22 +1,19 @@
 import type { GlobalAdminTenantRecord } from '@shared/rpc-contracts/app-rpcs/global-admin.rpcs';
 
-import { getErrorMessage } from '../../core/error-message';
-
-export const globalAdminTenantListErrorMessage = (error: unknown): string =>
-  getErrorMessage(error, 'Failed to load organizations');
+import { tenantTimezoneLabel } from '../../core/geography-labels';
 
 const searchableTenantFields = (tenant: GlobalAdminTenantRecord): string[] => [
   tenant.currency,
   tenant.domain,
   tenant.name,
   tenant.theme,
-  tenant.timezone,
+  tenantTimezoneLabel(tenant.timezone),
   tenant.paymentsConfigured
     ? 'paid sign-ups ready'
     : 'paid sign-ups need attention',
 ];
 
-export const globalAdminStripeAccountLabel = (
+export const globalAdminPaymentStatusLabel = (
   tenant: Pick<GlobalAdminTenantRecord, 'paymentsConfigured'>,
 ): string => {
   if (!tenant.paymentsConfigured) {
@@ -43,12 +40,20 @@ export const filterGlobalAdminTenants = (
 };
 
 export const globalAdminTenantRows = (tenant: GlobalAdminTenantRecord) => [
-  { label: 'Primary domain', value: tenant.domain },
-  { label: 'Theme', value: tenant.theme },
+  { label: 'Website address', value: tenant.domain },
+  {
+    label: 'Theme',
+    value:
+      tenant.theme === 'esn'
+        ? 'ESN theme'
+        : tenant.theme === 'classic'
+          ? 'Classic Evorto theme'
+          : 'Default theme',
+  },
   { label: 'Currency', value: tenant.currency },
-  { label: 'Timezone', value: tenant.timezone },
+  { label: 'Time zone', value: tenantTimezoneLabel(tenant.timezone) },
   {
     label: 'Payments',
-    value: globalAdminStripeAccountLabel(tenant),
+    value: globalAdminPaymentStatusLabel(tenant),
   },
 ];

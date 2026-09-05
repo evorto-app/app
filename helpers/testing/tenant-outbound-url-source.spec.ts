@@ -38,8 +38,10 @@ describe('tenant outbound URL source boundary', () => {
       'src/shared/rpc-contracts/app-rpcs/admin.rpcs.ts',
     );
     const tenantAdminSettings = tenantAdminContract.slice(
-      tenantAdminContract.indexOf('const AdminTenantUpdateSettingsPayload'),
-      tenantAdminContract.indexOf('export type AdminTenantUpdateSettingsInput'),
+      tenantAdminContract.indexOf(
+        'export const AdminTenantUpdateAppearanceSettingsInput',
+      ),
+      tenantAdminContract.indexOf('export const AdminTenantBrandAssetKind'),
     );
 
     expect(platformContract).not.toContain('canonicalRootUrl');

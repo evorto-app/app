@@ -1,6 +1,12 @@
 import * as PgClient from '@effect/sql-pg/PgClient';
 import { describe, expect, it, vi } from '@effect/vitest';
-import { adminTenantSettingsSnapshot } from '@shared/tenant-settings-snapshot';
+import {
+  adminTenantAppearanceSettingsSnapshot,
+  adminTenantLegalSettingsSnapshot,
+  adminTenantOrganizationSettingsSnapshot,
+  adminTenantPaymentProviderSettingsSnapshot,
+  adminTenantRegistrationSettingsSnapshot,
+} from '@shared/tenant-settings-snapshot';
 import * as PgDrizzle from 'drizzle-orm/effect-postgres';
 import { Cause, Effect, Exit, Layer, Schema, SchemaIssue } from 'effect';
 import * as Headers from 'effect/unstable/http/Headers';
@@ -54,24 +60,46 @@ const createTenant = (id = 'tenant-1') => ({
   transferDeadlineHoursBeforeStart: 0,
 });
 
-const createSettingsInput = (
-  expectedTenant = Schema.decodeUnknownSync(Tenant)(createTenant()),
-) => ({
-  allowOther: true,
-  cancellationDeadlineHoursBeforeStart: 120,
-  currency: 'EUR' as const,
-  defaultLocation: null,
-  emailSenderEmail: undefined,
-  emailSenderName: undefined,
-  esnCardEnabled: false,
-  expectedSettings: adminTenantSettingsSnapshot(expectedTenant),
-  maxActiveRegistrationsPerUser: 0,
-  receiptCountries: ['NL'],
-  refundFeesOnCancellation: true,
-  theme: 'evorto' as const,
-  timezone: 'Europe/Berlin' as const,
-  transferDeadlineHoursBeforeStart: 0,
-});
+const createAppearanceSettingsInput =
+  (): AdminRpcs.AdminTenantUpdateAppearanceSettingsInput => ({
+    expectedSettings: adminTenantAppearanceSettingsSnapshot(
+      Schema.decodeUnknownSync(Tenant)(createTenant()),
+    ),
+    theme: 'evorto',
+  });
+
+const createOrganizationSettingsInput =
+  (): AdminRpcs.AdminTenantUpdateOrganizationSettingsInput => ({
+    defaultLocation: null,
+    emailSenderEmail: undefined,
+    emailSenderName: undefined,
+    expectedSettings: adminTenantOrganizationSettingsSnapshot(
+      Schema.decodeUnknownSync(Tenant)(createTenant()),
+    ),
+    timezone: 'Europe/Berlin',
+  });
+
+const createPaymentSettingsInput =
+  (): AdminRpcs.AdminTenantUpdatePaymentProviderSettingsInput => ({
+    allowOther: true,
+    currency: 'EUR',
+    esnCardEnabled: false,
+    expectedSettings: adminTenantPaymentProviderSettingsSnapshot(
+      Schema.decodeUnknownSync(Tenant)(createTenant()),
+    ),
+    receiptCountries: ['NL'],
+    refundFeesOnCancellation: true,
+  });
+
+const createRegistrationSettingsInput =
+  (): AdminRpcs.AdminTenantUpdateRegistrationSettingsInput => ({
+    cancellationDeadlineHoursBeforeStart: 120,
+    expectedSettings: adminTenantRegistrationSettingsSnapshot(
+      Schema.decodeUnknownSync(Tenant)(createTenant()),
+    ),
+    maxActiveRegistrationsPerUser: 0,
+    transferDeadlineHoursBeforeStart: 0,
+  });
 
 const noLocaleMoneyDependentDataQuery = () => ({
   eventInstances: {
@@ -95,8 +123,8 @@ const withTenantSettingsTransaction = <T extends object>(
     readonly hasPendingStripeObligations?: boolean;
     readonly hasStripeTaxRateConfiguration?: boolean;
     readonly lockedCurrency?: 'AUD' | 'CZK' | 'EUR';
+    readonly lockedSettings?: Partial<Tenant>;
     readonly lockedStripeAccountId?: null | string;
-    readonly lockedTheme?: 'classic' | 'esn' | 'evorto';
     readonly lockedTimezone?: string;
     readonly rotationTargetStripeAccountId?: string;
   } = {},
@@ -133,8 +161,8 @@ const withTenantSettingsTransaction = <T extends object>(
                   currency: options.lockedCurrency ?? 'EUR',
                   id: 'tenant-1',
                   stripeAccountId: options.lockedStripeAccountId ?? null,
-                  theme: options.lockedTheme ?? 'evorto',
                   timezone: options.lockedTimezone ?? 'Europe/Amsterdam',
+                  ...options.lockedSettings,
                 },
               ]),
         from: () => selectQuery,
@@ -835,6 +863,181 @@ describe('adminHandlers Stripe tax-rate import', () => {
 });
 
 describe('adminHandlers tenant settings', () => {
+  for (const mutation of [
+    {
+      conflict: { theme: 'esn' as const },
+      name: 'appearance',
+      permission: 'admin:changeSettings',
+      run: () =>
+        adminHandlers['admin.tenant.updateAppearanceSettings'](
+          createAppearanceSettingsInput(),
+          createRpcOptions(
+            AdminRpcs.AdminTenantUpdateAppearanceSettings.middleware(
+              RpcRequestContextMiddleware,
+            ),
+          ),
+        ),
+      unrelated: { emailSenderName: 'Other page' },
+    },
+    {
+      conflict: { termsText: 'Changed terms' },
+      name: 'legal',
+      permission: 'admin:changeSettings',
+      run: () =>
+        adminHandlers['admin.tenant.updateLegalSettings'](
+          {
+            expectedSettings: adminTenantLegalSettingsSnapshot(
+              Schema.decodeUnknownSync(Tenant)(createTenant()),
+            ),
+          },
+          createRpcOptions(
+            AdminRpcs.AdminTenantUpdateLegalSettings.middleware(
+              RpcRequestContextMiddleware,
+            ),
+          ),
+        ),
+      unrelated: { theme: 'esn' as const },
+    },
+    {
+      conflict: { emailSenderName: 'Other administrator' },
+      name: 'organization',
+      permission: 'admin:changeSettings',
+      run: () =>
+        adminHandlers['admin.tenant.updateOrganizationSettings'](
+          createOrganizationSettingsInput(),
+          createRpcOptions(
+            AdminRpcs.AdminTenantUpdateOrganizationSettings.middleware(
+              RpcRequestContextMiddleware,
+            ),
+          ),
+        ),
+      unrelated: { theme: 'esn' as const },
+    },
+    {
+      conflict: { refundFeesOnCancellation: false },
+      name: 'payment provider',
+      permission: 'admin:managePayments',
+      run: () =>
+        adminHandlers['admin.tenant.updatePaymentProviderSettings'](
+          createPaymentSettingsInput(),
+          createRpcOptions(
+            AdminRpcs.AdminTenantUpdatePaymentProviderSettings.middleware(
+              RpcRequestContextMiddleware,
+            ),
+          ),
+        ),
+      unrelated: { theme: 'esn' as const },
+    },
+    {
+      conflict: { maxActiveRegistrationsPerUser: 5 },
+      name: 'registration',
+      permission: 'admin:changeSettings',
+      run: () =>
+        adminHandlers['admin.tenant.updateRegistrationSettings'](
+          createRegistrationSettingsInput(),
+          createRpcOptions(
+            AdminRpcs.AdminTenantUpdateRegistrationSettings.middleware(
+              RpcRequestContextMiddleware,
+            ),
+          ),
+        ),
+      unrelated: { theme: 'esn' as const },
+    },
+  ] as const) {
+    it.effect(
+      `requires ${mutation.permission} before ${mutation.name} settings database access`,
+      () =>
+        Effect.gen(function* () {
+          const error = yield* mutation
+            .run()
+            .pipe(
+              Effect.provide(
+                requestContextLayer(
+                  createRequestContext(
+                    mutation.permission === 'admin:managePayments'
+                      ? ['admin:changeSettings']
+                      : ['admin:managePayments'],
+                  ),
+                ),
+              ),
+              Effect.provide(unavailableDatabaseLayer),
+              Effect.flip,
+            );
+          expect(error).toMatchObject({
+            _tag: 'RpcForbiddenError',
+            permission: mutation.permission,
+          });
+        }),
+    );
+    it.effect(`rejects a stale ${mutation.name} snapshot before writing`, () =>
+      Effect.gen(function* () {
+        let writes = 0;
+        const database = withTenantSettingsTransaction(
+          {
+            update: () => {
+              writes++;
+              throw new Error('Stale settings must not write');
+            },
+          },
+          { lockedSettings: mutation.conflict },
+        );
+        const error = yield* mutation
+          .run()
+          .pipe(
+            Effect.provide(
+              requestContextLayer(
+                createRequestContext(
+                  mutation.permission === 'admin:managePayments'
+                    ? ['admin:managePayments']
+                    : ['admin:changeSettings'],
+                ),
+              ),
+            ),
+            Effect.provide(tenantSettingsLayer(database)),
+            Effect.flip,
+          );
+        expect(error._tag).toBe('TenantSettingsConflictError');
+        expect(writes).toBe(0);
+      }),
+    );
+    it.effect(
+      `allows an unrelated page change when saving ${mutation.name}`,
+      () =>
+        Effect.gen(function* () {
+          let values: Record<string, unknown> | undefined;
+          const update = {
+            returning: () => Effect.succeed([{ id: 'tenant-1' }]),
+            set: (value: Record<string, unknown>) => {
+              values = value;
+              return update;
+            },
+            where: () => update,
+          };
+          const database = withTenantSettingsTransaction(
+            { update: () => update },
+            { lockedSettings: mutation.unrelated },
+          );
+          yield* mutation
+            .run()
+            .pipe(
+              Effect.provide(
+                requestContextLayer(
+                  createRequestContext(
+                    mutation.permission === 'admin:managePayments'
+                      ? ['admin:managePayments']
+                      : ['admin:changeSettings'],
+                  ),
+                ),
+              ),
+              Effect.provide(tenantSettingsLayer(database)),
+            );
+          expect(values).toBeDefined();
+          for (const field of Object.keys(mutation.unrelated))
+            expect(values).not.toHaveProperty(field);
+        }),
+    );
+  }
+
   it.effect(
     'rejects credential-bearing buy-card URLs before writing settings',
     () =>
@@ -849,17 +1052,19 @@ describe('adminHandlers tenant settings', () => {
               throw new Error('database should not be touched');
             },
           });
-          const error = yield* adminHandlers['admin.tenant.updateSettings'](
-            { ...createSettingsInput(), buyEsnCardUrl },
+          const error = yield* adminHandlers[
+            'admin.tenant.updatePaymentProviderSettings'
+          ](
+            { ...createPaymentSettingsInput(), buyEsnCardUrl },
             createRpcOptions(
-              AdminRpcs.AdminTenantUpdateSettings.middleware(
+              AdminRpcs.AdminTenantUpdatePaymentProviderSettings.middleware(
                 RpcRequestContextMiddleware,
               ),
             ),
           ).pipe(
             Effect.provide(
               requestContextLayer(
-                createRequestContext(['admin:changeSettings']),
+                createRequestContext(['admin:managePayments']),
               ),
             ),
             Effect.provide(tenantSettingsLayer(database)),
@@ -867,7 +1072,7 @@ describe('adminHandlers tenant settings', () => {
           );
           expect(error['_tag']).toBe('RpcBadRequestError');
           expect(error.message).toBe(
-            'Updated tenant settings failed validation',
+            'Enter a valid secure web address for buying an ESNcard.',
           );
         }
       }),
@@ -878,6 +1083,7 @@ describe('adminHandlers tenant settings', () => {
     () =>
       Effect.gen(function* () {
         let capturedUpdate: Record<string, unknown> | undefined;
+        const capturedUpdates: Record<string, unknown>[] = [];
         const updateQuery = {
           returning: () =>
             Effect.succeed([
@@ -886,7 +1092,8 @@ describe('adminHandlers tenant settings', () => {
               },
             ]),
           set: (value: Record<string, unknown>) => {
-            capturedUpdate = value;
+            capturedUpdate = { ...capturedUpdate, ...value };
+            capturedUpdates.push(value);
             return updateQuery;
           },
           where: () => updateQuery,
@@ -909,47 +1116,126 @@ describe('adminHandlers tenant settings', () => {
           update: () => updateQuery,
         });
 
-        const result = yield* adminHandlers['admin.tenant.updateSettings'](
+        const appearanceResult = yield* adminHandlers[
+          'admin.tenant.updateAppearanceSettings'
+        ](
           {
-            allowOther: true,
-            cancellationDeadlineHoursBeforeStart: 96,
-            currency: 'AUD',
-            defaultLocation: null,
-            emailSenderEmail: ' events@section.example.org ',
-            emailSenderName: ' Example Section ',
-            esnCardEnabled: false,
-            expectedSettings: adminTenantSettingsSnapshot(
+            expectedSettings: adminTenantAppearanceSettingsSnapshot(
               Schema.decodeUnknownSync(Tenant)(createTenant()),
             ),
             faviconUrl: ' https://cdn.example.org/favicon.ico ',
-            legalNoticeText: '  Tenant imprint text  ',
-            legalNoticeUrl: ' https://section.example.org/imprint ',
             logoUrl: 'https://cdn.example.org/logo.svg',
-            maxActiveRegistrationsPerUser: 4,
-            receiptCountries: ['NL'],
-            refundFeesOnCancellation: false,
             seoDescription: '  Public description  ',
             seoTitle: '  Public title  ',
-            termsText: ' Tenant terms text ',
-            termsUrl: 'https://section.example.org/terms',
             theme: 'classic',
-            timezone: 'Australia/Brisbane',
-            transferDeadlineHoursBeforeStart: 12,
           },
           createRpcOptions(
-            AdminRpcs.AdminTenantUpdateSettings.middleware(
+            AdminRpcs.AdminTenantUpdateAppearanceSettings.middleware(
               RpcRequestContextMiddleware,
             ),
           ),
-        )
-          .pipe(
-            Effect.provide(
-              requestContextLayer(
-                createRequestContext(['admin:changeSettings']),
-              ),
+        ).pipe(
+          Effect.provide(
+            requestContextLayer(createRequestContext(['admin:changeSettings'])),
+          ),
+          Effect.provide(tenantSettingsLayer(database)),
+        );
+
+        const legalResult = yield* adminHandlers[
+          'admin.tenant.updateLegalSettings'
+        ](
+          {
+            expectedSettings: adminTenantLegalSettingsSnapshot(
+              Schema.decodeUnknownSync(Tenant)(createTenant()),
             ),
-          )
-          .pipe(Effect.provide(tenantSettingsLayer(database)));
+            legalNoticeText: '  Tenant imprint text  ',
+            legalNoticeUrl: ' https://section.example.org/imprint ',
+            termsText: ' Tenant terms text ',
+            termsUrl: 'https://section.example.org/terms',
+          },
+          createRpcOptions(
+            AdminRpcs.AdminTenantUpdateLegalSettings.middleware(
+              RpcRequestContextMiddleware,
+            ),
+          ),
+        ).pipe(
+          Effect.provide(
+            requestContextLayer(createRequestContext(['admin:changeSettings'])),
+          ),
+          Effect.provide(tenantSettingsLayer(database)),
+        );
+
+        const organizationResult = yield* adminHandlers[
+          'admin.tenant.updateOrganizationSettings'
+        ](
+          {
+            defaultLocation: null,
+            emailSenderEmail: ' events@section.example.org ',
+            emailSenderName: ' Example Section ',
+            expectedSettings: adminTenantOrganizationSettingsSnapshot(
+              Schema.decodeUnknownSync(Tenant)(createTenant()),
+            ),
+            timezone: 'Australia/Brisbane',
+          },
+          createRpcOptions(
+            AdminRpcs.AdminTenantUpdateOrganizationSettings.middleware(
+              RpcRequestContextMiddleware,
+            ),
+          ),
+        ).pipe(
+          Effect.provide(
+            requestContextLayer(createRequestContext(['admin:changeSettings'])),
+          ),
+          Effect.provide(tenantSettingsLayer(database)),
+        );
+
+        const paymentProviderResult = yield* adminHandlers[
+          'admin.tenant.updatePaymentProviderSettings'
+        ](
+          {
+            allowOther: true,
+            currency: 'AUD',
+            esnCardEnabled: false,
+            expectedSettings: adminTenantPaymentProviderSettingsSnapshot(
+              Schema.decodeUnknownSync(Tenant)(createTenant()),
+            ),
+            receiptCountries: ['NL'],
+            refundFeesOnCancellation: false,
+          },
+          createRpcOptions(
+            AdminRpcs.AdminTenantUpdatePaymentProviderSettings.middleware(
+              RpcRequestContextMiddleware,
+            ),
+          ),
+        ).pipe(
+          Effect.provide(
+            requestContextLayer(createRequestContext(['admin:managePayments'])),
+          ),
+          Effect.provide(tenantSettingsLayer(database)),
+        );
+
+        const registrationResult = yield* adminHandlers[
+          'admin.tenant.updateRegistrationSettings'
+        ](
+          {
+            cancellationDeadlineHoursBeforeStart: 96,
+            expectedSettings: adminTenantRegistrationSettingsSnapshot(
+              Schema.decodeUnknownSync(Tenant)(createTenant()),
+            ),
+            maxActiveRegistrationsPerUser: 4,
+            transferDeadlineHoursBeforeStart: 12,
+          },
+          createRpcOptions(
+            AdminRpcs.AdminTenantUpdateRegistrationSettings.middleware(
+              RpcRequestContextMiddleware,
+            ),
+          ),
+        ).pipe(
+          Effect.provide(
+            requestContextLayer(createRequestContext(['admin:changeSettings'])),
+          ),
+          Effect.provide(tenantSettingsLayer(database)),
+        );
 
         expect(capturedUpdate).toMatchObject({
           cancellationDeadlineHoursBeforeStart: 96,
@@ -970,74 +1256,48 @@ describe('adminHandlers tenant settings', () => {
           timezone: 'Australia/Brisbane',
           transferDeadlineHoursBeforeStart: 12,
         });
-        expect(result).toMatchObject({
-          cancellationDeadlineHoursBeforeStart: 96,
-          currency: 'AUD',
-          emailSenderEmail: 'events@section.example.org',
-          emailSenderName: 'Example Section',
-          faviconUrl: 'https://cdn.example.org/favicon.ico',
-          legalNoticeText: 'Tenant imprint text',
-          legalNoticeUrl: 'https://section.example.org/imprint',
-          logoUrl: 'https://cdn.example.org/logo.svg',
-          maxActiveRegistrationsPerUser: 4,
-          refundFeesOnCancellation: false,
-          seoDescription: 'Public description',
-          seoTitle: 'Public title',
-          termsText: 'Tenant terms text',
-          termsUrl: 'https://section.example.org/terms',
-          theme: 'classic',
-          timezone: 'Australia/Brisbane',
-          transferDeadlineHoursBeforeStart: 12,
-        });
+        expect(capturedUpdates).toEqual([
+          {
+            faviconUrl: 'https://cdn.example.org/favicon.ico',
+            logoUrl: 'https://cdn.example.org/logo.svg',
+            seoDescription: 'Public description',
+            seoTitle: 'Public title',
+            theme: 'classic',
+          },
+          {
+            legalNoticeText: 'Tenant imprint text',
+            legalNoticeUrl: 'https://section.example.org/imprint',
+            termsText: 'Tenant terms text',
+            termsUrl: 'https://section.example.org/terms',
+          },
+          {
+            defaultLocation: null,
+            emailSenderEmail: 'events@section.example.org',
+            emailSenderName: 'Example Section',
+            timezone: 'Australia/Brisbane',
+          },
+          {
+            currency: 'AUD',
+            discountProviders: { esnCard: { config: {}, status: 'disabled' } },
+            receiptSettings: { allowOther: true, receiptCountries: ['NL'] },
+            refundFeesOnCancellation: false,
+          },
+          {
+            cancellationDeadlineHoursBeforeStart: 96,
+            maxActiveRegistrationsPerUser: 4,
+            transferDeadlineHoursBeforeStart: 12,
+          },
+        ]);
+        expect([
+          appearanceResult,
+          legalResult,
+          organizationResult,
+          paymentProviderResult,
+          registrationResult,
+        ]).toEqual([undefined, undefined, undefined, undefined, undefined]);
         expect(capturedUpdate).not.toHaveProperty('locale');
         expect(capturedUpdate).not.toHaveProperty('stripeAccountId');
-        expect(result).not.toHaveProperty('stripeAccountId');
-      }),
-  );
-
-  it.effect(
-    'rejects invalid settings before opening a database transaction',
-    () =>
-      Effect.gen(function* () {
-        const noNetworkLayer = Layer.mergeAll(
-          unavailableDatabaseLayer,
-          Layer.succeed(
-            StripeClient,
-            new Stripe('sk_test_admin_no_stripe', {
-              httpClient: new UnexpectedStripeHttpClient(),
-              maxNetworkRetries: 0,
-            }),
-          ),
-        );
-        for (const patch of [
-          { maxActiveRegistrationsPerUser: 1.5 },
-          { cancellationDeadlineHoursBeforeStart: -1 },
-          { transferDeadlineHoursBeforeStart: 2_147_483_648 },
-          { receiptCountries: [] },
-          { receiptCountries: ['DE', 'DE'] },
-          { receiptCountries: ['invalid'] },
-        ]) {
-          const result = yield* adminHandlers['admin.tenant.updateSettings'](
-            { ...createSettingsInput(), ...patch },
-            createRpcOptions(
-              AdminRpcs.AdminTenantUpdateSettings.middleware(
-                RpcRequestContextMiddleware,
-              ),
-            ),
-          ).pipe(
-            Effect.provide(
-              requestContextLayer(
-                createRequestContext(['admin:changeSettings']),
-              ),
-            ),
-            Effect.provide(noNetworkLayer),
-            Effect.flip,
-          );
-          expect(result).toMatchObject({
-            _tag: 'RpcBadRequestError',
-            message: 'Updated tenant settings failed validation',
-          });
-        }
+        expect(capturedUpdates).toHaveLength(5);
       }),
   );
 
@@ -1066,13 +1326,15 @@ describe('adminHandlers tenant settings', () => {
         type: 'google' as const,
       };
 
-      const result = yield* adminHandlers['admin.tenant.updateSettings'](
+      const result = yield* adminHandlers[
+        'admin.tenant.updateOrganizationSettings'
+      ](
         {
-          ...createSettingsInput(),
+          ...createOrganizationSettingsInput(),
           defaultLocation,
         },
         createRpcOptions(
-          AdminRpcs.AdminTenantUpdateSettings.middleware(
+          AdminRpcs.AdminTenantUpdateOrganizationSettings.middleware(
             RpcRequestContextMiddleware,
           ),
         ),
@@ -1085,7 +1347,8 @@ describe('adminHandlers tenant settings', () => {
         .pipe(Effect.provide(tenantSettingsLayer(database)));
 
       expect(capturedUpdate).toMatchObject({ defaultLocation });
-      expect(result.defaultLocation).toEqual(defaultLocation);
+      expect(capturedUpdate?.['defaultLocation']).toEqual(defaultLocation);
+      expect(result).toBeUndefined();
     }),
   );
 
@@ -1097,16 +1360,15 @@ describe('adminHandlers tenant settings', () => {
         },
       };
 
-      const error = yield* adminHandlers['admin.tenant.updateSettings'](
+      const error = yield* adminHandlers['admin.tenant.updateLegalSettings'](
         {
-          ...createSettingsInput(),
+          expectedSettings: adminTenantLegalSettingsSnapshot(
+            Schema.decodeUnknownSync(Tenant)(createTenant()),
+          ),
           legalNoticeUrl: 'not a url',
-          receiptCountries: ['NL'],
-          theme: 'evorto',
-          timezone: 'Europe/Berlin',
         },
         createRpcOptions(
-          AdminRpcs.AdminTenantUpdateSettings.middleware(
+          AdminRpcs.AdminTenantUpdateLegalSettings.middleware(
             RpcRequestContextMiddleware,
           ),
         ),
@@ -1119,7 +1381,9 @@ describe('adminHandlers tenant settings', () => {
         .pipe(Effect.provide(tenantSettingsLayer(database)), Effect.flip);
 
       expect(error['_tag']).toBe('RpcBadRequestError');
-      expect(error.message).toBe('Invalid tenant legal links');
+      expect(error.message).toBe(
+        'Enter valid web addresses for the legal notice and terms.',
+      );
     }),
   );
 
@@ -1143,14 +1407,16 @@ describe('adminHandlers tenant settings', () => {
         update: () => updateQuery,
       });
 
-      const result = yield* adminHandlers['admin.tenant.updateSettings'](
+      const result = yield* adminHandlers[
+        'admin.tenant.updateAppearanceSettings'
+      ](
         {
-          ...createSettingsInput(),
+          ...createAppearanceSettingsInput(),
           faviconUrl: ' /tenant-assets/tenant-1/favicon/favicon.ico ',
           logoUrl: '/tenant-assets/tenant-1/logo/logo.png',
         },
         createRpcOptions(
-          AdminRpcs.AdminTenantUpdateSettings.middleware(
+          AdminRpcs.AdminTenantUpdateAppearanceSettings.middleware(
             RpcRequestContextMiddleware,
           ),
         ),
@@ -1166,10 +1432,14 @@ describe('adminHandlers tenant settings', () => {
         faviconUrl: '/tenant-assets/tenant-1/favicon/favicon.ico',
         logoUrl: '/tenant-assets/tenant-1/logo/logo.png',
       });
-      expect(result).toMatchObject({
+      expect(capturedUpdate).toEqual({
         faviconUrl: '/tenant-assets/tenant-1/favicon/favicon.ico',
         logoUrl: '/tenant-assets/tenant-1/logo/logo.png',
+        seoDescription: null,
+        seoTitle: null,
+        theme: 'evorto',
       });
+      expect(result).toBeUndefined();
     }),
   );
 
@@ -1181,16 +1451,15 @@ describe('adminHandlers tenant settings', () => {
         },
       };
 
-      const error = yield* adminHandlers['admin.tenant.updateSettings'](
+      const error = yield* adminHandlers[
+        'admin.tenant.updateAppearanceSettings'
+      ](
         {
-          ...createSettingsInput(),
+          ...createAppearanceSettingsInput(),
           logoUrl: 'file:///tmp/logo.svg',
-          receiptCountries: ['NL'],
-          theme: 'evorto',
-          timezone: 'Europe/Berlin',
         },
         createRpcOptions(
-          AdminRpcs.AdminTenantUpdateSettings.middleware(
+          AdminRpcs.AdminTenantUpdateAppearanceSettings.middleware(
             RpcRequestContextMiddleware,
           ),
         ),
@@ -1203,7 +1472,9 @@ describe('adminHandlers tenant settings', () => {
         .pipe(Effect.provide(tenantSettingsLayer(database)), Effect.flip);
 
       expect(error['_tag']).toBe('RpcBadRequestError');
-      expect(error.message).toBe('Invalid tenant brand assets');
+      expect(error.message).toBe(
+        'Choose an uploaded logo or small site icon for this organization, or enter a valid web address.',
+      );
     }),
   );
 
@@ -1217,16 +1488,15 @@ describe('adminHandlers tenant settings', () => {
           },
         };
 
-        const error = yield* adminHandlers['admin.tenant.updateSettings'](
+        const error = yield* adminHandlers[
+          'admin.tenant.updateAppearanceSettings'
+        ](
           {
-            ...createSettingsInput(),
+            ...createAppearanceSettingsInput(),
             logoUrl: '/tenant-assets/tenant-1/logo/..%2Fsecret.png',
-            receiptCountries: ['NL'],
-            theme: 'evorto',
-            timezone: 'Europe/Berlin',
           },
           createRpcOptions(
-            AdminRpcs.AdminTenantUpdateSettings.middleware(
+            AdminRpcs.AdminTenantUpdateAppearanceSettings.middleware(
               RpcRequestContextMiddleware,
             ),
           ),
@@ -1241,7 +1511,9 @@ describe('adminHandlers tenant settings', () => {
           .pipe(Effect.provide(tenantSettingsLayer(database)), Effect.flip);
 
         expect(error['_tag']).toBe('RpcBadRequestError');
-        expect(error.message).toBe('Invalid tenant brand assets');
+        expect(error.message).toBe(
+          'Choose an uploaded logo or small site icon for this organization, or enter a valid web address.',
+        );
       }),
   );
 
@@ -1259,13 +1531,15 @@ describe('adminHandlers tenant settings', () => {
           '/tenant-assets/tenant-2/logo/logo.png',
           '/tenant-assets/tenant-1/favicon/logo.png',
         ]) {
-          const error = yield* adminHandlers['admin.tenant.updateSettings'](
+          const error = yield* adminHandlers[
+            'admin.tenant.updateAppearanceSettings'
+          ](
             {
-              ...createSettingsInput(),
+              ...createAppearanceSettingsInput(),
               logoUrl,
             },
             createRpcOptions(
-              AdminRpcs.AdminTenantUpdateSettings.middleware(
+              AdminRpcs.AdminTenantUpdateAppearanceSettings.middleware(
                 RpcRequestContextMiddleware,
               ),
             ),
@@ -1283,10 +1557,13 @@ describe('adminHandlers tenant settings', () => {
           if (error._tag !== 'RpcBadRequestError') {
             return yield* Effect.die(error);
           }
-          expect(error.message).toBe('Invalid tenant brand assets');
-          expect(error.reason).toContain(
-            'uploaded logo path for the current tenant',
+          expect(error.message).toBe(
+            'Choose an uploaded logo or small site icon for this organization, or enter a valid web address.',
           );
+          expect(error.message).toContain(
+            'uploaded logo or small site icon for this organization',
+          );
+          expect(error.reason).toBeUndefined();
         }
       }),
   );
@@ -1317,20 +1594,22 @@ describe('adminHandlers tenant settings', () => {
         },
       });
 
-      const error = yield* adminHandlers['admin.tenant.updateSettings'](
+      const error = yield* adminHandlers[
+        'admin.tenant.updatePaymentProviderSettings'
+      ](
         {
-          ...createSettingsInput(),
+          ...createPaymentSettingsInput(),
           currency: 'CZK',
         },
         createRpcOptions(
-          AdminRpcs.AdminTenantUpdateSettings.middleware(
+          AdminRpcs.AdminTenantUpdatePaymentProviderSettings.middleware(
             RpcRequestContextMiddleware,
           ),
         ),
       )
         .pipe(
           Effect.provide(
-            requestContextLayer(createRequestContext(['admin:changeSettings'])),
+            requestContextLayer(createRequestContext(['admin:managePayments'])),
           ),
         )
         .pipe(Effect.provide(tenantSettingsLayer(database)), Effect.flip);
@@ -1370,20 +1649,22 @@ describe('adminHandlers tenant settings', () => {
         },
       });
 
-      const error = yield* adminHandlers['admin.tenant.updateSettings'](
+      const error = yield* adminHandlers[
+        'admin.tenant.updatePaymentProviderSettings'
+      ](
         {
-          ...createSettingsInput(),
+          ...createPaymentSettingsInput(),
           currency: 'AUD',
         },
         createRpcOptions(
-          AdminRpcs.AdminTenantUpdateSettings.middleware(
+          AdminRpcs.AdminTenantUpdatePaymentProviderSettings.middleware(
             RpcRequestContextMiddleware,
           ),
         ),
       )
         .pipe(
           Effect.provide(
-            requestContextLayer(createRequestContext(['admin:changeSettings'])),
+            requestContextLayer(createRequestContext(['admin:managePayments'])),
           ),
         )
         .pipe(Effect.provide(tenantSettingsLayer(database)), Effect.flip);
@@ -1430,13 +1711,15 @@ describe('adminHandlers tenant settings', () => {
           },
         });
 
-        const error = yield* adminHandlers['admin.tenant.updateSettings'](
+        const error = yield* adminHandlers[
+          'admin.tenant.updatePaymentProviderSettings'
+        ](
           {
-            ...createSettingsInput(),
+            ...createPaymentSettingsInput(),
             currency: 'CZK',
           },
           createRpcOptions(
-            AdminRpcs.AdminTenantUpdateSettings.middleware(
+            AdminRpcs.AdminTenantUpdatePaymentProviderSettings.middleware(
               RpcRequestContextMiddleware,
             ),
           ),
@@ -1444,7 +1727,7 @@ describe('adminHandlers tenant settings', () => {
           .pipe(
             Effect.provide(
               requestContextLayer(
-                createRequestContext(['admin:changeSettings']),
+                createRequestContext(['admin:managePayments']),
               ),
             ),
           )
@@ -1476,13 +1759,15 @@ describe('adminHandlers tenant settings', () => {
         },
       });
 
-      const error = yield* adminHandlers['admin.tenant.updateSettings'](
+      const error = yield* adminHandlers[
+        'admin.tenant.updateOrganizationSettings'
+      ](
         {
-          ...createSettingsInput(),
+          ...createOrganizationSettingsInput(),
           timezone: 'Europe/Prague',
         },
         createRpcOptions(
-          AdminRpcs.AdminTenantUpdateSettings.middleware(
+          AdminRpcs.AdminTenantUpdateOrganizationSettings.middleware(
             RpcRequestContextMiddleware,
           ),
         ),
@@ -1496,7 +1781,7 @@ describe('adminHandlers tenant settings', () => {
 
       expect(error['_tag']).toBe('RpcBadRequestError');
       expect(error.message).toBe(
-        'Tenant currency and timezone settings are locked',
+        'Time zone cannot be changed after events or payments have been added. Keep the current time zone to save these settings.',
       );
     }),
   );
@@ -1526,9 +1811,12 @@ describe('adminHandlers tenant settings', () => {
           },
         );
 
-        const error = yield* adminHandlers['admin.tenant.updateSettings'](
+        const error = yield* adminHandlers[
+          'admin.tenant.updateOrganizationSettings'
+        ](
           {
-            ...createSettingsInput(
+            ...createOrganizationSettingsInput(),
+            expectedSettings: adminTenantOrganizationSettingsSnapshot(
               Schema.decodeUnknownSync(Tenant)({
                 ...createTenant(),
                 timezone: 'Europe/Prague',
@@ -1537,7 +1825,7 @@ describe('adminHandlers tenant settings', () => {
             timezone: 'Europe/Amsterdam',
           },
           createRpcOptions(
-            AdminRpcs.AdminTenantUpdateSettings.middleware(
+            AdminRpcs.AdminTenantUpdateOrganizationSettings.middleware(
               RpcRequestContextMiddleware,
             ),
           ),
@@ -1553,23 +1841,25 @@ describe('adminHandlers tenant settings', () => {
 
         expect(error['_tag']).toBe('RpcBadRequestError');
         expect(error.message).toBe(
-          'Tenant currency and timezone settings are locked',
+          'Time zone cannot be changed after events or payments have been added. Keep the current time zone to save these settings.',
         );
       }),
   );
 
   it.effect(
-    'saves other settings after payment setup changes without exposing or overwriting the account',
+    'allows other tenant edits when the locked Stripe account is unchanged',
     () =>
       Effect.gen(function* () {
+        let updateCalled = false;
         let capturedUpdate: Record<string, unknown> | undefined;
         const updateQuery = {
           returning: () =>
             Effect.succeed([
               { id: 'tenant-1', stripeAccountId: 'acct_existing' },
             ]),
-          set: (values: Record<string, unknown>) => {
-            capturedUpdate = values;
+          set: (value: Record<string, unknown>) => {
+            updateCalled = true;
+            capturedUpdate = value;
             return updateQuery;
           },
           where: () => updateQuery,
@@ -1582,14 +1872,15 @@ describe('adminHandlers tenant settings', () => {
           },
         );
 
-        const result = yield* adminHandlers['admin.tenant.updateSettings'](
+        const result = yield* adminHandlers[
+          'admin.tenant.updateAppearanceSettings'
+        ](
           {
-            ...createSettingsInput(),
+            ...createAppearanceSettingsInput(),
             seoTitle: 'Updated title',
-            timezone: 'Europe/Amsterdam',
           },
           createRpcOptions(
-            AdminRpcs.AdminTenantUpdateSettings.middleware(
+            AdminRpcs.AdminTenantUpdateAppearanceSettings.middleware(
               RpcRequestContextMiddleware,
             ),
           ),
@@ -1597,52 +1888,16 @@ describe('adminHandlers tenant settings', () => {
           .pipe(
             Effect.provide(
               requestContextLayer(
-                createRequestContext(['admin:changeSettings']),
+                createRequestContext(['admin:changeSettings'], 'acct_existing'),
               ),
             ),
           )
           .pipe(Effect.provide(tenantSettingsLayer(database)));
 
-        expect(capturedUpdate).toMatchObject({ seoTitle: 'Updated title' });
+        expect(updateCalled).toBe(true);
+        expect(capturedUpdate?.['seoTitle']).toBe('Updated title');
         expect(capturedUpdate).not.toHaveProperty('stripeAccountId');
-        expect(result.seoTitle).toBe('Updated title');
-        expect(result.paymentsConfigured).toBe(true);
-        expect(result).not.toHaveProperty('stripeAccountId');
-      }),
-  );
-  it.effect(
-    'rejects stale general settings against the locked row before any write',
-    () =>
-      Effect.gen(function* () {
-        let writes = 0;
-        const database = withTenantSettingsTransaction(
-          {
-            update: () => {
-              writes++;
-              throw new Error('stale form must not write');
-            },
-          },
-          { lockedTheme: 'esn' },
-        );
-        const error = yield* adminHandlers['admin.tenant.updateSettings'](
-          {
-            ...createSettingsInput(),
-            seoTitle: 'Second editor title',
-          },
-          createRpcOptions(
-            AdminRpcs.AdminTenantUpdateSettings.middleware(
-              RpcRequestContextMiddleware,
-            ),
-          ),
-        ).pipe(
-          Effect.provide(
-            requestContextLayer(createRequestContext(['admin:changeSettings'])),
-          ),
-          Effect.provide(tenantSettingsLayer(database)),
-          Effect.flip,
-        );
-        expect(error._tag).toBe('TenantSettingsConflictError');
-        expect(writes).toBe(0);
+        expect(result).toBeUndefined();
       }),
   );
 });

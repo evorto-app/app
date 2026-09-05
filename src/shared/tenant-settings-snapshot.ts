@@ -3,59 +3,115 @@ import { Schema } from 'effect';
 import { Tenant } from '../types/custom/tenant';
 import { GoogleLocation } from '../types/location';
 
-// Compare only fields the corresponding form can overwrite. Unrelated tenant
-// changes must not invalidate an edit; optional values have one wire form.
-export const AdminTenantSettingsSnapshot = Schema.Struct({
-  cancellationDeadlineHoursBeforeStart:
-    Tenant.fields.cancellationDeadlineHoursBeforeStart,
-  currency: Tenant.fields.currency,
-  defaultLocation: Schema.NullOr(GoogleLocation),
-  discountProviders: Tenant.fields.discountProviders,
-  emailSenderEmail: Schema.NullOr(Schema.String),
-  emailSenderName: Schema.NullOr(Schema.String),
+// Compare exactly the persisted fields owned by each form. Other settings pages
+// may save independently; optional values have one wire representation.
+export const AdminTenantAppearanceSettingsSnapshot = Schema.Struct({
   faviconUrl: Schema.NullOr(Schema.String),
-  legalNoticeText: Schema.NullOr(Schema.String),
-  legalNoticeUrl: Schema.NullOr(Schema.String),
   logoUrl: Schema.NullOr(Schema.String),
-  maxActiveRegistrationsPerUser: Tenant.fields.maxActiveRegistrationsPerUser,
-  receiptSettings: Tenant.fields.receiptSettings,
-  refundFeesOnCancellation: Tenant.fields.refundFeesOnCancellation,
   seoDescription: Schema.NullOr(Schema.String),
   seoTitle: Schema.NullOr(Schema.String),
+  theme: Tenant.fields.theme,
+});
+export type AdminTenantAppearanceSettingsSnapshot = Schema.Schema.Type<
+  typeof AdminTenantAppearanceSettingsSnapshot
+>;
+
+export const adminTenantAppearanceSettingsSnapshot = (
+  tenant: Pick<
+    Tenant,
+    keyof typeof AdminTenantAppearanceSettingsSnapshot.fields
+  >,
+): AdminTenantAppearanceSettingsSnapshot => ({
+  faviconUrl: tenant.faviconUrl ?? null,
+  logoUrl: tenant.logoUrl ?? null,
+  seoDescription: tenant.seoDescription ?? null,
+  seoTitle: tenant.seoTitle ?? null,
+  theme: tenant.theme,
+});
+
+export const AdminTenantLegalSettingsSnapshot = Schema.Struct({
+  legalNoticeText: Schema.NullOr(Schema.String),
+  legalNoticeUrl: Schema.NullOr(Schema.String),
   termsText: Schema.NullOr(Schema.String),
   termsUrl: Schema.NullOr(Schema.String),
-  theme: Tenant.fields.theme,
+});
+export type AdminTenantLegalSettingsSnapshot = Schema.Schema.Type<
+  typeof AdminTenantLegalSettingsSnapshot
+>;
+
+export const adminTenantLegalSettingsSnapshot = (
+  tenant: Pick<Tenant, keyof typeof AdminTenantLegalSettingsSnapshot.fields>,
+): AdminTenantLegalSettingsSnapshot => ({
+  legalNoticeText: tenant.legalNoticeText ?? null,
+  legalNoticeUrl: tenant.legalNoticeUrl ?? null,
+  termsText: tenant.termsText ?? null,
+  termsUrl: tenant.termsUrl ?? null,
+});
+
+export const AdminTenantOrganizationSettingsSnapshot = Schema.Struct({
+  defaultLocation: Schema.NullOr(GoogleLocation),
+  emailSenderEmail: Schema.NullOr(Schema.String),
+  emailSenderName: Schema.NullOr(Schema.String),
   timezone: Tenant.fields.timezone,
+});
+export type AdminTenantOrganizationSettingsSnapshot = Schema.Schema.Type<
+  typeof AdminTenantOrganizationSettingsSnapshot
+>;
+
+export const adminTenantOrganizationSettingsSnapshot = (
+  tenant: Pick<
+    Tenant,
+    keyof typeof AdminTenantOrganizationSettingsSnapshot.fields
+  >,
+): AdminTenantOrganizationSettingsSnapshot => ({
+  defaultLocation: tenant.defaultLocation ?? null,
+  emailSenderEmail: tenant.emailSenderEmail ?? null,
+  emailSenderName: tenant.emailSenderName ?? null,
+  timezone: tenant.timezone,
+});
+
+export const AdminTenantPaymentProviderSettingsSnapshot = Schema.Struct({
+  currency: Tenant.fields.currency,
+  discountProviders: Tenant.fields.discountProviders,
+  receiptSettings: Tenant.fields.receiptSettings,
+  refundFeesOnCancellation: Tenant.fields.refundFeesOnCancellation,
+});
+export type AdminTenantPaymentProviderSettingsSnapshot = Schema.Schema.Type<
+  typeof AdminTenantPaymentProviderSettingsSnapshot
+>;
+
+export const adminTenantPaymentProviderSettingsSnapshot = (
+  tenant: Pick<
+    Tenant,
+    keyof typeof AdminTenantPaymentProviderSettingsSnapshot.fields
+  >,
+): AdminTenantPaymentProviderSettingsSnapshot => ({
+  currency: tenant.currency,
+  discountProviders: tenant.discountProviders,
+  receiptSettings: tenant.receiptSettings,
+  refundFeesOnCancellation: tenant.refundFeesOnCancellation,
+});
+
+export const AdminTenantRegistrationSettingsSnapshot = Schema.Struct({
+  cancellationDeadlineHoursBeforeStart:
+    Tenant.fields.cancellationDeadlineHoursBeforeStart,
+  maxActiveRegistrationsPerUser: Tenant.fields.maxActiveRegistrationsPerUser,
   transferDeadlineHoursBeforeStart:
     Tenant.fields.transferDeadlineHoursBeforeStart,
 });
-export type AdminTenantSettingsSnapshot = Schema.Schema.Type<
-  typeof AdminTenantSettingsSnapshot
+export type AdminTenantRegistrationSettingsSnapshot = Schema.Schema.Type<
+  typeof AdminTenantRegistrationSettingsSnapshot
 >;
 
-export const adminTenantSettingsSnapshot = (
-  tenant: Pick<Tenant, keyof typeof AdminTenantSettingsSnapshot.fields>,
-): AdminTenantSettingsSnapshot => ({
+export const adminTenantRegistrationSettingsSnapshot = (
+  tenant: Pick<
+    Tenant,
+    keyof typeof AdminTenantRegistrationSettingsSnapshot.fields
+  >,
+): AdminTenantRegistrationSettingsSnapshot => ({
   cancellationDeadlineHoursBeforeStart:
     tenant.cancellationDeadlineHoursBeforeStart,
-  currency: tenant.currency,
-  defaultLocation: tenant.defaultLocation ?? null,
-  discountProviders: tenant.discountProviders,
-  emailSenderEmail: tenant.emailSenderEmail ?? null,
-  emailSenderName: tenant.emailSenderName ?? null,
-  faviconUrl: tenant.faviconUrl ?? null,
-  legalNoticeText: tenant.legalNoticeText ?? null,
-  legalNoticeUrl: tenant.legalNoticeUrl ?? null,
-  logoUrl: tenant.logoUrl ?? null,
   maxActiveRegistrationsPerUser: tenant.maxActiveRegistrationsPerUser,
-  receiptSettings: tenant.receiptSettings,
-  refundFeesOnCancellation: tenant.refundFeesOnCancellation,
-  seoDescription: tenant.seoDescription ?? null,
-  seoTitle: tenant.seoTitle ?? null,
-  termsText: tenant.termsText ?? null,
-  termsUrl: tenant.termsUrl ?? null,
-  theme: tenant.theme,
-  timezone: tenant.timezone,
   transferDeadlineHoursBeforeStart: tenant.transferDeadlineHoursBeforeStart,
 });
 

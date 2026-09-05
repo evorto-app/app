@@ -2,9 +2,12 @@
 default: patch
 ---
 
-# Add versioned tenant onboarding
+# Keep joining information current
 
-- require every tenant user to accept the current immutable privacy-policy version and answer active tenant questions before protected access,
-- let tenant administrators publish hosted or linked policy versions and immutable short-text or selection questions with an explicit affected-user warning,
-- preserve a user's home tenant across additional tenant joins and expose an explicit profile action to change it,
-- document and functionally cover first joins, policy reacceptance, persisted answers, default-role assignment, and cross-tenant home behavior.
+- Ask every member to accept the current privacy policy and answer the current
+  joining questions before entering protected areas.
+- Let organization administrators publish a privacy policy and joining
+  questions, with a clear warning when existing members must answer again.
+- Show the latest privacy policy to members and public visitors.
+- Keep a person's home organization when they join another one, with a profile
+  action for changing it.

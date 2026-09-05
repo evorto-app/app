@@ -15,9 +15,9 @@ test('selects and persists a live Google Maps place @needs-google-maps', async (
 }) => {
   await page.goto('/admin/settings');
 
-  const settings = page.locator('app-general-settings');
+  const settings = page.locator('app-organization-settings');
   await expect(
-    settings.getByRole('heading', { name: 'General settings' }),
+    settings.getByRole('heading', { name: 'Organization settings' }),
   ).toBeVisible();
   await expect(settings).not.toHaveAttribute('ngh', /.*/);
 
@@ -32,16 +32,16 @@ test('selects and persists a live Google Maps place @needs-google-maps', async (
   await expect(search).toHaveValue('Brandenburg Gate Berlin Germany');
 
   const firstSuggestion = page.getByRole('option').first();
-  const providerError = dialog.getByRole('alert').filter({
+  const searchError = dialog.getByRole('alert').filter({
     hasText: "We couldn't search for locations.",
   });
   const emptyResult = dialog.getByText('No locations found');
   await expect(
-    firstSuggestion.or(providerError).or(emptyResult).first(),
+    firstSuggestion.or(searchError).or(emptyResult).first(),
   ).toBeVisible({ timeout: 30_000 });
   await expect(
-    providerError,
-    'Google Maps rejected the live search',
+    searchError,
+    'Google Maps could not complete the live location search',
   ).toBeHidden();
   await expect(
     emptyResult,
@@ -52,7 +52,9 @@ test('selects and persists a live Google Maps place @needs-google-maps', async (
   await expect(dialog).toBeHidden({ timeout: 30_000 });
   await expect(locationField).not.toContainText('No location selected');
 
-  await settings.getByRole('button', { name: 'Save' }).click();
+  await settings
+    .getByRole('button', { name: 'Save organization settings' })
+    .click();
   await expect(page.getByText('Organization settings updated')).toBeVisible();
 
   await expect

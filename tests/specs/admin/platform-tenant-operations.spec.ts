@@ -54,7 +54,7 @@ test('platform administrator opens target operations, refund recovery, and a det
 
   await page.goto(`/global-admin/tenants/${tenant.id}`);
   await expect(
-    page.getByRole('navigation', { name: 'Organization operations' }),
+    page.getByRole('navigation', { name: 'Organization management' }),
   ).toBeVisible();
   await expect(
     page.getByRole('link', { name: 'Manage events' }),
@@ -63,7 +63,7 @@ test('platform administrator opens target operations, refund recovery, and a det
     page.getByRole('link', { name: 'Manage templates' }),
   ).toHaveAttribute('href', `/global-admin/tenants/${tenant.id}/templates`);
   await expect(
-    page.getByRole('link', { name: 'Inspect registrations' }),
+    page.getByRole('link', { name: 'Ticket support' }),
   ).toHaveAttribute('href', `/global-admin/tenants/${tenant.id}/scanner`);
   await expect(
     page.getByRole('link', { name: 'Review finance' }),

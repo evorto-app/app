@@ -1,0 +1,149 @@
+<div class="mb-4 flex flex-row items-center gap-2">
+  <a
+    routerLink="/admin"
+    mat-icon-button
+    class="lg:hidden! block"
+    aria-label="Back to administration"
+  >
+    <fa-duotone-icon [icon]="faArrowLeft" />
+  </a>
+  <h1 class="title-large">Organization settings</h1>
+</div>
+
+@if (settingsPhase() === "reading") {
+  <p role="status" class="mb-4 text-on-surface-variant">
+    Your settings were saved. Loading current settings…
+  </p>
+}
+@if (saveOutcome(); as outcome) {
+  <div role="alert" class="mb-4">
+    @if (outcome === "stale") {
+      <p>
+        These settings changed while you were editing. Your changes were not
+        saved.
+      </p>
+    } @else if (outcome === "unknown") {
+      <p>We could not confirm whether your settings were saved.</p>
+    } @else if (outcome === "saved-read-paused") {
+      <p>
+        Your settings were saved, but loading the current settings is paused.
+      </p>
+    } @else {
+      <p>
+        Your settings were saved, but the current settings could not be loaded.
+      </p>
+    }
+    <p class="my-2">
+      @if (outcome === "stale") {
+        Your entries are still here. Copy any changes you want to keep before
+        loading the latest settings. Reloading replaces these entries.
+      } @else {
+        Your entries are still here. Load the saved settings before making
+        another change. This replaces these entries with the saved values.
+      }
+    </p>
+    <button mat-stroked-button type="button" (click)="reloadSettings()">
+      {{ outcome === "stale" ? "Load latest settings" : "Load saved settings" }}
+    </button>
+  </div>
+}
+
+<form
+  class="bg-surface text-on-surface rounded-2xl p-4"
+  (submit)="save($event)"
+>
+  <fieldset
+    class="m-0 grid min-w-0 grid-cols-1 gap-6 border-0 p-0"
+    [disabled]="!settingsInteractionReady() || settingsLocked()"
+  >
+    <section>
+      <h2 class="title-small mb-2">Organization</h2>
+      <p class="text-on-surface-variant mb-3 text-sm">
+        Your organization name and website address cannot be changed here.
+        Contact Evorto support and include the current and requested details.
+      </p>
+      <dl class="grid grid-cols-1 gap-x-6 gap-y-3 md:grid-cols-2">
+        @for (row of tenantIdentityRows(); track row.label) {
+          <div>
+            <dt class="text-on-surface-variant text-xs uppercase">
+              {{ row.label }}
+            </dt>
+            <dd class="text-sm font-medium break-words">
+              {{ row.value }}
+            </dd>
+          </div>
+        }
+      </dl>
+    </section>
+
+    <section>
+      <h2 class="title-small mb-2">Email replies</h2>
+      <p class="text-on-surface-variant mb-3 text-sm">
+        Replies to emails from Evorto go to the details below.
+      </p>
+      <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <mat-form-field>
+          <mat-label>Reply name</mat-label>
+          <input
+            matInput
+            [formField]="settingsForm.emailSenderName"
+            placeholder="Example Section"
+          />
+        </mat-form-field>
+        <mat-form-field>
+          <mat-label>Reply email address</mat-label>
+          <input
+            matInput
+            type="email"
+            [formField]="settingsForm.emailSenderEmail"
+            placeholder="events@section.example.org"
+          />
+        </mat-form-field>
+      </div>
+    </section>
+
+    <section>
+      <h2 class="title-small mb-2">Location and business time</h2>
+      <p class="text-on-surface-variant mb-3 text-sm">
+        The default location helps find nearby places. The time zone is used to
+        show event times correctly.
+      </p>
+      <div class="mb-4">
+        <app-location-selector-field
+          [formField]="settingsForm.defaultLocation"
+        />
+      </div>
+      <mat-form-field>
+        <mat-label>Time zone</mat-label>
+        <mat-select [formField]="settingsForm.timezone">
+          @for (timezone of timezoneOptions; track timezone.value) {
+            <mat-option [value]="timezone.value">
+              {{ timezone.label }}
+            </mat-option>
+          }
+        </mat-select>
+        @if (
+          settingsForm.timezone().touched() && settingsForm.timezone().invalid()
+        ) {
+          <mat-error>Select a time zone.</mat-error>
+        }
+      </mat-form-field>
+    </section>
+
+    <button
+      mat-flat-button
+      type="submit"
+      class="w-fit"
+      [disabled]="
+        tenantSettingsSaveDisabled({
+          formInvalid: settingsForm().invalid(),
+          formSubmitting: settingsForm().submitting(),
+          interactionReady: settingsInteractionReady(),
+          mutationPending: updateMutation.isPending() || settingsLocked(),
+        })
+      "
+    >
+      Save organization settings
+    </button>
+  </fieldset>
+</form>
