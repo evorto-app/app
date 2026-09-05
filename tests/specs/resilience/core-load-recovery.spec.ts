@@ -148,11 +148,12 @@ test('template event creation preserves the form after a save failure and succee
 
   const alert = page.getByRole('alert');
   await expect(
-    alert.getByRole('heading', { name: 'Event could not be created' }),
+    alert.getByRole('heading', { name: 'Review event creation' }),
   ).toBeVisible();
   await expect(alert).toContainText(
-    'Your entries are still here. Retry temporary errors.',
+    'The event creation outcome could not be confirmed. Open the event list, load the page again and check for this event before trying again.',
   );
+  await expect(alert).toContainText('Your entries are still here.');
   await expect(page).toHaveURL(createEventPath);
   await expect(titleInput).toHaveValue(eventTitle);
   await expect(createButton).toBeEnabled();

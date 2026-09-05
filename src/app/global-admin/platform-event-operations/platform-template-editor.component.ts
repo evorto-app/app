@@ -866,12 +866,19 @@ export class PlatformTemplateEditorComponent {
           throw new AggregateError(failures, 'Template follow-up reads failed');
         }
         phase = 'navigation';
-        const opened = await this.router.navigate([
+        const destination = [
           '/global-admin/tenants',
           this.tenantId(),
           'templates',
           saved.id,
-        ]);
+        ];
+        const opened =
+          (templateId === saved.id &&
+            this.router.url ===
+              this.router.serializeUrl(
+                this.router.createUrlTree(destination),
+              )) ||
+          (await this.router.navigate(destination));
         if (opened) {
           this.notifications.showSuccess(
             templateId ? 'Template updated' : 'Template created',
