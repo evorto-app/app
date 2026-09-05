@@ -1,0 +1,32 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "650c367ef05d",
+  "strategy": "manual-commit",
+  "branch": "codex/relaunch-stack-assembly-20260904",
+  "checkpoints_count": 0,
+  "files_touched": [
+    ".changeset/confirm-platform-template-updates.md",
+    "APPLICATION_REVIEW_QUEUE.md",
+    "helpers/testing/generated-docs-source.spec.ts",
+    "src/app/global-admin/platform-event-operations/platform-template-editor.component.spec.ts",
+    "src/app/global-admin/platform-event-operations/platform-template-editor.component.ts",
+    "tests/docs/events/event-management.doc.ts",
+    "tests/docs/profile/discounts.doc.ts",
+    "tests/docs/templates/templates.doc.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/65/0c367ef05d/0/metadata.json",
+      "transcript": "/65/0c367ef05d/0/full.jsonl",
+      "content_hash": "/65/0c367ef05d/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 109514,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 9124608,
+    "output_tokens": 17403,
+    "api_call_count": 76
+  }
+}
