@@ -2,12 +2,21 @@ import { expect, test } from '../../support/fixtures/parallel-test';
 
 test('load application', async ({ page }) => {
   await page.goto('.');
+  await expect(page).toHaveURL(/\/events\/?$/);
+  await expect(
+    page.getByRole('heading', { exact: true, level: 1, name: 'Events' }),
+  ).toBeVisible();
+  await expect(page.locator('[ngh]')).toHaveCount(0, { timeout: 20_000 });
 });
 
 test('navigate to events list', async ({ page }) => {
   await page.goto('.');
   await page.getByRole('link', { name: 'Events' }).click();
-  await expect(page).toHaveURL(/\/events/);
+  await expect(page).toHaveURL(/\/events\/?$/);
+  await expect(
+    page.getByRole('heading', { exact: true, level: 1, name: 'Events' }),
+  ).toBeVisible();
+  await expect(page.locator('[ngh]')).toHaveCount(0, { timeout: 20_000 });
 });
 
 test('redirect anonymous protected deep links to login during SSR', async ({
