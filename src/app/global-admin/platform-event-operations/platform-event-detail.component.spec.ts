@@ -140,7 +140,7 @@ describe('platform event registration-mode compatibility', () => {
     expect(template).not.toContain('<mat-option value="random"');
     expect(template).toContain('event.simpleModeEnabled');
     expect(source).toContain('globalAdmin.tenants.findOne.queryOptions');
-    expect(source).toContain('resetPlatformEventGraphPayments');
+    expect(source).not.toContain('resetPlatformEventGraphPayments');
     expect(template).toContain('[disabled]="!paymentsConfigured()"');
     expect(template).toContain('status could not be loaded');
     expect(template).toContain('Event editing settings could not be loaded');
@@ -599,6 +599,27 @@ const graphSaveEventRecord = (): PlatformEventDetailRecord => ({
   title: 'Original event title',
 });
 
+const graphSavePaidEventRecord = (): PlatformEventDetailRecord => {
+  const event = graphSaveEventRecord();
+  return {
+    ...event,
+    addOns: event.addOns.map((addOn) => ({
+      ...addOn,
+      isPaid: true,
+      price: 350,
+      stripeTaxRateId: 'txr_paid',
+    })),
+    registrationOptions: event.registrationOptions.map((option) => ({
+      ...option,
+      esnCardDiscountedPrice: 1000,
+      isPaid: true,
+      price: 1500,
+      refundFeesOnCancellation: true,
+      stripeTaxRateId: 'txr_paid',
+    })),
+  };
+};
+
 const graphSaveFormOptions: Schema.Schema.Type<
   typeof PlatformEventFormOptionsRecord
 > = {
@@ -610,6 +631,18 @@ const graphSaveFormOptions: Schema.Schema.Type<
   timezone: 'Europe/Berlin',
 };
 
+const graphSavePaidFormOptions = {
+  ...graphSaveFormOptions,
+  esnCardEnabled: true,
+  taxRates: [
+    {
+      displayName: 'Inclusive VAT',
+      percentage: '19',
+      stripeTaxRateId: 'txr_paid',
+    },
+  ],
+} satisfies Schema.Schema.Type<typeof PlatformEventFormOptionsRecord>;
+
 const graphSaveTenant = new GlobalAdminTenantRecord({
   currency: 'EUR',
   domain: 'tenant.example.test',
@@ -618,6 +651,11 @@ const graphSaveTenant = new GlobalAdminTenantRecord({
   paymentsConfigured: false,
   theme: 'evorto',
   timezone: 'Europe/Berlin',
+});
+
+const graphSaveConnectedTenant = new GlobalAdminTenantRecord({
+  ...graphSaveTenant,
+  paymentsConfigured: true,
 });
 
 const graphSaveUncertainMessage =
@@ -688,6 +726,9 @@ describe('PlatformEventDetailComponent graph-save outcomes', () => {
   let root: HTMLElement;
   const loadEvent = vi.fn(async () => record);
   const loadChoices = vi.fn(async () => graphSaveFormOptions);
+  const loadTenant = vi.fn(
+    async (): Promise<GlobalAdminTenantRecord | null> => graphSaveTenant,
+  );
   const updateEvent =
     vi.fn<
       (input: UpdateGraphVariables) => Promise<PlatformEventDetailRecord>
@@ -711,6 +752,7 @@ describe('PlatformEventDetailComponent graph-save outcomes', () => {
     record = graphSaveEventRecord();
     loadEvent.mockReset().mockImplementation(async () => record);
     loadChoices.mockReset().mockResolvedValue(graphSaveFormOptions);
+    loadTenant.mockReset().mockResolvedValue(graphSaveTenant);
     updateEvent.mockReset().mockImplementation(async () => record);
     changeAnnouncement.mockReset().mockImplementation(async () => record);
     submitReview.mockReset().mockImplementation(async () => record);
@@ -755,7 +797,7 @@ describe('PlatformEventDetailComponent graph-save outcomes', () => {
               mutationKey: ['platform-event-detail', 'submit'],
             }),
             tenant: () => ({
-              queryFn: async () => graphSaveTenant,
+              queryFn: loadTenant,
               queryKey: ['platform-event-tenant', 'tenant-1'],
             }),
             update: () => ({
@@ -843,7 +885,7 @@ describe('PlatformEventDetailComponent graph-save outcomes', () => {
       },
     });
 
-  const render = async () => {
+  const render = async (options: { waitForSaveReady?: boolean } = {}) => {
     fixture = TestBed.createComponent(PlatformEventDetailComponent);
     acquiredFixture = fixture;
     fixture.componentRef.setInput('tenantId', 'tenant-1');
@@ -862,10 +904,12 @@ describe('PlatformEventDetailComponent graph-save outcomes', () => {
     enter('Title', 'Submitted event title');
     enter('Description', 'Submitted event description');
     enter('Update reason', 'Explain the edited details');
-    await vi.waitFor(() => {
-      fixture.detectChanges();
-      expect(button('Save draft details').disabled).toBe(false);
-    });
+    if (options.waitForSaveReady !== false) {
+      await vi.waitFor(() => {
+        fixture.detectChanges();
+        expect(button('Save draft details').disabled).toBe(false);
+      });
+    }
   };
 
   const invokeSave = () => {
@@ -1161,6 +1205,268 @@ describe('PlatformEventDetailComponent graph-save outcomes', () => {
       expect(loadChoices).toHaveBeenCalledOnce();
     },
   );
+
+  it.each(['initial', 'reactive'] as const)(
+    'preserves paid graph values across an %s Stripe disconnect and saves them after reconnection',
+    async (disconnection) => {
+      record = graphSavePaidEventRecord();
+      loadChoices.mockResolvedValue(graphSavePaidFormOptions);
+      loadTenant.mockResolvedValue(
+        disconnection === 'initial'
+          ? graphSaveTenant
+          : graphSaveConnectedTenant,
+      );
+      await render({ waitForSaveReady: false });
+      const expectedGraph = {
+        addOns: record.addOns,
+        questions: record.questions,
+        registrationOptions: record.registrationOptions,
+      };
+      await vi.waitFor(() => {
+        fixture.detectChanges();
+        expect(fixture.componentInstance['targetTenantQuery'].isSuccess()).toBe(
+          true,
+        );
+        expect(fixture.componentInstance['graphModel']()).toEqual(
+          expectedGraph,
+        );
+      });
+      if (disconnection === 'reactive') {
+        expect(button('Save draft details').disabled).toBe(false);
+        queryClient.setQueryData(
+          ['platform-event-tenant', 'tenant-1'],
+          graphSaveTenant,
+        );
+      }
+      await vi.waitFor(() => {
+        fixture.detectChanges();
+        expect(button('Save draft details').disabled).toBe(true);
+        expect(root.textContent).toContain(
+          'Existing paid sign-ups and add-ons are preserved.',
+        );
+      });
+      invokeSave();
+      expect(updateEvent).not.toHaveBeenCalled();
+      expect(fixture.componentInstance['graphModel']()).toEqual(expectedGraph);
+
+      loadTenant.mockResolvedValue(graphSaveConnectedTenant);
+      queryClient.setQueryData(
+        ['platform-event-tenant', 'tenant-1'],
+        graphSaveConnectedTenant,
+      );
+      await vi.waitFor(() => {
+        fixture.detectChanges();
+        expect(button('Save draft details').disabled).toBe(false);
+      });
+      invokeSave();
+      await vi.waitFor(() => {
+        fixture.detectChanges();
+        expect(showSuccess).toHaveBeenCalledExactlyOnceWith('Event updated');
+      });
+      expect(updateEvent.mock.calls.map(([payload]) => payload)).toEqual([
+        expect.objectContaining(expectedGraph),
+      ]);
+      expect(fixture.componentInstance['graphModel']()).toEqual(expectedGraph);
+    },
+  );
+
+  it('pauses saving during the initial tenant read and a refresh with cached settings', async () => {
+    record = graphSavePaidEventRecord();
+    loadChoices.mockResolvedValue(graphSavePaidFormOptions);
+    const initial = heldGraphSaveResult<GlobalAdminTenantRecord>();
+    const refreshed = heldGraphSaveResult<GlobalAdminTenantRecord>();
+    let refreshFinished = Promise.resolve();
+    loadTenant
+      .mockReturnValueOnce(initial.promise)
+      .mockReturnValueOnce(refreshed.promise);
+    await runGraphSaveScenario(async () => {
+      await render({ waitForSaveReady: false });
+      const entered = entries();
+      const paidToggles = ['Paid registration', 'Paid add-on'].map((label) => {
+        const control = [...root.querySelectorAll('mat-checkbox')]
+          .find((candidate) => candidate.textContent?.trim() === label)
+          ?.querySelector('input');
+        if (!control) throw new Error(`Expected checkbox ${label}`);
+        return control;
+      });
+      const paidPrices = [
+        ...root.querySelectorAll<HTMLInputElement>(
+          'input[type="number"][step="0.01"]',
+        ),
+      ];
+      expect(paidPrices).toHaveLength(3);
+      expect(paidToggles.every((control) => control.disabled)).toBe(true);
+      expect(paidPrices.every((control) => control.disabled)).toBe(true);
+      expect(fixture.componentInstance['targetTenantQuery'].isPending()).toBe(
+        true,
+      );
+      expect(button('Save draft details').disabled).toBe(true);
+      invokeSave();
+      expect(updateEvent).not.toHaveBeenCalled();
+      initial.resolve(graphSaveConnectedTenant);
+      await vi.waitFor(() => {
+        fixture.detectChanges();
+        expect(button('Save draft details').disabled).toBe(false);
+      });
+      refreshFinished = (async () => {
+        await fixture.componentInstance['targetTenantQuery'].refetch();
+      })();
+      await vi.waitFor(() => {
+        fixture.detectChanges();
+        expect(fixture.componentInstance['targetTenantQuery'].isSuccess()).toBe(
+          true,
+        );
+        expect(
+          fixture.componentInstance['targetTenantQuery'].isFetching(),
+        ).toBe(true);
+        expect(fixture.componentInstance['paymentsConfigured']()).toBe(false);
+        expect(button('Save draft details').disabled).toBe(true);
+        expect(paidToggles.every((control) => control.disabled)).toBe(true);
+        expect(paidPrices.every((control) => control.disabled)).toBe(true);
+      });
+      for (const control of paidPrices) {
+        const originalValue = control.value;
+        control.value = '99';
+        control.dispatchEvent(new Event('input', { bubbles: true }));
+        control.value = originalValue;
+      }
+      const taxInput = document.createElement('input');
+      taxInput.value = 'txr_ignored';
+      taxInput.addEventListener('input', (event) => {
+        fixture.componentInstance['setOptionText'](0, 'stripeTaxRateId', event);
+        fixture.componentInstance['setAddOnText'](0, 'stripeTaxRateId', event);
+      });
+      taxInput.dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+      invokeSave();
+      expect(updateEvent).not.toHaveBeenCalled();
+      expect(entries()).toBe(entered);
+      refreshed.resolve(graphSaveConnectedTenant);
+      await refreshFinished;
+      await vi.waitFor(() => {
+        fixture.detectChanges();
+        expect(fixture.componentInstance['paymentsConfigured']()).toBe(true);
+        expect(button('Save draft details').disabled).toBe(false);
+        expect(paidToggles.every((control) => !control.disabled)).toBe(true);
+        expect(paidPrices.every((control) => !control.disabled)).toBe(true);
+        expect(entries()).toBe(entered);
+      });
+    }, [
+      () => initial.resolve(graphSaveConnectedTenant),
+      () => refreshed.resolve(graphSaveConnectedTenant),
+      () => refreshFinished,
+    ]);
+  });
+
+  it.each(['error', 'missing'] as const)(
+    'preserves paid edits and blocks saves after an %s tenant result until a successful read',
+    async (result) => {
+      record = graphSavePaidEventRecord();
+      loadChoices.mockResolvedValue(graphSavePaidFormOptions);
+      loadTenant.mockResolvedValue(graphSaveConnectedTenant);
+      await render();
+      const entered = entries();
+      if (result === 'error') {
+        loadTenant.mockRejectedValueOnce(new Error('Tenant read unavailable'));
+      } else {
+        loadTenant.mockResolvedValueOnce(null);
+      }
+      await fixture.componentInstance['targetTenantQuery'].refetch();
+      await vi.waitFor(() => {
+        fixture.detectChanges();
+        expect(button('Save draft details').disabled).toBe(true);
+        if (result === 'error') {
+          expect(fixture.componentInstance['targetTenantQuery'].isError()).toBe(
+            true,
+          );
+          expect(fixture.componentInstance['targetTenantQuery'].data()).toEqual(
+            graphSaveConnectedTenant,
+          );
+          expect(button('Try again').disabled).toBe(false);
+        } else {
+          expect(
+            fixture.componentInstance['targetTenantQuery'].isSuccess(),
+          ).toBe(true);
+          expect(
+            fixture.componentInstance['targetTenantQuery'].data(),
+          ).toBeNull();
+        }
+      });
+      invokeSave();
+      expect(updateEvent).not.toHaveBeenCalled();
+      expect(entries()).toBe(entered);
+      if (result === 'error') {
+        button('Try again').click();
+      } else {
+        await fixture.componentInstance['targetTenantQuery'].refetch();
+      }
+      await vi.waitFor(() => {
+        fixture.detectChanges();
+        expect(loadTenant).toHaveBeenCalledTimes(3);
+        expect(button('Save draft details').disabled).toBe(false);
+        expect(entries()).toBe(entered);
+      });
+      invokeSave();
+      await vi.waitFor(() => {
+        fixture.detectChanges();
+        expect(showSuccess).toHaveBeenCalledExactlyOnceWith('Event updated');
+      });
+      expect(updateEvent.mock.calls.map(([payload]) => payload)).toEqual([
+        expect.objectContaining({
+          addOns: record.addOns,
+          questions: record.questions,
+          registrationOptions: record.registrationOptions,
+        }),
+      ]);
+    },
+  );
+
+  it('rejects stored tax rates without a percentage until usable rate data arrives', async () => {
+    record = graphSavePaidEventRecord();
+    loadTenant.mockResolvedValue(graphSaveConnectedTenant);
+    loadChoices.mockResolvedValue({
+      ...graphSavePaidFormOptions,
+      taxRates: graphSavePaidFormOptions.taxRates.map((rate) => ({
+        ...rate,
+        percentage: null,
+      })),
+    });
+    await render({ waitForSaveReady: false });
+    const entered = entries();
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(button('Save draft details').disabled).toBe(true);
+      expect(
+        fixture.componentInstance['paidTaxRateIssue'](true, 'txr_paid'),
+      ).toBe(
+        'This tax rate is no longer available. Choose another inclusive tax rate.',
+      );
+    });
+    invokeSave();
+    expect(updateEvent).not.toHaveBeenCalled();
+    expect(entries()).toBe(entered);
+    loadChoices.mockResolvedValue(graphSavePaidFormOptions);
+    queryClient.setQueryData(graphSaveChoicesKey, graphSavePaidFormOptions);
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(button('Save draft details').disabled).toBe(false);
+      expect(
+        fixture.componentInstance['paidTaxRateIssue'](true, 'txr_paid'),
+      ).toBeNull();
+    });
+    invokeSave();
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(showSuccess).toHaveBeenCalledExactlyOnceWith('Event updated');
+    });
+    expect(updateEvent.mock.calls.map(([payload]) => payload)).toEqual([
+      expect.objectContaining({
+        addOns: record.addOns,
+        questions: record.questions,
+        registrationOptions: record.registrationOptions,
+      }),
+    ]);
+  });
 });
 
 type UpdateEventVariables = Parameters<
