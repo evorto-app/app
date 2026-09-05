@@ -244,7 +244,7 @@ describe('TemplateGraphService structural validation', () => {
     });
   });
 
-  it('requires the persisted advanced template to have the simple shape before conversion', () => {
+  it('allows extra advanced choices to be removed while switching to simple setup in one save', () => {
     const before = persistedGraph(false);
     const participant = before.registrationOptions[1];
     if (!participant) throw new Error('Missing participant fixture');
@@ -253,16 +253,17 @@ describe('TemplateGraphService structural validation', () => {
       { ...participant, id: 'option-guest', title: 'Guest' },
     ];
     const input = updateInputFrom(before);
+    input.registrationOptions = input.registrationOptions.filter(
+      (option) => option.id !== 'option-guest',
+    );
     input.simpleModeEnabled = true;
 
     expect(
       validateTemplateGraphStructure({ before, esnCardEnabled: false, input }),
-    ).toMatchObject({
-      reason: 'templateAdvancedToSimpleRequiresPersistedSimpleShape',
-    });
+    ).toBeNull();
   });
 
-  it('preserves every persisted option ID when changing template mode', () => {
+  it('allows choices to be replaced while switching to advanced setup in one save', () => {
     const before = persistedGraph(true);
     const input = updateInputFrom(before);
     input.simpleModeEnabled = false;
@@ -271,13 +272,6 @@ describe('TemplateGraphService structural validation', () => {
       id: undefined,
     }));
 
-    expect(
-      validateTemplateGraphStructure({ before, esnCardEnabled: false, input }),
-    ).toMatchObject({
-      reason: 'templateModeTransitionMustPreserveOptionIds',
-    });
-
-    input.registrationOptions = updateInputFrom(before).registrationOptions;
     expect(
       validateTemplateGraphStructure({ before, esnCardEnabled: false, input }),
     ).toBeNull();

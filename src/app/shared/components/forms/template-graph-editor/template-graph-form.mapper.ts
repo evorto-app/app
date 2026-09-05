@@ -177,7 +177,7 @@ export const templateGraphRecordToFormModel = (
   if (invalidReference) {
     return {
       error:
-        'This template graph contains a registration-option reference that does not belong to the template.',
+        'A sign-up question or add-on points to a choice that no longer exists. Ask Evorto support to repair this template before editing it.',
     };
   }
 

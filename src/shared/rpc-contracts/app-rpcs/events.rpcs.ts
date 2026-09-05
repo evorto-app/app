@@ -193,6 +193,7 @@ export const EventsCreateRegistrationOptionInput = Schema.Struct({
   cancellationDeadlineHoursBeforeStart: NullablePolicyHoursInput,
   closeRegistrationTime: Schema.NonEmptyString,
   description: Schema.NullOr(Schema.NonEmptyString),
+  esnCardDiscountedPrice: Schema.NullOr(NonNegativeInteger),
   isPaid: Schema.Boolean,
   openRegistrationTime: Schema.NonEmptyString,
   organizingRegistration: Schema.Boolean,

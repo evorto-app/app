@@ -27,7 +27,7 @@ const eventOptionEditorByTitle = async (
   const editors = page.locator('app-event-registration-option-editor');
   const titleInputs = editors.getByRole('textbox', {
     exact: true,
-    name: 'Option name',
+    name: 'Sign-up choice name',
   });
   let matchingIndex = -1;
 
@@ -207,9 +207,9 @@ Let's look at each section in detail.
 Registration options determine how people can sign up for your event. Templates can create one or more registration options that are then shown on the event details page.
 Reusable add-ons copied from the template are shown separately on the event detail page with their price, purchase timing, quantity limits, and attached registration options.
 
-Each draft event has its own registration configuration, independent of the template. **Simple** mode keeps exactly one organizing and one non-organizing option. **Advanced** mode supports any number of named options and lets you choose which registration options can use each reusable add-on, with separate included and optional quantities. Missing organizer or participant categories are warnings, not save blockers.
+Each draft event has its own sign-up setup, independent of the template. **Simple** keeps exactly one organizer choice and one attendee choice. **Advanced** supports any number of named choices and lets you choose which choices can use each reusable add-on, with separate included and optional quantities. Missing organizer or attendee choices are warnings, not save blockers.
 
-Every mode change asks for confirmation. Before returning an advanced event to simple mode, save the advanced setup with exactly one option of each kind, reopen the editor, and then confirm the separate mode change. Existing saved options and hidden add-ons are preserved.
+Every setup change asks for confirmation. To return an advanced event to simple setup, keep exactly one organizer choice and one attendee choice, moving questions and add-ons before removing any extra choices. Confirm the setup change and save the changes together. Existing choices and hidden add-ons are preserved.
 
 When editing a draft event, registration options can include:
 
@@ -220,7 +220,7 @@ When editing a draft event, registration options can include:
 - Required roles (if the option is restricted to certain user roles)
 - Organizer/helper distinction
 
-Configure the options according to your event's needs and click **Save Changes**.
+Configure the options according to your event's needs and click **Save changes**.
 
 Note: The event created from the template already has registration options configured.
 `,
@@ -274,7 +274,7 @@ Note: The event created from the template already has registration options confi
   await expect(page.getByTestId('event-mode-advanced')).toBeVisible();
   await takeScreenshot(
     testInfo,
-    page.getByLabel('Registration configuration mode'),
+    page.getByLabel('Sign-up setup'),
     page,
     'Event registration configuration modes',
   );
@@ -283,7 +283,7 @@ Note: The event created from the template already has registration options confi
   );
   const registrationOptionTitleInputs = registrationOptionEditors.getByRole(
     'textbox',
-    { exact: true, name: 'Option name' },
+    { exact: true, name: 'Sign-up choice name' },
   );
   let registrationOptionEditorIndex = -1;
   await expect
@@ -481,12 +481,12 @@ This walkthrough uses a disposable draft so every saved field can be read back w
       .filter({
         has: page.getByRole('heading', {
           exact: true,
-          name: 'Change registration configuration?',
+          name: 'Change sign-up setup?',
         }),
       })
       .last();
     await expect(modeDialog).toContainText(
-      'Advanced mode keeps both current options',
+      'Advanced setup keeps both current choices',
     );
     await expect(modeDialog).toContainText(
       'This change remains reversible until you save',
@@ -499,7 +499,7 @@ This walkthrough uses a disposable draft so every saved field can be read back w
     );
 
     await modeDialog
-      .getByRole('button', { exact: true, name: 'Keep current mode' })
+      .getByRole('button', { exact: true, name: 'Keep current setup' })
       .click();
     await expect(modeDialog).toBeHidden();
     await expect(simpleModeButton).toHaveAttribute('aria-pressed', 'true');
@@ -507,19 +507,19 @@ This walkthrough uses a disposable draft so every saved field can be read back w
 
     await testInfo.attach('markdown', {
       body: `
-### Choose simple or advanced registration configuration
+### Choose simple or advanced sign-up setup
 
-- **Simple** keeps exactly one organizer/helper option and one participant option. Use it when those two choices are enough.
-- **Advanced** keeps the existing options but allows any number of named options and exposes add-ons.
+- **Simple** keeps exactly one organizer/helper choice and one attendee choice. Use it when those two choices are enough.
+- **Advanced** keeps the existing choices but allows any number of named choices and shows add-ons.
 
-Selecting a mode first opens a confirmation. Choose **Keep current mode** if you clicked by mistake or need to review the form; this closes the dialog without changing the mode or discarding the other unsaved fields. To return an advanced event to simple later, first reduce and save the advanced setup so it has exactly one organizer/helper and one participant option. Reopen the editor and confirm the separate mode change. Evorto does not silently delete extra options, questions, add-ons, or the registration options chosen for each add-on.
+Selecting a setup first opens a confirmation. Choose **Keep current setup** if you clicked by mistake or need to review the form; this closes the dialog without changing the setup or discarding the other unsaved fields. To return an advanced event to simple setup, first keep exactly one organizer/helper choice and one attendee choice. Move questions and add-ons before removing any extra choices, then confirm the setup change and save everything together. Evorto does not silently delete extra choices, questions, add-ons, or the choices selected for each add-on.
 `,
     });
 
     await advancedModeButton.click();
     await expect(modeDialog).toBeVisible();
     await modeDialog
-      .getByRole('button', { exact: true, name: 'Use advanced mode' })
+      .getByRole('button', { exact: true, name: 'Use advanced setup' })
       .click();
     await expect(advancedModeButton).toHaveAttribute('aria-pressed', 'true');
 
@@ -528,10 +528,10 @@ Selecting a mode first opens a confirmation. Choose **Keep current mode** if you
       initialParticipantOptionTitle,
     );
     await participantEditor
-      .getByLabel('Option name')
+      .getByLabel('Sign-up choice name')
       .fill(savedParticipantOptionTitle);
-    await participantEditor.getByLabel('Capacity').fill('37');
-    await participantEditor.getByLabel('Registration mode').click();
+    await participantEditor.getByLabel('Number of places').fill('37');
+    await participantEditor.getByLabel('How sign-ups are confirmed').click();
     await page
       .getByRole('option', { exact: true, name: 'Manual approval' })
       .click();
@@ -546,9 +546,11 @@ Selecting a mode first opens a confirmation. Choose **Keep current mode** if you
       body: `
 ### Update the draft and save it
 
-Change the general event fields you need, such as **Event title** and **Description**. Registration configuration is saved with the same form. In this example, the participant option receives a clearer name, capacity **37**, and **Manual approval** mode.
+Change the general event fields you need, such as **Event title** and **Description**. Sign-up setup is saved with the same form. In this example, the attendee choice receives a clearer name, **Number of places** is set to **37**, and **How sign-ups are confirmed** is set to **Manual approval**.
 
-Select **Save changes** once. A successful save returns to the event details page. If an error remains on the editor, the event has not been confirmed as updated: read the validation or error message, correct the problem, and select **Save changes** again. Do not assume an unsaved mode or registration change is live merely because it is visible in the form.
+Select **Save changes** once and read any message before submitting again. Your entries remain in the editor. For a specific validation problem, correct the named field before trying again. If the save outcome could not be confirmed, load the page again and check the current event details before trying again.
+
+If the event was saved but its latest details could not be loaded, load the page again to see the saved event. If the event was saved but its page could not be opened, open it from the event list. Do not repeat a confirmed save because the page did not load.
 `,
     });
 
@@ -596,11 +598,11 @@ Select **Save changes** once. A successful save returns to the event details pag
       page,
       savedParticipantOptionTitle,
     );
-    await expect(reloadedParticipantEditor.getByLabel('Capacity')).toHaveValue(
-      '37',
-    );
     await expect(
-      reloadedParticipantEditor.getByLabel('Registration mode'),
+      reloadedParticipantEditor.getByLabel('Number of places'),
+    ).toHaveValue('37');
+    await expect(
+      reloadedParticipantEditor.getByLabel('How sign-ups are confirmed'),
     ).toContainText('Manual approval');
     await takeScreenshot(
       testInfo,
@@ -613,7 +615,7 @@ Select **Save changes** once. A successful save returns to the event details pag
       body: `
 ### Confirm the saved result
 
-Reload the event details page and check the new title and description. Open **Edit Event** again and verify that **Advanced**, the option name, capacity, and **Manual approval** selection are still present. This confirms that the saved event differs from any unsaved changes still in the browser.
+Reload the event details page and check the new title and description. Open **Edit Event** again and verify that **Advanced**, the sign-up choice name, number of places, and **Manual approval** selection are still present. This confirms that the saved event differs from any unsaved changes still in the browser.
 `,
     });
   } finally {
@@ -1009,7 +1011,7 @@ Receipt history has its own warning and **Try again** action. A receipt-loading 
 ## Event Editing
 
 Draft events can be edited from the event details page when your account has access. An event returned by a reviewer is a draft, with the review feedback shown on the details page.
-The edit form covers the same event details and registration setup used during event creation. Simple and advanced modes require confirmation; advanced setups may omit either option kind with a warning, and add-ons hidden by simple mode remain saved. Reducing an advanced setup and switching to simple are deliberately separate saves so no option is silently deleted or replaced.
+The edit form covers the same event details and sign-up setup used during event creation. Simple and advanced setup changes require confirmation; advanced setups may omit either choice kind with a warning, and add-ons hidden by simple setup remain saved. You can remove extra choices and switch to simple setup in one save after moving their questions and add-ons. Evorto never removes choices automatically when you switch setups.
 Pending-review and published events are locked from normal editing.
 
 ## Current Scope

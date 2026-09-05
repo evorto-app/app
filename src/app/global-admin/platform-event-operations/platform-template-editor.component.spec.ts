@@ -1,15 +1,22 @@
+import type { PlatformTemplatesUpdateInput } from '@shared/rpc-contracts/app-rpcs/platform-events.rpcs';
+
+import '@angular/compiler';
+
 import type { TemplateGraphRecord } from '@shared/rpc-contracts/app-rpcs/templates.rpcs';
 import type { IconValue } from '@shared/types/icon';
 
 import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
 import { Component, input, output } from '@angular/core';
-import '@angular/compiler';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { FormField } from '@angular/forms/signals';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSelectHarness } from '@angular/material/select/testing';
 import { By } from '@angular/platform-browser';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
+import {
+  RpcBadRequestError,
+  RpcInternalServerError,
+} from '@shared/errors/rpc-errors';
 import { MAX_EVENT_ADDON_TYPES } from '@shared/registration-quantity-limits';
 import {
   MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH,
@@ -18,6 +25,7 @@ import {
 import {
   provideTanStackQuery,
   QueryClient,
+  QueryObserver,
 } from '@tanstack/angular-query-experimental';
 import { readFileSync } from 'node:fs';
 import nodePath from 'node:path';
@@ -141,20 +149,36 @@ describe('platform template editor readiness', () => {
 describe('PlatformTemplateEditorComponent recovery', () => {
   let optionFailuresRemaining = 0;
   let queryClient: QueryClient;
-  const savedTemplate = vi.fn(async () => ({ id: 'template-1' }));
   const loadTemplate = vi.fn(async () => completeTemplate());
-  const loadRoles = vi.fn(async () => [
+  const targetRoles = () => [
     {
       defaultOrganizerRole: true,
       defaultUserRole: true,
       id: 'role-1',
       name: 'Member',
     },
-  ]);
+    {
+      defaultOrganizerRole: false,
+      defaultUserRole: false,
+      id: 'organizer-role',
+      name: 'Organizer',
+    },
+    {
+      defaultOrganizerRole: false,
+      defaultUserRole: false,
+      id: 'member-role',
+      name: 'Participant',
+    },
+  ];
+  const loadRoles = vi.fn(async () => targetRoles());
   const roleOptions = vi.fn((targetTenantId: string) => ({
     queryFn: loadRoles,
     queryKey: ['platform-template', 'roles', targetTenantId],
   }));
+  const updateTemplate =
+    vi.fn<
+      (input: PlatformTemplatesUpdateInput) => Promise<TemplateGraphRecord>
+    >();
   const loadOptions = vi.fn(async () => {
     if (optionFailuresRemaining > 0) {
       optionFailuresRemaining -= 1;
@@ -174,18 +198,24 @@ describe('PlatformTemplateEditorComponent recovery', () => {
     };
   });
 
+  const createTemplate = vi.fn(async () => ({ id: 'template-1' }));
+  let taxRateFailuresRemaining = 0;
+  const loadTaxRates = vi.fn(async () => {
+    if (taxRateFailuresRemaining > 0) {
+      taxRateFailuresRemaining -= 1;
+      throw new Error('Tax catalog unavailable');
+    }
+    return [];
+  });
+
   beforeEach(async () => {
     optionFailuresRemaining = 0;
-    savedTemplate.mockClear();
+    taxRateFailuresRemaining = 0;
+    createTemplate.mockClear();
+    loadTaxRates.mockClear();
     loadTemplate.mockReset().mockResolvedValue(completeTemplate());
-    loadRoles.mockReset().mockResolvedValue([
-      {
-        defaultOrganizerRole: true,
-        defaultUserRole: true,
-        id: 'role-1',
-        name: 'Member',
-      },
-    ]);
+    loadRoles.mockReset().mockResolvedValue(targetRoles());
+    updateTemplate.mockReset().mockResolvedValue(completeTemplate());
     queryClient = new QueryClient({
       defaultOptions: {
         mutations: { retry: false },
@@ -224,12 +254,12 @@ describe('PlatformTemplateEditorComponent recovery', () => {
           provide: PlatformTemplateEditorOperations,
           useValue: {
             create: () => ({
-              mutationFn: savedTemplate,
+              mutationFn: createTemplate,
               mutationKey: ['platform-template', 'create'],
             }),
             findOne: () => ({
               queryFn: loadTemplate,
-              queryKey: ['platform-template', 'detail'],
+              queryKey: ['platform', 'templates', 'detail'],
             }),
             formOptions: () => ({
               queryFn: loadOptions,
@@ -237,7 +267,7 @@ describe('PlatformTemplateEditorComponent recovery', () => {
             }),
             roles: roleOptions,
             taxRates: () => ({
-              queryFn: async () => [],
+              queryFn: loadTaxRates,
               queryKey: ['platform-template', 'tax-rates'],
             }),
             templateFilter: () => ({
@@ -251,13 +281,14 @@ describe('PlatformTemplateEditorComponent recovery', () => {
               queryKey: ['platform-template', 'tenant'],
             }),
             update: () => ({
-              mutationFn: savedTemplate,
+              mutationFn: updateTemplate,
               mutationKey: ['platform-template', 'update'],
             }),
           },
         },
       ],
     }).compileComponents();
+    vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
   });
 
   afterEach(() => {
@@ -331,7 +362,7 @@ describe('PlatformTemplateEditorComponent recovery', () => {
       ]),
     );
     await submitTemplate(fixture);
-    expect(savedTemplate).not.toHaveBeenCalled();
+    expect(updateTemplate).not.toHaveBeenCalled();
     expect(root.textContent).toContain(
       'Remove unavailable organization roles before saving.',
     );
@@ -358,8 +389,8 @@ describe('PlatformTemplateEditorComponent recovery', () => {
     ).toBe(false);
 
     await submitTemplate(fixture);
-    expect(savedTemplate).toHaveBeenCalledOnce();
-    expect(savedTemplate.mock.calls[0]).toEqual(
+    expect(updateTemplate).toHaveBeenCalledOnce();
+    expect(updateTemplate.mock.calls[0]).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           registrationOptions: expect.arrayContaining([
@@ -595,7 +626,7 @@ describe('PlatformTemplateEditorComponent recovery', () => {
         new Event('submit', { bubbles: true, cancelable: true }),
       );
       fixture.detectChanges();
-      expect(savedTemplate).not.toHaveBeenCalled();
+      expect(updateTemplate).not.toHaveBeenCalled();
 
       if (!resolveRoles || !rejectRoles)
         throw new Error('Expected a pending target role lookup');
@@ -619,7 +650,7 @@ describe('PlatformTemplateEditorComponent recovery', () => {
       if (outcome === 'available') {
         expect(field().errors()).toEqual([]);
         await submitTemplate(fixture);
-        expect(savedTemplate).toHaveBeenCalledOnce();
+        expect(updateTemplate).toHaveBeenCalledOnce();
       } else if (outcome === 'missing') {
         expect(field().errors()).toEqual(
           expect.arrayContaining([
@@ -627,7 +658,7 @@ describe('PlatformTemplateEditorComponent recovery', () => {
           ]),
         );
         await submitTemplate(fixture);
-        expect(savedTemplate).not.toHaveBeenCalled();
+        expect(updateTemplate).not.toHaveBeenCalled();
       } else {
         expect(field().errors()).toEqual(
           expect.arrayContaining([
@@ -637,7 +668,7 @@ describe('PlatformTemplateEditorComponent recovery', () => {
         expect(root.textContent).toContain(
           'organization roles could not be loaded',
         );
-        expect(savedTemplate).not.toHaveBeenCalled();
+        expect(updateTemplate).not.toHaveBeenCalled();
         const retry = [...root.querySelectorAll('button')].find(
           (button) => button.textContent?.trim() === 'Try again',
         );
@@ -652,10 +683,447 @@ describe('PlatformTemplateEditorComponent recovery', () => {
           ).toBe(false);
         });
         await submitTemplate(fixture);
-        expect(savedTemplate).toHaveBeenCalledOnce();
+        expect(updateTemplate).toHaveBeenCalledOnce();
       }
     },
   );
+
+  const renderForSave = async () => {
+    const fixture = render();
+    fixture.componentRef.setInput('templateId', 'template-1');
+    const root: unknown = fixture.nativeElement;
+    if (!(root instanceof HTMLElement))
+      throw new Error('Expected template editor');
+    await vi.waitFor(async () => {
+      await fixture.whenStable();
+      expect(
+        root.querySelector('[data-testid="platform-template-editor"]'),
+      ).not.toBeNull();
+    });
+    const title = root.querySelector('input');
+    const reasonField = [...root.querySelectorAll('mat-form-field')].find(
+      (field) =>
+        field.querySelector('mat-label')?.textContent?.trim() ===
+        'Operational reason',
+    );
+    const reason = reasonField?.querySelector('textarea');
+    const form = root.querySelector('form');
+    const save = root.querySelector<HTMLButtonElement>('button[type="submit"]');
+    if (!title || !reason || !form || !save)
+      throw new Error('Expected title, reason, form and save button');
+    title.value = 'Submitted trip';
+    title.dispatchEvent(new Event('input', { bubbles: true }));
+    reason.value = 'Update the advertised trip';
+    reason.dispatchEvent(new Event('input', { bubbles: true }));
+    await vi.waitFor(async () => {
+      await fixture.whenStable();
+      expect(save.disabled).toBe(false);
+    });
+    return { fixture, form, reason, root, save, title };
+  };
+
+  it.each([
+    { error: new Error('Response was lost'), label: 'transport' },
+    {
+      error: new RpcInternalServerError({ message: 'Private storage failure' }),
+      label: 'internal',
+    },
+  ])(
+    'keeps an unconfirmed $label save separate from an unsaved template',
+    async ({ error }) => {
+      let simulatedServerCommit = false;
+      updateTemplate.mockImplementationOnce(async () => {
+        simulatedServerCommit = true;
+        throw error;
+      });
+      const { fixture, form, reason, title } = await renderForSave();
+      form.dispatchEvent(
+        new Event('submit', { bubbles: true, cancelable: true }),
+      );
+      await vi.waitFor(() => {
+        expect(
+          TestBed.inject(NotificationService).showError,
+        ).toHaveBeenCalledWith(
+          'The save outcome could not be confirmed. Open the template list, load the page again and check this template before trying again.',
+        );
+      });
+      await fixture.whenStable();
+      expect(simulatedServerCommit).toBe(true);
+      expect(updateTemplate).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({
+          reason: 'Update the advertised trip',
+          registrationOptions: expect.arrayContaining([
+            expect.objectContaining({
+              price: 1000,
+              stripeTaxRateId: 'txr-organizer',
+            }),
+          ]),
+          title: 'Submitted trip',
+        }),
+        expect.objectContaining({ client: queryClient }),
+      );
+      expect(title.value).toBe('Submitted trip');
+      expect(reason.value).toBe('Update the advertised trip');
+      expect(TestBed.inject(Router).navigate).not.toHaveBeenCalled();
+    },
+  );
+
+  it('keeps the allowlisted validation reason visible without exposing internal failures', async () => {
+    updateTemplate.mockRejectedValueOnce(
+      new RpcBadRequestError({
+        message: 'Choose a current organization role.',
+      }),
+    );
+    const { form, title } = await renderForSave();
+    form.dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true }),
+    );
+    await vi.waitFor(() => {
+      expect(
+        TestBed.inject(NotificationService).showError,
+      ).toHaveBeenCalledWith('Choose a current organization role.');
+    });
+    expect(updateTemplate).toHaveBeenCalledOnce();
+    expect(title.value).toBe('Submitted trip');
+    expect(TestBed.inject(Router).navigate).not.toHaveBeenCalled();
+  });
+
+  it('reports a confirmed save when the active template read fails and retains the entered model on recovery', async () => {
+    const { fixture, form, root } = await renderForSave();
+    loadTemplate.mockRejectedValueOnce(new Error('Template read failed'));
+    form.dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true }),
+    );
+    await vi.waitFor(async () => {
+      await fixture.whenStable();
+      expect(
+        TestBed.inject(NotificationService).showError,
+      ).toHaveBeenCalledWith(
+        'The template was saved, but the latest template information could not be loaded. Load this template again to see the saved details.',
+      );
+      expect(
+        queryClient.getQueryState(['platform', 'templates', 'detail'])?.status,
+      ).toBe('error');
+    });
+    expect(updateTemplate).toHaveBeenCalledOnce();
+    expect(TestBed.inject(Router).navigate).not.toHaveBeenCalled();
+    const retry = await vi.waitFor(async () => {
+      await fixture.whenStable();
+      fixture.detectChanges();
+      const button = [...root.querySelectorAll('button')].find(
+        (candidate) => candidate.textContent?.trim() === 'Try again',
+      );
+      if (!button)
+        throw new Error('Expected retry after the failed template read');
+      expect(button.disabled).toBe(false);
+      return button;
+    });
+    retry.click();
+    await vi.waitFor(async () => {
+      await fixture.whenStable();
+      expect(root.querySelector('input')?.value).toBe('Submitted trip');
+    });
+  });
+
+  it.each(['rejected', 'cancelled'] as const)(
+    'reports confirmed save after %s navigation',
+    async (outcome) => {
+      const navigate = vi.mocked(TestBed.inject(Router).navigate);
+      if (outcome === 'rejected')
+        navigate.mockRejectedValueOnce(new Error('Navigation failed'));
+      else navigate.mockResolvedValueOnce(false);
+      const { form, reason, title } = await renderForSave();
+      form.dispatchEvent(
+        new Event('submit', { bubbles: true, cancelable: true }),
+      );
+      await vi.waitFor(() => {
+        expect(
+          TestBed.inject(NotificationService).showError,
+        ).toHaveBeenCalledWith(
+          'The template was saved, but its page could not be opened. Open it from the template list before making further changes.',
+        );
+      });
+      expect(updateTemplate).toHaveBeenCalledOnce();
+      expect(navigate).toHaveBeenCalledExactlyOnceWith([
+        '/global-admin/tenants',
+        'tenant-1',
+        'templates',
+        'template-1',
+      ]);
+      expect(
+        TestBed.inject(NotificationService).showSuccess,
+      ).not.toHaveBeenCalled();
+      expect(title.value).toBe('Submitted trip');
+      expect(reason.value).toBe('Update the advertised trip');
+    },
+  );
+
+  it('keeps fields edited during a save dirty and blocks another submit through navigation', async () => {
+    let finishSave: ((value: TemplateGraphRecord) => void) | undefined;
+    let finishNavigation: ((opened: boolean) => void) | undefined;
+    // eslint-disable-next-line unicorn/prefer-promise-with-resolvers
+    const saving = new Promise<TemplateGraphRecord>((resolve) => {
+      finishSave = resolve;
+    });
+    // eslint-disable-next-line unicorn/prefer-promise-with-resolvers
+    const navigation = new Promise<boolean>((resolve) => {
+      finishNavigation = resolve;
+    });
+    updateTemplate.mockReturnValueOnce(saving);
+    vi.mocked(TestBed.inject(Router).navigate).mockReturnValueOnce(navigation);
+    const { fixture, form, save, title } = await renderForSave();
+    form.dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true }),
+    );
+    try {
+      await vi.waitFor(() => expect(updateTemplate).toHaveBeenCalledOnce());
+      title.value = 'Later unsent title';
+      title.dispatchEvent(new Event('input', { bubbles: true }));
+      if (!finishSave) throw new Error('Expected pending save');
+      finishSave(completeTemplate());
+      await vi.waitFor(async () => {
+        await fixture.whenStable();
+        expect(TestBed.inject(Router).navigate).toHaveBeenCalledOnce();
+        expect(save.disabled).toBe(true);
+      });
+      form.dispatchEvent(
+        new Event('submit', { bubbles: true, cancelable: true }),
+      );
+      await fixture.whenStable();
+      expect(updateTemplate).toHaveBeenCalledOnce();
+      expect(updateTemplate.mock.calls[0]?.[0].title).toBe('Submitted trip');
+      expect(title.value).toBe('Later unsent title');
+      const confirmDiscard = vi.fn(() => false);
+      vi.stubGlobal('confirm', confirmDiscard);
+      expect(fixture.componentInstance.canDeactivate()).toBe(false);
+      expect(confirmDiscard).toHaveBeenCalledOnce();
+    } finally {
+      if (finishSave) finishSave(completeTemplate());
+      finishNavigation?.(false);
+      await fixture.whenStable();
+    }
+  });
+  it('keeps the full save locked until active template siblings settle after one rejects', async () => {
+    const { fixture, form, reason, save, title } = await renderForSave();
+    const invalidation = vi.spyOn(queryClient, 'invalidateQueries');
+    let releaseSibling: ((value: string[]) => void) | undefined;
+    // Angular's browser library target does not expose Promise.withResolvers.
+    // eslint-disable-next-line unicorn/prefer-promise-with-resolvers
+    const heldSibling = new Promise<string[]>((resolve) => {
+      releaseSibling = resolve;
+    });
+    const listKey = ['platform', 'templates', 'list', 'tenant-1'];
+    const siblingKey = ['platform', 'templates', 'form-options', 'tenant-2'];
+    const loadList = vi.fn(async () => ['template-1']);
+    const loadSibling = vi.fn(async () => ['category-1']);
+    const listObserver = new QueryObserver(queryClient, {
+      queryFn: loadList,
+      queryKey: listKey,
+    });
+    const siblingObserver = new QueryObserver(queryClient, {
+      queryFn: loadSibling,
+      queryKey: siblingKey,
+    });
+    const unsubscribeList = listObserver.subscribe(() => {
+      // Keep the failed list in the active refetch population.
+    });
+    const unsubscribeSibling = siblingObserver.subscribe(() => {
+      // Keep the held sibling in the active refetch population.
+    });
+    const modelSnapshot = JSON.stringify(
+      fixture.componentInstance['templateModel'](),
+    );
+    try {
+      await vi.waitFor(() => {
+        expect(listObserver.getCurrentResult().status).toBe('success');
+        expect(siblingObserver.getCurrentResult().status).toBe('success');
+      });
+      loadList.mockRejectedValueOnce(
+        new Error('Template list failed before the sibling settled'),
+      );
+      loadSibling.mockReturnValueOnce(heldSibling);
+      form.dispatchEvent(
+        new Event('submit', { bubbles: true, cancelable: true }),
+      );
+      await vi.waitFor(() => {
+        fixture.detectChanges();
+        expect(listObserver.getCurrentResult().status).toBe('error');
+        expect(siblingObserver.getCurrentResult().fetchStatus).toBe('fetching');
+        expect(fixture.componentInstance['updateMutation'].isPending()).toBe(
+          false,
+        );
+        expect(fixture.componentInstance['templateForm']().submitting()).toBe(
+          true,
+        );
+        expect(save.disabled).toBe(true);
+      });
+      expect(
+        TestBed.inject(NotificationService).showError,
+      ).not.toHaveBeenCalled();
+      expect(
+        TestBed.inject(NotificationService).showSuccess,
+      ).not.toHaveBeenCalled();
+      expect(TestBed.inject(Router).navigate).not.toHaveBeenCalled();
+      form.dispatchEvent(
+        new Event('submit', { bubbles: true, cancelable: true }),
+      );
+      fixture.componentInstance['save'](
+        new Event('submit', { cancelable: true }),
+      );
+      expect(updateTemplate).toHaveBeenCalledOnce();
+      expect(fixture.componentInstance['templateForm']().submitting()).toBe(
+        true,
+      );
+      if (!releaseSibling)
+        throw new Error('Expected the owned active sibling read');
+      releaseSibling(['category-1']);
+      await vi.waitFor(() => {
+        fixture.detectChanges();
+        expect(fixture.componentInstance['templateForm']().submitting()).toBe(
+          false,
+        );
+        expect(save.disabled).toBe(false);
+        expect(
+          TestBed.inject(NotificationService).showError,
+        ).toHaveBeenCalledExactlyOnceWith(
+          'The template was saved, but the latest template information could not be loaded. Load this template again to see the saved details.',
+        );
+      });
+      expect(TestBed.inject(Router).navigate).not.toHaveBeenCalled();
+      expect(
+        TestBed.inject(NotificationService).showSuccess,
+      ).not.toHaveBeenCalled();
+      expect(invalidation).toHaveBeenCalledExactlyOnceWith(
+        { queryKey: ['platform', 'templates'] },
+        { throwOnError: true },
+      );
+      expect(loadList).toHaveBeenCalledTimes(2);
+      expect(loadSibling).toHaveBeenCalledTimes(2);
+      expect(loadTemplate).toHaveBeenCalledTimes(2);
+      expect(updateTemplate).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({
+          reason: 'Update the advertised trip',
+          targetTenantId: 'tenant-1',
+          templateId: 'template-1',
+          title: 'Submitted trip',
+        }),
+        expect.objectContaining({ client: queryClient }),
+      );
+      expect(JSON.stringify(fixture.componentInstance['templateModel']())).toBe(
+        modelSnapshot,
+      );
+      expect(title.value).toBe('Submitted trip');
+      expect(reason.value).toBe('Update the advertised trip');
+    } finally {
+      releaseSibling?.(['released']);
+      try {
+        await vi.waitFor(() =>
+          expect(fixture.componentInstance['templateForm']().submitting()).toBe(
+            false,
+          ),
+        );
+      } finally {
+        unsubscribeList();
+        unsubscribeSibling();
+      }
+    }
+  });
+
+  it('finishes saving while an inactive matching template read remains held', async () => {
+    const { fixture, form, reason, save, title } = await renderForSave();
+    const invalidation = vi.spyOn(queryClient, 'invalidateQueries');
+    let releaseInactive: ((value: string[]) => void) | undefined;
+    // Angular's browser library target does not expose Promise.withResolvers.
+    // eslint-disable-next-line unicorn/prefer-promise-with-resolvers
+    const heldInactive = new Promise<string[]>((resolve) => {
+      releaseInactive = resolve;
+    });
+    const inactiveKey = ['platform', 'templates', 'list', 'inactive-tenant'];
+    const loadInactive = vi.fn(async () => ['template-2']);
+    const observer = new QueryObserver(queryClient, {
+      queryFn: loadInactive,
+      queryKey: inactiveKey,
+    });
+    const unsubscribe = observer.subscribe(() => {
+      // Establish an active query before explicitly making it inactive.
+    });
+    let inactiveRead: Promise<string[]> | undefined;
+    const modelSnapshot = JSON.stringify(
+      fixture.componentInstance['templateModel'](),
+    );
+    try {
+      await vi.waitFor(() =>
+        expect(observer.getCurrentResult().status).toBe('success'),
+      );
+      unsubscribe();
+      loadInactive.mockReturnValueOnce(heldInactive);
+      inactiveRead = queryClient.fetchQuery({
+        queryFn: loadInactive,
+        queryKey: inactiveKey,
+      });
+      expect(
+        queryClient
+          .getQueryCache()
+          .find({ exact: true, queryKey: inactiveKey })
+          ?.isActive(),
+      ).toBe(false);
+      expect(queryClient.getQueryState(inactiveKey)?.fetchStatus).toBe(
+        'fetching',
+      );
+      form.dispatchEvent(
+        new Event('submit', { bubbles: true, cancelable: true }),
+      );
+      await vi.waitFor(() => {
+        fixture.detectChanges();
+        expect(
+          TestBed.inject(NotificationService).showSuccess,
+        ).toHaveBeenCalledExactlyOnceWith('Template updated');
+        expect(fixture.componentInstance['templateForm']().submitting()).toBe(
+          false,
+        );
+        expect(save.disabled).toBe(false);
+      });
+      expect(queryClient.getQueryState(inactiveKey)?.fetchStatus).toBe(
+        'fetching',
+      );
+      expect(loadInactive).toHaveBeenCalledTimes(2);
+      expect(loadTemplate).toHaveBeenCalledTimes(2);
+      expect(updateTemplate).toHaveBeenCalledOnce();
+      expect(
+        TestBed.inject(NotificationService).showError,
+      ).not.toHaveBeenCalled();
+      expect(TestBed.inject(Router).navigate).toHaveBeenCalledExactlyOnceWith([
+        '/global-admin/tenants',
+        'tenant-1',
+        'templates',
+        'template-1',
+      ]);
+      expect(invalidation).toHaveBeenCalledExactlyOnceWith(
+        { queryKey: ['platform', 'templates'] },
+        { throwOnError: true },
+      );
+      expect(JSON.stringify(fixture.componentInstance['templateModel']())).toBe(
+        modelSnapshot,
+      );
+      expect(title.value).toBe('Submitted trip');
+      expect(reason.value).toBe('Update the advertised trip');
+    } finally {
+      releaseInactive?.(['released']);
+      try {
+        await inactiveRead;
+      } finally {
+        try {
+          await vi.waitFor(() =>
+            expect(
+              fixture.componentInstance['templateForm']().submitting(),
+            ).toBe(false),
+          );
+        } finally {
+          unsubscribe();
+        }
+      }
+    }
+  });
 
   it('keeps add-on creation independent of the question cap and explains overlong help text', async () => {
     const template = completeTemplate();
@@ -722,6 +1190,105 @@ describe('PlatformTemplateEditorComponent recovery', () => {
     button('Add add-on').click();
     fixture.detectChanges();
     expect(addOnSection?.querySelectorAll('legend')).toHaveLength(2);
+  });
+
+  it('keeps loaded paid prices while tax loading fails and payment settings become unavailable', async () => {
+    taxRateFailuresRemaining = 1;
+    const fixture = render();
+    fixture.componentRef.setInput('templateId', 'template-1');
+    const root: unknown = fixture.nativeElement;
+    if (!(root instanceof HTMLElement))
+      throw new Error('Expected the platform template root');
+    const prices = () =>
+      [
+        ...root.querySelectorAll<HTMLInputElement>(
+          '[aria-label="Price (EUR)"]',
+        ),
+      ].map((input) => input.value);
+    await vi.waitFor(async () => {
+      await fixture.whenStable();
+      expect(root.textContent).toContain('Tax rates could not be loaded.');
+      expect(prices()).toEqual(['10', '4.5']);
+    });
+    const reasonField = [...root.querySelectorAll('mat-form-field')].find(
+      (field) =>
+        field.querySelector('mat-label')?.textContent?.trim() ===
+        'Operational reason',
+    );
+    const reason = reasonField?.querySelector('textarea');
+    if (!(reason instanceof HTMLTextAreaElement))
+      throw new Error('Expected the operational reason input');
+    reason.value =
+      'Keep existing pricing while checking the payment configuration';
+    reason.dispatchEvent(new Event('input', { bubbles: true }));
+    await fixture.whenStable();
+    const form = root.querySelector('form');
+    if (!(form instanceof HTMLFormElement))
+      throw new Error('Expected the template form');
+    expect(root.textContent).not.toContain(
+      'Previously selected tax rate (no longer available)',
+    );
+    expect(
+      root.querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled,
+    ).toBe(true);
+    form.dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true }),
+    );
+    await fixture.whenStable();
+    expect(createTemplate).not.toHaveBeenCalled();
+    expect(updateTemplate).not.toHaveBeenCalled();
+    const taxAlert = [
+      ...root.querySelectorAll<HTMLElement>('[role="alert"]'),
+    ].find((element) =>
+      element.textContent?.includes('Tax rates could not be loaded.'),
+    );
+    const retry = taxAlert?.querySelector<HTMLButtonElement>('button');
+    if (!retry)
+      throw new Error('Expected the platform tax catalog retry button');
+    retry.click();
+    await vi.waitFor(async () => {
+      await fixture.whenStable();
+      expect(loadTaxRates).toHaveBeenCalledTimes(2);
+      expect(root.textContent).not.toContain('Tax rates could not be loaded.');
+      expect(
+        root.querySelector<HTMLButtonElement>('button[type="submit"]')
+          ?.disabled,
+      ).toBe(false);
+    });
+    expect(prices()).toEqual(['10', '4.5']);
+    queryClient.setQueryData(['platform-template', 'tenant'], {
+      currency: 'EUR',
+      paymentsConfigured: false,
+    });
+    await vi.waitFor(async () => {
+      await fixture.whenStable();
+      expect(root.textContent?.replaceAll(/\s+/g, ' ')).toContain(
+        'Existing paid registration options and add-ons are preserved.',
+      );
+      expect(prices()).toEqual(['10', '4.5']);
+      expect(
+        root.querySelector<HTMLButtonElement>('button[type="submit"]')
+          ?.disabled,
+      ).toBe(true);
+    });
+    form.dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true }),
+    );
+    await fixture.whenStable();
+    expect(createTemplate).not.toHaveBeenCalled();
+    expect(updateTemplate).not.toHaveBeenCalled();
+    queryClient.setQueryData(['platform-template', 'tenant'], {
+      currency: 'EUR',
+      paymentsConfigured: true,
+    });
+    await vi.waitFor(async () => {
+      await fixture.whenStable();
+      expect(prices()).toEqual(['10', '4.5']);
+      expect(
+        root.querySelector<HTMLButtonElement>('button[type="submit"]')
+          ?.disabled,
+      ).toBe(false);
+    });
   });
 
   it('retries failed target-organization form options from the page', async () => {
@@ -1122,45 +1689,24 @@ describe('platform template editor graph mapping', () => {
 
     expect(platformTemplateRecordToFormModel(corrupt)).toEqual({
       error:
-        'This template graph contains a registration-option reference that does not belong to the template.',
+        'A sign-up question or add-on points to a choice that no longer exists. Ask Evorto support to repair this template before editing it.',
     });
   });
 
-  it('uses the canonical persisted-shape guard before switching to simple mode', () => {
+  it('allows supported one-save mode changes while keeping the required final shape', () => {
     const source = completeTemplate();
     const [organizerOption, participantOption] = source.registrationOptions;
-    if (!organizerOption || !participantOption) {
+    if (!organizerOption || !participantOption)
       throw new Error('Expected two registration options');
-    }
     const currentOptions = [organizerOption, participantOption];
-    const incompatiblePersisted = {
-      ...source,
-      registrationOptions: [
-        ...currentOptions,
-        {
-          ...participantOption,
-          id: 'extra-participant-option',
-        },
-      ],
-      simpleModeEnabled: false,
-    };
-
     expect(
-      platformTemplateModeTransitionIssue(
-        'simple',
-        incompatiblePersisted,
-        currentOptions,
-      ),
-    ).toContain('Save the compatible advanced changes first');
-    expect(
-      platformTemplateModeTransitionIssue(
-        'advanced',
-        incompatiblePersisted,
-        currentOptions,
-      ),
+      platformTemplateModeTransitionIssue('simple', currentOptions),
     ).toBeNull();
     expect(
-      platformTemplateModeTransitionIssue('simple', source, [
+      platformTemplateModeTransitionIssue('advanced', currentOptions),
+    ).toBeNull();
+    expect(
+      platformTemplateModeTransitionIssue('simple', [
         organizerOption,
         { ...participantOption, organizingRegistration: true },
       ]),
@@ -1191,15 +1737,18 @@ describe('platform template editor graph mapping', () => {
       'applyEach(template.questions, templateGraphQuestionFormSchema)',
     );
     expect(source).toContain('TemplateModeConfirmationDialogComponent');
-    expect(source).toContain('persistedAdvancedToSimpleModeIssue');
+    expect(source).not.toContain('persistedAdvancedToSimpleModeIssue');
     expect(source).toContain('globalAdmin.tenants.findOne.queryOptions');
     expect(source).toContain(
-      'disabled(registration.isPaid, () => !this.paymentsConfigured())',
+      'disabled(registration.isPaid, () => !this.stripeConnected())',
     );
     expect(source).toContain(
-      'disabled(addOn.isPaid, () => !this.paymentsConfigured())',
+      'disabled(addOn.isPaid, () => !this.stripeConnected())',
     );
-    expect(source).toContain('resetTemplateGraphPayments');
+    expect(source).not.toContain('resetTemplateGraphPayments');
+    expect(source).toContain('paidGraphBlocked');
+    expect(source).toContain('paymentSettingsReady');
+    expect(source).toContain('taxRatesReady');
     expect(template).toContain("requestMode('simple')");
     expect(template).toContain("requestMode('advanced')");
     expect(template).toContain('status could not be loaded');
@@ -1217,7 +1766,7 @@ describe('platform template editor graph mapping', () => {
     expect(template).not.toContain('{{ selectedCategoryId }}');
     expect(template).not.toContain('{{ missingRoleId }}');
     expect(template).not.toContain('{{ selectedTaxRateId }}');
-    expect(source).not.toContain('getErrorMessage');
+    expect(source).toContain("['RpcBadRequestError']");
     expect(template).not.toContain(
       '[formField]="templateForm.simpleModeEnabled"',
     );

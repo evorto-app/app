@@ -1193,6 +1193,7 @@ export const platformEventHandlers = {
                       option.closeRegistrationOffset * 60 * 60 * 1000,
                   ).toISOString(),
                   description: option.description,
+                  esnCardDiscountedPrice: option.esnCardDiscountedPrice,
                   isPaid: option.isPaid,
                   openRegistrationTime: new Date(
                     start.getTime() -

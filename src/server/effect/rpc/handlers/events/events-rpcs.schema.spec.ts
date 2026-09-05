@@ -471,6 +471,7 @@ describe('events RPC registration option schema', () => {
   const writableRegistrationOption = {
     closeRegistrationTime: '2026-09-20T12:00:00.000Z',
     description: null,
+    esnCardDiscountedPrice: null,
     isPaid: false,
     openRegistrationTime: '2026-09-10T12:00:00.000Z',
     organizingRegistration: false,
@@ -510,6 +511,61 @@ describe('events RPC registration option schema', () => {
         transferDeadlineHoursBeforeStart: -1,
       }),
     ).toThrow();
+  });
+
+  it('requires an explicit nullable ESNcard snapshot and accepts only whole nonnegative minor units', () => {
+    for (const esnCardDiscountedPrice of [null, 0, 350]) {
+      const decoded = Schema.decodeUnknownSync(
+        EventsCreateRegistrationOptionInput,
+      )({
+        ...writableRegistrationOption,
+        esnCardDiscountedPrice,
+        isPaid: true,
+        price: 1000,
+        stripeTaxRateId: 'txr_test',
+      });
+      expect(decoded.esnCardDiscountedPrice).toBe(esnCardDiscountedPrice);
+    }
+    for (const esnCardDiscountedPrice of [undefined, -1, 0.5, NaN, Infinity]) {
+      expect(() =>
+        Schema.decodeUnknownSync(EventsCreateRegistrationOptionInput)({
+          ...writableRegistrationOption,
+          esnCardDiscountedPrice,
+        }),
+      ).toThrow();
+    }
+    const omitted = { ...writableRegistrationOption };
+    Reflect.deleteProperty(omitted, 'esnCardDiscountedPrice');
+    expect(() =>
+      Schema.decodeUnknownSync(EventsCreateRegistrationOptionInput)(omitted),
+    ).toThrow();
+  });
+
+  it('preserves source option identity with edited, removed and zero ESNcard prices', () => {
+    for (const esnCardDiscountedPrice of [350, null, 0]) {
+      const decoded = Schema.decodeUnknownSync(
+        EventsCreateRegistrationOptionInput,
+      )({
+        ...writableRegistrationOption,
+        esnCardDiscountedPrice,
+        isPaid: true,
+        price: 1000,
+        sourceTemplateRegistrationOptionId: 'template-option-1',
+        stripeTaxRateId: 'txr_test',
+      });
+      expect(decoded.sourceTemplateRegistrationOptionId).toBe(
+        'template-option-1',
+      );
+      expect(decoded.esnCardDiscountedPrice).toBe(esnCardDiscountedPrice);
+    }
+    for (const sourceTemplateRegistrationOptionId of ['', null]) {
+      expect(() =>
+        Schema.decodeUnknownSync(EventsCreateRegistrationOptionInput)({
+          ...writableRegistrationOption,
+          sourceTemplateRegistrationOptionId,
+        }),
+      ).toThrow();
+    }
   });
 
   it('carries inclusive tax-rate label details for paid event cards', () => {

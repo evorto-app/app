@@ -8,7 +8,6 @@ import {
   eventGraphFormToPayload,
   eventGraphRecordToFormModel,
   legacyRandomEventEditMessage,
-  resetEventGraphPayments,
   simpleEventGraphIssue,
 } from './event-graph-form.model';
 
@@ -148,49 +147,6 @@ describe('event graph form mapping', () => {
     expect(result).toEqual({ error: legacyRandomEventEditMessage });
   });
 
-  it('clears event payment fields without changing graph configuration', () => {
-    const loadResult = eventGraphRecordToFormModel(
-      eventGraph(),
-      DEFAULT_TENANT_TIMEZONE,
-    );
-    if (!('model' in loadResult)) throw new Error('Expected writable graph');
-    const source = {
-      ...loadResult.model,
-      addOns: loadResult.model.addOns.map((addOn) => ({
-        ...addOn,
-        isPaid: true,
-        price: 500,
-        stripeTaxRateId: 'txr_addon',
-      })),
-      registrationOptions: loadResult.model.registrationOptions.map(
-        (option) => ({
-          ...option,
-          esnCardDiscountedPrice: 750,
-          isPaid: true,
-          price: 1000,
-          stripeTaxRateId: 'txr_option',
-        }),
-      ),
-    };
-
-    const reset = resetEventGraphPayments(source);
-
-    expect(reset.registrationOptions[0]).toMatchObject({
-      esnCardDiscountedPrice: '',
-      isPaid: false,
-      price: 0,
-      roleIds: source.registrationOptions[0]?.roleIds,
-      stripeTaxRateId: null,
-    });
-    expect(reset.addOns[0]).toMatchObject({
-      isPaid: false,
-      price: 0,
-      registrationOptions: source.addOns[0]?.registrationOptions,
-      stripeTaxRateId: null,
-      title: source.addOns[0]?.title,
-    });
-  });
-
   it('enforces simple compatibility while advanced category gaps remain warnings', () => {
     const options = [
       { organizingRegistration: true },
@@ -201,14 +157,46 @@ describe('event graph form mapping', () => {
       simpleEventGraphIssue([...options, { organizingRegistration: false }]),
     ).toContain('exactly one');
     expect(advancedEventGraphWarnings([])).toEqual([
-      'No organizing registration option is configured.',
-      'No non-organizing registration option is configured.',
+      'This event has no organizer sign-up choice.',
+      'This event has no attendee sign-up choice.',
     ]);
     expect(
       advancedEventGraphWarnings([
         { organizingRegistration: true },
         { organizingRegistration: true },
       ]),
-    ).toEqual(['No non-organizing registration option is configured.']);
+    ).toEqual(['This event has no attendee sign-up choice.']);
+  });
+
+  it('explains missing and incomplete choices without exposing storage terms', () => {
+    const source = eventGraph();
+    const missingChoice = eventGraphRecordToFormModel(
+      {
+        ...source,
+        questions: source.questions.map((question) => ({
+          ...question,
+          registrationOptionId: 'missing-choice',
+        })),
+      },
+      DEFAULT_TENANT_TIMEZONE,
+    );
+    expect(missingChoice).toEqual({
+      error:
+        'A sign-up question or add-on points to a choice that no longer exists. Ask Evorto support to repair this event before editing it.',
+    });
+
+    const incompleteSimpleSetup = eventGraphRecordToFormModel(
+      {
+        ...source,
+        addOns: [],
+        questions: [],
+        registrationOptions: source.registrationOptions.slice(0, 1),
+      },
+      DEFAULT_TENANT_TIMEZONE,
+    );
+    expect(incompleteSimpleSetup).toEqual({
+      error:
+        'This event cannot use simple setup because its sign-up choices are incomplete. Simple setup needs exactly one organizer choice and one attendee choice. Add a missing choice or move questions and add-ons before removing extra choices, then try again. Ask Evorto support to repair the event before editing it.',
+    });
   });
 });

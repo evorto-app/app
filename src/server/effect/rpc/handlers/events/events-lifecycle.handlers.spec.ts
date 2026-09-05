@@ -39,6 +39,8 @@ import {
   buildEventQuestionInsert,
   createEventGraph,
   eventLifecycleHandlers,
+  requireCreatedEventOption,
+  requireTemplateAddonMappingTarget,
   simpleEventOptionShapeIsValid,
   templateOptionSnapshotIsComplete,
 } from './events-lifecycle.handlers';
@@ -126,6 +128,7 @@ const createInput = {
       cancellationDeadlineHoursBeforeStart: null,
       closeRegistrationTime: '2026-09-19T12:00:00.000Z',
       description: null,
+      esnCardDiscountedPrice: null,
       isPaid: false,
       openRegistrationTime: '2026-09-01T12:00:00.000Z',
       organizingRegistration: false,
@@ -270,6 +273,43 @@ describe('eventLifecycleHandlers', () => {
         ['template-option-1', 'template-option-2'],
       ),
     ).toBe(false);
+  });
+
+  it.each(['add-on', 'discount', 'question'] as const)(
+    'requires every declared template %s mapping to resolve exactly',
+    (mappingKind) => {
+      const createdOption = { createdOptionId: 'event-option-1' };
+      const optionMap = new Map([['template-option-1', createdOption]]);
+
+      expect(
+        requireCreatedEventOption(optionMap, 'template-option-1', mappingKind),
+      ).toBe(createdOption);
+      expect(() =>
+        requireCreatedEventOption(
+          optionMap,
+          'template-option-missing',
+          mappingKind,
+        ),
+      ).toThrow(
+        `Template ${mappingKind} mapping references missing registration option template-option-missing`,
+      );
+    },
+  );
+
+  it('requires every declared add-on mapping to reference a copied add-on', () => {
+    const templateAddonIds = new Set(['template-addon-1']);
+
+    expect(() =>
+      requireTemplateAddonMappingTarget(templateAddonIds, 'template-addon-1'),
+    ).not.toThrow();
+    expect(() =>
+      requireTemplateAddonMappingTarget(
+        templateAddonIds,
+        'template-addon-missing',
+      ),
+    ).toThrow(
+      'Template add-on mapping references missing add-on template-addon-missing',
+    );
   });
 
   it('keeps the simple event snapshot to one option of each kind', () => {
@@ -712,284 +752,314 @@ describe('eventLifecycleHandlers', () => {
   );
 
   it.effect(
-    'events.create copies template discounts by source option id when option titles match',
+    'events.create saves edited and zero discounts by event option and preserves explicit removal despite template defaults',
     () =>
       Effect.gen(function* () {
-        const insertedEventValues = vi.fn(() => ({
-          returning: vi.fn(() =>
-            Effect.succeed([
-              {
-                id: 'event-1',
-              },
-            ]),
-          ),
-        }));
-        const insertedDiscountValues = vi.fn(() => Effect.succeed(undefined));
-        const insertedRegistrationOptionValues = vi.fn(() => ({
-          returning: vi.fn(() =>
-            Effect.succeed([
-              {
-                id: 'event-option-1',
-              },
-              {
-                id: 'event-option-2',
-              },
-            ]),
-          ),
-        }));
-        const database = {
-          insert: vi.fn((table) => {
-            if (table === eventInstances) {
-              return {
-                values: insertedEventValues,
-              };
-            }
+        for (const submittedDiscountedPrice of [300, 0]) {
+          const insertedEventValues = vi.fn(() => ({
+            returning: vi.fn(() =>
+              Effect.succeed([
+                {
+                  id: 'event-1',
+                },
+              ]),
+            ),
+          }));
+          const insertedDiscountValues = vi.fn(() => Effect.succeed(undefined));
+          const insertedRegistrationOptionValues = vi.fn(
+            (
+              values: readonly (typeof eventRegistrationOptions.$inferInsert & {
+                id: string;
+              })[],
+            ) => Effect.succeed(values.length),
+          );
+          const database = {
+            insert: vi.fn((table) => {
+              if (table === eventInstances) {
+                return {
+                  values: insertedEventValues,
+                };
+              }
 
-            if (table === eventRegistrationOptions) {
-              return {
-                values: insertedRegistrationOptionValues,
-              };
-            }
+              if (table === eventRegistrationOptions) {
+                return {
+                  values: insertedRegistrationOptionValues,
+                };
+              }
 
-            if (table === eventRegistrationOptionDiscounts) {
-              return {
-                values: insertedDiscountValues,
-              };
-            }
+              if (table === eventRegistrationOptionDiscounts) {
+                return {
+                  values: insertedDiscountValues,
+                };
+              }
 
-            throw new Error('Unexpected insert table');
-          }),
-          query: {
-            addonToTemplateRegistrationOptions: {
-              findMany: vi.fn(() => Effect.succeed([])),
-            },
-            eventTemplates: {
-              findFirst: vi.fn(() =>
-                Effect.succeed({
-                  unlisted: false,
-                }),
-              ),
-            },
-            templateEventAddons: {
-              findMany: vi.fn(() => Effect.succeed([])),
-            },
-            templateRegistrationOptions: {
-              findMany: vi.fn(() =>
-                Effect.succeed([
-                  {
-                    id: 'template-option-1',
-                  },
-                  {
-                    id: 'template-option-2',
-                  },
-                ]),
-              ),
-            },
-            templateRegistrationQuestions: {
-              findMany: vi.fn(() => Effect.succeed([])),
-            },
-            tenantStripeTaxRates: {
-              findFirst: vi.fn(() =>
-                Effect.succeed({
-                  active: true,
-                  inclusive: true,
-                }),
-              ),
-            },
-          },
-          select: vi.fn(() => ({
-            from: vi.fn(() => ({
-              where: vi.fn(() =>
-                Effect.succeed([
-                  {
-                    discountedPrice: 500,
-                    discountType: 'esnCard' as const,
-                    registrationOptionId: 'template-option-2',
-                  },
-                ]),
-              ),
-            })),
-          })),
-          templateSimpleModeEnabled: true,
-        };
-        const layer = Layer.mergeAll(
-          esnEnabledRequestContextLayer,
-          Layer.succeed(Database, withTransaction(database) as never),
-        );
-
-        const result = yield* eventLifecycleHandlers['events.create'](
-          {
-            ...createInput,
-            registrationOptions: [
-              {
-                ...createInput.registrationOptions[0],
-                cancellationDeadlineHoursBeforeStart: 96,
-                isPaid: true,
-                organizingRegistration: true,
-                price: 1000,
-                refundFeesOnCancellation: false,
-                sourceTemplateRegistrationOptionId: 'template-option-1',
-                stripeTaxRateId: 'txr_vat_19',
-                title: 'Duplicate',
-                transferDeadlineHoursBeforeStart: 12,
-              },
-              {
-                ...createInput.registrationOptions[0],
-                isPaid: true,
-                price: 1000,
-                sourceTemplateRegistrationOptionId: 'template-option-2',
-                stripeTaxRateId: 'txr_vat_19',
-                title: 'Duplicate',
-              },
-            ],
-          },
-          { headers: {} } as never,
-        ).pipe(Effect.provide(layer));
-
-        expect(result).toEqual({ id: 'event-1' });
-        expect(insertedEventValues).toHaveBeenCalledWith(
-          expect.objectContaining({ simpleModeEnabled: true }),
-        );
-        expect(insertedRegistrationOptionValues).toHaveBeenCalledWith(
-          expect.arrayContaining([
-            expect.objectContaining({
-              cancellationDeadlineHoursBeforeStart: 96,
-              refundFeesOnCancellation: false,
-              transferDeadlineHoursBeforeStart: 12,
+              throw new Error('Unexpected insert table');
             }),
-          ]),
-        );
-        expect(insertedDiscountValues).toHaveBeenCalledWith([
-          {
-            discountedPrice: 500,
-            discountType: 'esnCard',
-            eventId: 'event-1',
-            registrationOptionId: 'event-option-2',
-          },
-        ]);
+            query: {
+              addonToTemplateRegistrationOptions: {
+                findMany: vi.fn(() => Effect.succeed([])),
+              },
+              eventTemplates: {
+                findFirst: vi.fn(() =>
+                  Effect.succeed({
+                    unlisted: false,
+                  }),
+                ),
+              },
+              templateEventAddons: {
+                findMany: vi.fn(() => Effect.succeed([])),
+              },
+              templateRegistrationOptions: {
+                findMany: vi.fn(() =>
+                  Effect.succeed([
+                    {
+                      id: 'template-option-1',
+                    },
+                    {
+                      id: 'template-option-2',
+                    },
+                  ]),
+                ),
+              },
+              templateRegistrationQuestions: {
+                findMany: vi.fn(() => Effect.succeed([])),
+              },
+              tenantStripeTaxRates: {
+                findFirst: vi.fn(() =>
+                  Effect.succeed({
+                    active: true,
+                    inclusive: true,
+                  }),
+                ),
+              },
+            },
+            select: vi.fn(() => ({
+              from: vi.fn(() => ({
+                where: vi.fn(() =>
+                  Effect.succeed([
+                    {
+                      discountedPrice: 2000,
+                      discountType: 'esnCard' as const,
+                      registrationOptionId: 'template-option-1',
+                    },
+                    {
+                      discountedPrice: 500,
+                      discountType: 'esnCard' as const,
+                      registrationOptionId: 'template-option-2',
+                    },
+                  ]),
+                ),
+              })),
+            })),
+            templateSimpleModeEnabled: true,
+          };
+          const layer = Layer.mergeAll(
+            esnEnabledRequestContextLayer,
+            Layer.succeed(Database, withTransaction(database) as never),
+          );
+
+          const result = yield* eventLifecycleHandlers['events.create'](
+            {
+              ...createInput,
+              registrationOptions: [
+                {
+                  ...createInput.registrationOptions[0],
+                  cancellationDeadlineHoursBeforeStart: 96,
+                  isPaid: true,
+                  organizingRegistration: true,
+                  price: 1000,
+                  refundFeesOnCancellation: false,
+                  sourceTemplateRegistrationOptionId: 'template-option-1',
+                  stripeTaxRateId: 'txr_vat_19',
+                  title: 'Duplicate',
+                  transferDeadlineHoursBeforeStart: 12,
+                },
+                {
+                  ...createInput.registrationOptions[0],
+                  esnCardDiscountedPrice: submittedDiscountedPrice,
+                  isPaid: true,
+                  price: 1000,
+                  sourceTemplateRegistrationOptionId: 'template-option-2',
+                  stripeTaxRateId: 'txr_vat_19',
+                  title: 'Duplicate',
+                },
+              ],
+            },
+            { headers: {} } as never,
+          ).pipe(Effect.provide(layer));
+
+          expect(result).toEqual({ id: 'event-1' });
+          expect(insertedEventValues).toHaveBeenCalledWith(
+            expect.objectContaining({ simpleModeEnabled: true }),
+          );
+          expect(insertedRegistrationOptionValues).toHaveBeenCalledWith(
+            expect.arrayContaining([
+              expect.objectContaining({
+                cancellationDeadlineHoursBeforeStart: 96,
+                refundFeesOnCancellation: false,
+                transferDeadlineHoursBeforeStart: 12,
+              }),
+            ]),
+          );
+          const insertedOptions =
+            insertedRegistrationOptionValues.mock.calls[0]?.[0];
+          const discountedOption = insertedOptions?.[1];
+          if (!discountedOption)
+            throw new Error('Expected the second event registration option');
+          expect(database.select).not.toHaveBeenCalled();
+          expect(insertedDiscountValues).toHaveBeenCalledWith([
+            {
+              discountedPrice: submittedDiscountedPrice,
+              discountType: 'esnCard',
+              eventId: 'event-1',
+              registrationOptionId: discountedOption.id,
+            },
+          ]);
+        }
       }),
   );
 
   it.effect(
-    'events.create skips copied ESNcard discounts when the tenant provider is disabled',
+    'events.create honors explicit discount removal and rejects submitted discounts when disabled or free',
     () =>
       Effect.gen(function* () {
-        const insertedDiscountValues = vi.fn(() => Effect.succeed(undefined));
-        const database = {
-          insert: vi.fn((table) => {
-            if (table === eventInstances) {
-              return {
-                values: vi.fn(() => ({
-                  returning: vi.fn(() =>
-                    Effect.succeed([
-                      {
-                        id: 'event-1',
-                      },
-                    ]),
-                  ),
-                })),
-              };
-            }
-
-            if (table === eventRegistrationOptions) {
-              return {
-                values: vi.fn(() => ({
-                  returning: vi.fn(() =>
-                    Effect.succeed([
-                      {
-                        id: 'event-option-1',
-                      },
-                    ]),
-                  ),
-                })),
-              };
-            }
-
-            if (table === eventRegistrationOptionDiscounts) {
-              return {
-                values: insertedDiscountValues,
-              };
-            }
-
-            throw new Error('Unexpected insert table');
-          }),
-          query: {
-            addonToTemplateRegistrationOptions: {
-              findMany: vi.fn(() => Effect.succeed([])),
-            },
-            eventTemplates: {
-              findFirst: vi.fn(() =>
-                Effect.succeed({
-                  unlisted: false,
-                }),
-              ),
-            },
-            templateEventAddons: {
-              findMany: vi.fn(() => Effect.succeed([])),
-            },
-            templateRegistrationOptions: {
-              findMany: vi.fn(() =>
-                Effect.succeed([
-                  {
-                    id: 'template-option-1',
-                  },
-                ]),
-              ),
-            },
-            templateRegistrationQuestions: {
-              findMany: vi.fn(() => Effect.succeed([])),
-            },
-            tenantStripeTaxRates: {
-              findFirst: vi.fn(() =>
-                Effect.succeed({
-                  active: true,
-                  inclusive: true,
-                }),
-              ),
-            },
-          },
-          select: vi.fn(() => ({
-            from: vi.fn(() => ({
-              where: vi.fn(() =>
-                Effect.succeed([
-                  {
-                    discountedPrice: 500,
-                    discountType: 'esnCard' as const,
-                    registrationOptionId: 'template-option-1',
-                  },
-                ]),
-              ),
-            })),
-          })),
-        };
-        const layer = Layer.mergeAll(
-          requestContextLayer,
-          Layer.succeed(Database, withTransaction(database) as never),
-        );
-
-        const result = yield* eventLifecycleHandlers['events.create'](
+        for (const scenario of [
+          { esnCardDiscountedPrice: null, isPaid: true, reason: null },
           {
-            ...createInput,
-            registrationOptions: [
-              {
-                ...createInput.registrationOptions[0],
-                isPaid: true,
-                price: 1000,
-                sourceTemplateRegistrationOptionId: 'template-option-1',
-                stripeTaxRateId: 'txr_vat_19',
-              },
-            ],
+            esnCardDiscountedPrice: 500,
+            isPaid: true,
+            reason: 'esnDiscountUnavailable',
           },
-          { headers: {} } as never,
-        ).pipe(Effect.provide(layer));
+          {
+            esnCardDiscountedPrice: 0,
+            isPaid: false,
+            reason: 'esnDiscountRequiresPaidOption',
+          },
+        ]) {
+          const insertedDiscountValues = vi.fn(() => Effect.succeed(undefined));
+          const database = {
+            insert: vi.fn((table) => {
+              if (table === eventInstances) {
+                return {
+                  values: vi.fn(() => ({
+                    returning: vi.fn(() =>
+                      Effect.succeed([
+                        {
+                          id: 'event-1',
+                        },
+                      ]),
+                    ),
+                  })),
+                };
+              }
 
-        expect(result).toEqual({ id: 'event-1' });
-        expect(insertedDiscountValues).not.toHaveBeenCalled();
+              if (table === eventRegistrationOptions) {
+                return {
+                  values: vi.fn(() => Effect.succeed(1)),
+                };
+              }
+
+              if (table === eventRegistrationOptionDiscounts) {
+                return {
+                  values: insertedDiscountValues,
+                };
+              }
+
+              throw new Error('Unexpected insert table');
+            }),
+            query: {
+              addonToTemplateRegistrationOptions: {
+                findMany: vi.fn(() => Effect.succeed([])),
+              },
+              eventTemplates: {
+                findFirst: vi.fn(() =>
+                  Effect.succeed({
+                    unlisted: false,
+                  }),
+                ),
+              },
+              templateEventAddons: {
+                findMany: vi.fn(() => Effect.succeed([])),
+              },
+              templateRegistrationOptions: {
+                findMany: vi.fn(() =>
+                  Effect.succeed([
+                    {
+                      id: 'template-option-1',
+                    },
+                  ]),
+                ),
+              },
+              templateRegistrationQuestions: {
+                findMany: vi.fn(() => Effect.succeed([])),
+              },
+              tenantStripeTaxRates: {
+                findFirst: vi.fn(() =>
+                  Effect.succeed({
+                    active: true,
+                    inclusive: true,
+                  }),
+                ),
+              },
+            },
+            select: vi.fn(() => ({
+              from: vi.fn(() => ({
+                where: vi.fn(() =>
+                  Effect.succeed([
+                    {
+                      discountedPrice: 500,
+                      discountType: 'esnCard' as const,
+                      registrationOptionId: 'template-option-1',
+                    },
+                  ]),
+                ),
+              })),
+            })),
+          };
+          const layer = Layer.mergeAll(
+            requestContextLayer,
+            Layer.succeed(Database, withTransaction(database) as never),
+          );
+
+          const creation = eventLifecycleHandlers['events.create'](
+            {
+              ...createInput,
+              registrationOptions: [
+                {
+                  ...createInput.registrationOptions[0],
+                  esnCardDiscountedPrice: scenario.esnCardDiscountedPrice,
+                  isPaid: scenario.isPaid,
+                  price: scenario.isPaid ? 1000 : 0,
+                  sourceTemplateRegistrationOptionId: 'template-option-1',
+                  stripeTaxRateId: scenario.isPaid ? 'txr_vat_19' : null,
+                },
+              ],
+            },
+            { headers: {} } as never,
+          );
+
+          if (scenario.reason === null) {
+            const result = yield* creation.pipe(Effect.provide(layer));
+            expect(result).toEqual({ id: 'event-1' });
+            expect(insertedDiscountValues).not.toHaveBeenCalled();
+          } else {
+            const error = yield* creation.pipe(
+              Effect.flip,
+              Effect.provide(layer),
+            );
+            expect(error).toMatchObject({
+              _tag: 'RpcBadRequestError',
+              reason: scenario.reason,
+            });
+            expect(database.insert).not.toHaveBeenCalled();
+          }
+          expect(database.select).not.toHaveBeenCalled();
+        }
       }),
   );
 
   it.effect(
-    'events.create rejects copied template discounts that exceed the event option price',
+    'events.create rejects submitted discounts that exceed the event option price',
     () =>
       Effect.gen(function* () {
         const insert = vi.fn();
@@ -1055,6 +1125,7 @@ describe('eventLifecycleHandlers', () => {
             registrationOptions: [
               {
                 ...createInput.registrationOptions[0],
+                esnCardDiscountedPrice: 1500,
                 isPaid: true,
                 price: 1000,
                 sourceTemplateRegistrationOptionId: 'template-option-1',
@@ -1395,6 +1466,13 @@ describe('eventLifecycleHandlers', () => {
         const insertedEventAddonOptionValues = vi.fn(() =>
           Effect.succeed(undefined),
         );
+        const insertedRegistrationOptionValues = vi.fn(
+          (
+            values: readonly (typeof eventRegistrationOptions.$inferInsert & {
+              id: string;
+            })[],
+          ) => Effect.succeed(values.length),
+        );
         const database = {
           insert: vi.fn((table) => {
             if (table === eventInstances) {
@@ -1413,15 +1491,7 @@ describe('eventLifecycleHandlers', () => {
 
             if (table === eventRegistrationOptions) {
               return {
-                values: vi.fn(() => ({
-                  returning: vi.fn(() =>
-                    Effect.succeed([
-                      {
-                        id: 'event-option-1',
-                      },
-                    ]),
-                  ),
-                })),
+                values: insertedRegistrationOptionValues,
               };
             }
 
@@ -1546,13 +1616,17 @@ describe('eventLifecycleHandlers', () => {
           title: 'Equipment rental',
           totalAvailableQuantity: 20,
         });
+        const insertedOption =
+          insertedRegistrationOptionValues.mock.calls[0]?.[0]?.[0];
+        if (!insertedOption)
+          throw new Error('Expected the copied event registration option');
         expect(insertedEventAddonOptionValues).toHaveBeenCalledWith([
           {
             addonId: 'event-addon-1',
             eventId: 'event-1',
             includedQuantity: 1,
             optionalPurchaseQuantity: 1,
-            registrationOptionId: 'event-option-1',
+            registrationOptionId: insertedOption.id,
           },
         ]);
       }),
@@ -1690,6 +1764,13 @@ describe('eventLifecycleHandlers', () => {
         const insertedEventQuestionValues = vi.fn(() =>
           Effect.succeed(undefined),
         );
+        const insertedRegistrationOptionValues = vi.fn(
+          (
+            values: readonly (typeof eventRegistrationOptions.$inferInsert & {
+              id: string;
+            })[],
+          ) => Effect.succeed(values.length),
+        );
         const database = {
           insert: vi.fn((table) => {
             if (table === eventInstances) {
@@ -1708,15 +1789,7 @@ describe('eventLifecycleHandlers', () => {
 
             if (table === eventRegistrationOptions) {
               return {
-                values: vi.fn(() => ({
-                  returning: vi.fn(() =>
-                    Effect.succeed([
-                      {
-                        id: 'event-option-1',
-                      },
-                    ]),
-                  ),
-                })),
+                values: insertedRegistrationOptionValues,
               };
             }
 
@@ -1802,11 +1875,15 @@ describe('eventLifecycleHandlers', () => {
         ).pipe(Effect.provide(layer));
 
         expect(result).toEqual({ id: 'event-1' });
+        const insertedOption =
+          insertedRegistrationOptionValues.mock.calls[0]?.[0]?.[0];
+        if (!insertedOption)
+          throw new Error('Expected the copied event registration option');
         expect(insertedEventQuestionValues).toHaveBeenCalledWith([
           {
             description: 'Tell us about your experience.',
             eventId: 'event-1',
-            registrationOptionId: 'event-option-1',
+            registrationOptionId: insertedOption.id,
             required: true,
             sortOrder: 0,
             sourceTemplateQuestionId: 'template-question-1',

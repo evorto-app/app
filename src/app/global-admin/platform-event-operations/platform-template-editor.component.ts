@@ -7,7 +7,6 @@ import type {
   PlatformRoleRecord,
   PlatformStripeTaxRateRecord,
 } from '@shared/rpc-contracts/app-rpcs/platform-tenant-admin.rpcs';
-import type { TemplateGraphRecord } from '@shared/rpc-contracts/app-rpcs/templates.rpcs';
 import type { IconValue } from '@shared/types/icon';
 
 import {
@@ -57,11 +56,12 @@ import { firstValueFrom } from 'rxjs';
 import type { EventLocationType } from '../../../types/location';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
+import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
 import { CurrencyAmountInputComponent } from '../../shared/components/controls/currency-amount-input/currency-amount-input.component';
 import { EditorComponent } from '../../shared/components/controls/editor/editor.component';
 import { LocationSelectorField } from '../../shared/components/controls/location-selector/location-selector-field/location-selector-field';
-import { persistedAdvancedToSimpleModeIssue } from '../../shared/components/forms/registration-mode-transition';
+import { graphHasPaidConfiguration } from '../../shared/components/forms/payment-configuration';
 import {
   templateGraphAddonFormSchema,
   templateGraphQuestionFormSchema,
@@ -78,7 +78,6 @@ import {
   createTemplateGraphFormModel,
   createTemplateGraphQuestionFormModel,
   createTemplateGraphRegistrationOptionFormModel,
-  resetTemplateGraphPayments,
   type TemplateGraphFormModel,
 } from '../../shared/components/forms/template-graph-editor/template-graph-form.model';
 import { templateGraphRegistrationOptionFormSchema } from '../../shared/components/forms/template-graph-editor/template-graph-registration-option-form.schema';
@@ -118,7 +117,6 @@ export const platformTemplateIconChoiceToValue = (
 
 export const platformTemplateModeTransitionIssue = (
   targetMode: TemplateConfigurationMode,
-  persistedTemplate: TemplateGraphRecord | undefined,
   currentOptions: readonly {
     id: string;
     organizingRegistration: boolean;
@@ -128,7 +126,7 @@ export const platformTemplateModeTransitionIssue = (
   if (!isSimpleCompatibleRegistrationOptions(currentOptions)) {
     return 'Simple configuration requires exactly one organizing and one non-organizing option. Reclassify or remove options first; nothing was deleted.';
   }
-  return persistedAdvancedToSimpleModeIssue(persistedTemplate, currentOptions);
+  return null;
 };
 
 export const platformTemplateEditorDataReady = ({
@@ -236,11 +234,11 @@ export class PlatformTemplateEditorComponent {
     this.operations.taxRates(this.tenantId()),
   );
   protected readonly availableTaxRates = computed(() =>
-    this.taxRatesQuery.isSuccess()
+    this.taxRatesQuery.isSuccess() && !this.taxRatesQuery.isFetching()
       ? this.taxRatesQuery
           .data()
           .filter((rate) => rate.active && rate.imported && rate.inclusive)
-      : [],
+      : undefined,
   );
 
   protected readonly createMutation = injectMutation(() =>
@@ -301,10 +299,22 @@ export class PlatformTemplateEditorComponent {
   protected readonly targetTenantQuery = injectQuery(() =>
     this.operations.tenant(this.tenantId()),
   );
-  protected readonly paymentsConfigured = computed(
+  protected readonly stripeDisconnected = computed(
     () =>
       this.targetTenantQuery.isSuccess() &&
-      this.targetTenantQuery.data()?.paymentsConfigured === true,
+      this.targetTenantQuery.data()?.paymentsConfigured === false,
+  );
+  protected readonly paidGraphBlocked = computed(
+    () =>
+      this.stripeDisconnected() &&
+      graphHasPaidConfiguration(this.templateModel()),
+  );
+  protected readonly paymentSettingsReady = computed(
+    () =>
+      this.targetTenantQuery.isSuccess() &&
+      !this.targetTenantQuery.isFetching() &&
+      this.targetTenantQuery.data() !== null &&
+      this.targetTenantQuery.data() !== undefined,
   );
   protected readonly selectedIcon = computed<IconValue>(() => ({
     iconColor: this.templateModel().iconColor,
@@ -325,15 +335,21 @@ export class PlatformTemplateEditorComponent {
   protected readonly selectedLocation = computed(() =>
     templateGraphLocationFormModelToValue(this.templateModel().location),
   );
-  protected readonly stripeDisconnected = computed(
+  protected readonly stripeConnected = computed(
     () =>
       this.targetTenantQuery.isSuccess() &&
-      this.targetTenantQuery.data()?.paymentsConfigured === false,
+      this.targetTenantQuery.data()?.paymentsConfigured === true,
   );
   protected readonly targetTenantCurrency = computed(() =>
     this.targetTenantQuery.isSuccess()
       ? (this.targetTenantQuery.data()?.currency ?? '')
       : '',
+  );
+  protected readonly taxRatesReady = computed(
+    () =>
+      this.paymentSettingsReady() &&
+      (!this.stripeConnected() ||
+        (this.taxRatesQuery.isSuccess() && !this.taxRatesQuery.isFetching())),
   );
   protected readonly templateForm = form(this.templateModel, (template) => {
     required(template.categoryId, { message: 'Select a category.' });
@@ -396,13 +412,13 @@ export class PlatformTemplateEditorComponent {
             }
           : undefined;
       });
-      disabled(registration.isPaid, () => !this.paymentsConfigured());
-      disabled(registration.price, () => !this.paymentsConfigured());
+      disabled(registration.isPaid, () => !this.stripeConnected());
+      disabled(registration.price, () => !this.stripeConnected());
       disabled(
         registration.esnCardDiscountedPrice,
-        () => !this.paymentsConfigured(),
+        () => !this.stripeConnected(),
       );
-      disabled(registration.stripeTaxRateId, () => !this.paymentsConfigured());
+      disabled(registration.stripeTaxRateId, () => !this.stripeConnected());
     });
 
     validate(template.addOns, ({ value }) => {
@@ -419,9 +435,9 @@ export class PlatformTemplateEditorComponent {
     );
     applyEach(template.addOns, (addOn) => {
       apply(addOn, templateGraphAddonFormSchema);
-      disabled(addOn.isPaid, () => !this.paymentsConfigured());
-      disabled(addOn.price, () => !this.paymentsConfigured());
-      disabled(addOn.stripeTaxRateId, () => !this.paymentsConfigured());
+      disabled(addOn.isPaid, () => !this.stripeConnected());
+      disabled(addOn.price, () => !this.stripeConnected());
+      disabled(addOn.stripeTaxRateId, () => !this.stripeConnected());
     });
 
     applyEach(template.questions, templateGraphQuestionFormSchema);
@@ -511,23 +527,12 @@ export class PlatformTemplateEditorComponent {
           this.editorLoadError.set(result.error);
         } else {
           this.editorLoadError.set('');
-          this.templateModel.set(
-            this.stripeDisconnected()
-              ? resetTemplateGraphPayments(result.model)
-              : result.model,
-          );
+          this.templateModel.set(result.model);
           this.rememberCurrentTemplate();
           this.templateForm().reset();
         }
         this.initializedTemplateId.set(templateId);
       });
-    });
-    effect(() => {
-      if (!this.stripeDisconnected()) return;
-      const model = this.templateModel();
-      const resetModel = resetTemplateGraphPayments(model);
-      if (resetModel === model) return;
-      untracked(() => this.templateModel.set(resetModel));
     });
   }
 
@@ -742,7 +747,6 @@ export class PlatformTemplateEditorComponent {
 
     const issue = platformTemplateModeTransitionIssue(
       targetMode,
-      this.templateQuery.isSuccess() ? this.templateQuery.data() : undefined,
       this.templateModel().registrationOptions,
     );
     if (issue) {
@@ -796,22 +800,32 @@ export class PlatformTemplateEditorComponent {
     event.preventDefault();
     if (
       this.mutationPending() ||
+      this.templateForm().submitting() ||
       this.editorLoadError() ||
-      !this.editorDataReady()
+      !this.editorDataReady() ||
+      !this.paymentSettingsReady() ||
+      !this.taxRatesReady() ||
+      this.paidGraphBlocked()
     ) {
       return;
     }
 
     void submit(this.templateForm, async () => {
-      if (!this.editorDataReady()) return;
-      const value = this.stripeDisconnected()
-        ? resetTemplateGraphPayments(this.templateModel())
-        : this.templateModel();
+      if (
+        !this.editorDataReady() ||
+        !this.paymentSettingsReady() ||
+        !this.taxRatesReady() ||
+        this.paidGraphBlocked()
+      )
+        return;
+      const value = this.templateModel();
       const payload = platformTemplateFormToPayload(
         value,
         this.esnCardEnabled(),
       );
 
+      const submittedSnapshot = JSON.stringify(value);
+      let phase: 'list' | 'mutation' | 'navigation' = 'mutation';
       try {
         const templateId = this.templateId();
         const saved = templateId
@@ -826,22 +840,58 @@ export class PlatformTemplateEditorComponent {
               reason: value.reason.trim(),
               targetTenantId: this.tenantId(),
             } satisfies PlatformTemplatesCreateInput);
-        await this.queryClient.invalidateQueries(
-          this.operations.templateFilter(),
-        );
-        this.notifications.showSuccess(
-          templateId ? 'Template updated' : 'Template created',
-        );
-        this.rememberCurrentTemplate();
-        await this.router.navigate([
+        this.savedTemplateSnapshot.set(submittedSnapshot);
+        phase = 'list';
+        const filter = this.operations.templateFilter();
+        const readsToRefetch = this.queryClient
+          .getQueryCache()
+          .findAll({ ...filter, type: 'active' })
+          .filter((query) => !query.isDisabled() && !query.isStatic());
+        const invalidation = this.queryClient.invalidateQueries(filter, {
+          throwOnError: true,
+        });
+        // One failed read must not release saving while its siblings still run.
+        const siblingReads = readsToRefetch
+          .filter((query) => query.state.fetchStatus === 'fetching')
+          .map((query) => query.promise);
+        const results = await Promise.allSettled([
+          invalidation,
+          ...siblingReads,
+        ]);
+        const failures: unknown[] = [];
+        for (const result of results) {
+          if (result.status === 'rejected') failures.push(result.reason);
+        }
+        if (failures.length > 0) {
+          throw new AggregateError(failures, 'Template follow-up reads failed');
+        }
+        phase = 'navigation';
+        const opened = await this.router.navigate([
           '/global-admin/tenants',
           this.tenantId(),
           'templates',
           saved.id,
         ]);
-      } catch {
+        if (opened) {
+          this.notifications.showSuccess(
+            templateId ? 'Template updated' : 'Template created',
+          );
+        } else {
+          this.notifications.showError(
+            'The template was saved, but its page could not be opened. Open it from the template list before making further changes.',
+          );
+        }
+      } catch (error) {
         this.notifications.showError(
-          'The template could not be saved. Review the details and try again.',
+          phase === 'mutation'
+            ? getErrorMessage(
+                error,
+                'The save outcome could not be confirmed. Open the template list, load the page again and check this template before trying again.',
+                ['RpcBadRequestError'],
+              )
+            : phase === 'list'
+              ? 'The template was saved, but the latest template information could not be loaded. Load this template again to see the saved details.'
+              : 'The template was saved, but its page could not be opened. Open it from the template list before making further changes.',
         );
       }
     });
@@ -868,8 +918,11 @@ export class PlatformTemplateEditorComponent {
     }));
   }
 
-  protected taxRateIsAvailable(taxRateId: string): boolean {
-    return this.availableTaxRates().some((rate) => rate.id === taxRateId);
+  protected taxRateIsAvailable(taxRateId: string): boolean | null {
+    const rates = this.availableTaxRates();
+    return rates
+      ? rates.some((rate) => rate.id === taxRateId && rate.percentage !== null)
+      : null;
   }
 
   protected taxRateLabel(rate: PlatformStripeTaxRateRecord): string {

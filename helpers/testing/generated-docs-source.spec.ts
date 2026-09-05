@@ -1028,13 +1028,13 @@ describe('generated docs source current behavior', () => {
       'Advanced configuration supports any number of named options and lets you choose which registration options can use each reusable add-on.',
     );
     expect(source).toContain(
-      'first save the advanced setup with exactly one organizing and one non-organizing option',
+      'Move any questions and add-on assignments before removing extra options, then confirm the mode change and save the option changes and simple mode together',
     );
     expect(source).toContain(
-      '**Description** and **description for registered users**: Optional reusable',
+      '**Description** and **Description after sign-up**: Optional reusable',
     );
     expect(source).toContain(
-      '**ESNcard discounted price**: Optional discounted pricing for organizations with ESNcard discounts enabled.',
+      '**ESNcard price**: Optional discounted pricing for organizations with ESNcard discounts enabled.',
     );
     expect(source).toContain(
       '**Selected roles**: The roles that are selected for this registration.',
@@ -1071,7 +1071,7 @@ describe('generated docs source current behavior', () => {
       'Event-side answer collection is handled separately from this template setup flow.',
     );
     expect(source).toContain('fillTemplateBasics');
-    expect(source).toContain('Switch to advanced configuration?');
+    expect(source).toContain('Switch to advanced setup?');
     expect(source).toContain('app-template-registration-option-editor');
     expect(source).toContain('app-template-addon-editor');
     expect(source).toContain('app-template-question-editor');
@@ -1090,16 +1090,28 @@ describe('generated docs source current behavior', () => {
       'Expected template docs flow to persist the reusable add-on',
     );
     expect(source).toContain(
-      'If **Event could not be created** appears, your entries remain in the form.',
+      'If **Review event creation** appears, your entries remain in the form.',
     );
     expect(source).toContain(
       'If the reason says a registration option no longer belongs to the selected template',
     );
     expect(source).toContain(
-      'If it mentions random allocation, return to the template, change every option to **First come, first served** or **Manual approval**',
+      'If it mentions random allocation, use **Back to template**, then choose or create a new template using **First come, first served** or **Manual approval**',
     );
     expect(source).toContain(
-      'Do not assume the event exists until its detail page opens and shows the event title.',
+      'If the event creation outcome could not be confirmed, open the event list, load the page again and check for this event before trying again.',
+    );
+    expect(source).toContain(
+      'For a specific validation problem, correct the named field before trying again.',
+    );
+    expect(source).toContain(
+      'If the message says the event was created but the event list could not be updated, open the event list and load the page again to see it.',
+    );
+    expect(source).toContain(
+      'If the event was created but its page could not be opened, open it from the event list before making further changes.',
+    );
+    expect(source).toContain(
+      'Do not create the event again after a confirmed creation.',
     );
     expect(source).not.toContain('app-template-registration-option-form');
     expect(source).not.toContain('app-template-addon-form');
@@ -1868,10 +1880,13 @@ describe('generated docs source current behavior', () => {
     const source = readSource('tests/docs/events/event-management.doc.ts');
 
     expect(source).toContain(
-      'Each draft event has its own registration configuration, independent of the template.',
+      'Each draft event has its own sign-up setup, independent of the template.',
     );
     expect(source).toContain(
-      'Before returning an advanced event to simple mode, save the advanced setup with exactly one option of each kind',
+      'You can remove extra choices and switch to simple setup in one save after moving their questions and add-ons.',
+    );
+    expect(source).toContain(
+      'Existing choices and hidden add-ons are preserved.',
     );
     expect(source).toContain("page.getByTestId('event-mode-simple')");
     expect(source).toContain("page.getByTestId('event-mode-advanced')");
@@ -1966,10 +1981,10 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain(
       'await descriptionContent.fill(savedEditableDescription)',
     );
-    expect(source).toContain("name: 'Change registration configuration?'");
-    expect(source).toContain("name: 'Keep current mode'");
-    expect(source).toContain("name: 'Use advanced mode'");
-    expect(source).toContain("getByLabel('Capacity').fill('37')");
+    expect(source).toContain("name: 'Change sign-up setup?'");
+    expect(source).toContain("name: 'Keep current setup'");
+    expect(source).toContain("name: 'Use advanced setup'");
+    expect(source).toContain("getByLabel('Number of places').fill('37')");
     expect(source).toContain("name: 'Manual approval'");
     expect(source).toContain('persistedEvent?.simpleModeEnabled).toBe(false)');
     expect(source).toContain(

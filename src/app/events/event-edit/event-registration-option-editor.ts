@@ -1,3 +1,5 @@
+import type { TaxRatesListActiveRecord } from '@shared/rpc-contracts/app-rpcs/tax-rates.rpcs';
+
 import {
   ChangeDetectionStrategy,
   Component,
@@ -16,11 +18,9 @@ import {
   registrationModeLabel,
   writableRegistrationModes,
 } from '@shared/registration-modes';
-import { injectQuery } from '@tanstack/angular-query-experimental';
 
 import type { EventGraphRegistrationOptionFormModel } from './event-graph-form.model';
 
-import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { CurrencyAmountInputComponent } from '../../shared/components/controls/currency-amount-input/currency-amount-input.component';
 import { EditorComponent } from '../../shared/components/controls/editor/editor.component';
 import { RoleSelectComponent } from '../../shared/components/controls/role-select/role-select.component';
@@ -51,11 +51,11 @@ export class EventRegistrationOptionEditor {
   readonly removable = input(false);
   readonly removeRequested = output();
   readonly simpleMode = input(false);
+  readonly taxRates = input.required<
+    readonly TaxRatesListActiveRecord[] | undefined
+  >();
+  readonly taxRateState = input.required<'error' | 'loading' | 'ready'>();
 
   protected readonly registrationModeLabel = registrationModeLabel;
   protected readonly registrationModes = writableRegistrationModes;
-  private readonly rpc = AppRpc.injectClient();
-  protected readonly taxRatesQuery = injectQuery(() =>
-    this.rpc.taxRates.listActive.queryOptions(),
-  );
 }

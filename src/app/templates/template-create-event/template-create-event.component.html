@@ -12,6 +12,17 @@
 </div>
 
 <main class="flex flex-col gap-6">
+  @if (creationOutcomeMessage() || createEventMutation.isError()) {
+    <section
+      class="bg-error-container text-on-error-container rounded-lg p-4"
+      role="alert"
+    >
+      <h2 class="title-medium">Review event creation</h2>
+      <p class="body-medium mt-1">{{ createEventErrorMessage() }}</p>
+      <p class="body-small mt-2">Your entries are still here.</p>
+    </section>
+  }
+
   @if (templateQuery.isPending()) {
     <div
       role="status"
@@ -67,25 +78,11 @@
         </aside>
       }
 
-      @if (createEventMutation.isError()) {
-        <section
-          class="bg-error-container text-on-error-container rounded-lg p-4"
-          role="alert"
-        >
-          <h2 class="title-medium">Event could not be created</h2>
-          <p class="body-medium mt-1">{{ createEventErrorMessage() }}</p>
-          <p class="body-small mt-2">
-            Your entries are still here. Retry temporary errors. If the template
-            changed, copy needed entries and restart from it. If the template
-            uses Random allocation, an authorized template editor must choose
-            First come, first served or Manual approval before you try again.
-          </p>
-        </section>
-      }
-
       <form
         (submit)="onSubmit($event)"
-        [attr.aria-busy]="createEventMutation.isPending()"
+        [attr.aria-busy]="
+          createEventForm().submitting() || createEventMutation.isPending()
+        "
       >
         <div class="grid gap-6">
           <section class="bg-surface text-on-surface rounded-2xl p-4">
@@ -109,14 +106,58 @@
                 status is loading.
               </p>
             } @else if (paidControlsUnavailable()) {
-              <p
-                class="text-on-surface-variant mb-4 px-2 text-sm"
-                role="status"
-              >
-                Paid controls are unavailable because this organization has no
-                connected Stripe account. The new event will use free
-                registration options.
+              @if (paidGraphBlocked()) {
+                <p class="text-error mb-4 px-2 text-sm" role="alert">
+                  This template contains paid registration options or add-ons.
+                  Their prices remain unchanged. The event cannot be created
+                  until this organization has a connected Stripe account.
+                </p>
+              } @else {
+                <p
+                  class="text-on-surface-variant mb-4 px-2 text-sm"
+                  role="status"
+                >
+                  Paid controls are unavailable because this organization has no
+                  connected Stripe account.
+                </p>
+              }
+            }
+            @if (discountProviderState() === "error") {
+              <div class="text-error mb-4 grid gap-2" role="alert">
+                <p>
+                  Discount settings could not be loaded. Prices remain unchanged
+                  and event creation is unavailable.
+                </p>
+                <button
+                  mat-stroked-button
+                  type="button"
+                  (click)="discountProvidersQuery.refetch()"
+                >
+                  Try again
+                </button>
+              </div>
+            } @else if (
+              !discountProvidersReady() || taxRateState() === "loading"
+            ) {
+              <p role="status">
+                Wait for discount settings and tax rates to finish loading
+                before creating the event.
               </p>
+            }
+            @if (taxRateState() === "error") {
+              <div class="text-error mb-4 grid gap-2" role="alert">
+                <p>
+                  Tax rates could not be loaded. Tax choices remain unchanged
+                  and event creation is unavailable.
+                </p>
+                <button
+                  mat-stroked-button
+                  type="button"
+                  (click)="taxRatesQuery.refetch()"
+                >
+                  Try again
+                </button>
+              </div>
             }
             <div
               class="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:[grid-template-rows:auto_auto_auto_auto_auto_auto_auto]"
@@ -130,6 +171,8 @@
                   [esnEnabled]="esnEnabled()"
                   [registrationOptionForm]="option"
                   [registrationModes]="registrationModes"
+                  [taxRates]="availableTaxRates()"
+                  [taxRateState]="taxRateState()"
                 />
               }
             </div>
@@ -141,6 +184,9 @@
               mat-button
               [disabled]="
                 templateCreateEventSubmitDisabled({
+                  discountProvidersReady: discountProvidersReady(),
+                  paidGraphBlocked: paidGraphBlocked(),
+                  taxRatesReady: taxRatesReady(),
                   formInvalid: createEventForm().invalid(),
                   formSubmitting: createEventForm().submitting(),
                   legacyRandomBlocked: legacyRandomBlocked(),
