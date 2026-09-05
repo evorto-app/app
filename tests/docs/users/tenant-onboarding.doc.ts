@@ -89,7 +89,7 @@ test('Join another organization and choose your home organization', async ({
     defaultUserRole: true,
     id: roleId,
     name: 'Member',
-    permissions: ['events:viewPublic'],
+    permissions: [],
     tenantId: joinedTenantId,
   });
   await database.insert(schema.tenantPrivacyPolicyVersions).values({

@@ -45,12 +45,13 @@ const registrationQuestionTitle = Schema.NonEmptyString.check(
 );
 
 export const PlatformEventListRecord = Schema.Struct({
+  announcementRoleCount: nonNegativeInteger,
   end: Schema.NonEmptyString,
+  hasRegistrationOptions: Schema.Boolean,
   id: Schema.NonEmptyString,
   start: Schema.NonEmptyString,
   status: EventReviewStatus,
   title: Schema.NonEmptyString,
-  unlisted: Schema.Boolean,
 });
 
 export type PlatformEventListRecord = Schema.Schema.Type<
@@ -116,6 +117,8 @@ export const PlatformEventQuestionRecord = Schema.Struct({
 
 export const PlatformEventDetailRecord = Schema.Struct({
   addOns: Schema.Array(PlatformEventAddonRecord),
+  announcementRoleIds: Schema.Array(Schema.NonEmptyString),
+  announcementRoleNames: Schema.Array(Schema.NonEmptyString),
   creator: Schema.Struct({
     email: Schema.String,
     firstName: Schema.String,
@@ -136,7 +139,6 @@ export const PlatformEventDetailRecord = Schema.Struct({
   status: EventReviewStatus,
   statusComment: Schema.NullOr(Schema.String),
   title: Schema.NonEmptyString,
-  unlisted: Schema.Boolean,
 });
 
 export type PlatformEventDetailRecord = Schema.Schema.Type<
@@ -292,19 +294,19 @@ export const PlatformEventsReview = asRpcMutation(
   }),
 );
 
-export const PlatformEventsUpdateListingInput = Schema.Struct({
+export const PlatformEventsUpdateAnnouncementDiscoveryInput = Schema.Struct({
   ...PlatformEventMutationTarget.fields,
-  unlisted: Schema.Boolean,
+  announcementRoleIds: Schema.Array(Schema.NonEmptyString),
 });
 
-export type PlatformEventsUpdateListingInput = Schema.Schema.Type<
-  typeof PlatformEventsUpdateListingInput
+export type PlatformEventsUpdateAnnouncementDiscoveryInput = Schema.Schema.Type<
+  typeof PlatformEventsUpdateAnnouncementDiscoveryInput
 >;
 
-export const PlatformEventsUpdateListing = asRpcMutation(
-  Rpc.make('platform.events.updateListing', {
+export const PlatformEventsUpdateAnnouncementDiscovery = asRpcMutation(
+  Rpc.make('platform.events.updateAnnouncementDiscovery', {
     error: PlatformOperationRpcError,
-    payload: PlatformEventsUpdateListingInput,
+    payload: PlatformEventsUpdateAnnouncementDiscoveryInput,
     success: PlatformEventDetailRecord,
   }),
 );
@@ -519,7 +521,7 @@ export class PlatformEventsRpcs extends RpcGroup.make(
   PlatformEventsReview,
   PlatformEventsSubmitForReview,
   PlatformEventsUpdate,
-  PlatformEventsUpdateListing,
+  PlatformEventsUpdateAnnouncementDiscovery,
   PlatformRegistrationsApprove,
   PlatformRegistrationsCancel,
   PlatformRegistrationsCheckIn,

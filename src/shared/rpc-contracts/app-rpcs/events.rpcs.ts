@@ -41,7 +41,7 @@ import {
   EventsReviewEventRpcError,
   EventsReviewRpcError,
   EventsSubmitForReviewRpcError,
-  EventsUpdateListingRpcError,
+  EventsUpdateAnnouncementDiscoveryRpcError,
   EventsUpdateRpcError,
 } from './events.errors';
 
@@ -229,7 +229,6 @@ export const EventsCreate = asRpcMutation(
 );
 
 export const EventsEventListInput = Schema.Struct({
-  includeUnlisted: Schema.optional(Schema.Boolean),
   limit: PageLimit.pipe(Schema.withDecodingDefaultTypeKey(Effect.succeed(100))),
   offset: PageOffset.pipe(Schema.withDecodingDefaultTypeKey(Effect.succeed(0))),
   startAfter: CanonicalUtcTimestamp.pipe(
@@ -240,22 +239,32 @@ export const EventsEventListInput = Schema.Struct({
   status: Schema.Array(EventReviewStatus).pipe(
     Schema.withDecodingDefaultTypeKey(Effect.succeed([])),
   ),
-  userId: Schema.optional(Schema.NonEmptyString),
 });
 
 export type EventsEventListInput = Schema.Schema.Type<
   typeof EventsEventListInput
 >;
 
+export const EventsEventListUserSignUpState = literalUnion(
+  'approvalPending',
+  'confirmed',
+  'paymentRequired',
+  'waitlisted',
+);
+
+export type EventsEventListUserSignUpState = Schema.Schema.Type<
+  typeof EventsEventListUserSignUpState
+>;
+
 export const EventsEventListRecord = Schema.Struct({
+  announcementRoleCount: nonNegativeNumber,
+  hasRegistrationOptions: Schema.Boolean,
   icon: iconSchema,
   id: Schema.NonEmptyString,
   start: Schema.NonEmptyString,
   status: EventReviewStatus,
   title: Schema.NonEmptyString,
-  unlisted: Schema.Boolean,
-  userIsCreator: Schema.Boolean,
-  userRegistered: Schema.Boolean,
+  userSignUpState: Schema.NullOr(EventsEventListUserSignUpState),
 });
 
 export type EventsEventListRecord = Schema.Schema.Type<
@@ -385,9 +394,12 @@ export const EventsFindOne = asRpcQuery(
     }),
     success: Schema.Struct({
       addOns: Schema.Array(EventsFindOneAddon),
+      announcementRoleCount: nonNegativeNumber,
+      announcementRoleIds: Schema.NullOr(Schema.Array(Schema.NonEmptyString)),
       creatorId: Schema.NonEmptyString,
       description: Schema.NonEmptyString,
       end: Schema.NonEmptyString,
+      hasRegistrationOptions: Schema.Boolean,
       icon: iconSchema,
       id: Schema.NonEmptyString,
       location: Schema.NullOr(EventLocation),
@@ -403,7 +415,7 @@ export const EventsFindOne = asRpcQuery(
       status: EventReviewStatus,
       statusComment: Schema.NullOr(Schema.String),
       title: Schema.NonEmptyString,
-      unlisted: Schema.Boolean,
+      userIsCreator: Schema.Boolean,
     }),
   }),
 );
@@ -904,12 +916,12 @@ export const EventsSubmitForReview = asRpcMutation(
   }),
 );
 
-export const EventsUpdateListing = asRpcMutation(
-  Rpc.make('events.updateListing', {
-    error: EventsUpdateListingRpcError,
+export const EventsUpdateAnnouncementDiscovery = asRpcMutation(
+  Rpc.make('events.updateAnnouncementDiscovery', {
+    error: EventsUpdateAnnouncementDiscoveryRpcError,
     payload: Schema.Struct({
+      announcementRoleIds: Schema.Array(Schema.NonEmptyString),
       eventId: Schema.NonEmptyString,
-      unlisted: Schema.Boolean,
     }),
     success: Schema.Void,
   }),
@@ -1129,7 +1141,7 @@ export class EventsRpcs extends RpcGroup.make(
   EventsSubmitForReview,
   EventsUpdate,
   EventsUpdateGraph,
-  EventsUpdateListing,
+  EventsUpdateAnnouncementDiscovery,
   EventsUndoRegistrationAddonRedemption,
   EventsCancelRegistrationAddon,
 ) {}

@@ -9,13 +9,8 @@ import {
   Injectable,
   PendingTasks,
   PLATFORM_ID,
-  signal,
 } from '@angular/core';
-import { form } from '@angular/forms/signals';
-import {
-  injectInfiniteQuery,
-  injectQuery,
-} from '@tanstack/angular-query-experimental';
+import { injectInfiniteQuery } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../core/effect-rpc-angular-client';
 import { PermissionsService } from '../core/permissions.service';
@@ -64,36 +59,18 @@ export class EventListService {
   private readonly rpc = AppRpc.injectClient();
   private readonly findEvents = this.rpc.events.eventList;
 
-  private readonly selfQuery = injectQuery(() =>
-    this.rpc.users.maybeSelf.queryOptions(),
-  );
-
-  readonly canSeeDrafts = this.permissions.hasPermission('events:seeDrafts');
-  readonly canSeeUnlisted =
-    this.permissions.hasPermission('events:seeUnlisted');
-
-  readonly startFilter = signal(new Date());
-  private readonly statusFilterModel = signal<{
-    status: ('APPROVED' | 'DRAFT' | 'PENDING_REVIEW')[];
-  }>({
-    status: ['APPROVED', 'DRAFT', 'PENDING_REVIEW'],
-  });
-  readonly statusFilterForm = form(this.statusFilterModel);
+  private readonly canSeeDrafts =
+    this.permissions.hasPermission('events:seeDrafts');
+  private readonly startAfter = new Date().toISOString();
 
   private readonly filterInput = computed(() => {
-    const self = this.selfQuery.data();
-    const startAfter = this.startFilter().toISOString();
     const status = this.canSeeDrafts()
-      ? this.statusFilterForm().value().status
+      ? (['APPROVED', 'DRAFT', 'PENDING_REVIEW'] as const)
       : (['APPROVED'] as const);
-    const includeUnlisted = this.canSeeUnlisted();
-    const userId = self?.id;
     return {
-      includeUnlisted,
       limit: EVENT_LIST_PAGE_SIZE,
-      startAfter,
+      startAfter: this.startAfter,
       status,
-      userId,
     };
   });
 
@@ -131,9 +108,5 @@ export class EventListService {
         complete = undefined;
       }
     });
-  }
-
-  updateStartFilter(date: Date) {
-    this.startFilter.set(date);
   }
 }

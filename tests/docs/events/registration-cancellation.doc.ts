@@ -136,7 +136,6 @@ test.describe('Participant registration cancellation', () => {
         templateId: template.id,
         tenantId: tenant.id,
         title: eventTitle,
-        unlisted: false,
       });
       await database.insert(schema.eventRegistrationOptions).values({
         cancellationDeadlineHoursBeforeStart: 0,
@@ -1809,7 +1808,6 @@ This local walkthrough verifies Evorto's refund workflow but not settlement by t
         templateId: template.id,
         tenantId: tenant.id,
         title: eventTitle,
-        unlisted: false,
       });
       await database.insert(schema.eventRegistrationOptions).values({
         cancellationDeadlineHoursBeforeStart: passedDeadlineHours,
@@ -1989,7 +1987,6 @@ test.describe('Organizer registration cancellation', () => {
         templateId: template.id,
         tenantId: tenant.id,
         title: eventTitle,
-        unlisted: false,
       });
       await database.insert(schema.eventRegistrationOptions).values({
         cancellationDeadlineHoursBeforeStart: passedDeadlineHours,

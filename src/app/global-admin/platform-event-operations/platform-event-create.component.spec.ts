@@ -53,6 +53,8 @@ type CreateInput = Parameters<
 >[0];
 const createdEvent: PlatformEventDetailRecord = {
   addOns: [],
+  announcementRoleIds: [],
+  announcementRoleNames: [],
   creator: {
     email: 'alex@example.test',
     firstName: 'Alex',
@@ -73,7 +75,6 @@ const createdEvent: PlatformEventDetailRecord = {
   status: 'DRAFT',
   statusComment: null,
   title: 'Preserved platform event',
-  unlisted: false,
 };
 
 describe('PlatformEventCreateComponent', () => {

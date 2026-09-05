@@ -3,6 +3,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
+import { documentationConsumerGuideCatalog } from './documentation-publication-contract';
+
 // Source guard: generated documentation is product-facing, so these checks keep
 // the docs tied to implemented flows instead of stale aspirational copy.
 const repositoryRoot = fileURLToPath(new URL('../..', import.meta.url));
@@ -1022,7 +1024,7 @@ describe('generated docs source current behavior', () => {
     const source = readSource('tests/docs/templates/templates.doc.ts');
 
     expect(source).toContain(
-      'New events use the standard listing setting, while event review and access rules still apply.',
+      "An upcoming published event appears in Events when at least one sign-up choice allows one of the viewer's organization roles. Event review and sign-up requirements still apply.",
     );
 
     expect(source).toContain(
@@ -1664,49 +1666,69 @@ describe('generated docs source current behavior', () => {
     expect(source).not.toContain('ticket QR code by email');
   });
 
-  it('keeps participant unlisted-event guidance page-backed', () => {
-    const source = readSource('tests/docs/events/unlisted-user.doc.ts');
+  it('publishes both event-discovery models in the relevant guides', () => {
+    const announcementSource = readSource(
+      'tests/docs/events/announcement-discovery.doc.ts',
+    );
+    const eventDiscoverySource = readSource(
+      'tests/docs/events/event-discovery.doc.ts',
+    );
+    const findAnEventGuide = documentationConsumerGuideCatalog.find(
+      ({ id }) => id === 'evorto:find-an-event',
+    );
+    const reviewAndPublishGuide = documentationConsumerGuideCatalog.find(
+      ({ id }) => id === 'evorto:review-and-publish-an-event',
+    );
 
-    expect(source).toContain('.set({ unlisted: true })');
-    expect(source).toContain("page.getByRole('link', { name: target.title })");
-    expect(source).toContain('toHaveCount(0)');
-    expect(source).toContain('await page.goto(`/events/${target.id}`);');
-    expect(source).toContain('waitForRegistrationPage(page)');
-    expect(source).toContain(
-      'Being unlisted does not bypass role, registration-window, capacity, or sign-in requirements.',
+    expect(findAnEventGuide?.sourceSlugs).toEqual(
+      expect.arrayContaining([
+        'find-an-event-you-can-join',
+        'choose-who-can-find-an-announcement',
+      ]),
     );
-    expect(source).toContain('Unlisted event opened from its direct link');
-    expect(source).toContain('page.context().clearCookies()');
-    expect(source).toContain("name: 'Sign in now'");
-    expect(source).toContain(
-      'Anyone with the exact link can open the approved event details.',
+    expect(reviewAndPublishGuide?.sourceSlugs).toContain(
+      'choose-who-can-find-an-announcement',
     );
-    expect(source).toContain('.set({ unlisted: target.unlisted })');
+    expect(announcementSource).toContain(
+      'does not give anyone a role or send a message',
+    );
+    expect(announcementSource).not.toContain(
+      "does not change anyone's role or access",
+    );
+    expect(announcementSource).not.toContain('give members new permissions');
+    expect(eventDiscoverySource).toContain(
+      '**Place confirmed**, **Waiting for approval**, **Finish payment**, and **On waitlist**',
+    );
+    expect(eventDiscoverySource).toContain(
+      "registeredCard.getByText('On waitlist', { exact: true })",
+    );
+    expect(eventDiscoverySource).toContain(
+      'roles selected on the announcement',
+    );
+    expect(eventDiscoverySource).not.toContain('selected by an organizer');
   });
 
-  it('keeps ordinary listed-event discovery beginner-readable and page-backed', () => {
+  it('keeps role-based event discovery beginner-readable and page-backed', () => {
     const source = readSource('tests/docs/events/event-discovery.doc.ts');
     const publicationSource = readSource(
       'helpers/testing/documentation-publication-contract.ts',
     );
 
-    expect(source).toContain("test('Find a listed event'");
-    expect(source).toContain('# Find a listed event');
+    expect(source).toContain("test('Find an event you can join'");
+    expect(source).toContain('## Browse before signing in');
     expect(source).toContain('Before you start');
     expect(source).toContain(
       "getByRole('link', { exact: true, name: 'Events' })",
     );
     expect(source).toContain('nearestDateHeading');
-    expect(source).toContain('toHaveClass(/ring-success/u)');
+    expect(source).toContain('toHaveClass(/ring-primary/u)');
     expect(source).toContain('registeredDay).not.toBe(otherDay)');
-    expect(source).toContain('Desktop event list and selected event details');
+    expect(source).toContain('Event list beside the selected event details');
     expect(source).toContain('height: 844, width: 390');
     expect(source).toContain("name: 'Back to events'");
-    expect(source).toContain('Successful empty event list');
+    expect(source).toContain('No upcoming events are currently available');
     expect(source).toContain("includes('events.eventList')");
-    expect(source).toContain(
-      'Event list request failure shown separately from an empty result',
-    );
+    expect(source).toContain('Event list could not be loaded');
     expect(source).toContain('registerDatabaseCleanup');
     expect(source).toContain('.delete(schema.eventRegistrations)');
     expect(source).toContain('.delete(schema.eventRegistrationOptions)');
@@ -1728,8 +1750,10 @@ describe('generated docs source current behavior', () => {
     );
     expect(findAnEventStart).toBeGreaterThanOrEqual(0);
     expect(registerForEventStart).toBeGreaterThan(findAnEventStart);
-    expect(findAnEventCatalog.indexOf("'find-a-listed-event'")).toBeLessThan(
-      findAnEventCatalog.indexOf("'user-understanding-unlisted-events'"),
+    expect(
+      findAnEventCatalog.indexOf("'find-an-event-you-can-join'"),
+    ).toBeLessThan(
+      findAnEventCatalog.indexOf("'choose-who-can-find-an-announcement'"),
     );
   });
 
@@ -1907,6 +1931,16 @@ describe('generated docs source current behavior', () => {
 
   it('keeps event-management docs aligned with scanner and organizer scope', () => {
     const source = readSource('tests/docs/events/event-management.doc.ts');
+    expect(source).toContain(
+      'Sign-up events have no separate listing setting.',
+    );
+    expect(source).toContain('**Choose who can find this announcement**');
+    expect(source).toContain(
+      'This setting does not give anyone a role or send a message.',
+    );
+    expect(source).not.toContain(
+      'Listing visibility can be updated from the event actions menu.',
+    );
 
     expect(source).toContain(
       'If the save is refused, read the reason and correct any form entries before trying again.',

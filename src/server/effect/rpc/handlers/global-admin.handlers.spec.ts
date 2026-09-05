@@ -937,26 +937,30 @@ describe('globalAdminHandlers', () => {
   );
 
   it.effect(
-    'preserves the current event listing decision in the safe audit projection',
+    'preserves the current announcement audience count in the safe audit projection',
     () =>
       Effect.gen(function* () {
         const page = yield* readAuditPage([
           auditFixtureRow({
-            action: 'event.updateListing',
+            action: 'event.updateAnnouncementDiscovery',
             after: {
               resourceId: 'event-1',
               resourceType: 'event',
-              state: { unlisted: true },
+              state: { announcementRoles: ['Member', 'Organizer'] },
             },
             before: {
               resourceId: 'event-1',
               resourceType: 'event',
-              state: { unlisted: false },
+              state: { announcementRoles: [] },
             },
           }),
         ]);
-        expect(page.items[0]?.after?.state).toEqual({ unlisted: true });
-        expect(page.items[0]?.before?.state).toEqual({ unlisted: false });
+        expect(page.items[0]?.after?.state).toEqual({
+          announcementRoleCount: 2,
+        });
+        expect(page.items[0]?.before?.state).toEqual({
+          announcementRoleCount: 0,
+        });
       }),
   );
 

@@ -13,17 +13,6 @@
       Edit event
     }
   </h1>
-  <div class="grow"></div>
-  <button
-    type="button"
-    *appIfAnyPermission="['events:changeListing']"
-    mat-icon-button
-    aria-label="Open event actions"
-    [matMenuTriggerFor]="menu"
-  >
-    <fa-icon [icon]="faEllipsisVertical" />
-  </button>
-  <mat-menu #menu="matMenu"></mat-menu>
 </div>
 
 <main class="mx-auto w-full max-w-6xl pb-24">

@@ -348,7 +348,6 @@ export const seedPaidRegistrationTransferScenario = async (
       templateId: input.templateId,
       tenantId: input.tenant.id,
       title: input.title,
-      unlisted: true,
     });
     await transaction.insert(schema.eventRegistrationOptions).values({
       closeRegistrationTime: eventWindow.closeRegistrationTime,

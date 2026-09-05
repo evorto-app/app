@@ -40,7 +40,6 @@ interface BaseFixtures {
     start: Date;
     status: 'APPROVED' | 'DRAFT' | 'PENDING_REVIEW';
     title: string;
-    unlisted: boolean;
   }[];
   permissionOverride: (diff: PermissionDiff) => Promise<void>;
   registrations: {

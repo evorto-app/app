@@ -51,7 +51,7 @@ test('event list icon actions are named and keyboard operable', async ({
   permissionOverride,
 }) => {
   await permissionOverride({
-    add: ['events:seeDrafts', 'events:seeUnlisted'],
+    add: ['events:seeDrafts'],
     roleName: 'Section member',
   });
   await page.goto('/events');
@@ -90,13 +90,8 @@ test('event authoring controls expose accessible names and keyboard interaction'
   events,
   makeAxeBuilder,
   page,
-  permissionOverride,
   roles,
 }) => {
-  await permissionOverride({
-    add: ['events:changeListing'],
-    roleName: 'Section member',
-  });
   const draftEvent = events.find(
     (event) => event.status === 'DRAFT' && event.registrationOptions.length > 0,
   );
@@ -120,9 +115,6 @@ test('event authoring controls expose accessible names and keyboard interaction'
   ).toBeVisible({ timeout: 20_000 });
   await page.waitForLoadState('networkidle');
   await expect(page.getByRole('link', { name: 'Back to event' })).toBeVisible();
-  await expect(
-    page.getByRole('button', { name: 'Open event actions' }),
-  ).toBeVisible();
 
   const registrationOptionEditor = await eventOptionEditorByTitle(
     page,

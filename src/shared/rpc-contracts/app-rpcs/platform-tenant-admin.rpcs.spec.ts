@@ -14,7 +14,7 @@ const roleCreateInput = {
   description: '',
   displayInHub: true,
   name: 'Member',
-  permissions: ['events:viewPublic'],
+  permissions: ['events:create'],
   reason: 'Restore a tenant role',
   targetTenantId: 'tenant-1',
 };

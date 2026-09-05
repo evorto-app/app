@@ -307,4 +307,37 @@ describe('roleHandlers lookup permissions', () => {
         });
       }),
   );
+
+  it.effect(
+    'allows an announcement-only editor to read the tenant role catalog',
+    () =>
+      Effect.gen(function* () {
+        const databaseLayer = createRegistrationDatabaseTestLayer({
+          executeValues: (statement, parameters) =>
+            Effect.sync(() => {
+              expect(parameters).toEqual([tenant.id]);
+              expect(statement).toContain('from "roles"');
+              expect(statement).toContain('"d0"."tenantId" = $1');
+              expect(statement).not.toContain('"permissions"');
+              return [[false, false, 'announcement-role', 'Attendees']];
+            }),
+        });
+        const result = yield* roleHandlers['roles.findMany']().pipe(
+          Effect.provide(
+            createContextLayer(
+              ['events:changeAnnouncementDiscovery'],
+              databaseLayer,
+            ),
+          ),
+        );
+        expect(result).toEqual([
+          {
+            defaultOrganizerRole: false,
+            defaultUserRole: false,
+            id: 'announcement-role',
+            name: 'Attendees',
+          },
+        ]);
+      }),
+  );
 });
