@@ -825,6 +825,52 @@ describe('PlatformTemplateEditorComponent recovery', () => {
     });
   });
 
+  it('confirms an existing template saved on its current page without redundant navigation', async () => {
+    const router = TestBed.inject(Router);
+    vi.mocked(router.navigate).mockRestore();
+    router.resetConfig([
+      {
+        component: EditorStub,
+        path: 'global-admin/tenants/:tenantId/templates/:templateId',
+      },
+    ]);
+    const destination = '/global-admin/tenants/tenant-1/templates/template-1';
+    await expect(router.navigateByUrl(destination)).resolves.toBe(true);
+    await expect(router.navigateByUrl(destination)).resolves.toBe(false);
+    const navigate = vi.spyOn(router, 'navigate');
+    const { fixture, form, save, title } = await renderForSave();
+    const invalidation = vi.spyOn(queryClient, 'invalidateQueries');
+
+    form.dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true }),
+    );
+
+    await vi.waitFor(async () => {
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(
+        TestBed.inject(NotificationService).showSuccess,
+      ).toHaveBeenCalledExactlyOnceWith('Template updated');
+      expect(fixture.componentInstance['templateForm']().submitting()).toBe(
+        false,
+      );
+      expect(save.disabled).toBe(false);
+    });
+    expect(updateTemplate).toHaveBeenCalledOnce();
+    expect(updateTemplate.mock.calls[0]?.[0].title).toBe('Submitted trip');
+    expect(loadTemplate).toHaveBeenCalledTimes(2);
+    expect(invalidation).toHaveBeenCalledExactlyOnceWith(
+      { queryKey: ['platform', 'templates'] },
+      { throwOnError: true },
+    );
+    expect(navigate).not.toHaveBeenCalled();
+    expect(
+      TestBed.inject(NotificationService).showError,
+    ).not.toHaveBeenCalled();
+    expect(router.url).toBe(destination);
+    expect(title.value).toBe('Submitted trip');
+  });
+
   it.each(['rejected', 'cancelled'] as const)(
     'reports confirmed save after %s navigation',
     async (outcome) => {
