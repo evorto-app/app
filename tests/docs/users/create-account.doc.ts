@@ -3,6 +3,7 @@ import { ConfigProvider, Effect } from 'effect';
 import { expect } from '@playwright/test';
 
 import * as schema from '../../../src/db/schema';
+import { TenantOnboardingRequirementsChangedError } from '../../../src/shared/rpc-contracts/app-rpcs/onboarding.errors';
 import {
   createAccountErrorMessage,
   createAccountModelFromAuthData,
@@ -87,23 +88,28 @@ test('Understand organization account setup', async ({}, testInfo) => {
     }),
   ).toBe(true);
   expect(
-    createAccountErrorMessage({
-      _tag: 'TenantOnboardingRequirementsChangedError',
-      message: 'Requirements changed; review and submit again',
-    }),
-  ).toBe('Requirements changed; review and submit again');
+    createAccountErrorMessage(
+      new TenantOnboardingRequirementsChangedError({
+        message: 'Requirements changed; review and submit again',
+      }),
+    ),
+  ).toBe(
+    'This organization changed its questions or privacy policy. Review the latest details and try again.',
+  );
 
   await testInfo.attach('markdown', {
     body: `
 # Organization Setup and Privacy Acceptance
 
-Signed-in users who have not completed the current organization requirements are sent to **Complete organization setup** before protected pages. This applies to a first organization join, newly published privacy-policy versions, and newly required questions. The form is shown only after the sign-in email address is verified.
+After signing in, Evorto shows **Finish setting up your account** when you first join an organization, need to accept a changed privacy policy, or have a new required question. If **Verify your email** appears, verify the sign-in address and select **Check again**.
 
-The account form pre-fills first name, last name, and **Notification email** from the sign-in account when available. Evorto uses the notification email for event and finance messages; it may differ from the sign-in email shown later on the profile page.
+The form already fills in the first name, last name, and **Email for updates** from the sign-in account when available. Evorto tries to send event and reimbursement updates to that address. If an email does not arrive, check Evorto for the current information. The address may differ from the sign-in email shown later on the profile page.
 
-Before submitting, the form trims first name, last name, notification email, and question answers. The button stays unavailable until every required field is valid and the current policy is accepted. If requirements change while the page is open, Evorto keeps matching answers and asks you to review the latest version.
+Before submitting, the form trims first name, last name, and question answers, and normalizes the email for updates.
 
-Completing setup records the accepted privacy-policy version and submitted answers, adds you to the current organization, and grants its standard member access. If your login already belongs to another organization, Evorto adds the same account here instead of creating a duplicate. Your original home organization stays unchanged until you deliberately change it from your profile.
+**Join organization** for a new membership, or **Finish setup** for an existing member, stays unavailable until every required field is valid and the current policy is accepted. If the policy or questions change while the page is open, Evorto keeps answers that still apply and asks you to review the changes.
+
+Completing setup records the accepted privacy-policy version and submitted answers, adds you to the current organization, and grants its standard member access. If your account already belongs to another organization, this step adds the same account here instead of creating a duplicate. If you already belong, setup updates your privacy acceptance and required answers. Your original home organization stays unchanged until you deliberately change it from your profile.
 `,
   });
 });
@@ -117,6 +123,7 @@ test.describe('Auth0-backed account creation docs', () => {
   });
 
   test('Create your account @needs-auth0-management', async ({
+    registerDatabaseCleanup,
     database,
     newUser,
     page,
@@ -125,29 +132,143 @@ test.describe('Auth0-backed account creation docs', () => {
     let createdUserId: string | undefined;
     let createdTenantUserId: string | undefined;
 
-    try {
+    const existingAccounts = await database.query.users.findMany({
+      columns: { id: true },
+      where: { email: newUser.email },
+    });
+    if (existingAccounts.length > 0) {
+      throw new Error(
+        'Transient account email already exists in the application',
+      );
+    }
+    registerDatabaseCleanup(async (cleanupDatabase) => {
+      if (createdUserId) {
+        await cleanupDatabase
+          .delete(schema.users)
+          .where(
+            and(
+              eq(schema.users.id, createdUserId),
+              eq(schema.users.email, newUser.email),
+            ),
+          );
+      }
+    });
+    registerDatabaseCleanup(async (cleanupDatabase) => {
+      const tenantUsers = createdUserId
+        ? await cleanupDatabase.query.usersToTenants.findMany({
+            columns: { id: true },
+            where: { userId: createdUserId },
+          })
+        : createdTenantUserId
+          ? [{ id: createdTenantUserId }]
+          : [];
+      const cleanupErrors: unknown[] = [];
+      for (const tenantUser of tenantUsers) {
+        try {
+          await cleanupDatabase
+            .delete(schema.usersToTenants)
+            .where(eq(schema.usersToTenants.id, tenantUser.id));
+        } catch (error) {
+          cleanupErrors.push(error);
+        }
+      }
+      if (cleanupErrors.length > 0) {
+        throw new AggregateError(
+          cleanupErrors,
+          'Transient account membership cleanup failed',
+        );
+      }
+    });
+    registerDatabaseCleanup(async (cleanupDatabase) => {
+      const tenantUsers = createdUserId
+        ? await cleanupDatabase.query.usersToTenants.findMany({
+            columns: { id: true },
+            where: { userId: createdUserId },
+          })
+        : createdTenantUserId
+          ? [{ id: createdTenantUserId }]
+          : [];
+      const cleanupErrors: unknown[] = [];
+      for (const tenantUser of tenantUsers) {
+        try {
+          await cleanupDatabase
+            .delete(schema.rolesToTenantUsers)
+            .where(eq(schema.rolesToTenantUsers.userTenantId, tenantUser.id));
+        } catch (error) {
+          cleanupErrors.push(error);
+        }
+      }
+      if (cleanupErrors.length > 0) {
+        throw new AggregateError(
+          cleanupErrors,
+          'Transient account role cleanup failed',
+        );
+      }
+    });
+    registerDatabaseCleanup(async (cleanupDatabase) => {
+      if (createdUserId) {
+        await cleanupDatabase
+          .delete(schema.tenantPrivacyPolicyAcceptances)
+          .where(
+            eq(schema.tenantPrivacyPolicyAcceptances.userId, createdUserId),
+          );
+      }
+    });
+    registerDatabaseCleanup(async (cleanupDatabase) => {
+      if (createdUserId) {
+        await cleanupDatabase
+          .delete(schema.tenantOnboardingQuestionAnswers)
+          .where(
+            eq(schema.tenantOnboardingQuestionAnswers.userId, createdUserId),
+          );
+      }
+    });
+    registerDatabaseCleanup(async (cleanupDatabase) => {
+      if (createdUserId) return;
+      const accounts = await cleanupDatabase.query.users.findMany({
+        columns: { id: true },
+        where: { email: newUser.email },
+      });
+      if (accounts.length > 1) {
+        throw new Error(
+          'Transient account cleanup found multiple application users',
+        );
+      }
+      createdUserId = accounts[0]?.id;
+    });
+    {
       await testInfo.attach('markdown', {
         body: `
 {% callout type="note" title="For first time visits" %}
-This guide assumes that you are signed in but have not completed setup for the current organization. Completing setup records the current privacy-policy acceptance and adds your account to the organization with its standard member access.
+This guide assumes that you are signed in but have not completed setup for the current organization. Completing setup saves your acceptance of the current privacy policy, and you join as a member.
 {% /callout %}
 ## Sign in
-Open the app page and click on the **Sign in** link.`,
+Open the app page and select **Sign in**.`,
       });
       await page.context().clearCookies();
       await page.goto('/logout');
       await page.goto('.');
-      const loginLink = page.getByRole('link', { name: 'Sign in' }).first();
-      if (!(await loginLink.isVisible())) {
-        const logoutLink = page.getByRole('link', { name: 'Sign out' }).first();
-        if (await logoutLink.isVisible()) {
-          await logoutLink.click();
+      const signInLink = page.getByRole('link', { name: 'Sign in' }).first();
+      if (!(await signInLink.isVisible())) {
+        const signOutLink = page
+          .getByRole('link', { name: 'Sign out' })
+          .first();
+        if (await signOutLink.isVisible()) {
+          await signOutLink.click();
           await page.waitForURL(/\/(login|$)/);
         }
       }
       await page.getByRole('link', { name: 'Sign in' }).first().waitFor({
         state: 'visible',
       });
+      await expect(page.locator('[ngh]')).toHaveCount(0, { timeout: 20_000 });
+      const eventList = page.locator('app-event-list nav');
+      await expect(
+        eventList
+          .locator('a[href^="/events/"]')
+          .or(eventList.getByText('No events found', { exact: true }))
+          .first(),
+      ).toBeVisible({ timeout: 20_000 });
       await takeScreenshot(
         testInfo,
         page.getByRole('link', { name: 'Sign in' }),
@@ -157,13 +278,23 @@ Open the app page and click on the **Sign in** link.`,
       await page.getByRole('link', { name: 'Sign in' }).click();
       await testInfo.attach('markdown', {
         body: `
-After starting the login flow, sign in with the account you want to use for this organization.
+After selecting **Sign in**, use the account you want to join to this organization.
 
-If your login email address is not verified yet, Evorto asks you to verify it before the organization setup form is shown.`,
+If that account's email address is not verified yet, Evorto asks you to verify it before showing the organization setup form.`,
       });
-      await page.getByLabel('Email address').waitFor({ state: 'visible' });
-      await takeScreenshot(testInfo, page.getByLabel('Email address'), page);
-      await page.getByLabel('Email address').fill(newUser.email);
+      const signInEmail = page.getByLabel('Email address');
+      await expect(signInEmail).toBeVisible();
+      await expect(signInEmail).toBeEditable();
+      await signInEmail.fill('person@example.org');
+      await expect(signInEmail).toHaveValue('person@example.org');
+      await takeScreenshot(
+        testInfo,
+        signInEmail,
+        page,
+        'Enter the email address for the account',
+        { cropTo: signInEmail },
+      );
+      await signInEmail.fill(newUser.email);
       await fillProtectedValue(
         page.getByRole('textbox', { name: 'Password' }),
         'E2E_TRANSIENT_AUTH0_USER_PASSWORD',
@@ -187,9 +318,9 @@ If your login email address is not verified yet, Evorto asks you to verify it be
 
       await testInfo.attach('markdown', {
         body: `
-Review the prefilled first name, last name, and **Notification email** address. Read the organization's current privacy policy and accept it before clicking **Join organization**. Evorto stores both the exact accepted policy version and the notification email as your editable communication address for event and finance messages.
+Review the first name, last name, and **Email for updates** already shown. Read the organization's current privacy policy and accept it before selecting **Join organization**. Evorto tries to send event and reimbursement updates to this address. If an email does not arrive, check Evorto for the current information. You can change the address later from your profile.
 
-If the organization asks onboarding questions, every current question must be answered. If your login already belongs to another organization, this step adds the same account here. If Evorto says the organization changed its questions or privacy policy, review the latest details before submitting again. For another setup error, read the message and load the page again to check whether setup completed before trying again.`,
+If the organization asks new members questions, every current question must be answered. If your account already belongs to another organization, this step adds the same account here. If Evorto says the organization changed its questions or privacy policy, review the latest details before submitting again. For another setup error, read the message and load the page again to check whether setup completed before trying again.`,
       });
       const createAccountForm = page
         .locator('form')
@@ -197,9 +328,14 @@ If the organization asks onboarding questions, every current question must be an
         .first();
       await createAccountForm.waitFor({ state: 'visible' });
       await expect(
-        createAccountForm.getByRole('textbox', { name: 'Notification email' }),
+        createAccountForm.getByRole('textbox', { name: 'Email for updates' }),
       ).toBeVisible();
-      await takeScreenshot(testInfo, createAccountForm, page);
+      await takeScreenshot(
+        testInfo,
+        createAccountForm,
+        page,
+        'Review account details and accept the privacy policy',
+      );
       await createAccountForm
         .getByRole('checkbox', { name: /I accept .* current privacy policy/ })
         .check();
@@ -207,8 +343,15 @@ If the organization asks onboarding questions, every current question must be an
       await expect(
         page.getByRole('heading', {
           level: 1,
-          name: `${newUser.firstName} ${newUser.lastName}`,
+          name: 'Profile',
         }),
+      ).toBeVisible();
+      await expect(
+        page
+          .locator('app-user-profile')
+          .getByText(`${newUser.firstName} ${newUser.lastName}`, {
+            exact: true,
+          }),
       ).toBeVisible();
 
       const createdUser = await database.query.users.findFirst({
@@ -271,49 +414,8 @@ If the organization asks onboarding questions, every current question must be an
 
       await testInfo.attach('markdown', {
         body: `
-You should now be on your profile page for the current organization. Your membership, standard access, policy acceptance, and first home organization are saved together. From here you can review your profile, manage discount cards when the organization supports them, and register for events.`,
+You should now be on your profile page for the current organization. Your membership, standard access, policy acceptance, and first home organization are saved together. From here you can review your profile, manage discount cards when the organization supports them, and sign up for events.`,
       });
-    } finally {
-      if (createdUserId) {
-        await database
-          .delete(schema.tenantOnboardingQuestionAnswers)
-          .where(
-            eq(schema.tenantOnboardingQuestionAnswers.userId, createdUserId),
-          );
-        await database
-          .delete(schema.tenantPrivacyPolicyAcceptances)
-          .where(
-            eq(schema.tenantPrivacyPolicyAcceptances.userId, createdUserId),
-          );
-        const tenantUsers = await database.query.usersToTenants.findMany({
-          where: { userId: createdUserId },
-        });
-        for (const tenantUser of tenantUsers) {
-          await database
-            .delete(schema.rolesToTenantUsers)
-            .where(eq(schema.rolesToTenantUsers.userTenantId, tenantUser.id));
-          await database
-            .delete(schema.usersToTenants)
-            .where(eq(schema.usersToTenants.id, tenantUser.id));
-        }
-        await database
-          .delete(schema.users)
-          .where(
-            and(
-              eq(schema.users.id, createdUserId),
-              eq(schema.users.email, newUser.email),
-            ),
-          );
-      } else if (createdTenantUserId) {
-        await database
-          .delete(schema.rolesToTenantUsers)
-          .where(
-            eq(schema.rolesToTenantUsers.userTenantId, createdTenantUserId),
-          );
-        await database
-          .delete(schema.usersToTenants)
-          .where(eq(schema.usersToTenants.id, createdTenantUserId));
-      }
     }
   });
 });

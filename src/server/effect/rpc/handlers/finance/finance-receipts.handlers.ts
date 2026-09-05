@@ -31,6 +31,7 @@ import {
   users,
 } from '../../../../../db/schema';
 import { enqueueReceiptReviewedEmail } from '../../../../notifications/email-delivery';
+import { tenantOutboundUrl } from '../../../../tenant-outbound-url';
 import { RpcAccess } from '../shared/rpc-access.service';
 import {
   canSubmitEventReceipts,
@@ -829,10 +830,15 @@ export const financeReceiptsHandlers = {
                 reason: 'receiptReviewPreconditionFailed',
               });
             }
+            const receiptUrl = yield* tenantOutboundUrl(
+              tenant,
+              '/profile/receipts',
+            ).pipe(Effect.orDie);
 
             yield* enqueueReceiptReviewedEmail(tx, {
               eventTitle: receiptRecord.eventTitle,
               receiptId: updated.id,
+              receiptUrl,
               rejectionReason:
                 input.status === 'rejected'
                   ? (input.rejectionReason ?? null)

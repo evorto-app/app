@@ -274,7 +274,6 @@ describe('receipt review and reimbursement serialization', () => {
       transferDeadlineHoursBeforeStart: 0,
     };
     const user = {
-      attributes: [],
       auth0Id: `auth0|receipt-lock-${suffix}`,
       communicationEmail: `receipt-lock-${suffix}@example.com`,
       email: `receipt-lock-${suffix}@example.com`,

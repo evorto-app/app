@@ -218,7 +218,10 @@ The card identifies the ticket **Type** as **Organizer/helper**, shows the event
       .getByRole('link', { exact: true, name: 'Profile' })
       .first()
       .click();
-    await page.getByRole('button', { exact: true, name: 'Events' }).click();
+    await page
+      .getByRole('navigation', { name: 'Profile sections' })
+      .getByRole('link', { exact: true, name: 'Events' })
+      .click();
     const profileEvent = page.locator('article').filter({
       has: page.getByRole('heading', {
         exact: true,

@@ -189,8 +189,8 @@ export async function seedTenant(
         roles
           .filter((role) => {
             if (data.roles === 'none') return false;
-            if (data.roles === 'all') return true;
-            if (data.roles === 'user') return role.defaultUserRole;
+            if (data.roles === 'profile' || data.roles === 'user')
+              return role.defaultUserRole;
             if (data.roles === 'organizer')
               return role.defaultUserRole || role.defaultOrganizerRole;
             if (data.roles === 'admin')

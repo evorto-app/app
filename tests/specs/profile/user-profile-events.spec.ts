@@ -1,13 +1,11 @@
 import { userStateFile, usersToAuthenticate } from '../../../helpers/user-data';
 import { expect, test } from '../../support/fixtures/parallel-test';
-import {
-  seedProfileEventCards,
-  type SeededProfileEventCards,
-} from '../../support/utils/profile-event-cards';
+import { seedProfileEventCards } from '../../support/utils/profile-event-cards';
 
 test.use({ storageState: userStateFile });
 
 test('profile event cards show implemented registration actions', async ({
+  registerDatabaseCleanup,
   database,
   page,
   seedDate,
@@ -20,20 +18,18 @@ test('profile event cards show implemented registration actions', async ({
     throw new Error('Expected regular profile user fixture');
   }
 
-  let profileEventCards: SeededProfileEventCards | undefined;
-
-  try {
-    profileEventCards = await seedProfileEventCards({
+  {
+    const profileEventCards = await seedProfileEventCards({
       database,
+      registerDatabaseCleanup,
       seedDate,
       seeded,
       userId: regularUser.id,
     });
 
-    await page.goto('/profile');
-    await page.getByRole('button', { name: 'Events' }).click();
+    await page.goto('/profile/events');
     await expect(
-      page.getByRole('heading', { name: 'Your Event Registrations' }),
+      page.getByRole('heading', { name: 'Your events' }),
     ).toBeVisible();
 
     const confirmedCard = page
@@ -61,15 +57,15 @@ test('profile event cards show implemented registration actions', async ({
       .locator('article')
       .filter({ hasText: profileEventCards.pendingCheckout.title });
     await expect(
-      pendingCheckoutCard.getByText('Pending', { exact: true }),
+      pendingCheckoutCard.getByText('Waiting for confirmation', {
+        exact: true,
+      }),
     ).toBeVisible();
     await expect(
-      pendingCheckoutCard.getByText('Payment pending'),
+      pendingCheckoutCard.getByText('Payment not finished'),
     ).toBeVisible();
     await expect(
-      pendingCheckoutCard.getByText(
-        'Finish the checkout payment to confirm your spot.',
-      ),
+      pendingCheckoutCard.getByText('Finish payment to confirm your place.'),
     ).toBeVisible();
     await expect(
       pendingCheckoutCard.getByRole('link', { name: 'Continue payment' }),
@@ -85,11 +81,11 @@ test('profile event cards show implemented registration actions', async ({
       .locator('article')
       .filter({ hasText: profileEventCards.waitlist.title });
     await expect(
-      waitlistCard.getByText('Waitlist', { exact: true }),
+      waitlistCard.getByText('On waitlist', { exact: true }),
     ).toBeVisible();
     await expect(
       waitlistCard.getByText(
-        'Open the event page for waitlist details and current cancellation status.',
+        'Open the event page for waitlist details and whether you can leave it.',
       ),
     ).toBeVisible();
     await expect(
@@ -108,7 +104,7 @@ test('profile event cards show implemented registration actions', async ({
     await expect(checkedInCard.getByText('Checked in:')).toBeVisible();
     await expect(
       checkedInCard.getByText(
-        'You are checked in. Open the event page for ticket details. Cancellation is no longer available; a transfer preserves the existing attendee and guest check-in history.',
+        'You are checked in. Open the event page for ticket details. You can no longer cancel, but you can still transfer the ticket and its existing check-ins.',
       ),
     ).toBeVisible();
     await expect(checkedInCard).not.toContainText(
@@ -223,7 +219,5 @@ test('profile event cards show implemented registration actions', async ({
         quantity: 1,
       }),
     );
-  } finally {
-    await profileEventCards?.cleanup();
   }
 });

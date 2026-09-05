@@ -278,7 +278,6 @@ const createUser = ({
   id?: string;
   permissions?: readonly Permission[];
 } = {}): User => ({
-  attributes: [],
   auth0Id: `auth0|${id}`,
   communicationEmail: `${id}.contact@example.com`,
   email: `${id}@example.com`,

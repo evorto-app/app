@@ -1,4 +1,8 @@
 import { asRpcMutation, asRpcQuery } from '@heddendorp/effect-angular-query';
+import {
+  CanonicalEmailAddress,
+  EmailAddressInput,
+} from '@shared/notification-email';
 import { literalUnion } from '@shared/schema-utilities';
 import { Schema } from 'effect';
 import * as Rpc from 'effect/unstable/rpc/Rpc';
@@ -21,7 +25,7 @@ export type TenantOnboardingQuestionType = Schema.Schema.Type<
 export class TenantOnboardingProfileRecord extends Schema.Class<TenantOnboardingProfileRecord>(
   'TenantOnboardingProfileRecord',
 )({
-  communicationEmail: Schema.NonEmptyString,
+  communicationEmail: CanonicalEmailAddress,
   firstName: Schema.NonEmptyString,
   lastName: Schema.NonEmptyString,
 }) {}
@@ -86,7 +90,7 @@ export const TenantOnboardingComplete = asRpcMutation(
     payload: Schema.Struct({
       acceptedPrivacyPolicy: Schema.Boolean,
       answers: Schema.Array(TenantOnboardingAnswerInput),
-      communicationEmail: Schema.NonEmptyString,
+      communicationEmail: EmailAddressInput,
       firstName: Schema.NonEmptyString,
       lastName: Schema.NonEmptyString,
       policyVersionId: Schema.NonEmptyString,

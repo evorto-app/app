@@ -36,6 +36,12 @@ describe('authenticated E2E user credentials', () => {
   });
 
   it('uses an explicit platform fixture without tenant roles', () => {
+    expect(usersToAuthenticate.map((user) => user.roles)).not.toContain('all');
+    expect(
+      usersToAuthenticate.find(
+        (user) => user.passwordVariable === 'E2E_DEFAULT_USER_PASSWORD',
+      )?.roles,
+    ).toBe('profile');
     expect(
       usersToAuthenticate.filter((user) => user.platformAdministrator),
     ).toEqual([

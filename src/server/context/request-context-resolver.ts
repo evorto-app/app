@@ -298,27 +298,8 @@ export const resolveUserContext = (
 
     const roleIds = assignedRoles.map((role) => role.id);
 
-    const attributeResponse = yield* databaseEffect((database) =>
-      Effect.map(
-        getPreparedStatements(
-          database,
-        ).getUserAttributesByTenantAndUser.execute({
-          tenantId: input.tenantId,
-          userId: user.id,
-        }),
-        (result) => result[0],
-      ),
-    );
-
-    const attributes = [
-      ...(attributeResponse?.organizesSome
-        ? (['events:organizesSome'] as const)
-        : []),
-    ];
-
     return {
       ...user,
-      attributes,
       homeTenantName: user.homeTenant?.name,
       permissions: normalizePermissions(permissions),
       roleIds,
