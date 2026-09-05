@@ -617,7 +617,6 @@ export const eventQueryHandlers = {
           with: {
             registrationOptions: {
               columns: {
-                checkedInSpots: true,
                 closeRegistrationTime: true,
                 confirmedSpots: true,
                 description: true,
@@ -627,7 +626,6 @@ export const eventQueryHandlers = {
                 openRegistrationTime: true,
                 organizingRegistration: true,
                 price: true,
-                registeredDescription: true,
                 registrationMode: true,
                 reservedSpots: true,
                 roleIds: true,
@@ -886,7 +884,7 @@ export const eventQueryHandlers = {
         taxRates.map((taxRate) => [taxRate.stripeTaxRateId, taxRate]),
       );
       if (
-        event.registrationOptions.some((registrationOption) => {
+        visibleRegistrationOptions.some((registrationOption) => {
           if (!registrationOption.isPaid) return false;
           const taxRate = registrationOption.stripeTaxRateId
             ? taxRateByStripeId.get(registrationOption.stripeTaxRateId)
@@ -1017,7 +1015,6 @@ export const eventQueryHandlers = {
               appliedDiscountType: discountApplied
                 ? ('esnCard' as const)
                 : null,
-              checkedInSpots: registrationOption.checkedInSpots,
               closeRegistrationTime:
                 registrationOption.closeRegistrationTime.toISOString(),
               confirmedSpots: registrationOption.confirmedSpots,
@@ -1043,13 +1040,9 @@ export const eventQueryHandlers = {
                 sortOrder: question.sortOrder,
                 title: question.title,
               })),
-              registeredDescription:
-                registrationOption.registeredDescription ?? null,
               registrationMode: registrationOption.registrationMode,
               reservedSpots: registrationOption.reservedSpots,
-              roleIds: [...registrationOption.roleIds],
               spots: registrationOption.spots,
-              stripeTaxRateId: registrationOption.stripeTaxRateId ?? null,
               taxRateDisplayName: taxRate?.displayName ?? null,
               taxRatePercentage: taxRate?.percentage ?? null,
               title: registrationOption.title,

@@ -653,42 +653,52 @@ describe('events RPC registration option schema', () => {
   });
 
   it('carries inclusive tax-rate label details for paid event cards', () => {
-    expect(() =>
-      Schema.decodeUnknownSync(EventsFindOneRegistrationOption)({
-        appliedDiscountType: null,
-        checkedInSpots: 0,
-        closeRegistrationTime: '2026-09-20T12:00:00.000Z',
-        confirmedSpots: 0,
-        description: null,
-        discountApplied: false,
-        effectivePrice: 2500,
-        esnCardDiscountedPrice: null,
-        eventId: 'event-1',
-        id: 'option-1',
-        isPaid: true,
-        openRegistrationTime: '2026-09-10T12:00:00.000Z',
-        organizingRegistration: false,
-        price: 2500,
-        questions: [
-          {
-            description: 'Tell us about your experience.',
-            id: 'question-1',
-            required: true,
-            sortOrder: 0,
-            title: 'Experience',
-          },
-        ],
-        registeredDescription: null,
-        registrationMode: 'fcfs',
-        reservedSpots: 0,
-        roleIds: ['role-1'],
-        spots: 10,
-        stripeTaxRateId: 'txr_vat_19',
-        taxRateDisplayName: 'VAT',
-        taxRatePercentage: '19',
-        title: 'Participant',
-      }),
-    ).not.toThrow();
+    const publicOption = {
+      appliedDiscountType: null,
+      closeRegistrationTime: '2026-09-20T12:00:00.000Z',
+      confirmedSpots: 0,
+      description: null,
+      discountApplied: false,
+      effectivePrice: 2500,
+      esnCardDiscountedPrice: null,
+      eventId: 'event-1',
+      id: 'option-1',
+      isPaid: true,
+      openRegistrationTime: '2026-09-10T12:00:00.000Z',
+      organizingRegistration: false,
+      price: 2500,
+      questions: [
+        {
+          description: 'Tell us about your experience.',
+          id: 'question-1',
+          required: true,
+          sortOrder: 0,
+          title: 'Experience',
+        },
+      ],
+      registrationMode: 'fcfs',
+      reservedSpots: 0,
+      spots: 10,
+      taxRateDisplayName: 'VAT',
+      taxRatePercentage: '19',
+      title: 'Participant',
+    } satisfies Schema.Schema.Type<typeof EventsFindOneRegistrationOption>;
+    const optionWithPrivateFields = {
+      ...publicOption,
+      checkedInSpots: 7,
+      registeredDescription: 'Private instructions shown after sign-up.',
+      roleIds: ['private-role-1'],
+      stripeTaxRateId: 'txr_vat_19',
+    };
+    const decode = Schema.decodeUnknownSync(EventsFindOneRegistrationOption);
+
+    expect(() => decode(optionWithPrivateFields)).not.toThrow();
+    const decoded = decode(optionWithPrivateFields);
+    expect(decoded).toEqual(publicOption);
+    expect(decoded).not.toHaveProperty('checkedInSpots');
+    expect(decoded).not.toHaveProperty('registeredDescription');
+    expect(decoded).not.toHaveProperty('roleIds');
+    expect(decoded).not.toHaveProperty('stripeTaxRateId');
   });
 });
 

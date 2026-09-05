@@ -67,7 +67,6 @@ export interface EventRegistrationOptionView {
   registrationMode: 'application' | 'fcfs';
   reservedSpots: number;
   spots: number;
-  stripeTaxRateId?: null | string;
   taxRateDisplayName?: null | string;
   taxRatePercentage?: null | string;
   title: string;
@@ -446,7 +445,6 @@ export class EventRegistrationOptionComponent {
     return {
       displayName: option.taxRateDisplayName ?? null,
       percentage: option.taxRatePercentage ?? null,
-      stripeTaxRateId: option.stripeTaxRateId ?? null,
     };
   });
 

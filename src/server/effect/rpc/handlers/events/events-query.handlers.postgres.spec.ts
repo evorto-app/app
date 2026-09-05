@@ -790,6 +790,18 @@ describe('optionless announcement discovery', () => {
       userIsCreator: false,
     });
     expect(anonymousOptionfulEvent.registrationOptions).toHaveLength(1);
+    expect(anonymousOptionfulEvent.registrationOptions[0]).not.toHaveProperty(
+      'checkedInSpots',
+    );
+    expect(anonymousOptionfulEvent.registrationOptions[0]).not.toHaveProperty(
+      'registeredDescription',
+    );
+    expect(anonymousOptionfulEvent.registrationOptions[0]).not.toHaveProperty(
+      'roleIds',
+    );
+    expect(anonymousOptionfulEvent.registrationOptions[0]).not.toHaveProperty(
+      'stripeTaxRateId',
+    );
 
     const anonymousAnnouncement = await runFindOne(
       anonymousContext,
@@ -870,6 +882,7 @@ describe('optionless announcement discovery', () => {
     expect(draft.registrationOptions.map((option) => option.id)).toEqual([
       draftRestrictedOptionId,
     ]);
+    expect(draft.registrationOptions[0]).not.toHaveProperty('roleIds');
 
     const approved = await runFindOne(draftViewerContext, optionfulMatchingId);
     expect(approved).toMatchObject({

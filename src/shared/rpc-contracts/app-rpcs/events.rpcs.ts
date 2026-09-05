@@ -329,7 +329,6 @@ export const EventsFindOneForEdit = asRpcQuery(
 
 export const EventsFindOneRegistrationOption = Schema.Struct({
   appliedDiscountType: Schema.NullOr(Schema.Literal('esnCard')),
-  checkedInSpots: Schema.Number,
   closeRegistrationTime: Schema.NonEmptyString,
   confirmedSpots: Schema.Number,
   description: Schema.NullOr(Schema.String),
@@ -351,12 +350,9 @@ export const EventsFindOneRegistrationOption = Schema.Struct({
       title: Schema.NonEmptyString,
     }),
   ),
-  registeredDescription: Schema.NullOr(Schema.String),
   registrationMode: EventsRegistrationMode,
   reservedSpots: Schema.Number,
-  roleIds: Schema.Array(Schema.NonEmptyString),
   spots: Schema.Number,
-  stripeTaxRateId: Schema.NullOr(Schema.String),
   taxRateDisplayName: Schema.NullOr(Schema.String),
   taxRatePercentage: Schema.NullOr(Schema.String),
   title: Schema.NonEmptyString,
