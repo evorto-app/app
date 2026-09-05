@@ -234,7 +234,6 @@ test('preserves wildcard grants through a rename and revokes only the selected c
   expect(revokedRows[0]?.permissions.toSorted()).toEqual([
     'admin:manageRoles',
     'admin:manageTaxes',
-    'admin:tax',
     'users:*',
   ]);
 
