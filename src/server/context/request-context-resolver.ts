@@ -4,28 +4,20 @@ import { uniq } from 'es-toolkit';
 import { Database, type DatabaseClient } from '../../db';
 import { getPreparedStatements } from '../../db/prepared-statements';
 import {
-  partitionTenantRolePermissions,
   type Permission,
+  type TenantRolePermission,
+  TenantRolePermissionSchema,
 } from '../../shared/permissions/permissions';
 import { type Authentication } from '../../types/custom/authentication';
 import { PlatformAdministratorAuthority } from '../../types/custom/platform-authority';
 import { Tenant } from '../../types/custom/tenant';
 import { hasCurrentTenantOnboarding } from '../onboarding/tenant-onboarding.service';
 
-// Keep backward-compatible permission aliases while migrating toward a single
-// canonical set. This avoids breaking handlers that still check the old value.
-const expandPermissionAliases = (permission: Permission): Permission[] => {
-  if (permission === 'admin:manageTaxes') {
-    return ['admin:manageTaxes', 'admin:tax'];
-  }
+const normalizePermissions = <P extends Permission>(
+  permissions: readonly P[],
+) => uniq(permissions);
 
-  return [permission];
-};
-
-const normalizePermissions = (permissions: readonly Permission[]) =>
-  uniq(
-    permissions.flatMap((permission) => expandPermissionAliases(permission)),
-  );
+const PersistedTenantRolePermissions = Schema.Array(TenantRolePermissionSchema);
 
 const normalizedRequestHost =
   /^(?:[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?|\[[0-9a-f:]+\])(?::[0-9]{1,5})?$/u;
@@ -53,12 +45,10 @@ export const resolveRequestPermissions = (input: {
   user:
     | undefined
     | {
-        permissions: readonly Permission[];
+        permissions: readonly TenantRolePermission[];
       };
 }) => {
-  const tenantPermissions = partitionTenantRolePermissions(
-    input.user?.permissions ?? [],
-  ).accepted;
+  const tenantPermissions = input.user?.permissions ?? [];
 
   return normalizePermissions([
     ...(input.platformAuthority
@@ -270,30 +260,13 @@ export const resolveUserContext = (
       return;
     }
 
-    const assignedRoles = user.tenantAssignments
-      .flatMap((assignment) => assignment.roles)
-      .map((role) => ({
-        ...role,
-        permissions: partitionTenantRolePermissions(role.permissions),
-      }));
-
-    for (const role of assignedRoles) {
-      if (role.permissions.rejected.length === 0) continue;
-
-      yield* Effect.logWarning(
-        'Discarded platform-global permissions from tenant role',
-      ).pipe(
-        Effect.annotateLogs({
-          rejectedPermissions: role.permissions.rejected,
-          roleId: role.id,
-          tenantId: input.tenantId,
-          userId: user.id,
-        }),
-      );
-    }
-
-    const permissions = assignedRoles.flatMap(
-      (role) => role.permissions.accepted,
+    const assignedRoles = user.tenantAssignments.flatMap(
+      (assignment) => assignment.roles,
+    );
+    const permissions = assignedRoles.flatMap((role) =>
+      Schema.decodeUnknownSync(PersistedTenantRolePermissions)(
+        role.permissions,
+      ),
     );
 
     const roleIds = assignedRoles.map((role) => role.id);

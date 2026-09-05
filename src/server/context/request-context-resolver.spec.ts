@@ -628,10 +628,77 @@ describe('request-context-resolver', () => {
   );
 
   it.effect(
-    'discards poisoned platform permissions while preserving tenant role permissions',
+    'rejects invalid persisted tenant role permissions before returning a user',
     () =>
       Effect.gen(function* () {
+        for (const invalidPermission of [
+          'globalAdmin:*',
+          'globalAdmin:manageTenants',
+          'admin:manageTaxes',
+          'events:retiredPermission',
+        ]) {
+          const onUserRead = vi.fn<(input: UserLookupInput) => void>();
+          const database = createUserDatabaseLayer({
+            onUserRead,
+            userExecute: vi.fn<UserContextLookup>(() =>
+              Effect.succeed({
+                auth0Id: 'auth0|tenant-user',
+                communicationEmail: 'member@example.com',
+                email: 'member@example.com',
+                firstName: 'Tenant',
+                iban: null,
+                id: 'user-1',
+                lastName: 'Member',
+                paypalEmail: null,
+                tenantAssignments: [
+                  {
+                    roles: [
+                      {
+                        id: 'role-mixed',
+                        permissions: [
+                          'events:create',
+                          'events:*',
+                          invalidPermission,
+                        ],
+                      },
+                    ],
+                  },
+                ],
+              }),
+            ),
+          });
+
+          const exit = yield* resolveUserContext(
+            {
+              isAuthenticated: true,
+              oidcUser: { sub: 'auth0|tenant-user' },
+              tenantId: 'tenant-1',
+            },
+            () => Effect.succeed(true),
+          ).pipe(Effect.provide(database), Effect.exit);
+
+          expect(Exit.isFailure(exit)).toBe(true);
+          if (Exit.isFailure(exit)) {
+            expect(Cause.hasDies(exit.cause)).toBe(true);
+            expect(String(Cause.squash(exit.cause))).toContain(
+              invalidPermission,
+            );
+          }
+          expect(onUserRead).toHaveBeenCalledExactlyOnceWith({
+            auth0Id: 'auth0|tenant-user',
+            tenantId: 'tenant-1',
+          });
+        }
+      }),
+  );
+
+  it.effect(
+    'preserves valid tenant role IDs, wildcards and current tax authority',
+    () =>
+      Effect.gen(function* () {
+        const onUserRead = vi.fn<(input: UserLookupInput) => void>();
         const database = createUserDatabaseLayer({
+          onUserRead,
           userExecute: vi.fn<UserContextLookup>(() =>
             Effect.succeed({
               auth0Id: 'auth0|tenant-user',
@@ -646,13 +713,12 @@ describe('request-context-resolver', () => {
                 {
                   roles: [
                     {
-                      id: 'role-mixed',
-                      permissions: [
-                        'events:create',
-                        'events:*',
-                        'globalAdmin:*',
-                        'globalAdmin:manageTenants',
-                      ],
+                      id: 'role-author',
+                      permissions: ['events:create', 'events:*'],
+                    },
+                    {
+                      id: 'role-tax',
+                      permissions: ['admin:tax', 'events:create'],
                     },
                   ],
                 },
@@ -670,14 +736,19 @@ describe('request-context-resolver', () => {
           () => Effect.succeed(true),
         ).pipe(Effect.provide(database));
 
-        expect(user?.permissions).toEqual(['events:create', 'events:*']);
-        expect(user?.roleIds).toEqual(['role-mixed']);
+        expect(user?.permissions).toEqual([
+          'events:create',
+          'events:*',
+          'admin:tax',
+        ]);
+        expect(user?.roleIds).toEqual(['role-author', 'role-tax']);
         expect(
-          resolveRequestPermissions({
-            platformAuthority: undefined,
-            user,
-          }),
-        ).not.toContain('globalAdmin:manageTenants');
+          resolveRequestPermissions({ platformAuthority: undefined, user }),
+        ).toEqual(['events:create', 'events:*', 'admin:tax']);
+        expect(onUserRead).toHaveBeenCalledExactlyOnceWith({
+          auth0Id: 'auth0|tenant-user',
+          tenantId: 'tenant-1',
+        });
       }),
   );
 

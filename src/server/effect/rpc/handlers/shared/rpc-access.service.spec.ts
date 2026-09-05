@@ -90,9 +90,9 @@ describe('RpcAccess.ensurePermission', () => {
     ),
   );
 
-  it.effect('allows legacy admin tax aliases', () =>
+  it.effect('allows the current admin tax permission', () =>
     RpcAccess.ensurePermission('admin:tax').pipe(
-      Effect.provide(createContextLayer(['admin:manageTaxes'])),
+      Effect.provide(createContextLayer(['admin:tax'])),
     ),
   );
 

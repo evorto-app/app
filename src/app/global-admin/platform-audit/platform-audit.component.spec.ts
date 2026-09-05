@@ -191,12 +191,12 @@ describe('platformAuditChangedRows', () => {
     ).toEqual([{ after: '2', before: '0', label: 'Announcement roles' }]);
   });
 
-  it('describes a stored legacy tax grant with its current permission label', () => {
+  it('describes a stored tax grant with its current permission label', () => {
     expect(
       platformAuditChangedRows({
         after: {
           resourceType: 'role',
-          state: { permissions: ['admin:manageTaxes'] },
+          state: { permissions: ['admin:tax'] },
         },
         before: { resourceType: 'role', state: { permissions: [] } },
       }),

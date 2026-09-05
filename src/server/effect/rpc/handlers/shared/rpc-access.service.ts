@@ -75,6 +75,9 @@ const rpcAccessEffect = Effect.sync(() => {
           !includesPermission(permission, context.permissions) &&
           !hasPlatformCapability
         ) {
+          yield* Effect.logWarning('RPC permission denied').pipe(
+            Effect.annotateLogs({ permission }),
+          );
           return yield* Effect.fail(
             new RpcForbiddenError({
               message: 'Missing required permission',

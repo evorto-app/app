@@ -205,21 +205,42 @@ export const withoutRegistrationInternalErrorCause = (
   new EventRegistrationInternalError({ message: error.message });
 
 const registrationHandlerNow = serverClockConfig.pipe(
+  Effect.tapError((error) =>
+    Effect.logError('Event registration clock configuration failed').pipe(
+      Effect.annotateLogs({
+        cause: new Error(formatConfigError(error)),
+        operation: 'eventRegistration.handlerClock.config',
+      }),
+    ),
+  ),
   Effect.mapError(
-    (error) =>
+    () =>
       new EventRegistrationInternalError({
-        message: `Invalid server clock configuration:\n${formatConfigError(error)}`,
+        message:
+          'The event time could not be checked. Open the event again and review its current sign-ups and payment status before continuing.',
       }),
   ),
   Effect.flatMap(({ E2E_NOW_ISO }) =>
     Effect.try({
-      catch: (cause) =>
-        new EventRegistrationInternalError({
-          cause,
-          message: 'Invalid E2E_NOW_ISO server clock value',
-        }),
+      catch: (cause) => cause,
       try: () => getServerNow(Option.getOrUndefined(E2E_NOW_ISO)).toJSDate(),
-    }),
+    }).pipe(
+      Effect.tapError((cause) =>
+        Effect.logError('Event registration clock value failed').pipe(
+          Effect.annotateLogs({
+            cause,
+            operation: 'eventRegistration.handlerClock',
+          }),
+        ),
+      ),
+      Effect.mapError(
+        () =>
+          new EventRegistrationInternalError({
+            message:
+              'The event time could not be checked. Open the event again and review its current sign-ups and payment status before continuing.',
+          }),
+      ),
+    ),
   ),
 );
 
@@ -230,12 +251,9 @@ const registrationPaymentDeadlineNow = Effect.sync(() =>
 
 const registrationNotificationEventUrl = (tenant: Tenant, eventId: string) =>
   tenantOutboundUrl(tenant, `/events/${encodeURIComponent(eventId)}`).pipe(
-    Effect.mapError(
-      (cause) =>
-        new EventRegistrationInternalError({
-          cause,
-          message: 'Tenant event URL is invalid for registration notifications',
-        }),
+    mapRegistrationInternalError(
+      'eventRegistration.notification.eventUrl',
+      'The event link could not be prepared. Contact an organizer.',
     ),
   );
 

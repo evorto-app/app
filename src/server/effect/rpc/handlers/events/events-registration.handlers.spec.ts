@@ -4,12 +4,15 @@ import { describe, expect, it, vi } from '@effect/vitest';
 import { getTableName } from 'drizzle-orm';
 import {
   Cause,
+  Config,
   ConfigProvider,
   Deferred,
   Effect,
   Exit,
   Fiber,
   Layer,
+  Logger,
+  References,
   Schema,
 } from 'effect';
 import * as Headers from 'effect/unstable/http/Headers';
@@ -53,6 +56,7 @@ import {
   RpcRequestContextMiddleware,
   type RpcRequestContextShape,
 } from '../../../../../shared/rpc-contracts/app-rpcs';
+import { formatConfigError } from '../../../../config/config-error';
 import { RegistrationAcquisitionWriteError } from '../../../../registrations/registration-acquisition-write';
 import { RegistrationTransferMutationConflict } from '../../../../registrations/registration-transfer-mutation-guard';
 import { StripeClient } from '../../../../stripe-client';
@@ -1271,11 +1275,16 @@ describe('event registration owner add-on status', () => {
   });
 
   it('removes internal causes before an add-on purchase error crosses RPC', () => {
+    const originalError = new Error(
+      'duplicate key violates secret_constraint_name',
+    );
     const sanitized = withoutRegistrationInternalErrorCause(
-      new EventRegistrationInternalError({
-        cause: new Error('duplicate key violates secret_constraint_name'),
-        message: 'Add-on purchase reservation failed',
-      }),
+      Object.assign(
+        new EventRegistrationInternalError({
+          message: 'Add-on purchase reservation failed',
+        }),
+        { cause: originalError },
+      ),
     );
 
     expect(sanitized.message).toBe('Add-on purchase reservation failed');
@@ -1286,11 +1295,16 @@ describe('event registration owner add-on status', () => {
     'removes internal causes before a registration mutation error crosses RPC',
     () =>
       Effect.gen(function* () {
+        const originalError = new Error(
+          'duplicate key violates secret_constraint_name',
+        );
         const sanitized = yield* mapRegistrationMutationInternalError(
-          new EventRegistrationInternalError({
-            cause: new Error('duplicate key violates secret_constraint_name'),
-            message: 'Registration payment setup failed',
-          }),
+          Object.assign(
+            new EventRegistrationInternalError({
+              message: 'Registration payment setup failed',
+            }),
+            { cause: originalError },
+          ),
         ).pipe(Effect.flip);
 
         expect(sanitized.message).toBe('Registration payment setup failed');
@@ -4022,6 +4036,69 @@ const createPaidCancellationDatabase = ({
 };
 
 describe('event registration cancellation handlers', () => {
+  it.effect(
+    'keeps cancellation URL failures out of the public error and logs the failed operation',
+    () =>
+      Effect.gen(function* () {
+        const logs: Record<string, unknown>[] = [];
+        const logger = Logger.make(({ fiber }) => {
+          logs.push({ ...fiber.getRef(References.CurrentLogAnnotations) });
+        });
+        const { databaseLayer, insertedEmails, transactionCommands, writes } =
+          createFreeCancellationDatabase({
+            registration: createCancellationRegistration({
+              event: {
+                start: new Date('2026-09-19T09:00:00.000Z'),
+                title: 'City tour',
+              },
+            }),
+          });
+        const error = yield* eventRegistrationHandlers[
+          'events.cancelRegistration'
+        ](
+          {
+            expectedPaymentPending: false,
+            expectedStatus: 'CONFIRMED',
+            registrationId: 'registration-1',
+          },
+          handlerOptions('events.cancelRegistration'),
+        ).pipe(
+          Effect.flip,
+          Effect.provide(
+            createSqlContextLayer({
+              databaseLayer,
+              nowIso: '2026-09-18T09:00:00.000Z',
+              tenant: { ...tenant, domain: '' },
+            }),
+          ),
+          Effect.provide(Logger.layer([logger])),
+        );
+
+        expect(error).toBeInstanceOf(EventRegistrationInternalError);
+        expect(error.message).toBe(
+          'The event link could not be prepared. Contact an organizer.',
+        );
+        expect(error).not.toHaveProperty('cause');
+        expect(
+          Schema.encodeUnknownSync(
+            Schema.toCodecJson(EventRegistrationInternalError),
+          )(error),
+        ).toEqual({
+          _tag: 'EventRegistrationInternalError',
+          message:
+            'The event link could not be prepared. Contact an organizer.',
+        });
+        expect(logs).toContainEqual(
+          expect.objectContaining({
+            operation: 'eventRegistration.notification.eventUrl',
+          }),
+        );
+        expect(writes).toEqual([]);
+        expect(insertedEmails).toEqual([]);
+        expect(transactionCommands).toEqual([]);
+      }),
+  );
+
   it('resolves registration option cancellation policy over tenant defaults', () => {
     expect(resolveCancellationDeadlineHoursBeforeStart(null, 120)).toBe(120);
     expect(resolveCancellationDeadlineHoursBeforeStart(0, 120)).toBe(0);
@@ -5654,9 +5731,63 @@ describe('event registration scan handlers', () => {
   );
 
   it.effect(
+    'keeps clock configuration diagnostics in server logs instead of the scan error',
+    () =>
+      Effect.gen(function* () {
+        const logs: Record<string, unknown>[] = [];
+        const logger = Logger.make(({ fiber }) => {
+          logs.push({ ...fiber.getRef(References.CurrentLogAnnotations) });
+        });
+        const sourceError = new ConfigProvider.SourceError({
+          message: 'clock provider source unavailable',
+        });
+        const provider = ConfigProvider.make(() => Effect.fail(sourceError));
+        const databaseLayer = createScanReadDatabaseLayer({
+          registration: scannedRegistration,
+        });
+        const error = yield* eventRegistrationHandlers[
+          'events.registrationScanned'
+        ](
+          { registrationId: 'registration-1' },
+          handlerOptions('events.registrationScanned'),
+        ).pipe(
+          Effect.flip,
+          Effect.provideService(ConfigProvider.ConfigProvider, provider),
+          Effect.provide(
+            createSqlContextLayer({
+              databaseLayer,
+              user: createUser({ permissions: ['events:organizeAll'] }),
+            }),
+          ),
+          Effect.provide(Logger.layer([logger])),
+        );
+
+        expect(error).toBeInstanceOf(EventRegistrationInternalError);
+        expect(error.message).toBe(
+          'The event time could not be checked. Open the event again and review its current sign-ups and payment status before continuing.',
+        );
+        expect(error).not.toHaveProperty('cause');
+        const diagnostic = logs.find(
+          (entry) =>
+            entry['operation'] === 'eventRegistration.handlerClock.config',
+        );
+        expect(diagnostic?.['cause']).toBeInstanceOf(Error);
+        expect(diagnostic).toMatchObject({
+          cause: {
+            message: formatConfigError(new Config.ConfigError(sourceError)),
+          },
+        });
+      }),
+  );
+
+  it.effect(
     'maps an invalid configured server clock to a typed scan error',
     () =>
       Effect.gen(function* () {
+        const logs: Record<string, unknown>[] = [];
+        const logger = Logger.make(({ fiber }) => {
+          logs.push({ ...fiber.getRef(References.CurrentLogAnnotations) });
+        });
         const databaseLayer = createScanReadDatabaseLayer({
           registration: scannedRegistration,
         });
@@ -5675,10 +5806,25 @@ describe('event registration scan handlers', () => {
               user: createUser({ permissions: ['events:organizeAll'] }),
             }),
           ),
+          Effect.provide(Logger.layer([logger])),
         );
 
         expect(error['_tag']).toBe('EventRegistrationInternalError');
-        expect(error.message).toBe('Invalid E2E_NOW_ISO server clock value');
+        expect(error.message).toBe(
+          'The event time could not be checked. Open the event again and review its current sign-ups and payment status before continuing.',
+        );
+        expect(error).not.toHaveProperty('cause');
+        const diagnostic = logs.find(
+          (entry) => entry['operation'] === 'eventRegistration.handlerClock',
+        );
+        expect(diagnostic?.['cause']).toBeInstanceOf(Error);
+        expect(diagnostic).toMatchObject({
+          cause: {
+            message: expect.stringContaining(
+              'Invalid pinnedNowIso value "not-a-date"',
+            ),
+          },
+        });
       }),
   );
 
