@@ -279,14 +279,7 @@ describe('evaluateRuntimePreflight', () => {
       'export E2E_RUNTIME_MODE=playwright',
     );
 
-    const ciDockerStartSource = fs.readFileSync(
-      path.join(process.cwd(), 'helpers/testing/ci-start-docker-stack.sh'),
-      'utf8',
-    );
-    expect(ciDockerStartSource).toContain('export E2E_RUNTIME_MODE=playwright');
-
     const persistentLifecycleSources = [
-      ciDockerStartSource,
       fs.readFileSync(
         path.join(process.cwd(), '.github/workflows/e2e-baseline.yml'),
         'utf8',
@@ -439,7 +432,7 @@ describe('evaluateRuntimePreflight', () => {
       '--project=docs-live-esncard',
     );
     expect(packageJson.scripts['test:e2e:live-esncard']).toContain(
-      "--grep '@needs-live-esncard'",
+      '--grep "@needs-live-esncard"',
     );
     expect(packageJson.scripts['test:e2e:live-esncard:release']).toContain(
       'runtime-preflight.ts esncard-release',

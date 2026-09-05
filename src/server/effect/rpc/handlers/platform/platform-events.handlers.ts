@@ -97,7 +97,7 @@ export const platformEventGraphCompatibilityError = ({
   ) {
     return new RpcBadRequestError({
       message:
-        'Simple event configuration requires exactly one organizing and one non-organizing registration option',
+        'Choose exactly one organizer sign-up choice and one attendee sign-up choice for this event.',
       reason: 'simpleEventGraphRequiresTwoOptions',
     });
   }
@@ -130,7 +130,7 @@ export const platformEventGraphCompatibilityError = ({
     )
   ) {
     return new RpcBadRequestError({
-      message: 'Event add-on configuration is invalid',
+      message: 'The event add-ons are not valid. Review them and try again.',
       reason: 'invalidEventAddon',
     });
   }
@@ -210,9 +210,9 @@ const databaseEffect = <A, R>(
     ),
   );
 
-const eventNotFound = (eventId: string) =>
+const eventNotFound = () =>
   new RpcBadRequestError({
-    message: `Event ${eventId} was not found for the target tenant`,
+    message: 'This event could not be found in this organization.',
     reason: 'eventNotFound',
   });
 
@@ -254,7 +254,7 @@ export const loadPlatformEventDetail = Effect.fn(
     .pipe(Effect.orDie);
   const event = eventRows[0];
   if (!event) {
-    return yield* Effect.fail(eventNotFound(eventId));
+    return yield* Effect.fail(eventNotFound());
   }
 
   const announcementRoles =
@@ -560,7 +560,8 @@ export const validatePlatformEventCreateReferences = ({
   if (!creatorMembershipFound) {
     return Effect.fail(
       new RpcBadRequestError({
-        message: 'The selected creator is not a member of the target tenant',
+        message:
+          'The selected creator is no longer a member of this organization.',
         reason: 'creatorMembershipNotFound',
       }),
     );
@@ -568,7 +569,8 @@ export const validatePlatformEventCreateReferences = ({
   if (!templateFound) {
     return Effect.fail(
       new RpcBadRequestError({
-        message: 'Template not found for the target tenant',
+        message:
+          'The selected template could not be found in this organization.',
         reason: 'templateNotFound',
       }),
     );
@@ -620,7 +622,8 @@ const updatePlatformEventGraph = Effect.fn(
   if (!rolesExist) {
     return yield* Effect.fail(
       new RpcBadRequestError({
-        message: 'Registration option role not found for the target tenant',
+        message:
+          'One selected sign-up role is no longer available in this organization.',
         reason: 'registrationRoleNotFound',
       }),
     );
@@ -802,7 +805,8 @@ const updatePlatformEventGraph = Effect.fn(
     ) {
       return yield* Effect.fail(
         new RpcBadRequestError({
-          message: 'Event add-on configuration is invalid',
+          message:
+            'The event add-ons are not valid. Review them and try again.',
           reason: 'invalidEventAddon',
         }),
       );
@@ -1060,7 +1064,7 @@ const runEventMutation = <A extends PlatformEventMutationTarget>(
               .for('update')
               .pipe(Effect.orDie);
             if (lockedEvents.length === 0) {
-              return yield* Effect.fail(eventNotFound(input.eventId));
+              return yield* Effect.fail(eventNotFound());
             }
 
             const before = yield* loadPlatformEventDetail(
@@ -1667,7 +1671,7 @@ export const platformEventHandlers = {
             .returning({ id: eventInstances.id })
             .pipe(Effect.orDie);
           if (updatedEvents.length === 0) {
-            return yield* Effect.fail(eventNotFound(input.eventId));
+            return yield* Effect.fail(eventNotFound());
           }
         }),
     ),

@@ -184,11 +184,11 @@ Use the search field to find the person by name or email. Open **Assigned roles*
 `,
     });
 
-    let { roleSelect, userRow } = await findAssignmentTarget(
+    const { roleSelect: initialRoleSelect } = await findAssignmentTarget(
       assignmentScenario.user.email,
     );
-    await expect(roleSelect).toBeEnabled();
-    await roleSelect.press('Enter');
+    await expect(initialRoleSelect).toBeEnabled();
+    await initialRoleSelect.press('Enter');
     let assignmentOption = page.getByRole('option', {
       exact: true,
       name: assignmentScenario.role.name,
@@ -202,9 +202,9 @@ Use the search field to find the person by name or email. Open **Assigned roles*
       .toEqual([assignmentScenario.role.id]);
 
     await page.reload();
-    ({ roleSelect, userRow } = await findAssignmentTarget(
+    let { roleSelect, userRow } = await findAssignmentTarget(
       assignmentScenario.user.email,
-    ));
+    );
     await expect(roleSelect).toContainText(assignmentScenario.role.name);
     await takeScreenshot(
       testInfo,

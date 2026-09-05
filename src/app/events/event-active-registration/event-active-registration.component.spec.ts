@@ -20,6 +20,7 @@ import {
 import {
   provideTanStackQuery,
   QueryClient,
+  QueryObserver,
 } from '@tanstack/angular-query-experimental';
 import { readFileSync } from 'node:fs';
 import nodePath from 'node:path';
@@ -319,10 +320,10 @@ describe('registrationAudienceCopy', () => {
 describe('registration transfer copy', () => {
   it('keeps transfer and resale unavailable for pending or waitlist registrations', () => {
     expect(registrationDeferredActionCopy({ status: 'PENDING' })).toBe(
-      'Transfer/resale is not available for pending registrations.',
+      'Transfer/resale is not available while a sign-up is pending.',
     );
     expect(registrationDeferredActionCopy({ status: 'WAITLIST' })).toBe(
-      'Transfer/resale is not available for waitlist registrations.',
+      'Transfer/resale is not available while you are on the waitlist.',
     );
   });
 
@@ -365,7 +366,7 @@ describe('registration transfer copy', () => {
     expect(refundPending).toMatchObject({
       cancelLabel: null,
       showExpiry: false,
-      title: 'Transfer refund is processing',
+      title: 'Transfer refund is in progress',
       tone: 'success',
     });
     expect(refundFailed).toMatchObject({
@@ -1416,6 +1417,285 @@ describe('EventActiveRegistrationComponent add-on purchase', () => {
     expect(
       root.querySelector('a[href*="checkout.stripe.com.evil"]'),
     ).toBeNull();
+  });
+  const withTransferOwnerReads = async (
+    initialRegistrations: readonly EventsRegistrationStatusRecord[],
+    savedRegistrations: readonly EventsRegistrationStatusRecord[],
+    check: (context: {
+      fixture: ComponentFixture<EventActiveRegistrationComponent>;
+      holdOffer: () => () => void;
+    }) => Promise<void>,
+  ): Promise<void> => {
+    const failures: unknown[] = [];
+    const unsubscribes: (() => void)[] = [];
+    const releases: (() => void)[] = [];
+    const heldSettlements: Promise<void>[] = [];
+    let ownedFixture:
+      ComponentFixture<EventActiveRegistrationComponent> | undefined;
+    const attemptCleanup = async (
+      cleanup: (() => Promise<void>) | (() => void),
+    ): Promise<void> => {
+      try {
+        await cleanup();
+      } catch (error) {
+        failures.push(error);
+      }
+    };
+
+    try {
+      // Exercise real cache reads through the existing operations provider.
+      vi.mocked(queryClient.invalidateQueries).mockRestore();
+      const firstRegistration = initialRegistrations[0];
+      if (!firstRegistration) throw new Error('Expected an initial ticket');
+      const fixture = render(firstRegistration);
+      ownedFixture = fixture;
+      fixture.componentRef.setInput('registrations', initialRegistrations);
+      const statusKey = ['registration-status', 'event-1'];
+      const savedStatus = {
+        isRegistered: true,
+        registrations: savedRegistrations,
+      };
+      const readStatus = vi.fn(async () => savedStatus);
+      queryClient.setQueryData(statusKey, {
+        isRegistered: true,
+        registrations: initialRegistrations,
+      });
+      const statusObserver = new QueryObserver(queryClient, {
+        queryFn: readStatus,
+        queryKey: statusKey,
+        staleTime: Infinity,
+      });
+      unsubscribes.push(
+        statusObserver.subscribe((result) => {
+          if (result.isSuccess) {
+            fixture.componentRef.setInput(
+              'registrations',
+              result.data.registrations,
+            );
+          }
+        }),
+      );
+      const ownerReads = [
+        ['event-details', 'event-1'],
+        ['scanner-access'],
+        ['user-events'],
+      ].map((queryKey) => {
+        const saved = { ownerRead: 'current' };
+        const read = vi.fn(async () => saved);
+        queryClient.setQueryData(queryKey, { ownerRead: 'previous' });
+        const observer = new QueryObserver(queryClient, {
+          queryFn: read,
+          queryKey,
+          staleTime: Infinity,
+        });
+        unsubscribes.push(
+          observer.subscribe(() => {
+            // Keep the query active until its registered unsubscribe runs.
+          }),
+        );
+        return { queryKey, read, saved };
+      });
+      fixture.detectChanges();
+
+      await check({
+        fixture,
+        holdOffer: () => {
+          let rejectOffer: ((reason: Error) => void) | undefined;
+          // Angular's browser target does not expose Promise.withResolvers.
+          // eslint-disable-next-line unicorn/prefer-promise-with-resolvers
+          const offer = new Promise<never>((_resolve, reject) => {
+            rejectOffer = reject;
+          });
+          heldSettlements.push(
+            offer.then(
+              () => {
+                // The cleanup drain only waits for the owned offer to settle.
+              },
+              () => {
+                // The component observes rejection; cleanup waits for settlement.
+              },
+            ),
+          );
+          const release = () => {
+            rejectOffer?.(new Error('Offer response was lost'));
+            rejectOffer = undefined;
+          };
+          releases.push(release);
+          createTransfer.mockReturnValueOnce(offer);
+          return release;
+        },
+      });
+
+      await vi.waitFor(() => {
+        fixture.detectChanges();
+        expect(readStatus).toHaveBeenCalledOnce();
+        expect(queryClient.getQueryData(statusKey)).toEqual(savedStatus);
+        for (const { queryKey, read, saved } of ownerReads) {
+          expect(read).toHaveBeenCalledOnce();
+          expect(queryClient.getQueryData(queryKey)).toEqual(saved);
+        }
+        expect(canOrganize).toHaveBeenCalledOnce();
+        expect(queryClient.isFetching()).toBe(0);
+        expect(
+          queryClient.getQueryData(['event-organizer-access', 'event-1']),
+        ).toBe(true);
+      });
+    } catch (error) {
+      failures.push(error);
+    }
+
+    for (const release of releases) await attemptCleanup(release);
+    for (const settlement of heldSettlements) {
+      await attemptCleanup(async () => {
+        await settlement;
+      });
+    }
+    await attemptCleanup(async () => {
+      await vi.waitFor(() => {
+        if (queryClient.isMutating() !== 0) {
+          throw new Error('Owned transfer mutation has not settled');
+        }
+      });
+    });
+    await attemptCleanup(() => queryClient.cancelQueries());
+    for (const unsubscribe of unsubscribes) {
+      await attemptCleanup(unsubscribe);
+    }
+    await attemptCleanup(() => ownedFixture?.destroy());
+    if (failures.length === 1) throw failures[0];
+    if (failures.length > 1) {
+      throw new AggregateError(
+        failures,
+        'Transfer assertions and owned cleanup failed',
+      );
+    }
+  };
+
+  const activeTransferTicket = (): EventsRegistrationStatusRecord =>
+    registrationStatus({
+      activeTransfer: {
+        expiresAt: '2030-05-01T12:00:00.000Z',
+        refundLifecycle: null,
+        registrationSide: 'source',
+        status: 'open',
+        transferId: 'transfer-1',
+      },
+      transferAvailable: false,
+      transferBlockedReason: 'activeTransfer',
+    });
+
+  const transferButton = (
+    fixture: ComponentFixture<EventActiveRegistrationComponent>,
+    label: string,
+  ): HTMLButtonElement => {
+    const button = findButton(fixture, label);
+    if (!button) throw new Error('Expected transfer button: ' + label);
+    return button;
+  };
+
+  it('loads the existing owner offer after a creation response is lost', async () => {
+    createTransfer.mockRejectedValueOnce(new Error('Private transport detail'));
+    await withTransferOwnerReads(
+      [registrationStatus()],
+      [activeTransferTicket()],
+      async ({ fixture }) => {
+        transferButton(fixture, 'Create transfer link').click();
+        await vi.waitFor(() => {
+          fixture.detectChanges();
+          expect(normalizeText(fixture)).toContain('Transfer offer is active');
+          expect(normalizeText(fixture)).toContain(
+            'We could not confirm whether the transfer offer was created.',
+          );
+          expect(normalizeText(fixture)).not.toContain(
+            'Private transport detail',
+          );
+          expect(
+            transferButton(fixture, 'Cancel private transfer').disabled,
+          ).toBe(false);
+        });
+        expect(createTransfer).toHaveBeenCalledExactlyOnceWith(
+          { registrationId: 'registration-1' },
+          expect.objectContaining({
+            client: queryClient,
+            mutationKey: ['create-transfer'],
+          }),
+        );
+        expect(cancelTransfer).not.toHaveBeenCalled();
+        expect(dialogOpen).not.toHaveBeenCalled();
+      },
+    );
+  });
+
+  it('loads current owner status after a cancellation response is lost', async () => {
+    cancelTransfer.mockRejectedValueOnce(new Error('Private transport detail'));
+    await withTransferOwnerReads(
+      [activeTransferTicket()],
+      [registrationStatus()],
+      async ({ fixture }) => {
+        transferButton(fixture, 'Cancel private transfer').click();
+        await vi.waitFor(() => {
+          fixture.detectChanges();
+          expect(normalizeText(fixture)).not.toContain(
+            'Transfer offer is active',
+          );
+          expect(normalizeText(fixture)).toContain(
+            'We could not confirm whether the transfer was cancelled.',
+          );
+          expect(normalizeText(fixture)).not.toContain(
+            'Private transport detail',
+          );
+          expect(transferButton(fixture, 'Create transfer link').disabled).toBe(
+            false,
+          );
+        });
+        expect(cancelTransfer).toHaveBeenCalledExactlyOnceWith(
+          { transferId: 'transfer-1' },
+          expect.objectContaining({
+            client: queryClient,
+            mutationKey: ['cancel-transfer'],
+          }),
+        );
+        expect(createTransfer).not.toHaveBeenCalled();
+        expect(dialogOpen).not.toHaveBeenCalled();
+      },
+    );
+  });
+
+  it('blocks transfer cancellation until a pending offer mutation settles', async () => {
+    const tickets = [
+      registrationStatus(),
+      { ...activeTransferTicket(), id: 'registration-2' },
+    ];
+    await withTransferOwnerReads(
+      tickets,
+      tickets,
+      async ({ fixture, holdOffer }) => {
+        const releaseOffer = holdOffer();
+        const cancellation = transferButton(fixture, 'Cancel private transfer');
+        expect(cancellation.disabled).toBe(false);
+        transferButton(fixture, 'Create transfer link').click();
+        await vi.waitFor(() => {
+          fixture.detectChanges();
+          expect(createTransfer).toHaveBeenCalledOnce();
+          expect(cancellation.disabled).toBe(true);
+        });
+        cancellation.click();
+        fixture.componentInstance.cancelTransfer('transfer-1');
+        expect(cancelTransfer).not.toHaveBeenCalled();
+        releaseOffer();
+        await vi.waitFor(() => {
+          fixture.detectChanges();
+          expect(queryClient.isMutating()).toBe(0);
+          expect(cancellation.disabled).toBe(false);
+        });
+        expect(createTransfer.mock.calls[0]?.[0]).toEqual({
+          registrationId: 'registration-1',
+        });
+        expect(createTransfer).toHaveBeenCalledOnce();
+        expect(cancelTransfer).not.toHaveBeenCalled();
+        expect(dialogOpen).not.toHaveBeenCalled();
+      },
+    );
   });
 });
 

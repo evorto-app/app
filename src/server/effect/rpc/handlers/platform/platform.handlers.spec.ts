@@ -798,7 +798,7 @@ describe('platform event, template, and registration handlers', () => {
           if (optionalQuantity === 4) {
             expect(error).toMatchObject({
               _tag: 'RpcBadRequestError',
-              message: 'Target tenant not found',
+              message: 'This organization could not be found.',
             });
             expect(executeValues).toHaveBeenCalledOnce();
           } else {

@@ -53,11 +53,42 @@ describe('PostgreSQL integration source', () => {
     for (const sourcePath of postgresSpecs) {
       const source = readSource(sourcePath);
 
-      expect(source).toContain(
-        "throw new Error('DATABASE_URL is required for PostgreSQL integration tests')",
-      );
       expect(source).not.toMatch(/\bdescribe\.skip\b/u);
-      expect(source.match(/if\s*\(\s*!databaseUrl\s*\)/gu)).toHaveLength(1);
+      if (
+        sourcePath ===
+        path.join(
+          repositoryRoot,
+          'helpers/testing/scenario-acquisition.postgres.spec.ts',
+        )
+      ) {
+        const normalizedSource = source.replace(/\s+/gu, ' ');
+        expect(normalizedSource).toContain(
+          "import { requiredPostgresMajorVersion, resolvePostgresIntegrationEnvironment, } from './postgres-integration-environment';",
+        );
+        expect(normalizedSource).toContain(
+          [
+            ') => {',
+            'const environment = await resolvePostgresIntegrationEnvironment({',
+            'environment: {',
+            '...process.env,',
+            "POSTGRES_INTEGRATION_DATABASE_URL: process.env['DATABASE_URL'],",
+            '},',
+            '});',
+            'const pool = new Pool(',
+            'createNodePgPoolConfig({ databaseUrl: environment.databaseUrl }),',
+            ');',
+          ].join(' '),
+        );
+        expect(
+          source.match(/\bresolvePostgresIntegrationEnvironment\(/gu),
+        ).toHaveLength(1);
+        expect(source.match(/\bnew Pool\(/gu)).toHaveLength(1);
+      } else {
+        expect(source).toContain(
+          "throw new Error('DATABASE_URL is required for PostgreSQL integration tests')",
+        );
+        expect(source.match(/if\s*\(\s*!databaseUrl\s*\)/gu)).toHaveLength(1);
+      }
       expect(source).not.toMatch(
         /if\s*\(\s*!databaseUrl\s*\)\s*\{?\s*return\b/u,
       );

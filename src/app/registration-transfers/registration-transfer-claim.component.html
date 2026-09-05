@@ -1,11 +1,11 @@
 <main class="mx-auto grid w-full max-w-3xl gap-6 px-4 py-8 sm:px-6">
   <header class="grid gap-2">
-    <p class="label-large text-primary">Registration transfer</p>
-    <h1 class="headline-medium">Review before you claim</h1>
+    <p class="label-large text-primary">Ticket transfer</p>
+    <h1 class="headline-medium">Review ticket transfer</h1>
     <p class="body-large text-on-surface-variant">
-      The registration, guest count, and every included, free, or purchased
-      add-on transfer together as one fixed bundle. Current prices and your
-      eligible discount are recalculated for you.
+      The ticket, guest count, and every included, free, or purchased add-on
+      move together. Current prices and any discount available to you are
+      recalculated for you.
     </p>
   </header>
 
@@ -61,9 +61,7 @@
         class="grid gap-1 border-t border-outline-variant pt-4 sm:grid-cols-2"
       >
         <div>
-          <p class="label-medium text-on-surface-variant">
-            Registration option
-          </p>
+          <p class="label-medium text-on-surface-variant">Sign-up choice</p>
           <p class="body-large">{{ claim.registrationOption.title }}</p>
         </div>
         <dl class="grid gap-2">
@@ -99,10 +97,10 @@
           >
             <dt class="grid gap-1">
               <span class="label-medium text-on-surface-variant">
-                Your current registration price
+                Your current ticket price
               </span>
               <span class="body-small text-on-surface-variant">
-                Includes the add-on units marked Included below.
+                Includes the add-ons marked Included in the ticket price below.
               </span>
             </dt>
             <dd class="body-large text-right">
@@ -116,7 +114,7 @@
       </div>
       <div class="grid gap-3 border-t border-outline-variant pt-4">
         <div>
-          <h3 class="title-medium">Fixed bundle contents</h3>
+          <h3 class="title-medium">Ticket and included items</h3>
           <p class="body-small text-on-surface-variant mt-1">
             These quantities and their existing check-in and use history
             transfer together and cannot be removed or changed.
@@ -146,7 +144,7 @@
           <div
             class="grid gap-1 border-t border-outline-variant pt-3 sm:grid-cols-[1fr_auto] sm:gap-4"
           >
-            <dt class="body-medium">Registration check-in</dt>
+            <dt class="body-medium">Attendee check-in</dt>
             <dd class="body-medium sm:text-right">
               @if (claim.bundle.checkInTime) {
                 Checked in {{ claim.bundle.checkInTime | date: "medium" }}
@@ -182,7 +180,7 @@
                   @if (addOn.includedQuantity > 0) {
                     <div class="contents">
                       <dt class="text-on-surface-variant">
-                        Included in registration price
+                        Included in the ticket price
                       </dt>
                       <dd>{{ addOn.includedQuantity }}</dd>
                     </div>
@@ -190,7 +188,7 @@
                   @if (addOn.purchasedQuantity > 0) {
                     <div class="contents">
                       <dt class="text-on-surface-variant">
-                        Purchased at current unit price
+                        Purchased at the current price per item
                       </dt>
                       <dd>
                         {{ addOn.purchasedQuantity }} ×
@@ -206,7 +204,7 @@
                     <dd>{{ addOn.remainingQuantity }}</dd>
                   </div>
                   <div class="contents">
-                    <dt class="text-on-surface-variant">Redeemed</dt>
+                    <dt class="text-on-surface-variant">Handed out</dt>
                     <dd>{{ addOn.redeemedQuantity }}</dd>
                   </div>
                   <div class="contents">
@@ -242,8 +240,9 @@
         </dl>
       </div>
       <p class="body-small text-on-surface-variant">
-        Claim before {{ claim.expiresAt | date: "medium" }}. A paid claim keeps
-        this offer bound to the fixed bundle until Checkout finishes.
+        Accept before {{ claim.expiresAt | date: "medium" }}. If payment is
+        required, the ticket and included items stay with the sender until the
+        online payment finishes.
       </p>
     </section>
 
@@ -272,7 +271,7 @@
           >
             {{
               retryMutation.isPending()
-                ? "Preparing Checkout…"
+                ? "Preparing payment page…"
                 : "Continue payment"
             }}
           </button>
@@ -296,7 +295,7 @@
       >
         <p class="sr-only" role="status" aria-live="polite" aria-atomic="true">
           @if (claimMutation.isPending()) {
-            Claiming registration. Please wait.
+            Accepting ticket. Please wait.
           }
         </p>
         @if (claim.registrationOption.questions.length > 0) {
@@ -306,7 +305,7 @@
           >
             <div>
               <h2 id="transfer-questions-heading" class="title-medium">
-                Current registration questions
+                Questions for your sign-up
               </h2>
               <p class="body-small text-on-surface-variant mt-1">
                 Answer for yourself. Required answers are checked again when you
@@ -350,10 +349,10 @@
         <section class="bg-surface-container-high grid gap-2 rounded-xl p-4">
           <h2 class="title-small">What happens next</h2>
           <p class="body-small text-on-surface-variant">
-            Evorto checks the latest fixed bundle, total due, and any refund
-            before changing ownership. If payment is due, Stripe Checkout opens
-            and the bundle stays with its current owner until payment succeeds.
-            A free claim continues without a payment step.
+            Evorto checks the ticket and included items, total due, and any
+            refund before changing ownership. If payment is due, the payment
+            page opens and the ticket stays with its current owner until payment
+            succeeds. A free transfer continues without a payment step.
           </p>
         </section>
 
@@ -366,7 +365,7 @@
             claimMutation.isPending()
           "
         >
-          {{ claimMutation.isPending() ? "Claiming…" : "Claim registration" }}
+          {{ claimMutation.isPending() ? "Accepting…" : "Accept ticket" }}
         </button>
       </form>
     }

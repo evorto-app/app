@@ -12,8 +12,21 @@ const settleScreenshotPage = async (page: Page): Promise<void> => {
   );
 };
 
+const assertNoVisibleLoadingState = async (page: Page): Promise<void> => {
+  const visibleLoadingCopy = page
+    .getByText(/^Loading(?:\s+.*?)?(?:…|\.{3})$/u)
+    .filter({ visible: true });
+  const messages = await visibleLoadingCopy.allTextContents();
+  if (messages.length > 0) {
+    throw new Error(
+      `Documentation screenshot still contains loading copy: ${messages.join(', ')}`,
+    );
+  }
+};
+
 export const captureDocumentationScreenshot = async (page: Page) => {
   await settleScreenshotPage(page);
+  await assertNoVisibleLoadingState(page);
 
   return page.screenshot({
     animations: 'disabled',
@@ -25,8 +38,14 @@ export async function takeScreenshot(
   testInfo: TestInfo,
   locators: Locator | Locator[],
   page: Page,
-  caption?: string,
+  caption: string,
+  options: Readonly<{ cropTo?: Locator }> = {},
 ) {
+  const normalizedCaption = caption.trim();
+  if (!normalizedCaption) {
+    throw new Error('Documentation screenshots require a caption.');
+  }
+
   await settleScreenshotPage(page);
   const focusPoints = Array.isArray(locators) ? locators : [locators];
 
@@ -54,31 +73,38 @@ export async function takeScreenshot(
     if (lastError) throw lastError;
   };
 
-  for (const locator of focusPoints) {
-    await runWithRetry(async () => {
-      const target = locator.first();
-      await target.waitFor({ state: 'attached' });
-      await target.evaluate((element) => {
-        const htmlElement = element as HTMLElement;
-        htmlElement.scrollIntoView({ behavior: 'instant', block: 'center' });
-        htmlElement.dataset['docsPrevOutline'] =
-          htmlElement.style.outline ?? '';
-        htmlElement.dataset['docsPrevZIndex'] = htmlElement.style.zIndex ?? '';
-        htmlElement.style.outline = 'thick solid rgb(236, 72, 153)';
-        htmlElement.style.zIndex = '10000';
-        return htmlElement;
+  const failures: unknown[] = [];
+  try {
+    for (const locator of focusPoints) {
+      await runWithRetry(async () => {
+        const target = locator.first();
+        await target.waitFor({ state: 'attached' });
+        await target.evaluate((element) => {
+          const htmlElement = element as HTMLElement;
+          htmlElement.scrollIntoView({ behavior: 'instant', block: 'center' });
+          htmlElement.dataset['docsPrevOutline'] =
+            htmlElement.style.outline ?? '';
+          htmlElement.dataset['docsPrevZIndex'] =
+            htmlElement.style.zIndex ?? '';
+          htmlElement.style.outline = 'thick solid rgb(236, 72, 153)';
+          htmlElement.style.zIndex = '10000';
+          return htmlElement;
+        });
       });
-    });
-  }
+    }
 
-  await testInfo.attach('image', {
-    body: await captureDocumentationScreenshot(page),
-    contentType: 'image/png',
-  });
-  if (caption) {
-    await testInfo.attach('image-caption', {
-      body: caption,
+    await assertNoVisibleLoadingState(page);
+    await testInfo.attach('image', {
+      body: options.cropTo
+        ? await options.cropTo.screenshot({ animations: 'disabled' })
+        : await captureDocumentationScreenshot(page),
+      contentType: 'image/png',
     });
+    await testInfo.attach('image-caption', {
+      body: normalizedCaption,
+    });
+  } catch (error) {
+    failures.push(error);
   }
 
   for (const locator of focusPoints) {
@@ -88,6 +114,7 @@ export async function takeScreenshot(
         await target.waitFor({ state: 'attached' });
         await target.evaluate((element) => {
           const htmlElement = element as HTMLElement;
+          if (!('docsPrevOutline' in htmlElement.dataset)) return htmlElement;
           htmlElement.style.outline =
             htmlElement.dataset['docsPrevOutline'] ?? '';
           htmlElement.style.zIndex =
@@ -99,8 +126,16 @@ export async function takeScreenshot(
       });
     } catch (error) {
       if (!isDetachedError(error)) {
-        throw error;
+        failures.push(error);
       }
     }
+  }
+
+  if (failures.length === 1) throw failures[0];
+  if (failures.length > 1) {
+    throw new AggregateError(
+      failures,
+      'Documentation screenshot and highlight cleanup failed',
+    );
   }
 }

@@ -228,14 +228,14 @@ test('transfers a free registration through a private transfer code', async ({
   );
   await expect(
     recipientPage.page.getByRole('heading', {
-      name: 'Review before you claim',
+      name: 'Review ticket transfer',
     }),
   ).toBeVisible();
   await expect(
     recipientPage.page.getByText('Private transfer scenario'),
   ).toBeVisible();
   const claimRegistration = recipientPage.page.getByRole('button', {
-    name: 'Claim registration',
+    name: 'Accept ticket',
   });
   const claimRegistrationForm = recipientPage.page.locator('form').filter({
     has: claimRegistration,
@@ -564,10 +564,10 @@ test('offers a paid registration privately while rejecting a source self-claim',
 
   await openRegistrationTransferClaim(page, claimCode);
   await expect(
-    page.getByRole('heading', { name: 'Review before you claim' }),
+    page.getByRole('heading', { name: 'Review ticket transfer' }),
   ).toBeVisible();
   const claimRegistration = page.getByRole('button', {
-    name: 'Claim registration',
+    name: 'Accept ticket',
   });
   const claimRegistrationForm = page.locator('form').filter({
     has: claimRegistration,
@@ -610,20 +610,20 @@ test('offers a paid registration privately while rejecting a source self-claim',
   await openRegistrationTransferClaim(recipientPage.page, claimCode);
   await expect(
     recipientPage.page.getByRole('heading', {
-      name: 'Review before you claim',
+      name: 'Review ticket transfer',
     }),
   ).toBeVisible();
   await expect(
     recipientPage.page.getByText('Paid private transfer scenario'),
   ).toBeVisible();
   const currentRegistrationPrice = recipientPage.page
-    .locator('dt', { hasText: 'Your current registration price' })
+    .locator('dt', { hasText: 'Your current ticket price' })
     .locator('..');
   await expect(currentRegistrationPrice.locator('dd')).toContainText(
     /18[,.]00/,
   );
   await expect(
-    recipientPage.page.getByRole('button', { name: 'Claim registration' }),
+    recipientPage.page.getByRole('button', { name: 'Accept ticket' }),
   ).toBeVisible();
 });
 
@@ -825,7 +825,7 @@ test('completes a paid transfer and preserves its failed refund for operator req
   await openRegistrationTransferClaim(recipientPage.page, scenario.claimCode);
   await expect(
     recipientPage.page.getByRole('heading', {
-      name: 'Transfer complete — refund processing',
+      name: 'Transfer complete — refund in progress',
     }),
   ).toBeVisible();
   await expect(
@@ -1251,7 +1251,9 @@ test('completes a paid transfer and preserves its failed refund for operator req
     }),
   ).toBeVisible();
   await expect(
-    recipientPage.page.getByText(/do not need to pay or claim again/i),
+    recipientPage.page.getByText(
+      /do not need to pay or try the transfer again/i,
+    ),
   ).toBeVisible();
   expect(
     await database.query.registrationTransfers.findFirst({
@@ -1274,7 +1276,7 @@ test('completes a paid transfer and preserves its failed refund for operator req
   await openRegistrationTransferClaim(recipientPage.page, scenario.claimCode);
   await expect(
     recipientPage.page.getByRole('heading', {
-      name: 'Transfer complete — refund processing',
+      name: 'Transfer complete — refund in progress',
     }),
   ).toBeVisible();
   expect(

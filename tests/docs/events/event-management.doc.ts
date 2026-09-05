@@ -89,10 +89,9 @@ test('Create and manage events', async ({
 Use an account that can create events and manage all events.
 {% /callout %}
 
-# Event Management
 
-The event management feature allows you to create, edit, and manage events in the application. This includes setting up registration options, managing attendees, and publishing events.
-The current management surface is intentionally focused: event details, registration options, review and announcement discovery actions, organizer participant overview, and event receipts.
+The event management feature allows you to create, edit, and manage events in the application. This includes setting up sign-up choices, managing attendees, and publishing events.
+The current management surface is intentionally focused: event details, sign-up choices, review and announcement discovery actions, organizer attendee overview, and event receipts.
 
 ## Event List
 
@@ -108,7 +107,7 @@ Start by navigating to the **Events** section from the main menu to see a list o
     testInfo,
     page.getByRole('heading', { level: 1, name: 'Events' }).first(),
     page,
-    'Event list page',
+    'Published and draft events with dates and publishing stages',
   );
 
   await testInfo.attach('markdown', {
@@ -140,7 +139,7 @@ To create a new event, click the **Create Event** link on the event list page. T
     testInfo,
     page.getByRole('heading', { level: 1, name: 'Event templates' }).first(),
     page,
-    'Templates page',
+    'Choose a template for the new event',
   );
 
   await testInfo.attach('markdown', {
@@ -153,7 +152,7 @@ Once you've selected a template, you'll be able to customize it with your event 
 - Event description
 - Date and time
 - Location
-- Registration options
+- Sign-up choices
 
 After selecting a template and customizing your event, you can create it and proceed to the event details page.
 `,
@@ -176,7 +175,7 @@ After selecting a template and customizing your event, you can create it and pro
     body: `
 ## Event Details
 
-After creating an event, you'll be taken to the event details page. This page shows the event title, description, registration section, review status, and organizer actions that are available to your account.
+After creating an event, you'll be taken to the event details page. This page shows the event title, description, sign-up section, review status, and organizer actions that are available to your account.
 `,
   });
 
@@ -185,7 +184,7 @@ After creating an event, you'll be taken to the event details page. This page sh
     testInfo,
     page.locator(`h1:has-text("${target.title}")`).first(),
     page,
-    'Event details page',
+    'New event details and available organizer actions',
   );
 
   await testInfo.attach('markdown', {
@@ -203,27 +202,27 @@ Let's look at each section in detail.
 
   await testInfo.attach('markdown', {
     body: `
-## Registration Options
+## Sign-up choices
 
-Registration options determine how people can sign up for your event. Templates can create one or more registration options that are then shown on the event details page.
-Reusable add-ons copied from the template are shown separately on the event detail page with their price, purchase timing, quantity limits, and attached registration options.
+Sign-up choices determine how people can sign up for your event. Templates can create one or more sign-up choices that are then shown on the event details page.
+Reusable add-ons copied from the template are shown separately on the event detail page with their price, purchase timing, quantity limits, and attached sign-up choices.
 
 Each draft event has its own sign-up setup, independent of the template. **Simple** keeps exactly one organizer choice and one attendee choice. **Advanced** supports any number of named choices and lets you choose which choices can use each reusable add-on, with separate included and optional quantities. Missing organizer or attendee choices are warnings, not save blockers.
 
 Every setup change asks for confirmation. To return an advanced event to simple setup, keep exactly one organizer choice and one attendee choice, moving questions and add-ons before removing any extra choices. Confirm the setup change and save the changes together. Existing choices and hidden add-ons are preserved.
 
-When editing a draft event, registration options can include:
+When editing a draft event, sign-up choices can include:
 
 - Option title
 - Price (free or paid)
-- Registration period (when registration opens and closes)
-- Maximum number of registrations
+- Sign-up period (when sign-up opens and closes)
+- Maximum number of tickets
 - Required roles (if the option is restricted to certain user roles)
 - Organizer/helper distinction
 
-Configure the options according to your event's needs and click **Save changes**.
+Set up the options according to your event's needs and click **Save changes**.
 
-Note: The event created from the template already has registration options configured.
+Note: The event created from the template already has sign-up choices set.
 `,
   });
 
@@ -235,7 +234,7 @@ Note: The event created from the template already has registration options confi
     testInfo,
     page.getByRole('heading', { level: 2, name: 'Your sign-up' }).first(),
     page,
-    'Registration options section',
+    'Sign-up choices on the event page',
   );
 
   const draftEvent = events.find(
@@ -277,7 +276,7 @@ Note: The event created from the template already has registration options confi
     testInfo,
     page.getByLabel('Sign-up setup'),
     page,
-    'Event registration configuration modes',
+    'Simple and advanced sign-up setup',
   );
   const registrationOptionEditors = page.locator(
     'app-event-registration-option-editor',
@@ -352,14 +351,14 @@ Note: The event created from the template already has registration options confi
 
   await testInfo.attach('markdown', {
     body: `
-Already selected roles are hidden from suggestions so the same eligibility role cannot be added twice.
+Already selected roles are hidden from suggestions so the same role that allows this sign-up choice cannot be added twice.
 `,
   });
   await takeScreenshot(
     testInfo,
     page.getByRole('heading', { name: draftEvent.title }).first(),
     page,
-    'Event edit role picker duplicate prevention',
+    'Choose which roles can use a sign-up choice',
   );
 
   const editableEventId = getId();
@@ -438,9 +437,9 @@ Already selected roles are hidden from suggestions so the same eligibility role 
       body: `
 ## Edit an existing draft event
 
-Only **Draft** events can be changed with the normal event editor. Open the draft from **Events**, then select **Edit Event**. Pending-review and published events deliberately do not offer this action.
+Only **Draft** events can be changed with the normal event form. Open the draft from **Events**, then select **Edit Event**. Pending-review and published events deliberately do not offer this action.
 
-This walkthrough uses a disposable draft so every saved field can be read back without changing a shared event. It updates both general information and the event-owned registration configuration.
+This walkthrough uses a disposable draft so every saved field can be read back without changing a shared event. It updates both general information and the event-owned sign-up setup.
 `,
     });
 
@@ -495,7 +494,7 @@ This walkthrough uses a disposable draft so every saved field can be read back w
       testInfo,
       modeDialog,
       page,
-      'Confirm a draft event registration mode change',
+      'Confirm a change to the draft event sign-up setup',
     );
 
     await modeDialog
@@ -539,7 +538,7 @@ Selecting a setup first opens a confirmation. Choose **Keep current setup** if y
       testInfo,
       participantEditor,
       page,
-      'Edited draft event registration option',
+      'Edited draft event sign-up choice',
     );
 
     await testInfo.attach('markdown', {
@@ -628,14 +627,14 @@ Your entries remain in the editor. For a specific validation problem, correct th
       testInfo,
       page.locator('app-event-edit'),
       page,
-      'Reloaded draft event with saved changes',
+      'Saved draft event with updated details',
     );
 
     await testInfo.attach('markdown', {
       body: `
 ### Confirm the saved result
 
-Reload the event details page and check the new title and description. Open **Edit Event** again and verify that **Advanced**, the sign-up choice name, number of places, and **Manual approval** selection are still present. This confirms that the saved event differs from any unsaved changes still in the browser.
+Open the event details page again and check the new title and description. Open **Edit Event** again and verify that **Advanced**, the sign-up choice name, number of places, and **Manual approval** selection are still present. This confirms that the saved event differs from any unsaved changes still in the open form.
 `,
     });
   } finally {
@@ -662,11 +661,11 @@ Event status values:
 When a reviewer requests changes, the event returns to **Draft** and the
 review feedback remains visible on its details page.
 
-Sign-up events have no separate listing setting. A published upcoming event appears when at least one sign-up choice allows one of your organization roles, including attendee and organizer/helper choices. Registration windows, remaining places, and payment requirements still apply when you open the event. Before signing in, visitors can discover choices open to the organization's default new-member roles or unrestricted choices, but must sign in before signing up. A shared link to a published event still opens its public details; it does not bypass sign-up requirements.
+Sign-up events have no separate listing setting. A published upcoming event appears when at least one sign-up choice allows one of your organization roles, including attendee and organizer/helper choices. Sign-up windows, remaining places, and payment requirements still apply when you open the event. Before signing in, visitors can discover choices open to the organization's default new-member roles or unrestricted choices, but must sign in before signing up. A shared link to a published event still opens its public details; it does not bypass sign-up requirements.
 
 Announcements have no sign-up choices. **Choose who can find this announcement** selects the organization roles that should see it in **Events**. Without a selected role, the announcement opens only through a shared link. This setting does not give anyone a role or send a message. Announcements do not appear before sign-in.
 
-For a full walkthrough of the review and approval lifecycle, see the dedicated Event Approval guide.
+For the review and approval steps, see [Review and publish an event](/docs/review-and-publish-an-event).
 `,
   });
 
@@ -687,24 +686,24 @@ _Note: Event status is not displayed in this view in the current build._
     body: `
 ## Organizer View
 
-Once people start registering for your event, organizers can open the **Organize this event** view from the event details page.
+Once people start signing up for your event, organizers can open the **Organize this event** view from the event details page.
 
 The organizer view currently includes:
 
 - Event capacity overview
 - Checked-in count
-- Participants grouped by registration option
+- Attendees grouped by sign-up choice
 - ESNcard discount markers where applicable
-- Registration-time add-ons purchased by each participant
+- Add-ons each attendee bought while signing up
 - Event receipt submission and receipt list
 
-Organizers check in attendees from the dedicated QR scanner. Attendees open their ticket QR code from the event registration page after a confirmed registration, and organizers scan it from **Scanner**. The **Ticket scanned** page shows the attendee, event, registration option, ESNcard discount marker when applicable, guest check-in progress when guests are attached to the registration, and warnings for self-scan, future events, non-confirmed registrations, and already checked-in tickets.
+Organizers check in attendees from the dedicated QR scanner. Attendees open their ticket QR code from the event sign-up page after a confirmed ticket, and organizers scan it from **Scanner**. The **Ticket scanned** page shows the attendee, event, sign-up choice, ESNcard discount marker when applicable, guest check-in progress when guests are attached to the sign-up, and warnings for self-scan, future events, non-confirmed tickets, and already checked-in tickets.
 
-Check-in is available to event organizers and users with event-wide organize access during the current check-in window. The scanner shows **Check-in not open** before that window opens and **Check-in closed** more than two hours after the event ends. Check-in opens one hour before the event starts and closes two hours after it ends. Confirming check-in records the registration check-in time and updates the checked-in count shown on the organizer overview. When a registration includes guests, the organizer chooses how many guests arrived with the attendee, and the checked-in count increases by the attendee plus the selected guests.
-Organizers can also cancel a participant's confirmed registration from the organizer overview before check-in, which releases the confirmed spot and submits the appropriate Stripe refunds for paid event and add-on payments. Event registration and add-on payments are Stripe-only; without a connected Stripe account for the organization, registration options and add-ons must remain free.
+Check-in is available to event organizers and users with event-wide organize access during the current check-in window. The scanner shows **Check-in not open** before that window opens and **Check-in closed** more than two hours after the event ends. Check-in opens one hour before the event starts and closes two hours after it ends. Confirming check-in records the ticket check-in time and updates the checked-in count shown on the organizer overview. When a sign-up includes guests, the organizer chooses how many guests arrived with the attendee, and the checked-in count increases by the attendee plus the selected guests.
+Organizers can also cancel an attendee's confirmed ticket from the organizer overview before check-in, which releases the confirmed spot and submits the appropriate refunds for paid event and add-on payments. Event sign-up and add-on payments are handled through online payments only; without a connected payment account for the organization, sign-up choices and add-ons must remain free.
 Tickets move through a private transfer started by the current ticket owner, for both free and paid bundles. Organizers cannot directly move someone else's ticket or create that owner's private offer. The intended recipient signs in, opens the private offer with its transfer code, confirms current sign-up requirements, and provides their own current answers before ownership changes. For paid tickets, the recipient reviews the fixed bundle and pays the current base prices with only their own current discounts. Guest quantity, all included/free/purchased add-on quantities, and check-in/fulfillment history move unchanged. Existing check-in or add-on redemption does not erase that history or let the recipient omit fulfilled items. The previous owner receives exact refunds for every original online payment; the organizer overview intentionally does not directly transfer a paid ticket.
 
-It does not currently include attendee export, attendee messaging, or manual check-in controls outside QR scanning. Participant cancellation and private free or paid transfer are covered in the dedicated Registration Cancellation and Registration Transfer guides.
+It does not currently include downloading attendee lists, attendee messaging, or check-in controls outside QR scanning. Attendee cancellation and private free or paid transfer are covered in the [Cancel a ticket](/docs/cancel-a-ticket) and [Transfer your ticket privately](/docs/transfer-your-ticket-privately) guides.
 `,
   });
 
@@ -766,16 +765,16 @@ It does not currently include attendee export, attendee messaging, or manual che
     testInfo,
     page.locator('app-event-organize'),
     page,
-    'Organizer overview explains unavailable participant data',
+    'Organizer overview explains why attendee information is unavailable',
   );
 
   await testInfo.attach('markdown', {
     body: `
-### Recover when participant data does not load
+### Recover when attendee data does not load
 
-If the organizer overview request fails, Evorto hides every registration count and participant action. The warning explicitly says that missing counts are **not zero** and must not be treated as current event data.
+If the organizer overview request fails, Evorto hides every sign-up count and attendee action. The warning explicitly says that missing counts are **not zero** and must not be treated as current event data.
 
-1. Do not cancel, transfer, or approve a registration based on an empty-looking page.
+1. Do not cancel, transfer, or approve a sign-up based on an empty-looking page.
 2. Check that your network connection is available.
 3. Select **Try again** in the warning.
 4. Wait for the **Overview** and **Attendee sign-ups** sections to return before continuing.
@@ -793,7 +792,7 @@ Receipt history has its own warning and **Try again** action. A receipt-loading 
     page.getByTestId('event-organize-registered-stat'),
   ).toBeVisible();
   await expect(receiptLoadAlert).toContainText(
-    'Existing receipt records may still be present.',
+    'No receipts are shown. Select Try again.',
   );
   const verifiedNoReceipts = page.getByText(
     'No receipts submitted for this event yet.',

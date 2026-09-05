@@ -701,7 +701,7 @@ export const userHandlers = {
               if (memberships.length === 0) {
                 return yield* Effect.fail(
                   new RpcUnauthorizedError({
-                    message: 'Current tenant membership required',
+                    message: 'You are no longer a member of this organization.',
                   }),
                 );
               }

@@ -88,6 +88,11 @@ const documentationConsumerEnvironmentNames = [
   'TMPDIR',
 ] as const;
 
+const documentationConsumerRelativeDirectories = [
+  'apps/marketing/src/content/generated-docs',
+  'apps/marketing/public/docs',
+] as const;
+
 export const documentationConsumerEnvironment = (
   environment: NodeJS.ProcessEnv,
 ): NodeJS.ProcessEnv =>
@@ -209,15 +214,17 @@ const assertTrustedDocumentationConsumer = (
     '--',
     relativeSyncScript,
   ]);
-  const trackedConsumerFiles = runConsumerGit(repositoryRoot, [
-    'ls-files',
-    '--',
-    'apps/documentation-page',
-  ]).trim();
-  if (!trackedConsumerFiles) {
-    throw new Error(
-      'Evorto Pages documentation consumer must contain tracked files',
-    );
+  for (const relativeDirectory of documentationConsumerRelativeDirectories) {
+    const trackedConsumerFiles = runConsumerGit(repositoryRoot, [
+      'ls-files',
+      '--',
+      relativeDirectory,
+    ]).trim();
+    if (!trackedConsumerFiles) {
+      throw new Error(
+        `Evorto Pages documentation consumer must contain tracked files in ${relativeDirectory}`,
+      );
+    }
   }
 
   const status = runConsumerGit(repositoryRoot, [
@@ -236,10 +243,12 @@ export const resolveDocumentationConsumer = (
 ): { repositoryRoot: string; syncScript: string } => {
   const repositoryRoot = requiredPath(environment, 'EVORTO_PAGES_ROOT');
   assertRealDirectory(repositoryRoot, 'Evorto Pages repository root');
-  assertRealDirectory(
-    path.join(repositoryRoot, 'apps', 'documentation-page'),
-    'Evorto Pages documentation consumer',
-  );
+  for (const relativeDirectory of documentationConsumerRelativeDirectories) {
+    assertRealDirectory(
+      path.join(repositoryRoot, ...relativeDirectory.split('/')),
+      `Evorto Pages documentation consumer ${relativeDirectory}`,
+    );
+  }
   const syncScript = path.join(
     repositoryRoot,
     'tools',
@@ -335,6 +344,7 @@ export const publishDocumentation = (
   const rawDocsRoot = path.join(stagingRoot, 'raw', 'docs');
   const rawImagesRoot = path.join(stagingRoot, 'raw', 'images');
   const consumerSourceRoot = path.join(stagingRoot, 'consumer');
+  const failures: unknown[] = [];
 
   try {
     runDocumentationGeneration(rawDocsRoot, rawImagesRoot, environment);
@@ -349,8 +359,21 @@ export const publishDocumentation = (
       sourceRoot: consumerSourceRoot,
       syncScript: consumer.syncScript,
     });
-  } finally {
+  } catch (error) {
+    failures.push(error);
+  }
+  try {
     fs.rmSync(stagingRoot, { force: true, recursive: true });
+  } catch (error) {
+    failures.push(error);
+  }
+  if (failures.length === 1) throw failures[0];
+  if (failures.length > 1) {
+    throw new AggregateError(
+      failures,
+      'Documentation publication and staging cleanup failed',
+      { cause: failures[0] },
+    );
   }
 };
 

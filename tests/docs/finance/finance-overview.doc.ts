@@ -154,7 +154,7 @@ The detail page explains that Evorto will try to email the submitter after the r
       body: `
 ## Receipt reimbursements
 
-The **Receipt reimbursements** page groups approved receipts by recipient and currency. Recipient contact details use the submitter's notification email when configured, with login email as fallback. Finance team members can select receipts in the same currency, check the recipient's IBAN or PayPal details, send the money outside Evorto, and record that the selected receipts were reimbursed.
+The **Receipt reimbursements** page groups approved receipts by recipient and currency. Recipient contact details use the submitter's email for updates when set, otherwise the sign-in email. Finance team members can select receipts in the same currency, check the recipient's IBAN or PayPal details, send the money outside Evorto, and record that the selected receipts were reimbursed.
 `,
     });
     await page.goto('/finance/receipts-refunds');
