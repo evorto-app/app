@@ -403,14 +403,22 @@ When both fields are saved, the public footer gives the external URL precedence 
         columns: {
           legalNoticeText: true,
           legalNoticeUrl: true,
-          privacyPolicyText: true,
-          privacyPolicyUrl: true,
           termsText: true,
           termsUrl: true,
         },
         where: { id: tenant.id },
       });
-      return persistedTenant;
+      const currentPolicy =
+        await database.query.tenantPrivacyPolicyVersions.findFirst({
+          columns: { privacyPolicyText: true, privacyPolicyUrl: true },
+          orderBy: { version: 'desc' },
+          where: { tenantId: tenant.id },
+        });
+      return {
+        ...persistedTenant,
+        privacyPolicyText: currentPolicy?.privacyPolicyText,
+        privacyPolicyUrl: currentPolicy?.privacyPolicyUrl,
+      };
     })
     .toEqual({
       legalNoticeText,
