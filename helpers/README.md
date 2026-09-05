@@ -117,6 +117,24 @@ a stack that was already serving the app, it never starts that wrapper and the
 user-owned stack remains running. Resume an initialized stopped project with
 `bun run docker:resume`, or use `bun run docker:start` for an intentional reset.
 
+`run-with-wall-clock-timeout.ts` keeps `TIMEOUT GRACE COMMAND [ARGS...]`,
+standard streams, and command exit codes. It runs commands in an owned live
+supervisor group; cancellation adds up to 25 milliseconds for FIFO observation, the configured
+grace, and at most one second for result acknowledgement before group termination. The command deadline is
+unchanged. `docker-webserver.sh` sends cancellation through its private FIFO
+(`EVORTO_WALL_CLOCK_CONTROL_FD=3` and `EVORTO_WALL_CLOCK_CONTROL_PATH`
+pointing to the same retained FIFO; newline-delimited `HUP`, `INT`, or `TERM`);
+writer EOF also cancels. The first external signal wins between signals; a
+command deadline that fires while the command still runs overrides its status
+with 124 without extending grace. Command exit cancels that deadline. Callers must retain and
+close their owned writer, then await helper exit and captured stream closure
+before removing fixture files. Resolve the absolute Bun executable and helper
+path before replacing `PATH` in synthetic fixtures; a Vitest runner's
+`process.execPath` may be Node. OS scheduling, refused signals, or uninterruptible
+processes can exceed this settlement allowance: a deadline failure must remain
+visible while the owner continues awaiting closure, never become permission to
+signal a reused PID or remove live fixtures.
+
 An explicitly supplied `E2E_USE_DOCKER_STACK=false` uses
 `helpers/testing/host-e2e-webserver.sh`. The caller owns its database. The host
 wrapper acquires the same project lease before inspecting or changing MinIO

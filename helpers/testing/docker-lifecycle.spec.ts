@@ -18,33 +18,56 @@ const wallClockTimeoutScript = path.join(
 );
 
 const temporaryDirectories: string[] = [];
-const childProcesses: ChildProcess[] = [];
+const ownedDescriptors = new Set<number>();
+const retainDescriptor = (descriptor: number) => {
+  ownedDescriptors.add(descriptor);
+  return descriptor;
+};
+const closeDescriptor = (descriptor: number) => {
+  fs.closeSync(descriptor);
+  ownedDescriptors.delete(descriptor);
+};
+const childProcesses: {
+  child: ChildProcess;
+  closed: Promise<void>;
+  isClosed: () => boolean;
+  errors: Error[];
+}[] = [];
 
-const createProcessGroupProbePreload = (
-  denyForceKill = false,
-  probeError: 'EPERM' | 'ESRCH' = 'EPERM',
-) => {
+const trackChild = (child: ChildProcess) => {
+  const errors: Error[] = [];
+  let isClosed = false;
+  const closed = new Promise<void>((resolve) => {
+    child.once('close', () => {
+      isClosed = true;
+      resolve();
+    });
+  });
+  child.on('error', (error) => errors.push(error));
+  child.stdout?.resume();
+  child.stderr?.resume();
+  childProcesses.push({ child, closed, errors, isClosed: () => isClosed });
+  return closed;
+};
+
+const createPermissionDeniedSignalPreload = () => {
   const directory = fs.mkdtempSync(
     path.join(os.tmpdir(), 'evorto-wall-clock-timeout-'),
   );
   temporaryDirectories.push(directory);
-  const preloadPath = path.join(directory, 'permission-denied-probe.mjs');
-  const signalLogPath = path.join(directory, 'signals.jsonl');
+  const preloadPath = path.join(directory, 'permission-denied-signal.mjs');
 
   fs.writeFileSync(
     preloadPath,
-    String.raw`import fs from 'node:fs';
-const originalKill = process.kill.bind(process);
-const signalLogPath = ${JSON.stringify(signalLogPath)};
+    String.raw`const originalKill = process.kill.bind(process);
+let denied = false;
 
 process.kill = (pid, signal) => {
-  if (pid < 0) {
-    fs.appendFileSync(signalLogPath, JSON.stringify({ signal }) + '\n');
-  }
-  if (pid < 0 && (signal === 0 || (${denyForceKill} && signal === 'SIGKILL'))) {
-    const error = new Error('Synthetic process-group syscall error');
+  if (pid < 0 && signal !== 'SIGKILL' && !denied) {
+    denied = true;
+    const error = new Error('Synthetic live-group signal permission denial');
     error.name = 'SystemError';
-    error.code = signal === 0 ? ${JSON.stringify(probeError)} : 'EPERM';
+    error.code = 'EPERM';
     throw error;
   }
 
@@ -53,7 +76,7 @@ process.kill = (pid, signal) => {
 `,
   );
 
-  return { directory, preloadPath, signalLogPath };
+  return { directory, preloadPath };
 };
 
 const createFakeDocker = ({
@@ -82,20 +105,25 @@ const createFakeDocker = ({
   const logPath = path.join(directory, 'docker.log');
   const upDescendantPidPath = `${logPath}.up-descendant-pid`;
   const executablePath = path.join(directory, 'docker');
+  const upSignalTrap =
+    upBehavior === 'exit'
+      ? ''
+      : `
+if [[ "$*" == 'compose up --no-build --abort-on-container-failure' ]]; then
+  trap 'printf "compose up terminated\\n" >> "$DOCKER_LOG"; exit 143' TERM INT HUP
+fi
+`;
   const waitBlock =
     upBehavior === 'wait-with-descendant'
       ? `
 if [[ "$*" == 'compose up --no-build --abort-on-container-failure' ]]; then
-  trap 'printf "compose up terminated\\n" >> "$DOCKER_LOG"; exit 143' TERM INT HUP
-  bash -c 'trap "" HUP INT TERM; while true; do sleep 0.05; done' &
-  printf '%s' "$!" > "$DOCKER_LOG.up-descendant-pid"
+  bash -c 'trap "" HUP INT TERM; printf "%s" "$$" > "$DOCKER_LOG.up-descendant-pid"; while true; do sleep 0.05; done' &
   wait "$!"
 fi
 `
       : upBehavior === 'wait'
         ? `
 if [[ "$*" == 'compose up --no-build --abort-on-container-failure' ]]; then
-  trap 'printf "compose up terminated\\n" >> "$DOCKER_LOG"; exit 143' TERM INT HUP
   while true; do sleep 0.05; done
 fi
 `
@@ -104,7 +132,7 @@ fi
   fs.writeFileSync(
     executablePath,
     String.raw`#!/usr/bin/env bash
-printf '%s\n' "$*" >> "$DOCKER_LOG"
+${upSignalTrap}printf '%s\n' "$*" >> "$DOCKER_LOG"
 if [[ "$1" == 'compose' && "$2" == 'ps' && "$3" == '--all' && "$4" == '-q' ]]; then
   service="$5"
   if [[ "$service" == "$FAKE_PS_FAILURE_SERVICE" ]]; then
@@ -277,8 +305,10 @@ const waitForProcessExit = async (pid: number): Promise<void> => {
   while (Date.now() < deadline) {
     try {
       process.kill(pid, 0);
-    } catch {
-      return;
+    } catch (error) {
+      if (error instanceof Error && 'code' in error && error.code === 'ESRCH')
+        return;
+      throw error;
     }
     await new Promise((resolve) => setTimeout(resolve, 25));
   }
@@ -286,19 +316,72 @@ const waitForProcessExit = async (pid: number): Promise<void> => {
   throw new Error(`Process ${pid} remained alive after group termination`);
 };
 
-afterEach(() => {
-  for (const child of childProcesses) {
-    if (child.exitCode === null && child.signalCode === null) {
-      child.kill('SIGKILL');
+afterEach(async () => {
+  const cleanupErrors: Error[] = [];
+  for (const descriptor of ownedDescriptors) {
+    try {
+      closeDescriptor(descriptor);
+    } catch (error) {
+      cleanupErrors.push(
+        new Error('Could not close an owned fixture descriptor', {
+          cause: error,
+        }),
+      );
     }
   }
+  for (const owned of childProcesses) {
+    if (
+      !owned.isClosed() &&
+      owned.child.exitCode === null &&
+      owned.child.signalCode === null
+    ) {
+      try {
+        if (!owned.child.kill('SIGTERM')) {
+          cleanupErrors.push(
+            new Error('Could not request owned fixture cancellation'),
+          );
+        }
+      } catch (error) {
+        cleanupErrors.push(
+          new Error('Owned fixture cancellation failed', { cause: error }),
+        );
+      }
+    }
+  }
+  await Promise.all(
+    childProcesses.map(async (owned) => {
+      // A deadline is a recorded failure, never permission to abandon a live
+      // supervisor and remove files still used by its command/descendants.
+      const timer = setTimeout(() => {
+        cleanupErrors.push(
+          new Error('Owned fixture close/drain exceeded eight seconds'),
+        );
+      }, 8000);
+      await owned.closed;
+      clearTimeout(timer);
+      cleanupErrors.push(...owned.errors);
+    }),
+  );
   childProcesses.length = 0;
-
   for (const directory of temporaryDirectories) {
-    fs.rmSync(directory, { force: true, recursive: true });
+    try {
+      fs.rmSync(directory, { force: true, recursive: true });
+    } catch (error) {
+      cleanupErrors.push(
+        new Error(`Could not remove fixture directory ${directory}`, {
+          cause: error,
+        }),
+      );
+    }
   }
   temporaryDirectories.length = 0;
-});
+  if (cleanupErrors.length > 0) {
+    throw new AggregateError(
+      cleanupErrors,
+      'Docker lifecycle fixture cleanup failed',
+    );
+  }
+}, 15000);
 
 describe('Docker Compose lifecycle wrappers', () => {
   it('enforces a portable wall-clock command deadline', () => {
@@ -345,13 +428,13 @@ describe('Docker Compose lifecycle wrappers', () => {
   });
 
   it.each([
+    { exitCode: 129, signal: 'SIGHUP' as const },
     { exitCode: 130, signal: 'SIGINT' as const },
     { exitCode: 143, signal: 'SIGTERM' as const },
   ])(
-    'preserves exit code $exitCode when the post-$signal group probe is denied',
+    'preserves exit code $exitCode when its live-group $signal delivery is denied',
     async ({ exitCode, signal }) => {
-      const { directory, preloadPath, signalLogPath } =
-        createProcessGroupProbePreload();
+      const { directory, preloadPath } = createPermissionDeniedSignalPreload();
       const readyPath = path.join(directory, 'ready');
       const stderrChunks: Buffer[] = [];
       const child = spawn(
@@ -364,7 +447,7 @@ describe('Docker Compose lifecycle wrappers', () => {
           '2',
           'bash',
           '-c',
-          String.raw`trap 'exit 0' INT TERM
+          String.raw`trap 'exit 0' HUP INT TERM
 printf 'ready\n' > "$1"
 while true; do sleep 0.05; done`,
           'signal-child',
@@ -372,7 +455,7 @@ while true; do sleep 0.05; done`,
         ],
         { stdio: ['ignore', 'ignore', 'pipe'] },
       );
-      childProcesses.push(child);
+      const closed = trackChild(child);
       child.stderr?.on('data', (chunk: Buffer) => stderrChunks.push(chunk));
 
       await waitForFileContents(readyPath);
@@ -387,27 +470,20 @@ while true; do sleep 0.05; done`,
 
       expect(child.kill(signal)).toBe(true);
       const exit = await exitPromise;
+      await closed;
       const stderr = Buffer.concat(stderrChunks).toString('utf8');
 
       expect(exit).toEqual({ code: exitCode, signal: null });
-      expect(stderr).toContain('Could not verify command process group');
       expect(stderr).toContain(
-        'cleanup after its leader exited: permission denied.',
+        'Could not signal the live supervisor process group',
       );
+      expect(stderr).toContain('Synthetic live-group signal permission denial');
       expect(stderr).not.toContain('SystemError');
-      expect(fs.readFileSync(signalLogPath, 'utf8')).toBe(
-        [
-          JSON.stringify({ signal }),
-          JSON.stringify({ signal: 0 }),
-          JSON.stringify({ signal: 'SIGKILL' }),
-          '',
-        ].join('\n'),
-      );
     },
   );
 
-  it('preserves timeout status when the post-timeout group probe is denied', () => {
-    const { preloadPath, signalLogPath } = createProcessGroupProbePreload();
+  it('preserves timeout status when live-group timeout signal delivery is denied', () => {
+    const { preloadPath } = createPermissionDeniedSignalPreload();
     const result = spawnSync(
       'bun',
       [
@@ -424,77 +500,326 @@ while true; do sleep 0.05; done`,
     );
 
     expect(result.status).toBe(124);
-    expect(result.stderr).toContain('Could not verify command process group');
+    expect(result.stderr).toContain(
+      'Could not signal the live supervisor process group',
+    );
     expect(result.stderr).toContain(
       'Command exceeded its 1-second wall-clock timeout',
     );
     expect(result.stderr).not.toContain('SystemError');
-    expect(fs.readFileSync(signalLogPath, 'utf8')).toBe(
-      ['{"signal":"SIGTERM"}', '{"signal":0}', '{"signal":"SIGKILL"}', ''].join(
-        '\n',
-      ),
-    );
   });
 
-  it('cancels escalation only when the process-group probe reports ESRCH', () => {
-    const { preloadPath, signalLogPath } = createProcessGroupProbePreload(
-      false,
-      'ESRCH',
-    );
+  it.each([
+    { behavior: 'resistant', expectedCode: 124, trap: 'trap "" TERM' },
+    {
+      behavior: 'settles before deadline',
+      expectedCode: 143,
+      trap: "trap 'exit 0' TERM",
+    },
+  ])(
+    'preserves deadline precedence when the signalled command is $behavior',
+    async ({ expectedCode, trap }) => {
+      const directory = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'evorto-timeout-precedence-'),
+      );
+      temporaryDirectories.push(directory);
+      const readyPath = path.join(directory, 'ready');
+      const stderrChunks: Buffer[] = [];
+      const child = spawn(
+        'bun',
+        [
+          wallClockTimeoutScript,
+          '2',
+          '3',
+          'bash',
+          '-c',
+          `${trap}\nprintf 'ready\\n' > "$1"\nwhile true; do sleep 0.05; done`,
+          'precedence-child',
+          readyPath,
+        ],
+        { stdio: ['ignore', 'ignore', 'pipe'] },
+      );
+      const closed = trackChild(child);
+      child.stderr?.on('data', (chunk: Buffer) => stderrChunks.push(chunk));
+      await waitForFileContents(readyPath);
+      const startedAt = Date.now();
+      expect(child.kill('SIGTERM')).toBe(true);
+      await closed;
+      const elapsedMs = Date.now() - startedAt;
+      const stderr = Buffer.concat(stderrChunks).toString('utf8');
+
+      expect(child.exitCode).toBe(expectedCode);
+      expect(child.signalCode).toBeNull();
+      expect(elapsedMs).toBeGreaterThanOrEqual(3000);
+      // Restarting the three-second grace at the two-second command deadline
+      // would instead keep this resistant command alive for about five seconds.
+      expect(elapsedMs).toBeLessThan(4500);
+      if (expectedCode === 124) {
+        expect(stderr).toContain(
+          'Command exceeded its 2-second wall-clock timeout.',
+        );
+      } else {
+        expect(stderr).not.toContain('wall-clock timeout');
+      }
+    },
+    10000,
+  );
+
+  it('preserves zero status, argument boundaries, stdin and separate output streams', () => {
     const result = spawnSync(
       'bun',
       [
-        '--preload',
-        preloadPath,
         wallClockTimeoutScript,
-        '1',
         '2',
+        '0',
         'bash',
         '-c',
-        "trap 'exit 0' TERM; while :; do sleep 0.05; done",
+        String.raw`IFS= read -r input
+printf '%s|%s|%s|%s\n' "$input" "$1" "$2" "$3"
+printf 'diagnostic\n' >&2`,
+        'argument-child',
+        'two words',
+        '',
+        '*literal*',
       ],
-      { encoding: 'utf8', timeout: 5000 },
+      { encoding: 'utf8', input: 'input words\n', timeout: 5000 },
     );
 
-    expect(result.error).toBeUndefined();
-    expect(result.status).toBe(124);
-    expect(result.stderr).not.toContain(
-      'Could not verify command process group',
-    );
-    expect(fs.readFileSync(signalLogPath, 'utf8')).toBe(
-      ['{"signal":"SIGTERM"}', '{"signal":0}', ''].join('\n'),
-    );
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe('input words|two words||*literal*\n');
+    expect(result.stderr).toBe('diagnostic\n');
   });
 
-  it('fails loudly when SIGKILL is denied after an unverifiable group probe', () => {
-    const { preloadPath, signalLogPath } = createProcessGroupProbePreload(true);
+  it.each([
+    { controlText: 'INT\nTERM\n', expectedCode: 130 },
+    { controlText: 'HUP\nINT\n', expectedCode: 129 },
+    { controlText: '', expectedCode: 143 },
+  ])(
+    'settles resistant descendants through owned control with status $expectedCode',
+    async ({ controlText, expectedCode }) => {
+      const directory = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'evorto-owned-control-'),
+      );
+      temporaryDirectories.push(directory);
+      const readyPath = path.join(directory, 'ready');
+      const signalsPath = path.join(directory, 'signals');
+      const preloadPath = path.join(directory, 'owned-signal.mjs');
+      fs.writeFileSync(
+        preloadPath,
+        String.raw`import { appendFileSync } from 'node:fs';
+const originalKill = process.kill.bind(process);
+process.kill = (pid, signal) => {
+  if (pid < 0) {
+    if (pid !== -process.pid) throw new Error('Signal escaped the live supervisor group');
+    appendFileSync(process.env['OWNED_SIGNAL_LOG'], String(signal) + '\n');
+  }
+  return originalKill(pid, signal);
+};
+`,
+      );
+      const fifoPath = path.join(directory, 'control');
+      const createFifo = spawnSync('mkfifo', ['-m', '600', fifoPath], {
+        encoding: 'utf8',
+      });
+      expect(createFifo.status).toBe(0);
+      const writer = retainDescriptor(
+        fs.openSync(fifoPath, fs.constants.O_RDWR | fs.constants.O_NONBLOCK),
+      );
+      const reader = retainDescriptor(
+        fs.openSync(fifoPath, fs.constants.O_RDONLY | fs.constants.O_NONBLOCK),
+      );
+      const child = spawn(
+        'bun',
+        [
+          '--preload',
+          preloadPath,
+          wallClockTimeoutScript,
+          '0',
+          '1',
+          'bash',
+          '-c',
+          String.raw`trap 'exit 0' HUP INT TERM
+bash -c 'trap "" HUP INT TERM; printf "%s" "$$" > "$1"; while true; do sleep 0.05; done' descendant "$1" &
+wait "$!"`,
+          'leader',
+          readyPath,
+        ],
+        {
+          env: {
+            ...process.env,
+            EVORTO_WALL_CLOCK_CONTROL_FD: '3',
+            EVORTO_WALL_CLOCK_CONTROL_PATH: fifoPath,
+            OWNED_SIGNAL_LOG: signalsPath,
+          },
+          stdio: ['pipe', 'pipe', 'pipe', reader],
+        },
+      );
+      const closed = trackChild(child);
+      closeDescriptor(reader);
+      let descendantPid = 0;
+      let startedAt = Date.now();
+      const operationErrors: Error[] = [];
+      try {
+        descendantPid = Number(await waitForFileContents(readyPath));
+        startedAt = Date.now();
+        fs.writeSync(writer, controlText);
+      } catch (error) {
+        operationErrors.push(
+          new Error('Owned cancellation scenario failed', { cause: error }),
+        );
+      }
+      try {
+        closeDescriptor(writer);
+      } catch (error) {
+        operationErrors.push(
+          new Error('Owned cancellation writer cleanup failed', {
+            cause: error,
+          }),
+        );
+      }
+      if (operationErrors.length > 0) {
+        throw new AggregateError(
+          operationErrors,
+          'Owned cancellation scenario and cleanup failed',
+        );
+      }
+      await closed;
+      expect(child.exitCode).toBe(expectedCode);
+      expect(child.signalCode).toBeNull();
+      expect(Date.now() - startedAt).toBeGreaterThanOrEqual(1000);
+      expect(Date.now() - startedAt).toBeLessThan(4000);
+      const expectedSignal =
+        expectedCode === 130
+          ? 'SIGINT'
+          : expectedCode === 129
+            ? 'SIGHUP'
+            : 'SIGTERM';
+      expect(fs.readFileSync(signalsPath, 'utf8').trim().split('\n')).toEqual([
+        expectedSignal,
+        'SIGKILL',
+      ]);
+      await waitForProcessExit(descendantPid);
+    },
+  );
+
+  it('rejects a cancellation path that differs from its retained FIFO', () => {
+    const directory = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'evorto-fifo-identity-'),
+    );
+    temporaryDirectories.push(directory);
+    const retainedPath = path.join(directory, 'retained');
+    const otherPath = path.join(directory, 'other');
+    for (const fifoPath of [retainedPath, otherPath]) {
+      const result = spawnSync('mkfifo', ['-m', '600', fifoPath], {
+        encoding: 'utf8',
+      });
+      expect(result.status).toBe(0);
+    }
+    retainDescriptor(
+      fs.openSync(retainedPath, fs.constants.O_RDWR | fs.constants.O_NONBLOCK),
+    );
+    const reader = retainDescriptor(
+      fs.openSync(
+        retainedPath,
+        fs.constants.O_RDONLY | fs.constants.O_NONBLOCK,
+      ),
+    );
     const result = spawnSync(
       'bun',
       [
-        '--preload',
-        preloadPath,
         wallClockTimeoutScript,
-        '1',
-        '1',
-        'bash',
-        '-c',
-        "trap 'exit 0' TERM; while :; do sleep 0.05; done",
+        '0',
+        '0',
+        'bun',
+        '-e',
+        'setInterval(() => {}, 1000)',
       ],
-      { encoding: 'utf8', timeout: 5000 },
+      {
+        encoding: 'utf8',
+        timeout: 5000,
+        env: {
+          ...process.env,
+          EVORTO_WALL_CLOCK_CONTROL_FD: '3',
+          EVORTO_WALL_CLOCK_CONTROL_PATH: otherPath,
+        },
+        stdio: ['ignore', 'ignore', 'pipe', reader],
+      },
     );
 
-    expect(result.error).toBeUndefined();
-    expect(result.status).toBe(1);
+    expect(result.status).toBe(143);
     expect(result.stderr).toContain(
-      'Could not send SIGKILL to command process group',
-    );
-    expect(result.stderr).toContain('Cleanup could not be confirmed.');
-    expect(fs.readFileSync(signalLogPath, 'utf8')).toBe(
-      ['{"signal":"SIGTERM"}', '{"signal":0}', '{"signal":"SIGKILL"}', ''].join(
-        '\n',
-      ),
+      'Cancellation path does not match the retained FIFO',
     );
   });
+
+  it.each(['acknowledgement-lost', 'parent-disconnected'])(
+    'bounds private settlement when %s',
+    (mode) => {
+      const directory = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'evorto-supervisor-ipc-'),
+      );
+      temporaryDirectories.push(directory);
+      const launcherPath = path.join(directory, 'launcher.ts');
+      const readyPath = path.join(directory, 'ready');
+      fs.writeFileSync(
+        launcherPath,
+        String.raw`const helperPath = process.argv[2];
+const readyPath = process.argv[4];
+if (!helperPath || !readyPath) throw new Error('Missing private fixture paths');
+const disconnect = process.argv[3] === 'parent-disconnected';
+const child = Bun.spawn([
+  process.execPath, helperPath, '--internal-wall-clock-supervisor', '0', '0',
+  process.execPath, '-e', disconnect
+    ? 'const ready = process.env.SUPERVISOR_READY_FILE; if (!ready) throw new Error("Missing ready path"); await Bun.write(ready, "ready"); setInterval(() => {}, 1000)'
+    : 'process.exit(0)',
+], {
+  env: { ...process.env, SUPERVISOR_READY_FILE: readyPath },
+  detached: true, stdin: 'inherit', stdout: 'inherit', stderr: 'inherit',
+  ipc(message: unknown) { console.log(JSON.stringify(message)); },
+});
+const errors: Error[] = [];
+if (disconnect) {
+  try {
+    const deadline = Date.now() + 3000;
+    while (!(await Bun.file(readyPath).exists())) {
+      if (Date.now() >= deadline) throw new Error('Command never became ready');
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+  } catch (error) {
+    errors.push(new Error('Private IPC scenario failed', { cause: error }));
+  }
+  try { child.disconnect(); }
+  catch (error) { errors.push(new Error('Private IPC disconnect failed', { cause: error })); }
+}
+await child.exited;
+console.log(child.signalCode);
+if (errors.length) throw new AggregateError(errors, 'Private IPC fixture failed');
+`,
+      );
+      const startedAt = Date.now();
+      const result = spawnSync(
+        'bun',
+        [launcherPath, wallClockTimeoutScript, mode, readyPath],
+        {
+          encoding: 'utf8',
+          timeout: 5000,
+        },
+      );
+
+      expect(result.status).toBe(0);
+      expect(result.stdout).toContain('SIGKILL');
+      expect(Date.now() - startedAt).toBeLessThan(4000);
+      if (mode === 'acknowledgement-lost') {
+        expect(result.stdout).toContain('"exitCode":0');
+        expect(result.stderr).toContain(
+          'Supervisor result acknowledgement exceeded 1000 milliseconds.',
+        );
+        expect(Date.now() - startedAt).toBeGreaterThanOrEqual(1000);
+      } else {
+        expect(result.stderr).not.toContain('acknowledgement exceeded');
+      }
+    },
+  );
 
   it('ignores obsolete branch variables when resuming plain PostgreSQL', () => {
     const { environment, logPath } = createFakeDocker();
@@ -775,7 +1100,7 @@ while true; do sleep 0.05; done`,
       env: { ...environment, FAKE_MISSING_SERVICE: 'db' },
       stdio: 'pipe',
     });
-    childProcesses.push(child);
+    const closed = trackChild(child);
 
     await waitForText(
       logPath,
@@ -792,6 +1117,7 @@ while true; do sleep 0.05; done`,
     });
     child.kill('SIGTERM');
     const exit = await exitPromise;
+    await closed;
 
     expect(exit).toEqual({ code: 143, signal: null });
     await waitForProcessExit(descendantPid);
@@ -829,7 +1155,7 @@ while true; do sleep 0.05; done`,
         stdio: 'pipe',
       },
     );
-    childProcesses.push(child);
+    trackChild(child);
     const exited = new Promise<{
       code: number | null;
       signal: NodeJS.Signals | null;
@@ -886,7 +1212,7 @@ while true; do sleep 0.05; done`,
       env: { ...environment, FAKE_MISSING_SERVICE: 'db' },
       stdio: 'pipe',
     });
-    childProcesses.push(child);
+    const closed = trackChild(child);
 
     await waitForText(
       logPath,
@@ -900,6 +1226,7 @@ while true; do sleep 0.05; done`,
     });
     child.kill('SIGTERM');
     const exit = await exitPromise;
+    await closed;
 
     expect(exit).toEqual({ code: 19, signal: null });
     expect(fs.readFileSync(logPath, 'utf8').trim().split('\n')).toEqual([
@@ -920,7 +1247,7 @@ while true; do sleep 0.05; done`,
       env: { ...environment, FAKE_MISSING_SERVICE: 'db' },
       stdio: 'pipe',
     });
-    childProcesses.push(child);
+    const closed = trackChild(child);
 
     await waitForText(
       logPath,
@@ -934,6 +1261,7 @@ while true; do sleep 0.05; done`,
     });
     child.kill('SIGTERM');
     const exit = await exitPromise;
+    await closed;
 
     expect(exit).toEqual({ code: 1, signal: null });
     const log = fs.readFileSync(logPath, 'utf8');
@@ -942,6 +1270,73 @@ while true; do sleep 0.05; done`,
     ).toHaveLength(1);
     expect(log.match(/network ls --quiet/gu)).toHaveLength(1);
     expect(log.match(/volume ls --quiet/gu)).toHaveLength(1);
+  });
+
+  it('preserves the command failure alongside cancellation-channel removal failure', () => {
+    const { environment, logPath } = createFakeDocker({ upStatus: 37 });
+    const directory = path.dirname(logPath);
+    const removePath = path.join(directory, 'rm');
+    fs.writeFileSync(
+      removePath,
+      String.raw`#!/usr/bin/env bash
+count_file="$DOCKER_LOG.remove-count"
+count=0
+if [[ -f "$count_file" ]]; then count="$(<"$count_file")"; fi
+count=$((count + 1))
+printf '%s' "$count" > "$count_file"
+if ((count >= 2)); then exit 29; fi
+exec /bin/rm "$@"
+`,
+    );
+    fs.chmodSync(removePath, 0o700);
+    const result = spawnSync('bash', [webserverScript], {
+      encoding: 'utf8',
+      env: { ...environment, FAKE_MISSING_SERVICE: 'db', TMPDIR: directory },
+    });
+
+    expect(result.status).toBe(37);
+    expect(result.stderr).toContain(
+      'Could not remove the Compose cancellation directory',
+    );
+    expect(result.stderr).toContain(
+      'Compose command status 37 was followed by cancellation-channel cleanup failure',
+    );
+    expect(result.stderr).toContain(
+      'Cleanup followed original status 37 (cancellation 1, teardown 0)',
+    );
+    const log = fs.readFileSync(logPath, 'utf8');
+    expect(
+      log.match(/compose down --timeout 60 --remove-orphans --volumes/gu),
+    ).toHaveLength(1);
+    expect(log).toContain('volume ls --quiet');
+  });
+
+  it('reports acquisition and removal failures before starting a Compose command', () => {
+    const { environment, logPath } = createFakeDocker();
+    const directory = path.dirname(logPath);
+    for (const name of ['mkfifo', 'rm']) {
+      const executablePath = path.join(directory, name);
+      fs.writeFileSync(executablePath, '#!/usr/bin/env bash\nexit 17\n');
+      fs.chmodSync(executablePath, 0o700);
+    }
+    const result = spawnSync('bash', [webserverScript], {
+      encoding: 'utf8',
+      env: { ...environment, FAKE_MISSING_SERVICE: 'db', TMPDIR: directory },
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(
+      'Could not create the Compose cancellation channel',
+    );
+    expect(result.stderr).toContain(
+      'Could not remove the Compose cancellation directory',
+    );
+    const log = fs.readFileSync(logPath, 'utf8');
+    expect(log).not.toContain('compose build');
+    expect(log).not.toContain('compose up');
+    expect(
+      log.match(/compose down --timeout 60 --remove-orphans --volumes/gu),
+    ).toHaveLength(1);
   });
 
   it('preserves the fail-fast Compose exit status when verified cleanup succeeds', () => {
