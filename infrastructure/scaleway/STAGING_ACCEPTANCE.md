@@ -91,11 +91,12 @@ and the result transition either way.
 
 - [ ] A backup restored into a separate temporary private PostgreSQL instance;
       restoration duration and data/schema verification were recorded.
-- [ ] A controlled harmless drift was reconciled without changing the accepted
-      image digest; the following Terraform plan was clean apart from ignored
-      deployment-owned fields.
-- [ ] A failed post-traffic release restored web and worker to the prior image
-      digest; health/readiness/version/SSR/RPC passed afterward.
+- [ ] A controlled harmless drift made the deployment stop on its read-only
+      Terraform plan; the reviewed root was applied explicitly and the
+      following plan was clean apart from ignored deployment-owned fields.
+- [ ] A failed forward release stayed visibly failed; a corrected revision was
+      deployed through the normal gates and health/readiness/version/SSR/RPC
+      passed afterward.
 - [ ] Runtime image inspection found no secrets, private source maps, Sentry,
       Neon, Resend, R2-specific, or Cloudflare Images runtime dependency.
 - [ ] Private source maps and the SBOM exist at manifest keys and inherit the
@@ -115,8 +116,8 @@ Deployment workflow URL:
 Browser evidence location:
 Provider evidence location:
 Restore evidence key and measured duration:
-Drift evidence key:
-Rollback evidence key:
+Drift detection evidence key:
+Forward recovery evidence key:
 Accepted by:
 Accepted at:
 Open defects or explicit blockers:

@@ -4,7 +4,6 @@ import { Effect } from 'effect';
 import {
   analyzeSchemaPlan,
   applySchema,
-  classifyOpsCommandFailure,
   explainSchema,
   initializeEmptyStaging,
   type OpsCommandRunner,
@@ -15,6 +14,13 @@ const result = (value: unknown) => ({
   exitCode: 0,
   stderr: '',
   stdout: JSON.stringify(value),
+});
+
+const emptyPlan = () => ({
+  dialect: 'postgresql' as const,
+  hints: [],
+  statements: [],
+  status: 'ok' as const,
 });
 
 describe('ops schema operations', () => {
@@ -46,10 +52,8 @@ describe('ops schema operations', () => {
           : seedStaging('reset-and-seed-staging', runner).pipe(Effect.asVoid);
       const failure = await Effect.runPromise(Effect.flip(effect));
 
-      expect(failure.diagnostic).toBe('staging-seed-configuration-invalid');
-      expect(failure.message).toBe(
-        'Staging seed preflight failed (staging-seed-configuration-invalid; exit 1)',
-      );
+      expect(failure.diagnostic).toBe('command-failed');
+      expect(failure.message).toBe('Staging seed preflight failed (exit 1)');
       expect(commands).toEqual([
         {
           command: ['bun', 'dist/evorto/ops/seed-staging.mjs'],
@@ -59,122 +63,49 @@ describe('ops schema operations', () => {
     },
   );
 
-  it.each([
-    [
-      'TLS hostname mismatches',
-      'hostname/IP does not match certificate altnames',
-      'database-tls-hostname-mismatch',
-    ],
-    [
-      'expired TLS certificates',
-      'Error: CERT_HAS_EXPIRED',
-      'database-tls-certificate-expired',
-    ],
-    [
-      'not-yet-valid TLS certificates',
-      'Error: CERT_NOT_YET_VALID',
-      'database-tls-certificate-not-yet-valid',
-    ],
-    [
-      'untrusted TLS certificate authorities',
-      'Error: UNABLE_TO_VERIFY_LEAF_SIGNATURE',
-      'database-tls-ca-untrusted',
-    ],
-    [
-      'other TLS verification failures',
-      'TLS handshake failed while validating certificate purpose',
-      'database-tls-verification-failed',
-    ],
-    [
-      'authentication failures',
-      'password authentication failed for user schema_owner',
-      'database-authentication-failed',
-    ],
-    [
-      'private endpoint routing failures',
-      'connect EHOSTUNREACH 10.0.0.8:6432',
-      'database-unreachable',
-    ],
-    [
-      'missing packaged artifacts',
-      'Cannot find module /app/ops/drizzle-kit.cjs',
-      'runtime-artifact-missing',
-    ],
-    ['unrecognized failures', 'unexpected provider failure', 'command-failed'],
-  ])('classifies %s without exposing raw output', (_, stderr, expected) => {
-    expect(classifyOpsCommandFailure({ stderr, stdout: '' })).toBe(expected);
-  });
-
-  it.effect('returns only the safe failure category from Drizzle', () =>
-    Effect.gen(function* () {
-      const runner: OpsCommandRunner = {
-        run: () =>
-          Effect.succeed({
-            exitCode: 1,
-            stderr:
-              'certificate validation failed while processing sensitive-marker',
-            stdout: '',
-          }),
-      };
-
-      const error = yield* explainSchema(runner).pipe(Effect.flip);
-
-      expect(error.message).toBe(
-        'Drizzle failed (database-tls-verification-failed; exit 1)',
-      );
-      expect(error.message).not.toContain('sensitive-marker');
-    }),
-  );
-
   it.effect(
-    'uses a non-mutating text diagnostic when Drizzle JSON failures are silent',
+    'fails the original Drizzle command without a diagnostic rerun',
     () =>
       Effect.gen(function* () {
         const commands: string[][] = [];
         const runner: OpsCommandRunner = {
           run: (command) => {
             commands.push([...command]);
-            return Effect.succeed(
-              commands.length === 1
-                ? { exitCode: 1, stderr: '', stdout: '' }
-                : {
-                    exitCode: 1,
-                    stderr: '',
-                    stdout:
-                      'connect EHOSTUNREACH 10.0.0.8:6432 sensitive-marker',
-                  },
-            );
+            return Effect.succeed({
+              exitCode: 17,
+              stderr: 'the real provider failure',
+              stdout: '',
+            });
           },
         };
 
         const error = yield* explainSchema(runner).pipe(Effect.flip);
 
+        expect(error.diagnostic).toBe('command-failed');
+        expect(error.message).toBe('Drizzle failed (exit 17)');
+        expect(commands).toHaveLength(1);
+      }),
+  );
+
+  it.effect(
+    'rejects a changed Drizzle envelope instead of interpreting it',
+    () =>
+      Effect.gen(function* () {
+        const commands: string[][] = [];
+        const runner: OpsCommandRunner = {
+          run: (command) => {
+            commands.push([...command]);
+            return Effect.succeed(result({ statements: [], status: 'ok' }));
+          },
+        };
+
+        const error = yield* explainSchema(runner).pipe(Effect.flip);
+
+        expect(error.diagnostic).toBe('drizzle-output-invalid');
         expect(error.message).toBe(
-          'Drizzle failed (database-unreachable; exit 1)',
+          'Drizzle explain output changed from the pinned contract',
         );
-        expect(error.message).not.toContain('sensitive-marker');
-        expect(commands).toEqual([
-          [
-            'bun',
-            'ops/drizzle-kit.cjs',
-            'push',
-            '--config',
-            'ops/drizzle.config.mjs',
-            '--explain',
-            '--output',
-            'json',
-          ],
-          [
-            'bun',
-            'ops/drizzle-kit.cjs',
-            'push',
-            '--config',
-            'ops/drizzle.config.mjs',
-            '--explain',
-            '--output',
-            'text',
-          ],
-        ]);
+        expect(commands).toHaveLength(1);
       }),
   );
 
@@ -184,15 +115,21 @@ describe('ops schema operations', () => {
       hints: [],
       statements: [
         {
-          table: { name: 'new_table', schema: 'public' },
+          table: {
+            name: 'new_table',
+            schema: 'public',
+          },
           type: 'create_table',
         },
         {
           column: {
             name: 'optional_note',
             notNull: false,
+            schema: 'public',
             table: 'events',
           },
+          isCompositePK: false,
+          isPK: false,
           type: 'add_column',
         },
       ],
@@ -203,12 +140,33 @@ describe('ops schema operations', () => {
     expect(analysis.unsafeReasons).toEqual([]);
   });
 
+  it('rejects legacy statement shapes instead of guessing table identity', () => {
+    const analysis = analyzeSchemaPlan({
+      dialect: 'postgresql',
+      hints: [],
+      statements: [{ table: 'events', type: 'create_table' }],
+      status: 'ok',
+    });
+
+    expect(analysis.safe).toBe(false);
+    expect(analysis.unsafeReasons).toEqual([
+      'Statement 1 (create_table) does not match the pinned Drizzle statement contract',
+    ]);
+  });
+
   it.each([
     ['drop table', { table: { name: 'events' }, type: 'drop_table' }],
     [
       'required column without a default',
       {
-        column: { name: 'required', notNull: true, table: 'events' },
+        column: {
+          name: 'required',
+          notNull: true,
+          schema: 'public',
+          table: 'events',
+        },
+        isCompositePK: false,
+        isPK: false,
         type: 'add_column',
       },
     ],
@@ -219,6 +177,7 @@ describe('ops schema operations', () => {
           concurrently: true,
           isUnique: true,
           name: 'events_slug_unique',
+          schema: 'public',
           table: 'events',
         },
         type: 'create_index',
@@ -238,18 +197,11 @@ describe('ops schema operations', () => {
 
   it.effect('rechecks the plan digest immediately before applying', () =>
     Effect.gen(function* () {
-      const commands: readonly string[][] = [];
+      const commands: string[][] = [];
       const runner: OpsCommandRunner = {
         run: (command) => {
-          (commands as string[][]).push([...command]);
-          return Effect.succeed(
-            result({
-              dialect: 'postgresql',
-              hints: [],
-              statements: [],
-              status: 'ok',
-            }),
-          );
+          commands.push([...command]);
+          return Effect.succeed(result(emptyPlan()));
         },
       };
 
@@ -265,12 +217,7 @@ describe('ops schema operations', () => {
     'applies fixed prerequisites before the approved Drizzle plan',
     () =>
       Effect.gen(function* () {
-        const plan = {
-          dialect: 'postgresql',
-          hints: [],
-          statements: [],
-          status: 'ok',
-        };
+        const plan = emptyPlan();
         const commands: string[][] = [];
         const runner: OpsCommandRunner = {
           run: (command) => {
@@ -278,7 +225,9 @@ describe('ops schema operations', () => {
             return Effect.succeed(
               commands.length === 2
                 ? { exitCode: 0, stderr: '', stdout: '' }
-                : result(plan),
+                : commands.length === 3
+                  ? result({ dialect: 'postgresql', status: 'ok' })
+                  : result(plan),
             );
           },
         };
@@ -297,14 +246,9 @@ describe('ops schema operations', () => {
       }),
   );
 
-  it.effect('never reapplies a failed schema command while diagnosing it', () =>
+  it.effect('runs a failed apply command exactly once', () =>
     Effect.gen(function* () {
-      const plan = {
-        dialect: 'postgresql',
-        hints: [],
-        statements: [],
-        status: 'ok',
-      };
+      const plan = emptyPlan();
       const commands: string[][] = [];
       const runner: OpsCommandRunner = {
         run: (command) => {
@@ -312,9 +256,6 @@ describe('ops schema operations', () => {
           if (commands.length === 1) return Effect.succeed(result(plan));
           if (commands.length === 2) {
             return Effect.succeed({ exitCode: 0, stderr: '', stdout: '' });
-          }
-          if (commands.length === 3) {
-            return Effect.succeed({ exitCode: 1, stderr: '', stdout: '' });
           }
           return Effect.succeed({
             exitCode: 1,
@@ -329,20 +270,18 @@ describe('ops schema operations', () => {
         runner,
       ).pipe(Effect.flip);
 
-      expect(error.message).toBe(
-        'Drizzle failed (database-permission-denied; exit 1)',
-      );
-      expect(commands[3]).toEqual([
+      expect(error.message).toBe('Drizzle failed (exit 1)');
+      expect(commands).toHaveLength(3);
+      expect(commands[2]).toEqual([
         'bun',
         'ops/drizzle-kit.cjs',
         'push',
         '--config',
         'ops/drizzle.config.mjs',
+        '--force',
         '--output',
-        'text',
-        '--explain',
+        'json',
       ]);
-      expect(commands[3]).not.toContain('--force');
     }),
   );
 
@@ -390,7 +329,7 @@ describe('ops schema operations', () => {
             commands.push({ command, environment: options?.environment });
             return Effect.succeed(
               command.some((argument) => argument.endsWith('/drizzle-kit.cjs'))
-                ? result({ status: 'ok' })
+                ? result({ dialect: 'postgresql', status: 'ok' })
                 : { exitCode: 0, stderr: '', stdout: '' },
             );
           },

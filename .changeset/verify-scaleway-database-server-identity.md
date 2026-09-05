@@ -2,9 +2,7 @@
 default: patch
 ---
 
-# Verify the Scaleway database server identity
+# Strengthen hosted Evorto security
 
-Keep database traffic on the private-network IP while verifying Scaleway's
-certificate against that endpoint identity. Classify bounded schema command
-failures without logging provider output, and exclude local Terraform working
-data from container build contexts.
+Strengthen the connections used by hosted Evorto and keep local setup files out
+of hosted releases.

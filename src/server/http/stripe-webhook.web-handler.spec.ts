@@ -6,6 +6,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import Stripe from 'stripe';
+import { vi } from 'vitest';
 
 import * as dbSchema from '../../db/schema';
 import { StripeClient } from '../stripe-client';
@@ -446,13 +447,53 @@ describe('readStripeWebhookBody', () => {
     }),
   );
 
-  it.effect('returns 413 before requiring Stripe services or a signature', () =>
+  it.effect(
+    'rejects an unsigned request before reading its body or Stripe dependencies',
+    () =>
+      Effect.gen(function* () {
+        const request = new Request(
+          'https://tenant.example.com/webhooks/stripe',
+          { body: 'unsigned payload', method: 'POST' },
+        );
+        const bodyReads = vi.spyOn(request, 'body', 'get');
+        const stripeAcquisitions = vi.spyOn(StripeClient, Symbol.iterator);
+        const configurationReads = vi.fn(() =>
+          Effect.die(new Error('Unexpected webhook configuration read')),
+        );
+
+        try {
+          const response = yield* handleStripeWebhookWebRequest(request).pipe(
+            Effect.provide(
+              Layer.mergeAll(
+                createDatabaseTestLayer(),
+                Layer.succeed(StripeClient, createRejectingStripeClient()),
+                ConfigProvider.layer(ConfigProvider.make(configurationReads)),
+              ),
+            ),
+          );
+
+          expect(response.status).toBe(400);
+          expect(yield* Effect.promise(() => response.text())).toBe(
+            'No signature',
+          );
+          expect(bodyReads).not.toHaveBeenCalled();
+          expect(stripeAcquisitions).not.toHaveBeenCalled();
+          expect(configurationReads).not.toHaveBeenCalled();
+        } finally {
+          bodyReads.mockRestore();
+          stripeAcquisitions.mockRestore();
+        }
+      }),
+  );
+
+  it.effect('returns 413 before requiring Stripe services', () =>
     Effect.gen(function* () {
       const response = yield* handleStripeWebhookWebRequest(
         new Request('https://tenant.example.com/webhooks/stripe', {
           body: 'oversized',
           headers: {
             'content-length': String(MAX_STRIPE_WEBHOOK_SIZE_BYTES + 1),
+            'stripe-signature': 'test-signature',
           },
           method: 'POST',
         }),
