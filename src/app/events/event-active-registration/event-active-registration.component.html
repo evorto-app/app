@@ -417,6 +417,7 @@
               (click)="cancelTransfer(activeTransfer.transferId)"
               [disabled]="
                 purchaseRegistrationAddonMutation.isPending() ||
+                transferRegistrationMutation.isPending() ||
                 cancelTransferMutation.isPending()
               "
             >

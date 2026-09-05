@@ -287,11 +287,11 @@ export const registrationDeferredActionCopy = (registration: {
   status: EventsRegistrationStatus;
 }): null | string => {
   if (registration.status === 'PENDING') {
-    return 'Transfer/resale is not available for pending registrations.';
+    return 'Transfer/resale is not available while a sign-up is pending.';
   }
 
   if (registration.status === 'WAITLIST') {
-    return 'Transfer/resale is not available for waitlist registrations.';
+    return 'Transfer/resale is not available while you are on the waitlist.';
   }
 
   return null;
@@ -317,7 +317,7 @@ export const registrationTransferBlockedCopy = (
       return '';
     }
     case 'registrationStatus': {
-      return 'Only confirmed registrations can be transferred.';
+      return 'Only confirmed tickets can be transferred.';
     }
   }
 };
@@ -338,7 +338,7 @@ export const registrationTransferActionCopy = (registration: {
     return {
       buttonLabel: 'Create transfer link',
       helperText:
-        'Create a private link and code for one eligible organization member. They review the current questions, add-ons, discount, and price before claiming it.',
+        'Create a private link and code for one organization member who can use this sign-up choice. They review the current questions, add-ons, discount, and price before claiming it.',
     };
   }
 
@@ -363,15 +363,15 @@ export const registrationActiveTransferStatusCopy = (
     case 'checkout_pending': {
       return activeTransfer.registrationSide === 'recipient'
         ? {
-            body: 'Canceling stops this checkout and keeps the original ticket with its current owner.',
+            body: 'Canceling stops this payment and keeps the original ticket with its current owner.',
             cancelLabel: 'Cancel pending transfer payment',
             showExpiry: true,
             title: 'Transfer payment is pending',
             tone: 'info',
           }
         : {
-            body: 'Your registration remains confirmed until the recipient payment is confirmed.',
-            cancelLabel: 'Cancel transfer offer',
+            body: 'Your ticket remains confirmed until the recipient payment is confirmed.',
+            cancelLabel: 'Cancel private transfer',
             showExpiry: true,
             title: 'Recipient payment is pending',
             tone: 'info',
@@ -379,8 +379,8 @@ export const registrationActiveTransferStatusCopy = (
     }
     case 'open': {
       return {
-        body: 'Your registration remains confirmed until a recipient completes the transfer.',
-        cancelLabel: 'Cancel transfer offer',
+        body: 'Your ticket remains confirmed until a recipient completes the transfer.',
+        cancelLabel: 'Cancel private transfer',
         showExpiry: true,
         title: 'Transfer offer is active',
         tone: 'info',
@@ -442,7 +442,7 @@ export const registrationActiveTransferStatusCopy = (
             : 'The ticket transfer is complete and your refund is being processed. The transfer can no longer be cancelled.',
         cancelLabel: null,
         showExpiry: false,
-        title: 'Transfer refund is processing',
+        title: 'Transfer refund is in progress',
         tone: 'success',
       };
     }
@@ -637,6 +637,9 @@ export class EventActiveRegistrationComponent {
     this.cancelTransferMutation.mutate(
       { transferId },
       {
+        onError: async () => {
+          await this.invalidateOwnerQueries(false);
+        },
         onSuccess: async () => {
           await this.invalidateOwnerQueries(false);
         },
@@ -665,6 +668,9 @@ export class EventActiveRegistrationComponent {
         registrationId: registration.id,
       },
       {
+        onError: async () => {
+          await this.invalidateOwnerQueries(false);
+        },
         onSuccess: async (offer) => {
           this.dialog.open<
             EventRegistrationTransferDialogComponent,

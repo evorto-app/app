@@ -501,6 +501,7 @@ export const seedProfileEventCards = async ({
       throw new AggregateError(
         [...seedWriteFailures, error],
         'Profile event-card seed and transaction rollback failed',
+        // eslint-disable-next-line preserve-caught-error -- Preserve the original seed failure as primary; the rollback error remains in the aggregate.
         { cause: seedWriteFailures[0] },
       );
     }

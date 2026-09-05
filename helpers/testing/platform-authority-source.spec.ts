@@ -97,7 +97,7 @@ describe('platform authority source', () => {
     expect(operations).toContain('user: null');
     expect(operations).toContain('userAssigned: false');
     expect(operations).toContain(
-      "message: 'Platform administrator authority required'",
+      "message: 'You need Evorto administrator access to do this.'",
     );
   });
 

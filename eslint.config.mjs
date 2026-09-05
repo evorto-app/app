@@ -19,7 +19,7 @@ const baseConfig = [
   eslintConfigPrettier,
 ];
 
-const toolingFiles = ["*.config.ts", "helpers/**/*.ts"];
+const nodeSideFiles = ["*.config.ts", "helpers/**/*.ts", "tests/**/*.ts"];
 
 export default defineConfig(
   {
@@ -27,7 +27,7 @@ export default defineConfig(
   },
   {
     files: ["**/*.ts"],
-    ignores: ["tests/**/*", ...toolingFiles],
+    ignores: [...nodeSideFiles],
     extends: [baseConfig, ...angular.configs.tsRecommended],
     plugins: {
       "unused-imports": unusedImports,
@@ -97,11 +97,12 @@ export default defineConfig(
       "unicorn/throw-new-error": "off",
     },
   },
-  // Node-side repository tooling shares TypeScript correctness rules with the
-  // application without inheriting Angular, UI naming, or deterministic
-  // sort-order rules that are specific to production source.
+  // Node-side repository tooling and Playwright tests share TypeScript
+  // correctness rules with the application without inheriting Angular, UI
+  // naming, or deterministic sort-order rules that are specific to production
+  // source.
   {
-    files: toolingFiles,
+    files: nodeSideFiles,
     extends: [
       eslint.configs.recommended,
       ...tseslint.configs.strict,
@@ -116,6 +117,7 @@ export default defineConfig(
       unicorn: eslintPluginUnicorn,
     },
     rules: {
+      "no-empty-pattern": ["error", { allowObjectPatternsAsParameters: true }],
       "no-unused-vars": "off",
       "@typescript-eslint/no-invalid-void-type": "off",
       "@typescript-eslint/no-unused-vars": [

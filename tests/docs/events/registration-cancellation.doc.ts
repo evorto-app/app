@@ -79,10 +79,10 @@ const openProfileEventCard = async (page: Page, eventTitle: string) => {
   return card;
 };
 
-test.describe('Participant registration cancellation', () => {
+test.describe('Cancel a ticket', () => {
   test.use({ storageState: userStateFile });
 
-  test('Cancel a confirmed free registration and release its capacity', async ({
+  test('Cancel a confirmed free ticket and release its places', async ({
     browser,
     database,
     page,
@@ -115,7 +115,7 @@ test.describe('Participant registration cancellation', () => {
     const registrationId = createId();
     const registrationAcquisitionId = createId();
     const waitlistRegistrationId = createId();
-    const eventTitle = 'Free registration cancellation guide';
+    const eventTitle = 'Riverside breakfast picnic';
     const eventWindow = futureServerEventWindow();
     const cancellationEmailKey = `registration-cancelled/${tenant.id}/${registrationId}`;
     const waitlistEmailKey = `waitlist-spot-available/${tenant.id}/${waitlistRegistrationId}/cancellation-${registrationId}`;
@@ -128,7 +128,7 @@ test.describe('Participant registration cancellation', () => {
       await database.insert(schema.eventInstances).values({
         creatorId: eventCreator.id,
         description:
-          'A confirmed free registration used to explain cancellation and capacity handling.',
+          'A confirmed free ticket used to explain cancellation and available places.',
         end: eventWindow.end,
         icon: { iconColor: 0x4f46e5, iconName: 'ticket' },
         id: eventId,
@@ -152,7 +152,7 @@ test.describe('Participant registration cancellation', () => {
         registrationMode: 'fcfs',
         roleIds: [],
         spots: 2,
-        title: 'Free participant',
+        title: 'Free attendee',
         waitlistSpots: 1,
       });
       // Keep shared authenticated-user FK locks in separate autocommit
@@ -209,16 +209,16 @@ test.describe('Participant registration cancellation', () => {
       await testInfo.attach('markdown', {
         body: `
 {% callout type="note" title="Before you start" %}
-This guide is for a signed-in participant cancelling their own confirmed free registration. The account, event, and registration must all belong to the same organization. Ordinary self-service cancellation needs no organizer access, but it is available only before the event and before the participant cancellation deadline configured for the registration option or organization.
+This guide is for a signed-in attendee cancelling their own confirmed free sign-up. The account, event, and sign-up must all belong to the same organization. Ordinary self-service cancellation needs no organizer access, but it is available only before the event and before the attendee cancellation deadline set for the sign-up choice or organization.
 
-This example has one guest, so cancelling releases two occupied spots. The registration is free and creates no refund. The later Stripe add-on example shows that Evorto leaves the ticket, inventory, and refund unchanged when payment safety cannot be confirmed, together with the audited recovery path, without claiming live bank or card-network settlement.
+This example has one guest, so cancelling releases two occupied spots. The sign-up is free and creates no refund. The later paid add-on example shows that Evorto leaves the ticket, inventory, and refund unchanged when payment safety cannot be confirmed, together with the audited recovery path, without claiming live bank or card-network completed payment.
 {% /callout %}
 
-### Cancel a confirmed registration
+### Cancel a confirmed ticket
 
-1. Sign in as the participant who owns the ticket.
+1. Sign in as the attendee who owns the ticket.
 2. Open **Events** from the main navigation.
-3. Select the event, then find the confirmed registration on its details page.
+3. Select the event, then find the confirmed ticket on its details page.
 4. Read the cancellation explanation before selecting **Cancel ticket**.
 `,
       });
@@ -245,17 +245,17 @@ This example has one guest, so cancelling releases two occupied spots. The regis
       await testInfo.attach('markdown', {
         body: `
 {% callout type="warning" title="Review the confirmation carefully" %}
-Selecting **Cancel ticket** opens a confirmation that explains the capacity and refund impact. **Go back** is focused by default so an accidental Enter key does not cancel the ticket. Continue only when you intend to give up the participant and guest spots and start the applicable refund process.
+Selecting **Cancel ticket** opens a confirmation that explains the capacity and refund impact. **Go back** is focused by default so an accidental Enter key does not cancel the ticket. Continue only when you intend to give up the attendee and guest spots and start the applicable refund process.
 {% /callout %}
 
-This free registration has no refund obligation. Paid tickets and paid add-ons use Stripe. If Evorto cannot safely confirm the payments, refunds, an active transfer, or Checkout state, it leaves the registration, refund status, and capacity unchanged and shows a recovery message instead. Evorto checks the confirmed and payment state again when cancellation is submitted; if either changed while this dialog was open, refresh the event and review the new consequences before confirming again.
+This free sign-up has no refund obligation. Paid tickets and paid add-ons are paid online. If Evorto cannot safely confirm the payments, refunds, an active transfer, or Checkout state, it leaves the sign-up, refund status, and capacity unchanged and shows a recovery message instead. Evorto checks the confirmed and payment state again when cancellation is submitted; if either changed while this dialog was open, open the event again and review the new consequences before confirming again.
 `,
       });
       await takeScreenshot(
         testInfo,
         activeRegistration,
         page,
-        'Review a confirmed free registration before cancelling',
+        'Review a confirmed free ticket before cancelling',
       );
 
       // The server-rendered action is visible before Angular attaches its live
@@ -285,7 +285,7 @@ This free registration has no refund obligation. Paid tickets and paid add-ons u
         testInfo,
         cancellationDialog,
         page,
-        'Confirm the participant cancellation and capacity impact',
+        'Confirmation shows the two places that will be released',
       );
       await cancellationDialog
         .getByRole('button', { name: 'Cancel ticket' })
@@ -362,15 +362,15 @@ This free registration has no refund obligation. Paid tickets and paid add-ons u
         body: `
 ### What completion means
 
-The confirmed ticket disappears and the event offers registration again because the cancellation committed. The durable readback proves that Evorto:
+The confirmed ticket disappears and the event offers sign-up again because the cancellation committed. The durable readback proves that Evorto:
 
-- marks the registration **Cancelled**;
-- releases both the participant and guest spots;
-- creates no refund because the registration is free;
+- marks the sign-up **Cancelled**;
+- releases both the attendee and guest spots;
+- creates no refund because the sign-up is free;
 - queues a cancellation email for the former ticket owner; and
-- tells the waitlisted participant that capacity may be available.
+- tells the waitlisted attendee that capacity may be available.
 
-The waitlist message is not a reservation or automatic promotion. A waitlisted participant must open the event, leave the waitlist, and register while capacity is still available.
+The waitlist message is not a reservation or automatic promotion. A waitlisted attendee must open the event, leave the waitlist, and sign up while capacity is still available.
 `,
       });
       await takeScreenshot(
@@ -385,7 +385,7 @@ The waitlist message is not a reservation or automatic promotion. A waitlisted p
           })
           .first(),
         page,
-        'Registration options after confirmed cancellation',
+        'Sign-up choices after confirmed cancellation',
       );
 
       const eventPath = waitlistEmail?.text.match(/\/events\/[\w-]+/u)?.[0];
@@ -400,12 +400,12 @@ The waitlist message is not a reservation or automatic promotion. A waitlisted p
         body: `
 ### Follow the waitlist message as its recipient
 
-The availability message sends the waitlisted participant back to this event. It does **not** reserve capacity and it does not silently promote the waitlist registration. Other eligible participants can still take the open spot first.
+The availability message sends the waitlisted attendee back to this event. It does **not** reserve capacity and it does not silently promote the waitlist sign-up. Other allowed attendees can still take the open spot first.
 
 1. Sign in as the account that received the message.
 2. Open the event link from that message. The link opens the signed-in event page; it does not grant access to a ticket.
 3. Confirm that the page still shows **You are currently on the waitlist**.
-4. Select **Leave waitlist**, review the warning, and confirm only if registration is still available.
+4. Select **Leave waitlist**, review the warning, and confirm only if sign-up is still available.
 5. Select **Sign up** immediately. If the option became full before this step, do not expect the email to override capacity; remain on or rejoin the waitlist instead.
 `,
       });
@@ -427,7 +427,7 @@ The availability message sends the waitlisted participant back to this event. It
         testInfo,
         recipientPage.locator('app-event-active-registration'),
         recipientPage,
-        'Waitlist recipient opens the availability message link',
+        'Availability message returns the attendee to their waitlist place',
       );
 
       await recipientPage
@@ -448,7 +448,7 @@ The availability message sends the waitlisted participant back to this event. It
         testInfo,
         leaveWaitlistDialog,
         recipientPage,
-        'Waitlist recipient confirms giving up their old position',
+        'Review before leaving the waitlist',
       );
       await leaveWaitlistDialog
         .getByRole('button', { name: 'Leave waitlist' })
@@ -470,7 +470,7 @@ The availability message sends the waitlisted participant back to this event. It
           })
           .first(),
         recipientPage,
-        'Capacity remains available after leaving the waitlist',
+        'A place remains available after leaving the waitlist',
       );
       await recipientRegisterButton.click();
       await expect(
@@ -544,9 +544,9 @@ The availability message sends the waitlisted participant back to this event. It
 
       await testInfo.attach('markdown', {
         body: `
-### What the recipient should see after registering
+### What the recipient should see after signing up
 
-The old waitlist entry is now **Cancelled** and a separate **Confirmed** registration owns one spot. The option counters move from one waitlisted participant to one confirmed participant, and Evorto queues a confirmation email linking back to the authenticated ticket page.
+The old waitlist entry is now **Cancelled** and a separate **Confirmed** sign-up owns one spot. The option counters move from one waitlisted attendee to one confirmed attendee, and Evorto queues a confirmation email linking back to the authenticated ticket page.
 
 This completes only the in-app follow-up. The earlier email still promised no reservation: success depends on capacity remaining when Evorto confirms **Sign up**.
 `,
@@ -555,7 +555,7 @@ This completes only the in-app follow-up. The earlier email still promised no re
         testInfo,
         recipientPage.locator('app-event-active-registration'),
         recipientPage,
-        'Waitlist recipient completes a confirmed registration',
+        'Waitlist recipient receives a confirmed ticket',
       );
     } finally {
       await waitlistRecipientPage?.close();
@@ -612,7 +612,7 @@ This completes only the in-app follow-up. The earlier email still promised no re
     }
   });
 
-  test('Cancel a Stripe-backed registration with settled add-ons and recover its refund', async ({
+  test('Cancel a paid ticket with add-ons and resolve a refund problem', async ({
     browser,
     database,
     page,
@@ -640,7 +640,7 @@ This completes only the in-app follow-up. The earlier email still promised no re
       templateId: template.id,
       tenant,
       testClock,
-      title: 'Stripe add-on cancellation and refund recovery',
+      title: 'Weekend creative workshop',
       userId: participant.id,
     });
     const cancellationEmailKey = `registration-cancelled/${tenant.id}/${scenario.registrationId}`;
@@ -653,8 +653,10 @@ This completes only the in-app follow-up. The earlier email still promised no re
       'Verified the Stripe refund before resuming status checks';
     const newGenerationReason =
       'Verified the failed Stripe refund before scheduling recovery';
+    // eslint-disable-next-line prefer-const -- Early cleanup must safely read undefined if page acquisition is never reached.
     let scannerPage:
       Awaited<ReturnType<typeof openAuthenticatedTestPage>> | undefined;
+    // eslint-disable-next-line prefer-const -- Early cleanup must safely read undefined if page acquisition is never reached.
     let recoveryPage:
       Awaited<ReturnType<typeof openAuthenticatedTestPage>> | undefined;
 
@@ -824,21 +826,21 @@ This completes only the in-app follow-up. The earlier email still promised no re
     await testInfo.attach('markdown', {
       body: `
 {% callout type="note" title="Before you start" %}
-This guide follows a signed-in participant who owns a confirmed free registration with one included **Paid workshop kit** and two purchased kits settled through Stripe. An organizer has already recorded two handouts: the included unit first, then one purchased unit. The event, registration, add-on entitlement, payment, and connected Stripe account all belong to the same organization.
+This guide follows a signed-in attendee who owns a confirmed free sign-up with one included **Paid workshop kit** and two kits purchased and paid for online. An organizer has already recorded two handouts: the included unit first, then one purchased unit. The event, sign-up, add-on entitlement, payment, and connected payment account all belong to the same organization.
 
 Only the one remaining purchased unit that has not been handed out is refundable. Handed-out units stay fulfilled, included units never create a monetary refund, and cancellation preserves every quantity and fulfillment result.
 
-The journey begins in the participant account, then explicitly switches to an organizer account for the direct scanner result and to a platform administrator account for refund recovery. Each account needs the access described at that transition.
+The journey begins in the attendee account, then explicitly switches to an organizer account for the direct scanner result and to an Evorto administrator account for refund recovery. Each account needs the access described at that transition.
 {% /callout %}
 
-### Cancel a registration with a settled Stripe add-on
+### Cancel a ticket with a paid add-on
 
 1. Open **Events** from the main navigation.
 2. Select **${scenario.title}**.
 3. Review the included, purchased, handed-out, and ready-to-hand-out quantities.
 4. Select **Cancel ticket**, read the confirmation, then choose **Cancel ticket**.
 
-If payment safety cannot be confirmed, an add-on Checkout is pending, or the registration changed, Evorto leaves the ticket, inventory, and refund status unchanged.
+If payment safety cannot be confirmed, an add-on Checkout is pending, or the sign-up changed, Evorto leaves the ticket, inventory, and refund status unchanged.
 `,
     });
 
@@ -863,7 +865,7 @@ If payment safety cannot be confirmed, an add-on Checkout is pending, or the reg
       testInfo,
       addOnRow,
       page,
-      'Review settled and redeemed add-on quantities before cancellation',
+      'Ticket shows handed-out and refundable add-ons before cancellation',
     );
 
     const cancelRegistration = activeRegistration.getByRole('button', {
@@ -887,7 +889,7 @@ If payment safety cannot be confirmed, an add-on Checkout is pending, or the reg
       testInfo,
       cancellationDialog,
       page,
-      'Cancel the ticket and remaining paid add-on',
+      'Confirm ticket cancellation and the remaining paid add-on',
     );
     await cancellationDialog
       .getByRole('button', { name: 'Cancel ticket' })
@@ -1199,9 +1201,9 @@ If payment safety cannot be confirmed, an add-on Checkout is pending, or the reg
       body: `
 ### Read the cancellation and refund status
 
-The ticket is now **Cancelled** and cannot be used again. Evorto preserved both redeemed units, cancelled and restocked only the one remaining purchased unit, and started a Stripe refund of exactly **${refundAmountLabel}**.
+The ticket is now **Cancelled** and cannot be used again. Evorto preserved both redeemed units, cancelled and restocked only the one remaining purchased unit, and started a refund of exactly **${refundAmountLabel}**.
 
-Open **Profile**, select **Events**, and find the cancelled event. Evorto started a Stripe refund. **Refund delayed** means it is still being processed; the money may not have arrived yet. Do not register or pay again to retry a refund.
+Open **Profile**, select **Events**, and find the cancelled event. Evorto started a refund. **Refund delayed** means it is still being processed; the money may not have arrived yet. Do not sign up or pay again to retry a refund.
 `,
     });
     await page.getByRole('link', { exact: true, name: 'Profile' }).click();
@@ -1218,7 +1220,7 @@ Open **Profile**, select **Events**, and find the cancelled event. Evorto starte
       testInfo,
       profileCard,
       page,
-      'Cancelled participant ticket with its retrying add-on refund',
+      'Cancelled attendee ticket while its refund is on the way',
     );
 
     await testInfo.attach('markdown', {
@@ -1345,11 +1347,11 @@ Switch to an organizer account with access to check-in and add-on fulfillment fo
     );
     await testInfo.attach('markdown', {
       body: `
-### Complete the required Stripe action and resume the same refund
+### Complete the required payment-account action and continue the same refund
 
-A Stripe **requires action** update keeps the registration cancelled and links the update to the same Stripe refund. The profile asks the participant to **Contact the organizer**, while the organizer scanner shows **Refund needs review**. The participant should not register, pay, or cancel again. The organizer can explain that the connected Stripe account needs action before a platform administrator resumes status checks for this exact refund.
+An update that requires action on the payment account keeps the sign-up cancelled and links the update to the same refund. The profile asks the attendee to **Contact the organizer**, while the organizer scanner shows **Refund needs review**. The attendee should not sign up, pay, or cancel again. The organizer can explain that the connected payment account needs action before an Evorto administrator resumes status checks for this exact refund.
 
-When the safe automatic checks have stopped, open the organization's **Review finance** page. The **Payment history** tab shows **Payment action needed**. In **Refunds needing attention**, match the event and refund amount, then choose **Review refund**. The review shows the safe next step without exposing internal payment identifiers or raw Stripe errors. **Continue refund** continues checking the same Stripe refund; it does not issue another refund.
+When the safe automatic checks have stopped, open the organization's **Review finance** page. The **Payment history** tab shows **Payment action needed**. In **Refunds needing attention**, match the event and refund amount, then choose **Review refund**. The review shows the safe next step without exposing internal payment identifiers or technical payment errors. **Continue refund** continues checking the same refund; it does not issue another refund.
 `,
     });
 
@@ -1414,7 +1416,7 @@ When the safe automatic checks have stopped, open the organization's **Review fi
       testInfo,
       recoveryPage.page.locator('app-platform-finance'),
       recoveryPage.page,
-      'Review and resume the exact stopped Stripe refund',
+      'Review and continue a refund that needs attention',
     );
     await recoveryPage.page
       .getByRole('button', { name: 'Continue refund' })
@@ -1532,16 +1534,16 @@ When the safe automatic checks have stopped, open the organization's **Review fi
       body: `
 ### Retry a failed refund
 
-After status checks resume, a Stripe **failed** update for the same refund asks the participant to **Contact the organizer** and changes the organizer result to **Refund needs attention**. It does not create a second refund.
+After status checks resume, an update saying the refund **failed** for the same refund asks the attendee to **Contact the organizer** and changes the organizer result to **Refund needs attention**. It does not create a second refund.
 
-Switch to a platform administrator account; an organization Admin role is not sufficient. Open the affected organization, select **Review finance**, open **Refunds needing attention**, and review the event, attendee, refund amount, failed state, and safe next step. Internal payment identifiers and raw Stripe errors remain hidden. Enter a specific **Reason for this action**, then choose **Try failed refund again**. Evorto keeps the failed Stripe refund in payment history, starts a new attempt for the same amount, and includes the reason in change history. It does not create a second refund.
+Switch to an Evorto administrator account; an organization Admin role is not sufficient. Open the affected organization, select **Review finance**, open **Refunds needing attention**, and review the event, attendee, refund amount, failed state, and safe next step. Internal payment identifiers and technical payment errors remain hidden. Enter a specific **Reason for this action**, then choose **Try failed refund again**. Evorto keeps the failed refund in payment history, starts a new attempt for the same amount, and includes the reason in change history. It does not create a second refund.
 `,
     });
     await takeScreenshot(
       testInfo,
       scannerAddOn,
       scannerPage.page,
-      'Terminal Stripe refund failure on the cancelled add-on',
+      'Cancelled add-on shows that its refund needs attention',
     );
     await recoveryPage.page.reload();
     await expect(
@@ -1584,7 +1586,7 @@ Switch to a platform administrator account; an organization Admin role is not su
       testInfo,
       recoveryPage.page.locator('app-platform-finance'),
       recoveryPage.page,
-      'Review and schedule the terminal add-on refund',
+      'Review and try the add-on refund again',
     );
     await recoveryPage.page
       .getByRole('button', { name: 'Try failed refund again' })
@@ -1752,20 +1754,20 @@ Switch to a platform administrator account; an organization Admin role is not su
       body: `
 ### Completion
 
-After Stripe confirms the retry, the organizer view shows **Refunded** and the participant view shows **Refund complete**. The registration stays cancelled, and the earlier failed attempt remains in payment history.
+After the payment service confirms the retry succeeded, the organizer view shows **Refunded** and the attendee view shows **Refund complete**. The sign-up stays cancelled, and the earlier failed attempt remains in payment history.
 
-This local walkthrough verifies Evorto's refund workflow but not settlement by the card network or bank. Treat a refund as complete only after Stripe reports it succeeded.
+This example demonstrates how Evorto tracks the refund; it cannot establish when a card network or bank credits the money. Treat the refund as complete in Evorto only after the payment service confirms it succeeded.
 `,
     });
     await takeScreenshot(
       testInfo,
       profileCard,
       page,
-      'Completed recovered refund on the cancelled participant ticket',
+      'Completed refund on the cancelled attendee ticket',
     );
   });
 
-  test('Understand a participant cancellation deadline block', async ({
+  test('Understand when you can no longer cancel your ticket', async ({
     database,
     page,
     seeded,
@@ -1781,7 +1783,7 @@ This local walkthrough verifies Evorto's refund workflow but not settlement by t
     const eventId = createId();
     const optionId = createId();
     const registrationId = createId();
-    const eventTitle = 'Cancellation deadline recovery guide';
+    const eventTitle = 'Evening museum visit';
     const eventWindow = futureServerEventWindow();
     const passedDeadlineHours = Math.max(
       1,
@@ -1795,8 +1797,7 @@ This local walkthrough verifies Evorto's refund workflow but not settlement by t
     try {
       await database.insert(schema.eventInstances).values({
         creatorId: eventCreator.id,
-        description:
-          'A free registration whose participant cancellation deadline has passed.',
+        description: 'A free ticket whose cancellation deadline has passed.',
         end: eventWindow.end,
         icon: { iconColor: 0x4f46e5, iconName: 'ticket' },
         id: eventId,
@@ -1820,7 +1821,7 @@ This local walkthrough verifies Evorto's refund workflow but not settlement by t
         registrationMode: 'fcfs',
         roleIds: [],
         spots: 5,
-        title: 'Free deadline-controlled participant',
+        title: 'Free attendee with a cancellation deadline',
       });
       await database.insert(schema.eventRegistrations).values({
         discountAmount: 0,
@@ -1837,7 +1838,7 @@ This local walkthrough verifies Evorto's refund workflow but not settlement by t
         body: `
 ### When self-service cancellation is closed
 
-The registration option can override the organization's default cancellation deadline. In this example, the option's deadline is deliberately set before the current time, so participant cancellation has already closed.
+The sign-up choice can override the organization's default cancellation deadline. In this example, the option's deadline is deliberately set before the current time, so attendee cancellation has already closed.
 
 Open **Events**, select the event, and review the confirmed ticket. Evorto explains that the deadline has passed and does not offer a cancellation action. Evorto checks the deadline again if an outdated page tries to submit a cancellation.
 `,
@@ -1891,21 +1892,21 @@ Open **Events**, select the event, and review the confirmed ticket. Evorto expla
       await testInfo.attach('markdown', {
         body: `
 {% callout type="warning" title="Nothing was partially changed" %}
-The deadline explanation and missing cancellation action mean the ticket remains confirmed, the occupied spot remains counted, no refund was started, and no cancellation email was scheduled. Refreshing does not override the policy, and Evorto checks the deadline again before accepting a cancellation.
+The deadline explanation and missing cancellation action mean the ticket remains confirmed, the occupied spot remains counted, no refund was started, and no cancellation email was scheduled. Opening the page again does not override the policy, and Evorto checks the deadline again before accepting a cancellation.
 {% /callout %}
 
-Contact an event organizer if the registration still needs operational handling. An organizer who can organize this event and has **Cancel tickets and add-ons** access may cancel an unchecked registration before the event starts; participant deadline expiry alone does not grant the participant an override.
+Contact an event organizer if the sign-up still needs operational handling. An organizer who can organize this event and has **Cancel tickets and add-ons** access may cancel an unchecked sign-up before the event starts; attendee deadline expiry alone does not grant the attendee an override.
 
-Other recoverable messages are equally literal: when payment fees are still reconciling, retry later; when pending Stripe Checkout cancellation cannot be confirmed, refresh before retrying; and when an add-on payment or transfer is active, finish or resolve that workflow first. Evorto keeps the registration and capacity intact until the prerequisite is proven.
+Other recoverable messages are equally literal: when payment fees are still reconciling, retry later; when pending payment page cancellation cannot be confirmed, open the event again before retrying; and when an add-on payment or transfer is active, finish or resolve that flow first. Evorto keeps the sign-up and capacity intact until the requirement is proven.
 
-Self-service cancellation applies only to the signed-in person's own registration in the current organization. A registration link does not grant access to another participant's ticket. For organizer cancellation, Evorto verifies the event, organization, organizer relationship, and cancellation access again.
+Self-service cancellation applies only to the signed-in person's own sign-up in the current organization. A sign-up link does not grant access to another attendee's ticket. For organizer cancellation, Evorto verifies the event, organization, organizer relationship, and cancellation access again.
 `,
       });
       await takeScreenshot(
         testInfo,
         deadlineExplanation,
         page,
-        'Participant cancellation blocked after the deadline',
+        'Confirmed ticket remains active after the cancellation deadline',
       );
     } finally {
       await database
@@ -1933,10 +1934,10 @@ Self-service cancellation applies only to the signed-in person's own registratio
   });
 });
 
-test.describe('Organizer registration cancellation', () => {
+test.describe('Cancel an attendee as an organizer', () => {
   test.use({ storageState: adminStateFile });
 
-  test('Cancel a participant registration from the organizer overview', async ({
+  test('Cancel an attendee ticket from the organizer overview', async ({
     database,
     page,
     seeded,
@@ -1959,7 +1960,7 @@ test.describe('Organizer registration cancellation', () => {
     const optionId = createId();
     const registrationId = createId();
     const registrationAcquisitionId = createId();
-    const eventTitle = 'Organizer cancellation guide';
+    const eventTitle = 'Volunteer welcome evening';
     const eventWindow = futureServerEventWindow();
     const passedDeadlineHours = Math.max(
       1,
@@ -1975,7 +1976,7 @@ test.describe('Organizer registration cancellation', () => {
       await database.insert(schema.eventInstances).values({
         creatorId: organizer.id,
         description:
-          'An event used to explain an organizer cancelling a participant registration.',
+          "An event used to explain an organizer cancelling an attendee's ticket.",
         end: eventWindow.end,
         icon: { iconColor: 0x4f46e5, iconName: 'ticket' },
         id: eventId,
@@ -1999,7 +2000,7 @@ test.describe('Organizer registration cancellation', () => {
         registrationMode: 'fcfs',
         roleIds: [],
         spots: 10,
-        title: 'Participant',
+        title: 'Attendee',
       });
       await database.insert(schema.eventRegistrations).values({
         discountAmount: 0,
@@ -2045,10 +2046,10 @@ test.describe('Organizer registration cancellation', () => {
 
       await testInfo.attach('markdown', {
         body: `
-{% callout type="note" title="Organizer prerequisites" %}
+{% callout type="note" title="Organizer before you start" %}
 Use an account that can organize this exact event and has **Cancel tickets and add-ons** access. Opening the page is not enough: Evorto checks the current organization, event-organizer relationship, and cancellation access again before completing the action.
 
-The target registration must belong to this event and organization, remain unchecked, and precede the event start. This example is free and includes one guest. A participant cancellation deadline has already passed, but that participant deadline does not prevent an authorized organizer from handling the registration.
+The target sign-up must belong to this event and organization, remain unchecked, and precede the event start. This example is free and includes one guest. An attendee cancellation deadline has already passed, but that attendee deadline does not prevent an organizer with the required access from handling the sign-up.
 {% /callout %}
 
 ### Cancel from the organizer overview
@@ -2056,7 +2057,7 @@ The target registration must belong to this event and organization, remain unche
 1. Open **Events** from the main navigation.
 2. Select the event.
 3. Select **Organize this event**.
-4. Under **Attendee sign-ups**, find the correct person and registration option.
+4. Under **Attendee sign-ups**, find the correct person and sign-up choice.
 5. Verify that the attendee has not checked in, then select **Cancel ticket**.
 `,
       });
@@ -2086,14 +2087,14 @@ The target registration must belong to this event and organization, remain unche
 
       await testInfo.attach('markdown', {
         body: `
-The participant name and registration option are the first review context. Selecting the organizer action opens a second confirmation naming the participant and explaining that capacity is released and a payment may require refund follow-up. **Go back** is focused by default. Checked-in registrations show cancellation as disabled, and Evorto rejects the action as well.
+The attendee name and sign-up choice are the first review context. Selecting the organizer action opens a second confirmation naming the attendee and explaining that capacity is released and a payment may require refund follow-up. **Go back** is focused by default. Checked-in tickets show cancellation as disabled, and Evorto rejects the action as well.
 `,
       });
       await takeScreenshot(
         testInfo,
         participantRow,
         page,
-        'Review the participant before organizer cancellation',
+        'Organizer reviews the named attendee and ticket',
       );
       await expect(cancelRegistration).not.toHaveAttribute(
         'jsaction',
@@ -2120,7 +2121,7 @@ The participant name and registration option are the first review context. Selec
         testInfo,
         cancellationDialog,
         page,
-        'Confirm the organizer cancellation for the named participant',
+        'Organizer confirmation names the attendee and released places',
       );
       await cancellationDialog
         .getByRole('button', { name: 'Cancel ticket' })
@@ -2172,13 +2173,13 @@ The participant name and registration option are the first review context. Selec
         body: `
 ### Organizer completion and recovery
 
-The success message and disappearing participant row show that the cancellation completed. The registration is **Cancelled**, both participant and guest spots are released, and the participant receives an email that identifies the organizer cancellation. This free registration creates no refund.
+The success message and disappearing attendee row show that the cancellation completed. The sign-up is **Cancelled**, both attendee and guest spots are released, and the attendee receives an email that identifies the organizer cancellation. This free sign-up creates no refund.
 
-Paid registrations and paid add-ons are Stripe-only. Evorto must first confirm the original payment and add-on amounts. If payment safety cannot be confirmed, nothing changes: the ticket and inventory remain intact. If an immediate refund attempt fails, the ticket remains cancelled and Evorto shows the refund status so an administrator can retry it safely.
+Paid tickets and paid add-ons are handled through online payments only. Evorto must first confirm the original payment and add-on amounts. If payment safety cannot be confirmed, nothing changes: the ticket and inventory remain intact. If an immediate refund attempt fails, the ticket remains cancelled and Evorto shows the refund status so an administrator can retry it safely.
 
-This registration is free, so cancellation creates no refund. For a paid registration, check the refund status shown in Evorto before telling a participant that money has been returned.
+This sign-up is free, so cancellation creates no refund. For a paid sign-up, check the refund status shown in Evorto before telling an attendee that money has been returned.
 
-An active transfer, pending add-on Checkout, checked-in attendee, started event, ticket from another organization, or missing cancellation access also blocks the operation. If the status or payment state changes while the confirmation is open, Evorto asks the organizer to refresh and review the updated participant state. Resolve the specific state shown by Evorto before retrying.
+An active transfer, pending add-on Checkout, checked-in attendee, started event, ticket from another organization, or missing cancellation access also blocks the operation. If the status or payment state changes while the confirmation is open, Evorto asks the organizer to open the page again and review the updated attendee state. Resolve the specific state shown by Evorto before retrying.
 `,
       });
       await takeScreenshot(
@@ -2190,7 +2191,7 @@ An active transfer, pending add-on Checkout, checked-in attendee, started event,
           }),
         }),
         page,
-        'Organizer overview after participant cancellation',
+        'Attendee no longer appears after organizer cancellation',
       );
     } finally {
       await database

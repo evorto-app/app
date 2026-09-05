@@ -260,21 +260,21 @@ export const registrationTransferStatusCopy = (
     }
     case 'checkout_pending': {
       return {
-        body: 'Your payment is pending. The fixed ticket bundle stays confirmed for its current owner until payment succeeds. Continue the existing Stripe Checkout; do not start another claim.',
+        body: 'Your payment is pending. The ticket remains with the previous attendee until payment is complete. Continue the same payment; do not start again.',
         title: 'Payment still required',
         tone: 'info',
       };
     }
     case 'compensated': {
       return {
-        body: 'The transfer could not finish, so the ticket stayed with its previous owner and your full payment, including the platform fee, was refunded. Do not pay or claim again.',
+        body: 'The transfer could not finish, so the ticket stayed with its previous owner and your full payment, including any fees, was refunded. Do not pay or try the transfer again.',
         title: 'Transfer stopped — payment refunded',
         tone: 'info',
       };
     }
     case 'compensation_failed': {
       return {
-        body: 'The transfer could not finish, so the ticket stayed with its previous owner. Your full refund needs follow-up and may not have reached you. Do not pay or claim again; contact the organizer for an update.',
+        body: 'The transfer could not finish, so the ticket stayed with its previous owner. Your full refund needs follow-up and may not have reached you. Do not pay or try the transfer again; contact the organizer for an update.',
         title: 'Transfer stopped — refund needs attention',
         tone: 'error',
       };
@@ -282,27 +282,27 @@ export const registrationTransferStatusCopy = (
     case 'compensation_pending': {
       if (refundLifecycle?.state === 'actionRequired') {
         return {
-          body: 'The transfer could not finish, so the ticket stayed with its previous owner. Your full refund, including the platform fee, needs follow-up. Do not pay or claim again; contact the organizer for an update.',
+          body: 'The transfer could not finish, so the ticket stayed with its previous owner. Your full refund, including any fees, needs follow-up. Do not pay or try the transfer again; contact the organizer for an update.',
           title: 'Transfer stopped — refund needs attention',
           tone: 'error',
         };
       }
       if (refundLifecycle?.state === 'succeeded') {
         return {
-          body: 'The transfer could not finish, so the ticket stayed with its previous owner and your full payment, including the platform fee, was refunded. Do not pay or claim again.',
+          body: 'The transfer could not finish, so the ticket stayed with its previous owner and your full payment, including any fees, was refunded. Do not pay or try the transfer again.',
           title: 'Transfer stopped — payment refunded',
           tone: 'info',
         };
       }
       if (refundLifecycle?.state !== 'processing') {
         return {
-          body: 'The transfer could not finish, so the ticket stayed with its previous owner. Your full refund needs follow-up and may not have reached you. Do not pay or claim again; contact the organizer for an update.',
+          body: 'The transfer could not finish, so the ticket stayed with its previous owner. Your full refund needs follow-up and may not have reached you. Do not pay or try the transfer again; contact the organizer for an update.',
           title: 'Transfer stopped — refund needs attention',
           tone: 'error',
         };
       }
       return {
-        body: 'The transfer could not finish because the original ticket changed after your payment. The ticket stayed with its previous owner, and your full refund, including the platform fee, is processing. Do not pay or claim again.',
+        body: 'The transfer could not finish because the original ticket changed after your payment. The ticket stayed with its previous owner, and your full refund, including any fees, is processing. Do not pay or try the transfer again.',
         title: 'Transfer stopped — refund processing',
         tone: 'info',
       };
@@ -316,7 +316,7 @@ export const registrationTransferStatusCopy = (
     }
     case 'expired': {
       return {
-        body: 'This offer or its Checkout window expired. The previous owner kept their confirmed registration.',
+        body: 'This offer or its payment window expired. The previous attendee kept their ticket.',
         title: 'Transfer expired',
         tone: 'info',
       };
@@ -326,7 +326,7 @@ export const registrationTransferStatusCopy = (
     }
     case 'refund_failed': {
       return {
-        body: 'The fixed registration bundle now belongs to you and remains confirmed. The previous owner refund still needs follow-up; you do not need to pay or claim again.',
+        body: "The ticket and included items now belong to you and remain confirmed. The previous owner's refund still needs follow-up; you do not need to pay or try the transfer again.",
         title: 'Transfer complete — refund needs attention',
         tone: 'error',
       };
@@ -334,28 +334,28 @@ export const registrationTransferStatusCopy = (
     case 'refund_pending': {
       if (refundLifecycle?.state === 'actionRequired') {
         return {
-          body: 'The fixed registration bundle now belongs to you and remains confirmed. The previous owner refund still needs follow-up; you do not need to pay or claim again.',
+          body: "The ticket and included items now belong to you and remain confirmed. The previous owner's refund still needs follow-up; you do not need to pay or try the transfer again.",
           title: 'Transfer complete — refund needs attention',
           tone: 'error',
         };
       }
       if (refundLifecycle?.state === 'succeeded') {
         return {
-          body: 'The fixed registration bundle now belongs to you, and the previous owner refund completed.',
+          body: 'The ticket and included items now belong to you, and the previous owner refund completed.',
           title: 'Transfer complete — refund completed',
           tone: 'success',
         };
       }
       if (refundLifecycle?.state !== 'processing') {
         return {
-          body: 'The fixed registration bundle now belongs to you and remains confirmed. The previous owner refund still needs follow-up; you do not need to pay or claim again.',
+          body: "The ticket and included items now belong to you and remain confirmed. The previous owner's refund still needs follow-up; you do not need to pay or try the transfer again.",
           title: 'Transfer complete — refund needs attention',
           tone: 'error',
         };
       }
       return {
-        body: 'The fixed registration bundle now belongs to you and remains confirmed. The previous owner refund is still being processed; you do not need to do anything.',
-        title: 'Transfer complete — refund processing',
+        body: "The ticket and included items now belong to you and remain confirmed. The previous owner's refund is still being processed; you do not need to do anything.",
+        title: 'Transfer complete — refund in progress',
         tone: 'success',
       };
     }

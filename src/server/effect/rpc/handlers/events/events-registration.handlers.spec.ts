@@ -1313,6 +1313,44 @@ describe('event registration owner add-on status', () => {
   );
 
   it.effect(
+    'directs an unknown registration result to current ticket and payment review',
+    () =>
+      Effect.gen(function* () {
+        const logs: Record<string, unknown>[] = [];
+        const logger = Logger.make(({ fiber }) => {
+          logs.push({ ...fiber.getRef(References.CurrentLogAnnotations) });
+        });
+        const failure = new Error('private checkout transport failure');
+        const error = yield* mapRegistrationMutationInternalError(failure).pipe(
+          Effect.flip,
+          Effect.provide(Logger.layer([logger])),
+        );
+
+        expect(error).toBeInstanceOf(EventRegistrationInternalError);
+        expect(error.message).toBe(
+          'The result of this request could not be confirmed. Open the event again and review your ticket and payment status before taking another action.',
+        );
+        expect(error).not.toHaveProperty('cause');
+        expect(logs).toContainEqual({ cause: failure });
+      }),
+  );
+
+  it.effect(
+    'preserves a known registration conflict without suggesting a repeat',
+    () =>
+      Effect.gen(function* () {
+        const conflict = new EventRegistrationConflictError({
+          message: 'The selected sign-up choice is full.',
+        });
+        const error = yield* mapRegistrationMutationInternalError(
+          conflict,
+        ).pipe(Effect.flip);
+
+        expect(error).toBe(conflict);
+      }),
+  );
+
+  it.effect(
     'returns every configured add-on and owner-scoped pending checkout recovery data',
     () =>
       Effect.gen(function* () {

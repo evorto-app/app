@@ -129,7 +129,7 @@ describe('outgoingRegistrationTransferCopy', () => {
     },
     {
       expectedNextStep: 'No action is needed.',
-      expectedTitle: 'Transfer refund is processing',
+      expectedTitle: 'Transfer refund is in progress',
       refundStatus: 'processing' as const,
       tone: 'info',
     },

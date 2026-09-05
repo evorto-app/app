@@ -29,7 +29,7 @@ class CompletePlaywrightRunReporter implements Reporter {
     );
   }
 
-  onEnd(): { status?: FullResult['status'] } | undefined {
+  async onEnd(): Promise<{ status?: FullResult['status'] } | undefined> {
     if (this.incompleteTests.size === 0) {
       return undefined;
     }

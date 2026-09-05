@@ -120,9 +120,10 @@ const checkInDatabaseEffect = <A, R>(
     ),
   );
 
-const registrationNotFound = (registrationId: string) =>
+const registrationNotFound = () =>
   new RpcBadRequestError({
-    message: `Registration ${registrationId} was not found for the target tenant`,
+    message:
+      "This sign-up no longer exists. No changes were made. Return to the event's sign-ups and choose an existing sign-up.",
     reason: 'registrationNotFound',
   });
 
@@ -147,14 +148,15 @@ const ensurePlatformRegistrationMutationHasNoActiveTransfer = (
     ),
   );
 
-const mapPlatformRegistrationMutationError = (error: unknown) => {
+export const mapPlatformRegistrationMutationError = (error: unknown) => {
   if (error instanceof RpcBadRequestError) {
     return Effect.fail(error);
   }
   if (error instanceof EventRegistrationNotFoundError) {
     return Effect.fail(
       new RpcBadRequestError({
-        message: error.message,
+        message:
+          "This sign-up no longer exists. No changes were made. Return to the event's sign-ups and choose an existing sign-up.",
         reason: 'registrationNotFound',
       }),
     );
@@ -403,12 +405,12 @@ export const platformRegistrationCancellationBlockedReason = (input: {
   readonly status: PlatformRegistrationDetailRecord['status'];
 }): null | string => {
   if (input.status === 'CANCELLED') {
-    return 'Registration is already cancelled.';
+    return 'This ticket is already cancelled.';
   }
-  if (input.checkInTime) return 'Checked-in registrations cannot be cancelled.';
+  if (input.checkInTime) return 'A checked-in ticket cannot be cancelled.';
   if (input.eventStart <= input.now) return 'The event has already started.';
   if (input.activeTransfer) {
-    return 'Resolve the active registration transfer before cancelling this registration.';
+    return 'Finish or cancel the active transfer before cancelling this ticket.';
   }
   if (input.pendingStripePayment?.stripeCheckoutSessionId === null) {
     return 'Payment setup needs review. Ask the event organizer or finance team to investigate. The place remains held; no changes were made.';
@@ -417,10 +419,10 @@ export const platformRegistrationCancellationBlockedReason = (input: {
     input.pendingStripePayment &&
     !input.pendingStripePayment.stripeAccountId
   ) {
-    return 'The pending payment is missing its Stripe account and cannot be cancelled safely.';
+    return 'The saved payment details are incomplete, so this ticket cannot be cancelled. No changes were made.';
   }
   if (input.pendingAddonPayment) {
-    return 'An add-on payment is still in progress. Finish or let that checkout expire before cancelling.';
+    return 'An add-on payment is still in progress. Finish it or wait for the payment window to expire before cancelling.';
   }
   return input.refundBlockedReason;
 };
@@ -493,7 +495,7 @@ const refundPreviewUnavailable = (
   refundFeesOnCancellation: boolean,
 ): PlatformRegistrationCancellationRefundPreview => ({
   blockedReason:
-    "The current attendee's refundable payment could not be verified. Reconcile the registration payment before cancelling.",
+    "The attendee's payment details could not be confirmed. Resolve the payment before cancelling.",
   refund: {
     amount: null,
     feesIncluded: refundFeesOnCancellation,
@@ -870,7 +872,7 @@ export const loadPlatformRegistrationDetail = Effect.fn(
     .pipe(Effect.orDie);
   const registration = registrations[0];
   if (!registration) {
-    return yield* Effect.fail(registrationNotFound(registrationId));
+    return yield* Effect.fail(registrationNotFound());
   }
 
   const now = yield* platformRegistrationNow;
@@ -889,7 +891,8 @@ export const loadPlatformRegistrationDetail = Effect.fn(
   if (!tenantPolicy) {
     return yield* Effect.fail(
       new RpcBadRequestError({
-        message: 'Target tenant cancellation policy was not found',
+        message:
+          'This organization no longer exists. No changes were made. Return to Organizations and choose an existing organization.',
         reason: 'targetTenantNotFound',
       }),
     );
@@ -1179,9 +1182,7 @@ export const platformRegistrationHandlers = {
                   .pipe(Effect.orDie);
                 const lockedRegistration = lockedRegistrations[0];
                 if (!lockedRegistration) {
-                  return yield* Effect.fail(
-                    registrationNotFound(input.registrationId),
-                  );
+                  return yield* Effect.fail(registrationNotFound());
                 }
 
                 yield* ensurePlatformRegistrationMutationHasNoActiveTransfer(

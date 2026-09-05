@@ -130,7 +130,6 @@ test('Join another organization and choose your home organization', async ({
 
   await testInfo.attach('markdown', {
     body: `
-# Join Another Organization and Choose Your Home Organization
 
 Evorto uses one account across every organization, such as a local section or association. Joining another organization adds a separate membership to that same account. It does not create another login and it does not remove your existing memberships.
 
@@ -281,9 +280,9 @@ The warning names your unchanged home organization. You can use the new organiza
     body: `
 ## Deliberately change the home organization
 
-Select **Make this my home organization** only when you want the organization currently shown in Evorto to become your preferred home. The action changes one account preference; it does not delete the previous organization membership, consent history, answers, roles, registrations, or payments.
+Select **Make this my home organization** only when you want the organization currently shown in Evorto to become your preferred home. The action changes one account preference; it does not delete the previous organization membership, consent history, answers, roles, tickets, or payments.
 
-Evorto confirms the saved organization by name. After a refresh, the cross-organization warning stays gone because the new home organization remains saved to your account.
+Evorto confirms the saved organization by name. After opening the page again, the message about another organization stays gone because the new home organization remains saved to your account.
 `,
   });
   await expect(makeHomeTenantButton).not.toHaveAttribute('jsaction', /click/);
@@ -321,7 +320,7 @@ Evorto confirms the saved organization by name. After a refresh, the cross-organ
   ).toHaveCount(0);
 });
 
-test('Publish and complete member onboarding @admin', async ({
+test('Choose what members need to provide @admin', async ({
   browser,
   database,
   registerDatabaseCleanup,
@@ -464,7 +463,7 @@ Use **Admin Tools** → **New member setup**. You need **Change organization set
     testInfo,
     settings,
     admin.page,
-    'Member onboarding settings and publication warning',
+    'New member setup and publication warning',
   );
 
   await testInfo.attach('markdown', {
@@ -505,7 +504,7 @@ Use **Add question** for information that every member must provide. **Write an 
     testInfo,
     settings,
     admin.page,
-    'Configured privacy policy and required selection question',
+    'Privacy policy and required question',
   );
 
   await settings.getByRole('button', { name: 'Publish changes' }).click();
@@ -559,7 +558,7 @@ For a new member, Evorto creates the organization membership only after they com
     testInfo,
     onboarding,
     admin.page,
-    'Current member onboarding requirements',
+    'Review the current policy and questions',
   );
 
   const onboardingQuestion = onboarding.getByRole('combobox', {

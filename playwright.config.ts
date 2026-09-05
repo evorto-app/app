@@ -257,8 +257,6 @@ export default defineConfig({
     // Playwright's API client shares idle connections across test contexts.
     extraHTTPHeaders: { connection: 'close' },
 
-    /* Ignore SSL errors when connecting to Auth0 and other external services */
-    ignoreHTTPSErrors: true,
     screenshot: 'off',
     trace: 'off',
     video: 'off',

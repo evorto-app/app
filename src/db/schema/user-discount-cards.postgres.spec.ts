@@ -138,6 +138,7 @@ const withCardFixture = <E, R>(
 const validFrom = new Date('2026-01-01T00:00:00.000Z');
 const validTo = new Date('2026-12-31T00:00:00.000Z');
 const invalidWindows = [
+  { name: 'missing both dates', validFrom: null, validTo: null },
   { name: 'missing start', validFrom: null, validTo },
   { name: 'missing end', validFrom, validTo: null },
   { name: 'reversed dates', validFrom: validTo, validTo: validFrom },

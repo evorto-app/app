@@ -59,14 +59,14 @@ const resolvePlatformOperation = Effect.fn(
   const requestContext = yield* RpcAccess.current();
   if (!requestContext.authenticated) {
     return yield* new RpcUnauthorizedError({
-      message: 'Authentication required',
+      message: 'Sign in to continue.',
     });
   }
 
   const authority = requestContext.platformAuthority;
   if (!authority) {
     return yield* new RpcForbiddenError({
-      message: 'Platform administrator authority required',
+      message: 'You need Evorto administrator access to do this.',
     });
   }
 
@@ -79,7 +79,7 @@ const resolvePlatformOperation = Effect.fn(
   );
   if (!targetTenantRecord) {
     return yield* new RpcBadRequestError({
-      message: 'Target tenant not found',
+      message: 'This organization could not be found.',
     });
   }
 
