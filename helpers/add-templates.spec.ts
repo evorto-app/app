@@ -1,6 +1,10 @@
 import { describe, expect, it } from '@effect/vitest';
 
-import { requireSeedTemplateOption, type SeedTemplate } from './add-templates';
+import {
+  attachSeedKeysById,
+  requireSeedTemplateOption,
+  type SeedTemplate,
+} from './add-templates';
 
 const templates: Pick<SeedTemplate, 'id' | 'seedKey'>[] = [
   { id: 'hike-template', seedKey: 'hike' },
@@ -96,5 +100,60 @@ describe('required template seed fixtures', () => {
     ).toThrow(
       'Missing declared seed fixture: Packed lunch add-on registration option (hike)',
     );
+  });
+});
+
+describe('template seed metadata', () => {
+  it('matches seed keys by preassigned id when inserted rows are reordered', () => {
+    expect(
+      attachSeedKeysById(
+        [{ id: 'template-2' }, { id: 'template-1' }],
+        [
+          { id: 'template-1', seedKey: 'first' },
+          { id: 'template-2', seedKey: 'second' },
+        ],
+        'test',
+      ),
+    ).toEqual([
+      { id: 'template-2', seedKey: 'second' },
+      { id: 'template-1', seedKey: 'first' },
+    ]);
+  });
+
+  it('rejects incomplete and unrecognized inserted template rows', () => {
+    expect(() =>
+      attachSeedKeysById(
+        [{ id: 'template-1' }],
+        [
+          { id: 'template-1', seedKey: 'first' },
+          { id: 'template-2', seedKey: 'second' },
+        ],
+        'test',
+      ),
+    ).toThrow('Expected 2 created test templates, received 1');
+
+    expect(() =>
+      attachSeedKeysById(
+        [{ id: 'template-other' }, { id: 'template-1' }],
+        [
+          { id: 'template-1', seedKey: 'first' },
+          { id: 'template-2', seedKey: 'second' },
+        ],
+        'test',
+      ),
+    ).toThrow(
+      'Missing declared seed fixture: seed key for test template template-other',
+    );
+
+    expect(() =>
+      attachSeedKeysById(
+        [{ id: 'template-1' }, { id: 'template-1' }],
+        [
+          { id: 'template-1', seedKey: 'first' },
+          { id: 'template-2', seedKey: 'second' },
+        ],
+        'test',
+      ),
+    ).toThrow('Created test templates contain duplicate ids');
   });
 });

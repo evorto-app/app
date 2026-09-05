@@ -98,7 +98,6 @@ const graphRecord: TemplateGraphRecord = {
   ],
   simpleModeEnabled: false,
   title: 'Advanced template',
-  unlisted: true,
 };
 
 describe('platform template full-graph handler', () => {
@@ -184,7 +183,6 @@ describe('platform template full-graph handler', () => {
           }),
         ],
         simpleModeEnabled: false,
-        unlisted: true,
       }),
     );
     expect(encoded).toContain('random');

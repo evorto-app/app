@@ -8,9 +8,8 @@ import {
   signal,
   untracked,
 } from '@angular/core';
-import { form, FormField, submit } from '@angular/forms/signals';
+import { form, submit } from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
-import { MatCheckboxModule } from '@angular/material/checkbox';
 import { Router, RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
@@ -47,9 +46,7 @@ export const templateCreateErrorMessage = (error: unknown): string =>
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     FontAwesomeModule,
-    FormField,
     MatButtonModule,
-    MatCheckboxModule,
     RouterLink,
     TemplateGeneralFormComponent,
     TemplateGraphEditorComponent,
@@ -159,7 +156,6 @@ export class TemplateCreateComponent {
         ? ('loading' as const)
         : ('ready' as const),
   );
-
   private readonly queryClient = inject(QueryClient);
   private readonly router = inject(Router);
 

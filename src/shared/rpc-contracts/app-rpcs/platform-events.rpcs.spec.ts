@@ -297,7 +297,6 @@ describe('platform event administration RPC schemas', () => {
           simpleModeEnabled: false,
           targetTenantId: 'tenant-1',
           title: 'Advanced template',
-          unlisted: true,
         };
 
         const created = yield* Schema.decodeUnknownEffect(
@@ -366,7 +365,6 @@ describe('platform event administration RPC schemas', () => {
         ],
         simpleModeEnabled: false,
         title: 'Legacy random template',
-        unlisted: false,
       });
 
       expect(legacyRecord.registrationOptions[0]?.registrationMode).toBe(

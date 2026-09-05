@@ -16,6 +16,8 @@ import {
   QueryClient,
   QueryObserver,
 } from '@tanstack/angular-query-experimental';
+import { readFileSync } from 'node:fs';
+import nodePath from 'node:path';
 import { firstValueFrom, Subject } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -32,7 +34,10 @@ import {
 } from '../../shared/components/forms/template-graph-editor/template-graph-form.model';
 import { TemplateRegistrationOptionEditorComponent } from '../../shared/components/forms/template-graph-editor/template-registration-option-editor.component';
 import { TemplateGeneralFormComponent } from '../shared/template-form/template-general-form.component';
-import { TemplateCreateComponent } from './template-create.component';
+import {
+  TemplateCreateComponent,
+  templateCreateErrorMessage,
+} from './template-create.component';
 
 type RoleQueryOptions = RpcClient['roles']['findMany']['queryOptions'];
 type RpcClient = ReturnType<typeof AppRpc.injectClient>;
@@ -498,6 +503,39 @@ describe('TemplateCreateComponent role catalog defaults', () => {
   });
 });
 
+describe('templateCreateErrorMessage', () => {
+  it('uses the organization payment connection when validating prices', () => {
+    const source = readFileSync(
+      nodePath.join(
+        process.cwd(),
+        'src/app/templates/template-create/template-create.component.ts',
+      ),
+      'utf8',
+    );
+
+    expect(source).toContain('paymentsConfigured');
+  });
+
+  it('shows an actionable form problem', () => {
+    expect(
+      templateCreateErrorMessage({
+        _tag: 'RpcBadRequestError',
+        message: 'Add a title and description for this template.',
+      }),
+    ).toBe('Add a title and description for this template.');
+  });
+
+  it.each([
+    new Error('database failed'),
+    { _tag: 'RpcInternalServerError', message: 'database failed' },
+    { _tag: 'RpcUnauthorizedError', message: 'token expired' },
+  ])('keeps technical and access failures behind plain copy', (error) => {
+    expect(templateCreateErrorMessage(error)).toBe(
+      'The save outcome could not be confirmed. Load the template list again to check whether the template was saved before trying again.',
+    );
+  });
+});
+
 describe('TemplateCreateComponent save outcomes', () => {
   type OutcomeRpcClient = ReturnType<typeof AppRpc.injectClient>;
   type SaveInput = Parameters<
@@ -560,7 +598,6 @@ describe('TemplateCreateComponent save outcomes', () => {
     registrationOptions: [option(true), option(false)],
     simpleModeEnabled: false,
     title: 'Original template title',
-    unlisted: false,
   };
   const tenant = new ClientTenantConfig({
     cancellationDeadlineHoursBeforeStart: 24,

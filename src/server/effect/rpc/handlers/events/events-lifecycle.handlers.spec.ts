@@ -26,6 +26,7 @@ import {
   eventRegistrationOptionDiscounts,
   eventRegistrationOptions,
   eventRegistrationQuestions,
+  eventTemplates,
   roles,
 } from '../../../../../db/schema';
 import {
@@ -197,10 +198,7 @@ const withTransaction = <DatabaseMock extends object>(
           })),
         };
       }
-      if (
-        selection['simpleModeEnabled'] !== undefined &&
-        selection['unlisted'] !== undefined
-      ) {
+      if (selection['simpleModeEnabled'] === eventTemplates.simpleModeEnabled) {
         return {
           from: vi.fn(() => ({
             where: vi.fn(() => ({
@@ -211,7 +209,6 @@ const withTransaction = <DatabaseMock extends object>(
                       simpleModeEnabled:
                         Reflect.get(database, 'templateSimpleModeEnabled') ===
                         true,
-                      unlisted: false,
                     },
                   ]),
                 ),
@@ -756,15 +753,20 @@ describe('eventLifecycleHandlers', () => {
     () =>
       Effect.gen(function* () {
         for (const submittedDiscountedPrice of [300, 0]) {
-          const insertedEventValues = vi.fn(() => ({
-            returning: vi.fn(() =>
-              Effect.succeed([
-                {
-                  id: 'event-1',
-                },
-              ]),
-            ),
-          }));
+          const insertedEventValues = vi.fn(
+            (values: typeof eventInstances.$inferInsert) => {
+              expect(values).not.toHaveProperty('unlisted');
+              return {
+                returning: vi.fn(() =>
+                  Effect.succeed([
+                    {
+                      id: 'event-1',
+                    },
+                  ]),
+                ),
+              };
+            },
+          );
           const insertedDiscountValues = vi.fn(() => Effect.succeed(undefined));
           const insertedRegistrationOptionValues = vi.fn(
             (
@@ -798,13 +800,6 @@ describe('eventLifecycleHandlers', () => {
             query: {
               addonToTemplateRegistrationOptions: {
                 findMany: vi.fn(() => Effect.succeed([])),
-              },
-              eventTemplates: {
-                findFirst: vi.fn(() =>
-                  Effect.succeed({
-                    unlisted: false,
-                  }),
-                ),
               },
               templateEventAddons: {
                 findMany: vi.fn(() => Effect.succeed([])),
@@ -892,6 +887,7 @@ describe('eventLifecycleHandlers', () => {
           expect(insertedEventValues).toHaveBeenCalledWith(
             expect.objectContaining({ simpleModeEnabled: true }),
           );
+          expect(eventInstances.unlisted.default).toBe(false);
           expect(insertedRegistrationOptionValues).toHaveBeenCalledWith(
             expect.arrayContaining([
               expect.objectContaining({
@@ -970,13 +966,6 @@ describe('eventLifecycleHandlers', () => {
             query: {
               addonToTemplateRegistrationOptions: {
                 findMany: vi.fn(() => Effect.succeed([])),
-              },
-              eventTemplates: {
-                findFirst: vi.fn(() =>
-                  Effect.succeed({
-                    unlisted: false,
-                  }),
-                ),
               },
               templateEventAddons: {
                 findMany: vi.fn(() => Effect.succeed([])),
@@ -1068,13 +1057,6 @@ describe('eventLifecycleHandlers', () => {
           query: {
             addonToTemplateRegistrationOptions: {
               findMany: vi.fn(() => Effect.succeed([])),
-            },
-            eventTemplates: {
-              findFirst: vi.fn(() =>
-                Effect.succeed({
-                  unlisted: false,
-                }),
-              ),
             },
             templateEventAddons: {
               findMany: vi.fn(() => Effect.succeed([])),
@@ -1523,13 +1505,6 @@ describe('eventLifecycleHandlers', () => {
                 ]),
               ),
             },
-            eventTemplates: {
-              findFirst: vi.fn(() =>
-                Effect.succeed({
-                  unlisted: false,
-                }),
-              ),
-            },
             templateEventAddons: {
               findMany: vi.fn(() =>
                 Effect.succeed([
@@ -1804,13 +1779,6 @@ describe('eventLifecycleHandlers', () => {
           query: {
             addonToTemplateRegistrationOptions: {
               findMany: vi.fn(() => Effect.succeed([])),
-            },
-            eventTemplates: {
-              findFirst: vi.fn(() =>
-                Effect.succeed({
-                  unlisted: false,
-                }),
-              ),
             },
             templateEventAddons: {
               findMany: vi.fn(() => Effect.succeed([])),

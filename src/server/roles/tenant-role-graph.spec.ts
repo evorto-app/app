@@ -69,14 +69,11 @@ describe('tenant role graph concurrency boundary', () => {
   });
 
   it('holds the role graph lock across ordinary template validation and writes', () => {
-    const service = readSource(
-      'src/server/effect/rpc/handlers/templates/simple-template.service.ts',
-    );
     const handlers = readSource(
       'src/server/effect/rpc/handlers/templates.handlers.ts',
     );
 
-    expect(occurrenceCount(service, 'lockTenantRoleGraph(')).toBe(2);
+    expect(occurrenceCount(handlers, 'lockTenantRoleGraph(')).toBe(2);
     expect(
       occurrenceCount(handlers, '.transaction((transaction)'),
     ).toBeGreaterThanOrEqual(2);
@@ -88,7 +85,7 @@ describe('tenant role graph concurrency boundary', () => {
     );
     const ordinaryUpdate = ordinaryTemplates.slice(
       ordinaryTemplates.indexOf("'templates.update':"),
-      ordinaryTemplates.indexOf("'templates.updateSimpleTemplate':"),
+      ordinaryTemplates.indexOf('satisfies Partial<AppRpcHandlers>'),
     );
     expect(ordinaryUpdate).toContain('lockTenantRoleGraph(');
     expect(ordinaryUpdate).toContain(".for('update')");
@@ -118,18 +115,6 @@ describe('tenant role graph concurrency boundary', () => {
     expect(platformUpdate).toContain(".for('update')");
     expect(platformUpdate.indexOf('lockTenantRoleGraph(')).toBeLessThan(
       platformUpdate.indexOf(".for('update')"),
-    );
-
-    const simpleTemplateService = readSource(
-      'src/server/effect/rpc/handlers/templates/simple-template.service.ts',
-    );
-    const simpleUpdate = simpleTemplateService.slice(
-      simpleTemplateService.indexOf('const updateSimpleTemplate'),
-    );
-    expect(simpleUpdate).toContain('lockTenantRoleGraph(');
-    expect(simpleUpdate).toContain('.update(eventTemplates)');
-    expect(simpleUpdate.indexOf('lockTenantRoleGraph(')).toBeLessThan(
-      simpleUpdate.indexOf('.update(eventTemplates)'),
     );
 
     const events = readSource(

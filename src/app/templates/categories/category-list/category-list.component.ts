@@ -5,6 +5,7 @@ import {
   Component,
   computed,
   inject,
+  signal,
 } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
@@ -25,10 +26,14 @@ import { firstValueFrom } from 'rxjs';
 
 import { AppRpc } from '../../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../../core/error-message';
-import { NotificationService } from '../../../core/notification.service';
 import { PermissionsService } from '../../../core/permissions.service';
 import { IconComponent } from '../../../shared/components/icon/icon.component';
-import { CreateEditCategoryDialogComponent } from '../create-edit-category-dialog/create-edit-category-dialog.component';
+import {
+  type CategorySaveDraft,
+  type CategorySaveOutcome,
+  CreateEditCategoryDialogComponent,
+  type CreateEditCategoryDialogData,
+} from '../create-edit-category-dialog/create-edit-category-dialog.component';
 
 const fallbackIcon: IconValue = { iconColor: 0, iconName: 'city' };
 
@@ -55,14 +60,17 @@ export const templateCategoryMutationErrorMessage = (
   if (
     error &&
     typeof error === 'object' &&
+    Reflect.get(error, '_tag') === 'RpcForbiddenError' &&
     Reflect.get(error, 'permission') === 'templates:manageCategories'
   ) {
-    return 'You no longer have permission to manage template categories. Reload the page to refresh your access, or ask an administrator for this permission.';
+    return 'You can no longer manage template categories. No change was saved. Ask an administrator if you need this access.';
   }
 
-  return getErrorMessage(error, 'Template category could not be saved', [
-    'TemplateCategoryNotFoundError',
-  ]);
+  return getErrorMessage(
+    error,
+    'The save outcome could not be confirmed. Check the category list before trying again. Your entries are still here.',
+    ['TemplateCategoryNotFoundError'],
+  );
 };
 
 @Component({
@@ -94,13 +102,13 @@ export class CategoryListComponent {
   );
   protected readonly templateCategoryGroupsErrorMessage = computed(() => {
     const error = this.templateCategoryGroupsQuery.error();
-    return getErrorMessage(error, 'Unknown error');
+    return getErrorMessage(error, 'Template categories could not be loaded.');
   });
+  private readonly categoryDialogOpen = signal(false);
   private createCategoryMutation = injectMutation(() =>
     this.appRpc.templateCategories.create.mutationOptions(),
   );
   private dialog = inject(MatDialog);
-  private readonly notifications = inject(NotificationService);
   private queryClient = inject(QueryClient);
   private updateCategoryMutation = injectMutation(() =>
     this.appRpc.templateCategories.update.mutationOptions(),
@@ -110,33 +118,24 @@ export class CategoryListComponent {
       return;
     }
 
-    const defaultIcon =
-      this.templateCategoryGroupsQuery.data()?.[0]?.icon ?? fallbackIcon;
-    const dialogReference = this.dialog.open<
-      CreateEditCategoryDialogComponent,
-      { defaultIcon: IconValue; mode: 'create' },
-      { icon: IconValue; title: string }
-    >(CreateEditCategoryDialogComponent, {
-      data: { defaultIcon, mode: 'create' },
-    });
-    const result = await firstValueFrom(dialogReference.afterClosed());
-    if (result?.title) {
-      try {
-        await this.createCategoryMutation.mutateAsync({
-          icon: result.icon,
-          title: result.title,
-        });
-        await this.queryClient.invalidateQueries(
-          this.appRpc.queryFilter(['templateCategories', 'findMany']),
-        );
-        await this.queryClient.invalidateQueries(
-          this.appRpc.queryFilter(['templates', 'groupedByCategory']),
-        );
-      } catch (error) {
-        this.notifications.showError(
-          templateCategoryMutationErrorMessage(error),
-        );
-      }
+    this.categoryDialogOpen.set(true);
+    try {
+      const defaultIcon =
+        this.templateCategoryGroupsQuery.data()?.[0]?.icon ?? fallbackIcon;
+      const dialogReference = this.dialog.open<
+        CreateEditCategoryDialogComponent,
+        CreateEditCategoryDialogData,
+        undefined
+      >(CreateEditCategoryDialogComponent, {
+        data: {
+          defaultIcon,
+          mode: 'create',
+          save: (input) => this.saveCategory(input),
+        },
+      });
+      await firstValueFrom(dialogReference.afterClosed());
+    } finally {
+      this.categoryDialogOpen.set(false);
     }
   }
 
@@ -149,40 +148,88 @@ export class CategoryListComponent {
       return;
     }
 
-    const dialogReference = this.dialog.open(
-      CreateEditCategoryDialogComponent,
-      {
-        data: { category, mode: 'edit' },
-      },
-    );
-    const result = (await firstValueFrom(dialogReference.afterClosed())) as
-      undefined | { icon: IconValue; title: string };
-    if (result?.title) {
-      try {
-        await this.updateCategoryMutation.mutateAsync({
-          icon: result.icon,
-          id: category.id,
-          title: result.title,
-        });
-        await this.queryClient.invalidateQueries(
-          this.appRpc.queryFilter(['templateCategories', 'findMany']),
-        );
-        await this.queryClient.invalidateQueries(
-          this.appRpc.queryFilter(['templates', 'groupedByCategory']),
-        );
-      } catch (error) {
-        this.notifications.showError(
-          templateCategoryMutationErrorMessage(error),
-        );
-      }
+    this.categoryDialogOpen.set(true);
+    try {
+      const dialogReference = this.dialog.open<
+        CreateEditCategoryDialogComponent,
+        CreateEditCategoryDialogData,
+        undefined
+      >(CreateEditCategoryDialogComponent, {
+        data: {
+          category,
+          mode: 'edit',
+          save: (input) => this.saveCategory(input, category.id),
+        },
+      });
+      await firstValueFrom(dialogReference.afterClosed());
+    } finally {
+      this.categoryDialogOpen.set(false);
     }
   }
 
   protected categoryActionDisabled(): boolean {
-    return templateCategoryActionDisabled({
-      canManageCategories: this.canManageCategories(),
-      createPending: this.createCategoryMutation.isPending(),
-      updatePending: this.updateCategoryMutation.isPending(),
-    });
+    return (
+      this.categoryDialogOpen() ||
+      templateCategoryActionDisabled({
+        canManageCategories: this.canManageCategories(),
+        createPending: this.createCategoryMutation.isPending(),
+        updatePending: this.updateCategoryMutation.isPending(),
+      })
+    );
+  }
+
+  private async saveCategory(
+    input: CategorySaveDraft,
+    categoryId?: string,
+  ): Promise<CategorySaveOutcome> {
+    try {
+      if (categoryId === undefined) {
+        await this.createCategoryMutation.mutateAsync({
+          icon: input.icon,
+          title: input.title,
+        });
+      } else {
+        await this.updateCategoryMutation.mutateAsync({
+          icon: input.icon,
+          id: categoryId,
+          title: input.title,
+        });
+      }
+    } catch (error) {
+      console.error(error);
+      return {
+        message: templateCategoryMutationErrorMessage(error),
+        saved: false,
+      };
+    }
+
+    const reads = await Promise.allSettled(
+      [
+        () =>
+          this.queryClient.invalidateQueries(
+            this.appRpc.queryFilter(['templateCategories', 'findMany']),
+            { throwOnError: true },
+          ),
+        () =>
+          this.queryClient.invalidateQueries(
+            this.appRpc.queryFilter(['templates', 'groupedByCategory']),
+            { throwOnError: true },
+          ),
+      ].map(async (read) => read()),
+    );
+    const failures = reads.flatMap((read) =>
+      read.status === 'rejected' ? [read.reason] : [],
+    );
+    if (failures.length > 0) {
+      console.error(
+        new AggregateError(failures, 'Category list updates failed'),
+      );
+      return {
+        message:
+          'The category was saved, but the category list could not be updated. Close this dialog and load the category list again to see the saved details.',
+        saved: true,
+      };
+    }
+    return { saved: true };
   }
 }
