@@ -270,7 +270,7 @@ test('platform administrator reviews tenant list, detail, and forms @admin @glob
   await page.getByRole('button', { name: 'Save organization' }).click();
   await expect(
     page.getByText(
-      "Organization public URL cannot change while issued links are active. Complete or cancel every pending Stripe Checkout or refund before changing the organization's public URL.",
+      "Failed to update organization. Complete or cancel every pending Stripe Checkout or refund before changing the organization's public URL.",
     ),
   ).toBeVisible();
   await expect(page).toHaveURL(/\/global-admin\/tenants\/[^/]+\/edit$/);
