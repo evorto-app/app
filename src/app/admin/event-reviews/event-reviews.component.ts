@@ -51,12 +51,12 @@ export const eventReviewQueueActionDisabled = ({
       >
         <fa-duotone-icon [icon]="faArrowLeft" />
       </a>
-      <h1 class="title-large">Event Reviews</h1>
+      <h1 class="title-large">Event reviews</h1>
       <div class="grow"></div>
       <button
         mat-icon-button
         (click)="pendingReviewsQuery.refetch()"
-        aria-label="Refresh pending reviews"
+        aria-label="Check pending reviews again"
       >
         <fa-duotone-icon [icon]="faRotateRight" />
       </button>
@@ -99,7 +99,7 @@ export const eventReviewQueueActionDisabled = ({
                       })
                     "
                   >
-                    Reject
+                    Return to draft
                   </button>
                   <button
                     mat-flat-button
@@ -131,7 +131,7 @@ export const eventReviewQueueActionDisabled = ({
               </div>
               <a mat-button routerLink="/events/{{ event.id }}">
                 <fa-duotone-icon [icon]="faArrowUpRightFromSquare" />
-                Open Event
+                Open event
               </a>
             </div>
           }

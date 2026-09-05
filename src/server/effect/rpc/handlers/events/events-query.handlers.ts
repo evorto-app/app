@@ -158,6 +158,11 @@ export const organizerRegistrationApprovalState = ({
 const canInspectTenantEvents = (permissions: readonly Permission[]): boolean =>
   includesPermission('globalAdmin:manageTenants', permissions);
 
+export const eventListOrder = () => [
+  asc(eventInstances.start),
+  asc(eventInstances.id),
+];
+
 export const groupEventsByTenantDay = <EventRecord extends { start: string }>(
   events: readonly EventRecord[],
   timezone: string,
@@ -329,7 +334,7 @@ export const eventQueryHandlers = {
           )
           .limit(input.limit)
           .offset(input.offset)
-          .orderBy(eventInstances.start),
+          .orderBy(...eventListOrder()),
       );
 
       const eventRecords = selectedEvents.map((event) => ({
