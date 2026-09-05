@@ -1,0 +1,38 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "656a5fffc087",
+  "strategy": "manual-commit",
+  "branch": "codex/relaunch-stack-assembly-20260904",
+  "checkpoints_count": 0,
+  "files_touched": [
+    ".changeset/preserve-profile-outcomes-and-editor-rows.md",
+    "APPLICATION_REVIEW_QUEUE.md",
+    "src/app/events/event-details/event-details.component.spec.ts",
+    "src/app/events/event-details/event-details.component.ts",
+    "src/app/events/event-edit/event-edit.html",
+    "src/app/events/event-edit/event-edit.spec.ts",
+    "src/app/profile/profile-discounts/profile-discounts.component.html",
+    "src/app/profile/profile-discounts/profile-discounts.component.spec.ts",
+    "src/app/profile/profile-discounts/profile-discounts.component.ts",
+    "src/app/profile/user-profile/edit-profile-dialog.component.html",
+    "src/app/profile/user-profile/edit-profile-dialog.component.ts",
+    "src/app/profile/user-profile/user-profile.component.html",
+    "src/app/profile/user-profile/user-profile.component.spec.ts",
+    "src/app/profile/user-profile/user-profile.component.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/65/6a5fffc087/0/metadata.json",
+      "transcript": "/65/6a5fffc087/0/full.jsonl",
+      "content_hash": "/65/6a5fffc087/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 182977,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 13800064,
+    "output_tokens": 46661,
+    "api_call_count": 145
+  }
+}

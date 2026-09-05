@@ -1,0 +1,49 @@
+{
+  "cli_version": "0.5.6",
+  "checkpoint_id": "656a5fffc087",
+  "session_id": "01a06cdc-629f-7b82-8a80-b940922d7571",
+  "strategy": "manual-commit",
+  "created_at": "2026-09-05T00:31:10.696141Z",
+  "branch": "codex/relaunch-stack-assembly-20260904",
+  "checkpoints_count": 0,
+  "files_touched": [
+    ".changeset/preserve-profile-outcomes-and-editor-rows.md",
+    "APPLICATION_REVIEW_QUEUE.md",
+    "src/app/events/event-details/event-details.component.spec.ts",
+    "src/app/events/event-details/event-details.component.ts",
+    "src/app/events/event-edit/event-edit.html",
+    "src/app/events/event-edit/event-edit.spec.ts",
+    "src/app/profile/profile-discounts/profile-discounts.component.html",
+    "src/app/profile/profile-discounts/profile-discounts.component.spec.ts",
+    "src/app/profile/profile-discounts/profile-discounts.component.ts",
+    "src/app/profile/user-profile/edit-profile-dialog.component.html",
+    "src/app/profile/user-profile/edit-profile-dialog.component.ts",
+    "src/app/profile/user-profile/user-profile.component.html",
+    "src/app/profile/user-profile/user-profile.component.spec.ts",
+    "src/app/profile/user-profile/user-profile.component.ts"
+  ],
+  "agent": "Codex",
+  "model": "gpt-6-astra",
+  "turn_id": "c3026ce215b8",
+  "checkpoint_transcript_start": 17812,
+  "transcript_lines_at_start": 17812,
+  "token_usage": {
+    "input_tokens": 182977,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 13800064,
+    "output_tokens": 46661,
+    "api_call_count": 145
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-09-05T00:31:09.761951Z",
+    "agent_lines": 2783,
+    "agent_removed": 192,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 2783,
+    "total_lines_changed": 2975,
+    "agent_percentage": 100,
+    "metric_version": 2
+  }
+}
