@@ -66,8 +66,10 @@ Thumbs.db
 *.tfstate
 *.tfstate.*
 *.tfplan
-infrastructure/scaleway/backend.hcl
+infrastructure/scaleway/*/backend.hcl
 infrastructure/scaleway/*.auto.tfvars
 infrastructure/scaleway/bootstrap/*.auto.tfvars
+infrastructure/scaleway/production/*.auto.tfvars
+infrastructure/scaleway/staging/*.auto.tfvars
 
 repomix-output.md

@@ -1,0 +1,5 @@
+bucket = "evorto-terraform-state-production-replace-with-unique-suffix"
+
+# The production root fixes its key in versions.tf. Supply only the production
+# state application's credentials through AWS_ACCESS_KEY_ID and
+# AWS_SECRET_ACCESS_KEY.

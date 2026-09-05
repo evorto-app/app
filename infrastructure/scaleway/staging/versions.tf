@@ -15,7 +15,7 @@ terraform {
 
   backend "s3" {
     region                      = "fr-par"
-    key                         = "evorto/bootstrap.tfstate"
+    key                         = "evorto/staging.tfstate"
     use_lockfile                = true
     use_path_style              = true
     skip_credentials_validation = true
@@ -31,7 +31,7 @@ terraform {
 provider "cloudflare" {}
 
 provider "scaleway" {
-  organization_id = var.organization_id
-  project_id      = var.bootstrap_project_id
-  region          = var.region
+  project_id = var.project_id
+  region     = var.region
+  zone       = var.zone
 }

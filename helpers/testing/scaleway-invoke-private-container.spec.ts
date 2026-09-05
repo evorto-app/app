@@ -203,15 +203,19 @@ describe('Scaleway private-container invocation', () => {
       error: 'ops-command-failed',
     },
     {
-      detail: 'staging-seed-configuration-invalid-must-not-appear',
+      detail: 'staging-seed-configuration-invalid',
       error: 'ops-command-failed',
     },
     {
-      detail: 'staging-seed-configuration-invalid',
+      detail: 'command-failed-must-not-appear',
+      error: 'ops-command-failed',
+    },
+    {
+      detail: 'command-failed',
       error: 'internal-error-must-not-appear',
     },
     {
-      detail: 'staging-seed-configuration-invalid',
+      detail: 'drizzle-output-invalid',
       error: 'ops-command-failed',
       message: 'must-not-appear',
     },
