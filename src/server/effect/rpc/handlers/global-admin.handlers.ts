@@ -568,7 +568,7 @@ const emailDeliveryRecordIncomplete = (row: {
     return row.suppressedAt === null || row.lastAttemptAt === null;
   }
   if (row.status === 'sent') {
-    return row.sentAt === null || row.lastAttemptAt === null;
+    return row.sentAt === null;
   }
   return (
     (row.status === 'failed' || row.status === 'sending') &&
