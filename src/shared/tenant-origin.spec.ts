@@ -27,18 +27,20 @@ describe('tenant origin', () => {
     'https://section.example.org#',
     'https://@section.example.org',
     'https://section.example.org.',
+    'not a website address',
+    'https://%',
   ])('rejects unsafe primary domains: %s', (primaryDomain) => {
     expect(() => deriveTenantPublicOrigin(primaryDomain)).toThrow(
-      'Domain must be a single host name',
+      'Enter the main website address only, for example section.example.org.',
     );
   });
 
   it('rejects trailing-dot primary domains', () => {
     expect(() => normalizeTenantDomain('section.example.org.')).toThrow(
-      'Domain must be a single host name',
+      'Enter the main website address only, for example section.example.org.',
     );
     expect(() => normalizeTenantDomain('ftp://section.example.org')).toThrow(
-      'Domain must be a single host name',
+      'Enter the main website address only, for example section.example.org.',
     );
   });
 
@@ -74,7 +76,9 @@ describe('tenant origin', () => {
         nodeEnvironment: 'development',
         primaryDomain: 'section.example.org/path',
       }),
-    ).toThrow('Domain must be a single host name');
+    ).toThrow(
+      'Enter the main website address only, for example section.example.org.',
+    );
   });
 
   it('builds a tenant path without allowing an absolute-origin override', () => {

@@ -192,7 +192,9 @@ Platform administrators can review, create, and edit organizations from **Platfo
     ).toBeEnabled();
     await page.getByRole('button', { name: 'Create organization' }).click();
     await expect(
-      page.getByText('Domain must be a single host name'),
+      page.getByText(
+        'Enter the main website address only, for example section.example.org.',
+      ),
     ).toBeVisible();
     await expect(page).toHaveURL(/\/global-admin\/tenants\/create$/);
     await tenantPrimaryDomainInput(page).fill(documentedTenant.domain);

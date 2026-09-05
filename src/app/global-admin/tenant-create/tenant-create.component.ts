@@ -33,6 +33,7 @@ import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
 import {
   createGlobalAdminTenantFormModel,
+  globalAdminTenantDomainValidationMessage,
   globalAdminTenantPayloadFromForm,
   globalAdminTenantSubmitDisabled,
 } from '../tenant-form/tenant-form.model';
@@ -114,9 +115,7 @@ export class TenantCreateComponent {
           return globalAdminTenantPayloadFromForm(formState().value());
         } catch (error) {
           this.notifications.showError(
-            getErrorMessage(error, 'Failed to create organization', [
-              'RpcBadRequestError',
-            ]),
+            globalAdminTenantDomainValidationMessage(error),
           );
           return null;
         }

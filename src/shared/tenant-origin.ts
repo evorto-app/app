@@ -1,4 +1,15 @@
 const loopbackHostnames = new Set(['127.0.0.1', '::1', '[::1]', 'localhost']);
+const tenantDomainValidationMessage =
+  'Enter the main website address only, for example section.example.org.';
+
+export class TenantDomainValidationError extends Error {
+  readonly _tag = 'TenantDomainValidationError';
+
+  constructor(message = tenantDomainValidationMessage) {
+    super(message);
+    this.name = 'TenantDomainValidationError';
+  }
+}
 
 const containsForbiddenRawUrlSyntax = (value: string): boolean =>
   value.includes('@') || value.includes('?') || value.includes('#');
@@ -32,15 +43,20 @@ const parseOrigin = (value: string, label: string): URL => {
 export const normalizeTenantDomain = (value: string): string => {
   const trimmedValue = value.trim().toLowerCase();
   if (!trimmedValue) {
-    throw new Error('Domain is required');
+    throw new TenantDomainValidationError('Website address is required.');
   }
   if (containsForbiddenRawUrlSyntax(trimmedValue)) {
-    throw new Error('Domain must be a single host name');
+    throw new TenantDomainValidationError();
   }
 
-  const url = new URL(
-    trimmedValue.includes('://') ? trimmedValue : `https://${trimmedValue}`,
-  );
+  let url: URL;
+  try {
+    url = new URL(
+      trimmedValue.includes('://') ? trimmedValue : `https://${trimmedValue}`,
+    );
+  } catch {
+    throw new TenantDomainValidationError();
+  }
   if (
     (url.protocol !== 'http:' && url.protocol !== 'https:') ||
     !url.hostname ||
@@ -52,7 +68,7 @@ export const normalizeTenantDomain = (value: string): string => {
     url.username ||
     url.password
   ) {
-    throw new Error('Domain must be a single host name');
+    throw new TenantDomainValidationError();
   }
 
   return url.hostname;

@@ -39,6 +39,7 @@ import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
 import {
   type GlobalAdminTenantFormModel,
+  globalAdminTenantDomainValidationMessage,
   globalAdminTenantPayloadFromForm,
   globalAdminTenantSubmitDisabled,
   globalAdminTenantUpdateErrorMessage,
@@ -117,9 +118,7 @@ export class TenantEditComponent {
           return globalAdminTenantPayloadFromForm(formState().value());
         } catch (error) {
           this.notifications.showError(
-            getErrorMessage(error, 'Failed to update organization', [
-              'RpcBadRequestError',
-            ]),
+            globalAdminTenantDomainValidationMessage(error),
           );
           return null;
         }

@@ -1461,7 +1461,9 @@ describe('globalAdminHandlers', () => {
 
         expect(error['_tag']).toBe('RpcBadRequestError');
         expect(error.message).toBe('Invalid tenant settings');
-        expect(error.reason).toContain('single host name');
+        expect(error.reason).toBe(
+          'Enter the main website address only, for example section.example.org.',
+        );
       }),
   );
 });
