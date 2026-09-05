@@ -2,12 +2,15 @@
 set -uo pipefail
 
 compose_pid=''
+compose_control_directory=''
+compose_control_open='false'
+compose_starting='false'
+pending_signal_status=''
 cleanup_started='false'
 readonly compose_project_name="${COMPOSE_PROJECT_NAME:-}"
 readonly teardown_attempt_timeout_seconds=90
 readonly verification_command_timeout_seconds=10
 readonly timeout_termination_grace_seconds=2
-readonly compose_supervisor_exit_attempts=50
 wall_clock_timeout_script="$(
   cd "$(dirname "${BASH_SOURCE[0]}")" && pwd
 )/run-with-wall-clock-timeout.ts"
@@ -111,43 +114,101 @@ teardown_compose_project() {
   return 0
 }
 
-terminate_compose_process() {
-  local pid="${compose_pid}"
-
-  compose_pid=''
-  if [[ -z "${pid}" ]]; then
-    return 0
+release_compose_control() {
+  local release_status=0
+  if [[ "${compose_control_open}" == 'true' ]]; then
+    if ! exec 8>&-; then
+      printf 'Could not close the Compose cancellation channel.\n' >&2
+      release_status=1
+    fi
+    compose_control_open='false'
   fi
-
-  if kill -0 "${pid}" 2>/dev/null; then
-    kill -TERM "${pid}" 2>/dev/null
-
-    local attempt
-    for ((attempt = 1; attempt <= compose_supervisor_exit_attempts; attempt += 1)); do
-      if ! kill -0 "${pid}" 2>/dev/null; then
-        break
-      fi
-      sleep 0.1
-    done
-
-    if kill -0 "${pid}" 2>/dev/null; then
-      kill -KILL "${pid}" 2>/dev/null
+  if [[ -n "${compose_control_directory}" ]]; then
+    if ! rm -rf -- "${compose_control_directory}"; then
+      printf 'Could not remove the Compose cancellation directory: %s\n' \
+        "${compose_control_directory}" >&2
+      release_status=1
+    else
+      compose_control_directory=''
     fi
   fi
+  return "${release_status}"
+}
 
-  wait "${pid}" 2>/dev/null
-  return 0
+terminate_compose_process() {
+  local cancellation_status=0
+  if [[ -n "${compose_pid}" ]]; then
+    # fd 8 owns this invocation's pipe; fd 9 retains the project lease even if the child has already exited.
+    # A numeric PID is used only by wait, never as cancellation authority.
+    if ! printf 'TERM\n' >&8; then
+      printf 'Could not request Compose cancellation through its owned channel.\n' >&2
+      cancellation_status=1
+    fi
+    # Closing the only writer also requests cancellation on write failure.
+    if ! exec 8>&-; then
+      printf 'Could not close the Compose cancellation writer.\n' >&2
+      cancellation_status=1
+    fi
+    compose_control_open='false'
+    wait "${compose_pid}"
+    local command_status="$?"
+    compose_pid=''
+    if [[ "${command_status}" -ne 0 && "${command_status}" -ne 143 ]]; then
+      printf 'Compose command also failed during cancellation (status %s).\n' \
+        "${command_status}" >&2
+      cancellation_status=1
+    fi
+  fi
+  release_compose_control
+  local release_status="$?"
+  if [[ "${release_status}" -ne 0 ]]; then cancellation_status=1; fi
+  return "${cancellation_status}"
+}
+
+finish_compose_acquisition() {
+  compose_starting='false'
+  if [[ -n "${pending_signal_status}" ]]; then cleanup "${pending_signal_status}"; fi
 }
 
 run_compose_command() {
-  bun "${wall_clock_timeout_script}" \
+  compose_starting='true'
+  compose_control_directory="$(mktemp -d "${TMPDIR:-/tmp}/evorto-compose-control.XXXXXXXX")"
+  if [[ "$?" -ne 0 || -z "${compose_control_directory}" ]]; then
+    printf 'Could not acquire the Compose cancellation directory.\n' >&2
+    finish_compose_acquisition
+    return 1
+  fi
+  if ! mkfifo -m 600 "${compose_control_directory}/control"; then
+    printf 'Could not create the Compose cancellation channel.\n' >&2
+    release_compose_control
+    finish_compose_acquisition
+    return 1
+  fi
+  if ! exec 8<>"${compose_control_directory}/control"; then
+    printf 'Could not acquire the Compose cancellation writer.\n' >&2
+    release_compose_control
+    finish_compose_acquisition
+    return 1
+  fi
+  compose_control_open='true'
+  EVORTO_WALL_CLOCK_CONTROL_FD=3 \
+    EVORTO_WALL_CLOCK_CONTROL_PATH="${compose_control_directory}/control" \
+    bun "${wall_clock_timeout_script}" \
     0 \
     "${timeout_termination_grace_seconds}" \
-    docker compose "$@" &
+    docker compose "$@" 3<"${compose_control_directory}/control" 8>&- &
   compose_pid="$!"
+  finish_compose_acquisition
   wait "${compose_pid}"
   local command_status="$?"
   compose_pid=''
+  release_compose_control
+  local release_status="$?"
+  if [[ "${release_status}" -ne 0 ]]; then
+    printf 'Compose command status %s was followed by cancellation-channel cleanup failure.\n' \
+      "${command_status}" >&2
+    if [[ "${command_status}" -eq 0 ]]; then return "${release_status}"; fi
+  fi
   return "${command_status}"
 }
 
@@ -165,21 +226,33 @@ cleanup() {
 
   set +e
   terminate_compose_process
+  local cancellation_status="$?"
   teardown_compose_project
   local teardown_status="$?"
 
+  if [[ "${cancellation_status}" -ne 0 || "${teardown_status}" -ne 0 ]]; then
+    printf 'Cleanup followed original status %s (cancellation %s, teardown %s).\n' \
+      "${requested_status}" "${cancellation_status}" "${teardown_status}" >&2
+  fi
   if [[ "${teardown_status}" -ne 0 ]]; then
     exit "${teardown_status}"
+  fi
+  if [[ "${requested_status}" -eq 0 && "${cancellation_status}" -ne 0 ]]; then
+    exit "${cancellation_status}"
   fi
   exit "${requested_status}"
 }
 
 handle_signal() {
-  case "$1" in
-    HUP) cleanup 129 ;;
-    INT) cleanup 130 ;;
-    TERM) cleanup 143 ;;
-  esac
+  if [[ -z "${pending_signal_status}" ]]; then
+    case "$1" in
+      HUP) pending_signal_status=129 ;;
+      INT) pending_signal_status=130 ;;
+      TERM) pending_signal_status=143 ;;
+    esac
+  fi
+  # Do not interrupt acquisition between launching the helper and retaining $!.
+  if [[ "${compose_starting}" != 'true' ]]; then cleanup "${pending_signal_status}"; fi
 }
 
 if [[ -z "${compose_project_name}" ]]; then
