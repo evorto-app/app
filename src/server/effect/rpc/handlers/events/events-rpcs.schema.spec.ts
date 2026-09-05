@@ -24,6 +24,7 @@ import {
   EventsCancellableRegistrationStatus,
   EventsCancelRegistration,
   EventsCreateRegistrationOptionInput,
+  EventsEventListInput,
   EventsFindOneAddon,
   EventsFindOneForEditRegistrationOption,
   EventsFindOneRegistrationOption,
@@ -38,6 +39,49 @@ import {
   EventsRegistrationStatusRecord,
 } from '../../../../../shared/rpc-contracts/app-rpcs/events.rpcs';
 import { EventLocation } from '../../../../../types/location';
+
+describe('events RPC list input schema', () => {
+  it('accepts only bounded integer pages and canonical UTC timestamps', () => {
+    expect(
+      Schema.decodeUnknownSync(EventsEventListInput)({
+        includeUnlisted: true,
+        limit: 100,
+        offset: 0,
+        startAfter: '2026-07-15T14:30:00.000Z',
+        status: ['APPROVED'],
+        userId: 'current-client-user',
+      }),
+    ).toEqual({
+      includeUnlisted: true,
+      limit: 100,
+      offset: 0,
+      startAfter: '2026-07-15T14:30:00.000Z',
+      status: ['APPROVED'],
+      userId: 'current-client-user',
+    });
+
+    for (const input of [
+      { limit: 0, offset: 0, startAfter: '2026-07-15T14:30:00.000Z' },
+      { limit: 101, offset: 0, startAfter: '2026-07-15T14:30:00.000Z' },
+      { limit: 10.5, offset: 0, startAfter: '2026-07-15T14:30:00.000Z' },
+      { limit: 10, offset: -1, startAfter: '2026-07-15T14:30:00.000Z' },
+      { limit: 10, offset: 0.5, startAfter: '2026-07-15T14:30:00.000Z' },
+      { limit: 10, offset: 0, startAfter: 'not-a-timestamp' },
+      {
+        limit: 10,
+        offset: 0,
+        startAfter: '2026-07-15T16:30:00.000+02:00',
+      },
+    ]) {
+      expect(() =>
+        Schema.decodeUnknownSync(EventsEventListInput)({
+          status: ['APPROVED'],
+          ...input,
+        }),
+      ).toThrow();
+    }
+  });
+});
 
 describe('events RPC location schema', () => {
   it('accepts a structured Google event location', () => {

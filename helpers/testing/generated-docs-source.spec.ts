@@ -1907,8 +1907,8 @@ describe('generated docs source current behavior', () => {
     );
     expect(source).toContain("not.toHaveAttribute('jsaction', /click/, {");
     expect(source.match(/await clickHydratedAction\(/g)).toHaveLength(10);
-    expect(source).toContain('name: /^Event Reviews(?: \\d+)?$/u');
-    expect(source).toContain("name: 'Refresh pending reviews'");
+    expect(source).toContain('name: /^Event reviews(?: \\d+)?$/u');
+    expect(source).toContain("name: 'Check pending reviews again'");
     expect(source).toContain('test.setTimeout(300_000)');
     expect(source).toContain(
       'Pending review and published events are both locked against material editing.',

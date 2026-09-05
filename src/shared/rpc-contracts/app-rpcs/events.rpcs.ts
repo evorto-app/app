@@ -13,8 +13,11 @@ import {
 } from '@shared/registration-question-limits';
 import { RegistrationTransferRefundLifecycle } from '@shared/registration-transfer';
 import {
+  CanonicalUtcTimestamp,
   literalUnion,
   nonNegativeNumber,
+  PageLimit,
+  PageOffset,
   positiveNumber,
 } from '@shared/schema-utilities';
 import { Effect, Schema } from 'effect';
@@ -227,13 +230,9 @@ export const EventsCreate = asRpcMutation(
 
 export const EventsEventListInput = Schema.Struct({
   includeUnlisted: Schema.optional(Schema.Boolean),
-  limit: nonNegativeNumber.pipe(
-    Schema.withDecodingDefaultTypeKey(Effect.succeed(100)),
-  ),
-  offset: nonNegativeNumber.pipe(
-    Schema.withDecodingDefaultTypeKey(Effect.succeed(0)),
-  ),
-  startAfter: Schema.NonEmptyString.pipe(
+  limit: PageLimit.pipe(Schema.withDecodingDefaultTypeKey(Effect.succeed(100))),
+  offset: PageOffset.pipe(Schema.withDecodingDefaultTypeKey(Effect.succeed(0))),
+  startAfter: CanonicalUtcTimestamp.pipe(
     Schema.withDecodingDefaultTypeKey(
       Effect.sync(() => new Date().toISOString()),
     ),
