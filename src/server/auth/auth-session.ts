@@ -465,30 +465,31 @@ export const invalidAuthSessionRecoveryResponse = Effect.fn(
   );
 });
 
-export const loadAuthSession = (request: HttpServerRequest.HttpServerRequest) =>
-  Effect.gen(function* () {
-    const { auth0Client, storeOptions } =
-      yield* createAuth0RequestRuntime(request);
+export const loadAuthSession = Effect.fn('Server.loadAuthSession')(function* (
+  request: HttpServerRequest.HttpServerRequest,
+) {
+  const { auth0Client, storeOptions } =
+    yield* createAuth0RequestRuntime(request);
 
-    // Capture presence before the SDK can remove expired cookie state.
-    const hasSessionCookie = Object.keys(storeOptions.cookies).some((name) =>
-      isAuthSessionCookieName(name),
+  // Capture presence before the SDK can remove expired cookie state.
+  const hasSessionCookie = Object.keys(storeOptions.cookies).some((name) =>
+    isAuthSessionCookieName(name),
+  );
+  const sessionData = yield* runAuth0SdkOperation('loadAuthSession', () =>
+    auth0Client.getSession(storeOptions),
+  );
+  if (sessionData === undefined && hasSessionCookie) {
+    return yield* invalidAuthSession(
+      'unusable-session-cookie',
+      'Auth0 could not load the supplied application session cookie',
     );
-    const sessionData = yield* runAuth0SdkOperation('loadAuthSession', () =>
-      auth0Client.getSession(storeOptions),
-    );
-    if (sessionData === undefined && hasSessionCookie) {
-      return yield* invalidAuthSession(
-        'unusable-session-cookie',
-        'Auth0 could not load the supplied application session cookie',
-      );
-    }
+  }
 
-    // The SDK has already validated the encrypted application session here.
-    // OAuth access-token expiry is independent of that session lifetime; use
-    // ServerClient.getAccessToken() if a downstream integration needs a token.
-    return yield* toAuthSession(sessionData);
-  });
+  // The SDK has already validated the encrypted application session here.
+  // OAuth access-token expiry is independent of that session lifetime; use
+  // ServerClient.getAccessToken() if a downstream integration needs a token.
+  return yield* toAuthSession(sessionData);
+});
 
 export const handleLoginRequest = (
   request: HttpServerRequest.HttpServerRequest,

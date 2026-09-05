@@ -2,6 +2,10 @@
 
 Evorto quality means the app preserves core product behavior, remains understandable to future agents, and can be verified without relying on chat history or human memory.
 
+For warm-path performance defects, use
+[LATENCY_IMPROVEMENT.md](LATENCY_IMPROVEMENT.md) and the
+[Scaleway latency monitoring runbook](infrastructure/scaleway/LATENCY_MONITORING.md).
+
 Avoid a heavy requirements/test matrix for now. Use a lightweight behavior and verification model:
 
 1. Describe important workflows.
