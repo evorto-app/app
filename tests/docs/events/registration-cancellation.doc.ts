@@ -1849,7 +1849,7 @@ Open **Events**, select the event, and review the confirmed ticket. Evorto expla
       await openEventFromNormalNavigation(page, eventTitle);
       const activeRegistration = page.locator('app-event-active-registration');
       const deadlineExplanation = activeRegistration.getByText(
-        'The cancellation deadline has passed. No cancellation, refund, or place release has been made.',
+        'The cancellation deadline has passed. Your ticket is still active, no place has been released, and no refund has started.',
         { exact: true },
       );
       await expect(deadlineExplanation).toBeVisible();
