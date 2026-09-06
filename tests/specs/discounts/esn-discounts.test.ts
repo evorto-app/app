@@ -51,7 +51,7 @@ test('applies ESN discount to paid registrations @finance', async ({
       .getByText(discountedPrice, { exact: true }),
   ).toBeVisible();
   const payButton = registrationOptionCard.getByRole('button', {
-    name: `Pay ${discountedPrice} and register`,
+    name: `Pay ${discountedPrice} and sign up`,
   });
   await expect(payButton).toBeEnabled({ timeout: 20_000 });
 });
