@@ -1865,7 +1865,9 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain('checkedInGuestCount: true');
     expect(source).toContain('checkedInSpots: initialCheckedInSpots + 3');
     expect(source).toContain('.update(eventRegistrationOptions)');
-    expect(source).toContain('.set({ checkedInSpots: initialCheckedInSpots })');
+    expect(source).toMatch(
+      /\.set\(\{\s*checkedInSpots: initialCheckedInSpots,\s*confirmedSpots: initialConfirmedSpots,\s*\}\)/u,
+    );
     expect(source).toContain(
       "Organizers can also cancel a participant's confirmed registration from the organizer overview before check-in, which releases the confirmed spot and submits the appropriate Stripe refunds for paid event and add-on payments.",
     );
@@ -1952,8 +1954,8 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain('checkedInSpots: optionBefore.checkedInSpots + 2');
     expect(source).toContain('optionBefore.checkedInSpots + 3');
     expect(source).toContain('.delete(eventRegistrations)');
-    expect(source).toContain(
-      '.set({ checkedInSpots: optionBefore.checkedInSpots })',
+    expect(source).toMatch(
+      /\.set\(\{\s*checkedInSpots: optionBefore\.checkedInSpots,\s*confirmedSpots: optionBefore\.confirmedSpots,\s*\}\)/u,
     );
     expect(source).not.toContain('a QR code is enough to check in');
   });
