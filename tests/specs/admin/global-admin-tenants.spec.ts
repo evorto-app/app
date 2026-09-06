@@ -271,13 +271,15 @@ test('platform administrator reviews tenant list, detail, and forms @admin @glob
 
   blockedMigrationTransactionId = getId();
   await database.insert(schema.transactions).values({
-    amount: 1000,
+    amount: -1000,
     currency: createdTenant.currency,
     id: blockedMigrationTransactionId,
+    manuallyCreated: true,
     method: 'stripe',
     status: 'pending',
+    stripeAccountId: originalStripeAccountId,
     tenantId: createdTenant.id,
-    type: 'registration',
+    type: 'refund',
   });
   await page.getByRole('link', { name: 'Edit organization' }).click();
   await expect(
