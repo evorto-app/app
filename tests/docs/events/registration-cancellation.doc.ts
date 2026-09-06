@@ -341,7 +341,7 @@ This free registration has no refund obligation. Paid tickets and paid add-ons u
         toEmail: participantRecord.communicationEmail,
       });
       expect(cancellationEmail?.text).toContain(
-        `You cancelled your registration for ${eventTitle}.`,
+        `You cancelled your ticket for ${eventTitle}.`,
       );
       expect(cancellationEmail?.text).toContain(`/events/${eventId}`);
       expect(waitlistEmail).toMatchObject({
@@ -351,10 +351,10 @@ This free registration has no refund obligation. Paid tickets and paid add-ons u
         toEmail: waitlistedParticipantRecord.communicationEmail,
       });
       expect(waitlistEmail?.text).toContain(
-        `A spot may now be available for ${eventTitle}.`,
+        `A place may now be available for ${eventTitle}.`,
       );
       expect(waitlistEmail?.text).toContain(
-        'This message is informational and does not reserve a spot.',
+        'We have not held a place for you. Open the event, leave the waitlist, and sign up while a place is still available.',
       );
 
       await testInfo.attach('markdown', {
@@ -537,7 +537,7 @@ The availability message sends the waitlisted participant back to this event. It
         toEmail: waitlistedParticipantRecord.communicationEmail,
       });
       expect(followUpConfirmationEmail?.text).toContain(
-        `Your registration for ${eventTitle} is confirmed.`,
+        `Your ticket for ${eventTitle} is confirmed.`,
       );
       expect(followUpConfirmationEmail?.text).toContain(eventPath);
 
@@ -2170,7 +2170,7 @@ The participant name and registration option are the first review context. Selec
         toEmail: participantRecord.communicationEmail,
       });
       expect(cancellationEmail?.text).toContain(
-        `An organizer cancelled your registration for ${eventTitle}.`,
+        `An organizer cancelled your ticket for ${eventTitle}.`,
       );
 
       await testInfo.attach('markdown', {
