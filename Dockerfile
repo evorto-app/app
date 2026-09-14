@@ -1,5 +1,7 @@
 FROM node:24.15.0-bookworm-slim@sha256:4e6b70dd6cbfc88c8157ba19aa3d9f9cce6ba4703576d55459e45efcbc9c5f5d AS node-runtime
 
+FROM --platform=$BUILDPLATFORM node:24.15.0-bookworm-slim@sha256:4e6b70dd6cbfc88c8157ba19aa3d9f9cce6ba4703576d55459e45efcbc9c5f5d AS build-node-runtime
+
 FROM oven/bun:1.3.14@sha256:e10577f0db68676a7024391c6e5cb4b879ebd17188ab750cf10024a6d700e5c4 AS base
 
 USER bun
@@ -8,6 +10,7 @@ WORKDIR /app
 FROM gcr.io/distroless/base-nossl-debian13:nonroot@sha256:5cab74e7f8a5e7c5f1c8a9e6268b1f352f053c36c656f493308340bcecbc636c AS distroless-runtime
 
 FROM base AS dependencies
+ARG TARGETPLATFORM
 USER root
 COPY --from=node-runtime /usr/local/bin/node /usr/local/bin/node
 USER bun
@@ -17,15 +20,37 @@ ENV NG_BUILD_MAX_WORKERS=2
 COPY package.json bun.lock bunfig.toml ./
 COPY patches/@material-material-color-utilities-npm-0.4.0-9d48ca70b8.patch patches/@material-material-color-utilities-npm-0.4.0-9d48ca70b8.patch
 COPY ops/scaleway/prime-bun-fontawesome-cache.mjs ops/scaleway/prime-bun-fontawesome-cache.mjs
-RUN --mount=type=cache,id=bun-install-cache,target=/home/bun/.bun/install/cache,uid=1000,gid=1000,sharing=locked \
+RUN --mount=type=cache,id=bun-install-cache-${TARGETPLATFORM},target=/home/bun/.bun/install/cache,uid=1000,gid=1000,sharing=locked \
     --mount=type=secret,id=FONT_AWESOME_TOKEN,mode=0444,required=true \
     export FONT_AWESOME_TOKEN="$(cat /run/secrets/FONT_AWESOME_TOKEN)" \
     && node ops/scaleway/prime-bun-fontawesome-cache.mjs bun.lock /home/bun/.bun/install/cache \
     && bun install --frozen-lockfile --cache-dir /home/bun/.bun/install/cache
 
-FROM dependencies AS build
+FROM --platform=$BUILDPLATFORM oven/bun:1.3.14@sha256:e10577f0db68676a7024391c6e5cb4b879ebd17188ab750cf10024a6d700e5c4 AS build-dependencies
+ARG BUILDPLATFORM
+USER root
+COPY --from=build-node-runtime /usr/local/bin/node /usr/local/bin/node
+USER bun
+WORKDIR /app
+ENV NG_BUILD_PARTIAL_SSR=1
+ENV NG_BUILD_MAX_WORKERS=2
+
+COPY package.json bun.lock bunfig.toml ./
+COPY patches/@material-material-color-utilities-npm-0.4.0-9d48ca70b8.patch patches/@material-material-color-utilities-npm-0.4.0-9d48ca70b8.patch
+COPY ops/scaleway/prime-bun-fontawesome-cache.mjs ops/scaleway/prime-bun-fontawesome-cache.mjs
+RUN --mount=type=cache,id=bun-build-install-cache-${BUILDPLATFORM},target=/home/bun/.bun/install/cache,uid=1000,gid=1000,sharing=locked \
+    --mount=type=secret,id=FONT_AWESOME_TOKEN,mode=0444,required=true \
+    export FONT_AWESOME_TOKEN="$(cat /run/secrets/FONT_AWESOME_TOKEN)" \
+    && node ops/scaleway/prime-bun-fontawesome-cache.mjs bun.lock /home/bun/.bun/install/cache \
+    && bun install --frozen-lockfile --cache-dir /home/bun/.bun/install/cache
+
+FROM build-dependencies AS compile
 COPY . .
 RUN bun run build:app
+
+FROM dependencies AS build
+COPY . .
+COPY --from=compile /app/dist ./dist
 
 FROM build AS source-map-archive
 RUN find dist -type f -name '*.map' -print0 \
@@ -40,12 +65,10 @@ RUN find dist -type f -name '*.map' -delete \
 
 FROM dependencies AS production-dependencies
 RUN rm -rf node_modules
-RUN --mount=type=cache,id=bun-install-cache,target=/home/bun/.bun/install/cache,uid=1000,gid=1000,sharing=locked \
+RUN --mount=type=cache,id=bun-install-cache-${TARGETPLATFORM},target=/home/bun/.bun/install/cache,uid=1000,gid=1000,sharing=locked \
     bun install --frozen-lockfile --production --offline --cache-dir /home/bun/.bun/install/cache
 
 FROM production-dependencies AS runtime-dependencies
-COPY --from=runtime-artifacts /app/node_modules/ajv ./node_modules/ajv
-COPY --from=runtime-artifacts /app/node_modules/ajv-formats ./node_modules/ajv-formats
 RUN rm -rf node_modules/@neondatabase \
     && find node_modules -type f -name '*.map' -delete \
     && test -z "$(find node_modules -type f -name '*.map' -print -quit)"

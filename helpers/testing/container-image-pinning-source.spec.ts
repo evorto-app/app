@@ -38,7 +38,7 @@ describe('container image pinning source', () => {
     ].flatMap((match) => (match[1] === undefined ? [] : [match[1]]));
     const imageReferences = [...dockerfileImages, ...composeImages];
 
-    expect(imageReferences).toHaveLength(8);
+    expect(imageReferences).toHaveLength(10);
     for (const imageReference of imageReferences) {
       expect(imageReference, imageReference).toMatch(immutableTaggedImage);
       expect(imageReference, imageReference).not.toContain(':latest@');
