@@ -93,13 +93,15 @@ describe('RegistrationTransferClaimComponent form synchronization', () => {
         template: `
           @if (claimQuery.isSuccess()) {
             <form data-claim-form (submit)="submitClaim($event)">
-              @for (answerField of claimForm.answers; track answerField) {
-                <input
-                  [formField]="answerField.answer"
-                  [attr.data-question-id]="answerField.questionId().value()"
-                  [attr.data-touched]="answerField.answer().touched() ? 'true' : 'false'"
-                />
-              }
+              <section>
+                @for (answerField of claimForm.answers; track answerField) {
+                  <input
+                    [formField]="answerField.answer"
+                    [attr.data-question-id]="answerField.questionId().value()"
+                    [attr.data-touched]="answerField.answer().touched() ? 'true' : 'false'"
+                  />
+                }
+              </section>
               <button data-submit-claim type="submit">Claim</button>
             </form>
             <button data-retry-checkout (click)="retryCheckout()">Retry</button>
