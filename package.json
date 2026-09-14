@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "scripts": {
     "env:runtime": "bun helpers/testing/runtime-environment.ts",
-    "dev:ng": "bun --define process.version=\"'v24.15.0'\" --define process.versions.node=\"'24.15.0'\" ./node_modules/@angular/cli/bin/ng.js",
+    "dev:ng": "node ./node_modules/@angular/cli/bin/ng.js",
     "dev:start": "bun run env:runtime && dotenv -c dev -- sh -c 'bun run dev:ng serve --port \"$APP_HOST_PORT\"'",
     "build:app": "NG_BUILD_PARTIAL_SSR=1 bun run dev:ng build && bun run build:ops",
     "build:ops": "bun run build:ops:schema && bun run build:ops:prerequisites && bun run build:ops:reset && bun run build:ops:seed",
