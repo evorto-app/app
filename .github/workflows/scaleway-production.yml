@@ -118,9 +118,9 @@ jobs:
               and (.revision | test("^[0-9a-f]{40}$"))
               and (.digest | test("^sha256:[0-9a-f]{64}$"))
               and (.schemaHash | test("^[0-9a-f]{64}$"))
-              and (.image | startswith("rg.fr-par.scw.cloud/evorto-staging/evorto@sha256:"))
-              and (.sourceMapsKey | test("^source-maps/[0-9a-f]{40}/[0-9a-f]{64}\\.tar\\.gz$"))
-              and (.sbomKey | test("^sbom/[0-9a-f]{40}/[0-9a-f]{64}\\.spdx\\.json$"))' \
+              and .image == ("rg.fr-par.scw.cloud/evorto-staging/evorto@" + .digest)
+              and .sourceMapsKey == ("source-maps/" + .revision + "/" + (.digest | ltrimstr("sha256:")) + ".tar.gz")
+              and .sbomKey == ("sbom/" + .revision + "/" + (.digest | ltrimstr("sha256:")) + ".spdx.json")' \
             deployment/staging-manifest.json >/dev/null
 
           revision="$(jq --raw-output .revision deployment/staging-manifest.json)"

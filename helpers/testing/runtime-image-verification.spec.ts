@@ -44,8 +44,39 @@ const makeFixture = (
     fs.mkdirSync(target, { recursive: true });
   }
   const callLog = path.join(directory, 'calls.log');
+  const cacheLog = path.join(directory, 'cache.log');
+  const cacheDirectory = path.join(root, 'app/.cache/evorto/server-kv');
+  const cacheHooks = path.join(directory, 'cache-hooks.cjs');
   const archive = path.join(directory, 'image.tar');
   fs.writeFileSync(callLog, '');
+  fs.writeFileSync(cacheLog, '');
+  fs.writeFileSync(
+    cacheHooks,
+    String.raw`
+const fs = require('node:fs');
+const writeFileSync = fs.writeFileSync;
+const readFileSync = fs.readFileSync;
+const unlinkSync = fs.unlinkSync;
+fs.writeFileSync = (...args) => {
+  fs.appendFileSync(process.env.CACHE_LOG, 'write\n');
+  if (process.env.CACHE_FAILURE === 'write') {
+    writeFileSync(args[0], 'partial cache write');
+    throw new Error('Injected cache write failure');
+  }
+  return writeFileSync(...args);
+};
+fs.readFileSync = (...args) => {
+  fs.appendFileSync(process.env.CACHE_LOG, 'read\n');
+  if (process.env.CACHE_FAILURE === 'read') throw new Error('Injected cache read failure');
+  const contents = readFileSync(...args);
+  return process.env.CACHE_FAILURE === 'mismatch' ? 'incorrect contents' : contents;
+};
+fs.unlinkSync = (...args) => {
+  fs.appendFileSync(process.env.CACHE_LOG, 'delete\n');
+  return unlinkSync(...args);
+};
+`,
+  );
   const files: Record<string, string> = {
     ...Object.fromEntries(
       requiredArtifacts.map((artifact) => [artifact, 'export default {};\n']),
@@ -120,6 +151,7 @@ case "$1" in
     [ "$4" = runtime-container ]
     case "$3" in
       '{{.Config.User}}') printf '%s\n' "$RUNTIME_USER" ;;
+      '{{.Config.WorkingDir}}') printf '%s\n' "$RUNTIME_WORKDIR" ;;
       '{{json .Config.Entrypoint}}') printf '%s\n' "$RUNTIME_ENTRYPOINT" ;;
       '{{json .Config.Cmd}}') printf '%s\n' "$RUNTIME_COMMAND" ;;
       *) exit 90 ;;
@@ -134,16 +166,30 @@ case "$1" in
     ;;
   run)
     shift
-    [ "$1" = --rm ] && shift
-    [ "$1" = --pull=never ] && shift
-    [ "$1" = --platform ] && [ "$2" = "$IMAGE_PLATFORM" ] && shift 2
-    [ "$1" = --network ] && [ "$2" = none ] && shift 2
-    [ "$1" = --read-only ] && shift
-    [ "$1" = --entrypoint ] && [ "$2" = /usr/local/bin/bun ] && shift 2
-    [ "$1" = "$EXPECTED_IMAGE_REFERENCE" ] && shift
-    [ "$1" = --eval ] && shift
+    [ "$1" = --rm ]
+    shift
+    [ "$1" = --pull=never ]
+    shift
+    [[ "$1" = --platform && "$2" = "$IMAGE_PLATFORM" ]]
+    shift 2
+    [[ "$1" = --network && "$2" = none ]]
+    shift 2
+    read_only=false
+    if [ "$1" = --read-only ]; then read_only=true; shift; fi
+    [[ "$1" = --entrypoint && "$2" = /usr/local/bin/bun ]]
+    shift 2
+    [ "$1" = "$EXPECTED_IMAGE_REFERENCE" ]
+    shift
+    [ "$1" = --eval ]
+    shift
     runtime_script="$1"
     shift
+    if [ "$read_only" = false ]; then
+      [ "$#" -eq 0 ]
+      printf '%s\n' cache >> "$CALL_LOG"
+      cd "$FIXTURE_ROOT$RUNTIME_WORKDIR"
+      exec bun --preload "$CACHE_HOOKS" --eval "$runtime_script"
+    fi
     [ "$#" -eq 7 ]
     printf '%s\n' readability >> "$CALL_LOG"
     if [ "$FAIL_STAGE" = readability ]; then exit 44; fi
@@ -159,6 +205,7 @@ case "$1" in
     [ "$#" -eq 2 ]
     [ "$2" = runtime-container ]
     printf '%s\n' remove >> "$CALL_LOG"
+    if [ "$CLEANUP_FAILS" = true ]; then exit 45; fi
     ;;
   *) exit 90 ;;
 esac
@@ -187,6 +234,9 @@ exec "$REAL_TAR" "$@"
   const calls = () => fs.readFileSync(callLog, 'utf8').trim().split('\n');
 
   return {
+    cacheFiles: () =>
+      fs.existsSync(cacheDirectory) ? fs.readdirSync(cacheDirectory) : [],
+    cacheOperations: () => fs.readFileSync(cacheLog, 'utf8').trim().split('\n'),
     calls,
     expectCleanup: () => {
       expect(calls().at(-1)).toBe('remove');
@@ -197,6 +247,8 @@ exec "$REAL_TAR" "$@"
     },
     run: (
       settings: {
+        cacheFailure?: 'mismatch' | 'read' | 'write';
+        cleanupFails?: boolean;
         command?: string;
         entrypoint?: string;
         failStage?: 'export' | 'extract' | 'list' | 'readability';
@@ -204,6 +256,7 @@ exec "$REAL_TAR" "$@"
         size?: number;
         unreadableArtifact?: string;
         user?: string;
+        workdir?: string;
       } = {},
     ) =>
       spawnSync('bash', ['--noprofile', '--norc', verifier, imageReference], {
@@ -211,7 +264,11 @@ exec "$REAL_TAR" "$@"
         encoding: 'utf8',
         env: {
           ARCHIVE_FIXTURE: archive,
+          CACHE_FAILURE: settings.cacheFailure ?? '',
+          CACHE_HOOKS: cacheHooks,
+          CACHE_LOG: cacheLog,
           CALL_LOG: callLog,
+          CLEANUP_FAILS: String(settings.cleanupFails ?? false),
           EXPECTED_IMAGE_REFERENCE: imageReference,
           FAIL_STAGE: settings.failStage ?? '',
           FIXTURE_ROOT: root,
@@ -223,6 +280,7 @@ exec "$REAL_TAR" "$@"
             settings.command ?? '["dist/evorto/server/server.mjs"]',
           RUNTIME_ENTRYPOINT: settings.entrypoint ?? '["/usr/local/bin/bun"]',
           RUNTIME_USER: settings.user ?? '65532:65532',
+          RUNTIME_WORKDIR: settings.workdir ?? '/app',
           TMPDIR: temporaryRoot,
           UNREADABLE_ARTIFACT: settings.unreadableArtifact ?? '',
         },
@@ -244,8 +302,86 @@ describe('runtime image verification', () => {
       'list',
       'extract',
       'readability',
+      'cache',
       'remove',
     ]);
+    fixture.expectCleanup();
+    expect(fixture.cacheOperations()).toEqual(['write', 'read', 'delete']);
+    expect(fixture.cacheFiles()).toEqual([]);
+  });
+
+  it.each(['', '/', '/other', '/app/'])(
+    'rejects working directory %j before inspecting artifacts',
+    (workdir) => {
+      const fixture = makeFixture();
+      const result = fixture.run({ workdir });
+      expect(result.status, result.stderr).toBe(1);
+      expect(result.stderr).toContain('must use /app as its working directory');
+      expect(fixture.calls()).not.toContain('export');
+      fixture.expectCleanup();
+    },
+  );
+
+  it.each(['write', 'read', 'mismatch'] as const)(
+    'removes its cache probe after a cache %s failure',
+    (cacheFailure) => {
+      const fixture = makeFixture();
+      const result = fixture.run({ cacheFailure });
+      expect(result.status, result.stderr).not.toBe(0);
+      expect(result.stderr).toContain(
+        'must be able to create, write, read, and delete files in .cache/evorto/server-kv',
+      );
+      expect(result.stdout).not.toContain('verification passed');
+      expect(fixture.cacheOperations()).toEqual(
+        cacheFailure === 'write'
+          ? ['write', 'delete']
+          : ['write', 'read', 'delete'],
+      );
+      expect(fixture.cacheFiles()).toEqual([]);
+      fixture.expectCleanup();
+    },
+  );
+
+  it('preserves existing cache files', () => {
+    const fixture = makeFixture({
+      files: { 'app/.cache/evorto/server-kv/existing-key': 'existing value' },
+    });
+    const result = fixture.run();
+    expect(result.status, result.stderr).toBe(0);
+    expect(fixture.cacheFiles()).toEqual(['existing-key']);
+    fixture.expectCleanup();
+  });
+
+  it('fails when the runtime cache directory cannot be created', () => {
+    const fixture = makeFixture({ files: { 'app/.cache': 'not a directory' } });
+    const result = fixture.run();
+    expect(result.status, result.stderr).not.toBe(0);
+    expect(result.stderr).toContain('ENOTDIR');
+    expect(result.stderr).toContain(
+      'must be able to create, write, read, and delete files in .cache/evorto/server-kv',
+    );
+    expect(result.stdout).not.toContain('verification passed');
+    fixture.expectCleanup();
+  });
+
+  it('fails closed when inspection-container cleanup fails', () => {
+    const fixture = makeFixture();
+    const result = fixture.run({ cleanupFails: true });
+    expect(result.status, result.stderr).toBe(45);
+    expect(result.stderr).toContain('verification cleanup failed');
+    expect(result.stdout).not.toContain('verification passed');
+    fixture.expectCleanup();
+  });
+
+  it('preserves a probe failure when inspection-container cleanup also fails', () => {
+    const fixture = makeFixture();
+    const result = fixture.run({
+      cleanupFails: true,
+      failStage: 'readability',
+    });
+    expect(result.status, result.stderr).toBe(44);
+    expect(result.stderr).toContain('verification cleanup failed');
+    expect(result.stdout).not.toContain('verification passed');
     fixture.expectCleanup();
   });
 

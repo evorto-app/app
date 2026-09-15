@@ -18,10 +18,23 @@ runtime_root="${verification_directory}/root"
 container_id=''
 
 cleanup() {
+  local original_status=$?
+  local cleanup_status=0
+  trap - EXIT
   if [[ -n "${container_id}" ]]; then
-    docker rm "${container_id}" >/dev/null 2>&1 || true
+    docker rm "${container_id}" >/dev/null || cleanup_status=$?
   fi
-  rm -rf "${verification_directory}"
+  rm -rf "${verification_directory}" || cleanup_status=$?
+  if ((cleanup_status != 0)); then
+    echo 'Runtime image verification cleanup failed.' >&2
+  fi
+  if ((original_status != 0)); then
+    exit "${original_status}"
+  fi
+  if ((cleanup_status == 0)); then
+    echo "Runtime image verification passed (${image_size_bytes} bytes)."
+  fi
+  exit "${cleanup_status}"
 }
 trap cleanup EXIT
 
@@ -29,10 +42,15 @@ mkdir "${runtime_root}"
 container_id="$(docker create "${image_reference}")"
 
 runtime_user="$(docker inspect --format '{{.Config.User}}' "${container_id}")"
+runtime_workdir="$(docker inspect --format '{{.Config.WorkingDir}}' "${container_id}")"
 runtime_entrypoint="$(docker inspect --format '{{json .Config.Entrypoint}}' "${container_id}")"
 runtime_command="$(docker inspect --format '{{json .Config.Cmd}}' "${container_id}")"
 if [[ "${runtime_user}" != '65532:65532' ]]; then
   echo "Runtime image must run as the explicit non-root user 65532:65532; found ${runtime_user:-root}." >&2
+  exit 1
+fi
+if [[ "${runtime_workdir}" != '/app' ]]; then
+  echo "Runtime image must use /app as its working directory; found ${runtime_workdir:-unset}." >&2
   exit 1
 fi
 if [[ "${runtime_entrypoint}" != '["/usr/local/bin/bun"]' ]]; then
@@ -127,4 +145,29 @@ if ((readability_status != 0)); then
   exit "${readability_status}"
 fi
 
-echo "Runtime image verification passed (${image_size_bytes} bytes)."
+cache_status=0
+docker run --rm --pull=never --platform "${image_platform}" --network none \
+  --entrypoint /usr/local/bin/bun "${image_reference}" --eval '
+    const fs = require("node:fs");
+    const cacheDirectory = ".cache/evorto/server-kv";
+    fs.mkdirSync(cacheDirectory, { recursive: true });
+    const probe = `${cacheDirectory}/.runtime-verification-${crypto.randomUUID()}`;
+    const expected = "evorto runtime cache verification";
+    const descriptor = fs.openSync(probe, "wx", 0o600);
+    try {
+      try {
+        fs.writeFileSync(descriptor, expected);
+      } finally {
+        fs.closeSync(descriptor);
+      }
+      if (fs.readFileSync(probe, "utf8") !== expected) {
+        throw new Error("Runtime cache verification read different contents");
+      }
+    } finally {
+      fs.unlinkSync(probe);
+    }
+  ' || cache_status=$?
+if ((cache_status != 0)); then
+  echo 'Runtime image user must be able to create, write, read, and delete files in .cache/evorto/server-kv.' >&2
+  exit "${cache_status}"
+fi

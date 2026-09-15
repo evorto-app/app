@@ -195,12 +195,31 @@ jobs:
           REVISION: ${{ needs.resolve-revision.outputs.revision }}
         run: |
           mkdir -p deployment
-          if aws s3 cp \
-            "s3://${METADATA_BUCKET}/deployments/staging/latest.json" \
-            deployment/existing.json \
-            --endpoint-url https://s3.fr-par.scw.cloud \
-            --only-show-errors 2>/dev/null \
-            && jq --exit-status \
+          artifact_exists() {
+            local key="$1"
+            local status
+            if aws s3api head-object \
+              --bucket "${METADATA_BUCKET}" \
+              --key "${key}" \
+              --endpoint-url https://s3.fr-par.scw.cloud \
+              >/dev/null 2>deployment/head-object-error.log; then
+              return 0
+            else
+              status=$?
+            fi
+            if grep -Eq '^An error occurred \((404|NoSuchKey|NotFound)\) when calling the HeadObject operation:' deployment/head-object-error.log; then
+              return 1
+            fi
+            cat deployment/head-object-error.log >&2
+            exit "${status}"
+          }
+          if artifact_exists deployments/staging/latest.json; then
+            aws s3 cp \
+              "s3://${METADATA_BUCKET}/deployments/staging/latest.json" \
+              deployment/existing.json \
+              --endpoint-url https://s3.fr-par.scw.cloud \
+              --only-show-errors
+            if jq --exit-status \
               --arg revision "${REVISION}" \
               '.status == "succeeded"
                 and .environment == "staging"
@@ -211,11 +230,16 @@ jobs:
                 and .sourceMapsKey == ("source-maps/" + $revision + "/" + (.digest | ltrimstr("sha256:")) + ".tar.gz")
                 and .sbomKey == ("sbom/" + $revision + "/" + (.digest | ltrimstr("sha256:")) + ".spdx.json")' \
               deployment/existing.json >/dev/null; then
-            echo "reuse=true" >> "${GITHUB_OUTPUT}"
-          else
-            rm -f deployment/existing.json
-            echo "reuse=false" >> "${GITHUB_OUTPUT}"
+              source_maps_key="$(jq --raw-output .sourceMapsKey deployment/existing.json)"
+              sbom_key="$(jq --raw-output .sbomKey deployment/existing.json)"
+              if artifact_exists "${source_maps_key}" && artifact_exists "${sbom_key}"; then
+                echo "reuse=true" >> "${GITHUB_OUTPUT}"
+                exit 0
+              fi
+            fi
           fi
+          rm -f deployment/existing.json
+          echo "reuse=false" >> "${GITHUB_OUTPUT}"
 
       - name: Build and push the immutable Linux amd64 image once
         id: build
