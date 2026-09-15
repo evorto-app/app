@@ -1,0 +1,14 @@
+diff --git a/package.json b/package.json
+--- a/package.json
++++ b/package.json
+@@ -2,8 +2,8 @@
+   "name": "@heddendorp/effect-platform-angular",
+   "version": "0.0.9",
+   "peerDependencies": {
+-    "@angular/common": "^21.2.0",
+-    "@angular/core": "^21.2.0",
++    "@angular/common": "^22.0.6",
++    "@angular/core": "^22.0.6",
+     "effect": ">=4.0.0-beta.60 <5"
+   },
+   "dependencies": {

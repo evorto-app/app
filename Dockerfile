@@ -1,13 +1,13 @@
-FROM node:24.15.0-bookworm-slim@sha256:4e6b70dd6cbfc88c8157ba19aa3d9f9cce6ba4703576d55459e45efcbc9c5f5d AS node-runtime
+FROM node:24.21.0-bookworm-slim@sha256:2fe369e969550cde8e867afc3fe370b260140cab4a23d467074295b42163d553 AS node-runtime
 
-FROM --platform=$BUILDPLATFORM node:24.15.0-bookworm-slim@sha256:4e6b70dd6cbfc88c8157ba19aa3d9f9cce6ba4703576d55459e45efcbc9c5f5d AS build-node-runtime
+FROM --platform=$BUILDPLATFORM node:24.21.0-bookworm-slim@sha256:2fe369e969550cde8e867afc3fe370b260140cab4a23d467074295b42163d553 AS build-node-runtime
 
-FROM oven/bun:1.3.14@sha256:e10577f0db68676a7024391c6e5cb4b879ebd17188ab750cf10024a6d700e5c4 AS base
+FROM oven/bun:1.4.2@sha256:9114c058aeae42162ee16dd5084b95fe9473970bb6bcb5b232ab1630f0546895 AS base
 
 USER bun
 WORKDIR /app
 
-FROM gcr.io/distroless/base-nossl-debian13:nonroot@sha256:5cab74e7f8a5e7c5f1c8a9e6268b1f352f053c36c656f493308340bcecbc636c AS distroless-runtime
+FROM gcr.io/distroless/base-nossl-debian13:nonroot@sha256:8c563c1fb5e120606f0d85733049775faed6192e2bd2223ef283a5393eec22b9 AS distroless-runtime
 
 FROM base AS dependencies
 ARG TARGETPLATFORM
@@ -19,6 +19,8 @@ ENV NG_BUILD_MAX_WORKERS=2
 
 COPY package.json bun.lock bunfig.toml ./
 COPY patches/@material-material-color-utilities-npm-0.4.0-9d48ca70b8.patch patches/@material-material-color-utilities-npm-0.4.0-9d48ca70b8.patch
+COPY patches/heddendorp-effect-angular-query-0.1.4-angular22.patch patches/heddendorp-effect-angular-query-0.1.4-angular22.patch
+COPY patches/heddendorp-effect-platform-angular-0.0.9-angular22.patch patches/heddendorp-effect-platform-angular-0.0.9-angular22.patch
 COPY ops/scaleway/prime-bun-fontawesome-cache.mjs ops/scaleway/prime-bun-fontawesome-cache.mjs
 RUN --mount=type=cache,id=bun-install-cache-${TARGETPLATFORM},target=/home/bun/.bun/install/cache,uid=1000,gid=1000,sharing=locked \
     --mount=type=secret,id=FONT_AWESOME_TOKEN,mode=0444,required=true \
@@ -26,7 +28,7 @@ RUN --mount=type=cache,id=bun-install-cache-${TARGETPLATFORM},target=/home/bun/.
     && node ops/scaleway/prime-bun-fontawesome-cache.mjs bun.lock /home/bun/.bun/install/cache \
     && bun install --frozen-lockfile --cache-dir /home/bun/.bun/install/cache
 
-FROM --platform=$BUILDPLATFORM oven/bun:1.3.14@sha256:e10577f0db68676a7024391c6e5cb4b879ebd17188ab750cf10024a6d700e5c4 AS build-dependencies
+FROM --platform=$BUILDPLATFORM oven/bun:1.4.2@sha256:9114c058aeae42162ee16dd5084b95fe9473970bb6bcb5b232ab1630f0546895 AS build-dependencies
 ARG BUILDPLATFORM
 USER root
 COPY --from=build-node-runtime /usr/local/bin/node /usr/local/bin/node
@@ -37,6 +39,8 @@ ENV NG_BUILD_MAX_WORKERS=2
 
 COPY package.json bun.lock bunfig.toml ./
 COPY patches/@material-material-color-utilities-npm-0.4.0-9d48ca70b8.patch patches/@material-material-color-utilities-npm-0.4.0-9d48ca70b8.patch
+COPY patches/heddendorp-effect-angular-query-0.1.4-angular22.patch patches/heddendorp-effect-angular-query-0.1.4-angular22.patch
+COPY patches/heddendorp-effect-platform-angular-0.0.9-angular22.patch patches/heddendorp-effect-platform-angular-0.0.9-angular22.patch
 COPY ops/scaleway/prime-bun-fontawesome-cache.mjs ops/scaleway/prime-bun-fontawesome-cache.mjs
 RUN --mount=type=cache,id=bun-build-install-cache-${BUILDPLATFORM},target=/home/bun/.bun/install/cache,uid=1000,gid=1000,sharing=locked \
     --mount=type=secret,id=FONT_AWESOME_TOKEN,mode=0444,required=true \

@@ -48,7 +48,7 @@ export const createSettledStripeTestPayment = async (input: {
   }
 
   const stripe = new Stripe(stripeApiKey, {
-    apiVersion: '2026-06-24.dahlia',
+    apiVersion: '2026-08-26.dahlia',
   });
   const paymentIntent = await stripe.paymentIntents.create(
     {
