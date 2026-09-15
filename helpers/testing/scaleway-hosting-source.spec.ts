@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -18,6 +19,89 @@ const between = (contents: string, start: string, end?: string): string => {
 };
 
 describe('Scaleway hosting source', () => {
+  it.each([
+    { name: 'matching image digest', overrides: {}, expectedStatus: 0 },
+    {
+      name: 'different image digest',
+      overrides: {
+        image: `rg.fr-par.scw.cloud/evorto-staging/evorto@sha256:${'b'.repeat(64)}`,
+      },
+      expectedStatus: 1,
+    },
+    {
+      name: 'different registry',
+      overrides: { image: `registry.example/evorto@sha256:${'a'.repeat(64)}` },
+      expectedStatus: 1,
+    },
+    {
+      name: 'invalid digest',
+      overrides: { digest: 'sha256:invalid' },
+      expectedStatus: 1,
+    },
+    {
+      name: 'invalid schema hash',
+      overrides: { schemaHash: 'invalid' },
+      expectedStatus: 1,
+    },
+    {
+      name: 'different revision',
+      overrides: { revision: 'other' },
+      expectedStatus: 1,
+    },
+    {
+      name: 'different environment',
+      overrides: { environment: 'production' },
+      expectedStatus: 1,
+    },
+    {
+      name: 'unsuccessful deployment',
+      overrides: { status: 'failed' },
+      expectedStatus: 1,
+    },
+  ])(
+    'validates a reused staging manifest with $name',
+    ({ overrides, expectedStatus }) => {
+      const reuse = between(
+        source('.github/workflows/scaleway-staging.yml'),
+        '- name: Reuse an already-built exact-SHA image when available',
+        '- name: Build and push the immutable Linux amd64 image once',
+      );
+      const predicate = reuse.match(
+        /'(\.status == "succeeded"[\s\S]*?)' \\/u,
+      )?.[1];
+      if (!predicate) {
+        throw new Error('Missing staging manifest reuse predicate');
+      }
+      const digest = `sha256:${'a'.repeat(64)}`;
+      const result = spawnSync(
+        'jq',
+        [
+          '--exit-status',
+          '--arg',
+          'revision',
+          'revision-under-test',
+          predicate,
+        ],
+        {
+          encoding: 'utf8',
+          input: JSON.stringify({
+            digest,
+            environment: 'staging',
+            image: `rg.fr-par.scw.cloud/evorto-staging/evorto@${digest}`,
+            revision: 'revision-under-test',
+            schemaHash: 'c'.repeat(64),
+            status: 'succeeded',
+            ...overrides,
+          }),
+          timeout: 5000,
+        },
+      );
+      expect(result.error).toBeUndefined();
+      expect(result.stderr).toBe('');
+      expect(result.status).toBe(expectedStatus);
+    },
+  );
+
   it('retires the legacy Fly deployment surface and hostname', () => {
     for (const removedPath of [
       '.github/workflows/fly-deploy.yml',

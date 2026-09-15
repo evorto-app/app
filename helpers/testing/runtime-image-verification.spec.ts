@@ -13,7 +13,11 @@ const verifier = path.join(
 const requiredArtifacts = [
   'app/dist/evorto/server/server.mjs',
   'app/dist/evorto/ops/schema.mjs',
+  'app/dist/evorto/ops/database-prerequisites.mjs',
+  'app/dist/evorto/ops/reset-staging-database.mjs',
+  'app/dist/evorto/ops/seed-staging.mjs',
   'app/ops/drizzle.config.mjs',
+  'app/ops/drizzle-kit.cjs',
 ];
 
 afterEach(() => {
@@ -23,7 +27,11 @@ afterEach(() => {
 });
 
 const makeFixture = (
-  options: { files?: Record<string, string>; omit?: string } = {},
+  options: {
+    files?: Record<string, string>;
+    omit?: string;
+    symlink?: { path: string; external?: boolean };
+  } = {},
 ) => {
   const directory = fs.mkdtempSync(
     path.join(os.tmpdir(), 'evorto-runtime-image-'),
@@ -54,6 +62,20 @@ const makeFixture = (
     fs.mkdirSync(path.dirname(target), { recursive: true });
     fs.writeFileSync(target, contents);
   }
+  const linkedTarget = path.join(
+    options.symlink?.external ? directory : root,
+    'linked-artifact',
+  );
+  if (options.symlink) {
+    const linkedPath = path.join(root, options.symlink.path);
+    fs.renameSync(linkedPath, linkedTarget);
+    fs.symlinkSync(
+      options.symlink.external
+        ? linkedTarget
+        : path.relative(path.dirname(linkedPath), linkedTarget),
+      linkedPath,
+    );
+  }
   const tarPath = spawnSync(
     'bash',
     ['--noprofile', '--norc', '-c', 'command -v tar'],
@@ -63,12 +85,7 @@ const makeFixture = (
   const realTar = tarPath.stdout.trim();
   const archived = spawnSync(
     realTar,
-    [
-      '--create',
-      `--file=${archive}`,
-      `--directory=${root}`,
-      ...entries.map(([file]) => file),
-    ],
+    ['--create', `--file=${archive}`, `--directory=${root}`, '.'],
     { encoding: 'utf8' },
   );
   expect(archived.status, archived.stderr).toBe(0);
@@ -146,6 +163,9 @@ exec "$REAL_TAR" "$@"
     expectCleanup: () => {
       expect(calls().at(-1)).toBe('remove');
       expect(fs.readdirSync(temporaryRoot)).toEqual([]);
+      if (options.symlink?.external) {
+        expect(fs.existsSync(linkedTarget)).toBe(true);
+      }
     },
     run: (
       settings: {
@@ -196,6 +216,10 @@ describe('runtime image verification', () => {
   });
 
   it.each([
+    'busybox',
+    'bin/busybox',
+    'usr/bin/busybox',
+    'opt/tools/busybox',
     'busybox/sh',
     'bin/sh',
     'usr/bin/bash',
@@ -215,6 +239,31 @@ describe('runtime image verification', () => {
     expect(result.stdout).not.toContain('verification passed');
     fixture.expectCleanup();
   });
+
+  it.each([
+    { path: 'app' },
+    { path: 'app/dist' },
+    { path: 'app/dist/evorto' },
+    { path: 'app/dist/evorto/server' },
+    { path: 'app/dist/evorto/server/server.mjs' },
+    { path: 'app/ops' },
+    { path: 'app/ops/drizzle.config.mjs' },
+    { path: 'app', external: true },
+    { path: 'app/dist/evorto/server/server.mjs', external: true },
+  ])(
+    'rejects a symlink in required path $path (external: $external)',
+    (symlink) => {
+      const fixture = makeFixture({ symlink });
+      const result = fixture.run();
+      expect(result.status, result.stderr).toBe(1);
+      expect(result.stderr).toContain(
+        'required artifact path contains a symlink',
+      );
+      expect(result.stderr).toContain(symlink.path);
+      expect(result.stdout).not.toContain('verification passed');
+      fixture.expectCleanup();
+    },
+  );
 
   it.each(requiredArtifacts)(
     'rejects a missing packaged artifact %s',

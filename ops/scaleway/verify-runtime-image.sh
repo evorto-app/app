@@ -65,13 +65,31 @@ reject_matches 'Runtime image contains a forbidden secret, provider, instrumenta
   --extended-regexp --ignore-case \
   '(^|/)(\.env([^/]*)?|instrument\.mjs|@sentry|@neondatabase|resend)(/|$)|\.map$' "${archive_listing}"
 
-readonly shell_path_pattern='^(\./|/)?(busybox|(usr/)?(local/)?s?bin)/(sh|bash|dash|ash|zsh|ksh|csh|tcsh|fish)$'
+readonly shell_path_pattern='(^|/)busybox$|^(\./|/)?(busybox|(usr/)?(local/)?s?bin)/(sh|bash|dash|ash|zsh|ksh|csh|tcsh|fish)$'
 reject_matches 'Runtime image contains a shell even though the application starts Bun directly.' \
   --extended-regexp --ignore-case "${shell_path_pattern}" "${archive_listing}"
 
 tar --extract --file="${archive_path}" --directory="${runtime_root}"
 
-for required_artifact in app/dist/evorto/server/server.mjs app/dist/evorto/ops/schema.mjs app/ops/drizzle.config.mjs; do
+readonly required_artifacts=(
+  app/dist/evorto/server/server.mjs
+  app/dist/evorto/ops/schema.mjs
+  app/dist/evorto/ops/database-prerequisites.mjs
+  app/dist/evorto/ops/reset-staging-database.mjs
+  app/dist/evorto/ops/seed-staging.mjs
+  app/ops/drizzle.config.mjs
+  app/ops/drizzle-kit.cjs
+)
+for required_artifact in "${required_artifacts[@]}"; do
+  # Check every component before file checks or content scans can follow a link.
+  artifact_component="${runtime_root}/${required_artifact}"
+  while [[ "${artifact_component}" != "${runtime_root}" ]]; do
+    if [[ -L "${artifact_component}" ]]; then
+      echo "Runtime image required artifact path contains a symlink: ${artifact_component}." >&2
+      exit 1
+    fi
+    artifact_component="${artifact_component%/*}"
+  done
   if [[ ! -f "${runtime_root}/${required_artifact}" || ! -r "${runtime_root}/${required_artifact}" ]]; then
     echo "Runtime image is missing a required readable artifact: ${required_artifact}." >&2
     exit 1
