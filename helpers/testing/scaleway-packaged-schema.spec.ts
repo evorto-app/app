@@ -79,7 +79,10 @@ case "$1" in
     [ "$2" = schema-container:/app/dist/evorto/ops/schema.mjs ]
     [ "$3" = "$RUNNER_TEMP/packaged-schema.mjs" ]
     printf '%s\n' copy >> "$CALL_LOG"
-    if [ "$COPY_FAILS" = true ]; then exit 42; fi
+    if [ "$COPY_FAILS" = true ]; then
+      printf partial > "$3"
+      exit 42
+    fi
     cp "$SCHEMA_FIXTURE" "$3"
     ;;
   rm)
@@ -189,8 +192,15 @@ describe('Scaleway packaged schema hashing', () => {
       const fixture = makeFixture(environment);
       const result = fixture.run({ copyFails: true });
       expect(result.status, result.stderr).toBe(42);
-      expect(fixture.calls()).toEqual(['pull', 'verify', 'create', 'copy']);
+      expect(fixture.calls()).toEqual([
+        'pull',
+        'verify',
+        'create',
+        'copy',
+        'remove',
+      ]);
       expect(fixture.output()).toBe('');
+      expect(fixture.packagedSchemaExists()).toBe(false);
     });
 
     it(`stops ${environment} before extraction when image verification fails`, () => {

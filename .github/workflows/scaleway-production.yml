@@ -213,20 +213,39 @@ jobs:
           target_reference="rg.fr-par.scw.cloud/evorto-production/evorto@${target_digest}"
           docker pull --platform linux/amd64 "${target_reference}"
           bash ops/scaleway/verify-runtime-image.sh "${target_reference}"
+          packaged_schema_file="${RUNNER_TEMP}/packaged-schema.mjs"
+          schema_container_id=''
+          cleanup_packaged_schema() {
+            local original_status=$?
+            local cleanup_status=0
+            trap - EXIT
+            if [[ -n "${schema_container_id}" ]]; then
+              docker rm "${schema_container_id}" >/dev/null || cleanup_status=$?
+            fi
+            if [[ -n "${packaged_schema_file}" ]]; then
+              rm -f "${packaged_schema_file}" || cleanup_status=$?
+            fi
+            if ((original_status != 0)); then
+              exit "${original_status}"
+            fi
+            exit "${cleanup_status}"
+          }
+          trap cleanup_packaged_schema EXIT
           schema_container_id="$(
             docker create \
               --platform linux/amd64 \
               "${target_reference}"
           )"
-          packaged_schema_file="${RUNNER_TEMP}/packaged-schema.mjs"
           docker cp \
             "${schema_container_id}:/app/dist/evorto/ops/schema.mjs" \
             "${packaged_schema_file}"
           docker rm "${schema_container_id}" >/dev/null
+          schema_container_id=''
           packaged_schema_hash="$(
             sha256sum "${packaged_schema_file}" | awk '{print $1}'
           )"
           rm -f "${packaged_schema_file}"
+          packaged_schema_file=''
           if [ "${packaged_schema_hash}" != "${{ steps.staging.outputs.schema_hash }}" ]; then
             echo "::error::Production image schema hash differs from the staging manifest"
             exit 1
