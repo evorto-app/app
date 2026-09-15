@@ -123,6 +123,7 @@ export const stripePaymentIntentResponse = (
 ): Stripe.Response<Stripe.PaymentIntent> => {
   const amount = overrides.amount ?? fixtureAmount;
   const base: Stripe.PaymentIntent = {
+    allowed_payment_method_types: ['card'],
     amount,
     amount_capturable: 0,
     amount_received: amount,
@@ -255,10 +256,13 @@ export const stripeRefundResponse = (
     charge: fixtureChargeId,
     created: fixtureCreatedAt,
     currency: fixtureCurrency,
+    customer: null,
+    customer_account: null,
     id: 're_fixture',
     metadata: {},
     object: 'refund',
     payment_intent: fixturePaymentIntentId,
+    payment_method: null,
     reason: null,
     receipt_number: null,
     source_transfer_reversal: null,
