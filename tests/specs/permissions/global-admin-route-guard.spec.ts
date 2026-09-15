@@ -23,7 +23,7 @@ test.describe('global admin route guard allow path', () => {
       new RegExp(`/global-admin/tenants/${tenant.id}`),
     );
     await expect(
-      page.getByText("Review this organization's settings and platform tools."),
+      page.getByRole('heading', { exact: true, level: 1, name: tenant.name }),
     ).toBeVisible();
   });
 
