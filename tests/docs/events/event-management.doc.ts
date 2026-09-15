@@ -103,6 +103,9 @@ Start by navigating to the **Events** section from the main menu to see a list o
   await expect(
     page.getByRole('heading', { level: 1, name: 'Events' }).first(),
   ).toBeVisible();
+  await expect(
+    page.locator(`app-event-list nav a[href="/events/${target.id}"]`),
+  ).toBeVisible();
   await takeScreenshot(
     testInfo,
     page.getByRole('heading', { level: 1, name: 'Events' }).first(),
@@ -135,6 +138,9 @@ To create a new event, click the **Create Event** link on the event list page. T
   await expect(
     page.getByRole('heading', { level: 1, name: 'Event templates' }).first(),
   ).toBeVisible();
+  const templateName = 'Partnach Gorge hike';
+  const templateLink = page.getByRole('link', { name: templateName });
+  await expect(templateLink).toBeVisible();
   await takeScreenshot(
     testInfo,
     page.getByRole('heading', { level: 1, name: 'Event templates' }).first(),
@@ -158,10 +164,8 @@ After selecting a template and customizing your event, you can create it and pro
 `,
   });
 
-  const templateName = 'Partnach Gorge hike';
-
   // Select a template from the list
-  await page.getByRole('link', { name: templateName }).click();
+  await templateLink.click();
 
   // The remaining screenshots use a seeded event with the same event-details surface.
   await page.goto(`/events/${target.id}`);
