@@ -397,6 +397,7 @@ Logos accept PNG, JPEG, WebP, or GIF files up to 5 MB. Tab icons also accept ICO
 
   await test.step('Read saved values after reopening each settings page', async () => {
     await page.getByRole('link', { name: 'Organization settings' }).click();
+    await expect(page).toHaveURL(/\/admin\/settings$/u);
     await page.reload();
     const organizationSettings = page.locator('app-organization-settings');
     await expect(
@@ -677,9 +678,14 @@ The privacy policy stays on **New member setup** with required member questions.
   ).toBeVisible();
 
   await publicPage.getByRole('link', { name: 'Back to events' }).click();
+  await expect(publicPage).toHaveURL(/\/events$/u);
+  await expect(
+    publicPage.getByRole('heading', { level: 1, name: 'Events', exact: true }),
+  ).toBeVisible();
   await publicFooter
     .getByRole('link', { name: 'Privacy', exact: true })
     .click();
+  await expect(publicPage).toHaveURL(/\/legal\/privacy$/u);
   await expect(
     publicPage.getByRole('heading', { level: 1, name: 'Privacy policy' }),
   ).toBeVisible();
@@ -688,7 +694,12 @@ The privacy policy stays on **New member setup** with required member questions.
   ).toBeVisible();
 
   await publicPage.getByRole('link', { name: 'Back to events' }).click();
+  await expect(publicPage).toHaveURL(/\/events$/u);
+  await expect(
+    publicPage.getByRole('heading', { level: 1, name: 'Events', exact: true }),
+  ).toBeVisible();
   await publicFooter.getByRole('link', { name: 'Terms', exact: true }).click();
+  await expect(publicPage).toHaveURL(/\/legal\/terms$/u);
   await expect(
     publicPage.getByRole('heading', { level: 1, name: 'Terms' }),
   ).toBeVisible();
