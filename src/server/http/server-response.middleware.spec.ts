@@ -369,21 +369,23 @@ describe('server response middleware', () => {
     }),
   );
 
-  it('retires pooled Node client sockets through the real Bun HTTP server', async () => {
+  it('retires pooled Node client sockets through the real Bun HTTP server', async ({
+    signal,
+  }) => {
     const { stderr, stdout } = await execFileAsync(
       'bun',
       ['helpers/testing/response-connection-bun-regression.ts'],
-      { cwd: process.cwd(), timeout: 10_000 },
+      { cwd: process.cwd(), signal, timeout: 10_000 },
     );
 
     expect(stderr).toBe('');
     expect(JSON.parse(stdout)).toEqual({
       requests: 12,
-      responsesClosed: 12,
+      responsesWithCloseHeader: 12,
       reusedSockets: 0,
       sockets: 12,
     });
-  });
+  }, 15_000);
 
   it('derives stable trace routes without query values or sensitive identifiers', () => {
     const callbackCode = 'callback-code-sentinel';

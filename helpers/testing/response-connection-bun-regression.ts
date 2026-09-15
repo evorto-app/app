@@ -1,4 +1,5 @@
 import * as BunHttpServer from '@effect/platform-bun/BunHttpServer';
+import * as BunRuntime from '@effect/platform-bun/BunRuntime';
 import { Effect, FileSystem, Layer, Path } from 'effect';
 import {
   HttpRouter,
@@ -19,7 +20,7 @@ const port = Number(process.argv[1]);
 const agent = new Agent({ keepAlive: true });
 const sockets = new Set();
 let requests = 0;
-let responsesClosed = 0;
+let responsesWithCloseHeader = 0;
 let reusedSockets = 0;
 try {
   for (let round = 0; round < 4; round++) {
@@ -53,7 +54,7 @@ try {
         pending.end();
       });
       requests += 1;
-      responsesClosed += Number(result.connection === 'close');
+      responsesWithCloseHeader += Number(result.connection === 'close');
       reusedSockets += Number(result.reused);
       assert.equal(result.connection, 'close');
       assert.equal(result.status, pathname === '/redirect' ? 302 : 200);
@@ -64,13 +65,13 @@ try {
   }
   assert.equal(sockets.size, 12);
   assert.equal(reusedSockets, 0);
-  process.stdout.write(JSON.stringify({ requests, responsesClosed, reusedSockets, sockets: sockets.size }));
+  process.stdout.write(JSON.stringify({ requests, responsesWithCloseHeader, reusedSockets, sockets: sockets.size }));
 } finally {
   agent.destroy();
 }
 `;
 
-const result = await Effect.runPromise(
+BunRuntime.runMain(
   Effect.gen(function* () {
     const fileSystem = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
@@ -105,11 +106,11 @@ const result = await Effect.runPromise(
     if (address._tag !== 'TcpAddress') {
       return yield* Effect.die(new Error('Expected a local TCP test server'));
     }
-    const { stderr, stdout } = yield* Effect.tryPromise(() =>
+    const { stderr, stdout } = yield* Effect.tryPromise((signal) =>
       execFileAsync(
         'node',
         ['--input-type=module', '-e', nodeClientSource, String(address.port)],
-        { timeout: 5000 },
+        { signal, timeout: 5000 },
       ),
     );
     if (stderr !== '') {
@@ -128,7 +129,6 @@ const result = await Effect.runPromise(
       }),
     ),
     Effect.scoped,
+    Effect.tap((result) => Effect.sync(() => process.stdout.write(result))),
   ),
 );
-
-process.stdout.write(result);
