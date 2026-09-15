@@ -5,7 +5,15 @@ import { describe, expect, it, vi } from '@effect/vitest';
 import { adminTenantSettingsSnapshot } from '@shared/tenant-settings-snapshot';
 import { getTableColumns } from 'drizzle-orm';
 import * as PgDrizzle from 'drizzle-orm/effect-postgres';
-import { Cause, Effect, Exit, Layer, Schema, Stream } from 'effect';
+import {
+  Cause,
+  Effect,
+  Exit,
+  Layer,
+  Schema,
+  SchemaIssue,
+  Stream,
+} from 'effect';
 import * as Headers from 'effect/unstable/http/Headers';
 import { Rpc, RpcMessage } from 'effect/unstable/rpc';
 import { SqlError, UniqueViolation } from 'effect/unstable/sql/SqlError';
@@ -635,7 +643,18 @@ describe('adminHandlers role permissions', () => {
         expect(Exit.isFailure(exit)).toBe(true);
         if (Exit.isFailure(exit)) {
           expect(Cause.hasDies(exit.cause)).toBe(true);
-          expect(Cause.pretty(exit.cause)).toContain('globalAdmin:*');
+          const defect = exit.cause.reasons.find((reason) =>
+            Cause.isDieReason(reason),
+          )?.defect;
+          expect(Schema.isSchemaError(defect)).toBe(true);
+          if (Schema.isSchemaError(defect)) {
+            const issues = SchemaIssue.makeFormatterStandardSchemaV1()(
+              defect.issue,
+            ).issues;
+            expect(issues.map((issue) => issue.path)).toEqual([
+              ['permissions', 0],
+            ]);
+          }
         }
       }),
   );
