@@ -26,6 +26,7 @@ export const localTenantRequestHeaders = (
   tenantDomain: string,
 ): Record<string, string> => ({
   ...headers,
+  connection: 'close',
   [localTestTenantDomainHeader]: tenantDomain,
 });
 

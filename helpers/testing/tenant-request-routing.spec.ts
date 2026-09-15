@@ -23,16 +23,20 @@ describe('local tenant request routing', () => {
     ).toBe('http://localhost:4200/**');
   });
 
-  it('adds the tenant header without changing the original headers', () => {
-    const original = { accept: 'application/json' };
+  it('adds the tenant header and overrides connection reuse without changing the original headers', () => {
+    const original = { accept: 'application/json', connection: 'keep-alive' };
 
     expect(
       localTenantRequestHeaders(original, 'north-river.evorto.app'),
     ).toEqual({
       accept: 'application/json',
+      connection: 'close',
       [localTestTenantDomainHeader]: 'north-river.evorto.app',
     });
-    expect(original).toEqual({ accept: 'application/json' });
+    expect(original).toEqual({
+      accept: 'application/json',
+      connection: 'keep-alive',
+    });
   });
 
   it('removes only its registered handler and permits repeated cleanup', async () => {

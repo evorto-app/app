@@ -684,3 +684,250 @@ for (const cleanupMode of ['pages', 'context'] as const) {
       );
   });
 }
+
+test('uses fresh upstream connections for tenant requests across owned contexts', async ({
+  browser,
+}) => {
+  const tenantDomain = 'connection-policy.evorto.app';
+  const socketIds = new WeakMap<object, number>();
+  let nextSocketId = 0;
+  const received: {
+    connection: string | undefined;
+    path: string;
+    socketId: number;
+    tenant: string | string[] | undefined;
+  }[] = [];
+  const externalTenants: (string | string[] | undefined)[] = [];
+  const external = await listen((request, response) => {
+    externalTenants.push(request.headers[localTestTenantDomainHeader]);
+    response.writeHead(200, { 'content-type': 'text/html' });
+    response.end(
+      '<!doctype html><link rel="icon" href="data:,"><body>external</body>',
+    );
+  });
+  let local: ListeningServer | undefined;
+  const errors: unknown[] = [];
+
+  try {
+    local = await listen((request, response) => {
+      let socketId = socketIds.get(request.socket);
+      if (socketId === undefined) {
+        socketId = ++nextSocketId;
+        socketIds.set(request.socket, socketId);
+      }
+      const requestPath = request.url ?? '/';
+      received.push({
+        connection: request.headers.connection,
+        path: requestPath,
+        socketId,
+        tenant: request.headers[localTestTenantDomainHeader],
+      });
+      if (requestPath === '/redirect') {
+        response.writeHead(302, { location: `${external.origin}/outside` });
+        response.end();
+      } else if (requestPath.startsWith('/document-')) {
+        response.writeHead(200, { 'content-type': 'text/html' });
+        response.end(
+          '<!doctype html><link rel="icon" href="data:,"><title>Connection policy</title>',
+        );
+      } else {
+        response.writeHead(200, { 'content-type': 'text/plain' });
+        response.end(requestPath);
+      }
+    });
+    const localOrigin = local.origin;
+    const runOwnedContext = async (
+      documentPath: string,
+      requestPaths: string[],
+      followExternalRedirect: boolean,
+    ) => {
+      // A request-level keep-alive value must not override the local helper's
+      // close policy. This also makes the test independent of project defaults.
+      const context = await browser.newContext({
+        extraHTTPHeaders: { connection: 'keep-alive' },
+      });
+      const contextErrors: unknown[] = [];
+      try {
+        await routeLocalTenantRequests({
+          baseUrl: localOrigin,
+          context,
+          tenantDomain,
+        });
+        const page = await context.newPage();
+        await page.goto(`${localOrigin}${documentPath}`);
+        for (const requestPath of requestPaths) {
+          const body = await page.evaluate(async (url) => {
+            const response = await fetch(url);
+            if (response.status !== 200) {
+              throw new Error('Expected a successful local request');
+            }
+            return response.text();
+          }, requestPath);
+          expect(body).toBe(requestPath);
+        }
+        if (followExternalRedirect) {
+          await page.goto(`${localOrigin}/redirect`);
+          await expect(page).toHaveURL(`${external.origin}/outside`);
+          await expect(page.locator('body')).toHaveText('external');
+        }
+      } catch (error) {
+        contextErrors.push(error);
+      } finally {
+        try {
+          await closeTenantRequestContext(context);
+        } catch (error) {
+          contextErrors.push(error);
+        }
+      }
+      if (contextErrors.length) {
+        throw new AggregateError(
+          contextErrors,
+          'Owned connection-policy context failed',
+        );
+      }
+    };
+
+    await runOwnedContext('/document-first', ['/first', '/second'], false);
+    await runOwnedContext('/document-second', ['/third'], true);
+
+    expect(received.map(({ path }) => path)).toEqual([
+      '/document-first',
+      '/first',
+      '/second',
+      '/document-second',
+      '/third',
+      '/redirect',
+    ]);
+    expect(received.map(({ connection }) => connection)).toEqual(
+      Array.from({ length: 6 }, () => 'close'),
+    );
+    expect(received.map(({ tenant }) => tenant)).toEqual(
+      Array.from({ length: 6 }, () => tenantDomain),
+    );
+    expect(new Set(received.map(({ socketId }) => socketId)).size).toBe(6);
+    expect(externalTenants).toEqual([undefined]);
+  } catch (error) {
+    errors.push(error);
+  } finally {
+    const closures = await Promise.allSettled([
+      ...(local ? [local.close()] : []),
+      external.close(),
+    ]);
+    for (const closure of closures) {
+      if (closure.status === 'rejected') errors.push(closure.reason);
+    }
+  }
+  if (errors.length) {
+    throw new AggregateError(
+      errors,
+      'Tenant upstream connection isolation failed',
+    );
+  }
+});
+
+test('inherits project connection-close headers in browser and API request contexts', async ({
+  browser,
+  request,
+}) => {
+  const socketIds = new WeakMap<object, number>();
+  let nextSocketId = 0;
+  const received: {
+    connection: string | undefined;
+    path: string;
+    socketId: number;
+    tenant: string | string[] | undefined;
+  }[] = [];
+  const server = await listen((incoming, response) => {
+    let socketId = socketIds.get(incoming.socket);
+    if (socketId === undefined) {
+      socketId = ++nextSocketId;
+      socketIds.set(incoming.socket, socketId);
+    }
+    const requestPath = incoming.url ?? '/';
+    received.push({
+      connection: incoming.headers.connection,
+      path: requestPath,
+      socketId,
+      tenant: incoming.headers[localTestTenantDomainHeader],
+    });
+    if (requestPath === '/browser') {
+      response.writeHead(200, { 'content-type': 'text/html' });
+      response.end(
+        '<!doctype html><link rel="icon" href="data:,"><body>/browser</body>',
+      );
+    } else {
+      response.writeHead(200, { 'content-type': 'text/plain' });
+      response.end(requestPath);
+    }
+  });
+  let context: BrowserContext | undefined;
+  const responses: Awaited<ReturnType<typeof request.get>>[] = [];
+  const errors: unknown[] = [];
+  try {
+    for (const requestPath of ['/fixture-first', '/fixture-second']) {
+      const response = await request.get(`${server.origin}${requestPath}`, {
+        maxRedirects: 0,
+        maxRetries: 0,
+      });
+      responses.push(response);
+      expect(response.status()).toBe(200);
+      expect(await response.text()).toBe(requestPath);
+    }
+    // Omit extraHTTPHeaders: Playwright Test must supply the project defaults
+    // to both this custom browser context and its associated API client.
+    context = await browser.newContext();
+    for (const requestPath of ['/context-first', '/context-second']) {
+      const response = await context.request.get(
+        `${server.origin}${requestPath}`,
+        { maxRedirects: 0, maxRetries: 0 },
+      );
+      responses.push(response);
+      expect(response.status()).toBe(200);
+      expect(await response.text()).toBe(requestPath);
+    }
+    const page = await context.newPage();
+    await page.goto(`${server.origin}/browser`);
+    await expect(page.locator('body')).toHaveText('/browser');
+
+    expect(received.map(({ path }) => path)).toEqual([
+      '/fixture-first',
+      '/fixture-second',
+      '/context-first',
+      '/context-second',
+      '/browser',
+    ]);
+    expect(received.map(({ connection }) => connection)).toEqual(
+      Array.from({ length: 5 }, () => 'close'),
+    );
+    expect(received.map(({ tenant }) => tenant)).toEqual(
+      Array.from({ length: 5 }, () => undefined),
+    );
+    expect(new Set(received.map(({ socketId }) => socketId)).size).toBe(5);
+  } catch (error) {
+    errors.push(error);
+  } finally {
+    for (const disposal of await Promise.allSettled(
+      responses.map((response) => response.dispose()),
+    )) {
+      if (disposal.status === 'rejected') errors.push(disposal.reason);
+    }
+    if (context) {
+      try {
+        await closeTenantRequestContext(context);
+      } catch (error) {
+        errors.push(error);
+      }
+    }
+    try {
+      await server.close();
+    } catch (error) {
+      errors.push(error);
+    }
+  }
+  if (errors.length) {
+    throw new AggregateError(
+      errors,
+      'Project connection-header inheritance failed',
+    );
+  }
+});
