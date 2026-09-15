@@ -41,6 +41,10 @@ not replace it with aspirational documentation.
 - Specs should consume deterministic scenario handles from `seeded.scenario`
 - Do not discover test entities by template title fragments, fuzzy event searches, or wall-clock checks
 
+The automatic `falsoSeed` fixture scopes deterministic data by project, file,
+title path, repetition index, and retry. Use `--repeat-each` for diagnostic
+repetitions; each repetition receives a distinct fixture seed.
+
 Local tenant selection uses the scoped routing helper in
 `tests/support/utils/tenant-request-routing.ts`. Use the returned `close()`
 method for pages created with `openAuthenticatedTestPage`. The base page

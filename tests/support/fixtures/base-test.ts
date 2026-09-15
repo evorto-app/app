@@ -128,6 +128,7 @@ export const test = base.extend<BaseFixtures>({
         testInfo.project.name,
         testInfo.file,
         ...testInfo.titlePath,
+        `repeat:${testInfo.repeatEachIndex}`,
         `retry:${testInfo.retry}`,
       ].join(':');
       const seed = seedFalsoForScope(scope, seedDate);
