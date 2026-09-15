@@ -4,7 +4,15 @@ import * as PgClient from '@effect/sql-pg/PgClient';
 import { describe, expect, it, vi } from '@effect/vitest';
 import { getTableColumns } from 'drizzle-orm';
 import * as PgDrizzle from 'drizzle-orm/effect-postgres';
-import { Cause, Effect, Exit, Layer, Stream } from 'effect';
+import {
+  Cause,
+  Effect,
+  Exit,
+  Layer,
+  Schema,
+  SchemaIssue,
+  Stream,
+} from 'effect';
 
 import { Database } from '../../db';
 import { relations } from '../../db/relations';
@@ -680,9 +688,14 @@ describe('request-context-resolver', () => {
           expect(Exit.isFailure(exit)).toBe(true);
           if (Exit.isFailure(exit)) {
             expect(Cause.hasDies(exit.cause)).toBe(true);
-            expect(String(Cause.squash(exit.cause))).toContain(
-              invalidPermission,
-            );
+            const error = Cause.squash(exit.cause);
+            expect(Schema.isSchemaError(error)).toBe(true);
+            if (Schema.isSchemaError(error)) {
+              const { issues } = SchemaIssue.makeFormatterStandardSchemaV1()(
+                error.issue,
+              );
+              expect(issues.map((issue) => issue.path)).toEqual([[2]]);
+            }
           }
           expect(onUserRead).toHaveBeenCalledExactlyOnceWith({
             auth0Id: 'auth0|tenant-user',
