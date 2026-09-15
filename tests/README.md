@@ -49,8 +49,13 @@ while tenant interception and the context request client remain available,
 then drains active requests before removing the exact owned route. If a page
 remains open, cleanup fails and retains routing for Playwright's outer context
 teardown; it does not retry page closure or remove interception from live pages.
-The fixture exclusively owns this final page cleanup. Custom contexts continue
-to use `closeTenantRequestContext`. Do not replace the scoped drain with
+The fixture exclusively owns this final page cleanup. Custom contexts use
+`closeTenantRequestContext` for the same page-close and drain sequence followed
+by owned context closure. It still attempts that closure if page cleanup fails,
+and joins remaining callbacks only after confirming the context is closed.
+Normal and emergency cleanup share one context-close attempt; a rejected or
+unproven closure is not retried, and all known failures remain visible.
+Do not replace the scoped drain with
 `unrouteAll`, which can release other active requests before their handlers
 finish.
 

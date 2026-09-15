@@ -16,7 +16,7 @@ type TenantRoute = {
 };
 
 const tenantRoutes = new WeakMap<RoutingContext, TenantRoute>();
-const emergencyCloseAttempts = new WeakSet<RoutingContext>();
+const contextCloseAttempts = new WeakSet<RoutingContext>();
 
 export const localTenantRequestPattern = (baseUrl: string): string =>
   `${new URL(baseUrl).origin}/**`;
@@ -94,8 +94,8 @@ export const routeLocalTenantRequests = async ({
           state.closing = true;
           // If this request cannot be settled, close its owned context once.
           // Never release it by removing interception or replaying upstream.
-          if (!state.emergencyClose) {
-            emergencyCloseAttempts.add(context);
+          if (!contextCloseAttempts.has(context)) {
+            contextCloseAttempts.add(context);
             state.emergencyClose = Promise.resolve()
               .then(() => context.close())
               .catch((closeError) => {
@@ -157,13 +157,19 @@ export const stopTenantRequestRouting = async (
   await state.draining;
 };
 
-export const closeTenantRequestPages = async (
+const closeTenantRequestPagePhase = async (
   context: RoutingContext & {
     pages: () => readonly Pick<Page, 'close' | 'isClosed'>[];
   },
-): Promise<void> => {
+) => {
   const errors: unknown[] = [];
-  const pages = [...context.pages()];
+  let drainAttempted = false;
+  let pages: ReturnType<typeof context.pages>;
+  try {
+    pages = [...context.pages()];
+  } catch (error) {
+    return { errors: [error], drainAttempted };
+  }
   // Keep interception and the context request client alive while closing pages.
   for (const page of pages) {
     try {
@@ -181,18 +187,26 @@ export const closeTenantRequestPages = async (
     errors.push(error);
   }
   if (!pagesClosed) {
-    // Playwright owns the outer context teardown. Never release live pages by
+    // The caller owns the outer context teardown. Never release live pages by
     // removing interception, or retry closing a changing set of pages here.
     errors.push(
       new Error('Tenant request pages remain open; routing remains installed'),
     );
   } else {
+    drainAttempted = true;
     try {
       await stopTenantRequestRouting(context);
     } catch (error) {
       errors.push(error);
     }
   }
+  return { errors, drainAttempted };
+};
+
+export const closeTenantRequestPages = async (
+  context: Parameters<typeof closeTenantRequestPagePhase>[0],
+): Promise<void> => {
+  const { errors } = await closeTenantRequestPagePhase(context);
   if (errors.length === 1) throw errors[0];
   if (errors.length > 1) {
     throw new AggregateError(errors, 'Tenant request page cleanup failed');
@@ -200,20 +214,60 @@ export const closeTenantRequestPages = async (
 };
 
 export const closeTenantRequestContext = async (
-  context: Pick<BrowserContext, 'close' | 'unroute'>,
+  context: Parameters<typeof closeTenantRequestPages>[0] &
+    Pick<BrowserContext, 'close' | 'isClosed'>,
 ): Promise<void> => {
-  const errors: unknown[] = [];
-  try {
-    await stopTenantRequestRouting(context);
-  } catch (error) {
-    errors.push(error);
-  }
-  if (!emergencyCloseAttempts.has(context)) {
+  const { errors, drainAttempted } = await closeTenantRequestPagePhase(context);
+  let closeSucceeded = false;
+  if (!contextCloseAttempts.has(context)) {
+    // Share the attempt with route callbacks before context disposal can fail
+    // their fetch/abort operations. Neither path retries the other's close.
+    contextCloseAttempts.add(context);
     try {
       await context.close();
+      closeSucceeded = true;
     } catch (error) {
       errors.push(error);
     }
+  }
+  if (!drainAttempted) {
+    const emergencyClose = tenantRoutes.get(context)?.emergencyClose;
+    if (emergencyClose) {
+      // Join the existing owner before checking closure; never start another
+      // close when page cleanup failed while an emergency close was pending.
+      try {
+        await emergencyClose;
+      } catch (error) {
+        errors.push(error);
+      }
+    }
+  }
+  let contextClosed = false;
+  try {
+    contextClosed = context.isClosed();
+    if (closeSucceeded && !contextClosed) {
+      errors.push(new Error('Tenant request context closure is unproven'));
+    }
+  } catch (error) {
+    errors.push(error);
+  }
+  if (!drainAttempted) {
+    if (contextClosed) {
+      // Page cleanup could not safely drain live pages. The confirmed closed
+      // context now permits joining callbacks without releasing a live request.
+      try {
+        await stopTenantRequestRouting(context);
+      } catch (error) {
+        errors.push(error);
+      }
+    } else {
+      // Keep interception and its callback ownership when closure is unproven.
+      // Report errors already observed; do not start or repeat a cached drain.
+      errors.push(...(tenantRoutes.get(context)?.errors ?? []));
+    }
+  }
+  if (!contextClosed && errors.length === 0) {
+    errors.push(new Error('Tenant request context closure is unproven'));
   }
   if (errors.length === 1) throw errors[0];
   if (errors.length > 1) {
