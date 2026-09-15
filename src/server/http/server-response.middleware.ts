@@ -74,6 +74,9 @@ export const makeServerResponseMiddleware = <E, R>(
   Effect.gen(function* () {
     const request = yield* HttpServerRequest.HttpServerRequest;
     const requestId = resolveRequestId(request.headers['x-request-id']);
+    const closeConnection = request.headers['connection']
+      ?.split(',')
+      .some((option) => option.trim().toLowerCase() === 'close');
     const safeRoute = safeServerRequestRoute(request.url);
     const traceAnnotations = {
       'http.request.method': request.method,
@@ -137,11 +140,19 @@ export const makeServerResponseMiddleware = <E, R>(
               )
             : securedResponse;
 
-        return HttpServerResponse.setHeader(
+        const identifiedResponse = HttpServerResponse.setHeader(
           environmentResponse,
           'x-request-id',
           requestId,
         );
+        // Make socket retirement explicit for pooled HTTP clients.
+        return closeConnection
+          ? HttpServerResponse.setHeader(
+              identifiedResponse,
+              'connection',
+              'close',
+            )
+          : identifiedResponse;
       }),
       Effect.annotateLogs({ requestId }),
       Effect.annotateSpans(traceAnnotations),

@@ -60,10 +60,12 @@ Do not replace the scoped drain with
 finish.
 
 Playwright Test sets `Connection: close` from the first request because its API
-client shares idle connections across contexts. The local routing helper also
-overrides incoming connection headers before fetching, so an explicit
-`keep-alive` header cannot repopulate that pool. Keep this policy when supplying
-custom context or request headers. Project defaults cover browser contexts and
+client shares idle connections across contexts. The local routing helper
+overrides incoming connection headers before fetching. The server also returns
+`Connection: close` when that option was requested, so pooled Node clients retire
+the socket as soon as its response finishes. The request header alone does not
+guarantee retirement when an upstream omits the response header. Keep this policy
+when supplying custom context or request headers. Project defaults cover browser contexts and
 the independent request fixture, including external provider requests; standalone
 clients outside Playwright Test must supply their own connection policy.
 Requests are still issued once and all request failures remain visible.

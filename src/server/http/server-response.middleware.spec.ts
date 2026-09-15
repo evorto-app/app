@@ -6,7 +6,9 @@ import {
   HttpServerRequest,
   HttpServerResponse,
 } from 'effect/unstable/http';
+import { execFile } from 'node:child_process';
 import { readFileSync } from 'node:fs';
+import { promisify } from 'node:util';
 
 import type { DeploymentConfig } from '../config/deployment-config';
 
@@ -15,6 +17,8 @@ import {
   makeServerResponseMiddleware,
   safeServerRequestRoute,
 } from './server-response.middleware';
+
+const execFileAsync = promisify(execFile);
 
 const makeTestHandler = Effect.fn('makeTestHandler')(function* (
   routeLayer: Layer.Layer<
@@ -267,6 +271,119 @@ describe('server response middleware', () => {
         expect(response.headers.getSetCookie()).toEqual([]);
       }),
   );
+
+  it.effect.each(['close', 'Close', 'keep-alive, CLOSE', ' close , upgrade '])(
+    'explicitly closes the response for the request connection option %s',
+    (connection) =>
+      Effect.gen(function* () {
+        const { handler } = yield* makeTestHandler(
+          HttpRouter.add(
+            'GET',
+            '/asset',
+            Effect.succeed(
+              HttpServerResponse.text('asset body', {
+                headers: {
+                  'cache-control': 'public, max-age=3600',
+                  connection: 'keep-alive',
+                },
+                status: 202,
+              }),
+            ),
+          ),
+        );
+        const response = yield* Effect.promise(() =>
+          handler(
+            new Request('http://localhost/asset', {
+              headers: { connection, 'x-request-id': 'close-request-1' },
+            }),
+          ),
+        );
+
+        expect(response.headers.get('connection')).toBe('close');
+        expect(response.status).toBe(202);
+        expect(yield* Effect.promise(() => response.text())).toBe('asset body');
+        expect(response.headers.get('cache-control')).toBe(
+          'public, max-age=3600',
+        );
+        expect(response.headers.get('x-content-type-options')).toBe('nosniff');
+        expect(response.headers.get('x-request-id')).toBe('close-request-1');
+      }),
+  );
+
+  it.effect.each([undefined, '', 'keep-alive', 'x-close', 'disclose'])(
+    'preserves the response connection policy for request option %s',
+    (connection) =>
+      Effect.gen(function* () {
+        const { handler } = yield* makeTestHandler(
+          HttpRouter.add(
+            'GET',
+            '/ok',
+            Effect.succeed(HttpServerResponse.text('ok')),
+          ),
+        );
+        const headers = new Headers();
+        if (connection !== undefined) headers.set('connection', connection);
+        const response = yield* Effect.promise(() =>
+          handler(new Request('http://localhost/ok', { headers })),
+        );
+
+        expect(response.headers.has('connection')).toBe(false);
+        expect(yield* Effect.promise(() => response.text())).toBe('ok');
+      }),
+  );
+
+  it.effect('closes redirects and handled error responses when requested', () =>
+    Effect.gen(function* () {
+      const { handler } = yield* makeTestHandler(
+        Layer.mergeAll(
+          HttpRouter.add(
+            'GET',
+            '/redirect',
+            Effect.succeed(HttpServerResponse.redirect('/done')),
+          ),
+          HttpRouter.add(
+            'GET',
+            '/defect',
+            Effect.die(new Error('test defect')),
+          ),
+        ),
+      );
+      for (const [pathname, status] of [
+        ['/redirect', 302],
+        ['/missing', 404],
+        ['/defect', 500],
+      ] satisfies readonly (readonly [string, number])[]) {
+        const response = yield* Effect.promise(() =>
+          handler(
+            new Request(`http://localhost${pathname}`, {
+              headers: { connection: 'close' },
+            }),
+          ),
+        );
+        expect(response.status).toBe(status);
+        expect(response.headers.get('connection')).toBe('close');
+        if (pathname === '/redirect')
+          expect(response.headers.get('location')).toBe('/done');
+        yield* Effect.promise(() => response.arrayBuffer());
+      }
+    }),
+  );
+
+  it('retires pooled Node client sockets through the real Bun HTTP server', async () => {
+    const { stderr, stdout } = await execFileAsync(
+      'bun',
+      ['helpers/testing/response-connection-bun-regression.ts'],
+      { cwd: process.cwd(), timeout: 10_000 },
+    );
+
+    expect(stderr).toBe('');
+    expect(JSON.parse(stdout)).toEqual({
+      requests: 12,
+      responsesClosed: 12,
+      reusedSockets: 0,
+      sockets: 12,
+    });
+  });
 
   it('derives stable trace routes without query values or sensitive identifiers', () => {
     const callbackCode = 'callback-code-sentinel';
