@@ -1,0 +1,315 @@
+import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { afterEach, describe, expect, it } from 'vitest';
+
+const temporaryDirectories: string[] = [];
+const imageReference = 'registry.example.invalid/evorto:test';
+const verifier = path.join(
+  process.cwd(),
+  'ops/scaleway/verify-runtime-image.sh',
+);
+const requiredArtifacts = [
+  'app/dist/evorto/server/server.mjs',
+  'app/dist/evorto/ops/schema.mjs',
+  'app/ops/drizzle.config.mjs',
+];
+
+afterEach(() => {
+  for (const directory of temporaryDirectories.splice(0)) {
+    fs.rmSync(directory, { force: true, recursive: true });
+  }
+});
+
+const makeFixture = (
+  options: { files?: Record<string, string>; omit?: string } = {},
+) => {
+  const directory = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'evorto-runtime-image-'),
+  );
+  temporaryDirectories.push(directory);
+  const bin = path.join(directory, 'bin');
+  const root = path.join(directory, 'archive root');
+  const temporaryRoot = path.join(directory, 'verifier temp');
+  for (const target of [bin, root, temporaryRoot]) {
+    fs.mkdirSync(target, { recursive: true });
+  }
+  const callLog = path.join(directory, 'calls.log');
+  const archive = path.join(directory, 'image.tar');
+  fs.writeFileSync(callLog, '');
+  const files: Record<string, string> = {
+    ...Object.fromEntries(
+      requiredArtifacts.map((artifact) => [artifact, 'export default {};\n']),
+    ),
+    'app/dist/evorto/browser/shell-guide.txt': 'Bun starts directly.\n',
+    'usr/local/bin/bun': 'runtime fixture\n',
+    ...options.files,
+  };
+  const entries = Object.entries(files).filter(
+    ([file]) => file !== options.omit,
+  );
+  for (const [file, contents] of entries) {
+    const target = path.join(root, file);
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, contents);
+  }
+  const tarPath = spawnSync(
+    'bash',
+    ['--noprofile', '--norc', '-c', 'command -v tar'],
+    { encoding: 'utf8' },
+  );
+  expect(tarPath.status, tarPath.stderr).toBe(0);
+  const realTar = tarPath.stdout.trim();
+  const archived = spawnSync(
+    realTar,
+    [
+      '--create',
+      `--file=${archive}`,
+      `--directory=${root}`,
+      ...entries.map(([file]) => file),
+    ],
+    { encoding: 'utf8' },
+  );
+  expect(archived.status, archived.stderr).toBe(0);
+  fs.writeFileSync(
+    path.join(bin, 'docker'),
+    String.raw`#!/usr/bin/env bash
+set -euo pipefail
+case "$1" in
+  image)
+    [ "$#" -eq 5 ]
+    [ "$2" = inspect ]
+    [ "$3" = --format ]
+    [ "$4" = '{{.Size}}' ]
+    [ "$5" = "$EXPECTED_IMAGE_REFERENCE" ]
+    printf '%s\n' image-size >> "$CALL_LOG"
+    printf '%s\n' "$IMAGE_SIZE"
+    ;;
+  create)
+    [ "$#" -eq 2 ]
+    [ "$2" = "$EXPECTED_IMAGE_REFERENCE" ]
+    printf '%s\n' create >> "$CALL_LOG"
+    printf '%s\n' runtime-container
+    ;;
+  inspect)
+    [ "$#" -eq 4 ]
+    [ "$2" = --format ]
+    [ "$4" = runtime-container ]
+    case "$3" in
+      '{{.Config.User}}') printf '%s\n' "$RUNTIME_USER" ;;
+      '{{json .Config.Entrypoint}}') printf '%s\n' "$RUNTIME_ENTRYPOINT" ;;
+      '{{json .Config.Cmd}}') printf '%s\n' "$RUNTIME_COMMAND" ;;
+      *) exit 90 ;;
+    esac
+    ;;
+  export)
+    [ "$#" -eq 2 ]
+    [ "$2" = runtime-container ]
+    printf '%s\n' export >> "$CALL_LOG"
+    cat "$ARCHIVE_FIXTURE"
+    if [ "$FAIL_STAGE" = export ]; then exit 41; fi
+    ;;
+  rm)
+    [ "$#" -eq 2 ]
+    [ "$2" = runtime-container ]
+    printf '%s\n' remove >> "$CALL_LOG"
+    ;;
+  *) exit 90 ;;
+esac
+`,
+    { mode: 0o700 },
+  );
+  fs.writeFileSync(
+    path.join(bin, 'tar'),
+    String.raw`#!/usr/bin/env bash
+set -euo pipefail
+case "$1" in
+  --list)
+    printf '%s\n' list >> "$CALL_LOG"
+    if [ "$FAIL_STAGE" = list ]; then exit 42; fi
+    ;;
+  --extract)
+    printf '%s\n' extract >> "$CALL_LOG"
+    if [ "$FAIL_STAGE" = extract ]; then exit 43; fi
+    ;;
+  *) exit 90 ;;
+esac
+exec "$REAL_TAR" "$@"
+`,
+    { mode: 0o700 },
+  );
+  const calls = () => fs.readFileSync(callLog, 'utf8').trim().split('\n');
+
+  return {
+    calls,
+    expectCleanup: () => {
+      expect(calls().at(-1)).toBe('remove');
+      expect(fs.readdirSync(temporaryRoot)).toEqual([]);
+    },
+    run: (
+      settings: {
+        command?: string;
+        entrypoint?: string;
+        failStage?: 'export' | 'extract' | 'list';
+        size?: number;
+        user?: string;
+      } = {},
+    ) =>
+      spawnSync('bash', ['--noprofile', '--norc', verifier, imageReference], {
+        cwd: directory,
+        encoding: 'utf8',
+        env: {
+          ARCHIVE_FIXTURE: archive,
+          CALL_LOG: callLog,
+          EXPECTED_IMAGE_REFERENCE: imageReference,
+          FAIL_STAGE: settings.failStage ?? '',
+          IMAGE_SIZE: String(settings.size ?? 999_999_999),
+          PATH: `${bin}${path.delimiter}${process.env['PATH'] ?? ''}`,
+          REAL_TAR: realTar,
+          RUNTIME_COMMAND:
+            settings.command ?? '["dist/evorto/server/server.mjs"]',
+          RUNTIME_ENTRYPOINT: settings.entrypoint ?? '["/usr/local/bin/bun"]',
+          RUNTIME_USER: settings.user ?? '65532:65532',
+          TMPDIR: temporaryRoot,
+        },
+        timeout: 10_000,
+      }),
+  };
+};
+
+describe('runtime image verification', () => {
+  it('accepts a complete non-root Bun image below the size limit', () => {
+    const fixture = makeFixture();
+    const result = fixture.run();
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.stdout).toContain('Runtime image verification passed');
+    expect(fixture.calls()).toEqual([
+      'image-size',
+      'create',
+      'export',
+      'list',
+      'extract',
+      'remove',
+    ]);
+    fixture.expectCleanup();
+  });
+
+  it.each([
+    'busybox/sh',
+    'bin/sh',
+    'usr/bin/bash',
+    'usr/bin/dash',
+    'sbin/ash',
+    'usr/local/bin/zsh',
+    'usr/local/sbin/ksh',
+    'usr/sbin/csh',
+    './bin/tcsh',
+    'usr/bin/fish',
+  ])('rejects the shell %s', (shellPath) => {
+    const fixture = makeFixture({ files: { [shellPath]: 'shell fixture\n' } });
+    const result = fixture.run();
+    expect(result.status, result.stderr).toBe(1);
+    expect(result.stderr).toContain('Runtime image contains a shell');
+    expect(result.stderr).toContain(shellPath);
+    expect(result.stdout).not.toContain('verification passed');
+    fixture.expectCleanup();
+  });
+
+  it.each(requiredArtifacts)(
+    'rejects a missing packaged artifact %s',
+    (file) => {
+      const fixture = makeFixture({ omit: file });
+      const result = fixture.run();
+      expect(result.status, result.stderr).toBe(1);
+      expect(result.stderr).toContain('missing a required readable artifact');
+      expect(result.stderr).toContain(file);
+      expect(result.stdout).not.toContain('verification passed');
+      fixture.expectCleanup();
+    },
+  );
+
+  it.each([
+    'app/.env.production',
+    'app/instrument.mjs',
+    'app/node_modules/@sentry/core/index.js',
+    'app/node_modules/@neondatabase/serverless/index.js',
+    'app/node_modules/resend/index.js',
+    'app/dist/evorto/server/server.mjs.map',
+  ])('rejects a forbidden packaged path %s', (file) => {
+    const fixture = makeFixture({ files: { [file]: 'forbidden fixture\n' } });
+    const result = fixture.run();
+    expect(result.status, result.stderr).toBe(1);
+    expect(result.stderr).toContain(
+      'forbidden secret, provider, instrumentation',
+    );
+    fixture.expectCleanup();
+  });
+
+  it.each([
+    ['app/dist/evorto/server/server.mjs', 'https://api.resend.com'],
+    ['app/dist/evorto/ops/schema.mjs', '@neondatabase/serverless'],
+    ['app/ops/drizzle.config.mjs', 'CLOUDFLARE_R2_ACCESS_KEY_ID'],
+  ])('rejects removed provider content in %s', (file, contents) => {
+    const fixture = makeFixture({ files: { [file]: contents } });
+    const result = fixture.run();
+    expect(result.status, result.stderr).toBe(1);
+    expect(result.stderr).toContain('removed provider dependency');
+    fixture.expectCleanup();
+  });
+
+  it.each(['', '0:0', '65532'])('rejects runtime user %j', (user) => {
+    const fixture = makeFixture();
+    const result = fixture.run({ user });
+    expect(result.status, result.stderr).toBe(1);
+    expect(result.stderr).toContain('explicit non-root user 65532:65532');
+    expect(fixture.calls()).not.toContain('export');
+    fixture.expectCleanup();
+  });
+
+  it('rejects an indirect Bun entrypoint', () => {
+    const fixture = makeFixture();
+    const result = fixture.run({ entrypoint: '["/bin/sh","-c"]' });
+    expect(result.status, result.stderr).toBe(1);
+    expect(result.stderr).toContain('must start Bun directly');
+    fixture.expectCleanup();
+  });
+
+  it('rejects a different default command', () => {
+    const fixture = makeFixture();
+    const result = fixture.run({ command: '["another-server.mjs"]' });
+    expect(result.status, result.stderr).toBe(1);
+    expect(result.stderr).toContain('unexpected default command');
+    fixture.expectCleanup();
+  });
+
+  it('rejects an image at the size limit before creating a container', () => {
+    const fixture = makeFixture();
+    const result = fixture.run({ size: 1_000_000_000 });
+    expect(result.status, result.stderr).toBe(1);
+    expect(result.stderr).toContain('must be below 1000000000 bytes');
+    expect(fixture.calls()).toEqual(['image-size']);
+  });
+
+  it.each([
+    { stage: 'export', status: 41, calls: ['export'] },
+    { stage: 'list', status: 42, calls: ['export', 'list'] },
+    { stage: 'extract', status: 43, calls: ['export', 'list', 'extract'] },
+  ] satisfies {
+    stage: 'export' | 'extract' | 'list';
+    status: number;
+    calls: string[];
+  }[])('stops and cleans up after $stage fails', ({ stage, status, calls }) => {
+    const fixture = makeFixture();
+    const result = fixture.run({ failStage: stage });
+    expect(result.status, result.stderr).toBe(status);
+    expect(result.stdout).not.toContain('verification passed');
+    expect(fixture.calls()).toEqual([
+      'image-size',
+      'create',
+      ...calls,
+      'remove',
+    ]);
+    fixture.expectCleanup();
+  });
+});
