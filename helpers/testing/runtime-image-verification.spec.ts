@@ -98,10 +98,15 @@ case "$1" in
     [ "$#" -eq 5 ]
     [ "$2" = inspect ]
     [ "$3" = --format ]
-    [ "$4" = '{{.Size}}' ]
     [ "$5" = "$EXPECTED_IMAGE_REFERENCE" ]
-    printf '%s\n' image-size >> "$CALL_LOG"
-    printf '%s\n' "$IMAGE_SIZE"
+    case "$4" in
+      '{{.Size}}')
+        printf '%s\n' image-size >> "$CALL_LOG"
+        printf '%s\n' "$IMAGE_SIZE"
+        ;;
+      '{{.Os}}/{{.Architecture}}') printf '%s\n' "$IMAGE_PLATFORM" ;;
+      *) exit 90 ;;
+    esac
     ;;
   create)
     [ "$#" -eq 2 ]
@@ -126,6 +131,29 @@ case "$1" in
     printf '%s\n' export >> "$CALL_LOG"
     cat "$ARCHIVE_FIXTURE"
     if [ "$FAIL_STAGE" = export ]; then exit 41; fi
+    ;;
+  run)
+    shift
+    [ "$1" = --rm ] && shift
+    [ "$1" = --pull=never ] && shift
+    [ "$1" = --platform ] && [ "$2" = "$IMAGE_PLATFORM" ] && shift 2
+    [ "$1" = --network ] && [ "$2" = none ] && shift 2
+    [ "$1" = --read-only ] && shift
+    [ "$1" = --entrypoint ] && [ "$2" = /usr/local/bin/bun ] && shift 2
+    [ "$1" = "$EXPECTED_IMAGE_REFERENCE" ] && shift
+    [ "$1" = --eval ] && shift
+    runtime_script="$1"
+    shift
+    [ "$#" -eq 7 ]
+    printf '%s\n' readability >> "$CALL_LOG"
+    if [ "$FAIL_STAGE" = readability ]; then exit 44; fi
+    if [ -n "$UNREADABLE_ARTIFACT" ]; then chmod 000 "$FIXTURE_ROOT/$UNREADABLE_ARTIFACT"; fi
+    for artifact in "$@"; do
+      [[ "$artifact" = /app/* ]]
+      set -- "$@" "$FIXTURE_ROOT$artifact"
+      shift
+    done
+    exec bun --eval "$runtime_script" "$@"
     ;;
   rm)
     [ "$#" -eq 2 ]
@@ -171,8 +199,10 @@ exec "$REAL_TAR" "$@"
       settings: {
         command?: string;
         entrypoint?: string;
-        failStage?: 'export' | 'extract' | 'list';
+        failStage?: 'export' | 'extract' | 'list' | 'readability';
+        platform?: string;
         size?: number;
+        unreadableArtifact?: string;
         user?: string;
       } = {},
     ) =>
@@ -184,6 +214,8 @@ exec "$REAL_TAR" "$@"
           CALL_LOG: callLog,
           EXPECTED_IMAGE_REFERENCE: imageReference,
           FAIL_STAGE: settings.failStage ?? '',
+          FIXTURE_ROOT: root,
+          IMAGE_PLATFORM: settings.platform ?? 'linux/amd64',
           IMAGE_SIZE: String(settings.size ?? 999_999_999),
           PATH: `${bin}${path.delimiter}${process.env['PATH'] ?? ''}`,
           REAL_TAR: realTar,
@@ -192,6 +224,7 @@ exec "$REAL_TAR" "$@"
           RUNTIME_ENTRYPOINT: settings.entrypoint ?? '["/usr/local/bin/bun"]',
           RUNTIME_USER: settings.user ?? '65532:65532',
           TMPDIR: temporaryRoot,
+          UNREADABLE_ARTIFACT: settings.unreadableArtifact ?? '',
         },
         timeout: 10_000,
       }),
@@ -210,6 +243,7 @@ describe('runtime image verification', () => {
       'export',
       'list',
       'extract',
+      'readability',
       'remove',
     ]);
     fixture.expectCleanup();
@@ -220,6 +254,8 @@ describe('runtime image verification', () => {
     'bin/busybox',
     'usr/bin/busybox',
     'opt/tools/busybox',
+    'opt/tools/sh',
+    'app/debug/bash',
     'busybox/sh',
     'bin/sh',
     'usr/bin/bash',
@@ -271,12 +307,37 @@ describe('runtime image verification', () => {
       const fixture = makeFixture({ omit: file });
       const result = fixture.run();
       expect(result.status, result.stderr).toBe(1);
-      expect(result.stderr).toContain('missing a required readable artifact');
+      expect(result.stderr).toContain('missing a required regular artifact');
       expect(result.stderr).toContain(file);
       expect(result.stdout).not.toContain('verification passed');
       fixture.expectCleanup();
     },
   );
+
+  it.each(requiredArtifacts)(
+    'rejects an artifact that the image user cannot read: %s',
+    (unreadableArtifact) => {
+      const fixture = makeFixture();
+      const result = fixture.run({ unreadableArtifact });
+      expect(result.status, result.stderr).not.toBe(0);
+      expect(result.stderr).toContain(unreadableArtifact);
+      expect(result.stderr).toContain('EACCES');
+      expect(result.stderr).toContain(
+        'Runtime artifacts must be readable by the configured image user',
+      );
+      expect(result.stdout).not.toContain('verification passed');
+      expect(fixture.calls()).toContain('readability');
+      fixture.expectCleanup();
+    },
+  );
+
+  it('uses the inspected image platform for the runtime check', () => {
+    const fixture = makeFixture();
+    const result = fixture.run({ platform: 'linux/arm64' });
+    expect(result.status, result.stderr).toBe(0);
+    expect(fixture.calls()).toContain('readability');
+    fixture.expectCleanup();
+  });
 
   it.each([
     'app/.env.production',
@@ -344,8 +405,13 @@ describe('runtime image verification', () => {
     { stage: 'export', status: 41, calls: ['export'] },
     { stage: 'list', status: 42, calls: ['export', 'list'] },
     { stage: 'extract', status: 43, calls: ['export', 'list', 'extract'] },
+    {
+      stage: 'readability',
+      status: 44,
+      calls: ['export', 'list', 'extract', 'readability'],
+    },
   ] satisfies {
-    stage: 'export' | 'extract' | 'list';
+    stage: 'export' | 'extract' | 'list' | 'readability';
     status: number;
     calls: string[];
   }[])('stops and cleans up after $stage fails', ({ stage, status, calls }) => {

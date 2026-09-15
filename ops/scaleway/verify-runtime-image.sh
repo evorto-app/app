@@ -65,7 +65,7 @@ reject_matches 'Runtime image contains a forbidden secret, provider, instrumenta
   --extended-regexp --ignore-case \
   '(^|/)(\.env([^/]*)?|instrument\.mjs|@sentry|@neondatabase|resend)(/|$)|\.map$' "${archive_listing}"
 
-readonly shell_path_pattern='(^|/)busybox$|^(\./|/)?(busybox|(usr/)?(local/)?s?bin)/(sh|bash|dash|ash|zsh|ksh|csh|tcsh|fish)$'
+readonly shell_path_pattern='(^|/)(busybox|sh|bash|dash|ash|zsh|ksh|csh|tcsh|fish)$'
 reject_matches 'Runtime image contains a shell even though the application starts Bun directly.' \
   --extended-regexp --ignore-case "${shell_path_pattern}" "${archive_listing}"
 
@@ -90,8 +90,8 @@ for required_artifact in "${required_artifacts[@]}"; do
     fi
     artifact_component="${artifact_component%/*}"
   done
-  if [[ ! -f "${runtime_root}/${required_artifact}" || ! -r "${runtime_root}/${required_artifact}" ]]; then
-    echo "Runtime image is missing a required readable artifact: ${required_artifact}." >&2
+  if [[ ! -f "${runtime_root}/${required_artifact}" ]]; then
+    echo "Runtime image is missing a required regular artifact: ${required_artifact}." >&2
     exit 1
   fi
 done
@@ -104,5 +104,27 @@ reject_matches 'First-party runtime artifacts retain a removed provider dependen
   --recursive --binary-files=without-match --extended-regexp --ignore-case \
   'api\.resend\.com|cloudflare[_-]r2|CLOUDFLARE_R2_|R2_BUCKET|sentry\.io|@sentry|@neondatabase' \
   "${first_party_runtime_paths[@]}"
+
+image_platform="$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "${image_reference}")"
+readability_status=0
+docker run --rm --pull=never --platform "${image_platform}" --network none --read-only \
+  --entrypoint /usr/local/bin/bun "${image_reference}" --eval '
+    const fs = require("node:fs");
+    for (const artifact of process.argv.slice(1)) {
+      const descriptor = fs.openSync(artifact, "r");
+      try {
+        if (!fs.fstatSync(descriptor).isFile()) {
+          throw new Error(`Required artifact is not a regular file: ${artifact}`);
+        }
+        fs.readSync(descriptor, Buffer.alloc(1), 0, 1, 0);
+      } finally {
+        fs.closeSync(descriptor);
+      }
+    }
+  ' "${required_artifacts[@]/#//}" || readability_status=$?
+if ((readability_status != 0)); then
+  echo 'Runtime artifacts must be readable by the configured image user 65532:65532.' >&2
+  exit "${readability_status}"
+fi
 
 echo "Runtime image verification passed (${image_size_bytes} bytes)."

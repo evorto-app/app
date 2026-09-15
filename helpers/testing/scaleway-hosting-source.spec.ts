@@ -19,8 +19,15 @@ const between = (contents: string, start: string, end?: string): string => {
 };
 
 describe('Scaleway hosting source', () => {
+  const revision = 'd'.repeat(40);
+  const digestHash = 'a'.repeat(64);
+
   it.each([
-    { name: 'matching image digest', overrides: {}, expectedStatus: 0 },
+    {
+      name: 'matching image digest and artifact keys',
+      overrides: {},
+      expectedStatus: 0,
+    },
     {
       name: 'different image digest',
       overrides: {
@@ -41,6 +48,54 @@ describe('Scaleway hosting source', () => {
     {
       name: 'invalid schema hash',
       overrides: { schemaHash: 'invalid' },
+      expectedStatus: 1,
+    },
+    {
+      name: 'missing source map key',
+      overrides: { sourceMapsKey: undefined },
+      expectedStatus: 1,
+    },
+    {
+      name: 'malformed source map key',
+      overrides: { sourceMapsKey: 'source-maps/invalid.tar.gz' },
+      expectedStatus: 1,
+    },
+    {
+      name: 'source map key for a different revision',
+      overrides: {
+        sourceMapsKey: `source-maps/${'e'.repeat(40)}/${digestHash}.tar.gz`,
+      },
+      expectedStatus: 1,
+    },
+    {
+      name: 'source map key for a different digest',
+      overrides: {
+        sourceMapsKey: `source-maps/${revision}/${'b'.repeat(64)}.tar.gz`,
+      },
+      expectedStatus: 1,
+    },
+    {
+      name: 'missing SBOM key',
+      overrides: { sbomKey: undefined },
+      expectedStatus: 1,
+    },
+    {
+      name: 'malformed SBOM key',
+      overrides: { sbomKey: 'sbom/invalid.spdx.json' },
+      expectedStatus: 1,
+    },
+    {
+      name: 'SBOM key for a different revision',
+      overrides: {
+        sbomKey: `sbom/${'e'.repeat(40)}/${digestHash}.spdx.json`,
+      },
+      expectedStatus: 1,
+    },
+    {
+      name: 'SBOM key for a different digest',
+      overrides: {
+        sbomKey: `sbom/${revision}/${'b'.repeat(64)}.spdx.json`,
+      },
       expectedStatus: 1,
     },
     {
@@ -72,24 +127,20 @@ describe('Scaleway hosting source', () => {
       if (!predicate) {
         throw new Error('Missing staging manifest reuse predicate');
       }
-      const digest = `sha256:${'a'.repeat(64)}`;
+      const digest = `sha256:${digestHash}`;
       const result = spawnSync(
         'jq',
-        [
-          '--exit-status',
-          '--arg',
-          'revision',
-          'revision-under-test',
-          predicate,
-        ],
+        ['--exit-status', '--arg', 'revision', revision, predicate],
         {
           encoding: 'utf8',
           input: JSON.stringify({
             digest,
             environment: 'staging',
             image: `rg.fr-par.scw.cloud/evorto-staging/evorto@${digest}`,
-            revision: 'revision-under-test',
+            revision,
+            sbomKey: `sbom/${revision}/${digestHash}.spdx.json`,
             schemaHash: 'c'.repeat(64),
+            sourceMapsKey: `source-maps/${revision}/${digestHash}.tar.gz`,
             status: 'succeeded',
             ...overrides,
           }),

@@ -207,7 +207,9 @@ jobs:
                 and .revision == $revision
                 and (.digest | test("^sha256:[0-9a-f]{64}$"))
                 and (.schemaHash | test("^[0-9a-f]{64}$"))
-                and .image == ("rg.fr-par.scw.cloud/evorto-staging/evorto@" + .digest)' \
+                and .image == ("rg.fr-par.scw.cloud/evorto-staging/evorto@" + .digest)
+                and .sourceMapsKey == ("source-maps/" + $revision + "/" + (.digest | ltrimstr("sha256:")) + ".tar.gz")
+                and .sbomKey == ("sbom/" + $revision + "/" + (.digest | ltrimstr("sha256:")) + ".spdx.json")' \
               deployment/existing.json >/dev/null; then
             echo "reuse=true" >> "${GITHUB_OUTPUT}"
           else
