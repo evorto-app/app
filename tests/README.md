@@ -44,9 +44,13 @@ not replace it with aspirational documentation.
 Local tenant selection uses the scoped routing helper in
 `tests/support/utils/tenant-request-routing.ts`. Use the returned `close()`
 method for pages created with `openAuthenticatedTestPage`. The base page
-fixture stops its tenant routing before Playwright closes its context; custom
-contexts use `closeTenantRequestContext`. These helpers drain their active
-requests before removing the exact owned route. Do not replace this with
+fixture uses `closeTenantRequestPages` to close its context's current pages
+while tenant interception and the context request client remain available,
+then drains active requests before removing the exact owned route. If a page
+remains open, cleanup fails and retains routing for Playwright's outer context
+teardown; it does not retry page closure or remove interception from live pages.
+The fixture exclusively owns this final page cleanup. Custom contexts continue
+to use `closeTenantRequestContext`. Do not replace the scoped drain with
 `unrouteAll`, which can release other active requests before their handlers
 finish.
 

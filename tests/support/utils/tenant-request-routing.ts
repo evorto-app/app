@@ -1,4 +1,4 @@
-import type { BrowserContext, Route } from '@playwright/test';
+import type { BrowserContext, Page, Route } from '@playwright/test';
 
 import { localTestTenantDomainHeader } from '../../../src/shared/request-routing';
 
@@ -155,6 +155,48 @@ export const stopTenantRequestRouting = async (
     })();
   }
   await state.draining;
+};
+
+export const closeTenantRequestPages = async (
+  context: RoutingContext & {
+    pages: () => readonly Pick<Page, 'close' | 'isClosed'>[];
+  },
+): Promise<void> => {
+  const errors: unknown[] = [];
+  const pages = [...context.pages()];
+  // Keep interception and the context request client alive while closing pages.
+  for (const page of pages) {
+    try {
+      await page.close();
+    } catch (error) {
+      errors.push(error);
+    }
+  }
+  let pagesClosed = false;
+  try {
+    pagesClosed = [...pages, ...context.pages()].every((page) =>
+      page.isClosed(),
+    );
+  } catch (error) {
+    errors.push(error);
+  }
+  if (!pagesClosed) {
+    // Playwright owns the outer context teardown. Never release live pages by
+    // removing interception, or retry closing a changing set of pages here.
+    errors.push(
+      new Error('Tenant request pages remain open; routing remains installed'),
+    );
+  } else {
+    try {
+      await stopTenantRequestRouting(context);
+    } catch (error) {
+      errors.push(error);
+    }
+  }
+  if (errors.length === 1) throw errors[0];
+  if (errors.length > 1) {
+    throw new AggregateError(errors, 'Tenant request page cleanup failed');
+  }
 };
 
 export const closeTenantRequestContext = async (

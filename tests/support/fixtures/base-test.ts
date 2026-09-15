@@ -24,7 +24,7 @@ import {
 import { runDatabaseCleanups } from '../utils/database-cleanup';
 import {
   routeLocalTenantRequests,
-  stopTenantRequestRouting,
+  closeTenantRequestPages,
 } from '../utils/tenant-request-routing';
 import { withProtectedValueCaptureOptions } from '../utils/fill-protected-value';
 
@@ -216,7 +216,7 @@ export const test = base.extend<BaseFixtures>({
       try {
         await use(page);
       } finally {
-        await stopTenantRequestRouting(page.context());
+        await closeTenantRequestPages(page.context());
       }
     },
     { scope: 'test', timeout: 60_000 },

@@ -12,6 +12,7 @@ import { expect, test, type BrowserContext } from '@playwright/test';
 import { localTestTenantDomainHeader } from '../../../src/shared/request-routing';
 import {
   closeTenantRequestContext,
+  closeTenantRequestPages,
   routeLocalTenantRequests,
   stopTenantRequestRouting,
 } from '../../support/utils/tenant-request-routing';
@@ -545,5 +546,130 @@ test('retains routing ownership when emergency close rejects before closing the 
     throw new AggregateError(
       errors,
       'Unclosed routing owner regression failed',
+    );
+});
+
+test('closes tenant pages before draining their held request without browser errors', async ({
+  browser,
+}) => {
+  const started = Promise.withResolvers<void>();
+  const pageErrors: Error[] = [];
+  const errors: unknown[] = [];
+  let response: ServerResponse | undefined;
+  let heldRequests = 0;
+  let context: BrowserContext | undefined;
+  let evaluation: Promise<PromiseSettledResult<string>[]> | undefined;
+  let closing: Promise<PromiseSettledResult<void>[]> | undefined;
+  const recordFailure = (error: unknown) => {
+    if (!errors.includes(error)) errors.push(error);
+  };
+  const release = () => {
+    if (response && !response.writableEnded && !response.destroyed)
+      response.end('held response completed');
+  };
+  const local = await listen((request, currentResponse) => {
+    currentResponse.on('error', recordFailure);
+    if (request.url === '/held-page-request') {
+      heldRequests += 1;
+      if (response) {
+        recordFailure(new Error('Duplicate held tenant request'));
+        currentResponse.end('duplicate request');
+        return;
+      }
+      response = currentResponse;
+      started.resolve();
+      return;
+    }
+    currentResponse.setHeader('content-type', 'text/html');
+    currentResponse.end('<body>Tenant page lifetime regression</body>');
+  });
+  try {
+    context = await browser.newContext();
+    await routeLocalTenantRequests({
+      baseUrl: local.origin,
+      context,
+      tenantDomain: 'north-river.evorto.app',
+    });
+    const page = await context.newPage();
+    page.on('pageerror', (error) => {
+      pageErrors.push(error);
+    });
+    await page.goto(local.origin);
+    evaluation = Promise.allSettled([
+      page.evaluate(async () => (await fetch('/held-page-request')).text()),
+    ]);
+    await started.promise;
+    const pageClosed = page.waitForEvent('close', { timeout: 10_000 });
+    closing = Promise.allSettled([closeTenantRequestPages(context)]);
+    await pageClosed;
+    expect(page.isClosed()).toBe(true);
+    expect(context.isClosed()).toBe(false);
+    expect(response?.writableEnded).toBe(false);
+    const [browserResult] = await evaluation;
+    if (!browserResult || browserResult.status !== 'rejected') {
+      throw new Error('Held browser evaluation did not end with page closure');
+    }
+    if (!(browserResult.reason instanceof Error)) throw browserResult.reason;
+    expect(browserResult.reason.message).toContain(
+      'Target page, context or browser has been closed',
+    );
+    release();
+    const [closeResult] = await closing;
+    if (!closeResult) throw new Error('Tenant page cleanup result is missing');
+    if (closeResult.status === 'rejected') throw closeResult.reason;
+    expect(context.isClosed()).toBe(false);
+    expect(heldRequests).toBe(1);
+    expect(pageErrors).toEqual([]);
+  } catch (error) {
+    recordFailure(error);
+  } finally {
+    try {
+      release();
+    } catch (error) {
+      recordFailure(error);
+    }
+    try {
+      if (closing) {
+        for (const result of await closing) {
+          if (result.status === 'rejected') recordFailure(result.reason);
+        }
+      }
+    } catch (error) {
+      recordFailure(error);
+    }
+    try {
+      if (context) await closeTenantRequestContext(context);
+    } catch (error) {
+      recordFailure(error);
+    }
+    try {
+      if (evaluation) {
+        for (const result of await evaluation) {
+          if (
+            result.status === 'rejected' &&
+            (!(result.reason instanceof Error) ||
+              !result.reason.message.includes(
+                'Target page, context or browser has been closed',
+              ))
+          ) {
+            recordFailure(result.reason);
+          }
+        }
+      }
+    } catch (error) {
+      recordFailure(error);
+    }
+    try {
+      await local.close();
+    } catch (error) {
+      recordFailure(error);
+    }
+    for (const error of pageErrors) recordFailure(error);
+  }
+  if (errors.length === 1) throw errors[0];
+  if (errors.length > 1)
+    throw new AggregateError(
+      errors,
+      'Tenant page lifetime regression and cleanup failed',
     );
 });
