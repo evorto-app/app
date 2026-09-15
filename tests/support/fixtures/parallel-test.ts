@@ -20,7 +20,7 @@ import {
 
 const buildRunId = (seed: string) =>
   crypto.createHash('sha256').update(seed).digest('hex').slice(0, 10);
-const seededEsnCardIdentifier = 'DE-2026-000184';
+export const seededEsnCardIdentifier = 'DE-2026-000184';
 
 interface BaseFixtures {
   discounts?: void;

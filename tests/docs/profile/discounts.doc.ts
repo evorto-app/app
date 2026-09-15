@@ -11,7 +11,11 @@ import {
   esnCardSubmitPayloadFromIdentifier,
 } from '../../../src/app/profile/profile-discounts/profile-discounts.esn-card';
 import { TENANT_FORMATTING_LOCALE } from '../../../src/types/custom/tenant';
-import { expect, test } from '../../support/fixtures/parallel-test';
+import {
+  expect,
+  seededEsnCardIdentifier,
+  test,
+} from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 import { fillProtectedValue } from '../../support/utils/fill-protected-value';
 import type { Locator } from '@playwright/test';
@@ -92,8 +96,6 @@ A confirmed save, check, or removal can still be followed by a failed card-list 
 `,
   });
 });
-
-const seededEsnCardIdentifier = 'DE-2026-000184';
 
 const visibleEsnCardStatus = (
   status: 'expired' | 'verified',
