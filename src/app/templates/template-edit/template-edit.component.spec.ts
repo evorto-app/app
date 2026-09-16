@@ -8,6 +8,7 @@ import {
   provideTanStackQuery,
   QueryClient,
 } from '@tanstack/angular-query-experimental';
+import { firstValueFrom, Subject } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Tenant } from '../../../types/custom/tenant';
@@ -144,6 +145,31 @@ const addRegistrationOption = (
   fixture.detectChanges();
 };
 
+const titleInput = (fixture: ComponentFixture<TemplateEditComponent>) => {
+  const root: HTMLElement = fixture.nativeElement;
+  const input = root.querySelector<HTMLInputElement>(
+    ':scope app-template-general-form input',
+  );
+  if (!input) throw new Error('Expected the template title input to render.');
+  return input;
+};
+const saveButton = (fixture: ComponentFixture<TemplateEditComponent>) => {
+  const root: HTMLElement = fixture.nativeElement;
+  const button = root.querySelector<HTMLButtonElement>(
+    ':scope [data-testid="save-template-graph"]',
+  );
+  if (!button) throw new Error('Expected the template save button to render.');
+  return button;
+};
+const retryRolesButton = (fixture: ComponentFixture<TemplateEditComponent>) => {
+  const root: HTMLElement = fixture.nativeElement;
+  const button = root.querySelector<HTMLButtonElement>(
+    ':scope [data-testid="retry-template-roles"]',
+  );
+  if (!button) throw new Error('Expected the roles retry button to render.');
+  return button;
+};
+
 describe('TemplateEditComponent role catalog defaults', () => {
   let queryClient: QueryClient;
 
@@ -158,7 +184,14 @@ describe('TemplateEditComponent role catalog defaults', () => {
       },
     });
     TestBed.overrideComponent(TemplateGeneralFormComponent, {
-      set: { template: '' },
+      set: {
+        template: `
+          <mat-form-field>
+            <mat-label>Template title</mat-label>
+            <input matInput [formField]="generalForm().title" />
+          </mat-form-field>
+        `,
+      },
     });
     TestBed.overrideComponent(TemplateRegistrationOptionEditorComponent, {
       set: { template: '' },
@@ -235,6 +268,140 @@ describe('TemplateEditComponent role catalog defaults', () => {
   afterEach(() => {
     TestBed.resetTestingModule();
     queryClient.clear();
+  });
+
+  it('explains the initial role load while retaining edits and blocking save', async () => {
+    const rolesResponse = new Subject<readonly RoleLookupRecord[]>();
+    findRoles.mockReturnValueOnce(firstValueFrom(rolesResponse));
+    try {
+      const fixture = TestBed.createComponent(TemplateEditComponent);
+      fixture.componentRef.setInput('templateId', 'template-1');
+      fixture.detectChanges();
+      await vi.waitFor(() => {
+        fixture.detectChanges();
+        expect(titleInput(fixture).value).toBe('Saved template');
+      });
+      const input = titleInput(fixture);
+      input.value = 'Edited while roles load';
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      fixture.detectChanges();
+      const root: HTMLElement = fixture.nativeElement;
+      expect(root.textContent).toContain('Loading roles');
+      expect(saveButton(fixture).disabled).toBe(true);
+      rolesResponse.next(roleCatalog);
+      rolesResponse.complete();
+      await vi.waitFor(() => {
+        fixture.detectChanges();
+        expect(saveButton(fixture).disabled).toBe(false);
+      });
+      expect(titleInput(fixture)).toBe(input);
+      expect(input.value).toBe('Edited while roles load');
+      expect(root.textContent).not.toContain('Loading roles');
+      expect(findRoles).toHaveBeenCalledOnce();
+    } finally {
+      rolesResponse.next(roleCatalog);
+      rolesResponse.complete();
+    }
+  });
+
+  it('retries an initial role failure through the rendered button without resetting the form', async () => {
+    findRoles.mockRejectedValueOnce(new Error('private role catalog failure'));
+    const fixture = TestBed.createComponent(TemplateEditComponent);
+    fixture.componentRef.setInput('templateId', 'template-1');
+    fixture.detectChanges();
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(retryRolesButton(fixture).disabled).toBe(false);
+      expect(titleInput(fixture).value).toBe('Saved template');
+    });
+    const input = titleInput(fixture);
+    input.value = 'Unsaved template title';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    fixture.detectChanges();
+    const root: HTMLElement = fixture.nativeElement;
+    expect(root.textContent).toContain('Roles could not be loaded');
+    expect(root.textContent).not.toContain('private role catalog failure');
+    expect(saveButton(fixture).disabled).toBe(true);
+    retryRolesButton(fixture).click();
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(saveButton(fixture).disabled).toBe(false);
+    });
+    expect(titleInput(fixture)).toBe(input);
+    expect(input.value).toBe('Unsaved template title');
+    expect(
+      root.querySelector(':scope [data-testid="retry-template-roles"]'),
+    ).toBeNull();
+    expect(findRoles).toHaveBeenCalledTimes(2);
+    expect(findTemplate).toHaveBeenCalledOnce();
+  });
+
+  it('retains the draft across a failed background role refresh and a real retry', async () => {
+    const fixture = TestBed.createComponent(TemplateEditComponent);
+    fixture.componentRef.setInput('templateId', 'template-1');
+    fixture.detectChanges();
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(saveButton(fixture).disabled).toBe(false);
+    });
+    const editor = graphEditor(fixture);
+    const input = titleInput(fixture);
+    input.value = 'Keep this draft';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    addRegistrationOption(fixture);
+    const draft = structuredClone(editor.graphForm()().value());
+    expect(draft.title).toBe('Keep this draft');
+    expect(draft.registrationOptions.at(-1)?.roleIds).toEqual([
+      'participant',
+      'both',
+    ]);
+    findRoles.mockRejectedValueOnce(new Error('private background failure'));
+    await queryClient.invalidateQueries({ queryKey: rolesKey });
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(retryRolesButton(fixture).disabled).toBe(false);
+      expect(saveButton(fixture).disabled).toBe(true);
+    });
+    expect(graphEditor(fixture)).toBe(editor);
+    expect(structuredClone(editor.graphForm()().value())).toEqual(draft);
+    const root: HTMLElement = fixture.nativeElement;
+    expect(root.textContent).toContain('Your entries are still here');
+    expect(root.textContent).not.toContain('private background failure');
+    const rolesResponse = new Subject<readonly RoleLookupRecord[]>();
+    findRoles.mockReturnValueOnce(firstValueFrom(rolesResponse));
+    const refreshedCatalog = roleCatalog.map((role) => ({
+      ...role,
+      defaultUserRole: role.id === 'ordinary',
+    }));
+    try {
+      retryRolesButton(fixture).click();
+      await vi.waitFor(() => {
+        fixture.detectChanges();
+        expect(findRoles).toHaveBeenCalledTimes(3);
+        expect(retryRolesButton(fixture).disabled).toBe(true);
+        expect(retryRolesButton(fixture).textContent).toContain('Retrying');
+      });
+      expect(saveButton(fixture).disabled).toBe(true);
+      expect(structuredClone(editor.graphForm()().value())).toEqual(draft);
+      rolesResponse.next(refreshedCatalog);
+      rolesResponse.complete();
+      await vi.waitFor(() => {
+        fixture.detectChanges();
+        expect(saveButton(fixture).disabled).toBe(false);
+        expect(editor.defaultParticipantRoleIds()).toEqual(['ordinary']);
+      });
+      expect(graphEditor(fixture)).toBe(editor);
+      expect(titleInput(fixture)).toBe(input);
+      expect(input.value).toBe('Keep this draft');
+      expect(structuredClone(editor.graphForm()().value())).toEqual(draft);
+      expect(
+        root.querySelector(':scope [data-testid="retry-template-roles"]'),
+      ).toBeNull();
+      expect(findTemplate).toHaveBeenCalledOnce();
+    } finally {
+      rolesResponse.next(refreshedCatalog);
+      rolesResponse.complete();
+    }
   });
 
   it('preserves saved option roles and seeds new participants only from catalog flags', async () => {

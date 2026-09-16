@@ -9,3 +9,7 @@ Browse organization members in bounded pages and assign roles with clear validat
 Preserve wildcard and legacy grants when editing platform-managed roles, while allowing their visible permissions to be revoked explicitly. Summarize added and removed member roles even when the total number of assigned roles stays the same.
 
 Keep fractional audit timestamps intact across page boundaries and decode sanitized descriptions for readable plain-text summaries.
+
+Explain permission dependencies in the platform role editor and prevent an implied permission from appearing revoked while its parent remains selected.
+
+Show role-catalog loading and retry states in template forms, retaining entered values through lookup failures and recovery.

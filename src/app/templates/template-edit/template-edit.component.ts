@@ -76,7 +76,7 @@ export class TemplateEditComponent {
   protected readonly updateTemplateMutation = injectMutation(() =>
     this.rpc.templates.update.mutationOptions(),
   );
-  private readonly rolesQuery = injectQuery(() =>
+  protected readonly rolesQuery = injectQuery(() =>
     this.rpc.roles.findMany.queryOptions({}),
   );
   protected readonly canSubmit = computed(

@@ -7,6 +7,7 @@ import {
   provideTanStackQuery,
   QueryClient,
 } from '@tanstack/angular-query-experimental';
+import { firstValueFrom, Subject } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Tenant } from '../../../types/custom/tenant';
@@ -93,7 +94,10 @@ describe('TemplateCreateComponent role catalog defaults', () => {
       },
     });
     TestBed.overrideComponent(TemplateGeneralFormComponent, {
-      set: { template: '' },
+      set: {
+        template:
+          '<input aria-label="Template title" [formField]="generalForm().title" />',
+      },
     });
     TestBed.overrideComponent(TemplateRegistrationOptionEditorComponent, {
       set: { template: '' },
@@ -199,6 +203,145 @@ describe('TemplateCreateComponent role catalog defaults', () => {
     expect(editor.graphForm().categoryId().value()).toBe('category-1');
     expect(roleQueryOptions).toHaveBeenCalledExactlyOnceWith({});
     expect(findRoles).toHaveBeenCalledOnce();
+  });
+
+  it('shows a catalog error and seeds defaults after clicking retry', async () => {
+    const rolesResponse = new Subject<readonly RoleLookupRecord[]>();
+    findRoles
+      .mockRejectedValueOnce(new Error('Role catalog unavailable'))
+      .mockReturnValueOnce(firstValueFrom(rolesResponse));
+    const fixture = TestBed.createComponent(TemplateCreateComponent);
+    fixture.componentRef.setInput('categoryId', 'category-1');
+    fixture.detectChanges();
+    const root: HTMLElement = fixture.nativeElement;
+    try {
+      await vi.waitFor(() => {
+        fixture.detectChanges();
+        expect(root.querySelector('[role="alert"]')?.textContent).toContain(
+          'Roles could not be loaded',
+        );
+        expect(root.textContent).not.toContain('Preparing template defaults');
+      });
+      expect(
+        fixture.debugElement.query(By.directive(TemplateGraphEditorComponent)),
+      ).toBeNull();
+      const retry = root.querySelector<HTMLButtonElement>(
+        '[data-testid="retry-template-roles"]',
+      );
+      if (!retry) throw new Error('Expected role catalog retry button');
+      retry.click();
+      await vi.waitFor(() => {
+        fixture.detectChanges();
+        expect(findRoles).toHaveBeenCalledTimes(2);
+        expect(root.querySelector('[role="status"]')?.textContent).toContain(
+          'Loading roles',
+        );
+        expect(
+          root.querySelector('[data-testid="retry-template-roles"]'),
+        ).toBeNull();
+      });
+      rolesResponse.next(roleCatalog);
+      rolesResponse.complete();
+      await vi.waitFor(() => {
+        fixture.detectChanges();
+        expect(
+          graphEditor(fixture)
+            .graphForm()()
+            .value()
+            .registrationOptions.map((option) => option.roleIds),
+        ).toEqual([
+          ['organizer', 'both'],
+          ['participant', 'both'],
+        ]);
+        expect(
+          root.querySelector('[data-testid="retry-template-roles"]'),
+        ).toBeNull();
+      });
+      expect(graphEditor(fixture).graphForm().categoryId().value()).toBe(
+        'category-1',
+      );
+      expect(findRoles).toHaveBeenCalledTimes(2);
+    } finally {
+      rolesResponse.next(roleCatalog);
+      rolesResponse.complete();
+    }
+  });
+
+  it('keeps the edited draft mounted through a failed refresh and a real retry', async () => {
+    const fixture = TestBed.createComponent(TemplateCreateComponent);
+    fixture.componentRef.setInput('categoryId', 'category-1');
+    fixture.detectChanges();
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(graphEditor(fixture).defaultParticipantRoleIds()).toEqual([
+        'participant',
+        'both',
+      ]);
+    });
+    const editor = graphEditor(fixture);
+    const form = editor.graphForm();
+    const title = fixture.nativeElement.querySelector(
+      'input[aria-label="Template title"]',
+    );
+    if (!(title instanceof HTMLInputElement))
+      throw new Error('Expected template title input');
+    title.value = 'My edited title';
+    title.dispatchEvent(new Event('input', { bubbles: true }));
+    form.description().value.set('<p>My draft description</p>');
+    form.icon().value.set({ iconColor: 2, iconName: 'calendar:fas' });
+    form.categoryId().value.set('chosen-category');
+    form
+      .registrationOptions()
+      .value.update((options) =>
+        options.map((option) => ({ ...option, roleIds: ['ordinary'] })),
+      );
+    fixture.detectChanges();
+    const root: HTMLElement = fixture.nativeElement;
+    const save = root.querySelector<HTMLButtonElement>(
+      '[data-testid="save-template-graph"]',
+    );
+    if (!save) throw new Error('Expected save template button');
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(save.disabled).toBe(false);
+    });
+    const draft = structuredClone(form().value());
+    findRoles.mockRejectedValueOnce(new Error('Refresh failed'));
+    await queryClient.invalidateQueries({ queryKey: rolesKey });
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(root.querySelector('[role="alert"]')?.textContent).toContain(
+        'Roles could not be loaded',
+      );
+      expect(save.disabled).toBe(true);
+    });
+    expect(graphEditor(fixture)).toBe(editor);
+    expect(structuredClone(form().value())).toEqual(draft);
+    findRoles.mockResolvedValue(
+      roleCatalog.map((role) => ({
+        ...role,
+        defaultOrganizerRole: role.id === 'organizer',
+        defaultUserRole: role.id === 'organizer',
+      })),
+    );
+    fixture.componentRef.setInput('categoryId', 'another-category');
+    const retry = root.querySelector<HTMLButtonElement>(
+      '[data-testid="retry-template-roles"]',
+    );
+    if (!retry) throw new Error('Expected role catalog retry button');
+    retry.click();
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(findRoles).toHaveBeenCalledTimes(3);
+      expect(save.disabled).toBe(false);
+      expect(editor.defaultParticipantRoleIds()).toEqual(['organizer']);
+      expect(
+        root.querySelector('[data-testid="retry-template-roles"]'),
+      ).toBeNull();
+    });
+    expect(graphEditor(fixture)).toBe(editor);
+    expect(structuredClone(form().value())).toEqual(draft);
+    expect(form.categoryId().value()).toBe('chosen-category');
   });
 
   it('initializes once and retains edited roles and category when the catalog changes', async () => {

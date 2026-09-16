@@ -150,6 +150,20 @@ export class PlatformRolesComponent {
 
   constructor() {
     effect(() => {
+      const selected = this.roleModel().permissions;
+      const effective = ALL_PERMISSIONS.filter((permission) =>
+        includesPermission(permission, selected),
+      );
+      if (
+        selected.length === effective.length &&
+        selected.every((permission, index) => permission === effective[index])
+      )
+        return;
+      untracked(() =>
+        this.roleModel.update((role) => ({ ...role, permissions: effective })),
+      );
+    });
+    effect(() => {
       const tenantId = this.tenantId();
       if (this.initializedTenantId() === tenantId) return;
       untracked(() => {
@@ -157,6 +171,16 @@ export class PlatformRolesComponent {
         this.initializedTenantId.set(tenantId);
       });
     });
+  }
+
+  protected permissionIsIncluded(permission: TenantRolePermission): boolean {
+    return includesPermission(
+      permission,
+      this.roleForm
+        .permissions()
+        .value()
+        .filter((selected) => selected !== permission),
+    );
   }
 
   protected cancelDelete(): void {

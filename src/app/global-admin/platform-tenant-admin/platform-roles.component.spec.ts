@@ -44,6 +44,12 @@ describe('platform role permission editing', () => {
     name: 'Tax manager',
     permissions: ['admin:manageTaxes'],
   });
+  const creatorRole = PlatformRoleRecord.make({
+    ...storedRole,
+    id: 'role-creator',
+    name: 'Event creator',
+    permissions: ['events:create'],
+  });
   const createRole = vi.fn();
   const updateRole = vi.fn();
   let queryClient: QueryClient;
@@ -75,7 +81,7 @@ describe('platform role permission editing', () => {
             create: () => ({ mutationFn: createRole }),
             delete: () => ({ mutationFn: vi.fn() }),
             list: () => ({
-              queryFn: async () => [storedRole, taxRole],
+              queryFn: async () => [storedRole, taxRole, creatorRole],
               queryKey: ['platform-roles', 'tenant-1'],
             }),
             rolesFilter: () => ({ queryKey: ['platform-roles'] }),
@@ -189,6 +195,56 @@ describe('platform role permission editing', () => {
     await vi.waitFor(() =>
       expect(updateRole).toHaveBeenCalledWith(
         expect.objectContaining({ permissions: [] }),
+        expect.anything(),
+      ),
+    );
+  });
+  it('locks included permissions until their parent permission is removed', async () => {
+    const { permissions, save } = await render('Event creator');
+    await permissions.open();
+    const [viewTemplates] = await permissions.getOptions({
+      text: 'View templates',
+    });
+    const [createEvents] = await permissions.getOptions({
+      text: 'Create events',
+    });
+    expect(await viewTemplates.isSelected()).toBe(true);
+    expect(await viewTemplates.isDisabled()).toBe(true);
+    await viewTemplates.click();
+    expect(await viewTemplates.isSelected()).toBe(true);
+    await createEvents.click();
+    expect(await viewTemplates.isDisabled()).toBe(false);
+    await viewTemplates.click();
+    expect(await viewTemplates.isSelected()).toBe(false);
+    await permissions.close();
+    await save.click();
+    await vi.waitFor(() =>
+      expect(updateRole).toHaveBeenCalledWith(
+        expect.objectContaining({ permissions: [], roleId: creatorRole.id }),
+        expect.anything(),
+      ),
+    );
+  });
+
+  it('shows and locks permissions implied by a newly selected parent', async () => {
+    const { permissions, save } = await render('Tax manager');
+    await permissions.clickOptions({ text: 'Create events' });
+    const [viewTemplates] = await permissions.getOptions({
+      text: 'View templates',
+    });
+    expect(await viewTemplates.isSelected()).toBe(true);
+    expect(await viewTemplates.isDisabled()).toBe(true);
+    await permissions.close();
+    await save.click();
+    await vi.waitFor(() =>
+      expect(updateRole).toHaveBeenCalledWith(
+        expect.objectContaining({
+          permissions: expect.arrayContaining([
+            'events:create',
+            'templates:view',
+          ]),
+          roleId: taxRole.id,
+        }),
         expect.anything(),
       ),
     );

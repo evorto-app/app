@@ -67,13 +67,20 @@
         @for (group of permissionGroups; track group.key) {
           <mat-optgroup [label]="group.label">
             @for (permission of group.permissions; track permission.key) {
-              <mat-option [value]="permission.key">
+              <mat-option
+                [value]="permission.key"
+                [disabled]="permissionIsIncluded(permission.key)"
+              >
                 {{ permission.label }}
               </mat-option>
             }
           </mat-optgroup>
         }
       </mat-select>
+      <mat-hint
+        >Included permissions are locked. Remove the permission that includes
+        them first.</mat-hint
+      >
     </mat-form-field>
 
     <div class="grid gap-2 sm:grid-cols-2">

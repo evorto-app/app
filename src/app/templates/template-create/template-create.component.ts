@@ -54,12 +54,10 @@ export class TemplateCreateComponent {
   protected readonly createTemplateMutation = injectMutation(() =>
     this.rpc.templates.create.mutationOptions(),
   );
-  private readonly rolesQuery = injectQuery(() =>
+  protected readonly rolesQuery = injectQuery(() =>
     this.rpc.roles.findMany.queryOptions({}),
   );
-  protected readonly defaultsReady = computed(() =>
-    this.rolesQuery.isSuccess(),
-  );
+  protected readonly defaultsReady = signal(false);
   protected readonly discountProvidersQuery = injectQuery(() =>
     this.rpc.discounts.getTenantProviders.queryOptions(),
   );
@@ -79,6 +77,7 @@ export class TemplateCreateComponent {
   protected readonly canSubmit = computed(
     () =>
       this.defaultsReady() &&
+      this.rolesQuery.isSuccess() &&
       this.discountProvidersQuery.isSuccess() &&
       !this.templateForm().invalid() &&
       !this.templateForm().submitting() &&
@@ -120,13 +119,12 @@ export class TemplateCreateComponent {
         : ('ready' as const),
   );
 
-  private readonly initializedDefaults = signal(false);
   private readonly queryClient = inject(QueryClient);
   private readonly router = inject(Router);
 
   constructor() {
     effect(() => {
-      if (!this.rolesQuery.isSuccess() || this.initializedDefaults()) {
+      if (!this.rolesQuery.isSuccess() || this.defaultsReady()) {
         return;
       }
       const roles = this.rolesQuery.data();
@@ -149,7 +147,7 @@ export class TemplateCreateComponent {
           })),
         }));
         this.templateForm().reset();
-        this.initializedDefaults.set(true);
+        this.defaultsReady.set(true);
       });
     });
     effect(() => {
