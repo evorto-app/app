@@ -300,7 +300,226 @@ const credential = {
   userHandle: 'synthetic-user-handle',
 };
 
+const indexedDbOrigin = (fields: Record<string, unknown>) =>
+  stateWithOrigin({
+    ...state.origins[0],
+    indexedDB: [{ ...database, ...fields }],
+  });
+const indexedDbStore = (fields: Record<string, unknown>) =>
+  indexedDbOrigin({ stores: [{ ...database.stores[0], ...fields }] });
+const indexedDbIndex = (fields: Record<string, unknown>) =>
+  indexedDbStore({
+    indexes: [{ name: 'index', multiEntry: false, unique: false, ...fields }],
+  });
+
 describe('optional Playwright storage structures', () => {
+  it.each([
+    ...[0, -1, 2 ** 64].map((version) => ({
+      name: `database version ${version}`,
+      input: indexedDbOrigin({ version }),
+    })),
+    {
+      name: 'ambiguous store key path',
+      input: indexedDbStore({ keyPathArray: ['id'] }),
+    },
+    {
+      name: 'auto-increment compound key',
+      input: indexedDbStore({
+        autoIncrement: true,
+        keyPath: undefined,
+        keyPathArray: ['id'],
+      }),
+    },
+    {
+      name: 'auto-increment empty key path',
+      input: indexedDbStore({ autoIncrement: true, keyPath: '' }),
+    },
+    {
+      name: 'empty store key path array',
+      input: indexedDbStore({ keyPath: undefined, keyPathArray: [] }),
+    },
+    {
+      name: 'empty index key path array',
+      input: indexedDbIndex({ keyPathArray: [] }),
+    },
+    {
+      name: 'duplicate databases',
+      input: stateWithOrigin({
+        ...state.origins[0],
+        indexedDB: [database, database],
+      }),
+    },
+    {
+      name: 'duplicate stores',
+      input: indexedDbOrigin({
+        stores: [database.stores[0], database.stores[0]],
+      }),
+    },
+    {
+      name: 'duplicate indexes',
+      input: indexedDbStore({
+        indexes: [
+          {
+            name: 'duplicate',
+            keyPath: 'id',
+            unique: false,
+            multiEntry: false,
+          },
+          {
+            name: 'duplicate',
+            keyPath: 'other',
+            unique: false,
+            multiEntry: false,
+          },
+        ],
+      }),
+    },
+    {
+      name: 'OPFS file used as a directory',
+      input: stateWithOrigin({
+        ...state.origins[0],
+        opfs: [
+          { path: 'file/child', type: 'directory' },
+          { path: 'file', type: 'file', base64: '' },
+        ],
+      }),
+    },
+    {
+      name: 'duplicate OPFS paths',
+      input: stateWithOrigin({
+        ...state.origins[0],
+        opfs: [
+          { path: 'file', type: 'directory' },
+          { path: 'file', type: 'file', base64: '' },
+        ],
+      }),
+    },
+    { name: 'missing index key path', input: indexedDbIndex({}) },
+    {
+      name: 'ambiguous index key path',
+      input: indexedDbIndex({ keyPath: 'id', keyPathArray: ['id'] }),
+    },
+    {
+      name: 'multi-entry compound index',
+      input: indexedDbIndex({ keyPathArray: ['id'], multiEntry: true }),
+    },
+    { name: 'missing record value', input: indexedDbStore({ records: [{}] }) },
+    {
+      name: 'undefined raw record value',
+      input: indexedDbStore({ records: [{ value: undefined }] }),
+    },
+    {
+      name: 'null raw record value lost by restore',
+      input: indexedDbStore({ records: [{ value: null }] }),
+    },
+    {
+      name: 'ambiguous record value',
+      input: indexedDbStore({
+        records: [{ value: { id: 1 }, valueEncoded: { v: 'null' } }],
+      }),
+    },
+    {
+      name: 'ambiguous record key',
+      input: indexedDbStore({
+        keyPath: undefined,
+        records: [{ key: 1, keyEncoded: 2, value: '' }],
+      }),
+    },
+    {
+      name: 'explicit key in inline store',
+      input: indexedDbStore({ records: [{ key: 1, value: { id: 1 } }] }),
+    },
+    {
+      name: 'missing key in non-generating out-of-line store',
+      input: indexedDbStore({ keyPath: undefined, records: [{ value: '' }] }),
+    },
+    {
+      name: 'null raw key',
+      input: indexedDbStore({
+        keyPath: undefined,
+        records: [{ key: null, value: '' }],
+      }),
+    },
+    ...[
+      '',
+      '/',
+      '/file',
+      'file/',
+      'a//b',
+      '.',
+      '..',
+      'a/../b',
+      'a/./b',
+      'a\0b',
+    ].map((path) => ({
+      name: `invalid OPFS path ${JSON.stringify(path)}`,
+      input: stateWithOrigin({
+        ...state.origins[0],
+        opfs: [{ path, type: 'directory' }],
+      }),
+    })),
+    {
+      name: 'missing OPFS file bytes',
+      input: stateWithOrigin({
+        ...state.origins[0],
+        opfs: [{ path: 'file', type: 'file' }],
+      }),
+    },
+    ...['!', 'a', '====', '💾'].map((base64) => ({
+      name: `invalid OPFS base64 ${JSON.stringify(base64)}`,
+      input: stateWithOrigin({
+        ...state.origins[0],
+        opfs: [{ path: 'file', type: 'file', base64 }],
+      }),
+    })),
+  ])('rejects $name before any context consumer', async ({ input }) => {
+    const use = vi.fn<() => Promise<void>>().mockResolvedValue(undefined);
+    expect(() => resolveStorageState(input)).toThrow('is invalid');
+    const pathname = writeState(input);
+    expect(() => readStorageState(pathname)).toThrow('is invalid');
+    await expect(
+      validateStorageStateBeforeUse({ storageState: pathname }, use),
+    ).rejects.toThrow('is invalid');
+    expect(use).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    indexedDbStore({
+      keyPath: undefined,
+      autoIncrement: true,
+      records: [
+        { value: '' },
+        { value: false },
+        { value: 0 },
+        { valueEncoded: { v: 'null' } },
+        { valueEncoded: { v: 'undefined' } },
+      ],
+    }),
+    indexedDbStore({
+      keyPath: undefined,
+      records: [
+        { key: '', value: '' },
+        { key: 0, value: false },
+        { keyEncoded: [1, 2], valueEncoded: { v: 'null' } },
+      ],
+    }),
+    indexedDbStore({ keyPath: '', records: [{ value: 'primary-key' }] }),
+    indexedDbStore({ keyPath: undefined, keyPathArray: [''], records: [] }),
+    indexedDbIndex({ keyPath: '' }),
+    indexedDbIndex({ keyPathArray: [''] }),
+    stateWithOrigin({
+      ...state.origins[0],
+      opfs: [
+        { path: 'empty file', type: 'file', base64: '' },
+        { path: 'nested', type: 'directory' },
+        { path: 'nested/💾.txt', type: 'file', base64: 'YQ==' },
+      ],
+    }),
+  ])('preserves valid empty and encoded values %#', (input) => {
+    expect(resolveStorageState(input)).toBe(input);
+    expect(readStorageState(writeState(input))).toEqual(input);
+  });
+
   it('preserves protocol-shaped IndexedDB, OPFS and credential fields', () => {
     const input = {
       ...state,
@@ -322,6 +541,14 @@ describe('optional Playwright storage structures', () => {
     };
     expect(resolveStorageState(input)).toBe(input);
     expect(readStorageState(writeState(input))).toEqual(input);
+  });
+
+  it('does not impose a Windows-only restriction on OPFS filenames', () => {
+    const input = stateWithOrigin({
+      ...state.origins[0],
+      opfs: [{ path: 'back\\slash', type: 'file', base64: '' }],
+    });
+    expect(resolveStorageState(input)).toBe(input);
   });
 
   it('retains explicitly empty optional arrays', () => {
@@ -400,6 +627,29 @@ describe('optional Playwright storage structures', () => {
 });
 
 describe('storage-state use boundary', () => {
+  it('inspects indexed OPFS entries even when an inline array overrides iteration', async () => {
+    const opfs: { path: string; type: 'directory' }[] = [
+      { path: '../invalid', type: 'directory' },
+    ];
+    opfs[Symbol.iterator] = () => [][Symbol.iterator]();
+    const storageState = {
+      cookies: [],
+      origins: [
+        {
+          localStorage: [],
+          origin: 'https://storage-state.example.test',
+          opfs,
+        },
+      ],
+    };
+    const use = vi.fn<() => Promise<void>>().mockResolvedValue(undefined);
+    expect(() => resolveStorageState(storageState)).toThrow('is invalid');
+    await expect(
+      validateStorageStateBeforeUse({ storageState }, use),
+    ).rejects.toThrow('is invalid');
+    expect(use).not.toHaveBeenCalled();
+  });
+
   it('rejects a sparse cookie array before invoking use', async () => {
     const cookies: Cookie[] = [];
     cookies.length = 1;

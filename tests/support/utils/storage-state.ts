@@ -32,7 +32,7 @@ const isOptionalString = (value: unknown): boolean =>
   value === undefined || isString(value);
 const isOptionalBoolean = (value: unknown): boolean =>
   value === undefined || typeof value === 'boolean';
-const isStringArray = (value: unknown): boolean =>
+const isStringArray = (value: unknown): value is string[] =>
   Array.isArray(value) && everyStorageEntry(value, isString);
 
 const isCanonicalHttpOrigin = (value: unknown): value is string => {
@@ -80,38 +80,134 @@ const isLocalStorageEntry = (
 
 const hasValidKeyPath = (value: Record<string, unknown>): boolean =>
   isOptionalString(value['keyPath']) &&
-  (value['keyPathArray'] === undefined || isStringArray(value['keyPathArray']));
+  (value['keyPathArray'] === undefined ||
+    (isStringArray(value['keyPathArray']) &&
+      value['keyPathArray'].length > 0)) &&
+  (value['keyPath'] === undefined || value['keyPathArray'] === undefined);
+
+const haveDistinctNames = (values: readonly unknown[]): boolean => {
+  const names = new Set<string>();
+  return everyStorageEntry(values, (value) => {
+    if (
+      !isRecord(value) ||
+      !isString(value['name']) ||
+      names.has(value['name'])
+    )
+      return false;
+    names.add(value['name']);
+    return true;
+  });
+};
 
 const isIndexedDbIndex = (value: unknown): boolean =>
   isRecord(value) &&
   isString(value['name']) &&
   hasValidKeyPath(value) &&
+  (value['keyPath'] !== undefined || value['keyPathArray'] !== undefined) &&
+  !(value['multiEntry'] === true && value['keyPathArray'] !== undefined) &&
   typeof value['multiEntry'] === 'boolean' &&
   typeof value['unique'] === 'boolean';
+
+const isIndexedDbRecord = (
+  value: unknown,
+  store: Record<string, unknown>,
+): boolean => {
+  if (!isRecord(value)) return false;
+  // Restore chooses the raw value with ??, so null/undefined must be encoded.
+  if (value['value'] === null || value['key'] === null) return false;
+  const hasValue = value['value'] !== undefined;
+  const hasEncodedValue = value['valueEncoded'] !== undefined;
+  if (hasValue === hasEncodedValue) return false;
+  const hasKey = value['key'] !== undefined;
+  const hasEncodedKey = value['keyEncoded'] !== undefined;
+  if (hasKey && hasEncodedKey) return false;
+  const hasInlineKey =
+    store['keyPath'] !== undefined || store['keyPathArray'] !== undefined;
+  return hasInlineKey
+    ? !hasKey && !hasEncodedKey
+    : store['autoIncrement'] === true || hasKey || hasEncodedKey;
+};
 
 const isIndexedDbStore = (value: unknown): boolean =>
   isRecord(value) &&
   isString(value['name']) &&
   typeof value['autoIncrement'] === 'boolean' &&
   hasValidKeyPath(value) &&
+  !(
+    value['autoIncrement'] === true &&
+    (value['keyPath'] === '' || value['keyPathArray'] !== undefined)
+  ) &&
   Array.isArray(value['records']) &&
-  everyStorageEntry(value['records'], isRecord) &&
+  everyStorageEntry(value['records'], (record) =>
+    isIndexedDbRecord(record, value),
+  ) &&
   Array.isArray(value['indexes']) &&
-  everyStorageEntry(value['indexes'], isIndexedDbIndex);
+  everyStorageEntry(value['indexes'], isIndexedDbIndex) &&
+  haveDistinctNames(value['indexes']);
 
 const isIndexedDbDatabase = (value: unknown): boolean =>
   isRecord(value) &&
   isString(value['name']) &&
   typeof value['version'] === 'number' &&
   Number.isInteger(value['version']) &&
+  value['version'] > 0 &&
+  value['version'] < 2 ** 64 &&
   Array.isArray(value['stores']) &&
-  everyStorageEntry(value['stores'], isIndexedDbStore);
+  everyStorageEntry(value['stores'], isIndexedDbStore) &&
+  haveDistinctNames(value['stores']);
 
-const isOpfsEntry = (value: unknown): boolean =>
+const isOpfsPath = (value: unknown): value is string =>
+  isString(value) &&
+  value
+    .split('/')
+    .every(
+      (segment) =>
+        segment.length > 0 &&
+        segment !== '.' &&
+        segment !== '..' &&
+        !segment.includes('\0'),
+    );
+
+const isBase64 = (value: unknown): value is string => {
+  if (!isString(value)) return false;
+  try {
+    atob(value);
+    return true;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'InvalidCharacterError')
+      return false;
+    throw error;
+  }
+};
+
+const isOpfsEntry = (
+  value: unknown,
+): value is { path: string; type: 'directory' | 'file' } =>
   isRecord(value) &&
-  isString(value['path']) &&
-  (value['type'] === 'file' || value['type'] === 'directory') &&
-  isOptionalString(value['base64']);
+  isOpfsPath(value['path']) &&
+  (value['type'] === 'file'
+    ? isBase64(value['base64'])
+    : value['type'] === 'directory' && isOptionalString(value['base64']));
+
+const isOpfs = (value: unknown): boolean => {
+  if (!Array.isArray(value)) return false;
+  const paths = new Set<string>();
+  const files = new Set<string>();
+  for (let index = 0; index < value.length; index += 1) {
+    const entry: unknown = value[index];
+    if (!isOpfsEntry(entry) || paths.has(entry.path)) return false;
+    paths.add(entry.path);
+    if (entry.type === 'file') files.add(entry.path);
+  }
+  // Restore creates each ancestor as a directory, regardless of entry order.
+  return [...paths].every((pathname) => {
+    const segments = pathname.split('/');
+    return segments.every(
+      (_, index) =>
+        index === 0 || !files.has(segments.slice(0, index).join('/')),
+    );
+  });
+};
 
 const isStorageOrigin = (
   value: unknown,
@@ -122,10 +218,9 @@ const isStorageOrigin = (
   everyStorageEntry(value['localStorage'], isLocalStorageEntry) &&
   (value['indexedDB'] === undefined ||
     (Array.isArray(value['indexedDB']) &&
-      everyStorageEntry(value['indexedDB'], isIndexedDbDatabase))) &&
-  (value['opfs'] === undefined ||
-    (Array.isArray(value['opfs']) &&
-      everyStorageEntry(value['opfs'], isOpfsEntry)));
+      everyStorageEntry(value['indexedDB'], isIndexedDbDatabase) &&
+      haveDistinctNames(value['indexedDB']))) &&
+  (value['opfs'] === undefined || isOpfs(value['opfs']));
 
 const isVirtualCredential = (value: unknown): boolean =>
   isRecord(value) &&
