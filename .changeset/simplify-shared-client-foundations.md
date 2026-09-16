@@ -8,4 +8,6 @@ default: patch
 - make shared role, location, icon, and rich-text controls clearer and more consistent, and
 - preserve expected validation and registration messages while limiting issue reports to safe, bounded details,
 - recover event review conflicts using typed outcomes, and
-- apply the current theme during both browser and server initialization.
+- apply the current theme during both browser and server initialization,
+- preserve images in saved rich-text content when surrounding text is edited or formatted, and
+- bound browser error telemetry across caller-controlled hosts with shared and per-host quotas.

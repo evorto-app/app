@@ -4,6 +4,8 @@ import { MAX_BROWSER_ERROR_TELEMETRY_BODY_SIZE_BYTES } from '../../shared/browse
 import { readRequestBody } from './request-body';
 
 const maxEventsPerWindow = 10;
+const maxTotalEventsPerWindow = 100;
+const maxTrackedHosts = 100;
 const rateLimitWindowMs = 60_000;
 const deduplicationWindowMs = 60_000;
 const noStoreHeaders = { 'Cache-Control': 'no-store' };
@@ -119,6 +121,8 @@ export const makeBrowserErrorTelemetryHandler = ({
   now = Date.now,
 }: BrowserErrorTelemetryHandlerOptions) => {
   const hostStates = new Map<string, BrowserErrorTelemetryHostState>();
+  let totalEventCount = 0;
+  let totalWindowStartedAt = now();
 
   return Effect.fn('handleBrowserErrorTelemetry')(function* (request: Request) {
     const trustedHost = resolveTrustedHost(request);
@@ -155,27 +159,42 @@ export const makeBrowserErrorTelemetryHandler = ({
     }
 
     const currentTime = now();
+    if (currentTime - totalWindowStartedAt >= rateLimitWindowMs) {
+      totalEventCount = 0;
+      totalWindowStartedAt = currentTime;
+    }
+    if (totalEventCount >= maxTotalEventsPerWindow) {
+      return new Response(null, { headers: noStoreHeaders, status: 429 });
+    }
+
     for (const [candidateHost, state] of hostStates) {
       if (currentTime - state.lastSeenAt >= rateLimitWindowMs) {
         hostStates.delete(candidateHost);
       }
     }
-    const hostState = hostStates.get(trustedHost) ?? {
-      eventCount: 0,
-      fingerprints: new Map<string, number>(),
-      lastSeenAt: currentTime,
-      windowStartedAt: currentTime,
-    };
-    hostStates.set(trustedHost, hostState);
+    let hostState = hostStates.get(trustedHost);
+    if (!hostState) {
+      if (hostStates.size >= maxTrackedHosts) {
+        return new Response(null, { headers: noStoreHeaders, status: 429 });
+      }
+      hostState = {
+        eventCount: 0,
+        fingerprints: new Map<string, number>(),
+        lastSeenAt: currentTime,
+        windowStartedAt: currentTime,
+      };
+      hostStates.set(trustedHost, hostState);
+    }
     hostState.lastSeenAt = currentTime;
     if (currentTime - hostState.windowStartedAt >= rateLimitWindowMs) {
       hostState.eventCount = 0;
       hostState.windowStartedAt = currentTime;
     }
-    hostState.eventCount += 1;
-    if (hostState.eventCount > maxEventsPerWindow) {
+    if (hostState.eventCount >= maxEventsPerWindow) {
       return new Response(null, { headers: noStoreHeaders, status: 429 });
     }
+    hostState.eventCount += 1;
+    totalEventCount += 1;
 
     const sanitizedPayload = sanitizeBrowserErrorPayload(payloadOption.value);
     const fingerprint = stableFingerprint(sanitizedPayload);

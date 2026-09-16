@@ -179,6 +179,151 @@ describe('browser error telemetry', () => {
 
       expect(otherHost.status).toBe(204);
       expect(log).toHaveBeenCalledTimes(11);
+
+      now = 60_100;
+      const beforeReset = yield* handler(
+        telemetryRequest({
+          message: 'after window',
+          name: 'Error',
+          stack: null,
+          url: null,
+        }),
+      );
+      expect(beforeReset.status).toBe(429);
+      now = 60_101;
+      const afterReset = yield* handler(
+        telemetryRequest({
+          message: 'after window',
+          name: 'Error',
+          stack: null,
+          url: null,
+        }),
+      );
+      expect(afterReset.status).toBe(204);
+      expect(log).toHaveBeenCalledTimes(12);
     }),
+  );
+
+  it.effect(
+    'bounds reports across rotating hosts and renews the shared window',
+    () =>
+      Effect.gen(function* () {
+        const log = vi.fn(() => Effect.void);
+        let now = 0;
+        const handler = makeBrowserErrorTelemetryHandler({
+          log,
+          now: () => now,
+        });
+        const payload = {
+          message: 'render failed',
+          name: 'Error',
+          stack: null,
+          url: null,
+        };
+
+        for (let index = 0; index < 100; index += 1) {
+          const response = yield* handler(
+            telemetryRequest(payload, {}, `host-${index}.example.test`),
+          );
+          expect(response.status).toBe(204);
+        }
+        expect(log).toHaveBeenCalledTimes(100);
+
+        for (let index = 100; index < 120; index += 1) {
+          const response = yield* handler(
+            telemetryRequest(payload, {}, `host-${index}.example.test`),
+          );
+          expect(response.status).toBe(429);
+          expect(response.headers.get('Cache-Control')).toBe('no-store');
+          expect(yield* Effect.promise(() => response.text())).toBe('');
+        }
+        const malformed = yield* handler(
+          telemetryRequest({ message: 'invalid' }),
+        );
+        const crossOrigin = yield* handler(
+          telemetryRequest(payload, { Origin: 'https://attacker.example' }),
+        );
+        expect(malformed.status).toBe(400);
+        expect(crossOrigin.status).toBe(403);
+
+        now = 59_999;
+        const beforeReset = yield* handler(telemetryRequest(payload));
+        expect(beforeReset.status).toBe(429);
+        expect(log).toHaveBeenCalledTimes(100);
+        now = 60_000;
+        const afterReset = yield* handler(telemetryRequest(payload));
+        expect(afterReset.status).toBe(204);
+        expect(log).toHaveBeenCalledTimes(101);
+      }),
+  );
+
+  it.effect(
+    'preserves active host state at capacity and admits hosts after expiry',
+    () =>
+      Effect.gen(function* () {
+        const log = vi.fn(() => Effect.void);
+        let now = 0;
+        const handler = makeBrowserErrorTelemetryHandler({
+          log,
+          now: () => now,
+        });
+        const payload = {
+          message: 'render failed',
+          name: 'Error',
+          stack: null,
+          url: null,
+        };
+
+        now = 50_000;
+        for (let index = 0; index < 100; index += 1) {
+          const response = yield* handler(
+            telemetryRequest(payload, {}, `host-${index}.example.test`),
+          );
+          expect(response.status).toBe(204);
+        }
+
+        // The shared window has reset, but every existing host is still active.
+        now = 60_000;
+        for (let index = 100; index < 120; index += 1) {
+          const response = yield* handler(
+            telemetryRequest(payload, {}, `host-${index}.example.test`),
+          );
+          expect(response.status).toBe(429);
+          expect(response.headers.get('Cache-Control')).toBe('no-store');
+        }
+        const duplicate = yield* handler(
+          telemetryRequest(payload, {}, 'host-0.example.test'),
+        );
+        expect(duplicate.status).toBe(204);
+        expect(log).toHaveBeenCalledTimes(100);
+
+        // The duplicate consumed one of the host's ten report slots.
+        for (let index = 0; index < 8; index += 1) {
+          const response = yield* handler(
+            telemetryRequest(
+              { ...payload, message: `failure-${index}` },
+              {},
+              'host-0.example.test',
+            ),
+          );
+          expect(response.status).toBe(204);
+        }
+        const limited = yield* handler(
+          telemetryRequest(
+            { ...payload, message: 'over limit' },
+            {},
+            'host-0.example.test',
+          ),
+        );
+        expect(limited.status).toBe(429);
+        expect(log).toHaveBeenCalledTimes(108);
+
+        now = 110_000;
+        const replacement = yield* handler(
+          telemetryRequest(payload, {}, 'replacement.example.test'),
+        );
+        expect(replacement.status).toBe(204);
+        expect(log).toHaveBeenCalledTimes(109);
+      }),
   );
 });
