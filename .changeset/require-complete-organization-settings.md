@@ -11,3 +11,7 @@ Reject stale organization settings forms before changing persisted values, keep 
 Keep organization saves pending through refresh and navigation, advance the saved
 snapshot without replacing newer drafts, and report concurrent domain claims as
 an existing-domain conflict instead of an internal error.
+
+Check the current settings snapshot before fetching destination-account tax rates
+during Stripe account rotation. Release the database lock for the provider request
+and recheck the snapshot under lock before writing, preserving conflict recovery.

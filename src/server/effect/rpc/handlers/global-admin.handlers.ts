@@ -605,6 +605,35 @@ export const globalAdminHandlers = {
         nextStripeAccountId &&
         targetTenant.stripeAccountId !== nextStripeAccountId
       ) {
+        yield* databaseEffectWithTenantUpdateError(
+          tenantInput.domain,
+          (database) =>
+            database.transaction((transaction) =>
+              Effect.gen(function* () {
+                const currentRows = yield* transaction
+                  .select(globalAdminTenantReturningColumns)
+                  .from(tenants)
+                  .where(eq(tenants.id, id))
+                  .for('update');
+                const currentTenant = currentRows[0];
+                if (!currentTenant) {
+                  return yield* Effect.die(
+                    new Error('Tenant disappeared during platform update'),
+                  );
+                }
+                if (
+                  !Schema.toEquivalence(PlatformTenantSettingsSnapshot)(
+                    input.expectedSettings,
+                    platformTenantSettingsSnapshot(currentTenant),
+                  )
+                ) {
+                  return yield* tenantSettingsConflict();
+                }
+              }),
+            ),
+        );
+        // Release the preflight lock before provider I/O; the write transaction
+        // below rechecks the snapshot after the provider response.
         const stripe = yield* StripeClient;
         stripeTaxRateRotationTargets =
           yield* fetchStripeTaxRateAccountRotationTargetRates(

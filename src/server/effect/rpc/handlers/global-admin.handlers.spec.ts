@@ -1,14 +1,19 @@
+import type * as SqlConnection from 'effect/unstable/sql/SqlConnection';
+
+import * as PgClient from '@effect/sql-pg/PgClient';
 import { describe, expect, it, vi } from '@effect/vitest';
 import {
   PlatformTenantSettingsSnapshot,
   platformTenantSettingsSnapshot,
 } from '@shared/tenant-settings-snapshot';
-import { Effect, Layer, Schema } from 'effect';
+import * as PgDrizzle from 'drizzle-orm/effect-postgres';
+import { Effect, Layer, Schema, Stream } from 'effect';
 import * as Headers from 'effect/unstable/http/Headers';
 import { Rpc, RpcMessage } from 'effect/unstable/rpc';
 import Stripe from 'stripe';
 
 import { Database, type DatabaseClient } from '../../../../db';
+import { relations } from '../../../../db/relations';
 import {
   platformAuditEntries,
   tenantPrivacyPolicyVersions,
@@ -79,6 +84,10 @@ const provideDatabaseOnly = (database: object) =>
   Layer.succeed(Database, database as DatabaseClient);
 
 class RotationStripeHttpClient extends Stripe.HttpClient {
+  constructor(private readonly onRequest?: () => void) {
+    super();
+  }
+
   override getClientName(): string {
     return 'evorto-global-admin-rotation-test';
   }
@@ -98,14 +107,15 @@ class RotationStripeHttpClient extends Stripe.HttpClient {
         new Error(`Unexpected Stripe request: ${method} ${host}${path}`),
       );
     }
-    return Promise.resolve(
-      new RotationStripeResponse({
+    return Promise.try(() => {
+      this.onRequest?.();
+      return new RotationStripeResponse({
         data: [],
         has_more: false,
         object: 'list',
         url: '/v1/tax_rates',
-      }),
-    );
+      });
+    });
   }
 }
 
@@ -297,6 +307,97 @@ const createStripeAccountChangeDatabase = ({
     capturedUpdate: () => capturedUpdate,
     database,
     operations,
+  };
+};
+
+const createStripeRotationConflictFixture = (
+  initialSettings: PlatformTenantSettingsSnapshot,
+) => {
+  let currentSettings = initialSettings;
+  let transactionActive = false;
+  const operations: string[] = [];
+  const unexpectedDatabaseAccess = Effect.die(
+    new Error('Unexpected database access in rotation conflict fixture'),
+  );
+  const writes = vi.fn<SqlConnection.Connection['executeRaw']>(
+    () => unexpectedDatabaseAccess,
+  );
+  const connection = {
+    execute: () => unexpectedDatabaseAccess,
+    executeRaw: writes,
+    executeStream: () => Stream.die(new Error('Unexpected database stream')),
+    executeUnprepared: (statement, parameters) =>
+      Effect.sync(() => {
+        expect(['BEGIN', 'COMMIT', 'ROLLBACK']).toContain(statement);
+        expect(parameters).toEqual([]);
+        transactionActive = statement === 'BEGIN';
+        operations.push(statement);
+        return [];
+      }),
+    executeValues: (statement, parameters) =>
+      Effect.sync(() => {
+        expect(statement).toMatch(/^select /u);
+        expect(statement).toContain('from "tenants"');
+        if (statement.endsWith('for update')) {
+          expect(transactionActive).toBe(true);
+          expect(parameters).toEqual(['tenant-1']);
+          operations.push('tenant-lock');
+          return [
+            [
+              currentSettings.currency,
+              currentSettings.domain,
+              'tenant-1',
+              currentSettings.name,
+              currentSettings.stripeAccountId,
+              currentSettings.theme,
+              currentSettings.timezone,
+            ],
+          ];
+        }
+        expect(transactionActive).toBe(false);
+        if (parameters.includes(initialSettings.domain)) {
+          return [['tenant-1']];
+        }
+        expect(parameters).toContain('tenant-1');
+        return [['tenant-1', currentSettings.stripeAccountId]];
+      }),
+    executeValuesUnprepared: () => unexpectedDatabaseAccess,
+  } satisfies SqlConnection.Connection;
+  const databaseLayer = Layer.effect(
+    Database,
+    PgDrizzle.makeWithDefaults({ relations }),
+  ).pipe(
+    Layer.provide(
+      PgClient.layerFrom(
+        PgClient.makeWith({
+          acquirer: Effect.succeed(connection),
+          config: {},
+          listenAcquirer: unexpectedDatabaseAccess,
+          transactionAcquirer: Effect.succeed(connection),
+        }),
+      ),
+    ),
+  );
+  const providerRequest = vi.fn(() => {
+    expect(transactionActive).toBe(false);
+    operations.push('provider-request');
+    currentSettings = { ...currentSettings, name: 'Concurrent editor name' };
+  });
+
+  return {
+    layer: Layer.mergeAll(
+      databaseLayer,
+      Layer.succeed(
+        StripeClient,
+        new Stripe('sk_test_global_admin_rotation_conflict', {
+          httpClient: new RotationStripeHttpClient(providerRequest),
+          maxNetworkRetries: 0,
+        }),
+      ),
+    ),
+    operations,
+    providerRequest,
+    writes,
   };
 };
 
@@ -1203,6 +1304,75 @@ describe('globalAdminHandlers', () => {
   );
 
   it.effect(
+    'rejects stale Stripe rotation settings before any provider request',
+    () =>
+      Effect.gen(function* () {
+        const input = createStripeAccountUpdateInput('acct_next');
+        const fixture = createStripeRotationConflictFixture({
+          ...input.expectedSettings,
+          name: 'Saved by another editor',
+        });
+        const error = yield* globalAdminHandlers['globalAdmin.tenants.update'](
+          input,
+          createRpcOptions(
+            GlobalAdminRpcs.GlobalAdminTenantsUpdate.middleware(
+              RpcRequestContextMiddleware,
+            ),
+          ),
+        ).pipe(
+          Effect.provide(requestContextLayer(createRequestContext([]))),
+          Effect.provide(fixture.layer),
+          Effect.flip,
+        );
+
+        expect(error._tag).toBe('TenantSettingsConflictError');
+        expect(fixture.providerRequest).not.toHaveBeenCalled();
+        expect(fixture.writes).not.toHaveBeenCalled();
+        expect(fixture.operations).toEqual([
+          'BEGIN',
+          'tenant-lock',
+          'ROLLBACK',
+        ]);
+      }),
+  );
+
+  it.effect(
+    'rechecks Stripe rotation settings after provider work without writing or auditing a concurrent edit',
+    () =>
+      Effect.gen(function* () {
+        const input = createStripeAccountUpdateInput('acct_next');
+        const fixture = createStripeRotationConflictFixture(
+          input.expectedSettings,
+        );
+        const error = yield* globalAdminHandlers['globalAdmin.tenants.update'](
+          input,
+          createRpcOptions(
+            GlobalAdminRpcs.GlobalAdminTenantsUpdate.middleware(
+              RpcRequestContextMiddleware,
+            ),
+          ),
+        ).pipe(
+          Effect.provide(requestContextLayer(createRequestContext([]))),
+          Effect.provide(fixture.layer),
+          Effect.flip,
+        );
+
+        expect(error._tag).toBe('TenantSettingsConflictError');
+        expect(fixture.providerRequest).toHaveBeenCalledOnce();
+        expect(fixture.writes).not.toHaveBeenCalled();
+        expect(fixture.operations).toEqual([
+          'BEGIN',
+          'tenant-lock',
+          'COMMIT',
+          'provider-request',
+          'BEGIN',
+          'tenant-lock',
+          'ROLLBACK',
+        ]);
+      }),
+  );
+
+  it.effect(
     'allows Stripe account rotation after locking when no tax-rate bindings exist',
     () =>
       Effect.gen(function* () {
@@ -1225,6 +1395,7 @@ describe('globalAdminHandlers', () => {
         expect(fixture.capturedUpdate()?.['stripeAccountId']).toBe('acct_next');
         expect(tenant.stripeAccountId).toBe('acct_next');
         expect(fixture.operations).toEqual([
+          'tenant-lock',
           'tenant-lock',
           'pending-obligation-check',
           'tax-rate-rotation-binding-check',

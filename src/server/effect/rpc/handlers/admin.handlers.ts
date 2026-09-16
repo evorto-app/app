@@ -836,6 +836,45 @@ export const adminHandlers = {
         tenantUpdate.stripeAccountId &&
         tenant.stripeAccountId !== tenantUpdate.stripeAccountId
       ) {
+        // Reject stale edits before contacting the destination account. Release
+        // this lock before external I/O; the write transaction checks again.
+        yield* Database.use((database) =>
+          database
+            .transaction((tx) =>
+              Effect.gen(function* () {
+                const lockedTenants = yield* tx
+                  .select()
+                  .from(tenants)
+                  .where(eq(tenants.id, tenant.id))
+                  .for('update');
+                const lockedTenant = lockedTenants[0];
+                if (!lockedTenant) {
+                  return yield* new AdminTenantNotFoundError({
+                    id: tenant.id,
+                    message: 'Tenant not found or stale',
+                  });
+                }
+                if (
+                  !Schema.toEquivalence(AdminTenantSettingsSnapshot)(
+                    input.expectedSettings,
+                    adminTenantSettingsSnapshot(
+                      Schema.decodeUnknownSync(Tenant)(lockedTenant),
+                    ),
+                  )
+                ) {
+                  return yield* tenantSettingsConflict();
+                }
+              }),
+            )
+            .pipe(
+              Effect.catch((error) =>
+                error instanceof TenantSettingsConflictError ||
+                error instanceof AdminTenantNotFoundError
+                  ? Effect.fail(error)
+                  : Effect.die(error),
+              ),
+            ),
+        );
         const stripe = yield* StripeClient;
         stripeTaxRateRotationTargets =
           yield* fetchStripeTaxRateAccountRotationTargetRates(
