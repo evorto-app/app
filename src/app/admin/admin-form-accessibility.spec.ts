@@ -160,6 +160,7 @@ describe('admin load recovery', () => {
     } else {
       expect(source).toContain(failure);
     }
+    expect(source).toContain('role="alert"');
     expect(source).toContain(`(click)="${query}.refetch()"`);
     expect(source).toContain(`[disabled]="${query}.isFetching()"`);
     expect(source).toContain('Trying again…');
