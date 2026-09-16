@@ -281,8 +281,8 @@ describe('LocationSelectorDialog', () => {
   });
 
   it('ignores pending place details when the user starts a different search', async () => {
-    const pending = pendingDetails();
-    getPlaceDetails.mockReturnValueOnce(pending.effect);
+    const pendingSelection = pendingDetails();
+    getPlaceDetails.mockReturnValueOnce(pendingSelection.effect);
     const selection = selectSuggestion(makeSuggestion());
     const input: HTMLInputElement | null =
       fixture.nativeElement.querySelector('input');
@@ -290,7 +290,7 @@ describe('LocationSelectorDialog', () => {
     input.value = 'A different location';
     input.dispatchEvent(new Event('input', { bubbles: true }));
 
-    pending.succeed(makeLocation('place-1'));
+    pendingSelection.succeed(makeLocation('place-1'));
     await selection;
     fixture.detectChanges();
 
@@ -305,11 +305,11 @@ describe('LocationSelectorDialog', () => {
   });
 
   it('preserves an invalid newer selection after older place details finish', async () => {
-    const pending = pendingDetails();
-    getPlaceDetails.mockReturnValueOnce(pending.effect);
+    const pendingSelection = pendingDetails();
+    getPlaceDetails.mockReturnValueOnce(pendingSelection.effect);
     const selection = selectSuggestion(makeSuggestion());
     await selectSuggestion({ placeId: 'invalid' });
-    pending.succeed(makeLocation('place-1'));
+    pendingSelection.succeed(makeLocation('place-1'));
     await selection;
     fixture.detectChanges();
 
@@ -320,22 +320,22 @@ describe('LocationSelectorDialog', () => {
   });
 
   it('preserves cancellation while the dialog exit animation is running', async () => {
-    const pending = pendingDetails();
-    getPlaceDetails.mockReturnValueOnce(pending.effect);
+    const pendingSelection = pendingDetails();
+    getPlaceDetails.mockReturnValueOnce(pendingSelection.effect);
     const selection = selectSuggestion(makeSuggestion());
     getState.mockReturnValue(MatDialogState.CLOSING);
-    pending.succeed(makeLocation('place-1'));
+    pendingSelection.succeed(makeLocation('place-1'));
     await selection;
 
     expect(close).not.toHaveBeenCalled();
   });
 
   it('does not commit place details after the dialog is destroyed', async () => {
-    const pending = pendingDetails();
-    getPlaceDetails.mockReturnValueOnce(pending.effect);
+    const pendingSelection = pendingDetails();
+    getPlaceDetails.mockReturnValueOnce(pendingSelection.effect);
     const selection = selectSuggestion(makeSuggestion());
     fixture.destroy();
-    pending.succeed(makeLocation('place-1'));
+    pendingSelection.succeed(makeLocation('place-1'));
     await selection;
 
     expect(close).not.toHaveBeenCalled();
