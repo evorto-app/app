@@ -399,7 +399,13 @@ fi
                 : '';
         const result = spawnSync(
           'bash',
-          ['-eu', '-c', runBody.replace(/^ {10}/gmu, '').trim()],
+          [
+            '--noprofile',
+            '--norc',
+            '-eu',
+            '-c',
+            runBody.replace(/^ {10}/gmu, '').trim(),
+          ],
           {
             cwd: directory,
             encoding: 'utf8',
