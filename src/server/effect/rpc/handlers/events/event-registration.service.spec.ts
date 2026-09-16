@@ -2123,6 +2123,14 @@ const createWaitlistDatabaseFixture = ({
           transactionOpen: inTransaction,
         });
         if (snapshotRows) return Effect.succeed(snapshotRows);
+        if (statement.startsWith(`select "id" from "${getTableName(tenants)}"`))
+          return Effect.sync(() => {
+            expect(inTransaction).toBe(true);
+            expect(statement).toContain(' for key share');
+            expect(parameters).toEqual(['tenant-1']);
+            return [['tenant-1']];
+          });
+
         if (
           statement.startsWith(
             `insert into "${getTableName(eventRegistrationQuestionAnswers)}"`,

@@ -7,6 +7,13 @@ completion and cleanup. Transfer behavior remains in the transfer modules.
 - Reserve capacity and record the immutable tenant, event, registration, user,
   account, amount, currency, fee and Checkout request together. Re-read current
   membership and option eligibility under the reservation locks.
+- Lock an existing registration before checking eligibility. Eligibility locks
+  tenant, then event and questions, then membership/roles, then the option.
+  Read answers against that locked question set. Free and waitlist paths use
+  tenant key-share; paths that later lock payment configuration take tenant
+  update immediately, without upgrading a shared lock. Eligibility takes the
+  event update lock up front so compensation never upgrades an event share lock.
+  Keep provider calls outside reservation transactions.
 - A newly created claim owns one provider-create attempt. An uncertain create
   result or an interrupted attempt keeps the claim and reservation for review;
   another request must not create a second Checkout from that claim. A local UI
