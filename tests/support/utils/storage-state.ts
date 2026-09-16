@@ -7,7 +7,10 @@ export type StorageState = {
     domain?: string;
     path?: string;
   }>;
-  origins?: unknown[];
+  origins?: Array<{
+    origin: string;
+    localStorage: Array<{ name: string; value: string }>;
+  }>;
 };
 
 const isMissingFileError = (error: unknown): boolean =>
@@ -25,6 +28,21 @@ const isStorageCookie = (
   (value['domain'] === undefined || typeof value['domain'] === 'string') &&
   (value['path'] === undefined || typeof value['path'] === 'string');
 
+const isLocalStorageEntry = (
+  value: unknown,
+): value is { name: string; value: string } =>
+  isRecord(value) &&
+  typeof value['name'] === 'string' &&
+  typeof value['value'] === 'string';
+
+const isStorageOrigin = (
+  value: unknown,
+): value is NonNullable<StorageState['origins']>[number] =>
+  isRecord(value) &&
+  typeof value['origin'] === 'string' &&
+  Array.isArray(value['localStorage']) &&
+  value['localStorage'].every(isLocalStorageEntry);
+
 const isStorageState = (value: unknown): value is StorageState => {
   if (!isRecord(value)) return false;
   const cookies = value['cookies'];
@@ -33,7 +51,8 @@ const isStorageState = (value: unknown): value is StorageState => {
     (cookies !== undefined || origins !== undefined) &&
     (cookies === undefined ||
       (Array.isArray(cookies) && cookies.every(isStorageCookie))) &&
-    (origins === undefined || Array.isArray(origins))
+    (origins === undefined ||
+      (Array.isArray(origins) && origins.every(isStorageOrigin)))
   );
 };
 

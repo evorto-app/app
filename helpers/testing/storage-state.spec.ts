@@ -53,6 +53,45 @@ describe('Playwright storage state', () => {
   it.each([
     { label: 'empty object', state: {} },
     { label: 'unrecognized properties', state: { foo: 1 } },
+    { label: 'null origin', state: { origins: [null] } },
+    { label: 'array origin', state: { origins: [[]] } },
+    {
+      label: 'missing origin name',
+      state: { origins: [{ localStorage: [] }] },
+    },
+    {
+      label: 'non-string origin name',
+      state: { origins: [{ localStorage: [], origin: 123 }] },
+    },
+    {
+      label: 'missing local storage',
+      state: { origins: [{ origin: 'https://evorto.example' }] },
+    },
+    {
+      label: 'non-array local storage',
+      state: {
+        origins: [{ localStorage: {}, origin: 'https://evorto.example' }],
+      },
+    },
+    ...[
+      { label: 'null local-storage entry', entry: null },
+      { label: 'array local-storage entry', entry: [] },
+      { label: 'missing local-storage name', entry: { value: 'value' } },
+      { label: 'missing local-storage value', entry: { name: 'key' } },
+      {
+        label: 'non-string local-storage name',
+        entry: { name: 123, value: 'value' },
+      },
+      {
+        label: 'non-string local-storage value',
+        entry: { name: 'key', value: 123 },
+      },
+    ].map(({ entry, label }) => ({
+      label,
+      state: {
+        origins: [{ localStorage: [entry], origin: 'https://evorto.example' }],
+      },
+    })),
   ])('rejects $label instead of reusing recent state', ({ state }) => {
     const statePath = createFixturePath();
     writeFileSync(statePath, JSON.stringify(state));
@@ -72,6 +111,29 @@ describe('Playwright storage state', () => {
     {
       label: 'cookie-only fixtures',
       state: { cookies: [{ name: 'appSession', value: 'session' }] },
+    },
+    {
+      label: 'origin-only fixtures with empty local storage',
+      state: {
+        origins: [{ localStorage: [], origin: 'https://evorto.example' }],
+      },
+    },
+    {
+      label:
+        'combined fixtures with local storage and additional captured state',
+      state: {
+        cookies: [{ name: 'appSession', value: 'session' }],
+        origins: [
+          {
+            indexedDB: [],
+            localStorage: [
+              { name: 'theme', value: 'dark' },
+              { name: '', value: '' },
+            ],
+            origin: 'https://evorto.example',
+          },
+        ],
+      },
     },
   ])('accepts $label as recognized state', ({ state }) => {
     const statePath = createFixturePath();

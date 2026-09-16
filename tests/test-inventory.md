@@ -233,7 +233,8 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     registrations, and checked-in scanner aggregates.
   - `specs/smoke/load-application.test.ts`
   - `specs/smoke/tenant-request-routing.test.ts` verifies local tenant headers
-    stay on the application origin and do not follow external redirects.
+    stay on the application origin, including when the browser follows an
+    external redirect.
   - `specs/smoke/semantic-theme-colors.test.ts` verifies the rendered success
     and warning role pairs for Evorto and ESN themes in light, dark, and
     increased-contrast modes.

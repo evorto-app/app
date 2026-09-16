@@ -9,3 +9,5 @@ Return `Connection: close` when an HTTP request asks to close the connection, so
 Preserve complete browser request headers during tenant routing and keep failed route-removal ownership until context closure is proven. Cancel rejected and bodyless HTTP request streams, preserve HEAD discovery-document responses, and reject malformed internal SSR origins before URL normalization.
 
 Use typed sign-in recovery when an encrypted session's optional profile claims do not match the shared RPC contract. Keep valid custom metadata available to request authorization.
+
+Reject malformed saved browser origins and local-storage entries before treating test authentication state as reusable.
