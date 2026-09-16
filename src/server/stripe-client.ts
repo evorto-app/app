@@ -4,7 +4,8 @@ import Stripe from 'stripe';
 
 type StripeConfig = NonNullable<ConstructorParameters<typeof Stripe>[1]>;
 
-const STRIPE_API_VERSION: StripeConfig['apiVersion'] = '2026-06-24.dahlia';
+const STRIPE_API_VERSION =
+  '2026-08-26.dahlia' satisfies StripeConfig['apiVersion'];
 
 export class StripeClient extends Context.Service<StripeClient, Stripe>()(
   '@server/StripeClient',

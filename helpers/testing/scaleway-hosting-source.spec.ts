@@ -1,4 +1,13 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -18,6 +27,433 @@ const between = (contents: string, start: string, end?: string): string => {
 };
 
 describe('Scaleway hosting source', () => {
+  const revision = 'd'.repeat(40);
+  const digestHash = 'a'.repeat(64);
+
+  it.each([
+    {
+      name: 'matching image digest and artifact keys',
+      overrides: {},
+      expectedStatus: 0,
+    },
+    {
+      name: 'different image digest',
+      overrides: {
+        image: `rg.fr-par.scw.cloud/evorto-staging/evorto@sha256:${'b'.repeat(64)}`,
+      },
+      expectedStatus: 1,
+    },
+    {
+      name: 'different registry',
+      overrides: { image: `registry.example/evorto@sha256:${'a'.repeat(64)}` },
+      expectedStatus: 1,
+    },
+    {
+      name: 'invalid digest',
+      overrides: { digest: 'sha256:invalid' },
+      expectedStatus: 1,
+    },
+    {
+      name: 'invalid schema hash',
+      overrides: { schemaHash: 'invalid' },
+      expectedStatus: 1,
+    },
+    {
+      name: 'missing source map key',
+      overrides: { sourceMapsKey: undefined },
+      expectedStatus: 1,
+    },
+    {
+      name: 'malformed source map key',
+      overrides: { sourceMapsKey: 'source-maps/invalid.tar.gz' },
+      expectedStatus: 1,
+    },
+    {
+      name: 'source map key for a different revision',
+      overrides: {
+        sourceMapsKey: `source-maps/${'e'.repeat(40)}/${digestHash}.tar.gz`,
+      },
+      expectedStatus: 1,
+    },
+    {
+      name: 'source map key for a different digest',
+      overrides: {
+        sourceMapsKey: `source-maps/${revision}/${'b'.repeat(64)}.tar.gz`,
+      },
+      expectedStatus: 1,
+    },
+    {
+      name: 'missing SBOM key',
+      overrides: { sbomKey: undefined },
+      expectedStatus: 1,
+    },
+    {
+      name: 'malformed SBOM key',
+      overrides: { sbomKey: 'sbom/invalid.spdx.json' },
+      expectedStatus: 1,
+    },
+    {
+      name: 'SBOM key for a different revision',
+      overrides: {
+        sbomKey: `sbom/${'e'.repeat(40)}/${digestHash}.spdx.json`,
+      },
+      expectedStatus: 1,
+    },
+    {
+      name: 'SBOM key for a different digest',
+      overrides: {
+        sbomKey: `sbom/${revision}/${'b'.repeat(64)}.spdx.json`,
+      },
+      expectedStatus: 1,
+    },
+    {
+      name: 'different revision',
+      overrides: { revision: 'other' },
+      expectedStatus: 1,
+    },
+    {
+      name: 'different environment',
+      overrides: { environment: 'production' },
+      expectedStatus: 1,
+    },
+    {
+      name: 'unsuccessful deployment',
+      overrides: { status: 'failed' },
+      expectedStatus: 1,
+    },
+  ])(
+    'validates a reused staging manifest with $name',
+    ({ overrides, expectedStatus }) => {
+      const reuse = between(
+        source('.github/workflows/scaleway-staging.yml'),
+        '- name: Reuse an already-built exact-SHA image when available',
+        '- name: Build and push the immutable Linux amd64 image once',
+      );
+      const predicate = reuse.match(
+        /'(\.status == "succeeded"[\s\S]*?)' \\/u,
+      )?.[1];
+      if (!predicate) {
+        throw new Error('Missing staging manifest reuse predicate');
+      }
+      const digest = `sha256:${digestHash}`;
+      const result = spawnSync(
+        'jq',
+        ['--exit-status', '--arg', 'revision', revision, predicate],
+        {
+          encoding: 'utf8',
+          input: JSON.stringify({
+            digest,
+            environment: 'staging',
+            image: `rg.fr-par.scw.cloud/evorto-staging/evorto@${digest}`,
+            revision,
+            sbomKey: `sbom/${revision}/${digestHash}.spdx.json`,
+            schemaHash: 'c'.repeat(64),
+            sourceMapsKey: `source-maps/${revision}/${digestHash}.tar.gz`,
+            status: 'succeeded',
+            ...overrides,
+          }),
+          timeout: 5000,
+        },
+      );
+      expect(result.error).toBeUndefined();
+      expect(result.stderr).toBe('');
+      expect(result.status).toBe(expectedStatus);
+    },
+  );
+
+  it.each([
+    { name: 'matching artifact keys', overrides: {}, expectedStatus: 0 },
+    {
+      name: 'image for a different digest',
+      overrides: {
+        image: `rg.fr-par.scw.cloud/evorto-staging/evorto@sha256:${'b'.repeat(64)}`,
+      },
+      expectedStatus: 1,
+    },
+    ...[
+      { field: 'sourceMapsKey', prefix: 'source-maps', suffix: '.tar.gz' },
+      { field: 'sbomKey', prefix: 'sbom', suffix: '.spdx.json' },
+    ].flatMap(({ field, prefix, suffix }) =>
+      [
+        { name: 'missing', value: undefined },
+        { name: 'malformed', value: `${prefix}/invalid${suffix}` },
+        {
+          name: 'wrong revision',
+          value: `${prefix}/${'e'.repeat(40)}/${digestHash}${suffix}`,
+        },
+        {
+          name: 'wrong digest',
+          value: `${prefix}/${revision}/${'b'.repeat(64)}${suffix}`,
+        },
+      ].map(({ name, value }) => ({
+        name: `${field} ${name}`,
+        overrides: { [field]: value },
+        expectedStatus: 1,
+      })),
+    ),
+  ])(
+    'validates a production manifest with $name',
+    ({ overrides, expectedStatus }) => {
+      const validation = between(
+        source('.github/workflows/scaleway-production.yml'),
+        '- name: Fetch and validate the accepted staging manifest',
+        '- name: Checkout the exact accepted staging revision',
+      );
+      const predicate = validation.match(
+        /'(\.status == "succeeded"[\s\S]*?)' \\/u,
+      )?.[1];
+      if (!predicate) {
+        throw new Error('Missing production manifest validation predicate');
+      }
+      const digest = `sha256:${digestHash}`;
+      const result = spawnSync('jq', ['--exit-status', predicate], {
+        encoding: 'utf8',
+        input: JSON.stringify({
+          digest,
+          environment: 'staging',
+          image: `rg.fr-par.scw.cloud/evorto-staging/evorto@${digest}`,
+          revision,
+          sbomKey: `sbom/${revision}/${digestHash}.spdx.json`,
+          schemaHash: 'c'.repeat(64),
+          sourceMapsKey: `source-maps/${revision}/${digestHash}.tar.gz`,
+          status: 'succeeded',
+          ...overrides,
+        }),
+        timeout: 5000,
+      });
+      expect(result.error).toBeUndefined();
+      expect(result.stderr).toBe('');
+      expect(result.status).toBe(expectedStatus);
+    },
+  );
+
+  it.each([
+    {
+      name: 'reuses only when the manifest and both artifacts exist',
+      failAt: 'none',
+      awsStatus: 0,
+      awsError: '',
+      expectedStatus: 0,
+      expectedReuse: 'true',
+      callCount: 4,
+    },
+    {
+      name: 'rebuilds after a missing source map object',
+      failAt: 'source-maps',
+      awsStatus: 254,
+      awsError:
+        'An error occurred (404) when calling the HeadObject operation: Not Found',
+      expectedStatus: 0,
+      expectedReuse: 'false',
+      callCount: 3,
+    },
+    {
+      name: 'rebuilds after a missing SBOM object',
+      failAt: 'sbom',
+      awsStatus: 254,
+      awsError:
+        'An error occurred (NoSuchKey) when calling the HeadObject operation: The specified key does not exist',
+      expectedStatus: 0,
+      expectedReuse: 'false',
+      callCount: 4,
+    },
+    {
+      name: 'rebuilds after a missing latest manifest',
+      failAt: 'latest',
+      awsStatus: 254,
+      awsError:
+        'An error occurred (NotFound) when calling the HeadObject operation: Not Found',
+      expectedStatus: 0,
+      expectedReuse: 'false',
+      callCount: 1,
+    },
+    {
+      name: 'fails on forbidden source map access',
+      failAt: 'source-maps',
+      awsStatus: 254,
+      awsError:
+        'An error occurred (403) when calling the HeadObject operation: Forbidden',
+      expectedStatus: 254,
+      expectedReuse: '',
+      callCount: 3,
+    },
+    {
+      name: 'fails on an SBOM network error',
+      failAt: 'sbom',
+      awsStatus: 255,
+      awsError:
+        'Could not connect to the endpoint URL: https://s3.fr-par.scw.cloud',
+      expectedStatus: 255,
+      expectedReuse: '',
+      callCount: 4,
+    },
+    {
+      name: 'fails on an unexpected source map service error',
+      failAt: 'source-maps',
+      awsStatus: 254,
+      awsError:
+        'An error occurred (InternalError) when calling the HeadObject operation: Internal Server Error',
+      expectedStatus: 254,
+      expectedReuse: '',
+      callCount: 3,
+    },
+    {
+      name: 'fails on forbidden latest manifest access',
+      failAt: 'latest',
+      awsStatus: 254,
+      awsError:
+        'An error occurred (403) when calling the HeadObject operation: Forbidden',
+      expectedStatus: 254,
+      expectedReuse: '',
+      callCount: 1,
+    },
+    {
+      name: 'fails when downloading a manifest that passed HEAD',
+      failAt: 'download',
+      awsStatus: 1,
+      awsError:
+        'download failed: An error occurred (NoSuchKey) when calling the GetObject operation: The specified key does not exist',
+      expectedStatus: 1,
+      expectedReuse: '',
+      callCount: 2,
+    },
+  ])(
+    'staging artifact reuse $name',
+    ({
+      failAt,
+      awsStatus,
+      awsError,
+      expectedStatus,
+      expectedReuse,
+      callCount,
+    }) => {
+      const reuse = between(
+        source('.github/workflows/scaleway-staging.yml'),
+        '- name: Reuse an already-built exact-SHA image when available',
+        '- name: Build and push the immutable Linux amd64 image once',
+      );
+      const runBody = reuse.split('        run: |\n')[1];
+      if (!runBody) {
+        throw new Error('Missing staging artifact reuse shell body');
+      }
+      const directory = mkdtempSync(path.join(tmpdir(), 'scaleway-reuse-'));
+      try {
+        const bin = path.join(directory, 'bin');
+        const output = path.join(directory, 'github-output');
+        const calls = path.join(directory, 'aws-calls');
+        const manifest = path.join(directory, 'manifest.json');
+        const existing = path.join(directory, 'deployment/existing.json');
+        const bucket = 'evorto-staging-deployment-test';
+        const latestKey = 'deployments/staging/latest.json';
+        const sourceMapsKey = `source-maps/${revision}/${digestHash}.tar.gz`;
+        const sbomKey = `sbom/${revision}/${digestHash}.spdx.json`;
+        const digest = `sha256:${digestHash}`;
+        mkdirSync(bin);
+        mkdirSync(path.dirname(existing));
+        writeFileSync(output, '');
+        writeFileSync(calls, '');
+        writeFileSync(existing, 'stale manifest');
+        writeFileSync(
+          manifest,
+          JSON.stringify({
+            digest,
+            environment: 'staging',
+            image: `rg.fr-par.scw.cloud/evorto-staging/evorto@${digest}`,
+            revision,
+            sbomKey,
+            schemaHash: 'c'.repeat(64),
+            sourceMapsKey,
+            status: 'succeeded',
+          }),
+        );
+        writeFileSync(
+          path.join(bin, 'aws'),
+          `#!/bin/bash
+set -eu
+printf '%s\\n' "$*" >> "$AWS_CALL_LOG"
+if [ "$1 $2" = 's3api head-object' ]; then
+  if [ "$6" = "$AWS_FAILED_KEY" ]; then
+    printf '%s\\n' "$AWS_FAILURE_MESSAGE" >&2
+    exit "$AWS_FAILURE_STATUS"
+  fi
+elif [ "$1 $2" = 's3 cp' ]; then
+  if [ "$AWS_DOWNLOAD_STATUS" != '0' ]; then
+    printf '%s\\n' "$AWS_FAILURE_MESSAGE" >&2
+    exit "$AWS_DOWNLOAD_STATUS"
+  fi
+  cp "$AWS_MANIFEST" "$4"
+else
+  printf 'Unexpected AWS command: %s\\n' "$*" >&2
+  exit 99
+fi
+`,
+          { mode: 0o700 },
+        );
+        const failedKey =
+          failAt === 'latest'
+            ? latestKey
+            : failAt === 'source-maps'
+              ? sourceMapsKey
+              : failAt === 'sbom'
+                ? sbomKey
+                : '';
+        const result = spawnSync(
+          'bash',
+          [
+            '--noprofile',
+            '--norc',
+            '-eu',
+            '-c',
+            runBody.replace(/^ {10}/gmu, '').trim(),
+          ],
+          {
+            cwd: directory,
+            encoding: 'utf8',
+            env: {
+              PATH: `${bin}${path.delimiter}${process.env['PATH'] ?? ''}`,
+              AWS_CALL_LOG: calls,
+              AWS_DOWNLOAD_STATUS:
+                failAt === 'download' ? String(awsStatus) : '0',
+              AWS_FAILED_KEY: failedKey,
+              AWS_FAILURE_MESSAGE: awsError,
+              AWS_FAILURE_STATUS: String(awsStatus),
+              AWS_MANIFEST: manifest,
+              GITHUB_OUTPUT: output,
+              METADATA_BUCKET: bucket,
+              REVISION: revision,
+            },
+            timeout: 5000,
+          },
+        );
+        expect(result.error).toBeUndefined();
+        expect(result.status).toBe(expectedStatus);
+        expect(result.stderr).toBe(expectedStatus === 0 ? '' : `${awsError}\n`);
+        expect(readFileSync(output, 'utf8')).toBe(
+          expectedReuse ? `reuse=${expectedReuse}\n` : '',
+        );
+        const headCall = (key: string) =>
+          `s3api head-object --bucket ${bucket} --key ${key} --endpoint-url https://s3.fr-par.scw.cloud`;
+        expect(readFileSync(calls, 'utf8').trim().split('\n')).toEqual(
+          [
+            headCall(latestKey),
+            `s3 cp s3://${bucket}/${latestKey} deployment/existing.json --endpoint-url https://s3.fr-par.scw.cloud --only-show-errors`,
+            headCall(sourceMapsKey),
+            headCall(sbomKey),
+          ].slice(0, callCount),
+        );
+        if (expectedReuse === 'false') {
+          expect(existsSync(existing)).toBe(false);
+        } else if (expectedReuse === 'true') {
+          expect(readFileSync(existing, 'utf8')).toBe(
+            readFileSync(manifest, 'utf8'),
+          );
+        }
+      } finally {
+        rmSync(directory, { force: true, recursive: true });
+      }
+    },
+  );
+
   it('retires the legacy Fly deployment surface and hostname', () => {
     for (const removedPath of [
       '.github/workflows/fly-deploy.yml',
@@ -543,6 +979,43 @@ describe('Scaleway hosting source', () => {
       'Ops already matches the desired release; skipping schema reconciliation.',
     );
     expect(staging).toContain("github.event_name != 'schedule'");
+  });
+
+  it('rescans the copied production digest before infrastructure and role deployment', () => {
+    const production = source('.github/workflows/scaleway-production.yml');
+    const scan = between(
+      production,
+      '- name: Scan promoted image vulnerabilities',
+      '- name: Reconcile complete production infrastructure',
+    );
+
+    expect(scan).toContain(
+      'uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25',
+    );
+    expect(scan).toContain('image-ref: ${{ steps.image.outputs.reference }}');
+    expect(scan).toContain('version: v0.70.0');
+    expect(scan).toContain('cache: false');
+    expect(scan).toContain('severity: HIGH,CRITICAL');
+    expect(scan).toContain('ignore-unfixed: false');
+    expect(scan).toContain('exit-code: "1"');
+    expect(scan).not.toContain('${{ secrets.');
+    expect(scan).not.toMatch(/\b(?:if|continue-on-error):/u);
+    expect(scan).not.toContain('TRIVY_SKIP_DB_UPDATE');
+
+    const requiredSteps = [
+      '- name: Login to private Scaleway registry',
+      '- name: Copy the accepted digest without rebuilding',
+      '- name: Scan promoted image vulnerabilities',
+      '- name: Reconcile complete production infrastructure',
+      '- name: Deploy production ops and apply only a stable safe schema plan',
+      '- name: Deploy production worker and web at the accepted digest',
+    ];
+    let previousIndex = -1;
+    for (const step of requiredSteps) {
+      const index = production.indexOf(step);
+      expect(index, step).toBeGreaterThan(previousIndex);
+      previousIndex = index;
+    }
   });
 
   it('provides worker email delivery at the HTTP request boundary', () => {

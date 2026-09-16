@@ -66,6 +66,9 @@ export default defineConfig(
         "error",
         { allowWithDecorator: true },
       ],
+      // Field order can affect eager Signal Form initialization.
+      "perfectionist/sort-classes": "off",
+      "unicorn/single-line-block-comment-style": "off",
       "unicorn/consistent-boolean-name": "off",
       "unicorn/consistent-function-scoping": "off",
       "unicorn/consistent-class-member-order": "off",

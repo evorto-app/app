@@ -11,34 +11,163 @@ if ((image_size_bytes >= maximum_size_bytes)); then
   exit 1
 fi
 
-container_id="$(docker create "${image_reference}")"
-archive_listing="$(mktemp)"
-runtime_root="$(mktemp -d)"
+verification_directory="$(mktemp -d)"
+archive_path="${verification_directory}/image.tar"
+archive_listing="${verification_directory}/listing.txt"
+runtime_root="${verification_directory}/root"
+container_id=''
 
 cleanup() {
-  docker rm "${container_id}" >/dev/null 2>&1 || true
-  rm -f "${archive_listing}"
-  rm -rf "${runtime_root}"
+  local original_status=$?
+  local cleanup_status=0
+  trap - EXIT
+  if [[ -n "${container_id}" ]]; then
+    docker rm "${container_id}" >/dev/null || cleanup_status=$?
+  fi
+  rm -rf "${verification_directory}" || cleanup_status=$?
+  if ((cleanup_status != 0)); then
+    echo 'Runtime image verification cleanup failed.' >&2
+  fi
+  if ((original_status != 0)); then
+    exit "${original_status}"
+  fi
+  if ((cleanup_status == 0)); then
+    echo "Runtime image verification passed (${image_size_bytes} bytes)."
+  fi
+  exit "${cleanup_status}"
 }
 trap cleanup EXIT
 
-docker export "${container_id}" | tee >(tar --list --file=- >"${archive_listing}") | tar --extract --file=- --directory="${runtime_root}"
+mkdir "${runtime_root}"
+container_id="$(docker create "${image_reference}")"
 
-if grep -Eiq '(^|/)(\.env([^/]*)?|instrument\.mjs|@sentry|@neondatabase|resend)(/|$)|\.map$' "${archive_listing}"; then
-  echo 'Runtime image contains a forbidden secret, provider, instrumentation, or source-map path.' >&2
-  grep -Ei '(^|/)(\.env([^/]*)?|instrument\.mjs|@sentry|@neondatabase|resend)(/|$)|\.map$' "${archive_listing}" >&2
+runtime_user="$(docker inspect --format '{{.Config.User}}' "${container_id}")"
+runtime_workdir="$(docker inspect --format '{{.Config.WorkingDir}}' "${container_id}")"
+runtime_entrypoint="$(docker inspect --format '{{json .Config.Entrypoint}}' "${container_id}")"
+runtime_command="$(docker inspect --format '{{json .Config.Cmd}}' "${container_id}")"
+if [[ "${runtime_user}" != '65532:65532' ]]; then
+  echo "Runtime image must run as the explicit non-root user 65532:65532; found ${runtime_user:-root}." >&2
   exit 1
 fi
+if [[ "${runtime_workdir}" != '/app' ]]; then
+  echo "Runtime image must use /app as its working directory; found ${runtime_workdir:-unset}." >&2
+  exit 1
+fi
+if [[ "${runtime_entrypoint}" != '["/usr/local/bin/bun"]' ]]; then
+  echo "Runtime image must start Bun directly; found entrypoint ${runtime_entrypoint}." >&2
+  exit 1
+fi
+if [[ "${runtime_command}" != '["dist/evorto/server/server.mjs"]' ]]; then
+  echo "Runtime image has an unexpected default command: ${runtime_command}." >&2
+  exit 1
+fi
+
+docker export "${container_id}" >"${archive_path}"
+tar --list --file="${archive_path}" >"${archive_listing}"
+
+reject_matches() {
+  local message="${1}"
+  shift
+  local scan_status=0
+  grep "${@}" >&2 || scan_status=$?
+  if ((scan_status == 0)); then
+    echo "${message}" >&2
+    exit 1
+  elif ((scan_status != 1)); then
+    echo 'Could not inspect the runtime image contents.' >&2
+    exit "${scan_status}"
+  fi
+}
+
+reject_matches 'Runtime image contains a forbidden secret, provider, instrumentation, or source-map path.' \
+  --extended-regexp --ignore-case \
+  '(^|/)(\.env([^/]*)?|instrument\.mjs|@sentry|@neondatabase|resend)(/|$)|\.map$' "${archive_listing}"
+
+readonly shell_path_pattern='(^|/)(busybox|sh|bash|dash|ash|zsh|ksh|csh|tcsh|fish)$'
+reject_matches 'Runtime image contains a shell even though the application starts Bun directly.' \
+  --extended-regexp --ignore-case "${shell_path_pattern}" "${archive_listing}"
+
+tar --extract --file="${archive_path}" --directory="${runtime_root}"
+
+readonly required_artifacts=(
+  app/dist/evorto/server/server.mjs
+  app/dist/evorto/ops/schema.mjs
+  app/dist/evorto/ops/database-prerequisites.mjs
+  app/dist/evorto/ops/reset-staging-database.mjs
+  app/dist/evorto/ops/seed-staging.mjs
+  app/ops/drizzle.config.mjs
+  app/ops/drizzle-kit.cjs
+)
+for required_artifact in "${required_artifacts[@]}"; do
+  # Check every component before file checks or content scans can follow a link.
+  artifact_component="${runtime_root}/${required_artifact}"
+  while [[ "${artifact_component}" != "${runtime_root}" ]]; do
+    if [[ -L "${artifact_component}" ]]; then
+      echo "Runtime image required artifact path contains a symlink: ${artifact_component}." >&2
+      exit 1
+    fi
+    artifact_component="${artifact_component%/*}"
+  done
+  if [[ ! -f "${runtime_root}/${required_artifact}" ]]; then
+    echo "Runtime image is missing a required regular artifact: ${required_artifact}." >&2
+    exit 1
+  fi
+done
 
 readonly first_party_runtime_paths=(
   "${runtime_root}/app/dist"
   "${runtime_root}/app/ops/drizzle.config.mjs"
 )
-if grep --recursive --binary-files=without-match --extended-regexp --ignore-case \
+reject_matches 'First-party runtime artifacts retain a removed provider dependency.' \
+  --recursive --binary-files=without-match --extended-regexp --ignore-case \
   'api\.resend\.com|cloudflare[_-]r2|CLOUDFLARE_R2_|R2_BUCKET|sentry\.io|@sentry|@neondatabase' \
-  "${first_party_runtime_paths[@]}"; then
-  echo 'First-party runtime artifacts retain a removed provider dependency.' >&2
-  exit 1
+  "${first_party_runtime_paths[@]}"
+
+image_platform="$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "${image_reference}")"
+readability_status=0
+docker run --rm --pull=never --platform "${image_platform}" --network none --read-only \
+  --entrypoint /usr/local/bin/bun "${image_reference}" --eval '
+    const fs = require("node:fs");
+    for (const artifact of process.argv.slice(1)) {
+      const descriptor = fs.openSync(artifact, "r");
+      try {
+        if (!fs.fstatSync(descriptor).isFile()) {
+          throw new Error(`Required artifact is not a regular file: ${artifact}`);
+        }
+        fs.readSync(descriptor, Buffer.alloc(1), 0, 1, 0);
+      } finally {
+        fs.closeSync(descriptor);
+      }
+    }
+  ' "${required_artifacts[@]/#//}" || readability_status=$?
+if ((readability_status != 0)); then
+  echo 'Runtime artifacts must be readable by the configured image user 65532:65532.' >&2
+  exit "${readability_status}"
 fi
 
-echo "Runtime image verification passed (${image_size_bytes} bytes)."
+cache_status=0
+docker run --rm --pull=never --platform "${image_platform}" --network none \
+  --entrypoint /usr/local/bin/bun "${image_reference}" --eval '
+    const fs = require("node:fs");
+    const cacheDirectory = ".cache/evorto/server-kv";
+    fs.mkdirSync(cacheDirectory, { recursive: true });
+    const probe = `${cacheDirectory}/.runtime-verification-${crypto.randomUUID()}`;
+    const expected = "evorto runtime cache verification";
+    const descriptor = fs.openSync(probe, "wx", 0o600);
+    try {
+      try {
+        fs.writeFileSync(descriptor, expected);
+      } finally {
+        fs.closeSync(descriptor);
+      }
+      if (fs.readFileSync(probe, "utf8") !== expected) {
+        throw new Error("Runtime cache verification read different contents");
+      }
+    } finally {
+      fs.unlinkSync(probe);
+    }
+  ' || cache_status=$?
+if ((cache_status != 0)); then
+  echo 'Runtime image user must be able to create, write, read, and delete files in .cache/evorto/server-kv.' >&2
+  exit "${cache_status}"
+fi

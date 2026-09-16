@@ -118,9 +118,9 @@ jobs:
               and (.revision | test("^[0-9a-f]{40}$"))
               and (.digest | test("^sha256:[0-9a-f]{64}$"))
               and (.schemaHash | test("^[0-9a-f]{64}$"))
-              and (.image | startswith("rg.fr-par.scw.cloud/evorto-staging/evorto@sha256:"))
-              and (.sourceMapsKey | test("^source-maps/[0-9a-f]{40}/[0-9a-f]{64}\\.tar\\.gz$"))
-              and (.sbomKey | test("^sbom/[0-9a-f]{40}/[0-9a-f]{64}\\.spdx\\.json$"))' \
+              and .image == ("rg.fr-par.scw.cloud/evorto-staging/evorto@" + .digest)
+              and .sourceMapsKey == ("source-maps/" + .revision + "/" + (.digest | ltrimstr("sha256:")) + ".tar.gz")
+              and .sbomKey == ("sbom/" + .revision + "/" + (.digest | ltrimstr("sha256:")) + ".spdx.json")' \
             deployment/staging-manifest.json >/dev/null
 
           revision="$(jq --raw-output .revision deployment/staging-manifest.json)"
@@ -213,15 +213,39 @@ jobs:
           target_reference="rg.fr-par.scw.cloud/evorto-production/evorto@${target_digest}"
           docker pull --platform linux/amd64 "${target_reference}"
           bash ops/scaleway/verify-runtime-image.sh "${target_reference}"
-          packaged_schema_hash="$(
-            docker run \
+          packaged_schema_file="${RUNNER_TEMP}/packaged-schema.mjs"
+          schema_container_id=''
+          cleanup_packaged_schema() {
+            local original_status=$?
+            local cleanup_status=0
+            trap - EXIT
+            if [[ -n "${schema_container_id}" ]]; then
+              docker rm "${schema_container_id}" >/dev/null || cleanup_status=$?
+            fi
+            if [[ -n "${packaged_schema_file}" ]]; then
+              rm -f "${packaged_schema_file}" || cleanup_status=$?
+            fi
+            if ((original_status != 0)); then
+              exit "${original_status}"
+            fi
+            exit "${cleanup_status}"
+          }
+          trap cleanup_packaged_schema EXIT
+          schema_container_id="$(
+            docker create \
               --platform linux/amd64 \
-              --rm \
-              --entrypoint sha256sum \
-              "${target_reference}" \
-              /app/dist/evorto/ops/schema.mjs \
-              | awk '{print $1}'
+              "${target_reference}"
           )"
+          docker cp \
+            "${schema_container_id}:/app/dist/evorto/ops/schema.mjs" \
+            "${packaged_schema_file}"
+          docker rm "${schema_container_id}" >/dev/null
+          schema_container_id=''
+          packaged_schema_hash="$(
+            sha256sum "${packaged_schema_file}" | awk '{print $1}'
+          )"
+          rm -f "${packaged_schema_file}"
+          packaged_schema_file=''
           if [ "${packaged_schema_hash}" != "${{ steps.staging.outputs.schema_hash }}" ]; then
             echo "::error::Production image schema hash differs from the staging manifest"
             exit 1
@@ -230,6 +254,18 @@ jobs:
             echo "digest=${target_digest}"
             echo "reference=${target_reference}"
           } >> "${GITHUB_OUTPUT}"
+
+      - name: Scan promoted image vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ steps.image.outputs.reference }}
+          version: v0.70.0
+          cache: false
+          format: table
+          severity: HIGH,CRITICAL
+          ignore-unfixed: false
+          exit-code: "1"
+          hide-progress: true
 
       - name: Reconcile complete production infrastructure
         env:

@@ -272,7 +272,7 @@ describe('CI quality source', () => {
       source.indexOf('  ci-gate:'),
     );
     expect(imageSecurityJob).toContain('name: Setup Bun');
-    expect(imageSecurityJob).toContain('bun-version: "1.3.14"');
+    expect(imageSecurityJob).toContain('bun-version: "1.4.2"');
     expect(imageSecurityJob).toContain('bun run image:verify');
   });
 

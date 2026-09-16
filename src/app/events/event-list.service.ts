@@ -9,7 +9,6 @@ import { PermissionsService } from '../core/permissions.service';
 @Injectable({
   providedIn: 'root',
 })
-/* eslint-disable perfectionist/sort-classes */
 export class EventListService {
   private readonly permissions = inject(PermissionsService);
   private readonly rpc = AppRpc.injectClient();
