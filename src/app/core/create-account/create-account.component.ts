@@ -1,3 +1,4 @@
+import { DOCUMENT } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -27,7 +28,6 @@ import { notificationEmailPattern } from '@shared/notification-email';
 import {
   injectMutation,
   injectQuery,
-  QueryClient,
 } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
@@ -54,6 +54,7 @@ const onboardingAnswerSchema = schema<{ questionId: string; value: string }>(
 
 @Injectable({ providedIn: 'root' })
 export class CreateAccountOperations {
+  private readonly document = inject(DOCUMENT);
   private readonly rpc = AppRpc.injectClient();
 
   authData() {
@@ -64,20 +65,12 @@ export class CreateAccountOperations {
     return this.rpc.onboarding.complete.mutationOptions();
   }
 
-  maybeSelfFilter() {
-    return this.rpc.queryFilter(['users', 'maybeSelf']);
+  navigateAfterCompletion() {
+    this.document.location.assign('/profile');
   }
 
   onboardingRequirements() {
     return this.rpc.onboarding.requirements.queryOptions();
-  }
-
-  onboardingStatusFilter() {
-    return this.rpc.queryFilter(['onboarding', 'status']);
-  }
-
-  selfFilter() {
-    return this.rpc.queryFilter(['users', 'self']);
   }
 }
 
@@ -138,7 +131,6 @@ export class CreateAccountComponent {
   protected readonly onboardingRequirementsQuery = injectQuery(() =>
     this.operations.onboardingRequirements(),
   );
-  private readonly queryClient = inject(QueryClient);
   private requirementsInitialized = false;
   private readonly router = inject(Router);
 
@@ -186,14 +178,7 @@ export class CreateAccountComponent {
       this.accountError.set('');
       try {
         await this.completeOnboardingMutation.mutateAsync(payload);
-        await this.queryClient.invalidateQueries(
-          this.operations.onboardingStatusFilter(),
-        );
-        await this.queryClient.invalidateQueries(this.operations.selfFilter());
-        await this.queryClient.invalidateQueries(
-          this.operations.maybeSelfFilter(),
-        );
-        this.router.navigate(['/profile']);
+        this.operations.navigateAfterCompletion();
       } catch (error) {
         this.accountError.set(createAccountErrorMessage(error));
         if (isTenantOnboardingRequirementsChangedError(error)) {

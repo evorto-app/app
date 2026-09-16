@@ -76,6 +76,7 @@ const createRequestContext = (input: {
 const configLayer = ConfigProvider.layer(
   ConfigProvider.fromEnv({
     env: {
+      DATABASE_TLS_REQUIRED: 'false',
       DATABASE_URL: databaseUrl,
     },
   }),

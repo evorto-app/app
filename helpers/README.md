@@ -190,12 +190,17 @@ Browser or Playwright runs only work when that exact callback URL is registered
 in Auth0. If the generated port is not registered, free port 4200 and start the
 stack with `APP_HOST_PORT=4200 bun run docker:start`.
 
-Local global-admin e2e coverage can use `E2E_GLOBAL_ADMIN_AUTH0_IDS` as a
-no-secret fallback when the Auth0 tenant user has app metadata but the
-post-login session does not include the namespaced global-admin claim. Keep this
-limited to known local or CI e2e Auth0 ids. The fallback is ignored when
-`NODE_ENV=production`; production global-admin access remains driven by Auth0
-app metadata claims, not tenant roles.
+Authenticated Playwright setup uses the Auth0 Management test client to verify
+that the dedicated administrator account already has the owner-approved
+`app_metadata.platformAdministrator: true` claim. It never changes or restores
+shared metadata, so concurrent CI and local runs cannot revoke each other's
+authority. The Auth0
+post-login action must copy app metadata into the namespaced
+`evorto.app/app_metadata` session claim. Setup opens an administrator page
+before saving browser state, so a missing action or claim fails visibly instead
+of granting authority through a local override. The management client needs
+`read:users` for this check; keep those credentials in the
+ignored `.env` file.
 
 Run `bun run docker:check` before investigating Docker startup failures. The
 check validates required local secrets before Compose tears down or starts

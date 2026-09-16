@@ -9,6 +9,10 @@ import {
 
 import type { DeploymentConfig } from '../config/deployment-config';
 
+import {
+  InvalidAuthSessionError,
+  invalidAuthSessionRecoveryResponse,
+} from '../auth/auth-session';
 import { applySecurityHeaders } from './security-headers';
 
 const notFoundServerResponse = HttpServerResponse.empty({ status: 404 });
@@ -55,6 +59,12 @@ export const makeServerResponseMiddleware = <E, R>(
     return yield* effect.pipe(
       Effect.catch((error) =>
         Effect.gen(function* () {
+          if (error instanceof InvalidAuthSessionError) {
+            return yield* invalidAuthSessionRecoveryResponse(
+              request,
+              options.applicationEnvironment,
+            );
+          }
           if (isRouteNotFoundError(error)) {
             return notFoundServerResponse;
           }

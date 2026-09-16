@@ -170,6 +170,8 @@ jobs:
 
       - name: Run fail-closed release preflight
         env:
+          AUTH0_MANAGEMENT_CLIENT_ID: ${{ secrets.AUTH0_MANAGEMENT_CLIENT_ID }}
+          AUTH0_MANAGEMENT_CLIENT_SECRET: ${{ secrets.AUTH0_MANAGEMENT_CLIENT_SECRET }}
           CLIENT_ID: ${{ secrets.CLIENT_ID }}
           CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
           E2E_ADMIN_USER_PASSWORD: ${{ secrets.E2E_ADMIN_USER_PASSWORD }}
@@ -264,6 +266,8 @@ jobs:
 
       - name: Run provider-error UI and live ESNcard certification
         env:
+          AUTH0_MANAGEMENT_CLIENT_ID: ${{ secrets.AUTH0_MANAGEMENT_CLIENT_ID }}
+          AUTH0_MANAGEMENT_CLIENT_SECRET: ${{ secrets.AUTH0_MANAGEMENT_CLIENT_SECRET }}
           CLIENT_ID: ${{ secrets.CLIENT_ID }}
           CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
           E2E_ADMIN_USER_PASSWORD: ${{ secrets.E2E_ADMIN_USER_PASSWORD }}

@@ -107,6 +107,7 @@ const makeLayer = (url: string) => {
     ConfigProvider.fromEnv({
       env: {
         BASE_URL: 'https://addon-purchase.example',
+        DATABASE_TLS_REQUIRED: 'false',
         DATABASE_URL: url,
         NODE_ENV: 'test',
       },

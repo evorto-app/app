@@ -61,6 +61,7 @@ const makeLayer = (url: string) => {
   const config = ConfigProvider.layer(
     ConfigProvider.fromEnv({
       env: {
+        DATABASE_TLS_REQUIRED: 'false',
         DATABASE_URL: url,
       },
     }),

@@ -1,3 +1,4 @@
+import { DOCUMENT } from '@angular/common';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
 import { TenantOnboardingRequirementsChangedError } from '@shared/rpc-contracts/app-rpcs/onboarding.errors';
@@ -7,6 +8,7 @@ import {
 } from '@tanstack/angular-query-experimental';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { APP_RPC_CLIENT } from '../effect-rpc-angular-client';
 import {
   CreateAccountComponent,
   CreateAccountOperations,
@@ -15,6 +17,7 @@ import {
 const loadAuthData = vi.fn();
 const loadRequirements = vi.fn();
 const completeOnboarding = vi.fn();
+const navigateAfterOnboarding = vi.fn();
 
 const onboardingRequirements = (
   questions: readonly {
@@ -41,6 +44,27 @@ const onboardingRequirements = (
 
 const normalizeText = (fixture: ComponentFixture<CreateAccountComponent>) =>
   fixture.nativeElement.textContent.replaceAll(/\s+/g, ' ').trim();
+
+describe('CreateAccountOperations completion navigation', () => {
+  afterEach(() => {
+    TestBed.resetTestingModule();
+  });
+
+  it('loads the profile through the injected document after onboarding', () => {
+    const assign = vi.fn<Location['assign']>();
+    TestBed.configureTestingModule({
+      providers: [
+        CreateAccountOperations,
+        { provide: APP_RPC_CLIENT, useValue: {} },
+        { provide: DOCUMENT, useValue: { location: { assign } } },
+      ],
+    });
+
+    TestBed.inject(CreateAccountOperations).navigateAfterCompletion();
+
+    expect(assign).toHaveBeenCalledExactlyOnceWith('/profile');
+  });
+});
 
 describe('CreateAccountComponent load recovery', () => {
   let queryClient: QueryClient;
@@ -70,15 +94,11 @@ describe('CreateAccountComponent load recovery', () => {
               mutationFn: completeOnboarding,
               mutationKey: ['complete-onboarding'],
             }),
-            maybeSelfFilter: () => ({ queryKey: ['maybe-self'] }),
+            navigateAfterCompletion: navigateAfterOnboarding,
             onboardingRequirements: () => ({
               queryFn: loadRequirements,
               queryKey: ['onboarding-requirements'],
             }),
-            onboardingStatusFilter: () => ({
-              queryKey: ['onboarding-status'],
-            }),
-            selfFilter: () => ({ queryKey: ['self'] }),
           },
         },
         {
@@ -289,6 +309,48 @@ describe('CreateAccountComponent load recovery', () => {
       fixture.nativeElement.querySelector('[data-question-id="question-1"]');
     expect(retainedAnswer?.value).toBe('Keep my answer');
     expect(loadRequirements).toHaveBeenCalledOnce();
+  });
+
+  it('performs a full navigation after onboarding refreshes server-derived permissions', async () => {
+    loadRequirements.mockResolvedValue(onboardingRequirements());
+    loadAuthData.mockResolvedValue({
+      email: 'alex@example.org',
+      email_verified: true,
+      family_name: 'Morgan',
+      given_name: 'Alex',
+    });
+    completeOnboarding.mockResolvedValue(undefined);
+
+    const fixture = TestBed.createComponent(CreateAccountComponent);
+    fixture.detectChanges();
+
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(
+        fixture.nativeElement.querySelector(
+          '[data-testid="communication-email"]',
+        ),
+      ).not.toBeNull();
+    });
+
+    const privacyCheckbox: HTMLInputElement | null =
+      fixture.nativeElement.querySelector('input[type="checkbox"]');
+    const form: HTMLFormElement | null =
+      fixture.nativeElement.querySelector('form');
+    expect(privacyCheckbox).not.toBeNull();
+    expect(form).not.toBeNull();
+
+    if (!privacyCheckbox || !form) return;
+    privacyCheckbox.click();
+    fixture.detectChanges();
+    form.dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true }),
+    );
+
+    await vi.waitFor(() => {
+      expect(completeOnboarding).toHaveBeenCalledOnce();
+      expect(navigateAfterOnboarding).toHaveBeenCalledOnce();
+    });
   });
 
   it('reloads changed requirements and merges matching answers by question id', async () => {

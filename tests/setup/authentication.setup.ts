@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { expect } from '@playwright/test';
 
 import { usersToAuthenticate } from '../../helpers/user-data';
 import { test as setup } from '../support/fixtures/base-test';
@@ -41,52 +42,67 @@ const waitForRuntime = async (
 };
 
 for (const userData of usersToAuthenticate) {
-  setup(`authenticate ${userData.email}`, async ({ page }) => {
-    const runtime = await waitForRuntime();
+  setup(
+    `authenticate ${userData.email}`,
+    async ({ requirePlatformAdministratorClaim, page }) => {
+      const runtime = await waitForRuntime();
 
-    if (runtime.tenantDomain) {
-      await page.context().addCookies([
-        {
-          domain: 'localhost',
-          expires: -1,
-          name: 'evorto-tenant',
-          path: '/',
-          value: runtime.tenantDomain,
-        },
-      ]);
-    }
-
-    await page.goto('/login', { waitUntil: 'domcontentloaded' });
-    await page
-      .locator('input[name="username"], input[type="email"]')
-      .fill(userData.email);
-    await fillProtectedValue(
-      page.locator('input[name="password"], input[type="password"]'),
-      userData.passwordVariable,
-    );
-    await page.getByRole('button', { exact: true, name: 'Continue' }).click();
-
-    const eventsPathPattern = /\/events(\?.*)?$/;
-    const acceptConsentButton = page.getByRole('button', { name: 'Accept' });
-    const reachedEventsWithoutConsent = await page
-      .waitForURL(eventsPathPattern, { timeout: loginRedirectTimeoutMs })
-      .then(() => true)
-      .catch(() => false);
-
-    if (!reachedEventsWithoutConsent) {
-      const consentVisible = await acceptConsentButton
-        .waitFor({ state: 'visible', timeout: 5000 })
-        .then(() => true)
-        .catch(() => false);
-      if (consentVisible) {
-        await acceptConsentButton.click();
+      if (runtime.tenantDomain) {
+        await page.context().addCookies([
+          {
+            domain: 'localhost',
+            expires: -1,
+            name: 'evorto-tenant',
+            path: '/',
+            value: runtime.tenantDomain,
+          },
+        ]);
       }
 
-      await page.waitForURL(eventsPathPattern, {
-        timeout: loginRedirectTimeoutMs,
-      });
-    }
+      if (userData.platformAdministrator) {
+        await requirePlatformAdministratorClaim(userData.authId);
+      }
 
-    await page.context().storageState({ path: userData.stateFile });
-  });
+      await page.goto('/login', { waitUntil: 'domcontentloaded' });
+      await page
+        .locator('input[name="username"], input[type="email"]')
+        .fill(userData.email);
+      await fillProtectedValue(
+        page.locator('input[name="password"], input[type="password"]'),
+        userData.passwordVariable,
+      );
+      await page.getByRole('button', { exact: true, name: 'Continue' }).click();
+
+      const eventsPathPattern = /\/events(\?.*)?$/;
+      const acceptConsentButton = page.getByRole('button', { name: 'Accept' });
+      const reachedEventsWithoutConsent = await page
+        .waitForURL(eventsPathPattern, { timeout: loginRedirectTimeoutMs })
+        .then(() => true)
+        .catch(() => false);
+
+      if (!reachedEventsWithoutConsent) {
+        const consentVisible = await acceptConsentButton
+          .waitFor({ state: 'visible', timeout: 5000 })
+          .then(() => true)
+          .catch(() => false);
+        if (consentVisible) {
+          await acceptConsentButton.click();
+        }
+
+        await page.waitForURL(eventsPathPattern, {
+          timeout: loginRedirectTimeoutMs,
+        });
+      }
+
+      if (userData.platformAdministrator) {
+        await page.goto('/global-admin/tenants');
+        await expect(page).toHaveURL(/\/global-admin\/tenants$/);
+        await expect(
+          page.getByRole('heading', { level: 1, name: 'Organizations' }),
+        ).toBeVisible();
+      }
+
+      await page.context().storageState({ path: userData.stateFile });
+    },
+  );
 }

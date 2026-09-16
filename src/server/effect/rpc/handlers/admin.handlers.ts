@@ -433,7 +433,7 @@ export const adminHandlers = {
     }),
   'admin.roles.findHubRoles': (_payload, options) =>
     Effect.gen(function* () {
-      yield* ensureAuthenticated(options.headers);
+      yield* ensurePermission(options.headers, 'internal:viewInternalPages');
       const tenant = decodeHeaderJson(
         options.headers[RPC_CONTEXT_HEADERS.TENANT],
         Tenant,

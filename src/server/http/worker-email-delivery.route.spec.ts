@@ -85,6 +85,7 @@ describe('worker email delivery route', () => {
           ConfigProvider.layer(
             ConfigProvider.fromEnv({
               env: {
+                APP_ENVIRONMENT: 'local',
                 APP_ROLE: 'worker',
                 WORKER_TRIGGER_MODE: 'http',
               },

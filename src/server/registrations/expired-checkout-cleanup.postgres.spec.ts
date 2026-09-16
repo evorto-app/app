@@ -80,7 +80,10 @@ const makeId = (prefix: string, suffix: string): string =>
 const makeDatabaseServiceLayer = (url: string) => {
   const configLayer = ConfigProvider.layer(
     ConfigProvider.fromEnv({
-      env: Object.fromEntries([['DATABASE_URL', url]]),
+      env: Object.fromEntries([
+        ['DATABASE_TLS_REQUIRED', 'false'],
+        ['DATABASE_URL', url],
+      ]),
     }),
   );
   return databaseLayer.pipe(Layer.provide(configLayer));

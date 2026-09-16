@@ -53,6 +53,7 @@ export const usersToAuthenticate = [
     email: 'testuser1@evorto.app',
     id: 'e24014d5fac33d92e11b',
     passwordVariable: 'E2E_DEFAULT_USER_PASSWORD',
+    platformAdministrator: false,
     roles: 'all' as const,
     stateFile: defaultStateFile,
   },
@@ -63,6 +64,7 @@ export const usersToAuthenticate = [
     email: 'admin@evorto.app',
     id: '76574ab75657293de6d3',
     passwordVariable: 'E2E_ADMIN_USER_PASSWORD',
+    platformAdministrator: false,
     roles: 'admin' as const,
     stateFile: adminStateFile,
   },
@@ -73,6 +75,7 @@ export const usersToAuthenticate = [
     email: 'global-admin@evorto.app',
     id: 'e1ba85116cb02927cc5e',
     passwordVariable: 'E2E_GLOBAL_ADMIN_USER_PASSWORD',
+    platformAdministrator: true,
     roles: 'none' as const,
     stateFile: gaStateFile,
   },
@@ -83,6 +86,7 @@ export const usersToAuthenticate = [
     email: 'user@evorto.app',
     id: '334967d7626fbd6ad449',
     passwordVariable: 'E2E_REGULAR_USER_PASSWORD',
+    platformAdministrator: false,
     roles: 'user' as const,
     stateFile: userStateFile,
   },
@@ -93,6 +97,7 @@ export const usersToAuthenticate = [
     email: 'organizer@evorto.app',
     id: 'ef7d925a3b3d9a50831a',
     passwordVariable: 'E2E_ORGANIZER_USER_PASSWORD',
+    platformAdministrator: false,
     roles: 'organizer' as const,
     stateFile: organizerStateFile,
   },
@@ -103,6 +108,7 @@ export const usersToAuthenticate = [
     email: 'testuser2@evorto.app',
     id: '93d8637ad0a1ef21b1ba',
     passwordVariable: 'E2E_EMPTY_USER_PASSWORD',
+    platformAdministrator: false,
     roles: 'none' as const,
     stateFile: emptyStateFile,
   },
@@ -113,6 +119,7 @@ export const usersToAuthenticate = [
   readonly email: string;
   readonly id: string;
   readonly passwordVariable: E2ETestUserPasswordVariable;
+  readonly platformAdministrator: boolean;
   readonly roles: 'admin' | 'all' | 'none' | 'organizer' | 'user';
   readonly stateFile: string;
 }[];

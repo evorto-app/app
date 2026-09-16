@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from '@effect/vitest';
-import { Effect, Layer } from 'effect';
+import { Cause, Effect, Exit, Layer } from 'effect';
 
 import { Database } from '../../db';
 import {
@@ -26,7 +26,7 @@ const createTenant = (domain: string) => ({
 
 const createPreparedDatabase = ({
   attributesExecute = vi.fn(() => Effect.succeed([])),
-  tenantExecute = vi.fn(() => Effect.succeed()),
+  tenantExecute = vi.fn(() => Effect.succeed(undefined)),
   userExecute,
 }: {
   attributesExecute?: ReturnType<typeof vi.fn>;
@@ -44,7 +44,7 @@ const createPreparedDatabase = ({
     users: {
       findFirst: () => ({
         prepare: () => ({
-          execute: userExecute ?? vi.fn(() => Effect.succeed()),
+          execute: userExecute ?? vi.fn(() => Effect.succeed(undefined)),
         }),
       }),
     },
@@ -150,7 +150,7 @@ describe('request-context-resolver', () => {
 
   it.effect('fails closed for an unknown non-local host', () =>
     Effect.gen(function* () {
-      const tenantExecute = vi.fn(() => Effect.succeed());
+      const tenantExecute = vi.fn(() => Effect.succeed(undefined));
       const database = createPreparedDatabase({ tenantExecute });
 
       const result = yield* resolveTenantContext({
@@ -179,18 +179,19 @@ describe('request-context-resolver', () => {
     const oidcUser = {
       email: 'platform@example.org',
       'evorto.app/app_metadata': {
-        globalAdmin: true,
+        platformAdministrator: true,
       },
       sub: 'auth0|platform-admin',
     };
+    const platformAuthority = resolvePlatformAuthority(oidcUser);
 
     expect(
       resolveRequestPermissions({
-        oidcUser,
+        platformAuthority,
         user: undefined,
       }),
     ).toEqual(['globalAdmin:manageTenants']);
-    expect(resolvePlatformAuthority(oidcUser)).toEqual(
+    expect(platformAuthority).toEqual(
       expect.objectContaining({
         actorEmail: 'platform@example.org',
         actorId: 'auth0|platform-admin',
@@ -199,59 +200,70 @@ describe('request-context-resolver', () => {
     );
   });
 
-  it('resolves local e2e global-admin permissions from configured Auth0 ids', () => {
-    vi.stubEnv('NODE_ENV', 'test');
-    vi.stubEnv(
-      'E2E_GLOBAL_ADMIN_AUTH0_IDS',
-      ' auth0|global-admin , auth0|other ',
-    );
-    try {
-      expect(
-        resolveRequestPermissions({
-          oidcUser: {
-            sub: 'auth0|global-admin',
-          },
-          user: undefined,
-        }),
-      ).toContain('globalAdmin:manageTenants');
-    } finally {
-      vi.unstubAllEnvs();
-    }
+  it('does not accept the removed globalAdmin metadata alias', () => {
+    expect(
+      resolvePlatformAuthority({
+        'evorto.app/app_metadata': {
+          globalAdmin: true,
+        },
+        sub: 'auth0|legacy-platform-admin',
+      }),
+    ).toBeUndefined();
   });
 
-  it('does not resolve e2e global-admin permissions in production', () => {
-    vi.stubEnv('NODE_ENV', 'production');
-    vi.stubEnv('E2E_GLOBAL_ADMIN_AUTH0_IDS', 'auth0|global-admin');
-    try {
+  it.each(['https://evorto.app/app_metadata', 'app_metadata'])(
+    'rejects the retired %s platform metadata claim',
+    (claim) => {
       expect(
-        resolveRequestPermissions({
-          oidcUser: {
-            sub: 'auth0|global-admin',
+        resolvePlatformAuthority({
+          [claim]: {
+            platformAdministrator: true,
           },
-          user: undefined,
+          sub: 'auth0|legacy-platform-admin',
         }),
-      ).not.toContain('globalAdmin:manageTenants');
-    } finally {
-      vi.unstubAllEnvs();
-    }
+      ).toBeUndefined();
+    },
+  );
+
+  it('does not grant platform authority from identity alone', () => {
+    const platformAuthority = resolvePlatformAuthority({
+      sub: 'auth0|global-admin',
+    });
+
+    expect(platformAuthority).toBeUndefined();
+    expect(
+      resolveRequestPermissions({
+        platformAuthority,
+        user: undefined,
+      }),
+    ).not.toContain('globalAdmin:manageTenants');
   });
 
-  it('does not resolve e2e global-admin permissions when NODE_ENV is unset', () => {
-    vi.stubEnv('NODE_ENV');
-    vi.stubEnv('E2E_GLOBAL_ADMIN_AUTH0_IDS', 'auth0|global-admin');
-    try {
-      expect(
-        resolveRequestPermissions({
-          oidcUser: {
-            sub: 'auth0|global-admin',
-          },
-          user: undefined,
-        }),
-      ).not.toContain('globalAdmin:manageTenants');
-    } finally {
-      vi.unstubAllEnvs();
-    }
-  });
+  it.effect(
+    'fails an authenticated request context without a user subject',
+    () =>
+      Effect.gen(function* () {
+        const database = createPreparedDatabase({
+          userExecute: vi.fn(() => Effect.succeed(undefined)),
+        });
+
+        const exit = yield* resolveUserContext({
+          isAuthenticated: true,
+          oidcUser: {},
+          tenantId: 'tenant-1',
+        }).pipe(
+          Effect.provide(Layer.succeed(Database, database as never)),
+          Effect.exit,
+        );
+
+        expect(Exit.isFailure(exit)).toBe(true);
+        if (Exit.isFailure(exit)) {
+          expect(String(Cause.squash(exit.cause))).toContain(
+            'Authenticated request context is missing its Auth0 user subject',
+          );
+        }
+      }),
+  );
 
   it.effect('does not resolve a tenant user without a tenant assignment', () =>
     Effect.gen(function* () {
@@ -376,7 +388,7 @@ describe('request-context-resolver', () => {
         expect(user?.roleIds).toEqual(['role-mixed']);
         expect(
           resolveRequestPermissions({
-            oidcUser: { sub: 'auth0|tenant-user' },
+            platformAuthority: undefined,
             user,
           }),
         ).not.toContain('globalAdmin:manageTenants');
@@ -384,19 +396,20 @@ describe('request-context-resolver', () => {
   );
 
   it('retains platform-global authority for genuine platform principals', () => {
-    const permissions = resolveRequestPermissions({
-      oidcUser: {
-        'evorto.app/app_metadata': {
-          globalAdmin: true,
-        },
-        sub: 'auth0|platform-admin',
+    const platformAuthority = resolvePlatformAuthority({
+      'evorto.app/app_metadata': {
+        platformAdministrator: true,
       },
+      sub: 'auth0|platform-admin',
+    });
+    const permissions = resolveRequestPermissions({
+      platformAuthority,
       user: {
-        permissions: ['events:viewPublic'],
+        permissions: ['events:create'],
       },
     });
 
-    expect(permissions).toContain('events:viewPublic');
+    expect(permissions).toContain('events:create');
     expect(permissions).toContain('globalAdmin:manageTenants');
   });
 });

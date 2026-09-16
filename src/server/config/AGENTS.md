@@ -8,7 +8,48 @@
 - `.env.dev.local` is the tracked shared default dev config file; `.env` is the untracked developer-secrets file.
 - The Effect provider consumes the resolved process environment first. When called directly, its local file fallback remains `.env.dev.local`, `.env.dev`, then `.env`, followed by schema defaults. That fallback is not a substitute for the invocation environment when launching local commands.
 - `.env.local`, `.env.runtime`, and `.env.ci` are unsupported in this repo and should not be created or referenced.
+- Preserve explicit empty strings in both Effect process and dotenv providers. Field parsers decide whether blank is invalid or optional; an empty higher-priority value must not silently select a lower-priority value. Omit an optional CA setting instead of assigning an empty certificate.
 - In CI and other cloud environments, do not rely on tracked or generated dotenv artifacts. Use explicit environment variables provided by GitHub Actions `env`, `vars`, and `secrets`.
+
+## Explicit Runtime and Transport Settings
+
+- Require `APP_ENVIRONMENT`, `APP_ROLE`, `WORKER_TRIGGER_MODE`, and
+  `DATABASE_TLS_REQUIRED`; local environment generation supplies their local values.
+- Auth0 issuer origins must use HTTPS on its default port. Only `BASE_URL` may
+  use HTTP for local loopback development. Validate the raw origin shape before
+  accepting URL normalization: allow only the authority and an optional trailing
+  slash, with no paths, dot segments, query/fragment markers, backslashes,
+  credentials, empty explicit ports, or internal whitespace. Surrounding whitespace
+  is trimmed.
+- Without a CA, shared PostgreSQL constructors retain the driver's raw absolute Unix socket path syntax, including its optional database suffix. Supplying a CA still requires a PostgreSQL URL with a host for verified TLS identity; a raw socket path cannot bypass that validation.
+- A provided database CA certificate must be nonblank even when
+  `DATABASE_TLS_REQUIRED=false`; preserve its PEM bytes. Shared PostgreSQL
+  constructors and raw ops entrypoints enforce this before creating a pool.
+  When configuring a CA, keep SSL settings out of `DATABASE_URL` so they cannot
+  override certificate and server-name verification in the PostgreSQL driver.
+- Managed schema operations also use a supplied CA when TLS is optional. Explicit
+  bracketed IPv6 TLS identities are unwrapped for IP-SAN checks and omitted from
+  SNI. Only one complete pair around a valid IPv6 address may be unwrapped;
+  malformed brackets and bracketed DNS identities fail configuration validation.
+  IPv6 connection hosts and certificate identities use the same normalized
+  effective host in both PostgreSQL clients.
+- Normalize the optional TLS server name before both certificate identity and
+  SNI: trim surrounding whitespace, and treat a blank value as absent so the
+  effective connection host is verified. Managed Drizzle and the shared pool
+  constructors used by prerequisites and reset enforce the same policy as the
+  application config. Preserve CA certificate bytes.
+- With a CA, managed Drizzle URLs support only `host`, `port`, `user`, and
+  `password` query options. Match the pinned PostgreSQL parser: the final value
+  wins, and an empty final value uses the authority value. Decode the database
+  pathname like that parser; `database` is not a query override. Reject other
+  query options explicitly, including session options, rather than silently
+  dropping settings such as `options=-c search_path=...`. This tightens the
+  managed URL contract; move necessary session configuration to an explicit
+  database-role policy before running schema operations.
+- Managed schema credentials require a host, user, password, and database in the
+  URL. The effective port must be an integer from 1 through 65535 and defaults
+  to 5432. These values never fall back to ambient `PG*` variables. Without a CA,
+  optional-TLS Drizzle commands retain their existing driver URL configuration.
 
 ## Effect Config Shape
 
@@ -120,3 +161,9 @@ fallback alone does not satisfy this requirement. Both startup/request validatio
 and the child command share `isDatabaseRuntimeRoleName`; surrounding whitespace
 is invalid.
 Web, worker, initial bootstrap, and local seed commands do not require this setting.
+
+## Sign-in Callback Recovery
+
+A stale or replayed callback with the SDK's `MissingTransactionError` receives
+an explicit non-cacheable 400 response. Handle this only at the callback boundary;
+unknown SDK failures and errors merely named like an expected error remain defects.

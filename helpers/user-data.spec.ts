@@ -35,6 +35,17 @@ describe('authenticated E2E user credentials', () => {
     );
   });
 
+  it('uses an explicit platform fixture without tenant roles', () => {
+    expect(
+      usersToAuthenticate.filter((user) => user.platformAdministrator),
+    ).toEqual([
+      expect.objectContaining({
+        passwordVariable: 'E2E_GLOBAL_ADMIN_USER_PASSWORD',
+        roles: 'none',
+      }),
+    ]);
+  });
+
   it('preserves significant leading and trailing password characters', () => {
     expect(
       readRequiredE2ETestUserPassword('E2E_DEFAULT_USER_PASSWORD', {

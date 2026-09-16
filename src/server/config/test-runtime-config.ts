@@ -328,16 +328,32 @@ const validateIntegrationEnvironment = (
 
   const errors = collectMissingFieldErrors([
     [
+      'PUBLIC_GOOGLE_MAPS_API_KEY',
+      Option.isSome(state.PUBLIC_GOOGLE_MAPS_API_KEY),
+    ],
+  ]);
+
+  return errors.length > 0
+    ? Effect.fail(combineMissingDataErrors(errors))
+    : Effect.void;
+};
+
+const validatePlatformAdministratorFixtureEnvironment = (
+  state: TestRuntimeConfigState,
+  argv: readonly string[] = process.argv,
+) => {
+  if (isPlaywrightListOnly(argv)) {
+    return Effect.void;
+  }
+
+  const errors = collectMissingFieldErrors([
+    [
       'AUTH0_MANAGEMENT_CLIENT_ID',
       Option.isSome(state.AUTH0_MANAGEMENT_CLIENT_ID),
     ],
     [
       'AUTH0_MANAGEMENT_CLIENT_SECRET',
       Option.isSome(state.AUTH0_MANAGEMENT_CLIENT_SECRET),
-    ],
-    [
-      'PUBLIC_GOOGLE_MAPS_API_KEY',
-      Option.isSome(state.PUBLIC_GOOGLE_MAPS_API_KEY),
     ],
   ]);
 
@@ -352,6 +368,7 @@ export const makePlaywrightEnvironmentConfig = (
   Effect.gen(function* () {
     const state = yield* testRuntimeConfigState;
     yield* validateCiEnvironment(state, argv);
+    yield* validatePlatformAdministratorFixtureEnvironment(state, argv);
     yield* validateIntegrationEnvironment(state, argv);
     const listOnly = isPlaywrightListOnly(argv);
 
