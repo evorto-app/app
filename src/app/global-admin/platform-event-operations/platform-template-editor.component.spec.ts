@@ -466,7 +466,7 @@ describe('PlatformTemplateEditorComponent recovery', () => {
       ]),
     );
     await submitTemplate(fixture);
-    expect(savedTemplate).not.toHaveBeenCalled();
+    expect(updateTemplate).not.toHaveBeenCalled();
     expect(
       root.querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled,
     ).toBe(true);
@@ -486,8 +486,8 @@ describe('PlatformTemplateEditorComponent recovery', () => {
     });
     expect(field().value()).toEqual(['role-1']);
     await submitTemplate(fixture);
-    expect(savedTemplate).toHaveBeenCalledOnce();
-    expect(savedTemplate.mock.calls[0]).toEqual(
+    expect(updateTemplate).toHaveBeenCalledOnce();
+    expect(updateTemplate.mock.calls[0]).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           registrationOptions: expect.arrayContaining([
@@ -523,7 +523,7 @@ describe('PlatformTemplateEditorComponent recovery', () => {
     await roles.close();
     expect(field().value()).toEqual(['role-1']);
     await submitTemplate(fixture);
-    expect(savedTemplate).not.toHaveBeenCalled();
+    expect(updateTemplate).not.toHaveBeenCalled();
     expect(
       root.querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled,
     ).toBe(true);
