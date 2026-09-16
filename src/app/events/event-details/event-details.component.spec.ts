@@ -1642,6 +1642,7 @@ describe('EventDetailsComponent review action outcomes', () => {
                 { input: { id }, type: 'query' },
               ],
               retry: false,
+              staleTime: 30_000,
             }),
           } satisfies Pick<RoleSelectQueries, 'search' | 'selected'>,
         },
