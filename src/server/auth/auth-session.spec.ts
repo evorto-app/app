@@ -357,6 +357,7 @@ const callbackRuntimeConfig = RuntimeConfig.make.pipe(
         DATABASE_TLS_REQUIRED: 'false',
         DATABASE_URL: 'postgresql://fixture:fixture@127.0.0.1:1/unused',
         ISSUER_BASE_URL: 'https://issuer.example',
+        PUBLIC_GOOGLE_MAPS_API_KEY: 'fixture-maps-key',
         SECRET: 's'.repeat(32),
         WORKER_TRIGGER_MODE: 'http',
       },
