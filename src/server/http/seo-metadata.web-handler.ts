@@ -1,5 +1,8 @@
 import type { HttpServerRequest } from 'effect/unstable/http/HttpServerRequest';
 
+import { Effect } from 'effect';
+import { HttpRouter, HttpServerResponse } from 'effect/unstable/http';
+
 import { resolveRequestOrigin } from '../auth/auth-session';
 
 export const createRobotsWebResponse = (
@@ -52,3 +55,18 @@ export const createSitemapWebResponse = (
     },
   );
 };
+
+export const seoMetadataRouteLayer = HttpRouter.addAll(
+  (['GET', 'HEAD'] as const).flatMap((method) => [
+    HttpRouter.route(method, '/robots.txt', (request) =>
+      Effect.sync(() =>
+        HttpServerResponse.fromWeb(createRobotsWebResponse(request)),
+      ),
+    ),
+    HttpRouter.route(method, '/sitemap.xml', (request) =>
+      Effect.sync(() =>
+        HttpServerResponse.fromWeb(createSitemapWebResponse(request)),
+      ),
+    ),
+  ]),
+);

@@ -39,6 +39,86 @@ describe('local tenant request routing', () => {
     });
   });
 
+  it('preserves complete credentials when provisional headers omit them', async () => {
+    const installed: { handler?: Parameters<BrowserContext['route']>[1] } = {};
+    const context = {
+      close: async () => {},
+      grantPermissions: async () => {},
+      isClosed: () => false,
+      route: async (
+        _pattern: string,
+        handler: Parameters<BrowserContext['route']>[1],
+      ) => {
+        installed.handler = handler;
+        return registerRoute();
+      },
+      unroute: async () => {},
+    };
+    const unexpected = (): never => {
+      throw new Error('Unexpected request operation');
+    };
+    const request: Request = {
+      allHeaders: async () => ({
+        accept: 'application/json',
+        authorization: 'Bearer synthetic-authority',
+        cookie: 'synthetic-session=selected',
+      }),
+      existingResponse: unexpected,
+      failure: unexpected,
+      frame: unexpected,
+      headers: vi.fn(() => ({ accept: 'application/json' })),
+      headersArray: unexpected,
+      headerValue: unexpected,
+      isNavigationRequest: unexpected,
+      method: unexpected,
+      postData: unexpected,
+      postDataBuffer: unexpected,
+      postDataJSON: unexpected,
+      redirectedFrom: unexpected,
+      redirectedTo: unexpected,
+      resourceType: unexpected,
+      response: unexpected,
+      serviceWorker: unexpected,
+      sizes: unexpected,
+      timing: unexpected,
+      url: unexpected,
+    };
+    const fetchFailure = new Error(
+      'Synthetic fetch terminates after header observation',
+    );
+    const fetch = vi.fn(async () => {
+      throw fetchFailure;
+    });
+    const route: Route = {
+      abort: async () => {},
+      continue: unexpected,
+      fallback: unexpected,
+      fetch,
+      fulfill: unexpected,
+      request: () => request,
+    };
+    await routeLocalTenantRequests({
+      baseUrl: 'http://localhost:4200',
+      context,
+      tenantDomain: 'north-river.evorto.app',
+    });
+    const handler = installed.handler;
+    if (!handler) throw new Error('Tenant route was not installed');
+    await handler(route, request);
+    expect(fetch).toHaveBeenCalledExactlyOnceWith({
+      headers: {
+        accept: 'application/json',
+        authorization: 'Bearer synthetic-authority',
+        cookie: 'synthetic-session=selected',
+        connection: 'close',
+        [localTestTenantDomainHeader]: 'north-river.evorto.app',
+      },
+      maxRedirects: 0,
+    });
+    expect(request.headers).not.toHaveBeenCalled();
+    await expect(stopTenantRequestRouting(context)).rejects.toBe(fetchFailure);
+  });
+
   it('removes only its registered handler and permits repeated cleanup', async () => {
     const context = {
       close: async () => {},
@@ -126,6 +206,40 @@ describe('local tenant request routing', () => {
     await expect(closeTenantRequestContext(context)).rejects.toMatchObject({
       errors: [routeFailure, closeFailure],
     });
+  });
+
+  it('retains routing ownership after unroute fails until context closure is proven', async () => {
+    const failure = new Error(
+      'route removal failed while context remains open',
+    );
+    let closed = false;
+    const context = {
+      close: async () => {
+        closed = true;
+      },
+      grantPermissions: async () => {},
+      isClosed: () => closed,
+      route: vi.fn(registerRoute),
+      unroute: vi.fn(async () => {
+        throw failure;
+      }),
+    };
+    const install = () =>
+      routeLocalTenantRequests({
+        baseUrl: 'http://localhost:4200',
+        context,
+        tenantDomain: 'north-river.evorto.app',
+      });
+    await install();
+    await expect(stopTenantRequestRouting(context)).rejects.toBe(failure);
+    await expect(install()).rejects.toThrow('already installed');
+    await expect(stopTenantRequestRouting(context)).rejects.toBe(failure);
+    expect(context.unroute).toHaveBeenCalledOnce();
+    expect(context.route).toHaveBeenCalledOnce();
+    await context.close();
+    await expect(stopTenantRequestRouting(context)).rejects.toBe(failure);
+    await expect(stopTenantRequestRouting(context)).resolves.toBeUndefined();
+    expect(context.unroute).toHaveBeenCalledOnce();
   });
 
   it('closes a context whose routing setup never ran', async () => {
@@ -548,11 +662,11 @@ describe('owned tenant context lifetime', () => {
         );
       };
       const request: Request = {
-        allHeaders: unexpected,
+        allHeaders: async () => ({}),
         existingResponse: unexpected,
         failure: unexpected,
         frame: unexpected,
-        headers: () => ({}),
+        headers: unexpected,
         headersArray: unexpected,
         headerValue: unexpected,
         isNavigationRequest: unexpected,
@@ -660,11 +774,11 @@ it('joins a pending emergency close before proving closure after page cleanup fa
     throw new Error('Unexpected request operation in pending-close regression');
   };
   const request: Request = {
-    allHeaders: unexpected,
+    allHeaders: async () => ({}),
     existingResponse: unexpected,
     failure: unexpected,
     frame: unexpected,
-    headers: () => ({}),
+    headers: unexpected,
     headersArray: unexpected,
     headerValue: unexpected,
     isNavigationRequest: unexpected,

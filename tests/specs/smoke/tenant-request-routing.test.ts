@@ -931,3 +931,105 @@ test('inherits project connection-close headers in browser and API request conte
     );
   }
 });
+
+test('preserves the browser-selected cookie and authorization when the cookie jar changes', async ({
+  browser,
+}) => {
+  const received: {
+    authorization: string | undefined;
+    cookie: string | undefined;
+    tenant: string | undefined;
+  }[] = [];
+  const local = await listen((request, response) => {
+    if (request.url === '/selected-headers') {
+      received.push({
+        authorization: request.headers.authorization,
+        cookie: request.headers.cookie,
+        tenant:
+          typeof request.headers[localTestTenantDomainHeader] === 'string'
+            ? request.headers[localTestTenantDomainHeader]
+            : undefined,
+      });
+      response.setHeader('content-type', 'application/json');
+      response.end(JSON.stringify({ received: true }));
+      return;
+    }
+    response.setHeader('content-type', 'text/html');
+    response.end('<body>Synthetic header routing regression</body>');
+  });
+  let context: BrowserContext | undefined;
+  const errors: unknown[] = [];
+  try {
+    const cookie = {
+      domain: '127.0.0.1',
+      expires: -1,
+      httpOnly: true,
+      name: 'synthetic-session',
+      path: '/',
+      sameSite: 'Lax' as const,
+      secure: false,
+      value: 'browser-selected-value',
+    };
+    context = await browser.newContext({
+      storageState: { cookies: [cookie], origins: [] },
+    });
+    const ownedContext = context;
+    await routeLocalTenantRequests({
+      baseUrl: local.origin,
+      context,
+      tenantDomain: 'north-river.evorto.app',
+    });
+    await context.route(`${local.origin}/selected-headers`, async (route) => {
+      const selected = await route.request().allHeaders();
+      expect(selected['cookie']).toBe(
+        'synthetic-session=browser-selected-value',
+      );
+      expect(selected['authorization']).toBe(
+        'Bearer synthetic-request-authority',
+      );
+      // Hold the intercepted request while changing the context cookie jar.
+      // A fetch rebuilt from the jar would send a different session selection.
+      await ownedContext.addCookies([
+        { ...cookie, value: 'later-cookie-jar-value' },
+      ]);
+      await route.fallback();
+    });
+    const page = await context.newPage();
+    await page.goto(local.origin);
+    const result = await page.evaluate(async () => {
+      const response = await fetch('/selected-headers', {
+        headers: { authorization: 'Bearer synthetic-request-authority' },
+      });
+      return response.json();
+    });
+    expect(result).toEqual({ received: true });
+    expect(received).toEqual([
+      {
+        authorization: 'Bearer synthetic-request-authority',
+        cookie: 'synthetic-session=browser-selected-value',
+        tenant: 'north-river.evorto.app',
+      },
+    ]);
+  } catch (error) {
+    errors.push(error);
+  } finally {
+    try {
+      if (context) await closeTenantRequestContext(context);
+    } catch (error) {
+      errors.push(error);
+    }
+    try {
+      await local.close();
+    } catch (error) {
+      errors.push(error);
+    }
+  }
+  if (errors.length === 1) throw errors[0];
+  if (errors.length > 1) {
+    throw new AggregateError(
+      errors,
+      'Browser header preservation and cleanup failed',
+      { cause: errors[0] },
+    );
+  }
+});

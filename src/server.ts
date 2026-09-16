@@ -83,10 +83,7 @@ import {
 } from './server/http/request-boundary';
 import { runRpcIngressPolicy } from './server/http/rpc-ingress-policy';
 import { applySecurityHeaders } from './server/http/security-headers';
-import {
-  createRobotsWebResponse,
-  createSitemapWebResponse,
-} from './server/http/seo-metadata.web-handler';
+import { seoMetadataRouteLayer } from './server/http/seo-metadata.web-handler';
 import { makeServerResponseMiddleware } from './server/http/server-response.middleware';
 import {
   handleStripeWebhookWebRequest,
@@ -383,21 +380,6 @@ const versionRouteLayer = HttpLayerRouter.add('GET', '/version', () =>
       }),
     );
   }).pipe(withoutServerTracing),
-);
-
-const robotsRouteLayer = HttpLayerRouter.add('GET', '/robots.txt', (request) =>
-  Effect.sync(() =>
-    HttpServerResponse.fromWeb(createRobotsWebResponse(request)),
-  ),
-);
-
-const sitemapRouteLayer = HttpLayerRouter.add(
-  'GET',
-  '/sitemap.xml',
-  (request) =>
-    Effect.sync(() =>
-      HttpServerResponse.fromWeb(createSitemapWebResponse(request)),
-    ),
 );
 
 const browserErrorTelemetryRouteLayer = HttpLayerRouter.add(
@@ -722,8 +704,7 @@ const webApplicationRoutesLayer = Layer.mergeAll(
   healthRouteLayer,
   applicationReadinessRouteLayer,
   versionRouteLayer,
-  robotsRouteLayer,
-  sitemapRouteLayer,
+  seoMetadataRouteLayer,
   browserErrorTelemetryRouteLayer,
   loginRouteLayer,
   callbackRouteLayer,

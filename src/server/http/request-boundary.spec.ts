@@ -222,6 +222,118 @@ describe('request boundary', () => {
       }),
   );
 
+  it.effect.each([
+    {
+      cancellationFails: false,
+      host: 'tenant..example.com',
+      name: 'an invalid Host',
+      target: '/rpc',
+    },
+    {
+      cancellationFails: false,
+      host: 'tenant.example.com',
+      name: 'a cross-origin request target',
+      target: '//attacker.example/rpc',
+    },
+    {
+      cancellationFails: true,
+      host: 'tenant..example.com',
+      name: 'an invalid Host when cancellation fails',
+      target: '/rpc',
+    },
+  ])(
+    'cancels the held-open body before rejecting $name',
+    ({ cancellationFails, host, target }) =>
+      Effect.gen(function* () {
+        let cancellations = 0;
+        const body = new ReadableStream<Uint8Array>({
+          cancel() {
+            cancellations++;
+            if (cancellationFails) throw new Error('Client disconnected');
+          },
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode('held-open'));
+          },
+        });
+        const requestInit = {
+          body,
+          duplex: 'half',
+          headers: { host },
+          method: 'POST',
+        } satisfies RequestInit & { duplex: 'half' };
+        const request = HttpServerRequest.fromWeb(
+          new Request('http://internal.example/rpc', requestInit),
+        ).modify({ url: target });
+
+        const response = yield* makeRequestBoundaryMiddleware({
+          transportProtocol: 'http',
+          trustPlatformProxy: false,
+        })(Effect.die(new Error('Invalid address reached downstream'))).pipe(
+          Effect.provideService(HttpServerRequest.HttpServerRequest, request),
+        );
+
+        expect(response.status).toBe(400);
+        expect(cancellations).toBe(1);
+        expect(response.headers['x-content-type-options']).toBe('nosniff');
+        expect(
+          yield* Effect.promise(() =>
+            HttpServerResponse.toWeb(response).text(),
+          ),
+        ).toBe(INVALID_REQUEST_ADDRESS_MESSAGE);
+      }),
+  );
+
+  it.effect.each(['GET', 'HEAD'])(
+    'cancels and omits a native %s body without waiting for its end',
+    (method) =>
+      Effect.gen(function* () {
+        let cancellations = 0;
+        const body = new ReadableStream<Uint8Array<ArrayBuffer>>({
+          cancel() {
+            cancellations++;
+          },
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode('held-open'));
+          },
+        });
+        // Bun's incoming Request can expose a body for GET/HEAD, although the
+        // standard Request constructor rejects creating one with those methods.
+        class BodyBearingRequest extends Request {
+          override get body() {
+            return body;
+          }
+        }
+        const request = HttpServerRequest.fromWeb(
+          new BodyBearingRequest('http://internal.example/events', {
+            headers: { host: 'tenant.example.com' },
+            method,
+          }),
+        );
+
+        const response = yield* makeRequestBoundaryMiddleware({
+          requestBodyLimit: (requestMethod, pathname) =>
+            requestMethod === 'POST' && pathname === '/rpc' ? 1024 : undefined,
+          transportProtocol: 'http',
+          trustPlatformProxy: false,
+        })(
+          Effect.gen(function* () {
+            const normalized = yield* HttpServerRequest.HttpServerRequest;
+            const webRequest = yield* HttpServerRequest.toWeb(normalized);
+            expect(cancellations).toBe(1);
+            expect(webRequest.method).toBe(method);
+            expect(webRequest.url).toBe('http://tenant.example.com/events');
+            expect(webRequest.body).toBeNull();
+            return HttpServerResponse.empty({ status: 204 });
+          }),
+        ).pipe(
+          Effect.provideService(HttpServerRequest.HttpServerRequest, request),
+        );
+
+        expect(response.status).toBe(204);
+        expect(cancellations).toBe(1);
+      }),
+  );
+
   it.effect('discards an unsupported body without waiting for its end', () =>
     Effect.gen(function* () {
       let cancelled = false;

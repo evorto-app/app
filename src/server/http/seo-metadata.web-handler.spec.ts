@@ -1,10 +1,16 @@
-import { HttpServerRequest } from 'effect/unstable/http';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from '@effect/vitest';
+import { Effect, Layer } from 'effect';
+import {
+  HttpRouter,
+  HttpServerRequest,
+  HttpServerResponse,
+} from 'effect/unstable/http';
 
 import { resolveRequestBoundary } from './request-boundary';
 import {
   createRobotsWebResponse,
   createSitemapWebResponse,
+  seoMetadataRouteLayer,
 } from './seo-metadata.web-handler';
 
 const normalizedRequest = (
@@ -86,3 +92,42 @@ describe('SEO metadata responses', () => {
     );
   });
 });
+
+it.effect.each(['/robots.txt', '/sitemap.xml'])(
+  'serves HEAD metadata even with the application catch-all: %s',
+  (path) =>
+    Effect.gen(function* () {
+      const handler = HttpRouter.toWebHandler(
+        Layer.mergeAll(
+          seoMetadataRouteLayer,
+          HttpRouter.add('*', '*', HttpServerResponse.empty({ status: 404 })),
+        ),
+        { disableLogger: true },
+      );
+      yield* Effect.addFinalizer(() => Effect.promise(handler.dispose));
+      const request = (method: string) =>
+        new Request(`https://tenant.example.test${path}`, {
+          headers: {
+            host: 'tenant.example.test',
+            'x-forwarded-proto': 'https',
+          },
+          method,
+        });
+      const get = yield* Effect.promise(() => handler.handler(request('GET')));
+      const head = yield* Effect.promise(() =>
+        handler.handler(request('HEAD')),
+      );
+      expect(get.status).toBe(200);
+      expect(head.status).toBe(get.status);
+      expect(head.headers.get('content-type')).toBe(
+        get.headers.get('content-type'),
+      );
+      expect(head.headers.get('cache-control')).toBe(
+        get.headers.get('cache-control'),
+      );
+      expect(yield* Effect.promise(() => head.text())).toBe('');
+      expect(yield* Effect.promise(() => get.text())).toContain(
+        'https://tenant.example.test',
+      );
+    }),
+);

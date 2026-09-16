@@ -13,6 +13,7 @@ type TenantRoute = {
   handler: (route: Route) => Promise<void>;
   isContextClosed: () => boolean;
   pattern: string;
+  routeRemovalFailed: boolean;
 };
 
 const tenantRoutes = new WeakMap<RoutingContext, TenantRoute>();
@@ -74,7 +75,7 @@ export const routeLocalTenantRequests = async ({
           }
           const response = await route.fetch({
             headers: localTenantRequestHeaders(
-              route.request().headers(),
+              await route.request().allHeaders(),
               tenantDomain,
             ),
             maxRedirects: 0,
@@ -112,6 +113,7 @@ export const routeLocalTenantRequests = async ({
     },
     isContextClosed: () => context.isClosed(),
     pattern: localTenantRequestPattern(baseUrl),
+    routeRemovalFailed: false,
   };
   tenantRoutes.set(context, state);
   await context.route(state.pattern, state.handler);
@@ -122,7 +124,10 @@ export const stopTenantRequestRouting = async (
 ): Promise<void> => {
   const state = tenantRoutes.get(context);
   if (!state) return;
-  if (state.emergencyClose && state.isContextClosed()) {
+  if (
+    (state.emergencyClose || state.routeRemovalFailed) &&
+    state.isContextClosed()
+  ) {
     tenantRoutes.delete(context);
   }
   if (!state.draining) {
@@ -138,11 +143,13 @@ export const stopTenantRequestRouting = async (
         try {
           await context.unroute(state.pattern, state.handler);
         } catch (error) {
+          state.routeRemovalFailed = true;
           state.errors.push(error);
         }
       }
       const contextRemainsOpen =
-        state.emergencyClose !== undefined && !state.isContextClosed();
+        (state.emergencyClose !== undefined || state.routeRemovalFailed) &&
+        !state.isContextClosed();
       if (!contextRemainsOpen) tenantRoutes.delete(context);
       if (state.errors.length === 1) throw state.errors[0];
       if (state.errors.length > 1) {

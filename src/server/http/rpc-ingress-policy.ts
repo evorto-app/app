@@ -46,7 +46,7 @@ const resolveInternalSsrOrigin = (
   }
 
   const origin = configuredOrigin.trim();
-  if (!/^https?:\/\/[^/\\\s@?#]+\/?$/iu.test(origin)) {
+  if (!/^https?:\/\/[^/\\\s@?#]+\/?$/iu.test(origin) || /:\/?$/u.test(origin)) {
     return;
   }
 

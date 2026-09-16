@@ -205,14 +205,19 @@ export const makeRequestBoundaryMiddleware = (
           headers: toWebHeaders(request.headers),
           requestTarget: request.url,
         });
-        if (!boundary) {
-          return invalidRequestResponse;
-        }
-
         const sourceRequest = yield* HttpServerRequest.toWeb(request).pipe(
           Effect.orDie,
         );
+        if (!boundary) {
+          yield* discardRequestBody(sourceRequest.body);
+          return invalidRequestResponse;
+        }
+
         let body = sourceRequest.body;
+        if (sourceRequest.method === 'GET' || sourceRequest.method === 'HEAD') {
+          yield* discardRequestBody(body);
+          body = null;
+        }
         const maxBodyBytes = options.requestBodyLimit?.(
           sourceRequest.method,
           new URL(boundary.url).pathname,

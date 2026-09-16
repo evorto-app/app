@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 
 import { Effect } from 'effect';
 import { HttpServerRequest, HttpServerResponse } from 'effect/unstable/http';
+import assert from 'node:assert/strict';
 import { request as createHttpRequest, createServer } from 'node:http';
 
 import {
@@ -29,6 +30,14 @@ const bodylessDrains: boolean[] = [];
 const bodylessDrainCleanup: Promise<boolean>[] = [];
 let bunUnsupportedBodyCancelled = false;
 let bunUnsupportedDownstreamInvoked = false;
+let bunInvalidAddressBodyCancelled = false;
+let bunInvalidAddressDownstreamInvoked = false;
+const bunBodylessRequests: {
+  bodyCancelled: boolean;
+  bodyExposed: boolean;
+  method: string;
+  normalizedBodyAbsent: boolean;
+}[] = [];
 
 const handleRequest = async (
   request: IncomingMessage,
@@ -115,14 +124,26 @@ const server = createServer((request, response) => {
 });
 const bunServer = Bun.serve({
   async fetch(request) {
+    const pathname = new URL(request.url).pathname;
+    const bodyExposed = request.body !== null;
+    let normalizedBodyAbsent = false;
     const response = await Effect.runPromise(
       makeRequestBoundaryMiddleware({
         requestBodyLimit: () => undefined,
         transportProtocol: 'http',
         trustPlatformProxy: false,
       })(
-        Effect.sync(() => {
-          bunUnsupportedDownstreamInvoked = true;
+        Effect.gen(function* () {
+          if (pathname === '/unsupported') {
+            bunUnsupportedDownstreamInvoked = true;
+          } else if (pathname === '/invalid-address') {
+            bunInvalidAddressDownstreamInvoked = true;
+          } else if (pathname === '/bodyless') {
+            const normalized = yield* HttpServerRequest.HttpServerRequest;
+            const webRequest = yield* HttpServerRequest.toWeb(normalized);
+            assert.equal(webRequest.method, request.method);
+            normalizedBodyAbsent = webRequest.body === null;
+          }
           return HttpServerResponse.empty({ status: 204 });
         }),
       ).pipe(
@@ -132,7 +153,18 @@ const bunServer = Bun.serve({
         ),
       ),
     );
-    bunUnsupportedBodyCancelled = request.bodyUsed;
+    if (pathname === '/unsupported') {
+      bunUnsupportedBodyCancelled = request.bodyUsed;
+    } else if (pathname === '/invalid-address') {
+      bunInvalidAddressBodyCancelled = request.bodyUsed;
+    } else if (pathname === '/bodyless') {
+      bunBodylessRequests.push({
+        bodyCancelled: request.bodyUsed,
+        bodyExposed,
+        method: request.method,
+        normalizedBodyAbsent,
+      });
+    }
     return HttpServerResponse.toWeb(response);
   },
   hostname: '127.0.0.1',
@@ -194,10 +226,14 @@ const responseBeforeRequestEnd = async (
   port: number,
   path: string,
   method: string,
+  hostHeader?: string,
 ) => {
   const request = createHttpRequest({
     agent: false,
-    headers: { 'transfer-encoding': 'chunked' },
+    headers: {
+      ...(hostHeader && { host: hostHeader }),
+      'transfer-encoding': 'chunked',
+    },
     host: '127.0.0.1',
     method,
     path,
@@ -313,6 +349,38 @@ try {
     '/unsupported',
     'POST',
   );
+  for (const method of ['GET', 'HEAD']) {
+    const response = await responseBeforeRequestEnd(
+      bunServer.port,
+      '/bodyless',
+      method,
+    );
+    assert.deepEqual(response, { body: '', status: 204 });
+  }
+  assert.deepEqual(
+    bunBodylessRequests.map(({ method, normalizedBodyAbsent }) => ({
+      method,
+      normalizedBodyAbsent,
+    })),
+    [
+      { method: 'GET', normalizedBodyAbsent: true },
+      { method: 'HEAD', normalizedBodyAbsent: true },
+    ],
+  );
+  // Bun 1.4.2 hides GET/HEAD bodies. Any exposed stream must be cancelled;
+  // the boundary unit cases exercise that branch independently of Bun's policy.
+  for (const request of bunBodylessRequests) {
+    assert.equal(request.bodyCancelled, request.bodyExposed);
+  }
+  const bunInvalidAddress = await responseBeforeRequestEnd(
+    bunServer.port,
+    '/invalid-address',
+    'POST',
+    'tenant..example.com',
+  );
+  assert.equal(bunInvalidAddress.status, 400);
+  assert.equal(bunInvalidAddressBodyCancelled, true);
+  assert.equal(bunInvalidAddressDownstreamInvoked, false);
   await Bun.sleep(100);
 
   process.stdout.write(

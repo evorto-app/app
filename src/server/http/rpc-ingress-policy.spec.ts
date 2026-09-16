@@ -301,6 +301,63 @@ describe('runRpcIngressPolicy', () => {
     expect(handler).not.toHaveBeenCalled();
   });
 
+  it.each([
+    'http://localhost:',
+    'http://localhost:/',
+    'http://127.0.0.1:',
+    'http://127.0.0.1:/',
+    'http://[::1]:',
+    'http://[::1]:/',
+    'https://localhost:',
+    'https://[::1]:/',
+  ])(
+    'rejects an empty configured SSR port before URL normalization: %s',
+    (ssrRpcOrigin) => {
+      const origin = new URL(ssrRpcOrigin).origin;
+      const { handler, result } = applyPolicy(
+        makeRequest({
+          cookie: 'appSession=session',
+          headers: {
+            Authorization: `Bearer ${ssrRpcCapability}`,
+            [trustedSsrSourceHeader]: trustedSsrSourceValue,
+            [trustedTenantDomainHeader]: 'tenant.example.com',
+          },
+          url: `${origin}/rpc`,
+        }),
+        { applicationOrigin: origin, ssrRpcCapability, ssrRpcOrigin },
+      );
+      expect(result.accepted).toBe(false);
+      if (!result.accepted) expect(result.response.status).toBe(403);
+      expect(handler).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    'http://localhost',
+    'http://localhost:80/',
+    'http://127.0.0.1:4200',
+    'https://localhost:443',
+    'http://[::1]:4200/',
+  ])(
+    'preserves valid configured SSR origins and explicit ports: %s',
+    (ssrRpcOrigin) => {
+      const origin = new URL(ssrRpcOrigin).origin;
+      const { result } = applyPolicy(
+        makeRequest({
+          cookie: 'appSession=session',
+          headers: {
+            Authorization: `Bearer ${ssrRpcCapability}`,
+            [trustedSsrSourceHeader]: trustedSsrSourceValue,
+            [trustedTenantDomainHeader]: 'tenant.example.com',
+          },
+          url: `${origin}/rpc`,
+        }),
+        { applicationOrigin: origin, ssrRpcCapability, ssrRpcOrigin },
+      );
+      expect(result).toEqual({ accepted: true, value: 'handled' });
+    },
+  );
+
   it('passes the trusted tenant route for anonymous internal SSR', () => {
     const { handler, result } = applyPolicy(
       makeRequest({
