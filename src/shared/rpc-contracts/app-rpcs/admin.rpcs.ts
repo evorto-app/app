@@ -1,6 +1,7 @@
 import { asRpcMutation, asRpcQuery } from '@heddendorp/effect-angular-query';
 import { notificationEmailPattern } from '@shared/notification-email';
 import { literalUnion } from '@shared/schema-utilities';
+import { AdminTenantSettingsSnapshot } from '@shared/tenant-settings-snapshot';
 import { Schema } from 'effect';
 import * as Rpc from 'effect/unstable/rpc/Rpc';
 import * as RpcGroup from 'effect/unstable/rpc/RpcGroup';
@@ -240,6 +241,7 @@ export const AdminTenantUpdateSettingsInput = Schema.Struct({
   emailSenderEmail: Schema.optional(OptionalSenderEmail),
   emailSenderName: Schema.optional(Schema.NonEmptyString),
   esnCardEnabled: Schema.Boolean,
+  expectedSettings: AdminTenantSettingsSnapshot,
   faviconUrl: Schema.optional(TenantBrandAssetUrlString),
   legalNoticeText: Schema.optional(Schema.String),
   legalNoticeUrl: Schema.optional(UrlString),

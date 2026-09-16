@@ -1,5 +1,9 @@
 import { asRpcMutation, asRpcQuery } from '@heddendorp/effect-angular-query';
 import { literalUnion } from '@shared/schema-utilities';
+import {
+  PlatformTenantSettingsSnapshot,
+  TenantSettingsConflictError,
+} from '@shared/tenant-settings-snapshot';
 import { Schema } from 'effect';
 import * as Rpc from 'effect/unstable/rpc/Rpc';
 import * as RpcGroup from 'effect/unstable/rpc/RpcGroup';
@@ -31,6 +35,7 @@ export type GlobalAdminRpcError = BadRequestForbiddenOrUnauthorizedRpcError;
 export const GlobalAdminTenantUpdateError = Schema.Union([
   BadRequestForbiddenOrUnauthorizedRpcError,
   GlobalAdminTenantUrlMigrationBlockedError,
+  TenantSettingsConflictError,
 ]);
 
 export type GlobalAdminTenantUpdateError = Schema.Schema.Type<
@@ -84,6 +89,7 @@ export type GlobalAdminTenantCreateInput = Schema.Schema.Type<
 >;
 
 export const GlobalAdminTenantUpdateInput = Schema.Struct({
+  expectedSettings: PlatformTenantSettingsSnapshot,
   id: Schema.NonEmptyString,
   ...GlobalAdminTenantMutationInput.fields,
 });

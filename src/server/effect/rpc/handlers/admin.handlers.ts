@@ -4,6 +4,12 @@ import {
   AdminTenantNotFoundError,
 } from '@shared/rpc-contracts/app-rpcs/admin.errors';
 import { type TenantDiscountProviders } from '@shared/tenant-config';
+import {
+  AdminTenantSettingsSnapshot,
+  adminTenantSettingsSnapshot,
+  tenantSettingsConflict,
+  TenantSettingsConflictError,
+} from '@shared/tenant-settings-snapshot';
 import { and, eq } from 'drizzle-orm';
 import { Effect, Schema } from 'effect';
 
@@ -842,12 +848,7 @@ export const adminHandlers = {
           .transaction((tx) =>
             Effect.gen(function* () {
               const lockedTenantRows = yield* tx
-                .select({
-                  currency: tenants.currency,
-                  id: tenants.id,
-                  stripeAccountId: tenants.stripeAccountId,
-                  timezone: tenants.timezone,
-                })
+                .select()
                 .from(tenants)
                 .where(eq(tenants.id, tenant.id))
                 .for('update');
@@ -855,6 +856,17 @@ export const adminHandlers = {
               const lockedTenant = lockedTenantRows[0];
               if (!lockedTenant) {
                 return [];
+              }
+
+              if (
+                !Schema.toEquivalence(AdminTenantSettingsSnapshot)(
+                  input.expectedSettings,
+                  adminTenantSettingsSnapshot(
+                    Schema.decodeUnknownSync(Tenant)(lockedTenant),
+                  ),
+                )
+              ) {
+                return yield* tenantSettingsConflict();
               }
 
               let rotationPlan: StripeTaxRateAccountRotationPlan | undefined;
@@ -946,7 +958,8 @@ export const adminHandlers = {
           )
           .pipe(
             Effect.catch((error) =>
-              error instanceof RpcBadRequestError
+              error instanceof RpcBadRequestError ||
+              error instanceof TenantSettingsConflictError
                 ? Effect.fail(error)
                 : Effect.die(error),
             ),

@@ -1,5 +1,6 @@
 import type { GlobalAdminTenantRecord } from '@shared/rpc-contracts/app-rpcs/global-admin.rpcs';
 
+import { DOCUMENT } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -24,11 +25,13 @@ import {
   faArrowLeft,
   faCircleInfo,
 } from '@fortawesome/duotone-regular-svg-icons';
+import { TenantSettingsConflictError } from '@shared/tenant-settings-snapshot';
 import {
   injectMutation,
   injectQuery,
   QueryClient,
 } from '@tanstack/angular-query-experimental';
+import { Schema } from 'effect';
 
 import {
   supportedTenantCurrencies,
@@ -39,7 +42,7 @@ import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
 import {
   globalAdminTenantDomainValidationMessage,
-  type GlobalAdminTenantFormModel,
+  type GlobalAdminTenantEditFormModel,
   globalAdminTenantPayloadFromForm,
   globalAdminTenantSubmitDisabled,
   globalAdminTenantUpdateErrorMessage,
@@ -73,7 +76,7 @@ export class TenantEditComponent {
   );
   protected readonly tenantModel = linkedSignal<
     { tenant: GlobalAdminTenantRecord | null | undefined; tenantId: string },
-    GlobalAdminTenantFormModel
+    GlobalAdminTenantEditFormModel
   >({
     computation: resolveGlobalAdminTenantEditFormModel,
     source: () => ({
@@ -95,6 +98,10 @@ export class TenantEditComponent {
   });
   protected readonly tenantSubmitDisabled = globalAdminTenantSubmitDisabled;
   protected readonly timezoneOptions = supportedTenantTimezones;
+  protected readonly settingsConflict = linkedSignal({
+    computation: () => false,
+    source: this.tenantId,
+  });
 
   protected readonly updateTenantMutation = injectMutation(() =>
     this.rpc.globalAdmin.tenants.update.mutationOptions(),
@@ -102,6 +109,7 @@ export class TenantEditComponent {
   private readonly notifications = inject(NotificationService);
   private readonly queryClient = inject(QueryClient);
   private readonly router = inject(Router);
+  private readonly document = inject(DOCUMENT);
 
   protected errorMessage(error: unknown): string {
     return getErrorMessage(error, 'Failed to load organization');
@@ -109,7 +117,12 @@ export class TenantEditComponent {
 
   protected async updateTenant(event: Event): Promise<void> {
     event.preventDefault();
-    if (this.updateTenantMutation.isPending()) {
+    const expectedSettings = this.tenantModel().expectedSettings;
+    if (
+      !expectedSettings ||
+      this.settingsConflict() ||
+      this.updateTenantMutation.isPending()
+    ) {
       return;
     }
     await submit(this.tenantForm, async (formState) => {
@@ -131,10 +144,17 @@ export class TenantEditComponent {
       this.updateTenantMutation.mutate(
         {
           ...payload,
+          expectedSettings,
           id: this.tenantId(),
         },
         {
           onError: (error) => {
+            if (
+              Schema.is(TenantSettingsConflictError)(error) &&
+              this.tenantModel().expectedSettings === expectedSettings
+            ) {
+              this.settingsConflict.set(true);
+            }
             this.notifications.showError(
               globalAdminTenantUpdateErrorMessage(error),
             );
@@ -167,5 +187,9 @@ export class TenantEditComponent {
         },
       );
     });
+  }
+
+  reloadSettings(): void {
+    this.document.defaultView?.location.reload();
   }
 }

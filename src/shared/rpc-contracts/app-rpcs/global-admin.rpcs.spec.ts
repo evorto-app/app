@@ -1,3 +1,7 @@
+import {
+  platformTenantSettingsSnapshot,
+  TenantSettingsConflictError,
+} from '@shared/tenant-settings-snapshot';
 import { Schema } from 'effect';
 import { describe, expect, it } from 'vitest';
 
@@ -7,6 +11,7 @@ import {
   GlobalAdminEmailOutboxRecord,
   GlobalAdminTenantCreateInput,
   GlobalAdminTenantUpdateError,
+  GlobalAdminTenantUpdateInput,
   GlobalAdminTenantUrlMigrationBlockedError,
   GlobalAdminTenantWriteInput,
 } from './global-admin.rpcs';
@@ -66,6 +71,27 @@ describe('GlobalAdminEmailOutboxKind', () => {
 });
 
 describe('GlobalAdminTenantWriteInput', () => {
+  it('requires a snapshot for edits while leaving creation independent', () => {
+    const edit = {
+      id: 'tenant-1',
+      reason: 'Correction',
+      tenant: tenantWriteInput,
+    };
+    expect(() =>
+      Schema.decodeUnknownSync(GlobalAdminTenantUpdateInput)(edit),
+    ).toThrow();
+    expect(() =>
+      Schema.decodeUnknownSync(GlobalAdminTenantUpdateInput)({
+        ...edit,
+        expectedSettings: platformTenantSettingsSnapshot(tenantWriteInput),
+      }),
+    ).not.toThrow();
+    expect(
+      Schema.decodeUnknownSync(GlobalAdminTenantUpdateError)(
+        new TenantSettingsConflictError({ message: 'Reload settings' }),
+      ),
+    ).toMatchObject({ _tag: 'TenantSettingsConflictError' });
+  });
   it('accepts the global-admin tenant create/edit surface', () => {
     expect(() =>
       Schema.decodeUnknownSync(GlobalAdminTenantWriteInput)(tenantWriteInput),

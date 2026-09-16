@@ -38,7 +38,7 @@ const optionalTrimmed = (value: string): string | undefined =>
 
 export const generalSettingsPayloadFromModel = (
   settings: GeneralSettingsModel,
-): AdminTenantUpdateSettingsInput => ({
+): Omit<AdminTenantUpdateSettingsInput, 'expectedSettings'> => ({
   allowOther: settings.allowOther,
   buyEsnCardUrl: optionalTrimmed(settings.buyEsnCardUrl),
   cancellationDeadlineHoursBeforeStart:

@@ -36,9 +36,15 @@ import {
 } from '@shared/finance/receipt-countries';
 import { maximumPostgresInteger } from '@shared/schema-utilities';
 import {
+  type AdminTenantSettingsSnapshot,
+  adminTenantSettingsSnapshot,
+  TenantSettingsConflictError,
+} from '@shared/tenant-settings-snapshot';
+import {
   injectMutation,
   QueryClient,
 } from '@tanstack/angular-query-experimental';
+import { Schema } from 'effect';
 
 import {
   isIanaTimezone,
@@ -60,6 +66,7 @@ export const generalSettingsUpdateErrorMessage = (error: unknown): string =>
   getErrorMessage(error, 'Failed to update organization settings', [
     'AdminTenantNotFoundError',
     'RpcBadRequestError',
+    'TenantSettingsConflictError',
   ]);
 
 export const generalSettingsSaveDisabled = ({
@@ -221,6 +228,10 @@ export class GeneralSettingsComponent {
   protected readonly generalSettingsSaveDisabled = generalSettingsSaveDisabled;
   protected readonly receiptCountryOptions = RECEIPT_COUNTRY_OPTIONS;
   protected readonly settingsModel = signal(createGeneralSettingsFormModel());
+  protected readonly expectedSettings =
+    signal<AdminTenantSettingsSnapshot | null>(null);
+  protected readonly settingsConflict = signal(false);
+  private initializedTenantId: null | string = null;
   protected readonly settingsForm = form(
     this.settingsModel,
     generalSettingsFormSchema,
@@ -241,7 +252,10 @@ export class GeneralSettingsComponent {
   constructor() {
     effect(() => {
       const currentTenant = this.currentTenant();
-      if (currentTenant) {
+      if (currentTenant && currentTenant.id !== this.initializedTenantId) {
+        this.initializedTenantId = currentTenant.id;
+        this.expectedSettings.set(adminTenantSettingsSnapshot(currentTenant));
+        this.settingsConflict.set(false);
         const receiptCountrySettings = resolveReceiptCountrySettings(
           currentTenant.receiptSettings,
         );
@@ -282,7 +296,10 @@ export class GeneralSettingsComponent {
 
   async saveSettings(event: Event) {
     event.preventDefault();
+    const expectedSettings = this.expectedSettings();
     if (
+      !expectedSettings ||
+      this.settingsConflict() ||
       generalSettingsSaveDisabled({
         formInvalid: this.settingsForm().invalid(),
         formSubmitting: this.settingsForm().submitting(),
@@ -299,8 +316,8 @@ export class GeneralSettingsComponent {
         settings,
       );
       try {
-        await this.updateSettingsMutation.mutateAsync(
-          generalSettingsPayloadFromModel(settings),
+        const updatedTenant = await this.updateSettingsMutation.mutateAsync(
+          { ...generalSettingsPayloadFromModel(settings), expectedSettings },
           {
             onSuccess: async () => {
               await this.queryClient.invalidateQueries({
@@ -312,6 +329,9 @@ export class GeneralSettingsComponent {
             },
           },
         );
+        if (updatedTenant.id === this.initializedTenantId) {
+          this.expectedSettings.set(adminTenantSettingsSnapshot(updatedTenant));
+        }
         this.notifications.showSuccess(
           reloadRequired
             ? 'Organization settings updated. Reloading to apply currency and timezone settings.'
@@ -321,9 +341,19 @@ export class GeneralSettingsComponent {
           this.document.defaultView?.location.reload();
         }
       } catch (error) {
+        if (
+          Schema.is(TenantSettingsConflictError)(error) &&
+          this.expectedSettings() === expectedSettings
+        ) {
+          this.settingsConflict.set(true);
+        }
         this.notifications.showError(generalSettingsUpdateErrorMessage(error));
       }
     });
+  }
+
+  reloadSettings(): void {
+    this.document.defaultView?.location.reload();
   }
 
   protected async uploadBrandAsset(

@@ -8,8 +8,16 @@ import {
   normalizeTenantDomain,
   TenantDomainValidationError,
 } from '@shared/tenant-origin';
+import {
+  type PlatformTenantSettingsSnapshot,
+  platformTenantSettingsSnapshot,
+} from '@shared/tenant-settings-snapshot';
 
 import { getErrorMessage } from '../../core/error-message';
+
+export interface GlobalAdminTenantEditFormModel extends GlobalAdminTenantFormModel {
+  expectedSettings: null | PlatformTenantSettingsSnapshot;
+}
 
 export interface GlobalAdminTenantFormModel {
   currency: GlobalAdminTenantWriteInput['currency'];
@@ -28,7 +36,7 @@ interface GlobalAdminTenantEditFormSource {
 
 interface PreviousGlobalAdminTenantEditFormModel {
   source: GlobalAdminTenantEditFormSource;
-  value: GlobalAdminTenantFormModel;
+  value: GlobalAdminTenantEditFormModel;
 }
 
 export const createGlobalAdminTenantFormModel =
@@ -57,21 +65,24 @@ export const globalAdminTenantFormModelFromRecord = (
 export const resolveGlobalAdminTenantEditFormModel = (
   { tenant, tenantId }: GlobalAdminTenantEditFormSource,
   previous?: PreviousGlobalAdminTenantEditFormModel,
-): GlobalAdminTenantFormModel => {
+): GlobalAdminTenantEditFormModel => {
   if (tenant?.id === tenantId) {
     if (
-      previous?.source.tenant?.id === tenant.id &&
-      previous.source.tenantId === tenantId
+      previous?.source.tenantId === tenantId &&
+      previous.value.expectedSettings
     ) {
       return previous.value;
     }
 
-    return globalAdminTenantFormModelFromRecord(tenant);
+    return {
+      ...globalAdminTenantFormModelFromRecord(tenant),
+      expectedSettings: platformTenantSettingsSnapshot(tenant),
+    };
   }
 
   return previous?.source.tenantId === tenantId
     ? previous.value
-    : createGlobalAdminTenantFormModel();
+    : { ...createGlobalAdminTenantFormModel(), expectedSettings: null };
 };
 
 const optionalTrimmed = (value: string): string | undefined =>
@@ -92,6 +103,7 @@ export const globalAdminTenantDomainValidationMessage = (
 export const globalAdminTenantUpdateErrorMessage = (error: unknown): string => {
   const message = getErrorMessage(error, 'Failed to update organization', [
     'RpcBadRequestError',
+    'TenantSettingsConflictError',
   ]);
   if (
     !error ||

@@ -4,6 +4,7 @@ import {
   RpcForbiddenError,
   RpcUnauthorizedError,
 } from '@shared/errors/rpc-errors';
+import { TenantSettingsConflictError } from '@shared/tenant-settings-snapshot';
 import { Schema } from 'effect';
 
 export class AdminRoleNotFoundError extends Schema.TaggedErrorClass<AdminRoleNotFoundError>()(
@@ -33,6 +34,7 @@ export class AdminTenantNotFoundError extends Schema.TaggedErrorClass<AdminTenan
 export const AdminTenantRpcError = Schema.Union([
   BadRequestForbiddenInternalUnauthorizedRpcError,
   AdminTenantNotFoundError,
+  TenantSettingsConflictError,
 ]);
 export type AdminTenantRpcError = Schema.Schema.Type<
   typeof AdminTenantRpcError

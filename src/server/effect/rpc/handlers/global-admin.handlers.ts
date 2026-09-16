@@ -19,6 +19,12 @@ import {
 } from '@shared/rpc-contracts/app-rpcs/global-admin.rpcs';
 import { normalizeTenantDomain } from '@shared/tenant-origin';
 import {
+  PlatformTenantSettingsSnapshot,
+  platformTenantSettingsSnapshot,
+  tenantSettingsConflict,
+  TenantSettingsConflictError,
+} from '@shared/tenant-settings-snapshot';
+import {
   and,
   count,
   desc,
@@ -76,13 +82,16 @@ const databaseEffectWithTenantUpdateError = <A>(
   operation: (database: DatabaseClient) => Effect.Effect<A, unknown, never>,
 ): Effect.Effect<
   A,
-  GlobalAdminTenantUrlMigrationBlockedError | RpcBadRequestError,
+  | GlobalAdminTenantUrlMigrationBlockedError
+  | RpcBadRequestError
+  | TenantSettingsConflictError,
   Database
 > =>
   Database.use((database) =>
     operation(database).pipe(
       Effect.catch((error) =>
         error instanceof GlobalAdminTenantUrlMigrationBlockedError ||
+        error instanceof TenantSettingsConflictError ||
         error instanceof RpcBadRequestError
           ? Effect.fail(error)
           : Effect.die(error),
@@ -594,6 +603,15 @@ export const globalAdminHandlers = {
               return yield* Effect.die(
                 new Error('Tenant disappeared during platform update'),
               );
+            }
+
+            if (
+              !Schema.toEquivalence(PlatformTenantSettingsSnapshot)(
+                input.expectedSettings,
+                platformTenantSettingsSnapshot(beforeTenant),
+              )
+            ) {
+              return yield* tenantSettingsConflict();
             }
 
             const tenantPublicUrlChanged =

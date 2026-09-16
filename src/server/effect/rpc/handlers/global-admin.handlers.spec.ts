@@ -1,4 +1,8 @@
 import { describe, expect, it, vi } from '@effect/vitest';
+import {
+  PlatformTenantSettingsSnapshot,
+  platformTenantSettingsSnapshot,
+} from '@shared/tenant-settings-snapshot';
 import { Effect, Layer, Schema } from 'effect';
 import * as Headers from 'effect/unstable/http/Headers';
 import { Rpc, RpcMessage } from 'effect/unstable/rpc';
@@ -297,6 +301,10 @@ const createStripeAccountChangeDatabase = ({
 };
 
 const createStripeAccountUpdateInput = (stripeAccountId?: string) => ({
+  expectedSettings: {
+    ...platformTenantSettingsSnapshot(createRequestContext([]).tenant),
+    stripeAccountId: 'acct_current',
+  },
   id: 'tenant-1',
   reason: 'Change the connected Stripe account',
   tenant: {
@@ -1054,6 +1062,9 @@ describe('globalAdminHandlers', () => {
 
       const tenant = yield* globalAdminHandlers['globalAdmin.tenants.update'](
         {
+          expectedSettings: Schema.decodeUnknownSync(
+            PlatformTenantSettingsSnapshot,
+          )(beforeTenant),
           id: 'tenant-1',
           reason: ' Tenant requested a support correction ',
           tenant: {
@@ -1158,6 +1169,10 @@ describe('globalAdminHandlers', () => {
 
       const error = yield* globalAdminHandlers['globalAdmin.tenants.update'](
         {
+          expectedSettings: {
+            ...platformTenantSettingsSnapshot(createRequestContext([]).tenant),
+            stripeAccountId: 'acct_current',
+          },
           id: 'tenant-1',
           reason: 'Migrate the connected Stripe account',
           tenant: {
@@ -1376,6 +1391,9 @@ describe('globalAdminHandlers', () => {
             'globalAdmin.tenants.update'
           ](
             {
+              expectedSettings: Schema.decodeUnknownSync(
+                PlatformTenantSettingsSnapshot,
+              )(beforeTenant),
               id: 'tenant-1',
               reason: 'Move the tenant to its verified replacement domain',
               tenant: {
@@ -1479,6 +1497,9 @@ describe('globalAdminHandlers', () => {
 
         const error = yield* globalAdminHandlers['globalAdmin.tenants.update'](
           {
+            expectedSettings: Schema.decodeUnknownSync(
+              PlatformTenantSettingsSnapshot,
+            )(beforeTenant),
             id: 'tenant-1',
             reason: 'Switch the tenant to Australian dollars',
             tenant: {
@@ -1555,6 +1576,9 @@ describe('globalAdminHandlers', () => {
 
         const tenant = yield* globalAdminHandlers['globalAdmin.tenants.update'](
           {
+            expectedSettings: Schema.decodeUnknownSync(
+              PlatformTenantSettingsSnapshot,
+            )(beforeTenant),
             id: 'tenant-1',
             reason: 'Correct the tenant display name',
             tenant: {
@@ -1597,6 +1621,9 @@ describe('globalAdminHandlers', () => {
 
         const error = yield* globalAdminHandlers['globalAdmin.tenants.update'](
           {
+            expectedSettings: platformTenantSettingsSnapshot(
+              createRequestContext([]).tenant,
+            ),
             id: 'tenant-1',
             reason: 'Tenant requested a domain correction',
             tenant: {
@@ -1732,6 +1759,52 @@ describe('globalAdminHandlers', () => {
         expect(error.reason).toBe(
           'Enter the main website address only, for example section.example.org.',
         );
+      }),
+  );
+  it.effect(
+    'rejects stale platform settings against the locked row without an audit or write',
+    () =>
+      Effect.gen(function* () {
+        const original = platformTenantSettingsSnapshot(
+          createRequestContext([]).tenant,
+        );
+        const current = { ...original, id: 'tenant-1', theme: 'esn' as const };
+        const write = vi.fn(() => {
+          throw new Error('stale form must not write');
+        });
+        const lockedSelect = {
+          for: vi.fn(() => Effect.succeed([current])),
+          from: () => lockedSelect,
+          where: () => lockedSelect,
+        };
+        const database = {
+          insert: write,
+          query: { tenants: { findFirst: () => Effect.succeed(current) } },
+          select: () => lockedSelect,
+          transaction: (operation: (transaction: object) => unknown) =>
+            operation(database),
+          update: write,
+        };
+        const error = yield* globalAdminHandlers['globalAdmin.tenants.update'](
+          {
+            expectedSettings: original,
+            id: current.id,
+            reason: 'Second editor correction',
+            tenant: { ...original, name: 'Second editor name' },
+          },
+          createRpcOptions(
+            GlobalAdminRpcs.GlobalAdminTenantsUpdate.middleware(
+              RpcRequestContextMiddleware,
+            ),
+          ),
+        ).pipe(
+          Effect.provide(requestContextLayer(createRequestContext([]))),
+          Effect.provide(provideDatabase(database)),
+          Effect.flip,
+        );
+        expect(error._tag).toBe('TenantSettingsConflictError');
+        expect(lockedSelect.for).toHaveBeenCalledWith('update');
+        expect(write).not.toHaveBeenCalled();
       }),
   );
 });

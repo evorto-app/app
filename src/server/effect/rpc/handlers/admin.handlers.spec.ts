@@ -1,5 +1,6 @@
 import * as PgClient from '@effect/sql-pg/PgClient';
 import { describe, expect, it, vi } from '@effect/vitest';
+import { adminTenantSettingsSnapshot } from '@shared/tenant-settings-snapshot';
 import * as PgDrizzle from 'drizzle-orm/effect-postgres';
 import { Effect, Layer, Schema } from 'effect';
 import * as Headers from 'effect/unstable/http/Headers';
@@ -49,7 +50,9 @@ const createTenant = (id = 'tenant-1') => ({
   transferDeadlineHoursBeforeStart: 0,
 });
 
-const createSettingsInput = () => ({
+const createSettingsInput = (
+  expectedTenant = Schema.decodeUnknownSync(Tenant)(createTenant()),
+) => ({
   allowOther: true,
   cancellationDeadlineHoursBeforeStart: 120,
   currency: 'EUR' as const,
@@ -57,6 +60,7 @@ const createSettingsInput = () => ({
   emailSenderEmail: undefined,
   emailSenderName: undefined,
   esnCardEnabled: false,
+  expectedSettings: adminTenantSettingsSnapshot(expectedTenant),
   maxActiveRegistrationsPerUser: 0,
   receiptCountries: ['NL'],
   refundFeesOnCancellation: true,
@@ -89,6 +93,7 @@ const withTenantSettingsTransaction = <T extends object>(
     readonly hasStripeTaxRateConfiguration?: boolean;
     readonly lockedCurrency?: 'AUD' | 'CZK' | 'EUR';
     readonly lockedStripeAccountId?: null | string;
+    readonly lockedTheme?: 'classic' | 'esn' | 'evorto';
     readonly lockedTimezone?: string;
     readonly rotationTargetStripeAccountId?: string;
   } = {},
@@ -121,9 +126,11 @@ const withTenantSettingsTransaction = <T extends object>(
             ? Effect.succeed([])
             : Effect.succeed([
                 {
+                  ...createTenant(),
                   currency: options.lockedCurrency ?? 'EUR',
                   id: 'tenant-1',
                   stripeAccountId: options.lockedStripeAccountId ?? null,
+                  theme: options.lockedTheme ?? 'evorto',
                   timezone: options.lockedTimezone ?? 'Europe/Amsterdam',
                 },
               ]),
@@ -676,6 +683,9 @@ describe('adminHandlers tenant settings', () => {
             emailSenderEmail: ' events@section.example.org ',
             emailSenderName: ' Example Section ',
             esnCardEnabled: false,
+            expectedSettings: adminTenantSettingsSnapshot(
+              Schema.decodeUnknownSync(Tenant)(createTenant()),
+            ),
             faviconUrl: ' https://cdn.example.org/favicon.ico ',
             legalNoticeText: '  Tenant imprint text  ',
             legalNoticeUrl: ' https://section.example.org/imprint ',
@@ -1284,7 +1294,12 @@ describe('adminHandlers tenant settings', () => {
 
         const error = yield* adminHandlers['admin.tenant.updateSettings'](
           {
-            ...createSettingsInput(),
+            ...createSettingsInput(
+              Schema.decodeUnknownSync(Tenant)({
+                ...createTenant(),
+                timezone: 'Europe/Prague',
+              }),
+            ),
             timezone: 'Europe/Amsterdam',
           },
           createRpcOptions(
@@ -1327,7 +1342,12 @@ describe('adminHandlers tenant settings', () => {
 
         const error = yield* adminHandlers['admin.tenant.updateSettings'](
           {
-            ...createSettingsInput(),
+            ...createSettingsInput(
+              Schema.decodeUnknownSync(Tenant)({
+                ...createTenant(),
+                stripeAccountId: 'acct_existing',
+              }),
+            ),
             timezone: 'Europe/Amsterdam',
           },
           createRpcOptions(
@@ -1369,7 +1389,12 @@ describe('adminHandlers tenant settings', () => {
         );
 
         const error = yield* adminHandlers['admin.tenant.updateSettings'](
-          createSettingsInput(),
+          createSettingsInput(
+            Schema.decodeUnknownSync(Tenant)({
+              ...createTenant(),
+              stripeAccountId: 'acct_existing',
+            }),
+          ),
           createRpcOptions(
             AdminRpcs.AdminTenantUpdateSettings.middleware(
               RpcRequestContextMiddleware,
@@ -1426,7 +1451,12 @@ describe('adminHandlers tenant settings', () => {
 
         const result = yield* adminHandlers['admin.tenant.updateSettings'](
           {
-            ...createSettingsInput(),
+            ...createSettingsInput(
+              Schema.decodeUnknownSync(Tenant)({
+                ...createTenant(),
+                stripeAccountId: 'acct_existing',
+              }),
+            ),
             stripeAccountId: 'acct_next',
             timezone: 'Europe/Amsterdam',
           },
@@ -1468,7 +1498,12 @@ describe('adminHandlers tenant settings', () => {
 
         const error = yield* adminHandlers['admin.tenant.updateSettings'](
           {
-            ...createSettingsInput(),
+            ...createSettingsInput(
+              Schema.decodeUnknownSync(Tenant)({
+                ...createTenant(),
+                stripeAccountId: 'acct_existing',
+              }),
+            ),
             stripeAccountId: undefined,
             timezone: 'Europe/Amsterdam',
           },
@@ -1526,7 +1561,12 @@ describe('adminHandlers tenant settings', () => {
 
         const result = yield* adminHandlers['admin.tenant.updateSettings'](
           {
-            ...createSettingsInput(),
+            ...createSettingsInput(
+              Schema.decodeUnknownSync(Tenant)({
+                ...createTenant(),
+                stripeAccountId: 'acct_existing',
+              }),
+            ),
             stripeAccountId: 'acct_new',
             timezone: 'Europe/Amsterdam',
           },
@@ -1573,7 +1613,12 @@ describe('adminHandlers tenant settings', () => {
 
         const result = yield* adminHandlers['admin.tenant.updateSettings'](
           {
-            ...createSettingsInput(),
+            ...createSettingsInput(
+              Schema.decodeUnknownSync(Tenant)({
+                ...createTenant(),
+                stripeAccountId: 'acct_existing',
+              }),
+            ),
             seoTitle: 'Updated title',
             stripeAccountId: 'acct_existing',
             timezone: 'Europe/Amsterdam',
@@ -1596,6 +1641,41 @@ describe('adminHandlers tenant settings', () => {
         expect(updateCalled).toBe(true);
         expect(result.seoTitle).toBe('Updated title');
         expect(result.stripeAccountId).toBe('acct_existing');
+      }),
+  );
+  it.effect(
+    'rejects stale general settings against the locked row before any write',
+    () =>
+      Effect.gen(function* () {
+        let writes = 0;
+        const database = withTenantSettingsTransaction(
+          {
+            update: () => {
+              writes++;
+              throw new Error('stale form must not write');
+            },
+          },
+          { lockedTheme: 'esn' },
+        );
+        const error = yield* adminHandlers['admin.tenant.updateSettings'](
+          {
+            ...createSettingsInput(),
+            seoTitle: 'Second editor title',
+          },
+          createRpcOptions(
+            AdminRpcs.AdminTenantUpdateSettings.middleware(
+              RpcRequestContextMiddleware,
+            ),
+          ),
+        ).pipe(
+          Effect.provide(
+            requestContextLayer(createRequestContext(['admin:changeSettings'])),
+          ),
+          Effect.provide(tenantSettingsLayer(database)),
+          Effect.flip,
+        );
+        expect(error._tag).toBe('TenantSettingsConflictError');
+        expect(writes).toBe(0);
       }),
   );
 });

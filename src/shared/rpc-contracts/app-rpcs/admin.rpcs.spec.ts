@@ -1,6 +1,13 @@
+import {
+  AdminTenantSettingsSnapshot,
+  adminTenantSettingsSnapshot,
+  TenantSettingsConflictError,
+} from '@shared/tenant-settings-snapshot';
 import { Schema } from 'effect';
 import { describe, expect, it } from 'vitest';
 
+import { Tenant } from '../../../types/custom/tenant';
+import { AdminTenantRpcError } from './admin.errors';
 import {
   AdminRolesCreateInput,
   AdminRolesUpdateInput,
@@ -60,6 +67,22 @@ const currentTenantSettingsInput = {
   emailSenderEmail: 'events@section.example.org',
   emailSenderName: 'Example Section',
   esnCardEnabled: true,
+  expectedSettings: adminTenantSettingsSnapshot(
+    Schema.decodeUnknownSync(Tenant)({
+      cancellationDeadlineHoursBeforeStart: 120,
+      currency: 'EUR',
+      discountProviders: { esnCard: { config: {}, status: 'disabled' } },
+      domain: 'example.org',
+      id: 'tenant-1',
+      maxActiveRegistrationsPerUser: 0,
+      name: 'Tenant',
+      receiptSettings: { allowOther: false, receiptCountries: ['DE'] },
+      refundFeesOnCancellation: true,
+      theme: 'evorto',
+      timezone: 'Europe/Berlin',
+      transferDeadlineHoursBeforeStart: 0,
+    }),
+  ),
   faviconUrl: 'https://cdn.example.org/favicon.ico',
   legalNoticeText: 'Tenant imprint text',
   legalNoticeUrl: 'https://section.example.org/imprint',
@@ -78,6 +101,33 @@ const currentTenantSettingsInput = {
 };
 
 describe('AdminTenantUpdateSettingsInput', () => {
+  it('requires the original editable snapshot and preserves typed conflicts', () => {
+    const { expectedSettings: _snapshot, ...missingSnapshot } =
+      currentTenantSettingsInput;
+    expect(() =>
+      Schema.decodeUnknownSync(AdminTenantUpdateSettingsInput)(missingSnapshot),
+    ).toThrow();
+    expect(
+      Schema.decodeUnknownSync(AdminTenantRpcError)(
+        new TenantSettingsConflictError({ message: 'Reload settings' }),
+      ),
+    ).toMatchObject({ _tag: 'TenantSettingsConflictError' });
+  });
+  it('compares nested settings structurally, independently of JSON property order', () => {
+    const snapshot = currentTenantSettingsInput.expectedSettings;
+    const equivalent = {
+      ...snapshot,
+      receiptSettings: { allowOther: false, receiptCountries: ['DE'] },
+    };
+    const equal = Schema.toEquivalence(AdminTenantSettingsSnapshot);
+    expect(equal(snapshot, equivalent)).toBe(true);
+    expect(
+      equal(snapshot, {
+        ...equivalent,
+        receiptSettings: { ...equivalent.receiptSettings, allowOther: true },
+      }),
+    ).toBe(false);
+  });
   it('accepts the Classic theme and rejects fractional or out-of-range policy counts', () => {
     expect(
       Schema.decodeUnknownSync(AdminTenantUpdateSettingsInput)({
