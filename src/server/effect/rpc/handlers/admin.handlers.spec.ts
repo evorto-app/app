@@ -594,6 +594,44 @@ describe('adminHandlers Stripe tax-rate import', () => {
 
 describe('adminHandlers tenant settings', () => {
   it.effect(
+    'rejects credential-bearing buy-card URLs before writing settings',
+    () =>
+      Effect.gen(function* () {
+        for (const buyEsnCardUrl of [
+          'https://user:pass@cards.example.org/buy',
+          'https://user@cards.example.org/buy',
+          'https://:pass@cards.example.org/buy',
+        ]) {
+          const database = withTenantSettingsTransaction({
+            update: () => {
+              throw new Error('database should not be touched');
+            },
+          });
+          const error = yield* adminHandlers['admin.tenant.updateSettings'](
+            { ...createSettingsInput(), buyEsnCardUrl },
+            createRpcOptions(
+              AdminRpcs.AdminTenantUpdateSettings.middleware(
+                RpcRequestContextMiddleware,
+              ),
+            ),
+          ).pipe(
+            Effect.provide(
+              requestContextLayer(
+                createRequestContext(['admin:changeSettings']),
+              ),
+            ),
+            Effect.provide(tenantSettingsLayer(database)),
+            Effect.flip,
+          );
+          expect(error['_tag']).toBe('RpcBadRequestError');
+          expect(error.message).toBe(
+            'Updated tenant settings failed validation',
+          );
+        }
+      }),
+  );
+
+  it.effect(
     'updates tenant SEO settings through the validated tenant shape',
     () =>
       Effect.gen(function* () {

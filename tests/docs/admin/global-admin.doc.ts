@@ -372,7 +372,7 @@ Platform administrators can review, create, and edit organizations from **Platfo
     body: `
 ## Organization settings and safeguards
 
-The platform administration page lists organizations and supports creating, reviewing, and editing them. Each entry shows the organization name, primary domain, theme, locale, currency, timezone, and Stripe connection. The detail page repeats these settings, links to the edit form, and can open the organization's public site.
+The platform administration page lists organizations and supports creating, reviewing, and editing them. Each entry shows the organization name, primary domain, theme, currency, timezone, and Stripe connection. The detail page repeats these settings, links to the edit form, and can open the organization's public site.
 
 Create and edit manage the primary domain, name, theme, currency, timezone, and connected Stripe account. Paid event registrations and add-ons are Stripe-only, so a connected Stripe account cannot be removed while a paid template, event option, or add-on still exists. Convert those configurations to free first. Domains must be unique host names without paths, queries, fragments, credentials, or custom ports.
 

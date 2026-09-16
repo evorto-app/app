@@ -24,7 +24,7 @@ interface ReceiptCountryConfigTenant {
     | null
     | undefined
     | {
-        allowOther?: boolean | undefined;
+        allowOther?: unknown;
         receiptCountries?: readonly string[] | undefined;
       };
 }
@@ -33,7 +33,7 @@ const requireReceiptCountrySettings = (tenant: ReceiptCountryConfigTenant) => {
   const settings = tenant.receiptSettings;
   if (
     !settings ||
-    settings.allowOther === undefined ||
+    typeof settings.allowOther !== 'boolean' ||
     settings.receiptCountries === undefined ||
     settings.receiptCountries.length === 0
   ) {

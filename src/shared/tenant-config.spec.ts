@@ -67,6 +67,9 @@ describe('tenant persisted configuration', () => {
       'http://cards.example.org/buy',
       ' https://cards.example.org/buy ',
       'https://cards.example.org',
+      'https://user:pass@cards.example.org/buy',
+      'https://user@cards.example.org/buy',
+      'https://:pass@cards.example.org/buy',
     ]) {
       expect(() =>
         resolveTenantDiscountProviders({

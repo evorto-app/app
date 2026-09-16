@@ -29,6 +29,17 @@ describe('normalizeFinanceTransactionRecord', () => {
 });
 
 describe('required tenant receipt settings', () => {
+  it('rejects malformed persisted Other flags before using the receipt policy', () => {
+    for (const allowOther of [null, 'true', 'false', 0, 1, {}, []]) {
+      const tenant = {
+        receiptSettings: { allowOther, receiptCountries: ['DE'] },
+      };
+      expect(() => resolveTenantSelectableReceiptCountries(tenant)).toThrow();
+      expect(() => validateReceiptCountryForTenant(tenant, 'OTHER')).toThrow();
+      expect(() => validateReceiptCountryForTenant(tenant, 'DE')).toThrow();
+    }
+  });
+
   it('fails instead of inventing countries or the Other policy', () => {
     for (const receiptSettings of [
       undefined,

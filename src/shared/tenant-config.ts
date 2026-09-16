@@ -34,13 +34,18 @@ const CanonicalHttpsUrl = Schema.NonEmptyString.check(
     (value) => {
       try {
         const url = new URL(value);
-        return url.protocol === 'https:' && url.toString() === value;
+        return (
+          url.protocol === 'https:' &&
+          !url.username &&
+          !url.password &&
+          url.toString() === value
+        );
       } catch {
         return false;
       }
     },
     {
-      expected: 'a canonical HTTPS URL',
+      expected: 'a canonical HTTPS URL without credentials',
     },
   ),
 );
