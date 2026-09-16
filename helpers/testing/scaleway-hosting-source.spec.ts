@@ -998,12 +998,12 @@ fi
     expect(scan).toContain('severity: HIGH,CRITICAL');
     expect(scan).toContain('ignore-unfixed: false');
     expect(scan).toContain('exit-code: "1"');
-    expect(scan).toContain('TRIVY_USERNAME: nologin');
-    expect(scan).toContain('TRIVY_PASSWORD: ${{ secrets.SCW_SECRET_KEY }}');
+    expect(scan).not.toContain('${{ secrets.');
     expect(scan).not.toMatch(/\b(?:if|continue-on-error):/u);
     expect(scan).not.toContain('TRIVY_SKIP_DB_UPDATE');
 
     const requiredSteps = [
+      '- name: Login to private Scaleway registry',
       '- name: Copy the accepted digest without rebuilding',
       '- name: Scan promoted image vulnerabilities',
       '- name: Reconcile complete production infrastructure',
