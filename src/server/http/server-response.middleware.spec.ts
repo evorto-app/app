@@ -1,5 +1,10 @@
 import { describe, expect, it } from '@effect/vitest';
-import { Cause, Effect, Exit, Layer, Tracer } from 'effect';
+import {
+  createDefaultTenantDiscountProviders,
+  DEFAULT_TENANT_RECEIPT_ALLOW_OTHER,
+  DEFAULT_TENANT_RECEIPT_COUNTRIES,
+} from '@shared/tenant-config';
+import { Cause, Effect, Exit, Layer, Schema, Tracer } from 'effect';
 import {
   HttpRouter,
   HttpServerError,
@@ -12,13 +17,38 @@ import { promisify } from 'node:util';
 
 import type { DeploymentConfig } from '../config/deployment-config';
 
+import { Context as RequestContext } from '../../types/custom/context';
 import { runAuth0SdkOperation, toAuthSession } from '../auth/auth-session';
+import { toRpcRequestContext } from '../effect/rpc/app-rpcs.request-handler';
 import {
   makeServerResponseMiddleware,
   safeServerRequestRoute,
 } from './server-response.middleware';
 
 const execFileAsync = promisify(execFile);
+
+const authenticatedRpcContext = Schema.decodeUnknownSync(RequestContext)({
+  authentication: { isAuthenticated: true },
+  permissions: [],
+  tenant: {
+    cancellationDeadlineHoursBeforeStart: 120,
+    currency: 'EUR',
+    discountProviders: createDefaultTenantDiscountProviders(),
+    domain: 'tenant.example.com',
+    id: 'tenant-1',
+    locale: 'de-DE',
+    maxActiveRegistrationsPerUser: 0,
+    name: 'Tenant',
+    receiptSettings: {
+      allowOther: DEFAULT_TENANT_RECEIPT_ALLOW_OTHER,
+      receiptCountries: [...DEFAULT_TENANT_RECEIPT_COUNTRIES],
+    },
+    refundFeesOnCancellation: true,
+    theme: 'evorto',
+    timezone: 'Europe/Berlin',
+    transferDeadlineHoursBeforeStart: 0,
+  },
+});
 
 const makeTestHandler = Effect.fn('makeTestHandler')(function* (
   routeLayer: Layer.Layer<
@@ -244,6 +274,123 @@ describe('server response middleware', () => {
         });
         expect(response.headers.getSetCookie()).toHaveLength(1);
         expect(response.headers.getSetCookie()[0]).toContain('appSession.0=;');
+      }),
+  );
+
+  it.effect(
+    'recovers malformed optional profile claims before running the RPC handler',
+    () =>
+      Effect.gen(function* () {
+        for (const profile of [
+          { email: 123 },
+          { email_verified: 'true' },
+          { given_name: false },
+          { family_name: ['private-profile-value'] },
+        ]) {
+          let rpcHandlingReached = false;
+          const { handler } = yield* makeTestHandler(
+            HttpRouter.add(
+              'POST',
+              '/rpc',
+              Effect.gen(function* () {
+                const session = yield* toAuthSession({
+                  tokenSets: [
+                    {
+                      accessToken: 'fixture-token',
+                      audience: 'default',
+                      expiresAt: 0,
+                    },
+                  ],
+                  user: { sub: 'auth0|fixture-user', ...profile },
+                });
+                if (!session)
+                  throw new Error('Expected the decoded session fixture');
+
+                yield* toRpcRequestContext(
+                  authenticatedRpcContext,
+                  session.authData,
+                );
+                rpcHandlingReached = true;
+                return HttpServerResponse.empty();
+              }),
+            ),
+          );
+          const response = yield* Effect.promise(() =>
+            handler(
+              new Request('http://localhost/rpc', {
+                headers: {
+                  connection: 'close',
+                  'content-type': 'application/json',
+                  cookie:
+                    'appSession=unusable; appSession.0=fragment; appSession.preference=keep; unrelated=keep',
+                  host: 'localhost',
+                  'x-forwarded-proto': 'http',
+                },
+                method: 'POST',
+              }),
+            ),
+          );
+          expect(response.status).toBe(401);
+          expect(rpcHandlingReached).toBe(false);
+          expect(response.headers.get('cache-control')).toBe('no-store');
+          expect(response.headers.get('connection')).toBe('close');
+          expect(response.headers.get('location')).toBeNull();
+          expect(yield* Effect.promise(() => response.json())).toEqual({
+            error: 'Unauthorized',
+            message:
+              'Your sign-in session is no longer valid. Sign in again to continue.',
+          });
+          const cookies = response.headers.getSetCookie();
+          expect(
+            cookies.map((cookie) => cookie.split('=', 1)[0]).toSorted(),
+          ).toEqual(['appSession', 'appSession.0']);
+          for (const cookie of cookies) {
+            expect(cookie).toContain('Max-Age=0');
+            expect(cookie).toContain('HttpOnly');
+            expect(cookie).toContain('SameSite=Lax');
+            expect(cookie).not.toContain('fragment');
+          }
+        }
+      }),
+  );
+
+  it.effect(
+    'preserves unexpected profile access defects without clearing session cookies',
+    () =>
+      Effect.gen(function* () {
+        const { handler } = yield* makeTestHandler(
+          HttpRouter.add(
+            'POST',
+            '/rpc',
+            Effect.gen(function* () {
+              yield* toRpcRequestContext(authenticatedRpcContext, {
+                get email() {
+                  throw new Error('private profile access defect');
+                },
+                sub: 'auth0|fixture-user',
+              });
+              return HttpServerResponse.empty();
+            }),
+          ),
+        );
+        const response = yield* Effect.promise(() =>
+          handler(
+            new Request('http://localhost/rpc', {
+              headers: {
+                'content-type': 'application/json',
+                cookie: 'appSession=valid',
+                host: 'localhost',
+                'x-forwarded-proto': 'http',
+              },
+              method: 'POST',
+            }),
+          ),
+        );
+        expect(response.status).toBe(500);
+        expect(response.headers.getSetCookie()).toEqual([]);
+        expect(yield* Effect.promise(() => response.json())).toEqual({
+          error: 'Internal Server Error',
+        });
       }),
   );
 

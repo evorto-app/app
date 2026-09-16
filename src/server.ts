@@ -628,7 +628,7 @@ const rpcRouteLayer = HttpLayerRouter.add('POST', rpcPath, (request) =>
             return notFoundServerResponse;
           }
           const requestContext = requestContextOption.value;
-          const rpcRequestContext = toRpcRequestContext(
+          const rpcRequestContext = yield* toRpcRequestContext(
             requestContext,
             getRequestAuthData(authSession),
           );
