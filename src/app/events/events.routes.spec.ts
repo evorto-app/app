@@ -13,9 +13,12 @@ import {
   RpcForbiddenError,
   RpcUnauthorizedError,
 } from '../../shared/errors/rpc-errors';
-import { EventNotFoundError } from '../../shared/rpc-contracts/app-rpcs/events.errors';
-import { APP_RPC_CLIENT } from '../core/effect-rpc-angular-client';
-import { PermissionsService } from '../core/permissions.service';
+import {
+  EventConflictError,
+  EventNotFoundError,
+} from '../../shared/rpc-contracts/app-rpcs/events.errors';
+import { type EventGraphEditRecord } from '../../shared/rpc-contracts/app-rpcs/events.rpcs';
+import { APP_RPC_CLIENT, AppRpc } from '../core/effect-rpc-angular-client';
 import { EVENT_ROUTES } from './events.routes';
 import { eventEditGuard } from './guards/event-edit.guard';
 import { eventOrganizerGuard } from './guards/event-organizer.guard';
@@ -38,9 +41,17 @@ describe('event route access outcomes', () => {
   let queryClient: QueryClient;
   const findEvent =
     vi.fn<() => Promise<{ creatorId: string; status: string }>>();
-  const maybeSelf = vi.fn<() => Promise<null | { id: string }>>();
+  type EditQueryOptions = ReturnType<
+    typeof AppRpc.injectClient
+  >['events']['findGraphForEdit']['queryOptions'];
+  const findGraphForEdit = vi.fn<() => Promise<EventGraphEditRecord>>();
+  const editQueryOptions = (
+    input: Parameters<EditQueryOptions>[0],
+  ): ReturnType<EditQueryOptions> => ({
+    queryFn: findGraphForEdit,
+    queryKey: [['events', 'findGraphForEdit'], { input, type: 'query' }],
+  });
   const canOrganize = vi.fn<() => Promise<boolean>>();
-  const hasPermissionSync = vi.fn<PermissionsService['hasPermissionSync']>();
 
   const activate = async (guard: CanActivateFn, eventId = 'event-1') => {
     const route = new ActivatedRouteSnapshot();
@@ -62,9 +73,20 @@ describe('event route access outcomes', () => {
       creatorId: 'creator-1',
       status: 'DRAFT',
     });
-    maybeSelf.mockReset().mockResolvedValue({ id: 'creator-1' });
+    findGraphForEdit.mockReset().mockResolvedValue({
+      addOns: [],
+      description: 'Draft event',
+      end: '2026-10-01T22:00:00.000Z',
+      icon: { iconColor: 2, iconName: 'calendar:fas' },
+      id: 'event-1',
+      location: null,
+      questions: [],
+      registrationOptions: [],
+      simpleModeEnabled: false,
+      start: '2026-10-01T18:00:00.000Z',
+      title: 'Draft event',
+    });
     canOrganize.mockReset().mockResolvedValue(true);
-    hasPermissionSync.mockReset().mockReturnValue(false);
     queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false, staleTime: Infinity } },
     });
@@ -72,13 +94,6 @@ describe('event route access outcomes', () => {
       providers: [
         provideRouter([]),
         { provide: QueryClient, useValue: queryClient },
-        {
-          provide: PermissionsService,
-          useValue: { hasPermissionSync } satisfies Pick<
-            PermissionsService,
-            'hasPermissionSync'
-          >,
-        },
         {
           provide: APP_RPC_CLIENT,
           useValue: {
@@ -89,6 +104,7 @@ describe('event route access outcomes', () => {
                   queryKey: ['events', 'canOrganize', eventId],
                 }),
               },
+              findGraphForEdit: { queryOptions: editQueryOptions },
               findOne: {
                 queryOptions: ({ id }: { id: string }) => ({
                   queryFn: findEvent,
@@ -96,7 +112,6 @@ describe('event route access outcomes', () => {
                 }),
               },
             },
-            users: { maybeSelf: { call: maybeSelf } },
           },
         },
       ],
@@ -127,43 +142,60 @@ describe('event route access outcomes', () => {
       },
       { error: new Error('EventNotFoundError'), path: '/500' },
     ])(`routes ${name} lookup errors to $path`, async ({ error, path }) => {
-      findEvent.mockRejectedValue(error);
+      const lookup = name === 'edit' ? findGraphForEdit : findEvent;
+      const otherLookup = name === 'edit' ? findEvent : findGraphForEdit;
+      lookup.mockRejectedValue(error);
 
       expect(destination(await activate(guard))).toBe(path);
-      expect(findEvent).toHaveBeenCalledOnce();
+      expect(lookup).toHaveBeenCalledOnce();
+      expect(otherLookup).not.toHaveBeenCalled();
       expect(canOrganize).not.toHaveBeenCalled();
     });
   }
 
-  it('allows the creator of a cached draft without edit-all permission', async () => {
+  it('reuses a cached edit authorized by the protected graph query', async () => {
     expect(await activate(eventEditGuard)).toBe(true);
     expect(await activate(eventEditGuard)).toBe(true);
-    expect(findEvent).toHaveBeenCalledOnce();
-    expect(maybeSelf).toHaveBeenCalledTimes(2);
-    expect(hasPermissionSync).toHaveBeenCalledWith('events:editAll');
+    expect(findGraphForEdit).toHaveBeenCalledOnce();
+    expect(
+      queryClient.getQueryData(editQueryOptions({ id: 'event-1' }).queryKey),
+    ).toMatchObject({ id: 'event-1' });
+    expect(findEvent).not.toHaveBeenCalled();
+    expect(canOrganize).not.toHaveBeenCalled();
   });
 
-  it.each([{ id: 'other-user' }, null])(
-    'denies a noncreator without edit-all permission',
-    async (self) => {
-      maybeSelf.mockResolvedValue(self);
+  it.each([
+    new RpcForbiddenError({ message: 'Editor access denied' }),
+    new RpcUnauthorizedError({ message: 'Sign in required' }),
+  ])(
+    'rejects a protected edit denial despite a cached public draft',
+    async (error) => {
+      queryClient.setQueryData(['events', 'findOne', 'event-1'], {
+        creatorId: 'creator-1',
+        status: 'DRAFT',
+      });
+      findGraphForEdit.mockRejectedValue(error);
+
       expect(destination(await activate(eventEditGuard))).toBe('/403');
+      expect(findGraphForEdit).toHaveBeenCalledOnce();
+      expect(findEvent).not.toHaveBeenCalled();
     },
   );
 
-  it('allows edit-all permission while preserving the event lock redirect', async () => {
-    maybeSelf.mockResolvedValue({ id: 'other-user' });
-    hasPermissionSync.mockReturnValue(true);
-    expect(await activate(eventEditGuard)).toBe(true);
+  it('preserves the server lock redirect despite a cached public draft', async () => {
     queryClient.setQueryData(['events', 'findOne', 'event-1'], {
       creatorId: 'creator-1',
-      status: 'PUBLISHED',
+      status: 'DRAFT',
     });
+    findGraphForEdit.mockRejectedValue(
+      new EventConflictError({ message: 'Event is locked' }),
+    );
 
     expect(destination(await activate(eventEditGuard))).toBe(
       '/events/event-1?error=event-locked',
     );
-    expect(findEvent).toHaveBeenCalledOnce();
+    expect(findGraphForEdit).toHaveBeenCalledOnce();
+    expect(findEvent).not.toHaveBeenCalled();
   });
 
   it.each([true, false])(
@@ -178,7 +210,7 @@ describe('event route access outcomes', () => {
       }
       expect(findEvent).toHaveBeenCalledOnce();
       expect(canOrganize).toHaveBeenCalledOnce();
-      expect(maybeSelf).not.toHaveBeenCalled();
+      expect(findGraphForEdit).not.toHaveBeenCalled();
     },
   );
 
@@ -202,10 +234,9 @@ describe('event route access outcomes', () => {
     );
 
     expect(destination(result)).toBe('/404');
-    expect(maybeSelf).not.toHaveBeenCalled();
+    expect(findGraphForEdit).not.toHaveBeenCalled();
     expect(findEvent).not.toHaveBeenCalled();
     expect(canOrganize).not.toHaveBeenCalled();
-    expect(hasPermissionSync).not.toHaveBeenCalled();
     expect(queryClient.getQueryCache().getAll()).toEqual([]);
   });
 });
