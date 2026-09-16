@@ -18,6 +18,7 @@ import {
   eventRegistrationQuestions,
   eventRegistrations,
   registrationOptionEventIdentityUniqueConstraintName,
+  registrationTransferAnswers,
   templateRegistrationQuestions,
 } from './index';
 
@@ -85,12 +86,17 @@ describe('registration question answer integrity', () => {
       ).toBe(`varchar(${MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH})`);
     }
 
-    const answerColumn = getTableConfig(
+    for (const table of [
       eventRegistrationQuestionAnswers,
-    ).columns.find((column) => column.name === 'answer');
-    expect(answerColumn?.getSQLType()).toBe(
-      `varchar(${MAX_REGISTRATION_ANSWER_LENGTH})`,
-    );
+      registrationTransferAnswers,
+    ]) {
+      const answerColumn = getTableConfig(table).columns.find(
+        (column) => column.name === 'answer',
+      );
+      expect(answerColumn?.getSQLType()).toBe(
+        `varchar(${MAX_REGISTRATION_ANSWER_LENGTH})`,
+      );
+    }
   });
 
   it('binds each question to one event registration option', () => {

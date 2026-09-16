@@ -1,4 +1,4 @@
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import type { Locator, Page } from '@playwright/test';
 
 import { getId } from '../../../helpers/get-id';
@@ -6,8 +6,10 @@ import { userStateFile, usersToAuthenticate } from '../../../helpers/user-data';
 import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/axe-test';
 import { seedPostRegistrationAddonPurchaseScenario } from '../../support/utils/post-registration-addon-purchase-scenario';
-import { deleteRegistrationAcquisitionLedger } from '../../support/utils/registration-acquisition-cleanup';
-import { seedFreeRegistrationAddon } from '../../support/utils/seed-registration-addons';
+import {
+  seedFreeAddonRegistrationEvent,
+  seedFreeRegistrationAddon,
+} from '../../support/utils/seed-registration-addons';
 import { futureServerEventWindow } from '../../support/utils/server-test-clock';
 import { waitForRegistrationPage } from '../../support/utils/event-registration-page';
 
@@ -46,171 +48,18 @@ test('registers with a free add-on and required registration question', async ({
     throw new Error('Expected regular user fixture');
   }
 
-  const targetEventId = seeded.scenario.events.freeOpen.eventId;
-  const targetOptionId = seeded.scenario.events.freeOpen.optionId;
+  const { eventId: targetEventId, optionId: targetOptionId } =
+    await seedFreeAddonRegistrationEvent({
+      database,
+      registerDatabaseCleanup,
+      sourceEventId: seeded.scenario.events.freeOpen.eventId,
+      sourceOptionId: seeded.scenario.events.freeOpen.optionId,
+      tenantId: tenant.id,
+      window: futureServerEventWindow(),
+    });
   const addOnId = `addon-${getId().slice(0, 14)}`;
   const questionId = `q-${getId().slice(0, 18)}`;
   const questionTitle = 'Anything organizers should know?';
-  const serverEventWindow = futureServerEventWindow();
-  const [targetEvent] = await database
-    .select()
-    .from(schema.eventInstances)
-    .where(eq(schema.eventInstances.id, targetEventId))
-    .limit(1);
-  if (!targetEvent) {
-    throw new Error(
-      'Expected seeded freeOpen event for add-on registration flow',
-    );
-  }
-  const [targetOption] = await database
-    .select()
-    .from(schema.eventRegistrationOptions)
-    .where(
-      and(
-        eq(schema.eventRegistrationOptions.eventId, targetEventId),
-        eq(schema.eventRegistrationOptions.id, targetOptionId),
-      ),
-    )
-    .limit(1);
-  if (!targetOption) {
-    throw new Error(
-      'Expected seeded freeOpen event registration option for add-on registration flow',
-    );
-  }
-  const originalRegistrations = await database
-    .select()
-    .from(schema.eventRegistrations)
-    .where(
-      and(
-        eq(schema.eventRegistrations.eventId, targetEventId),
-        eq(schema.eventRegistrations.tenantId, tenant.id),
-        eq(schema.eventRegistrations.userId, regularUser.id),
-      ),
-    );
-  const originalRegistrationIds = originalRegistrations.map(
-    (registration) => registration.id,
-  );
-  const originalAddonPurchases = originalRegistrationIds.length
-    ? await database
-        .select()
-        .from(schema.eventRegistrationAddonPurchases)
-        .where(
-          inArray(
-            schema.eventRegistrationAddonPurchases.registrationId,
-            originalRegistrationIds,
-          ),
-        )
-    : [];
-  const originalQuestionAnswers = originalRegistrationIds.length
-    ? await database
-        .select()
-        .from(schema.eventRegistrationQuestionAnswers)
-        .where(
-          inArray(
-            schema.eventRegistrationQuestionAnswers.registrationId,
-            originalRegistrationIds,
-          ),
-        )
-    : [];
-
-  registerDatabaseCleanup(async () => {
-    const createdRegistrations =
-      await database.query.eventRegistrations.findMany({
-        columns: { id: true },
-        where: {
-          eventId: targetEventId,
-          tenantId: tenant.id,
-          userId: regularUser.id,
-        },
-      });
-    await deleteRegistrationAcquisitionLedger({
-      database,
-      registrationIds: createdRegistrations.map(
-        (registration) => registration.id,
-      ),
-      tenantId: tenant.id,
-    });
-    await database
-      .delete(schema.eventRegistrations)
-      .where(
-        and(
-          eq(schema.eventRegistrations.eventId, targetEventId),
-          eq(schema.eventRegistrations.tenantId, tenant.id),
-          eq(schema.eventRegistrations.userId, regularUser.id),
-        ),
-      );
-    if (originalRegistrations.length) {
-      await database
-        .insert(schema.eventRegistrations)
-        .values(originalRegistrations);
-    }
-    if (originalAddonPurchases.length) {
-      await database
-        .insert(schema.eventRegistrationAddonPurchases)
-        .values(originalAddonPurchases);
-    }
-    if (originalQuestionAnswers.length) {
-      await database
-        .insert(schema.eventRegistrationQuestionAnswers)
-        .values(originalQuestionAnswers);
-    }
-    await database
-      .delete(schema.eventRegistrationQuestions)
-      .where(eq(schema.eventRegistrationQuestions.id, questionId));
-    await database
-      .delete(schema.addonToEventRegistrationOptions)
-      .where(eq(schema.addonToEventRegistrationOptions.addonId, addOnId));
-    await database
-      .delete(schema.eventAddons)
-      .where(eq(schema.eventAddons.id, addOnId));
-    await database
-      .update(schema.eventRegistrationOptions)
-      .set({
-        checkedInSpots: targetOption.checkedInSpots,
-        closeRegistrationTime: targetOption.closeRegistrationTime,
-        confirmedSpots: targetOption.confirmedSpots,
-        openRegistrationTime: targetOption.openRegistrationTime,
-        reservedSpots: targetOption.reservedSpots,
-        spots: targetOption.spots,
-        waitlistSpots: targetOption.waitlistSpots,
-      })
-      .where(eq(schema.eventRegistrationOptions.id, targetOptionId));
-    await database
-      .update(schema.eventInstances)
-      .set({
-        end: targetEvent.end,
-        start: targetEvent.start,
-      })
-      .where(eq(schema.eventInstances.id, targetEventId));
-  });
-
-  await database
-    .delete(schema.eventRegistrations)
-    .where(
-      and(
-        eq(schema.eventRegistrations.eventId, targetEventId),
-        eq(schema.eventRegistrations.tenantId, tenant.id),
-        eq(schema.eventRegistrations.userId, regularUser.id),
-      ),
-    );
-  await database
-    .update(schema.eventRegistrationOptions)
-    .set({
-      closeRegistrationTime: serverEventWindow.closeRegistrationTime,
-      confirmedSpots: 0,
-      openRegistrationTime: serverEventWindow.openRegistrationTime,
-      reservedSpots: 0,
-      spots: 20,
-      waitlistSpots: 0,
-    })
-    .where(eq(schema.eventRegistrationOptions.id, targetOptionId));
-  await database
-    .update(schema.eventInstances)
-    .set({
-      end: serverEventWindow.end,
-      start: serverEventWindow.start,
-    })
-    .where(eq(schema.eventInstances.id, targetEventId));
   await seedFreeRegistrationAddon({
     addonId: addOnId,
     database,
