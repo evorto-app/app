@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from '@effect/vitest';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -42,7 +42,11 @@ const createFakeRuntime = ({
     fakeBunPath,
     String.raw`#!/usr/bin/env bash
 printf '%s\n' "$*" >> "$BUN_LOG"
-exec "$REAL_BUN" "$@"
+# This suite verifies the wrapper arguments and lifecycle decisions. The real
+# deadline, signal forwarding, and descendant cleanup run in docker-lifecycle.spec.ts.
+if [[ "$1" != */run-with-wall-clock-timeout.ts ]]; then exit 99; fi
+shift 3
+exec "$@"
 `,
   );
   fs.writeFileSync(
@@ -76,9 +80,64 @@ exit 0
       FAKE_PS_STATUS: String(psStatus),
       FAKE_UP_STATUS: String(upStatus),
       PATH: `${directory}:${process.env['PATH'] ?? ''}`,
-      REAL_BUN: realBunPath,
     },
   };
+};
+
+const runFakeStack = async (
+  mode: 'start' | 'status',
+  environment: NodeJS.ProcessEnv,
+) => {
+  const child = spawn('bash', [stackScript, mode], {
+    detached: true,
+    env: environment,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  const stdout: Buffer[] = [];
+  const stderr: Buffer[] = [];
+  child.stdout.on('data', (chunk: Buffer) => stdout.push(chunk));
+  child.stderr.on('data', (chunk: Buffer) => stderr.push(chunk));
+  let timedOut = false;
+  const result = await new Promise<{
+    signal: NodeJS.Signals | null;
+    status: number | null;
+    stderr: string;
+    stdout: string;
+  }>((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      if (child.pid === undefined) return;
+      try {
+        process.kill(-child.pid, 'SIGKILL');
+      } catch (error) {
+        if (!(
+          error instanceof Error &&
+          'code' in error &&
+          error.code === 'ESRCH'
+        )) {
+          reject(error);
+        }
+      }
+    }, 4000);
+    child.once('error', (error) => {
+      clearTimeout(timeout);
+      reject(error);
+    });
+    child.once('close', (status, signal) => {
+      clearTimeout(timeout);
+      resolve({
+        signal,
+        status,
+        stderr: Buffer.concat(stderr).toString('utf8'),
+        stdout: Buffer.concat(stdout).toString('utf8'),
+      });
+    });
+  });
+  expect(timedOut, 'Fake Docker lifecycle exceeded its child deadline').toBe(
+    false,
+  );
+  expect(result.signal).toBeNull();
+  return result;
 };
 
 afterEach(() => {
@@ -249,11 +308,11 @@ process.stdout.write(JSON.stringify({
     );
   });
 
-  it('refuses to infer a Compose project', () => {
+  it('refuses to infer a Compose project', async () => {
     const { dockerLogPath, environment } = createFakeRuntime();
-    const result = spawnSync('bash', [stackScript, 'status'], {
-      encoding: 'utf8',
-      env: { ...environment, COMPOSE_PROJECT_NAME: '' },
+    const result = await runFakeStack('status', {
+      ...environment,
+      COMPOSE_PROJECT_NAME: '',
     });
 
     expect(result.status, result.stderr).toBe(2);
@@ -263,12 +322,9 @@ process.stdout.write(JSON.stringify({
     expect(fs.existsSync(dockerLogPath)).toBe(false);
   });
 
-  it('bounds teardown, build, and detached startup without retrying', () => {
+  it('bounds teardown, build, and detached startup without retrying', async () => {
     const { bunLogPath, dockerLogPath, environment } = createFakeRuntime();
-    const result = spawnSync('bash', [stackScript, 'start'], {
-      encoding: 'utf8',
-      env: environment,
-    });
+    const result = await runFakeStack('start', environment);
 
     expect(result.status, result.stderr).toBe(0);
     expect(fs.readFileSync(dockerLogPath, 'utf8').trim().split('\n')).toEqual([
@@ -288,14 +344,11 @@ process.stdout.write(JSON.stringify({
     );
   });
 
-  it('surfaces state and logs when teardown reaches its wall-clock limit', () => {
+  it('surfaces state and logs when teardown reaches its wall-clock limit', async () => {
     const { dockerLogPath, environment } = createFakeRuntime({
       downStatus: 124,
     });
-    const result = spawnSync('bash', [stackScript, 'start'], {
-      encoding: 'utf8',
-      env: environment,
-    });
+    const result = await runFakeStack('start', environment);
 
     expect(result.status, result.stderr).toBe(124);
     expect(result.stderr).toContain(
@@ -310,12 +363,9 @@ process.stdout.write(JSON.stringify({
     ]);
   });
 
-  it('does not retry or continue after a startup failure', () => {
+  it('does not retry or continue after a startup failure', async () => {
     const { dockerLogPath, environment } = createFakeRuntime({ upStatus: 17 });
-    const result = spawnSync('bash', [stackScript, 'start'], {
-      encoding: 'utf8',
-      env: environment,
-    });
+    const result = await runFakeStack('start', environment);
 
     expect(result.status, result.stderr).toBe(17);
     expect(result.stderr).toContain(
@@ -331,12 +381,9 @@ process.stdout.write(JSON.stringify({
     ]);
   });
 
-  it('does not retry a failed status inspection', () => {
+  it('does not retry a failed status inspection', async () => {
     const { dockerLogPath, environment } = createFakeRuntime({ psStatus: 19 });
-    const result = spawnSync('bash', [stackScript, 'status'], {
-      encoding: 'utf8',
-      env: environment,
-    });
+    const result = await runFakeStack('status', environment);
 
     expect(result.status, result.stderr).toBe(19);
     expect(result.stderr).toContain(
