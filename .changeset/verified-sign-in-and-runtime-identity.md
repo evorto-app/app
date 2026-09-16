@@ -34,3 +34,7 @@ remain explicit, with no ambient PostgreSQL credential fallback.
 Reject malformed or non-IPv6 bracketed TLS identities instead of repairing them
 into DNS names. Keep authentication configuration consistent with client origin
 validation by rejecting explicit empty ports while preserving supported ports.
+
+Apply the application's optional TLS server-name normalization to raw schema,
+prerequisite, and reset settings: trim surrounding whitespace and verify the
+connection host when the setting is blank, without weakening certificate checks.

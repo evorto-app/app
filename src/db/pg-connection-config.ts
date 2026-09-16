@@ -113,13 +113,15 @@ const createDatabaseTlsOptions = (
   if (caCertificate.trim().length === 0) {
     throw new Error('DATABASE_TLS_CA_CERTIFICATE must not be blank');
   }
-  const identity = databaseServerIdentity(databaseUrl, tlsServerName);
+  const normalizedServerName = tlsServerName?.trim() || undefined;
+  const identity = databaseServerIdentity(databaseUrl, normalizedServerName);
   return {
     ca: caCertificate,
     checkServerIdentity: (_hostname, certificate) =>
       checkServerIdentity(identity, certificate),
     rejectUnauthorized: true,
-    ...(tlsServerName && isIP(identity) === 0 && { servername: identity }),
+    ...(normalizedServerName &&
+      isIP(identity) === 0 && { servername: identity }),
   };
 };
 

@@ -1,3 +1,4 @@
+import { DOCUMENT } from '@angular/common';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
 import { TenantOnboardingRequirementsChangedError } from '@shared/rpc-contracts/app-rpcs/onboarding.errors';
@@ -7,6 +8,7 @@ import {
 } from '@tanstack/angular-query-experimental';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { APP_RPC_CLIENT } from '../effect-rpc-angular-client';
 import {
   CreateAccountComponent,
   CreateAccountOperations,
@@ -42,6 +44,27 @@ const onboardingRequirements = (
 
 const normalizeText = (fixture: ComponentFixture<CreateAccountComponent>) =>
   fixture.nativeElement.textContent.replaceAll(/\s+/g, ' ').trim();
+
+describe('CreateAccountOperations completion navigation', () => {
+  afterEach(() => {
+    TestBed.resetTestingModule();
+  });
+
+  it('loads the profile through the injected document after onboarding', () => {
+    const assign = vi.fn<Location['assign']>();
+    TestBed.configureTestingModule({
+      providers: [
+        CreateAccountOperations,
+        { provide: APP_RPC_CLIENT, useValue: {} },
+        { provide: DOCUMENT, useValue: { location: { assign } } },
+      ],
+    });
+
+    TestBed.inject(CreateAccountOperations).navigateAfterCompletion();
+
+    expect(assign).toHaveBeenCalledExactlyOnceWith('/profile');
+  });
+});
 
 describe('CreateAccountComponent load recovery', () => {
   let queryClient: QueryClient;

@@ -30,6 +30,36 @@ describe.each(['true', 'false'])(
         tlsServerName: '2001:db8::2',
       },
       {
+        identity: 'a whitespace-padded DNS override',
+        servername: 'database.example',
+        subjectaltname: 'DNS:database.example',
+        tlsServerName: ' \tdatabase.example\n ',
+      },
+      {
+        identity: 'a whitespace-padded IPv4 override without SNI',
+        servername: '',
+        subjectaltname: 'IP Address:127.0.0.2',
+        tlsServerName: ' \t127.0.0.2\n ',
+      },
+      {
+        identity: 'a whitespace-padded IPv6 override without SNI',
+        servername: '',
+        subjectaltname: 'IP Address:2001:db8:0:0:0:0:0:2',
+        tlsServerName: ' \t2001:db8::2\n ',
+      },
+      {
+        identity: 'a whitespace-padded bracketed IPv6 override without SNI',
+        servername: '',
+        subjectaltname: 'IP Address:2001:db8:0:0:0:0:0:2',
+        tlsServerName: ' \t[2001:db8::2]\n ',
+      },
+      {
+        identity: 'the connection host for a whitespace-only override',
+        servername: '',
+        subjectaltname: 'IP Address:0:0:0:0:0:0:0:1',
+        tlsServerName: ' \n\t',
+      },
+      {
         identity: 'a bracketed IPv6 override without SNI',
         servername: '',
         subjectaltname: 'IP Address:2001:db8:0:0:0:0:0:2',
@@ -464,6 +494,8 @@ describe('managed TLS identity bracket validation', () => {
     'db.example.test]',
     '[db.example.test',
     '[[2001:db8::2]]',
+    '  [db.example.test]  ',
+    '  db.example.test]  ',
   ])(
     'rejects malformed or non-IP bracketed TLS identity %s before normalization',
     (tlsServerName) => {

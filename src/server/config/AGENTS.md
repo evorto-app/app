@@ -31,6 +31,11 @@
   malformed brackets and bracketed DNS identities fail configuration validation.
   IPv6 connection hosts and certificate identities use the same normalized
   effective host in both PostgreSQL clients.
+- Normalize the optional TLS server name before both certificate identity and
+  SNI: trim surrounding whitespace, and treat a blank value as absent so the
+  effective connection host is verified. Managed Drizzle and the shared pool
+  constructors used by prerequisites and reset enforce the same policy as the
+  application config. Preserve CA certificate bytes.
 - With a CA, managed Drizzle URLs support only `host`, `port`, `user`, and
   `password` query options. Match the pinned PostgreSQL parser: the final value
   wins, and an empty final value uses the authority value. Decode the database

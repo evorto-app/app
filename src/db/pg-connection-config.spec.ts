@@ -1,9 +1,10 @@
 import type { PeerCertificate } from 'node:tls';
 
 import { describe, expect, it } from '@effect/vitest';
-import { Redacted } from 'effect';
+import { ConfigProvider, Effect, Option, Redacted } from 'effect';
 import { Client } from 'pg';
 
+import { databaseConfig } from './database-config';
 import {
   createNodePgPoolConfig,
   createPgClientConfig,
@@ -70,6 +71,8 @@ describe('pg-connection-config', () => {
       'db.example.test]',
       '[db.example.test',
       '[[2001:db8::2]]',
+      '  [db.example.test]  ',
+      '  db.example.test]  ',
     ])(
       `rejects malformed or non-IP bracketed TLS identities in ${name}: %s`,
       (tlsServerName) => {
@@ -79,6 +82,97 @@ describe('pg-connection-config', () => {
           'Database TLS identity brackets must contain one valid IPv6 address',
         );
       },
+    );
+  }
+
+  for (const tlsRequired of ['true', 'false']) {
+    it.effect.each([
+      {
+        normalized: 'database.example',
+        raw: ' \tdatabase.example\n ',
+        san: 'DNS:database.example',
+        servername: 'database.example',
+      },
+      {
+        normalized: '127.0.0.2',
+        raw: ' \t127.0.0.2\n ',
+        san: 'IP Address:127.0.0.2',
+        servername: undefined,
+      },
+      {
+        normalized: '2001:db8::2',
+        raw: ' \t2001:db8::2\n ',
+        san: 'IP Address:2001:db8:0:0:0:0:0:2',
+        servername: undefined,
+      },
+      {
+        normalized: '[2001:db8::2]',
+        raw: ' \t[2001:db8::2]\n ',
+        san: 'IP Address:2001:db8:0:0:0:0:0:2',
+        servername: undefined,
+      },
+      {
+        normalized: undefined,
+        raw: ' \n\t',
+        san: 'DNS:localhost',
+        servername: undefined,
+      },
+      {
+        normalized: undefined,
+        raw: '',
+        san: 'DNS:localhost',
+        servername: undefined,
+      },
+    ])(
+      `matches app normalization for raw TLS name $raw with TLS_REQUIRED=${tlsRequired}`,
+      ({ normalized, raw, san, servername }) =>
+        Effect.gen(function* () {
+          const caCertificate =
+            '\n-----BEGIN CERTIFICATE-----\nca\n-----END CERTIFICATE-----\n';
+          const configured = yield* databaseConfig.parse(
+            ConfigProvider.fromEnv({
+              env: {
+                DATABASE_TLS_CA_CERTIFICATE: caCertificate,
+                DATABASE_TLS_REQUIRED: tlsRequired,
+                DATABASE_TLS_SERVER_NAME: raw,
+                DATABASE_URL: databaseUrl,
+              },
+              preserveEmptyStrings: true,
+            }),
+          );
+          expect(
+            Option.getOrUndefined(configured.DATABASE_TLS_SERVER_NAME),
+          ).toBe(normalized);
+          for (const create of [createNodePgPoolConfig, createPgClientConfig]) {
+            const ssl = create({
+              caCertificate,
+              databaseUrl,
+              tlsServerName: raw,
+            }).ssl;
+            if (
+              typeof ssl !== 'object' ||
+              ssl === null ||
+              !ssl.checkServerIdentity
+            ) {
+              throw new Error('Expected verified PostgreSQL TLS options');
+            }
+            expect(ssl.ca).toBe(caCertificate);
+            expect(ssl.rejectUnauthorized).toBe(true);
+            expect(ssl.servername).toBe(servername);
+            expect(
+              ssl.checkServerIdentity(
+                'untrusted-driver-name',
+                identityCertificate(san),
+              ),
+            ).toBeUndefined();
+            expect(
+              ssl.checkServerIdentity(
+                'untrusted-driver-name',
+                identityCertificate('DNS:wrong.example'),
+              ),
+            ).toBeInstanceOf(Error);
+          }
+        }),
     );
   }
 
