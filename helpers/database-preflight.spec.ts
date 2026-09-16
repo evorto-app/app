@@ -270,6 +270,8 @@ describe('direct Playwright database fixture preflight', () => {
       entrypoint: 'tests/support/fixtures/base-test.ts',
       playwright: true,
       environment: {
+        AUTH0_MANAGEMENT_CLIENT_ID: 'fixture-management',
+        AUTH0_MANAGEMENT_CLIENT_SECRET: 'fixture-management-secret',
         BASE_URL: 'http://localhost:4200',
         CLIENT_ID: 'fixture',
         CLIENT_SECRET: 'fixture',

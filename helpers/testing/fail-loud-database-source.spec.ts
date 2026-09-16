@@ -65,7 +65,7 @@ describe('fail-loud local database and seed source', () => {
     expect(drizzleConfig).toContain(
       'const { databaseUrl } = resolveLocalDatabaseEnvironment();',
     );
-    expect(reset).toContain('resolveLocalDatabaseEnvironment()');
+    expect(reset).toContain('resolveLocalApplicationDatabaseEnvironment()');
     const ensureIntegrationDatabaseCall =
       'await ensureLocalPostgresIntegrationDatabase({ databaseUrl });';
     const resetPublicSchemaCall = 'await resetPublicSchema({ databaseUrl });';
