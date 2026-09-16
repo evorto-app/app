@@ -3299,6 +3299,30 @@ const createTrustedUrlDatabaseFixture = () => {
     executeValues: (statement, parameters) =>
       Effect.sync(() => {
         if (
+          statement ===
+          'select "id" from "tenants" where "tenants"."id" = $1 for key share'
+        ) {
+          expect(transactionOpen).toBe(true);
+          expect(parameters).toEqual(['tenant-1']);
+          return [['tenant-1']];
+        }
+        if (
+          statement ===
+          'select "id" from "event_instances" where (("event_instances"."id" = $1) and ("event_instances"."tenantId" = $2)) for share'
+        ) {
+          expect(transactionOpen).toBe(true);
+          expect(parameters).toEqual(['event-1', 'tenant-1']);
+          return [['event-1']];
+        }
+        if (
+          statement ===
+          'select "id", "required" from "event_registration_questions" where (("event_registration_questions"."eventId" = $1) and ("event_registration_questions"."registrationOptionId" = $2)) order by "event_registration_questions"."id" for share'
+        ) {
+          expect(transactionOpen).toBe(true);
+          expect(parameters).toEqual(['event-1', 'option-1']);
+          return [];
+        }
+        if (
           statement.startsWith(
             `insert into "${getTableName(eventRegistrations)}"`,
           )

@@ -1,9 +1,16 @@
 import { afterAll, beforeAll, describe, expect, it } from '@effect/vitest';
 import { DrizzleQueryError, eq, inArray } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
+import { ConfigProvider, Effect, Layer } from 'effect';
 import { randomUUID } from 'node:crypto';
 import { Pool } from 'pg';
+import Stripe from 'stripe';
 
+import { EventRegistrationService } from '../../server/effect/rpc/handlers/events/event-registration.service';
+import { ensureAnsweredEventQuestionsUnchanged } from '../../server/registrations/event-question-answer-guard';
+import { RegistrationTransferService } from '../../server/registrations/registration-transfer.service';
+import { StripeClient } from '../../server/stripe-client';
+import { Database, databaseLayer } from '../database.layer';
 import { createNodePgPoolConfig } from '../pg-connection-config';
 import { relations } from '../relations';
 import {
@@ -18,8 +25,11 @@ import {
   eventRegistrations,
   eventTemplateCategories,
   eventTemplates,
+  registrationTransferAnswers,
+  registrationTransfers,
   tenants,
   users,
+  usersToTenants,
 } from './index';
 
 const databaseUrl = process.env['DATABASE_URL'];
@@ -196,6 +206,12 @@ const cleanFixture = async (
   fixture: RegistrationAnswerFixture,
 ) => {
   await database
+    .delete(registrationTransferAnswers)
+    .where(inArray(registrationTransferAnswers.tenantId, fixture.tenantIds));
+  await database
+    .delete(registrationTransfers)
+    .where(inArray(registrationTransfers.tenantId, fixture.tenantIds));
+  await database
     .delete(eventRegistrationQuestionAnswers)
     .where(
       inArray(eventRegistrationQuestionAnswers.tenantId, fixture.tenantIds),
@@ -218,6 +234,9 @@ const cleanFixture = async (
   await database
     .delete(eventTemplateCategories)
     .where(eq(eventTemplateCategories.id, fixture.categoryId));
+  await database
+    .delete(usersToTenants)
+    .where(eq(usersToTenants.userId, fixture.userId));
   await database.delete(users).where(eq(users.id, fixture.userId));
   await database.delete(tenants).where(inArray(tenants.id, fixture.tenantIds));
 };
@@ -359,4 +378,420 @@ describe('registration answer integrity in PostgreSQL', () => {
         );
     }
   });
+});
+
+const questionRaceLayer = (url: string) => {
+  const config = ConfigProvider.layer(
+    ConfigProvider.fromEnv({
+      env: {
+        BASE_URL: 'https://question-race.example',
+        DATABASE_TLS_REQUIRED: 'false',
+        DATABASE_URL: url,
+      },
+    }),
+  );
+  return Layer.mergeAll(
+    config,
+    databaseLayer.pipe(Layer.provide(config)),
+    Layer.succeed(StripeClient, new Stripe('sk_test_question_race')),
+  );
+};
+
+const waitForQuestionRaceLock = async (pool: Pool, blockerPid: number) => {
+  const deadline = Date.now() + 10_000;
+  while (Date.now() < deadline) {
+    const blocked = await pool.query<{ count: string }>(
+      `SELECT count(*)::text AS count FROM pg_stat_activity
+       WHERE datname = current_database() AND state = 'active'
+       AND wait_event_type = 'Lock' AND $1::int = ANY(pg_blocking_pids(pid))`,
+      [blockerPid],
+    );
+    if (Number(blocked.rows[0]?.count ?? 0) > 0) return;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error('Timed out observing the question-history race lock');
+};
+
+// The blocked backend is observed before the winning transaction commits;
+// these races do not rely on a sleep to assume that the other side started.
+describe('question answer history concurrency in PostgreSQL', () => {
+  const pool = new Pool(createNodePgPoolConfig({ databaseUrl }));
+  const database = drizzle({ client: pool, relations });
+  const layer = questionRaceLayer(databaseUrl);
+  afterAll(() => pool.end());
+
+  for (const history of ['registration', 'transfer'] as const) {
+    for (const mutation of ['remove', 'change'] as const) {
+      it(`preserves ${history} history when an answer wins a question ${mutation}`, async () => {
+        const fixture = makeFixture();
+        await seedFixture(database, fixture);
+        const client = await pool.connect();
+        const writer = drizzle({ client, relations });
+        let pending: Promise<unknown> | undefined;
+        try {
+          const before = await database
+            .select()
+            .from(eventRegistrationQuestions)
+            .where(eq(eventRegistrationQuestions.id, fixture.questionIds[0]));
+          const transferId = `tr-${fixture.registrationId}`;
+          if (history === 'transfer') {
+            await database.insert(registrationTransfers).values({
+              claimCodeHash: randomUUID(),
+              claimTokenHash: randomUUID(),
+              eventId: fixture.eventIds[0],
+              expiresAt: new Date(Date.now() + 60_000),
+              id: transferId,
+              registrationOptionId: fixture.optionIds[0],
+              sourceRegistrationId: fixture.registrationId,
+              sourceSpotCount: 1,
+              sourceUserId: fixture.userId,
+              tenantId: fixture.tenantIds[0],
+            });
+          }
+          await client.query('BEGIN');
+          const pidResult = await client.query<{ pid: number }>(
+            'SELECT pg_backend_pid() AS pid',
+          );
+          const pid = pidResult.rows[0]?.pid;
+          if (pid === undefined) throw new Error('Missing answer writer PID');
+          const answer = {
+            answer: 'Saved before mutation',
+            eventId: fixture.eventIds[0],
+            questionId: fixture.questionIds[0],
+            registrationOptionId: fixture.optionIds[0],
+            tenantId: fixture.tenantIds[0],
+          };
+          if (history === 'registration') {
+            await writer
+              .insert(eventRegistrationQuestionAnswers)
+              .values({ ...answer, registrationId: fixture.registrationId });
+          } else {
+            await writer
+              .insert(registrationTransferAnswers)
+              .values({ ...answer, transferId });
+          }
+          const result = Effect.runPromise(
+            Database.use((db) =>
+              db.transaction((tx) =>
+                Effect.gen(function* () {
+                  yield* tx
+                    .select({ id: eventInstances.id })
+                    .from(eventInstances)
+                    .where(eq(eventInstances.id, fixture.eventIds[0]))
+                    .for('update');
+                  yield* ensureAnsweredEventQuestionsUnchanged(tx, {
+                    before,
+                    submitted:
+                      mutation === 'remove'
+                        ? []
+                        : before.map((question) => ({
+                            ...question,
+                            title: 'Changed meaning',
+                          })),
+                  });
+                  if (mutation === 'remove') {
+                    yield* tx
+                      .delete(eventRegistrationQuestions)
+                      .where(
+                        eq(
+                          eventRegistrationQuestions.id,
+                          fixture.questionIds[0],
+                        ),
+                      );
+                  } else {
+                    yield* tx
+                      .update(eventRegistrationQuestions)
+                      .set({ title: 'Changed meaning' })
+                      .where(
+                        eq(
+                          eventRegistrationQuestions.id,
+                          fixture.questionIds[0],
+                        ),
+                      );
+                  }
+                }),
+              ),
+            ).pipe(
+              Effect.match({
+                onFailure: (error) => ({ error }),
+                onSuccess: () => ({ success: true }),
+              }),
+              Effect.provide(layer),
+            ),
+          );
+          pending = result;
+          await waitForQuestionRaceLock(pool, pid);
+          await client.query('COMMIT');
+          expect(await result).toMatchObject({
+            error: { _tag: 'RpcBadRequestError', reason: 'eventQuestionInUse' },
+          });
+          expect(
+            await database
+              .select({ title: eventRegistrationQuestions.title })
+              .from(eventRegistrationQuestions)
+              .where(eq(eventRegistrationQuestions.id, fixture.questionIds[0])),
+          ).toEqual([{ title: 'First option question' }]);
+          const saved =
+            history === 'registration'
+              ? await database
+                  .select({ answer: eventRegistrationQuestionAnswers.answer })
+                  .from(eventRegistrationQuestionAnswers)
+                  .where(
+                    eq(
+                      eventRegistrationQuestionAnswers.questionId,
+                      fixture.questionIds[0],
+                    ),
+                  )
+              : await database
+                  .select({ answer: registrationTransferAnswers.answer })
+                  .from(registrationTransferAnswers)
+                  .where(
+                    eq(
+                      registrationTransferAnswers.questionId,
+                      fixture.questionIds[0],
+                    ),
+                  );
+          expect(saved).toEqual([{ answer: 'Saved before mutation' }]);
+        } finally {
+          await client.query('ROLLBACK');
+          client.release();
+          if (pending) await pending;
+          await cleanFixture(database, fixture);
+        }
+      }, 20_000);
+    }
+  }
+
+  for (const writer of ['registration', 'waitlist'] as const) {
+    for (const mutation of ['remove', 'require', 'add required'] as const) {
+      it(`revalidates ${writer} answers when a question ${mutation} wins`, async () => {
+        const fixture = makeFixture();
+        await seedFixture(database, fixture);
+        await database
+          .update(eventRegistrations)
+          .set({ status: 'CANCELLED' })
+          .where(eq(eventRegistrations.id, fixture.registrationId));
+        await database
+          .insert(usersToTenants)
+          .values({ tenantId: fixture.tenantIds[0], userId: fixture.userId });
+        await database
+          .update(eventInstances)
+          .set({ reviewedAt: new Date(), status: 'APPROVED' })
+          .where(eq(eventInstances.id, fixture.eventIds[0]));
+        if (writer === 'waitlist')
+          await database
+            .update(eventRegistrationOptions)
+            .set({ confirmedSpots: 10 })
+            .where(eq(eventRegistrationOptions.id, fixture.optionIds[0]));
+        if (mutation === 'require')
+          await database
+            .update(eventRegistrationQuestions)
+            .set({ required: false })
+            .where(eq(eventRegistrationQuestions.id, fixture.questionIds[0]));
+        const client = await pool.connect();
+        const editor = drizzle({ client, relations });
+        let pending: Promise<unknown> | undefined;
+        try {
+          await client.query('BEGIN');
+          const pidResult = await client.query<{ pid: number }>(
+            'SELECT pg_backend_pid() AS pid',
+          );
+          const pid = pidResult.rows[0]?.pid;
+          if (pid === undefined) throw new Error('Missing question editor PID');
+          await editor
+            .select({ id: eventInstances.id })
+            .from(eventInstances)
+            .where(eq(eventInstances.id, fixture.eventIds[0]))
+            .for('update');
+          if (mutation === 'remove') {
+            await editor
+              .delete(eventRegistrationQuestions)
+              .where(eq(eventRegistrationQuestions.id, fixture.questionIds[0]));
+          } else if (mutation === 'require') {
+            await editor
+              .update(eventRegistrationQuestions)
+              .set({ required: true })
+              .where(eq(eventRegistrationQuestions.id, fixture.questionIds[0]));
+          } else {
+            await editor.insert(eventRegistrationQuestions).values({
+              eventId: fixture.eventIds[0],
+              registrationOptionId: fixture.optionIds[0],
+              required: true,
+              title: 'New required question',
+            });
+          }
+          const input = {
+            answers:
+              mutation === 'require'
+                ? []
+                : [
+                    {
+                      answer: 'Answer to old definition',
+                      questionId: fixture.questionIds[0],
+                    },
+                  ],
+            eventId: fixture.eventIds[0],
+            guestCount: 0,
+            registrationOptionId: fixture.optionIds[0],
+            tenant: {
+              currency: 'EUR' as const,
+              domain: `${fixture.tenantIds[0]}.answer-integrity.example`,
+              id: fixture.tenantIds[0],
+              stripeAccountId: null,
+            },
+            user: {
+              email: `${fixture.userId}@example.com`,
+              id: fixture.userId,
+              roleIds: [],
+            },
+          };
+          const result = Effect.runPromise(
+            (writer === 'registration'
+              ? EventRegistrationService.registerForEvent(input)
+              : EventRegistrationService.joinWaitlist(input)
+            ).pipe(
+              Effect.match({
+                onFailure: (error) => ({ error }),
+                onSuccess: () => ({ success: true }),
+              }),
+              Effect.provide(EventRegistrationService.Default),
+              Effect.provide(layer),
+            ),
+          );
+          pending = result;
+          await waitForQuestionRaceLock(pool, pid);
+          await client.query('COMMIT');
+          expect(await result).toMatchObject({
+            error: {
+              _tag: 'EventRegistrationConflictError',
+              message:
+                mutation === 'remove'
+                  ? 'Registration question does not belong to this option'
+                  : 'Required registration question is missing',
+            },
+          });
+          expect(
+            await database
+              .select({ status: eventRegistrations.status })
+              .from(eventRegistrations)
+              .where(eq(eventRegistrations.eventId, fixture.eventIds[0])),
+          ).toEqual([{ status: 'CANCELLED' }]);
+          expect(
+            await database
+              .select()
+              .from(eventRegistrationQuestionAnswers)
+              .where(
+                eq(
+                  eventRegistrationQuestionAnswers.eventId,
+                  fixture.eventIds[0],
+                ),
+              ),
+          ).toEqual([]);
+          expect(
+            await database
+              .select({
+                confirmed: eventRegistrationOptions.confirmedSpots,
+                reserved: eventRegistrationOptions.reservedSpots,
+                waitlist: eventRegistrationOptions.waitlistSpots,
+              })
+              .from(eventRegistrationOptions)
+              .where(eq(eventRegistrationOptions.id, fixture.optionIds[0])),
+          ).toEqual([
+            {
+              confirmed: writer === 'waitlist' ? 10 : 0,
+              reserved: 0,
+              waitlist: 0,
+            },
+          ]);
+        } finally {
+          await client.query('ROLLBACK');
+          client.release();
+          if (pending) await pending;
+          await cleanFixture(database, fixture);
+        }
+      }, 20_000);
+    }
+  }
+  it('lets an answer writer finish its option write while a transfer offer waits on tenant terms', async () => {
+    const fixture = makeFixture();
+    await seedFixture(database, fixture);
+    await database
+      .update(eventInstances)
+      .set({ reviewedAt: new Date(), status: 'APPROVED' })
+      .where(eq(eventInstances.id, fixture.eventIds[0]));
+    const client = await pool.connect();
+    const writer = drizzle({ client, relations });
+    let pending: Promise<unknown> | undefined;
+    try {
+      await client.query('BEGIN');
+      await client.query("SET LOCAL lock_timeout = '1000ms'");
+      const pidResult = await client.query<{ pid: number }>(
+        'SELECT pg_backend_pid() AS pid',
+      );
+      const pid = pidResult.rows[0]?.pid;
+      if (pid === undefined) throw new Error('Missing answer writer PID');
+      await writer
+        .select({ id: tenants.id })
+        .from(tenants)
+        .where(eq(tenants.id, fixture.tenantIds[0]))
+        .for('key share');
+      await writer
+        .select({ id: eventInstances.id })
+        .from(eventInstances)
+        .where(eq(eventInstances.id, fixture.eventIds[0]))
+        .for('share');
+      const result = Effect.runPromise(
+        RegistrationTransferService.use((service) =>
+          service.createOffer({
+            registrationId: fixture.registrationId,
+            tenant: {
+              cancellationDeadlineHoursBeforeStart: 0,
+              currency: 'EUR',
+              domain: `${fixture.tenantIds[0]}.answer-integrity.example`,
+              id: fixture.tenantIds[0],
+              maxActiveRegistrationsPerUser: 0,
+              name: 'Question race tenant',
+              refundFeesOnCancellation: false,
+              stripeAccountId: null,
+              transferDeadlineHoursBeforeStart: 0,
+            },
+            user: {
+              communicationEmail: `${fixture.userId}@example.com`,
+              email: `${fixture.userId}@example.com`,
+              id: fixture.userId,
+              roleIds: [],
+            },
+          }),
+        ).pipe(
+          Effect.match({
+            onFailure: (error) => ({ error }),
+            onSuccess: () => ({ success: true }),
+          }),
+          Effect.provide(RegistrationTransferService.Default),
+          Effect.provide(layer),
+        ),
+      );
+      pending = result;
+      await waitForQuestionRaceLock(pool, pid);
+      await writer
+        .update(eventRegistrationOptions)
+        .set({ spots: 11 })
+        .where(eq(eventRegistrationOptions.id, fixture.optionIds[0]));
+      await client.query('COMMIT');
+      // The fixture deliberately has no acquisition. Reaching this typed guard
+      // proves terms were read after the writer committed, without provider I/O.
+      expect(await result).toMatchObject({
+        error: {
+          _tag: 'RegistrationTransferConflictError',
+          message:
+            'Registration payment ownership is not initialized for the current owner.',
+        },
+      });
+    } finally {
+      await client.query('ROLLBACK');
+      client.release();
+      if (pending) await pending;
+      await cleanFixture(database, fixture);
+    }
+  }, 20_000);
 });

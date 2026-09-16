@@ -1,15 +1,22 @@
 import type { EventGraphEditRecord } from '@shared/rpc-contracts/app-rpcs/events.rpcs';
 
-import { describe, expect, it } from '@effect/vitest';
+import { Database } from '@db/index';
+import { describe, expect, it, layer } from '@effect/vitest';
+import { createDatabaseTestLayer } from '@server/testing/database-test-layer';
 import { RpcBadRequestError } from '@shared/errors/rpc-errors';
+import { EventsUpdateRpcError } from '@shared/rpc-contracts/app-rpcs/events.errors';
+import { Effect, Schema } from 'effect';
 
 import {
   type EventGraphUpdateInput,
   purchasedAddOnRegistrationOptionRemovalMessage,
+  updateEventGraph,
   validateEventGraphStructure,
 } from './event-graph.service';
 
-const beforeGraph = (): EventGraphEditRecord => ({
+type MutableFixture<T> = { -readonly [Key in keyof T]: MutableFixture<T[Key]> };
+
+const beforeGraph = (): MutableFixture<EventGraphEditRecord> => ({
   addOns: [],
   description: '<p>Event description</p>',
   end: '2026-09-20T12:00:00.000Z',
@@ -62,7 +69,7 @@ const beforeGraph = (): EventGraphEditRecord => ({
   title: 'Event',
 });
 
-const validInput = (): EventGraphUpdateInput => ({
+const validInput = (): MutableFixture<EventGraphUpdateInput> => ({
   addOns: [
     {
       allowMultiple: true,
@@ -106,7 +113,7 @@ const validInput = (): EventGraphUpdateInput => ({
       option.cancellationDeadlineHoursBeforeStart,
     closeRegistrationTime: option.closeRegistrationTime,
     description: option.description,
-    esnCardDiscountedPrice: option.esnCardDiscountedPrice,
+    esnCardDiscountedPrice: option.esnCardDiscountedPrice ?? null,
     id: option.id,
     isPaid: option.isPaid,
     key: option.id,
@@ -153,10 +160,8 @@ describe('event graph structural validation', () => {
     const input = validInput();
 
     expect(
-      input.registrationOptions.every(
-        (option) => option.registrationMode !== 'random',
-      ),
-    ).toBe(true);
+      input.registrationOptions.map((option) => option.registrationMode),
+    ).not.toContain('random');
     const error = validateEventGraphStructure({ before, input });
 
     expect(error).toBeInstanceOf(RpcBadRequestError);
@@ -311,4 +316,48 @@ describe('event graph structural validation', () => {
       reason: 'paidEventAddonRequiresPositivePrice',
     });
   });
+});
+
+layer(createDatabaseTestLayer())('event graph price validation', (it) => {
+  for (const pair of [
+    {
+      isPaid: true,
+      price: 0,
+      reason: 'paidEventRegistrationOptionRequiresPositivePrice',
+    },
+    {
+      isPaid: false,
+      price: 100,
+      reason: 'freeEventRegistrationOptionRequiresZeroPrice',
+    },
+  ]) {
+    it.effect(
+      `rejects isPaid=${pair.isPaid}, price=${pair.price} before database access`,
+      () =>
+        Effect.gen(function* () {
+          const input = validInput();
+          input.registrationOptions = input.registrationOptions.map(
+            (option, index) =>
+              index === 1
+                ? { ...option, isPaid: pair.isPaid, price: pair.price }
+                : option,
+          );
+          const error = yield* updateEventGraph({
+            before: beforeGraph(),
+            database: yield* Database,
+            esnCardEnabled: false,
+            input,
+            tenantId: 'tenant-1',
+          }).pipe(Effect.flip);
+
+          expect(error).toBeInstanceOf(RpcBadRequestError);
+          expect(error).toMatchObject({
+            _tag: 'RpcBadRequestError',
+            reason: pair.reason,
+          });
+          expect(Schema.is(EventsUpdateRpcError)(error)).toBe(true);
+          expect(input.registrationOptions[1]?.price).toBe(pair.price);
+        }),
+    );
+  }
 });

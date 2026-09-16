@@ -959,7 +959,7 @@ describe('database registration concurrency invariants', () => {
     fixtures.push(fixture);
     await database
       .update(eventRegistrationOptions)
-      .set({ isPaid: false, price: 0 })
+      .set({ isPaid: false, price: 0, stripeTaxRateId: null })
       .where(eq(eventRegistrationOptions.id, fixture.optionId));
     const fakeHttpClient = new IdempotentStripeHttpClient();
     const stripe = new StripeClientLibrary('sk_test_concurrency', {

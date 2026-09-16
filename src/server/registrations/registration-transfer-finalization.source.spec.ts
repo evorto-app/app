@@ -383,7 +383,22 @@ describe('registration transfer claim lock source', () => {
     expect(lockedClaim).toContain('.from(eventRegistrationAddonPurchases)');
     expect(lockedClaim).toContain('snapshot.redeemedQuantity !==');
     expect(lockedClaim).toContain('snapshot.cancelledQuantity !==');
-    expect(lockedClaim).toContain('eventRegistrationQuestions.required');
+    const questionLock = lockedClaim.indexOf(
+      'lockEventRegistrationQuestionSet(tx, {',
+    );
+    const answerValidation = lockedClaim.indexOf(
+      'validateRegistrationQuestionAnswers({',
+    );
+    const answerWrite = lockedClaim.indexOf(
+      '.insert(registrationTransferAnswers)',
+    );
+    expect(questionLock).toBeGreaterThan(-1);
+    expect(answerValidation).toBeGreaterThan(questionLock);
+    expect(answerWrite).toBeGreaterThan(answerValidation);
+    expect(lockedClaim).toContain('questions: questionRows');
+    expect(lockedClaim).toContain(
+      ".for('update', { of: eventRegistrationOptions })",
+    );
     expect(lockedClaim).toContain('isUserEligibleForRegistrationOption({');
     expect(lockedClaim).toContain('eventAddons.price');
     expect(lockedClaim).toContain(

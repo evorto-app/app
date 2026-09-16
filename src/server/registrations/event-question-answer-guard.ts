@@ -1,12 +1,15 @@
 import { RpcBadRequestError } from '@shared/errors/rpc-errors';
-import { inArray } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { Effect } from 'effect';
 
 import type { DatabaseClient } from '../../db';
 
 import {
+  eventInstances,
   eventRegistrationQuestionAnswers,
+  eventRegistrationQuestions,
   registrationTransferAnswers,
+  tenants,
 } from '../../db/schema';
 
 export interface EventQuestionHistoryShape {
@@ -83,6 +86,16 @@ export const ensureAnsweredEventQuestionsUnchanged = Effect.fn(
   const mutationIds = eventQuestionHistoryMutationIds(input);
   if (mutationIds.length === 0) return;
 
+  // FK answer inserts retain KEY SHARE until commit. Lock first so a writer
+  // that wins the race commits before the history queries take their snapshot.
+  yield* database
+    .select({ id: eventRegistrationQuestions.id })
+    .from(eventRegistrationQuestions)
+    .where(inArray(eventRegistrationQuestions.id, [...mutationIds]))
+    .orderBy(eventRegistrationQuestions.id)
+    .for('update')
+    .pipe(Effect.orDie);
+
   const [registrationAnswers, transferAnswers] = yield* Effect.all([
     database
       .select({ id: eventRegistrationQuestionAnswers.id })
@@ -104,4 +117,57 @@ export const ensureAnsweredEventQuestionsUnchanged = Effect.fn(
     hasTransferAnswers: transferAnswers.length > 0,
   });
   if (error) return yield* Effect.fail(error);
+});
+
+/** Must run in the answer-writing transaction, before locking its option. */
+export const lockEventRegistrationQuestionSet = Effect.fn(
+  'EventQuestions.lockEventRegistrationQuestionSet',
+)(function* (
+  database: Pick<DatabaseClient, 'select'>,
+  input: {
+    readonly eventId: string;
+    readonly registrationOptionId: string;
+    readonly tenantId: string;
+  },
+) {
+  // Answer inserts also acquire a tenant FK lock. Take it before the event
+  // lock, matching editors and transfer claims that lock tenant before event.
+  const tenantRows = yield* database
+    .select({ id: tenants.id })
+    .from(tenants)
+    .where(eq(tenants.id, input.tenantId))
+    .for('key share');
+  if (tenantRows.length !== 1) return;
+
+  // Both event editors hold UPDATE on this row before reading the graph.
+  // SHARE protects the complete set, including newly added required questions.
+  const events = yield* database
+    .select({ id: eventInstances.id })
+    .from(eventInstances)
+    .where(
+      and(
+        eq(eventInstances.id, input.eventId),
+        eq(eventInstances.tenantId, input.tenantId),
+      ),
+    )
+    .for('share');
+  if (events.length !== 1) return;
+
+  return yield* database
+    .select({
+      id: eventRegistrationQuestions.id,
+      required: eventRegistrationQuestions.required,
+    })
+    .from(eventRegistrationQuestions)
+    .where(
+      and(
+        eq(eventRegistrationQuestions.eventId, input.eventId),
+        eq(
+          eventRegistrationQuestions.registrationOptionId,
+          input.registrationOptionId,
+        ),
+      ),
+    )
+    .orderBy(eventRegistrationQuestions.id)
+    .for('share');
 });

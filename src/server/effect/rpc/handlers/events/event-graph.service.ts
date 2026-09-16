@@ -26,6 +26,7 @@ import {
 } from '../../../../roles/tenant-role-graph';
 import { sanitizeOptionalRichTextHtml } from '../../../../utils/rich-text-sanitize';
 import { validateTaxRate } from '../../../../utils/validate-tax-rate';
+import { registrationOptionPriceError } from './events.shared';
 
 export type EventGraphUpdateInput = Parameters<
   AppRpcHandlers['events.updateGraph']
@@ -161,12 +162,8 @@ export const validateEventGraphStructure = ({
   }
 
   for (const option of input.registrationOptions) {
-    if (option.isPaid && option.price <= 0) {
-      return invalidGraph(
-        'Paid event registration options require a positive price',
-        'paidEventRegistrationOptionRequiresPositivePrice',
-      );
-    }
+    const priceError = registrationOptionPriceError(option);
+    if (priceError) return priceError;
 
     const open = new Date(option.openRegistrationTime);
     const close = new Date(option.closeRegistrationTime);

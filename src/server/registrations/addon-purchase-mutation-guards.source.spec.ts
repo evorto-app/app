@@ -194,8 +194,17 @@ describe('post-registration add-on mutation guards', () => {
     expect(claimUrl).toBeGreaterThan(deadlineSampleTime);
     expect(insertSampleTime).toBeGreaterThan(claimUrl);
     expect(transferInsert).toBeGreaterThan(insertSampleTime);
-    expect(createOffer.slice(termsLock, deadlineSampleTime)).toContain(
+    const tenantLock = createOffer.indexOf('.from(tenants)');
+    const eventLock = createOffer.indexOf('.from(eventInstances)', tenantLock);
+    expect(tenantLock).toBeGreaterThan(registrationLock);
+    expect(eventLock).toBeGreaterThan(tenantLock);
+    expect(termsLock).toBeGreaterThan(eventLock);
+    expect(createOffer.slice(tenantLock, eventLock)).toContain(
       ".for('update')",
+    );
+    expect(createOffer.slice(eventLock, termsLock)).toContain(".for('share')");
+    expect(createOffer.slice(termsLock, deadlineSampleTime)).toContain(
+      ".for('update', { of: eventRegistrationOptions })",
     );
     expect(createOffer).toContain("eventStatus !== 'APPROVED'");
     expect(createOffer).toContain('now: mutationNow');

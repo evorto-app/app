@@ -50,6 +50,7 @@ import {
   databaseEffect,
   type EventRegistrationOptionDiscountInsert,
   isEsnCardEnabled,
+  registrationOptionPriceError,
 } from './events.shared';
 
 const isTransactionRollbackError = (
@@ -150,25 +151,6 @@ const invalidRegistrationOptionSpotsError = () =>
     message: 'Registration option spots must not be negative',
     reason: 'negativeSpots',
   });
-
-export const registrationOptionPriceError = (option: {
-  readonly isPaid: boolean;
-  readonly price: number;
-}): null | RpcBadRequestError => {
-  if (option.isPaid && option.price <= 0) {
-    return new RpcBadRequestError({
-      message: 'Paid event registration options require a positive price',
-      reason: 'paidEventRegistrationOptionRequiresPositivePrice',
-    });
-  }
-  if (!option.isPaid && option.price !== 0) {
-    return new RpcBadRequestError({
-      message: 'Free event registration options require a zero price',
-      reason: 'freeEventRegistrationOptionRequiresZeroPrice',
-    });
-  }
-  return null;
-};
 
 export const templateOptionSnapshotIsComplete = (
   submittedOptionIds: readonly (string | undefined)[],

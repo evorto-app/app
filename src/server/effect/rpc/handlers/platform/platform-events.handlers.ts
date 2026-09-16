@@ -60,8 +60,8 @@ import { purchasedAddOnRegistrationOptionRemovalMessage } from '../events/event-
 import {
   createEventGraph,
   EventCreationAttribution,
-  registrationOptionPriceError,
 } from '../events/events-lifecycle.handlers';
+import { registrationOptionPriceError } from '../events/events.shared';
 import {
   providePlatformOperation,
   resolvePlatformMutation,

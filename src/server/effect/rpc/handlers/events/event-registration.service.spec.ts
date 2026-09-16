@@ -180,6 +180,50 @@ const configProviderLayer = ConfigProvider.layer(
   }),
 );
 
+const questionSetLockSql = {
+  event:
+    'select "id" from "event_instances" where (("event_instances"."id" = $1) and ("event_instances"."tenantId" = $2)) for share',
+  questions:
+    'select "id", "required" from "event_registration_questions" where (("event_registration_questions"."eventId" = $1) and ("event_registration_questions"."registrationOptionId" = $2)) order by "event_registration_questions"."id" for share',
+  tenant: 'select "id" from "tenants" where "tenants"."id" = $1 for key share',
+};
+
+const readQuestionSetLockFixture = ({
+  parameters,
+  questions = [],
+  statement,
+  transactionOpen,
+}: {
+  parameters: readonly unknown[];
+  questions?: readonly Pick<
+    typeof eventRegistrationQuestions.$inferSelect,
+    'id' | 'required'
+  >[];
+  statement: string;
+  transactionOpen: boolean;
+}) => {
+  switch (statement) {
+    case questionSetLockSql.event: {
+      expect(transactionOpen).toBe(true);
+      expect(parameters).toEqual(['event-1', 'tenant-1']);
+      return [['event-1']];
+    }
+    case questionSetLockSql.questions: {
+      expect(transactionOpen).toBe(true);
+      expect(parameters).toEqual(['event-1', 'option-1']);
+      return questions.map((question) => [question.id, question.required]);
+    }
+    case questionSetLockSql.tenant: {
+      expect(transactionOpen).toBe(true);
+      expect(parameters).toEqual(['tenant-1']);
+      return [['tenant-1']];
+    }
+    default: {
+      return;
+    }
+  }
+};
+
 const approvedRegistrationOption = {
   closeRegistrationTime: new Date('2026-09-20T10:00:00.000Z'),
   confirmedSpots: 0,
@@ -1284,6 +1328,12 @@ const createDirectCheckoutDatabase = ({
     parameters,
   ) =>
     Effect.gen(function* () {
+      const questionSetRows = readQuestionSetLockFixture({
+        parameters,
+        statement,
+        transactionOpen: transactionSnapshot !== undefined,
+      });
+      if (questionSetRows) return questionSetRows;
       if (
         statement.startsWith(
           `insert into "${getTableName(eventRegistrations)}"`,
@@ -1904,6 +1954,13 @@ const createCurrentWaitlistDatabaseFixture = ({
     const context = yield* Layer.build(
       createRegistrationDatabaseTestLayer({
         executeValues: (statement, parameters) => {
+          const questionSetRows = readQuestionSetLockFixture({
+            parameters,
+            questions: option.questions ?? [],
+            statement,
+            transactionOpen: inTransaction,
+          });
+          if (questionSetRows) return Effect.succeed(questionSetRows);
           if (statement.includes(` from "${getTableName(usersToTenants)}"`))
             return lockMembership(statement, parameters);
           if (
@@ -2885,6 +2942,8 @@ type CurrentReservationDatabaseStep =
   | 'insertRegistration'
   | 'insertRegistrationUniqueViolation'
   | 'lockMembership'
+  | 'lockQuestionEvent'
+  | 'lockQuestionTenant'
   | 'loseAddonStock'
   | 'loseCapacity'
   | 'readAcquisitions'
@@ -2894,6 +2953,7 @@ type CurrentReservationDatabaseStep =
   | 'readConcurrentRegistration'
   | 'readEmailTenant'
   | 'readExistingRegistration'
+  | 'readLockedQuestions'
   | 'readNotificationUser'
   | 'readOption'
   | 'reserveAddonStock'
@@ -2906,6 +2966,9 @@ const currentReservationInitialReadSteps: readonly CurrentReservationDatabaseSte
     'readOption',
     'readAddons',
     'BEGIN',
+    'lockQuestionTenant',
+    'lockQuestionEvent',
+    'readLockedQuestions',
     'lockMembership',
   ];
 
@@ -3103,6 +3166,16 @@ const createCurrentReservationDatabaseFixture = ({
             lockMembership();
             return [[membership.id]];
           }
+          case 'lockQuestionEvent': {
+            expect(statement).toBe(questionSetLockSql.event);
+            expect(parameters).toEqual(['event-1', 'tenant-1']);
+            return [['event-1']];
+          }
+          case 'lockQuestionTenant': {
+            expect(statement).toBe(questionSetLockSql.tenant);
+            expect(parameters).toEqual(['tenant-1']);
+            return [['tenant-1']];
+          }
           case 'loseAddonStock':
           case 'reserveAddonStock': {
             if (!addon)
@@ -3225,6 +3298,14 @@ const createCurrentReservationDatabaseFixture = ({
           case 'readExistingRegistration': {
             expectActiveRegistrationRead(statement, parameters, true);
             return [];
+          }
+          case 'readLockedQuestions': {
+            expect(statement).toBe(questionSetLockSql.questions);
+            expect(parameters).toEqual(['event-1', 'option-1']);
+            return (option.questions ?? []).map((question) => [
+              question.id,
+              question.required,
+            ]);
           }
           case 'readNotificationUser': {
             return yield* findNotificationUser(statement, parameters);

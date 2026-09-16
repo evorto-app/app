@@ -45,6 +45,7 @@ import {
   enqueueRegistrationConfirmedEmail,
 } from '../../../../notifications/email-delivery';
 import { lockTenantStripeAccount } from '../../../../payments/pending-stripe-obligations';
+import { lockEventRegistrationQuestionSet } from '../../../../registrations/event-question-answer-guard';
 import {
   establishRegistrationAcquisition,
   settleAcquisitionComponentTerms,
@@ -2786,14 +2787,6 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
           );
         }
 
-        const answerInserts = yield* Effect.try({
-          catch: (error) => error as EventRegistrationConflictError,
-          try: () =>
-            validateRegistrationQuestionAnswers({
-              answers,
-              questions: registrationOption.questions ?? [],
-            }),
-        });
         const availableAddOns = yield* databaseEffect((database) =>
           database
             .select({
@@ -3079,24 +3072,6 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
           database
             .transaction((tx) =>
               Effect.gen(function* () {
-                const lockedMemberships = yield* tx
-                  .select({ id: usersToTenants.id })
-                  .from(usersToTenants)
-                  .where(
-                    and(
-                      eq(usersToTenants.tenantId, tenant.id),
-                      eq(usersToTenants.userId, user.id),
-                    ),
-                  )
-                  .for('update');
-                if (lockedMemberships.length !== 1) {
-                  return yield* Effect.fail(
-                    new EventRegistrationNotFoundError({
-                      message: 'Tenant membership not found',
-                    }),
-                  );
-                }
-
                 const hasTaxConfiguration =
                   selectedTaxRateId !== undefined ||
                   addOnTaxExpectations.some(
@@ -3119,6 +3094,47 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                         }),
                   );
                 }
+                const questions = yield* lockEventRegistrationQuestionSet(tx, {
+                  eventId,
+                  registrationOptionId: registrationOption.id,
+                  tenantId: tenant.id,
+                });
+                if (!questions) {
+                  return yield* Effect.fail(
+                    new EventRegistrationConflictError({
+                      message: 'Registration event is no longer available',
+                    }),
+                  );
+                }
+                const answerInserts = yield* Effect.try({
+                  catch: (error) =>
+                    error instanceof EventRegistrationConflictError
+                      ? error
+                      : new EventRegistrationInternalError({
+                          cause: error,
+                          message: 'Registration question validation failed',
+                        }),
+                  try: () =>
+                    validateRegistrationQuestionAnswers({ answers, questions }),
+                });
+                const lockedMemberships = yield* tx
+                  .select({ id: usersToTenants.id })
+                  .from(usersToTenants)
+                  .where(
+                    and(
+                      eq(usersToTenants.tenantId, tenant.id),
+                      eq(usersToTenants.userId, user.id),
+                    ),
+                  )
+                  .for('update');
+                if (lockedMemberships.length !== 1) {
+                  return yield* Effect.fail(
+                    new EventRegistrationNotFoundError({
+                      message: 'Tenant membership not found',
+                    }),
+                  );
+                }
+
                 const lockedTaxRateById = lockedStripeAccount
                   ? yield* lockCurrentRegistrationTaxConfiguration(tx, {
                       addOns: addOnTaxExpectations,
@@ -3712,19 +3728,39 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
             );
           }
 
-          const answerInserts = yield* Effect.try({
-            catch: (error) => error as EventRegistrationConflictError,
-            try: () =>
-              validateRegistrationQuestionAnswers({
-                answers,
-                questions: registrationOption.questions ?? [],
-              }),
-          });
-
           const waitlistResult = yield* Database.use((database) =>
             database
               .transaction((tx) =>
                 Effect.gen(function* () {
+                  const questions = yield* lockEventRegistrationQuestionSet(
+                    tx,
+                    {
+                      eventId,
+                      registrationOptionId: registrationOption.id,
+                      tenantId: tenant.id,
+                    },
+                  );
+                  if (!questions) {
+                    return yield* Effect.fail(
+                      new EventRegistrationConflictError({
+                        message: 'Registration event is no longer available',
+                      }),
+                    );
+                  }
+                  const answerInserts = yield* Effect.try({
+                    catch: (error) =>
+                      error instanceof EventRegistrationConflictError
+                        ? error
+                        : new EventRegistrationInternalError({
+                            cause: error,
+                            message: 'Registration question validation failed',
+                          }),
+                    try: () =>
+                      validateRegistrationQuestionAnswers({
+                        answers,
+                        questions,
+                      }),
+                  });
                   const lockedMemberships = yield* tx
                     .select({ id: usersToTenants.id })
                     .from(usersToTenants)
