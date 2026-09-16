@@ -6,6 +6,10 @@ import {
   requiredPostgresMajorVersion,
   resolvePostgresIntegrationEnvironment,
 } from './postgres-integration-environment';
+import {
+  ensureLocalPostgresIntegrationDatabase,
+  postgresMaintenanceDatabaseUrl,
+} from './postgres-integration-database';
 import { resetPublicSchema } from './reset-public-schema';
 
 const runCommand = async (
@@ -28,7 +32,9 @@ const runCommand = async (
 const integrationEnvironment = await resolvePostgresIntegrationEnvironment();
 const pool = new Pool(
   createNodePgPoolConfig({
-    databaseUrl: integrationEnvironment.databaseUrl,
+    databaseUrl: postgresMaintenanceDatabaseUrl(
+      integrationEnvironment.databaseUrl,
+    ),
   }),
 );
 
@@ -50,6 +56,7 @@ try {
   await pool.end();
 }
 
+await ensureLocalPostgresIntegrationDatabase(integrationEnvironment);
 await resetPublicSchema(integrationEnvironment);
 
 const childEnvironment = {

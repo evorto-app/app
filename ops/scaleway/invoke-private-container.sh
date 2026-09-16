@@ -60,7 +60,8 @@ if ((curl_exit != 0)); then
         "drizzle-cli-incompatible",
         "drizzle-invalid-json",
         "runtime-artifact-missing",
-        "staging-schema-unconfirmed"
+        "staging-schema-unconfirmed",
+        "staging-seed-configuration-invalid"
       ] | index($response.detail)) != null
   ' "${response_file}" >/dev/null 2>&1; then
     diagnostic="$(jq --raw-output '.detail' "${response_file}")"

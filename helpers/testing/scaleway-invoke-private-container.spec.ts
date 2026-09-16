@@ -5,6 +5,8 @@ import path from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { opsCommandDiagnostics } from '../../src/server/ops/schema-operations';
+
 const invokeScript = path.join(
   process.cwd(),
   'ops/scaleway/invoke-private-container.sh',
@@ -82,36 +84,54 @@ describe('Scaleway private-container invocation', () => {
     expect(script).not.toContain('--retry');
   });
 
-  it('prints an allowlisted ops diagnostic without the response envelope', () => {
+  it.each(opsCommandDiagnostics)(
+    'prints the producer diagnostic %s without its response envelope',
+    (diagnostic) => {
+      const result = invokeWithFakeCurl({
+        responseBody: JSON.stringify({
+          detail: diagnostic,
+          error: 'ops-command-failed',
+        }),
+        status: 500,
+      });
+
+      expect(result.status).toBe(22);
+      expect(result.stdout).toBe('');
+      expect(result.stderr).toBe(
+        `Private-container ops request failed: ${diagnostic}\n`,
+      );
+    },
+  );
+
+  it.each([
+    {
+      detail: 'database-password=must-not-appear',
+      error: 'ops-command-failed',
+    },
+    {
+      detail: 'staging-seed-configuration-invalid-must-not-appear',
+      error: 'ops-command-failed',
+    },
+    {
+      detail: 'staging-seed-configuration-invalid',
+      error: 'internal-error-must-not-appear',
+    },
+    {
+      detail: 'staging-seed-configuration-invalid',
+      error: 'ops-command-failed',
+      message: 'must-not-appear',
+    },
+  ])('redacts an unknown or expanded failure envelope: %j', (response) => {
     const result = invokeWithFakeCurl({
-      responseBody: JSON.stringify({
-        detail: 'database-authentication-failed',
-        error: 'ops-command-failed',
-      }),
+      responseBody: JSON.stringify(response),
       status: 500,
     });
 
     expect(result.status).toBe(22);
     expect(result.stdout).toBe('');
-    expect(result.stderr).toContain('database-authentication-failed');
-    expect(result.stderr).not.toContain('ops-command-failed');
-  });
-
-  it('does not print arbitrary failure response bodies', () => {
-    const result = invokeWithFakeCurl({
-      responseBody: JSON.stringify({
-        detail: 'database-password=must-not-appear',
-        error: 'ops-command-failed',
-      }),
-      status: 500,
-    });
-
-    expect(result.status).toBe(22);
-    expect(result.stdout).toBe('');
-    expect(result.stderr).toContain(
-      'Private-container request failed with HTTP 500',
+    expect(result.stderr).toBe(
+      'Private-container request failed with HTTP 500\n',
     );
-    expect(result.stderr).not.toContain('must-not-appear');
   });
 
   it('returns the successful JSON response', () => {

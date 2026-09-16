@@ -14,3 +14,5 @@ Require an explicit local database name and match the PostgreSQL driver target b
 
 Fail when a declared sample add-on or registration question cannot resolve its
 required template or registration option, rather than omitting it from the seed.
+
+Show the bounded staging seed configuration diagnostic when a private ops call fails, while keeping unknown or internal response details private.

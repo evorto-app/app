@@ -186,9 +186,10 @@ bun run lint
 ## PostgreSQL Integration Suite
 
 `bun run test:integration:postgres` owns every `*.postgres.spec.ts` test. It
-resets the target database's `public` schema, applies the current Drizzle
-schema, verifies PostgreSQL major version 17, and runs the database tests
-serially. It is part of the mandatory local-first CI gate and must finish with
+validates its disposable target and verifies PostgreSQL major version 17
+through the server's `postgres` maintenance database, then creates the reserved
+integration database if missing. It resets only that database's `public` schema,
+applies the current Drizzle schema, and runs the database tests serially. It is part of the mandatory local-first CI gate and must finish with
 every collected test passing.
 
 The runner refuses to start unless
