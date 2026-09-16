@@ -1,10 +1,203 @@
-import { describe, expect, it } from '@effect/vitest';
+import type * as SqlConnection from 'effect/unstable/sql/SqlConnection';
 
+import { describe, expect, it, vi } from '@effect/vitest';
+import { Effect, Layer } from 'effect';
+import Stripe from 'stripe';
+
+import { type eventAddons, type tenantStripeTaxRates } from '../../db/schema';
+import { EventRegistrationConflictError } from '../../shared/rpc-contracts/app-rpcs/events.errors';
+import { StripeClient } from '../stripe-client';
+import { createRegistrationDatabaseTestLayer } from '../testing/registration-database';
 import {
+  purchaseRegistrationAddon,
   registrationAddonPurchaseCapacity,
   resolveRegistrationAddonPurchaseAmounts,
   resolveRegistrationAddonPurchaseWindow,
 } from './addon-purchase.service';
+
+const createAddonPurchaseTaxFixture = ({
+  includedQuantity = 0,
+  isPaid = true,
+  price = 100,
+  stripeTaxRateId,
+  taxRate,
+}: Partial<Pick<typeof eventAddons.$inferSelect, 'isPaid' | 'price'>> &
+  Pick<typeof eventAddons.$inferSelect, 'stripeTaxRateId'> & {
+    includedQuantity?: number;
+    taxRate?: Pick<
+      typeof tenantStripeTaxRates.$inferSelect,
+      'displayName' | 'inclusive' | 'percentage'
+    >;
+  }) => {
+  const writes: string[] = [];
+  const stripe = new Stripe('sk_test_addon_tax_boundary');
+  const checkout = vi
+    .spyOn(stripe.checkout.sessions, 'create')
+    .mockRejectedValue(new Error('Unexpected Stripe Checkout creation'));
+  const executeValues: SqlConnection.Connection['executeValues'] = (
+    statement,
+    parameters,
+  ) =>
+    Effect.sync(() => {
+      if (statement.startsWith('select ')) {
+        if (statement.includes(' from "event_registrations"')) {
+          return [['event-1', 'option-1', 'CONFIRMED', 'user-1']];
+        }
+        if (
+          statement.includes(' from "registration_transfers"') ||
+          statement.includes(' from "event_registration_addon_purchase_orders"')
+        ) {
+          return [];
+        }
+        if (statement.includes(' from "event_registration_addon_purchases"')) {
+          return includedQuantity > 0
+            ? [
+                [
+                  'addon-1',
+                  0,
+                  '2026-09-15T12:00:00.000',
+                  'event-1',
+                  'purchase-1',
+                  includedQuantity,
+                  0,
+                  includedQuantity,
+                  0,
+                  0,
+                  'registration-1',
+                  'option-1',
+                  null,
+                  null,
+                  null,
+                  'tenant-1',
+                  0,
+                  '2026-09-15T12:00:00.000',
+                ],
+              ]
+            : [];
+        }
+        if (statement.includes(' from "tenants"')) {
+          return [['EUR', 'tenant.example.com', 'acct_tenant']];
+        }
+        if (statement.includes(' from "event_addons"')) {
+          return [
+            [
+              true,
+              true,
+              true,
+              '2099-08-01T22:00:00.000',
+              'APPROVED',
+              'Event',
+              isPaid,
+              10,
+              10,
+              price,
+              '2099-08-01T18:00:00.000',
+              stripeTaxRateId,
+              'Add-on',
+              10,
+            ],
+          ];
+        }
+        if (statement.includes(' from "tenant_stripe_tax_rates"')) {
+          expect(parameters).toEqual([
+            'tenant-1',
+            'acct_tenant',
+            stripeTaxRateId,
+            true,
+            true,
+          ]);
+          expect(statement).toContain(' for update');
+          return taxRate
+            ? [[taxRate.displayName, taxRate.inclusive, taxRate.percentage]]
+            : [];
+        }
+      }
+      if (statement.startsWith('update "event_addons"')) {
+        writes.push(statement);
+        return [];
+      }
+      writes.push(statement);
+      throw new Error(`Unexpected add-on tax fixture statement: ${statement}`);
+    });
+  const layer = Layer.mergeAll(
+    createRegistrationDatabaseTestLayer({ executeValues }),
+    Layer.succeed(StripeClient, stripe),
+  );
+  return { checkout, layer, writes };
+};
+
+const purchaseInput = {
+  addonId: 'addon-1',
+  operationKey: 'purchase-tax-check',
+  quantity: 1,
+  registrationId: 'registration-1',
+  tenantId: 'tenant-1',
+  userId: 'user-1',
+};
+
+describe('persisted optional add-on tax configuration', () => {
+  it.effect.each([
+    { name: 'missing tax ID', stripeTaxRateId: null },
+    { name: 'empty tax ID', stripeTaxRateId: '' },
+    { name: 'missing tax row', stripeTaxRateId: 'txr_missing' },
+    {
+      name: 'null percentage',
+      stripeTaxRateId: 'txr_null',
+      taxRate: { displayName: 'Tax', inclusive: true, percentage: null },
+    },
+  ])(
+    'rejects a paid add-on with $name before reserving stock',
+    (configuration) =>
+      Effect.gen(function* () {
+        const fixture = createAddonPurchaseTaxFixture(configuration);
+        const error = yield* purchaseRegistrationAddon(purchaseInput).pipe(
+          Effect.provide(fixture.layer),
+          Effect.flip,
+        );
+
+        expect(error).toBeInstanceOf(EventRegistrationConflictError);
+        expect(error.message).toBe(
+          'This add-on has an incomplete or inactive Stripe tax configuration',
+        );
+        expect(fixture.writes).toEqual([]);
+        expect(fixture.checkout).not.toHaveBeenCalled();
+      }),
+  );
+
+  it.effect.each([
+    {
+      includedQuantity: 2,
+      isPaid: false,
+      name: 'a free add-on with included units and no tax ID',
+      price: 0,
+      stripeTaxRateId: null,
+    },
+    {
+      name: 'a paid add-on with a zero-percent tax rate',
+      stripeTaxRateId: 'txr_zero',
+      taxRate: { displayName: 'Zero tax', inclusive: true, percentage: '0' },
+    },
+    {
+      name: 'a paid add-on with a positive tax rate',
+      stripeTaxRateId: 'txr_19',
+      taxRate: { displayName: 'VAT', inclusive: true, percentage: '19' },
+    },
+  ])('allows $name through to the stock reservation', (configuration) =>
+    Effect.gen(function* () {
+      const fixture = createAddonPurchaseTaxFixture(configuration);
+      const error = yield* purchaseRegistrationAddon(purchaseInput).pipe(
+        Effect.provide(fixture.layer),
+        Effect.flip,
+      );
+
+      expect(error).toBeInstanceOf(EventRegistrationConflictError);
+      expect(error.message).toBe('This add-on no longer has enough stock');
+      expect(fixture.writes).toHaveLength(1);
+      expect(fixture.writes[0]).toContain('update "event_addons"');
+      expect(fixture.checkout).not.toHaveBeenCalled();
+    }),
+  );
+});
 
 describe('registration add-on purchase policy', () => {
   const start = new Date('2026-08-01T18:00:00.000Z');

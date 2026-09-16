@@ -1405,6 +1405,12 @@ export const validateRegistrationQuestionAnswers = ({
   answers: readonly RegistrationQuestionAnswerInput[] | undefined;
   questions: readonly RegistrationQuestionRecord[];
 }): readonly { answer: string; questionId: string }[] => {
+  if (questions.length > MAX_REGISTRATION_QUESTIONS) {
+    throw new EventRegistrationConflictError({
+      message:
+        'Registration is unavailable because its sign-up questions need to be corrected. Contact the organizer.',
+    });
+  }
   if ((answers?.length ?? 0) > MAX_REGISTRATION_QUESTIONS) {
     throw new EventRegistrationConflictError({
       message: `You can answer up to ${MAX_REGISTRATION_QUESTIONS} sign-up questions`,
@@ -1458,6 +1464,12 @@ export const validateRegistrationAddons = ({
   if ((addOns?.length ?? 0) > MAX_EVENT_ADDON_TYPES) {
     throw new EventRegistrationConflictError({
       message: `Choose no more than ${MAX_EVENT_ADDON_TYPES} different add-ons`,
+    });
+  }
+  if (availableAddOns.length > MAX_EVENT_ADDON_TYPES) {
+    throw new EventRegistrationConflictError({
+      message:
+        'Registration is unavailable because its add-on settings need to be corrected. Contact the organizer.',
     });
   }
   const availableAddOnById = new Map(

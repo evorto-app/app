@@ -18,6 +18,7 @@ import {
   registrationAcquisitionPayments,
   registrationAcquisitions,
   type RegistrationCheckoutSnapshot,
+  RegistrationCheckoutSnapshotSchema,
   registrationTransferAnswers,
   registrationTransferBundleAddonPurchaseLots,
   registrationTransferBundleAddonPurchases,
@@ -38,6 +39,7 @@ import {
   MAX_REGISTRATION_ADDON_QUANTITY,
   MAX_REGISTRATION_GUESTS,
 } from '@shared/registration-quantity-limits';
+import { MAX_REGISTRATION_QUESTIONS } from '@shared/registration-question-limits';
 import { registrationTransferAddonAllocationKey } from '@shared/registration-transfer';
 import {
   RegistrationTransferConflictError,
@@ -56,7 +58,7 @@ import {
   type TenantDiscountProviders,
 } from '@shared/tenant-config';
 import { and, desc, eq, inArray, isNull, not, or, sql } from 'drizzle-orm';
-import { Cause, Context, Effect, Layer } from 'effect';
+import { Cause, Context, Effect, Layer, Schema } from 'effect';
 
 import type { Tenant } from '../../types/custom/tenant';
 import type { User } from '../../types/custom/user';
@@ -247,9 +249,20 @@ export const resumeRegistrationTransferCheckout = Effect.fn(
   tenantId: string;
   transferId: string;
 }) {
+  const request = yield* Schema.decodeUnknownEffect(
+    RegistrationCheckoutSnapshotSchema,
+  )(paymentClaim.request).pipe(
+    Effect.mapError(
+      (cause) =>
+        new RegistrationTransferInternalError({
+          cause,
+          message: 'Persisted transfer Checkout snapshot is invalid',
+        }),
+    ),
+  );
   const session = yield* createHostedCheckoutSession(
     buildRegistrationTransferCheckoutParameters({
-      paymentClaim,
+      paymentClaim: { ...paymentClaim, request },
       registrationId,
       tenantId,
       transferId,
@@ -1556,6 +1569,13 @@ const getClaim = Effect.fn('RegistrationTransferService.getClaim')(function* ({
     { concurrency: 'unbounded' },
   );
 
+  if (questions.length > MAX_REGISTRATION_QUESTIONS) {
+    return yield* new RegistrationTransferConflictError({
+      message:
+        'This registration option has too many sign-up questions. Ask an organizer to update it before claiming.',
+    });
+  }
+
   const refundClaims =
     status === 'compensation_pending' || status === 'compensation_failed'
       ? compensationRefunds
@@ -2593,6 +2613,22 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
                   .orderBy(eventAddons.id)
                   .for('update');
           if (lockedBundleAddOns.length !== bundleSnapshots.length) {
+            return { _tag: 'TermsChanged' as const };
+          }
+          if (
+            (lockedOption.optionIsPaid &&
+              !lockedOption.optionStripeTaxRateId) ||
+            lockedBundleAddOns.some(
+              (addOn) =>
+                addOn.price > 0 &&
+                !addOn.stripeTaxRateId &&
+                bundleSnapshots.some(
+                  (snapshot) =>
+                    snapshot.addonId === addOn.addOnId &&
+                    snapshot.purchasedQuantity > 0,
+                ),
+            )
+          ) {
             return { _tag: 'TermsChanged' as const };
           }
           const taxRateIds = [

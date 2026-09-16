@@ -567,7 +567,10 @@ const reserveRegistrationAddonPurchase = Effect.fn(
           .for('update')
       : [];
   const taxRate = taxRows[0];
-  if (addon.stripeTaxRateId && (!taxRate || taxRate.percentage === null)) {
+  if (
+    (addon.isPaid && !addon.stripeTaxRateId) ||
+    (addon.stripeTaxRateId && (!taxRate || taxRate.percentage === null))
+  ) {
     return yield* conflict(
       'This add-on has an incomplete or inactive Stripe tax configuration',
     );

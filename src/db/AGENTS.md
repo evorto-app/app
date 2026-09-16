@@ -8,6 +8,7 @@
 - Apply the current Drizzle schema directly for the relaunch using local `db:push` or `db:reset` against the isolated worktree database. Do not add incremental migration artifacts for this cutover.
 - Avoid `any`/unchecked casts in query helpers.
 - Registration quantity and question text bounds come from `src/shared/registration-quantity-limits.ts` and `src/shared/registration-question-limits.ts`. Keep database checks and varchar sizes aligned with the retained RPC and service validators; never trim input to silently fit storage limits.
+- Decode persisted Checkout JSON with `RegistrationCheckoutSnapshotSchema` before resuming any provider request; its shared 100-line bound applies to stored snapshots as well as newly built requests.
 - Keep eagerly constructed views in separate schema modules from tables they query, so table foreign-key imports do not evaluate a view through a circular dependency.
 - Server-side Effect authorization is authoritative; no PostgreSQL RLS layer is
   planned.
