@@ -4,6 +4,7 @@ import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
 import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { apply, form, FormField, submit } from '@angular/forms/signals';
+import { MatAutocompleteHarness } from '@angular/material/autocomplete/testing';
 import { MatChipGridHarness } from '@angular/material/chips/testing';
 import { MatFormFieldHarness } from '@angular/material/form-field/testing';
 import { RoleLookupNotFoundError } from '@shared/rpc-contracts/app-rpcs/roles.errors';
@@ -437,6 +438,32 @@ describe('RoleSelectComponent', () => {
     });
     expect(fixture.componentInstance.value()).toEqual([role.id]);
     expect(fixture.nativeElement.textContent).not.toContain('no longer exists');
+  });
+
+  it('adds the clicked autocomplete result after Material writes its option value', async () => {
+    const loader = TestbedHarnessEnvironment.loader(fixture);
+    const autocomplete = await loader.getHarness(MatAutocompleteHarness);
+    await autocomplete.enterText('fin');
+    await vi.waitFor(() => {
+      expect(loadRoles).toHaveBeenCalledWith('fin');
+    });
+
+    await autocomplete.selectOption({ text: financeRole.name });
+
+    await vi.waitFor(async () => {
+      await fixture.whenStable();
+      expect(fixture.componentInstance.value()).toEqual([
+        role.id,
+        financeRole.id,
+      ]);
+      expect(
+        fixture.nativeElement.querySelector(
+          'button[aria-label="Remove Finance"]',
+        ),
+      ).not.toBeNull();
+      expect(fixture.componentInstance.selectionValid()).toBe(true);
+    });
+    expect(await autocomplete.getValue()).toBe('');
   });
 
   it('does not add the previous sole result when Enter arrives before the next search commits', async () => {

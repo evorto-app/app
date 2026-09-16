@@ -205,10 +205,12 @@ export class RoleSelectComponent
   }
 
   selected(event: MatAutocompleteSelectedEvent) {
-    if (this.disabled() || this.readonly()) return;
-    const role = this.availableRoles().find(
-      (option) => option.id === event.option.value,
-    );
+    if (this.disabled() || this.readonly() || !this.rolesQuery.isSuccess())
+      return;
+    // Material writes the selected ID before emitting this event.
+    const role = this.rolesQuery
+      .data()
+      .find((option) => option.id === event.option.value);
     if (!role) return;
     this.value.set([...this.value().filter((id) => id !== role.id), role.id]);
     this.touched.set(true);
