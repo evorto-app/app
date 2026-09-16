@@ -2,6 +2,7 @@ import {
   RpcBadRequestError,
   RpcForbiddenError,
   RpcInternalServerError,
+  RpcUnauthorizedError,
 } from '@shared/errors/rpc-errors';
 import {
   DiscountCardConflictError,
@@ -131,8 +132,15 @@ export const discountHandlers = {
           where: { id: tenant.id },
         }),
       );
+      if (!resolvedTenant) {
+        return yield* Effect.fail(
+          new RpcUnauthorizedError({
+            message: 'Tenant context is no longer available',
+          }),
+        );
+      }
       const config = resolveTenantDiscountProviders(
-        resolvedTenant?.discountProviders,
+        resolvedTenant.discountProviders,
       );
 
       return (Object.keys(PROVIDERS) as ProviderType[]).map((type) => ({
@@ -157,8 +165,15 @@ export const discountHandlers = {
           },
         }),
       );
+      if (!tenantRecord) {
+        return yield* Effect.fail(
+          new RpcUnauthorizedError({
+            message: 'Tenant context is no longer available',
+          }),
+        );
+      }
       const providers = resolveTenantDiscountProviders(
-        tenantRecord?.discountProviders,
+        tenantRecord.discountProviders,
       );
       const provider = providers[input.type];
       if (!provider || provider.status !== 'enabled') {
@@ -245,8 +260,15 @@ export const discountHandlers = {
           },
         }),
       );
+      if (!tenantRecord) {
+        return yield* Effect.fail(
+          new RpcUnauthorizedError({
+            message: 'Tenant context is no longer available',
+          }),
+        );
+      }
       const providers = resolveTenantDiscountProviders(
-        tenantRecord?.discountProviders,
+        tenantRecord.discountProviders,
       );
       const provider = providers[input.type];
       if (!provider || provider.status !== 'enabled') {

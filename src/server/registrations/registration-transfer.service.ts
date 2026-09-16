@@ -394,8 +394,14 @@ const resolveCurrentRegistrationTransferPrice = Effect.fn(
     ],
     { concurrency: 'unbounded' },
   );
+  const tenantRecord = tenantRows[0];
+  if (!tenantRecord) {
+    return yield* new RegistrationTransferNotFoundError({
+      message: 'Registration transfer not found',
+    });
+  }
   const providerConfig: TenantDiscountProviders =
-    resolveTenantDiscountProviders(tenantRows[0]?.discountProviders);
+    resolveTenantDiscountProviders(tenantRecord.discountProviders);
   const enabledDiscountTypes = new Set(
     Object.entries(providerConfig)
       .filter(([, provider]) => provider?.status === 'enabled')

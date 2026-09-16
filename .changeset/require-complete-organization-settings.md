@@ -17,3 +17,5 @@ during Stripe account rotation. Release the database lock for the provider reque
 and recheck the snapshot under lock before writing, preserving conflict recovery.
 
 Reject non-boolean receipt-country policies in direct consumers and verify PostgreSQL project discovery against every integration spec in the source tree.
+
+Return typed unauthorized or not-found responses when a tenant disappears before discount settings or registration pricing are read, while preserving strict validation failures for malformed stored settings.
