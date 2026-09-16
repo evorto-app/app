@@ -1,4 +1,5 @@
 import { and, eq } from 'drizzle-orm';
+import { writeFile } from 'node:fs/promises';
 
 import { createId } from '../../../src/db/create-id';
 import * as schema from '../../../src/db/schema';
@@ -307,25 +308,90 @@ The screenshot below highlights the draft status and exact action before the sta
     if (!reviewerPage) {
       throw new Error('Review-only browser context is missing');
     }
-    await reviewerPage.page.goto('/');
-    await clickHydratedAction(
-      reviewerPage.page.getByRole('link', {
-        exact: true,
-        name: 'Admin Tools',
-      }),
-    );
-    await clickHydratedAction(
-      reviewerPage.page.getByRole('link', {
-        name: /^Event reviews(?: \d+)?$/u,
-      }),
-    );
-    await expect(
-      reviewerPage.page.getByRole('heading', {
-        exact: true,
-        level: 1,
-        name: 'Event reviews',
-      }),
-    ).toBeVisible();
+    const reviewLink = reviewerPage.page.getByRole('link', {
+      name: /^Event reviews(?: \d+)?$/u,
+    });
+    let navigationStep = 'open-home';
+    try {
+      await reviewerPage.page.goto('/');
+      navigationStep = 'open-admin';
+      await clickHydratedAction(
+        reviewerPage.page.getByRole('link', {
+          exact: true,
+          name: 'Admin Tools',
+        }),
+      );
+      await expect(reviewerPage.page).toHaveURL(/\/admin$/u);
+      navigationStep = 'open-review-queue';
+      await expect(reviewLink).toHaveAttribute('href', '/admin/event-reviews');
+      await clickHydratedAction(reviewLink);
+      await expect(reviewerPage.page).toHaveURL(/\/admin\/event-reviews$/u);
+      navigationStep = 'confirm-review-heading';
+      await expect(
+        reviewerPage.page.getByRole('heading', {
+          exact: true,
+          level: 1,
+          name: 'Event reviews',
+        }),
+      ).toBeVisible();
+    } catch (error) {
+      try {
+        await test.step(
+          'Capture review queue navigation state',
+          async () => {
+            const pathname = new URL(reviewerPage.page.url()).pathname;
+            const diagnostic = {
+              navigationStep,
+              pathname: [
+                '/',
+                '/admin',
+                '/admin/event-reviews',
+                '/403',
+              ].includes(pathname)
+                ? pathname
+                : 'other',
+              reviewComponentCount: await reviewerPage.page
+                .locator('app-event-reviews')
+                .count(),
+              reviewLinks: await reviewLink.evaluateAll((links) =>
+                links.slice(0, 2).map((link) => ({
+                  href:
+                    link.getAttribute('href') === '/admin/event-reviews'
+                      ? '/admin/event-reviews'
+                      : 'other',
+                  clickReplay: (link.getAttribute('jsaction') ?? '').includes(
+                    'click',
+                  ),
+                })),
+              ),
+            };
+            const diagnosticPath = testInfo.outputPath(
+              'review-queue-navigation.json',
+            );
+            await writeFile(
+              diagnosticPath,
+              JSON.stringify(diagnostic, null, 2),
+              {
+                flag: 'wx',
+                mode: 0o600,
+              },
+            );
+            await testInfo.attach('review-queue-navigation', {
+              contentType: 'application/json',
+              path: diagnosticPath,
+            });
+          },
+          { timeout: 2000 },
+        );
+      } catch (diagnosticError) {
+        throw new AggregateError(
+          [error, diagnosticError],
+          'Review queue navigation and diagnostic collection failed',
+          { cause: diagnosticError },
+        );
+      }
+      throw error;
+    }
     return currentReviewQueueItem();
   };
 
