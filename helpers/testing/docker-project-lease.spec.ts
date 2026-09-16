@@ -9,15 +9,27 @@ const leaseScript = path.join(
   'helpers/testing/with-docker-project-lease.sh',
 );
 const temporaryDirectories: string[] = [];
+const leaseProjects = new Set<string>();
+const userId = process.getuid?.();
+if (userId === undefined)
+  throw new Error('Docker project leases require a Unix user identity');
+const leaseDirectory = path.join(
+  '/tmp',
+  `evorto-docker-project-leases-${userId}`,
+);
+const ownerPathFor = (projectName: string) =>
+  path.join(leaseDirectory, `${projectName}.owner`);
 
 const createEnvironment = (projectName: string) => {
   const temporaryDirectory = fs.mkdtempSync(
     path.join(os.tmpdir(), 'evorto-docker-project-lease-'),
   );
   temporaryDirectories.push(temporaryDirectory);
+  const uniqueProjectName = `${projectName}-${path.basename(temporaryDirectory).toLowerCase()}`;
+  leaseProjects.add(uniqueProjectName);
   return {
     ...process.env,
-    COMPOSE_PROJECT_NAME: projectName,
+    COMPOSE_PROJECT_NAME: uniqueProjectName,
     TMPDIR: temporaryDirectory,
   };
 };
@@ -62,6 +74,11 @@ afterEach(() => {
     fs.rmSync(directory, { force: true, recursive: true });
   }
   temporaryDirectories.length = 0;
+  for (const project of leaseProjects) {
+    fs.rmSync(ownerPathFor(project), { force: true });
+    fs.rmSync(path.join(leaseDirectory, `${project}.lock`), { force: true });
+  }
+  leaseProjects.clear();
 });
 
 describe('Docker project lifecycle lease', () => {
@@ -139,9 +156,7 @@ describe('Docker project lifecycle lease', () => {
       expect(result.stderr).toContain('Invalid COMPOSE_PROJECT_NAME');
       expect(fs.existsSync(payloadPath)).toBe(false);
       expect(
-        fs.existsSync(
-          path.join(environment.TMPDIR, 'evorto-docker-project-leases'),
-        ),
+        fs.existsSync(ownerPathFor(environment.COMPOSE_PROJECT_NAME)),
       ).toBe(false);
     },
   );
@@ -166,19 +181,12 @@ describe('Docker project lifecycle lease', () => {
       expect(result.status, result.stderr).toBe(0);
       expect(result.stdout).toBe('true');
       expect(
-        fs.readFileSync(
-          path.join(
-            environment.TMPDIR,
-            'evorto-docker-project-leases',
-            `${projectName}.owner`,
-          ),
-          'utf8',
-        ),
+        fs.readFileSync(ownerPathFor(environment.COMPOSE_PROJECT_NAME), 'utf8'),
       ).toContain('operation=docker-start');
     },
   );
 
-  it('fails fast for the same project without blocking another project', async () => {
+  it('fails fast for the same project across caller temporary directories without blocking another project', async () => {
     const environment = createEnvironment('evorto-lease-test');
     const readyPath = path.join(environment.TMPDIR, 'ready');
     const owner = spawn(
@@ -200,28 +208,38 @@ describe('Docker project lifecycle lease', () => {
     try {
       await waitForFile(readyPath);
 
-      const conflictStartedAt = Date.now();
-      const conflict = spawnSync(
-        'bash',
-        [leaseScript, 'postgres-integration', '--', 'true'],
-        { encoding: 'utf8', env: environment },
-      );
-      expect(Date.now() - conflictStartedAt).toBeLessThan(1000);
-      expect(conflict.status).toBe(75);
-      expect(conflict.stderr).toContain(
-        'another command is already modifying Docker project evorto-lease-test',
-      );
-      expect(conflict.stderr).toContain('operation=docker-start');
+      const otherTemporaryDirectory = createEnvironment(
+        'evorto-other-temporary-root',
+      ).TMPDIR;
+      for (const commandEnvironment of [
+        environment,
+        {
+          ...environment,
+          TMPDIR: otherTemporaryDirectory,
+          TMP: otherTemporaryDirectory,
+          TEMP: otherTemporaryDirectory,
+        },
+      ]) {
+        const conflictStartedAt = Date.now();
+        const conflict = spawnSync(
+          'bash',
+          [leaseScript, 'postgres-integration', '--', 'true'],
+          { encoding: 'utf8', env: commandEnvironment, timeout: 1000 },
+        );
+        expect(Date.now() - conflictStartedAt).toBeLessThan(1000);
+        expect(conflict.status).toBe(75);
+        expect(conflict.stderr).toContain(
+          `another command is already modifying Docker project ${environment.COMPOSE_PROJECT_NAME}`,
+        );
+        expect(conflict.stderr).toContain('operation=docker-start');
+      }
 
       const otherProject = spawnSync(
         'bash',
         [leaseScript, 'docker-start', '--', 'true'],
         {
           encoding: 'utf8',
-          env: {
-            ...environment,
-            COMPOSE_PROJECT_NAME: 'evorto-other-project',
-          },
+          env: createEnvironment('evorto-other-project'),
         },
       );
       expect(otherProject.status, otherProject.stderr).toBe(0);
@@ -233,15 +251,8 @@ describe('Docker project lifecycle lease', () => {
 
   it('does not let stale owner details keep a project locked', () => {
     const environment = createEnvironment('evorto-stale-owner-test');
-    const leaseDirectory = path.join(
-      environment.TMPDIR,
-      'evorto-docker-project-leases',
-    );
-    fs.mkdirSync(leaseDirectory, { recursive: true });
-    const ownerPath = path.join(
-      leaseDirectory,
-      'evorto-stale-owner-test.owner',
-    );
+    fs.mkdirSync(leaseDirectory, { recursive: true, mode: 0o700 });
+    const ownerPath = ownerPathFor(environment.COMPOSE_PROJECT_NAME);
     fs.writeFileSync(ownerPath, 'operation=stale-operation\npid=1\n');
 
     const result = spawnSync(
@@ -320,10 +331,7 @@ describe('Docker project lifecycle lease', () => {
           [leaseScript, 'database-reset', '--', 'true'],
           {
             encoding: 'utf8',
-            env: {
-              ...environment,
-              COMPOSE_PROJECT_NAME: 'evorto-other-project',
-            },
+            env: createEnvironment('evorto-other-project'),
             timeout: 3000,
           },
         );

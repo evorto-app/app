@@ -119,9 +119,10 @@ user-owned stack remains running. Resume an initialized stopped project with
 
 An explicitly supplied `E2E_USE_DOCKER_STACK=false` uses
 `helpers/testing/host-e2e-webserver.sh`. The caller owns its database. The host
-wrapper starts or temporarily
-resumes only the current worktree's MinIO container, initializes its bucket,
-and exports the same loopback S3 endpoint and credentials to the Angular server
+wrapper acquires the same project lease before inspecting or changing MinIO
+and retains it through host-app cleanup and MinIO restoration. It starts or
+temporarily resumes only the current worktree's MinIO container, initializes
+its bucket, and exports the same loopback S3 endpoint and credentials to the Angular server
 that receipt fixtures use. It restores a previously stopped MinIO container and
 removes a MinIO container it created after the host server stops; it never calls
 Compose teardown or mutates unrelated services or projects. Existing host app
@@ -145,9 +146,11 @@ otherwise the runtime helper derives one from the worktree identity.
 
 Commands that start, stop, resume, or own the Docker stack, plus local database
 push/reset, Studio, and the disposable PostgreSQL integration suite, acquire one
-fail-fast lease for the generated Compose project. A second command for that
-same worktree exits immediately and names the active operation instead of
-racing a reset or waiting on a changing stack. Other worktrees use different
+fail-fast lease for the generated Compose project. The lease uses a stable,
+private per-user directory under `/tmp`, independent of caller `TMPDIR`, `TMP`,
+and `TEMP` overrides. A second command for that same worktree exits immediately
+and names the active operation instead of racing a reset or waiting on a changing
+stack. Other worktrees use different
 project names and remain independent. The operating system releases the lease
 when its command exits, including after a forced termination; stale owner
 details are replaced after the next successful acquisition and cannot hold the

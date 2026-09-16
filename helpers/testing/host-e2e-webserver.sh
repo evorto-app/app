@@ -68,6 +68,30 @@ for required_variable in APP_HOST_PORT COMPOSE_PROJECT_NAME MINIO_HOST_PORT; do
   fi
 done
 
+if [[ "${EVORTO_DOCKER_PROJECT_LEASE_HELD:-}" == 'true' ]]; then
+  readonly expected_lease_path="/tmp/evorto-docker-project-leases-${UID}/${COMPOSE_PROJECT_NAME}.lock"
+  lease_descriptor_matches='false'
+  if [[ "${OSTYPE}" == darwin* ]]; then
+    # /dev/fd uses a different device on macOS; stat without a path reads the actual descriptor.
+    if inherited_lease_identity="$(stat -f '%d:%i' 2>/dev/null <&9)" \
+      && expected_lease_identity="$(stat -f '%d:%i' "${expected_lease_path}" 2>/dev/null)" \
+      && [[ "${inherited_lease_identity}" == "${expected_lease_identity}" ]]; then
+      lease_descriptor_matches='true'
+    fi
+  elif [[ /dev/fd/9 -ef "${expected_lease_path}" ]]; then
+    lease_descriptor_matches='true'
+  fi
+  if [[ "${lease_descriptor_matches}" != 'true' ]]; then
+    printf '%s\n' \
+      'The host Playwright web server requires the inherited lease descriptor for its Docker project; the lease marker alone is not ownership.' >&2
+    exit 75
+  fi
+else
+  readonly script_directory="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  exec bash "${script_directory}/with-docker-project-lease.sh" host-e2e-webserver -- \
+    bash "${script_directory}/host-e2e-webserver.sh" "$@"
+fi
+
 trap 'cleanup "$?"' EXIT
 trap 'handle_signal HUP' HUP
 trap 'handle_signal INT' INT

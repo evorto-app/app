@@ -23,12 +23,19 @@ if [[ ! "${compose_project_name}" =~ ^[a-z0-9][a-z0-9_-]*$ ]]; then
   exit 2
 fi
 
-readonly lease_directory="${TMPDIR:-/tmp}/evorto-docker-project-leases"
+# UID is a readonly Bash identity; caller temporary-directory overrides must not split ownership.
+readonly lease_directory="/tmp/evorto-docker-project-leases-${UID}"
 readonly lease_path="${lease_directory}/${compose_project_name}.lock"
 readonly owner_path="${lease_directory}/${compose_project_name}.owner"
 
 umask 077
 mkdir -p "${lease_directory}"
+if [[ -L "${lease_directory}" || ! -O "${lease_directory}" ]]; then
+  printf 'Refusing Docker project ownership in an unsafe lease directory: %s\n' \
+    "${lease_directory}" >&2
+  exit 69
+fi
+chmod 700 "${lease_directory}"
 exec 9>>"${lease_path}"
 
 lease_acquired='false'
