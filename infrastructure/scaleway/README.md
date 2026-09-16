@@ -353,9 +353,12 @@ root declares daily backups retained 30 days and a 24-hour RPO.
 - Scaleway deployer, state, S3 role, and TEM API keys: every 90 days and after
   any suspected exposure or operator departure.
 - application session secret: every 90 days with a planned sign-in reset;
-- database passwords: every 90 days, changing the password secret and
-  incrementing its matching password-version variable in the same protected
-  deployment. Never reuse or decrement a version;
+- database passwords: every 90 days as a coordinated maintenance operation.
+  Review and explicitly apply the password secret and matching incremented
+  password-version variable in the environment infrastructure root, then run
+  the protected forward deployment to reconcile runtime secrets and verify
+  connectivity. Deployment workflows reject infrastructure changes in their
+  read-only plans. Never reuse or decrement a version;
 - Stripe webhook secret: whenever the endpoint is recreated or exposure is
   suspected;
 - Auth0 and other provider credentials: follow provider guidance, at least
