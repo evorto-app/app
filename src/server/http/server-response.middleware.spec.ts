@@ -165,6 +165,7 @@ describe('server response middleware', () => {
                 new Request(url, {
                   headers: {
                     accept: 'text/html',
+                    connection: 'close',
                     cookie:
                       'appSession=unusable; appSession.0=first-fragment; appSession.1=second-fragment; appSession.preference=keep; appTransaction=keep-transaction; unrelated=keep',
                     host: new URL(url).host,
@@ -174,6 +175,7 @@ describe('server response middleware', () => {
               ),
             );
             expect(response.status).toBe(401);
+            expect(response.headers.get('connection')).toBe('close');
             expect(requestHandlingReached).toBe(false);
             expect(response.headers.get('cache-control')).toBe('no-store');
             expect(response.headers.get('location')).toBeNull();
@@ -221,6 +223,7 @@ describe('server response middleware', () => {
           handler(
             new Request('http://localhost/rpc', {
               headers: {
+                connection: 'close',
                 'content-type': 'application/json',
                 cookie: 'appSession.0=unusable',
                 host: 'localhost',
@@ -231,6 +234,7 @@ describe('server response middleware', () => {
           ),
         );
         expect(response.status).toBe(401);
+        expect(response.headers.get('connection')).toBe('close');
         expect(response.headers.get('cache-control')).toBe('no-store');
         expect(response.headers.get('location')).toBeNull();
         expect(yield* Effect.promise(() => response.json())).toEqual({
