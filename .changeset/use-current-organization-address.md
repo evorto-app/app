@@ -18,3 +18,7 @@ response without loading an authentication session; explicit local routing
 continues to use the configured loopback origin.
 Dispose unsupported Bun request bodies and Node GET/HEAD uploads without waiting
 for EOF, and reject unrecognized Playwright storage-state documents.
+
+Normalize the accepted internal SSR RPC path to the registered `/rpc` endpoint
+before forwarding privileged headers, and validate separately supplied query
+parameters before granting that forwarding.
