@@ -55,6 +55,7 @@ export class InvalidAuthSessionError extends Schema.TaggedErrorClass<InvalidAuth
       'missing-primary-token-set',
       'missing-subject',
       'missing-user',
+      'unusable-session-cookie',
     ]),
   },
 ) {}
@@ -100,6 +101,15 @@ const authCookieOptions = (
   secure: storeOptions.secureCookies || options?.secure === true,
 });
 
+const isAuthSessionCookieName = (name: string) => {
+  const chunkPrefix = `${AUTH_SESSION_COOKIE_IDENTIFIER}.`;
+  return (
+    name === AUTH_SESSION_COOKIE_IDENTIFIER ||
+    (name.startsWith(chunkPrefix) &&
+      /^\d+$/u.test(name.slice(chunkPrefix.length)))
+  );
+};
+
 const cookieHandler: CookieHandler<AuthStoreOptions> = {
   deleteCookie: (name, storeOptions, options) => {
     if (!storeOptions) {
@@ -117,7 +127,14 @@ const cookieHandler: CookieHandler<AuthStoreOptions> = {
     });
   },
   getCookie: (name, storeOptions) => storeOptions?.cookies[name],
-  getCookies: (storeOptions) => storeOptions?.cookies ?? {},
+  // The SDK matches any identifier prefix. Restrict session enumeration to
+  // owned raw/numeric chunk names so unrelated prefix cookies cannot corrupt it.
+  getCookies: (storeOptions) =>
+    Object.fromEntries(
+      Object.entries(storeOptions?.cookies ?? {}).filter(([name]) =>
+        isAuthSessionCookieName(name),
+      ),
+    ),
   setCookie: (name, value, options, storeOptions) => {
     if (!storeOptions) {
       return;
@@ -303,7 +320,7 @@ const createAuth0RequestRuntime = (
   });
 
 const invalidAuthSession = (
-  reason: 'missing-primary-token-set' | 'missing-subject' | 'missing-user',
+  reason: InvalidAuthSessionError['reason'],
   message: string,
 ) => new InvalidAuthSessionError({ message, reason });
 
@@ -404,13 +421,8 @@ export const invalidAuthSessionRecoveryResponse = Effect.fn(
       resolveRequestOrigin(request).isSecure,
     ),
   );
-  const chunkPrefix = `${AUTH_SESSION_COOKIE_IDENTIFIER}.`;
   for (const name of Object.keys(storeOptions.cookies)) {
-    if (
-      name === AUTH_SESSION_COOKIE_IDENTIFIER ||
-      (name.startsWith(chunkPrefix) &&
-        /^\d+$/u.test(name.slice(chunkPrefix.length)))
-    ) {
+    if (isAuthSessionCookieName(name)) {
       cookieHandler.deleteCookie(name, storeOptions);
     }
   }
@@ -439,9 +451,19 @@ export const loadAuthSession = (request: HttpServerRequest.HttpServerRequest) =>
     const { auth0Client, storeOptions } =
       yield* createAuth0RequestRuntime(request);
 
+    // Capture presence before the SDK can remove expired cookie state.
+    const hasSessionCookie = Object.keys(storeOptions.cookies).some((name) =>
+      isAuthSessionCookieName(name),
+    );
     const sessionData = yield* runAuth0SdkOperation('loadAuthSession', () =>
       auth0Client.getSession(storeOptions),
     );
+    if (sessionData === undefined && hasSessionCookie) {
+      return yield* invalidAuthSession(
+        'unusable-session-cookie',
+        'Auth0 could not load the supplied application session cookie',
+      );
+    }
 
     // The SDK has already validated the encrypted application session here.
     // OAuth access-token expiry is independent of that session lifetime; use

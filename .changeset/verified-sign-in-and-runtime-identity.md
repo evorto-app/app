@@ -58,3 +58,5 @@ Validate decoded session containers and primary token-set shapes before reading
 them, so malformed stored values receive the same explicit sign-in recovery.
 Use the effective PostgreSQL query host even without a URL authority, and reject
 Unix-socket hosts whenever a CA is supplied, including explicit TLS-name overrides.
+
+Recover unreadable session cookies even when the identity SDK returns no session. Keep absent cookies anonymous and preserve unrelated cookie names, including names that share the session prefix.

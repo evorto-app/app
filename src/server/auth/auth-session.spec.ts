@@ -12,6 +12,7 @@ import * as HttpServerRequest from 'effect/unstable/http/HttpServerRequest';
 import * as HttpServerResponse from 'effect/unstable/http/HttpServerResponse';
 
 import { RuntimeConfig } from '../config/runtime-config';
+import { makeServerResponseMiddleware } from '../http/server-response.middleware';
 import {
   AUTH_SESSION_COOKIE_IDENTIFIER,
   AUTH_TRANSACTION_COOKIE_IDENTIFIER,
@@ -20,6 +21,7 @@ import {
   handleCallbackRequest,
   InvalidAuthSessionError,
   isAuthenticated,
+  loadAuthSession,
   runAuth0SdkOperation,
   shouldSecureAuthCookies,
   toAuthSession,
@@ -383,5 +385,183 @@ describe('Auth0 callback recovery', () => {
         );
       }
     }),
+  );
+});
+
+const sessionRequest = (
+  cookies: Record<string, string>,
+  accept = 'text/html',
+) =>
+  HttpServerRequest.fromWeb(
+    new Request('https://app.example/events', {
+      headers: {
+        accept,
+        cookie: Object.entries(cookies)
+          .map(([name, value]) => `${name}=${value}`)
+          .join('; '),
+        host: 'app.example',
+        'x-forwarded-proto': 'https',
+      },
+    }),
+  );
+
+const unrelatedCookies = {
+  'appSession.0suffix': 'keep',
+  'appSession.preference': 'keep',
+  appSessionBackup: 'keep',
+  appTransaction: 'keep',
+  unrelated: 'keep',
+};
+
+describe('real Auth0 session-cookie loading and recovery', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  for (const cookies of [
+    { appSession: 'not-encrypted' },
+    { appSession: '' },
+    { 'appSession.0': 'not-encrypted' },
+    { 'appSession.2': 'orphan-fragment' },
+    { 'appSession.0': 'partial', 'appSession.1': 'fragments' },
+  ] satisfies Record<string, string>[]) {
+    it.effect(
+      `recovers unreadable present cookies ${Object.keys(cookies).join(',')} with ${Object.values(cookies).join('') ? 'nonempty' : 'empty'} values`,
+      () =>
+        Effect.gen(function* () {
+          const fetch = vi
+            .spyOn(globalThis, 'fetch')
+            .mockRejectedValue(new Error('Network is forbidden in this test'));
+          const runtime = yield* callbackRuntimeConfig;
+          const sdk = new ServerClient(clientOptions(true));
+          const sdkSession = yield* Effect.promise(() =>
+            sdk.getSession(createAuthStoreOptions(cookies, true)),
+          );
+          expect(sdkSession).toBeUndefined();
+          const request = sessionRequest({ ...unrelatedCookies, ...cookies });
+          let routeReached = false;
+          const response = yield* makeServerResponseMiddleware(
+            loadAuthSession(request).pipe(
+              Effect.map(() => {
+                routeReached = true;
+                return HttpServerResponse.empty();
+              }),
+            ),
+            { applicationEnvironment: 'production' },
+          ).pipe(
+            Effect.provideService(RuntimeConfig, runtime),
+            Effect.provideService(HttpServerRequest.HttpServerRequest, request),
+          );
+          const web = HttpServerResponse.toWeb(response);
+          expect(web.status).toBe(401);
+          expect(routeReached).toBe(false);
+          expect(web.headers.get('cache-control')).toBe('no-store');
+          const cleared = web.headers.getSetCookie();
+          expect(
+            cleared.map((cookie) => cookie.split('=', 1)[0]).toSorted(),
+          ).toEqual(Object.keys(cookies).toSorted());
+          for (const cookie of cleared) {
+            expect(cookie).toContain('Max-Age=0');
+            expect(cookie).toContain('HttpOnly');
+            expect(cookie).toContain('Secure');
+          }
+          expect(yield* Effect.promise(() => web.text())).toContain(
+            'Sign in again',
+          );
+          expect(fetch).not.toHaveBeenCalled();
+        }),
+    );
+  }
+
+  for (const cookies of [{}, unrelatedCookies]) {
+    it.effect(
+      `keeps ${Object.keys(cookies).length > 0 ? 'unrelated cookies' : 'absent cookies'} anonymous without clearing them`,
+      () =>
+        Effect.gen(function* () {
+          const fetch = vi
+            .spyOn(globalThis, 'fetch')
+            .mockRejectedValue(new Error('Network is forbidden in this test'));
+          const runtime = yield* callbackRuntimeConfig;
+          const session = yield* loadAuthSession(sessionRequest(cookies)).pipe(
+            Effect.provideService(RuntimeConfig, runtime),
+          );
+          expect(session).toBeUndefined();
+          expect(fetch).not.toHaveBeenCalled();
+        }),
+    );
+  }
+
+  for (const style of ['chunks', 'raw'] as const) {
+    it.effect(
+      `loads a real encrypted ${style} session with an expired unused access token and ignores unrelated prefix cookies`,
+      () =>
+        Effect.gen(function* () {
+          const fetch = vi
+            .spyOn(globalThis, 'fetch')
+            .mockRejectedValue(new Error('Network is forbidden in this test'));
+          const runtime = yield* callbackRuntimeConfig;
+          const options = clientOptions(true);
+          const stateStore = options.stateStore;
+          if (!stateStore) throw new Error('Expected an Auth0 state store');
+          const storeOptions = createAuthStoreOptions(
+            { ...unrelatedCookies },
+            true,
+          );
+          const expiredTokenSession = sessionData(0);
+          if (!expiredTokenSession.user)
+            throw new Error('Expected a fixture user');
+          const state: StateData = {
+            ...storedStateData(),
+            ...expiredTokenSession,
+            user: {
+              ...expiredTokenSession.user,
+              syntheticPadding: 'x'.repeat(7000),
+            },
+          };
+          yield* Effect.promise(() =>
+            stateStore.set(
+              AUTH_SESSION_COOKIE_IDENTIFIER,
+              state,
+              false,
+              storeOptions,
+            ),
+          );
+          for (const [name, value] of Object.entries(unrelatedCookies)) {
+            expect(storeOptions.cookies[name]).toBe(value);
+          }
+          const chunks = Object.entries(storeOptions.cookies).filter(([name]) =>
+            /^appSession\.\d+$/u.test(name),
+          );
+          expect(chunks.length).toBeGreaterThan(1);
+          // Numeric names are emitted in ascending insertion order by the real SDK.
+          const cookies =
+            style === 'raw'
+              ? { appSession: chunks.map(([, value]) => value).join('') }
+              : Object.fromEntries(chunks);
+          const request = sessionRequest({ ...unrelatedCookies, ...cookies });
+          const session = yield* loadAuthSession(request).pipe(
+            Effect.provideService(RuntimeConfig, runtime),
+          );
+          expect(isAuthenticated(session)).toBe(true);
+          expect(session?.authData['sub']).toBe('auth0|test-user');
+          expect(fetch).not.toHaveBeenCalled();
+        }),
+    );
+  }
+
+  it.effect(
+    'preserves an unexpected SDK rejection as a defect even when a session cookie is present',
+    () =>
+      Effect.gen(function* () {
+        const failure = new Error('unexpected SDK failure');
+        vi.spyOn(ServerClient.prototype, 'getSession').mockRejectedValueOnce(
+          failure,
+        );
+        const runtime = yield* callbackRuntimeConfig;
+        const exit = yield* loadAuthSession(
+          sessionRequest({ 'appSession.0': 'synthetic' }),
+        ).pipe(Effect.provideService(RuntimeConfig, runtime), Effect.exit);
+        expect(Exit.isFailure(exit)).toBe(true);
+        if (Exit.isFailure(exit))
+          expect(Cause.squash(exit.cause)).toBe(failure);
+      }),
   );
 });
