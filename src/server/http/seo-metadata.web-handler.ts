@@ -3,12 +3,11 @@ import type { HttpServerRequest } from 'effect/unstable/http/HttpServerRequest';
 import { Effect } from 'effect';
 import { HttpRouter, HttpServerResponse } from 'effect/unstable/http';
 
-import { resolveRequestOrigin } from '../auth/auth-session';
+import { resolveHttpRequestContext } from '../context/http-request-context';
+import { tenantOutboundRootUrl } from '../tenant-outbound-url';
+import { createUnknownTenantResponse } from './unknown-tenant-response';
 
-export const createRobotsWebResponse = (
-  request: HttpServerRequest,
-): Response => {
-  const { origin } = resolveRequestOrigin(request);
+export const createRobotsWebResponse = (origin: string): Response => {
   return new Response(
     [
       'User-agent: *',
@@ -26,10 +25,7 @@ export const createRobotsWebResponse = (
   );
 };
 
-export const createSitemapWebResponse = (
-  request: HttpServerRequest,
-): Response => {
-  const { origin } = resolveRequestOrigin(request);
+export const createSitemapWebResponse = (origin: string): Response => {
   return new Response(
     [
       '<?xml version="1.0" encoding="UTF-8"?>',
@@ -56,17 +52,25 @@ export const createSitemapWebResponse = (
   );
 };
 
+const resolveSeoMetadataResponse = (
+  request: HttpServerRequest,
+  render: (origin: string) => Response,
+) =>
+  resolveHttpRequestContext(request, undefined).pipe(
+    Effect.flatMap(({ tenant }) => tenantOutboundRootUrl(tenant)),
+    Effect.map((origin) => HttpServerResponse.fromWeb(render(origin))),
+    Effect.catchTag('HttpRequestTenantNotFoundError', () =>
+      Effect.succeed(createUnknownTenantResponse(request.method)),
+    ),
+  );
+
 export const seoMetadataRouteLayer = HttpRouter.addAll(
   (['GET', 'HEAD'] as const).flatMap((method) => [
     HttpRouter.route(method, '/robots.txt', (request) =>
-      Effect.sync(() =>
-        HttpServerResponse.fromWeb(createRobotsWebResponse(request)),
-      ),
+      resolveSeoMetadataResponse(request, createRobotsWebResponse),
     ),
     HttpRouter.route(method, '/sitemap.xml', (request) =>
-      Effect.sync(() =>
-        HttpServerResponse.fromWeb(createSitemapWebResponse(request)),
-      ),
+      resolveSeoMetadataResponse(request, createSitemapWebResponse),
     ),
   ]),
 );
