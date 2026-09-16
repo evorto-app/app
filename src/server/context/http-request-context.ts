@@ -29,7 +29,7 @@ const resolveRequestHost = (
   request: HttpServerRequest.HttpServerRequest,
 ): readonly string[] | string | undefined => request.headers['host'];
 
-export const resolveHttpRequestContext = (
+const resolveHttpRequestContextEffect = (
   request: HttpServerRequest.HttpServerRequest,
   authSession: AuthSession | undefined,
 ): Effect.Effect<
@@ -41,6 +41,10 @@ export const resolveHttpRequestContext = (
     const requestOrigin = resolveRequestOrigin(request);
     const authentication = resolveAuthenticationContext({
       isAuthenticated: isAuthenticated(authSession),
+    });
+    yield* Effect.annotateCurrentSpan({
+      'evorto.authenticated': authentication.isAuthenticated,
+      'evorto.user_context_resolved': false,
     });
 
     const { cause, tenant } = yield* resolveTenantContext({
@@ -76,6 +80,9 @@ export const resolveHttpRequestContext = (
       oidcUser: authSession?.authData,
       user: tenantUser,
     });
+    yield* Effect.annotateCurrentSpan({
+      'evorto.user_context_resolved': tenantUser !== undefined,
+    });
 
     return Schema.decodeUnknownSync(RequestContext)({
       authentication,
@@ -85,3 +92,7 @@ export const resolveHttpRequestContext = (
       user: tenantUser,
     });
   });
+
+export const resolveHttpRequestContext = Effect.fn(
+  'Server.resolveHttpRequestContext',
+)(resolveHttpRequestContextEffect);

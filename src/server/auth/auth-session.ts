@@ -300,20 +300,21 @@ export const getRequestAuthData = (authSession: AuthSession | undefined) =>
 export const isAuthenticated = (authSession: AuthSession | undefined) =>
   authSession !== undefined;
 
-export const loadAuthSession = (request: HttpServerRequest.HttpServerRequest) =>
-  Effect.gen(function* () {
-    const storeOptions = createStoreOptions(request);
-    const auth0Client = yield* createAuth0Client(request);
+export const loadAuthSession = Effect.fn('Server.loadAuthSession')(function* (
+  request: HttpServerRequest.HttpServerRequest,
+) {
+  const storeOptions = createStoreOptions(request);
+  const auth0Client = yield* createAuth0Client(request);
 
-    const sessionData = yield* runPromiseOrUndefined('loadAuthSession', () =>
-      auth0Client.getSession(storeOptions),
-    );
+  const sessionData = yield* runPromiseOrUndefined('loadAuthSession', () =>
+    auth0Client.getSession(storeOptions),
+  );
 
-    // The SDK has already validated the encrypted application session here.
-    // OAuth access-token expiry is independent of that session lifetime; use
-    // ServerClient.getAccessToken() if a downstream integration needs a token.
-    return toAuthSession(sessionData);
-  });
+  // The SDK has already validated the encrypted application session here.
+  // OAuth access-token expiry is independent of that session lifetime; use
+  // ServerClient.getAccessToken() if a downstream integration needs a token.
+  return toAuthSession(sessionData);
+});
 
 export const handleLoginRequest = (
   request: HttpServerRequest.HttpServerRequest,

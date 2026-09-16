@@ -192,6 +192,14 @@ traces for all three roles. The next successful automatic or scheduled
 reconciliation restores the Terraform-owned 10% value, so the debug setting
 cannot silently become the long-term default.
 
+Use [LATENCY_MONITORING.md](LATENCY_MONITORING.md) for warm-path objectives,
+external synthetic checks, trace dashboards, alert thresholds, and latency
+incident response. Application-side improvement work is ordered in
+[../../LATENCY_IMPROVEMENT.md](../../LATENCY_IMPROVEMENT.md).
+The temporary `Monitor staging latency` workflow runs independently every 15
+minutes, while changed staging deployments retain a separate 10-sample
+report-only baseline in their deployment evidence.
+
 ## DNS and Transactional Email
 
 Keep Cloudflare as the authoritative DNS provider. Terraform manages only the
