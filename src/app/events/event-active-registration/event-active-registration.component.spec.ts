@@ -719,7 +719,8 @@ describe('EventActiveRegistrationComponent add-on purchase', () => {
         await fixture.whenStable();
         expect(cancelRegistration).toHaveBeenCalledOnce();
         expect(normalizeText(fixture)).toContain(
-          expectedMessage ?? 'Cancellation failed',
+          expectedMessage ??
+            'The sign-up could not be cancelled. Check its current status and contact an organizer for help.',
         );
         expect(normalizeText(fixture)).not.toContain('Private registration');
       });
