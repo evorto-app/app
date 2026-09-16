@@ -20,22 +20,31 @@ const wallClockTimeoutScript = path.join(
 const temporaryDirectories: string[] = [];
 const childProcesses: ChildProcess[] = [];
 
-const createPermissionDeniedProbePreload = () => {
+const createProcessGroupProbePreload = (
+  denyForceKill = false,
+  probeError: 'EPERM' | 'ESRCH' = 'EPERM',
+) => {
   const directory = fs.mkdtempSync(
     path.join(os.tmpdir(), 'evorto-wall-clock-timeout-'),
   );
   temporaryDirectories.push(directory);
   const preloadPath = path.join(directory, 'permission-denied-probe.mjs');
+  const signalLogPath = path.join(directory, 'signals.jsonl');
 
   fs.writeFileSync(
     preloadPath,
-    String.raw`const originalKill = process.kill.bind(process);
+    String.raw`import fs from 'node:fs';
+const originalKill = process.kill.bind(process);
+const signalLogPath = ${JSON.stringify(signalLogPath)};
 
 process.kill = (pid, signal) => {
-  if (pid < 0 && signal === 0) {
-    const error = new Error('Synthetic process-group probe permission denial');
+  if (pid < 0) {
+    fs.appendFileSync(signalLogPath, JSON.stringify({ signal }) + '\n');
+  }
+  if (pid < 0 && (signal === 0 || (${denyForceKill} && signal === 'SIGKILL'))) {
+    const error = new Error('Synthetic process-group syscall error');
     error.name = 'SystemError';
-    error.code = 'EPERM';
+    error.code = signal === 0 ? ${JSON.stringify(probeError)} : 'EPERM';
     throw error;
   }
 
@@ -44,7 +53,7 @@ process.kill = (pid, signal) => {
 `,
   );
 
-  return { directory, preloadPath };
+  return { directory, preloadPath, signalLogPath };
 };
 
 const createFakeDocker = ({
@@ -341,7 +350,8 @@ describe('Docker Compose lifecycle wrappers', () => {
   ])(
     'preserves exit code $exitCode when the post-$signal group probe is denied',
     async ({ exitCode, signal }) => {
-      const { directory, preloadPath } = createPermissionDeniedProbePreload();
+      const { directory, preloadPath, signalLogPath } =
+        createProcessGroupProbePreload();
       const readyPath = path.join(directory, 'ready');
       const stderrChunks: Buffer[] = [];
       const child = spawn(
@@ -385,11 +395,19 @@ while true; do sleep 0.05; done`,
         'cleanup after its leader exited: permission denied.',
       );
       expect(stderr).not.toContain('SystemError');
+      expect(fs.readFileSync(signalLogPath, 'utf8')).toBe(
+        [
+          JSON.stringify({ signal }),
+          JSON.stringify({ signal: 0 }),
+          JSON.stringify({ signal: 'SIGKILL' }),
+          '',
+        ].join('\n'),
+      );
     },
   );
 
   it('preserves timeout status when the post-timeout group probe is denied', () => {
-    const { preloadPath } = createPermissionDeniedProbePreload();
+    const { preloadPath, signalLogPath } = createProcessGroupProbePreload();
     const result = spawnSync(
       'bun',
       [
@@ -411,6 +429,71 @@ while true; do sleep 0.05; done`,
       'Command exceeded its 1-second wall-clock timeout',
     );
     expect(result.stderr).not.toContain('SystemError');
+    expect(fs.readFileSync(signalLogPath, 'utf8')).toBe(
+      ['{"signal":"SIGTERM"}', '{"signal":0}', '{"signal":"SIGKILL"}', ''].join(
+        '\n',
+      ),
+    );
+  });
+
+  it('cancels escalation only when the process-group probe reports ESRCH', () => {
+    const { preloadPath, signalLogPath } = createProcessGroupProbePreload(
+      false,
+      'ESRCH',
+    );
+    const result = spawnSync(
+      'bun',
+      [
+        '--preload',
+        preloadPath,
+        wallClockTimeoutScript,
+        '1',
+        '2',
+        'bash',
+        '-c',
+        "trap 'exit 0' TERM; while :; do sleep 0.05; done",
+      ],
+      { encoding: 'utf8', timeout: 5000 },
+    );
+
+    expect(result.error).toBeUndefined();
+    expect(result.status).toBe(124);
+    expect(result.stderr).not.toContain(
+      'Could not verify command process group',
+    );
+    expect(fs.readFileSync(signalLogPath, 'utf8')).toBe(
+      ['{"signal":"SIGTERM"}', '{"signal":0}', ''].join('\n'),
+    );
+  });
+
+  it('fails loudly when SIGKILL is denied after an unverifiable group probe', () => {
+    const { preloadPath, signalLogPath } = createProcessGroupProbePreload(true);
+    const result = spawnSync(
+      'bun',
+      [
+        '--preload',
+        preloadPath,
+        wallClockTimeoutScript,
+        '1',
+        '1',
+        'bash',
+        '-c',
+        "trap 'exit 0' TERM; while :; do sleep 0.05; done",
+      ],
+      { encoding: 'utf8', timeout: 5000 },
+    );
+
+    expect(result.error).toBeUndefined();
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(
+      'Could not send SIGKILL to command process group',
+    );
+    expect(result.stderr).toContain('Cleanup could not be confirmed.');
+    expect(fs.readFileSync(signalLogPath, 'utf8')).toBe(
+      ['{"signal":"SIGTERM"}', '{"signal":0}', '{"signal":"SIGKILL"}', ''].join(
+        '\n',
+      ),
+    );
   });
 
   it('ignores obsolete branch variables when resuming plain PostgreSQL', () => {
