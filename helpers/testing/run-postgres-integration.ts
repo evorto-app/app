@@ -29,7 +29,16 @@ const runCommand = async (
   }
 };
 
-const integrationEnvironment = await resolvePostgresIntegrationEnvironment();
+const arguments_ = process.argv.slice(2);
+if (
+  arguments_.length > 1 ||
+  arguments_.some((argument) => argument !== '--local')
+) {
+  throw new Error('Usage: run-postgres-integration.ts [--local]');
+}
+const integrationEnvironment = await resolvePostgresIntegrationEnvironment({
+  local: arguments_[0] === '--local',
+});
 const pool = new Pool({
   ...createNodePgPoolConfig({
     databaseUrl: postgresMaintenanceDatabaseUrl(

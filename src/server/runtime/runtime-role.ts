@@ -1,6 +1,9 @@
 import { Effect, Option, Redacted, Schema } from 'effect';
 
-import type { DeploymentConfig } from '../config/deployment-config';
+import {
+  type DeploymentConfig,
+  isDatabaseRuntimeRoleName,
+} from '../config/deployment-config';
 
 export class RuntimeRoleConfigurationError extends Schema.TaggedErrorClass<RuntimeRoleConfigurationError>()(
   'RuntimeRoleConfigurationError',
@@ -14,6 +17,9 @@ const failConfiguration = (message: string) =>
 
 export const validateRuntimeRoleConfiguration = (
   deployment: DeploymentConfig,
+  commandEnvironment: Readonly<
+    Record<string, string | undefined>
+  > = process.env,
 ) =>
   Effect.gen(function* () {
     const isPlatformEnvironment = deployment.APP_ENVIRONMENT !== 'local';
@@ -50,6 +56,16 @@ export const validateRuntimeRoleConfiguration = (
     ) {
       return yield* failConfiguration(
         'APP_SCHEMA_HASH must be the lowercase SHA-256 of the packaged schema for the ops role',
+      );
+    }
+
+    if (
+      deployment.APP_ROLE === 'ops' &&
+      // The prerequisites child reads process.env, not the Effect dotenv fallback.
+      !isDatabaseRuntimeRoleName(commandEnvironment['DATABASE_RUNTIME_ROLE'])
+    ) {
+      return yield* failConfiguration(
+        'DATABASE_RUNTIME_ROLE must be an explicit process environment variable containing a safe PostgreSQL role name for the ops role',
       );
     }
 

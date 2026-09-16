@@ -209,8 +209,12 @@ bun run test:integration:postgres
 ```
 
 Remote targets are rejected. `bun run test:integration:postgres:local` loads the
-generated worktree-local loopback URL and still requires
-`POSTGRES_INTEGRATION_DISPOSABLE=true`. Never point this command at a default,
+generated worktree-local loopback URL and runs the integration helper with
+`--local`. This mode rejects an explicit URL override whose port differs from
+the resolved `POSTGRES_HOST_PORT`, before opening any database pool. The direct
+`test:integration:postgres` command accepts its separately validated explicit
+loopback target for CI. Both require `POSTGRES_INTEGRATION_DISPOSABLE=true`.
+Never point this command at a default,
 production, shared, or otherwise persistent database. Connection URLs and
 credentials must not be printed or committed.
 

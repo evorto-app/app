@@ -88,6 +88,84 @@ afterEach(() => {
   temporaryDirectories.length = 0;
 });
 
+describe('Compose database setup', () => {
+  const runSetup = (preflightStatus: number) => {
+    const directory = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'evorto-compose-setup-'),
+    );
+    temporaryDirectories.push(directory);
+    const logPath = path.join(directory, 'bun.log');
+    fs.writeFileSync(
+      path.join(directory, 'bun'),
+      String.raw`#!/bin/sh
+flag="$STAGING_SEED_PREFLIGHT_ONLY"
+if [ -z "$flag" ]; then flag=unset; fi
+printf '%s|%s\n' "$flag" "$*" >> "$BUN_LOG"
+if [ "$flag" = true ]; then
+  exit "$FAKE_PREFLIGHT_STATUS"
+fi
+exit 0
+`,
+      { mode: 0o700 },
+    );
+    const result = spawnSync(
+      realBunPath,
+      [
+        '--no-env-file',
+        '-e',
+        `
+import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+const command = Bun.YAML.parse(${JSON.stringify(composeSource)}).services['db-setup'].command;
+assert.equal(command.length, 3);
+assert.deepEqual(command.slice(0, 2), ['/bin/sh', '-lc']);
+// A login shell may reset PATH; prepend the fake executable inside that shell.
+const result = spawnSync(command[0], [command[1], 'PATH="$FAKE_BIN_DIR:$PATH"; export PATH; ' + command[2]], {
+  env: process.env,
+  stdio: 'inherit',
+});
+if (result.error) throw result.error;
+assert.equal(result.signal, null);
+process.exit(result.status ?? 1);
+`,
+      ],
+      {
+        encoding: 'utf8',
+        env: {
+          PATH: process.env['PATH'],
+          FAKE_BIN_DIR: directory,
+          BUN_LOG: logPath,
+          FAKE_PREFLIGHT_STATUS: String(preflightStatus),
+        },
+        timeout: 5000,
+      },
+    );
+    expect(result.error).toBeUndefined();
+    expect(result.signal).toBeNull();
+    return {
+      result,
+      invocations: fs.readFileSync(logPath, 'utf8').trim().split('\n'),
+    };
+  };
+
+  it('stops before reset, Drizzle, and seeding when preflight fails', () => {
+    const { result, invocations } = runSetup(37);
+    expect(result.status, result.stderr).toBe(37);
+    expect(invocations).toEqual(['true|helpers/database.ts']);
+  });
+
+  it('runs preflight, reset, schema push, then seed with the flag scoped to preflight', () => {
+    const { result, invocations } = runSetup(0);
+    expect(result.status, result.stderr).toBe(0);
+    expect(invocations).toEqual([
+      'true|helpers/database.ts',
+      'unset|helpers/reset-database-schema.ts',
+      'unset|./node_modules/drizzle-kit/bin.cjs push --force',
+      'unset|helpers/database.ts',
+    ]);
+  });
+});
+
 describe('ordinary Docker stack lifecycle', () => {
   it.each(['e2e-baseline.yml', 'esncard-release-certification.yml'])(
     'keeps the direct Compose container URL aligned with credentials in %s',

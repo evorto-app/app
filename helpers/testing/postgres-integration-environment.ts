@@ -99,8 +99,10 @@ const parseDatabaseUrl = (value: string): URL => {
 
 export const resolvePostgresIntegrationEnvironment = async ({
   environment = process.env,
+  local = false,
 }: {
   readonly environment?: EnvironmentSource;
+  readonly local?: boolean;
 } = {}): Promise<PostgresIntegrationEnvironment> => {
   if (environment['POSTGRES_INTEGRATION_DISPOSABLE'] !== 'true') {
     throw new Error(
@@ -110,6 +112,23 @@ export const resolvePostgresIntegrationEnvironment = async ({
   const databaseUrl = parseDatabaseUrl(
     requiredValue(environment, 'POSTGRES_INTEGRATION_DATABASE_URL'),
   );
+  if (local) {
+    const expectedPort = requiredValue(environment, 'POSTGRES_HOST_PORT');
+    if (
+      !/^\d+$/u.test(expectedPort) ||
+      Number(expectedPort) < 1024 ||
+      Number(expectedPort) > 65_535
+    ) {
+      throw new Error(
+        'POSTGRES_HOST_PORT must be a decimal port between 1024 and 65535',
+      );
+    }
+    if (Number(databaseUrl.port) !== Number(expectedPort)) {
+      throw new Error(
+        'POSTGRES_INTEGRATION_DATABASE_URL must target the resolved POSTGRES_HOST_PORT for local integration tests',
+      );
+    }
+  }
   return {
     databaseName: decodeURI(databaseUrl.pathname.slice(1)),
     databaseUrl: databaseUrl.toString(),

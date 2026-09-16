@@ -1,8 +1,14 @@
 import { describe, expect, it } from '@effect/vitest';
-import { Effect, Option, Redacted } from 'effect';
+import { Config, ConfigProvider, Effect, Option, Redacted } from 'effect';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 
 import type { DeploymentConfig } from '../config/deployment-config';
 
+import { deploymentConfig as deploymentConfigSchema } from '../config/deployment-config';
+import { makeRuntimeConfigProvider } from '../config/provider';
+import { type OpsCommandRunner, seedStaging } from '../ops/schema-operations';
 import { validateRuntimeRoleConfiguration } from './runtime-role';
 
 const deploymentConfig = (
@@ -31,6 +37,201 @@ describe('runtime role configuration', () => {
 
       expect(result.role).toBe('web');
     }),
+  );
+
+  it.effect(
+    'rejects missing or malformed ops runtime roles before a reset operation can run',
+    () =>
+      Effect.gen(function* () {
+        for (const role of [
+          undefined,
+          '',
+          ' ',
+          'runtime-role',
+          'Runtime_role',
+          '1runtime',
+          'role;drop',
+          'r'.repeat(64),
+        ]) {
+          const commands: (readonly string[])[] = [];
+          const runner: OpsCommandRunner = {
+            run: (command) =>
+              Effect.sync(() => {
+                commands.push(command);
+                return {
+                  exitCode: 0,
+                  stderr: '',
+                  stdout: JSON.stringify({ status: 'ok' }),
+                };
+              }),
+          };
+          const config = yield* deploymentConfigSchema.parse(
+            ConfigProvider.fromEnv({
+              env: {
+                APP_ROLE: 'ops',
+                APP_SCHEMA_HASH: 'a'.repeat(64),
+                ...(role !== undefined && { DATABASE_RUNTIME_ROLE: role }),
+              },
+            }),
+          );
+          const error = yield* validateRuntimeRoleConfiguration(config, {
+            DATABASE_RUNTIME_ROLE: role,
+          }).pipe(
+            Effect.flatMap(() => seedStaging('reset-and-seed-staging', runner)),
+            Effect.flip,
+          );
+          expect(error.message).toBe(
+            'DATABASE_RUNTIME_ROLE must be an explicit process environment variable containing a safe PostgreSQL role name for the ops role',
+          );
+          expect(commands).toEqual([]);
+        }
+      }),
+  );
+
+  it.effect(
+    'allows a configured ops runtime role through the existing reset command sequence',
+    () =>
+      Effect.gen(function* () {
+        const commands: (readonly string[])[] = [];
+        const runner: OpsCommandRunner = {
+          run: (command) =>
+            Effect.sync(() => {
+              commands.push(command);
+              return {
+                exitCode: 0,
+                stderr: '',
+                stdout: JSON.stringify({ status: 'ok' }),
+              };
+            }),
+        };
+        const config = yield* deploymentConfigSchema.parse(
+          ConfigProvider.fromEnv({
+            env: {
+              APP_ROLE: 'ops',
+              APP_SCHEMA_HASH: 'a'.repeat(64),
+              DATABASE_RUNTIME_ROLE: 'application_runtime',
+            },
+          }),
+        );
+        const result = yield* validateRuntimeRoleConfiguration(config, {
+          DATABASE_RUNTIME_ROLE: 'application_runtime',
+        }).pipe(
+          Effect.flatMap(() => seedStaging('reset-and-seed-staging', runner)),
+        );
+        expect(result).toEqual({ reset: true, seeded: true });
+        expect(commands.map((command) => command[1])).toEqual([
+          'dist/evorto/ops/seed-staging.mjs',
+          'dist/evorto/ops/reset-staging-database.mjs',
+          'dist/evorto/ops/database-prerequisites.mjs',
+          'ops/drizzle-kit.cjs',
+          'dist/evorto/ops/seed-staging.mjs',
+        ]);
+      }),
+  );
+
+  it.effect(
+    'rejects a file-only runtime role before reset and accepts the explicit child environment instead',
+    () =>
+      Effect.gen(function* () {
+        const originalRole = process.env['DATABASE_RUNTIME_ROLE'];
+        const temporaryDirectory = fs.mkdtempSync(
+          path.join(os.tmpdir(), 'evorto-ops-runtime-role-'),
+        );
+        const commands: (readonly string[])[] = [];
+        const runner: OpsCommandRunner = {
+          run: (command) =>
+            Effect.sync(() => {
+              commands.push(command);
+              return {
+                exitCode: 0,
+                stderr: '',
+                stdout: JSON.stringify({ status: 'ok' }),
+              };
+            }),
+        };
+        try {
+          fs.writeFileSync(
+            path.join(temporaryDirectory, '.env'),
+            'DATABASE_RUNTIME_ROLE=file_runtime\n',
+          );
+          delete process.env['DATABASE_RUNTIME_ROLE'];
+          const provider = yield* makeRuntimeConfigProvider({
+            cwd: temporaryDirectory,
+          });
+          expect(
+            yield* Config.string('DATABASE_RUNTIME_ROLE').parse(provider),
+          ).toBe('file_runtime');
+          const config = yield* deploymentConfigSchema.parse(
+            ConfigProvider.orElse(
+              ConfigProvider.fromEnv({
+                env: {
+                  APP_ENVIRONMENT: 'local',
+                  APP_ROLE: 'ops',
+                  APP_SCHEMA_HASH: 'a'.repeat(64),
+                },
+              }),
+              provider,
+            ),
+          );
+          const error = yield* validateRuntimeRoleConfiguration(config).pipe(
+            Effect.flatMap(() => seedStaging('reset-and-seed-staging', runner)),
+            Effect.flip,
+          );
+          expect(error.message).toContain(
+            'explicit process environment variable',
+          );
+          expect(commands).toEqual([]);
+
+          process.env['DATABASE_RUNTIME_ROLE'] = 'invalid-child-role';
+          yield* validateRuntimeRoleConfiguration(config).pipe(Effect.flip);
+          expect(commands).toEqual([]);
+
+          process.env['DATABASE_RUNTIME_ROLE'] = 'application_runtime';
+          const result = yield* validateRuntimeRoleConfiguration(config).pipe(
+            Effect.flatMap(() => seedStaging('reset-and-seed-staging', runner)),
+          );
+          expect(result).toEqual({ reset: true, seeded: true });
+          expect(commands).toHaveLength(5);
+        } finally {
+          if (originalRole === undefined) {
+            delete process.env['DATABASE_RUNTIME_ROLE'];
+          } else {
+            process.env['DATABASE_RUNTIME_ROLE'] = originalRole;
+          }
+          fs.rmSync(temporaryDirectory, { force: true, recursive: true });
+        }
+      }),
+  );
+
+  it.effect(
+    'does not require an ops database role for ordinary web or initial bootstrap runtime',
+    () =>
+      Effect.gen(function* () {
+        const web = yield* deploymentConfigSchema.parse(
+          ConfigProvider.fromEnv({
+            env: {
+              DATABASE_RUNTIME_ROLE: 'unused-invalid-role',
+            },
+          }),
+        );
+        const webRuntime = yield* validateRuntimeRoleConfiguration(web);
+        expect(webRuntime.role).toBe('web');
+        const bootstrap = yield* deploymentConfigSchema.parse(
+          ConfigProvider.fromEnv({
+            env: {
+              APP_BOOTSTRAP: 'true',
+              APP_ENVIRONMENT: 'staging',
+              APP_ROLE: 'ops',
+            },
+          }),
+        );
+        const bootstrapRuntime =
+          yield* validateRuntimeRoleConfiguration(bootstrap);
+        expect(bootstrapRuntime).toMatchObject({
+          bootstrap: true,
+          role: 'ops',
+        });
+      }),
   );
 
   it.effect('allows local polling workers', () =>

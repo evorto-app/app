@@ -11,3 +11,5 @@ Validate the final local database host, port, and database before dispatching co
 Bootstrap the standalone PostgreSQL integration database after validating its disposable target and server version, without resetting the application database.
 
 Require an explicit integration database port and isolate its maintenance, reset, and child commands from inherited TLS settings.
+
+Bind local integration database URLs to the resolved port of the leased Docker project before opening a connection.

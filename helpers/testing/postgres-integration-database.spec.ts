@@ -58,14 +58,25 @@ describe('local PostgreSQL integration database', () => {
 });
 
 describe('standalone PostgreSQL integration bootstrap', () => {
+  const originalArguments = process.argv;
   afterEach(() => {
+    process.argv = originalArguments;
     vi.doUnmock('pg');
     vi.unstubAllEnvs();
     vi.unstubAllGlobals();
     vi.resetModules();
   });
 
-  const prepareRunner = async ({ exists = false, version = '170010' } = {}) => {
+  const prepareRunner = async ({
+    exists = false,
+    local = false,
+    version = '170010',
+  } = {}) => {
+    process.argv = [
+      process.execPath,
+      'run-postgres-integration.ts',
+      ...(local ? ['--local'] : []),
+    ];
     vi.resetModules();
     vi.stubEnv('POSTGRES_INTEGRATION_DISPOSABLE', 'true');
     vi.stubEnv(
@@ -162,6 +173,55 @@ describe('standalone PostgreSQL integration bootstrap', () => {
       }
     },
   );
+
+  it.each([undefined, '', '1023', '65536', '55433'])(
+    'rejects local port %s before creating any pool or issuing SQL',
+    async (expectedPort) => {
+      const probe = await prepareRunner({ local: true });
+      vi.stubEnv('POSTGRES_HOST_PORT', expectedPort);
+      vi.stubEnv('EVORTO_DOCKER_PROJECT_LEASE_HELD', 'true');
+      await expect(import('./run-postgres-integration')).rejects.toThrow(
+        'POSTGRES_HOST_PORT',
+      );
+      expect(probe.connections).toEqual([]);
+      expect(probe.creates).not.toHaveBeenCalled();
+      expect(probe.schemaResets).toEqual([]);
+      expect(probe.spawn).not.toHaveBeenCalled();
+    },
+  );
+
+  it('runs a matching local target through both integration children', async () => {
+    const probe = await prepareRunner({ local: true });
+    vi.stubEnv('POSTGRES_HOST_PORT', '55432');
+    await import('./run-postgres-integration');
+    expect(probe.connections).toEqual([
+      'postgres',
+      'postgres',
+      'evorto_postgres_integration',
+    ]);
+    expect(probe.schemaResets).toEqual(['evorto_postgres_integration']);
+    expect(probe.spawn).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps the direct runner independent of an inherited worktree port', async () => {
+    const probe = await prepareRunner();
+    vi.stubEnv('POSTGRES_HOST_PORT', '55439');
+    await import('./run-postgres-integration');
+    expect(probe.driverConfigurations.map(({ port }) => port)).toEqual([
+      55432, 55432, 55432,
+    ]);
+    expect(probe.spawn).toHaveBeenCalledTimes(2);
+  });
+
+  it('rejects an unknown mode before database access', async () => {
+    const probe = await prepareRunner();
+    process.argv.push('--loacl');
+    await expect(import('./run-postgres-integration')).rejects.toThrow(
+      'Usage:',
+    );
+    expect(probe.connections).toEqual([]);
+    expect(probe.spawn).not.toHaveBeenCalled();
+  });
 
   it('isolates all parent pools and complete child environments from caller port and TLS settings', async () => {
     const probe = await prepareRunner();

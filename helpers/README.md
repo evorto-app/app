@@ -272,8 +272,10 @@ than searching for events by title, date, or incidental seeded content.
 `STAGING_SEED_PREFLIGHT_ONLY=true bun helpers/database.ts` validates database
 configuration, the required Stripe test account, and the pinned seed date
 (`E2E_NOW_ISO`) without opening a database connection or changing the seed RNG.
-The ordinary seed uses the same resolved date. Local database reset and staging
-ops run this configuration preflight before their destructive schema step.
+The ordinary seed uses the same resolved date. Local database reset, Compose
+`db-setup`, and staging ops run this configuration preflight before their
+destructive schema step. A failed Compose preflight stops setup before reset,
+Drizzle schema application, or seeding.
 
 Roles and imported VAT rates are fixed seed declarations, not external fixture
 configuration or provider lookups. Checks on inserted roles, tax-rate rows,

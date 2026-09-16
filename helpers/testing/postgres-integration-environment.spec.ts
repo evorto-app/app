@@ -243,6 +243,46 @@ describe('PostgreSQL integration environment', () => {
     );
   });
 
+  it.each(['localhost', '127.0.0.1', '[::1]'])(
+    'accepts a matching resolved local port on %s',
+    async (host) => {
+      const databaseUrl = `postgresql://evorto:secret@${host}:55432/evorto_postgres_integration`;
+      const resolved = await resolvePostgresIntegrationEnvironment({
+        environment: {
+          ...localEnvironment,
+          POSTGRES_HOST_PORT: '55432',
+          POSTGRES_INTEGRATION_DATABASE_URL: databaseUrl,
+        },
+        local: true,
+      });
+      expect(resolved.databaseUrl).toBe(`${databaseUrl}?sslmode=disable`);
+    },
+  );
+
+  it.each([undefined, '', '1023', '65536', '5432junk', '5433'])(
+    'rejects missing, invalid or mismatched local port %s',
+    async (expectedPort) => {
+      await expect(
+        resolvePostgresIntegrationEnvironment({
+          environment: {
+            ...localEnvironment,
+            POSTGRES_HOST_PORT: expectedPort,
+          },
+          local: true,
+        }),
+      ).rejects.toThrow('POSTGRES_HOST_PORT');
+    },
+  );
+
+  it('keeps direct CI targets independent of the local worktree port', async () => {
+    const resolved = await resolvePostgresIntegrationEnvironment({
+      environment: { ...localEnvironment, POSTGRES_HOST_PORT: '55439' },
+    });
+    expect(new Client({ connectionString: resolved.databaseUrl }).port).toBe(
+      5432,
+    );
+  });
+
   it('does not retain malformed database URL credentials in parse errors', async () => {
     const sentinelUsername = 'sentinel-integration-username';
     const sentinelPassword = 'sentinel-integration-password';

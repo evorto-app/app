@@ -19,7 +19,7 @@
     "test:unit:server": "bunx vitest run --config vitest.config.ts",
     "release:validate": "bash helpers/testing/validate-knope.sh",
     "test:integration:postgres": "bun helpers/testing/run-postgres-integration.ts",
-    "test:integration:postgres:local": "POSTGRES_INTEGRATION_DISPOSABLE=true bun run env:run -- bash helpers/testing/with-docker-project-lease.sh postgres-integration -- bun helpers/testing/run-postgres-integration.ts",
+    "test:integration:postgres:local": "POSTGRES_INTEGRATION_DISPOSABLE=true bun run env:run -- bash helpers/testing/with-docker-project-lease.sh postgres-integration -- bun helpers/testing/run-postgres-integration.ts --local",
     "lint": "bun run dev:ng lint --fix",
     "format:check": "prettier --check .",
     "format:write": "prettier --write .",

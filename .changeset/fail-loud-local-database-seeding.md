@@ -18,3 +18,5 @@ required template or registration option, rather than omitting it from the seed.
 Show the bounded staging seed configuration diagnostic when a private ops call fails, while keeping unknown or internal response details private.
 
 Validate pinned seed dates before connecting or beginning a reset, and reject invalid supplied dates before the seed transaction starts.
+
+Run seed configuration preflight before Compose database setup resets or reapplies the schema.

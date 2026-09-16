@@ -111,3 +111,12 @@ Config.option(trimmedString(name)).pipe(
   ),
 );
 ```
+
+## Private Ops Database Role
+
+Non-bootstrap `APP_ROLE=ops` requires `DATABASE_RUNTIME_ROLE` in the actual process
+environment inherited by the packaged prerequisites command. An Effect dotenv
+fallback alone does not satisfy this requirement. Both startup/request validation
+and the child command share `isDatabaseRuntimeRoleName`; surrounding whitespace
+is invalid.
+Web, worker, initial bootstrap, and local seed commands do not require this setting.

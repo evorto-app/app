@@ -49,7 +49,7 @@ services:
     command:
       - /bin/sh
       - -lc
-      - bun helpers/reset-database-schema.ts && bun ./node_modules/drizzle-kit/bin.cjs push --force && bun helpers/database.ts
+      - STAGING_SEED_PREFLIGHT_ONLY=true bun helpers/database.ts && bun helpers/reset-database-schema.ts && bun ./node_modules/drizzle-kit/bin.cjs push --force && bun helpers/database.ts
     restart: "no"
 
   mailpit:
