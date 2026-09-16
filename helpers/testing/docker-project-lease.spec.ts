@@ -22,6 +22,32 @@ const createEnvironment = (projectName: string) => {
   };
 };
 
+const createStudioEnvironment = (projectName: string) => {
+  const environment = createEnvironment(projectName);
+  const binDirectory = path.join(environment.TMPDIR, 'bin');
+  fs.mkdirSync(binDirectory);
+  fs.writeFileSync(
+    path.join(binDirectory, 'drizzle-kit'),
+    `#!${process.execPath}
+const fs = require('node:fs');
+if (process.argv.slice(2).join(' ') !== 'studio') process.exit(64);
+if (process.env.STUDIO_EXIT_CODE !== undefined) {
+  process.stdout.write('studio output\\n');
+  process.stderr.write('studio diagnostic\\n');
+  process.exit(Number(process.env.STUDIO_EXIT_CODE));
+}
+fs.writeFileSync(process.env.STUDIO_READY_FILE, 'ready');
+setInterval(() => {}, 1000);
+`,
+    { mode: 0o700 },
+  );
+  return {
+    ...environment,
+    PATH: `${binDirectory}${path.delimiter}${process.env['PATH'] ?? ''}`,
+    STUDIO_READY_FILE: path.join(environment.TMPDIR, 'studio-ready'),
+  };
+};
+
 const waitForFile = async (filePath: string): Promise<void> => {
   const deadline = Date.now() + 3000;
   while (Date.now() < deadline) {
@@ -47,6 +73,7 @@ describe('Docker project lifecycle lease', () => {
     for (const scriptName of [
       'db:push',
       'db:reset',
+      'db:studio',
       'docker:resume',
       'docker:start',
       'docker:start:foreground',
@@ -58,7 +85,15 @@ describe('Docker project lifecycle lease', () => {
       expect(packageJson.scripts[scriptName], scriptName).toContain(
         'helpers/testing/with-docker-project-lease.sh',
       );
+      const script = packageJson.scripts[scriptName];
+      expect(script, scriptName).toContain('env:run');
+      expect(script.indexOf('env:run'), scriptName).toBeLessThan(
+        script.indexOf('helpers/testing/with-docker-project-lease.sh'),
+      );
     }
+    expect(packageJson.scripts['db:studio']).toContain(
+      'helpers/testing/with-docker-project-lease.sh database-studio -- drizzle-kit studio',
+    );
   });
 
   it('requires an explicit project and command', () => {
@@ -152,4 +187,91 @@ describe('Docker project lifecycle lease', () => {
       'operation=docker-resume',
     );
   });
+
+  it.each([0, 37])(
+    'preserves Studio exit status %i and releases its lease',
+    (status) => {
+      const environment = createStudioEnvironment('evorto-studio-exit-test');
+      const result = spawnSync(
+        'bash',
+        [leaseScript, 'database-studio', '--', 'drizzle-kit', 'studio'],
+        {
+          encoding: 'utf8',
+          env: { ...environment, STUDIO_EXIT_CODE: String(status) },
+          timeout: 3000,
+        },
+      );
+
+      expect(result.status, result.stderr).toBe(status);
+      expect(result.stdout).toBe('studio output\n');
+      expect(result.stderr).toBe('studio diagnostic\n');
+      const nextCommand = spawnSync(
+        'bash',
+        [leaseScript, 'database-reset', '--', 'true'],
+        { encoding: 'utf8', env: environment, timeout: 3000 },
+      );
+      expect(nextCommand.status, nextCommand.stderr).toBe(0);
+    },
+  );
+
+  it.each(['SIGTERM', 'SIGKILL'] as const)(
+    'holds the Studio lease until %s termination without blocking another project',
+    async (signal) => {
+      const environment = createStudioEnvironment(
+        'evorto-studio-lifetime-test',
+      );
+      const studio = spawn(
+        'bash',
+        [leaseScript, 'database-studio', '--', 'drizzle-kit', 'studio'],
+        { env: environment, stdio: 'ignore' },
+      );
+      const studioExited = new Promise<{
+        code: number | null;
+        signal: NodeJS.Signals | null;
+      }>((resolve) => {
+        studio.once('exit', (code, exitSignal) =>
+          resolve({ code, signal: exitSignal }),
+        );
+      });
+
+      try {
+        await waitForFile(environment.STUDIO_READY_FILE);
+
+        for (const operation of ['database-reset', 'docker-stop']) {
+          const conflict = spawnSync(
+            'bash',
+            [leaseScript, operation, '--', 'true'],
+            { encoding: 'utf8', env: environment, timeout: 1000 },
+          );
+          expect(conflict.status, conflict.stderr).toBe(75);
+          expect(conflict.stderr).toContain('operation=database-studio');
+        }
+
+        const otherProject = spawnSync(
+          'bash',
+          [leaseScript, 'database-reset', '--', 'true'],
+          {
+            encoding: 'utf8',
+            env: {
+              ...environment,
+              COMPOSE_PROJECT_NAME: 'evorto-other-project',
+            },
+            timeout: 3000,
+          },
+        );
+        expect(otherProject.status, otherProject.stderr).toBe(0);
+      } finally {
+        studio.kill(signal);
+        await studioExited;
+      }
+
+      expect(await studioExited).toEqual({ code: null, signal });
+      const nextCommand = spawnSync(
+        'bash',
+        [leaseScript, 'database-reset', '--', 'true'],
+        { encoding: 'utf8', env: environment, timeout: 3000 },
+      );
+      expect(nextCommand.status, nextCommand.stderr).toBe(0);
+    },
+  );
 });

@@ -37,6 +37,7 @@ if command -v flock >/dev/null 2>&1; then
     lease_acquired='true'
   fi
 elif command -v lockf >/dev/null 2>&1; then
+  # macOS lockf supports descriptor mode: lock the already-open FD 9.
   if lockf -s -t 0 9; then
     lease_acquired='true'
   fi
@@ -73,4 +74,5 @@ readonly owner_temporary_path="${owner_path}.$$"
 } >"${owner_temporary_path}"
 mv -f "${owner_temporary_path}" "${owner_path}"
 
+export EVORTO_DOCKER_PROJECT_LEASE_HELD=true
 exec "$@"

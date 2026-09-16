@@ -248,7 +248,7 @@ credentials must not be printed or committed.
   needs a callback URL Auth0 accepts. On this machine, run Docker-backed
   authenticated checks with `APP_HOST_PORT=4200 bun run docker:start` unless the
   generated worktree port has also been added to the Auth0 application.
-- Local `dev:start`, `test:e2e`, `test:e2e:ui`, `test:e2e:integration`, `test:e2e:docs`, `db:*`, and `docker:*` package scripts refresh `.env.dev` before invoking `dotenv -c dev`, so new worktrees get isolated local app/service ports and database URLs by default. Use `bun run docker:ps` rather than bare `docker compose ps` when checking a worktree stack because the generated `COMPOSE_PROJECT_NAME` must be loaded from `.env.dev`.
+- Local `dev:start`, `test:e2e`, `test:e2e:ui`, `test:e2e:integration`, `test:e2e:docs`, `db:*`, and `docker:*` package scripts use `env:run` to resolve an invocation-private environment. Concurrent commands cannot overwrite each other's selected project or database through `.env.dev`. Use `bun run docker:ps` rather than bare `docker compose ps` so the worktree project is selected explicitly.
 - `bun run docker:check` fails before Docker Compose mutates local containers
   when required local runtime variables are missing. The check covers Auth0,
   Stripe, the application session secret, and Font Awesome package registry
@@ -327,8 +327,8 @@ credentials must not be printed or committed.
   test in both commands must pass with zero failures, skips, todos, fixmes,
   expected failures, retries/flakes, interruptions, or focused tests before CI
   is attempted.
-- Local Docker scripts preload the environment with `dotenv -c dev` before invoking Compose.
-- Use `bun run ...` package scripts, not a bare shell `dotenv` command. Local shells may resolve a different `dotenv` executable than `node_modules/.bin/dotenv`; when a direct external-tool command is unavoidable, spell it as `node_modules/.bin/dotenv -c dev -- ...`.
+- Local Docker scripts resolve an invocation-private environment with `env:run` before invoking Compose.
+- Use `bun run ...` package scripts or `bun run env:run -- <command>` for direct external tools. Chaining `env:runtime` and `dotenv` would reintroduce shared-file races.
 - Playwright list/discovery commands do not clean or write generated docs
   output and may run without local Auth0/Stripe secrets. In list-only mode the
   Playwright config uses inert placeholder values for runtime-only secrets and
@@ -400,12 +400,18 @@ Application runtime config resolves in this precedence order:
 - `.env`
 - in-code defaults
 
-External-tool package scripts use `dotenv -c dev`. Because `dotenv-cli` is first-wins, the effective dotenv precedence for those scripts is:
+External-tool package scripts use `env:run` with dotenv parsing and expansion:
 
+- real environment variables
 - `.env.dev.local`
-- `.env.local` if someone creates it manually; this file is unsupported and should not exist
-- `.env.dev`
+- invocation-generated runtime defaults
 - `.env`
+
+The shared `.env.dev` snapshot and unsupported `.env.local` are not read. Invocation environments stay in
+memory; the resolver replaces itself with the command, preserving native
+signals and exit status. The standalone `.env.dev` writer uses an atomic rename
+and mode `0600`. Nested Playwright commands inherit the resolved environment; explicit remote database URLs remain visible to the
+local database guard and are rejected, never replaced with a local URL.
 
 CI should not rely on dotenv files at all; workflows provide values via exported environment variables.
 
@@ -599,7 +605,7 @@ either approved identity.
 
 ## Local Stack Isolation
 
-`.env.dev` is generated from the current working directory, so separate worktrees get:
+Runtime defaults are generated from the current working directory, so separate worktrees get:
 
 - distinct `COMPOSE_PROJECT_NAME`
 - distinct local app port and `BASE_URL`
@@ -607,6 +613,6 @@ either approved identity.
 - distinct local Mailpit port
 - distinct local MinIO ports
 
-Set `APP_HOST_PORT` before running `bun run env:runtime` only when you need a specific callback URL such as `localhost:4200`.
-Set `MAILPIT_HOST_PORT` before that command only when you deliberately need a
+Set `APP_HOST_PORT` on the package invocation when you need a specific callback
+URL such as `localhost:4200`. Set `MAILPIT_HOST_PORT` on that command for a
 specific local email-inspection port.

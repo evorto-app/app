@@ -189,7 +189,7 @@ describe('CI quality source', () => {
       'docker compose logs --no-color db-setup mailpit minio minio-init worker evorto > test-results/docker-logs/docker-compose.log || true',
       'docker compose logs --no-color --tail=100 db-setup mailpit minio minio-init worker evorto',
       'docker compose logs --no-color --tail=100 db-setup mailpit minio minio-init worker evorto',
-      'node_modules/.bin/dotenv -c dev -- docker compose logs --no-color --tail=100 db-setup mailpit minio minio-init worker evorto || true',
+      'bun run env:run -- docker compose logs --no-color --tail=100 db-setup mailpit minio minio-init worker evorto || true',
     ]);
 
     for (const command of dockerLogCommands) {

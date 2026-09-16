@@ -600,7 +600,7 @@ describe('documentation publishing', () => {
     }
     const publishScript = packageJson.scripts['test:e2e:docs:publish'];
     expect(publishScript).toBe(
-      'bun run env:runtime && dotenv -c dev -- bun helpers/testing/publish-documentation.ts',
+      'bun run env:run -- bun helpers/testing/publish-documentation.ts',
     );
     expect(publishScript).not.toContain('/Users/');
     expect(publishScript).not.toContain('apps/documentation');

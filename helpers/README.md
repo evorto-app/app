@@ -71,10 +71,10 @@ bun run db:reset
 
 This will:
 
-1. Generate or refresh `.env.dev` through the package script's `bun run env:runtime` prelude, so Docker, database, Mailpit, and Playwright commands keep isolated ports/project naming
+1. Resolve an invocation-private environment through `env:run`, so concurrent Docker, database, Mailpit, and Playwright commands keep their own ports and project names
 2. Ensure schema exists and reset/seed the local database (`bun run db:reset`)
 
-`bun run db:reset` now uses the same generated `.env.dev` plus `dotenv -c dev` loading model as `db:push`. In this repo, the supported local files are `.env` for developer secrets, `.env.dev.local` for tracked shared defaults, and `.env.dev` for generated worktree overrides. `bun run db:push`, Docker's `db-setup` service, and `bun run db:studio` all consume the same local environment contract. The local Drizzle config refuses to connect unless `LOCAL_DATABASE=true`, the PostgreSQL URL has explicit credentials and a database name, and its host is loopback or the Compose `db` service. An exported remote `DATABASE_URL` therefore fails before schema inspection or mutation.
+`bun run db:reset` uses the same invocation-private environment as `db:push` and validates seed configuration before resetting the schema. In this repo, the supported local files are `.env` for developer secrets, `.env.dev.local` for tracked shared defaults, and `.env.dev` for generated worktree overrides. `bun run db:push`, Docker's `db-setup` service, and `bun run db:studio` all consume the same local environment contract. The local Drizzle config refuses to connect unless `LOCAL_DATABASE=true`, the PostgreSQL URL has explicit credentials and a database name, and its host is loopback or the Compose `db` service. An exported remote `DATABASE_URL` therefore fails before schema inspection or mutation.
 
 Docker Compose runs a pinned PostgreSQL 17 container plus one-shot `db-setup`
 before `evorto` and the polling worker start. `bun run docker:start`,
@@ -126,14 +126,14 @@ is missing or a one-shot setup failed, use `bun run docker:start` for an
 intentional fresh reset instead.
 
 Use `bun run docker:ps` to inspect the generated worktree Compose project; bare
-`docker compose ps` can point at the wrong project because it does not preload
-`.env.dev`. The package scripts preload the needed environment with
-`dotenv -c dev` before invoking Docker. Set `MAILPIT_HOST_PORT` before running
-`bun run env:runtime` only when an explicit Mailpit inspection port is needed;
+`docker compose ps` can point at the wrong project because it does not resolve
+the worktree runtime environment. Package scripts use `env:run` and never read
+the shared `.env.dev` snapshot. Set `MAILPIT_HOST_PORT` on the package command
+only when an explicit Mailpit inspection port is needed;
 otherwise the runtime helper derives one from the worktree identity.
 
 Commands that start, stop, resume, or own the Docker stack, plus local database
-push/reset and the disposable PostgreSQL integration suite, acquire one
+push/reset, Studio, and the disposable PostgreSQL integration suite, acquire one
 fail-fast lease for the generated Compose project. A second command for that
 same worktree exits immediately and names the active operation instead of
 racing a reset or waiting on a changing stack. Other worktrees use different
@@ -141,6 +141,16 @@ project names and remain independent. The operating system releases the lease
 when its command exits, including after a forced termination; stale owner
 details are replaced after the next successful acquisition and cannot hold the
 lease by themselves.
+
+Environment resolution runs before lease acquisition. Keep `env:run` outside
+leased commands because native process replacement closes additional file
+descriptors. The lease exports an internal marker so an accidental nested
+`env:run` fails before starting its command.
+
+`bun run db:studio` holds that lease for the entire Studio session. Stop the
+`bun run db:studio` process before resetting or stopping the same project;
+closing its browser tab leaves the lease active. Database operations in other
+worktrees remain independent.
 
 Ordinary Docker start, stop, and status commands have wall-clock limits around
 each Compose operation. A failed or timed-out operation stops immediately and
