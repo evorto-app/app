@@ -6,6 +6,7 @@ import {
   includesPermission,
   type Permission,
 } from '@shared/permissions/permissions';
+import { RoleLookupNotFoundError } from '@shared/rpc-contracts/app-rpcs/roles.errors';
 import { Effect } from 'effect';
 
 import type { AppRpcHandlers } from './shared/handler-types';
@@ -71,7 +72,7 @@ const normalizeRoleLookupRecord = (
 });
 
 export const roleHandlers = {
-  'roles.findMany': () =>
+  'roles.findMany': (input) =>
     Effect.gen(function* () {
       yield* ensureRoleLookupPermission();
       const context = yield* RpcAccess.current();
@@ -79,13 +80,34 @@ export const roleHandlers = {
       const roles = yield* databaseEffect((database) =>
         database.query.roles.findMany({
           columns: selectRoleLookupColumns,
+          ...(input.search !== undefined && { limit: 15 }),
           orderBy: { name: 'asc' },
           where: {
             tenantId: context.tenant.id,
+            ...(input.search !== undefined && {
+              name: { ilike: `%${input.search}%` },
+            }),
           },
         }),
       );
 
       return roles.map((role) => normalizeRoleLookupRecord(role));
     }),
-} satisfies Pick<AppRpcHandlers, 'roles.findMany'>;
+  'roles.findOne': ({ id }) =>
+    Effect.gen(function* () {
+      yield* ensureRoleLookupPermission();
+      const context = yield* RpcAccess.current();
+      const role = yield* databaseEffect((database) =>
+        database.query.roles.findFirst({
+          columns: selectRoleLookupColumns,
+          where: { id, tenantId: context.tenant.id },
+        }),
+      );
+      if (!role) {
+        return yield* Effect.fail(
+          new RoleLookupNotFoundError({ id, message: 'Role not found' }),
+        );
+      }
+      return normalizeRoleLookupRecord(role);
+    }),
+} satisfies Pick<AppRpcHandlers, 'roles.findMany' | 'roles.findOne'>;

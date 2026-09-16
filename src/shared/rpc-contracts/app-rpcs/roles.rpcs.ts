@@ -4,6 +4,7 @@ import * as Rpc from 'effect/unstable/rpc/Rpc';
 import * as RpcGroup from 'effect/unstable/rpc/RpcGroup';
 
 import { ForbiddenOrUnauthorizedRpcError } from '../../errors/rpc-errors';
+import { RoleLookupRpcError } from './roles.errors';
 
 export const RoleLookupRecord = Schema.Struct({
   defaultOrganizerRole: Schema.Boolean,
@@ -32,4 +33,12 @@ export const RolesFindMany = asRpcQuery(
   }),
 );
 
-export class RolesRpcs extends RpcGroup.make(RolesFindMany) {}
+export const RolesFindOne = asRpcQuery(
+  Rpc.make('roles.findOne', {
+    error: RoleLookupRpcError,
+    payload: Schema.Struct({ id: Schema.NonEmptyString }),
+    success: RoleLookupRecord,
+  }),
+);
+
+export class RolesRpcs extends RpcGroup.make(RolesFindMany, RolesFindOne) {}
