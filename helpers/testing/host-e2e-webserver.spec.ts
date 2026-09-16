@@ -114,33 +114,87 @@ const timer = setInterval(() => {
   };
 };
 
-const waitForFile = async (file: string) => {
-  const deadline = Date.now() + 3000;
+// Full server runs start many native processes concurrently. Bound each readiness
+// and teardown wait without treating intentional lifecycle gates as a hang.
+const processWaitTimeoutMs = 10_000;
+const commandTimeoutMs = 5000;
+
+const observeChild = (child: ChildProcess, dockerLog: string) => {
+  let stdout = '';
+  let stderr = '';
+  let launchError: Error | undefined;
+  let settled = false;
+  child.stdout?.setEncoding('utf8').on('data', (chunk: string) => {
+    stdout += chunk;
+  });
+  child.stderr?.setEncoding('utf8').on('data', (chunk: string) => {
+    stderr += chunk;
+  });
+  const completed = new Promise<{
+    code: number | null;
+    signal: NodeJS.Signals | null;
+  }>((resolve) => {
+    child.once('close', (code, signal) => {
+      settled = true;
+      resolve({ code, signal });
+    });
+    child.once('error', (error) => {
+      launchError = error;
+      settled = true;
+      resolve({ code: null, signal: null });
+    });
+  });
+  return {
+    child,
+    completed,
+    diagnostics: () =>
+      [
+        `pid=${child.pid ?? 'unavailable'} code=${child.exitCode} signal=${child.signalCode}`,
+        `launch error: ${launchError?.message ?? 'none'}`,
+        `stdout: ${stdout}`,
+        `stderr: ${stderr}`,
+        `Docker commands: ${fs.existsSync(dockerLog) ? fs.readFileSync(dockerLog, 'utf8') : '(none)'}`,
+      ].join('\n'),
+    hasExited: () => settled,
+  };
+};
+
+type ObservedChild = ReturnType<typeof observeChild>;
+
+const waitForFile = async (file: string, command: ObservedChild) => {
+  const deadline = Date.now() + processWaitTimeoutMs;
   while (!fs.existsSync(file)) {
+    if (command.hasExited()) {
+      throw new Error(`Child exited before ${file}\n${command.diagnostics()}`);
+    }
     if (Date.now() >= deadline)
-      throw new Error(`Timed out waiting for ${file}`);
+      throw new Error(
+        `Timed out waiting for ${file}\n${command.diagnostics()}`,
+      );
     await new Promise((resolve) => setTimeout(resolve, 20));
   }
 };
 
-const exited = (child: ChildProcess) =>
-  new Promise<{
-    code: number | null;
-    signal: NodeJS.Signals | null;
-  }>((resolve, reject) => {
-    const timer = setTimeout(() => {
-      child.kill('SIGKILL');
-      reject(new Error('Host fixture did not exit within its deadline'));
-    }, 5000);
-    child.once('exit', (code, signal) => {
-      clearTimeout(timer);
-      resolve({ code, signal });
-    });
-    child.once('error', (error) => {
-      clearTimeout(timer);
-      reject(error);
-    });
-  });
+const finishChild = async (command: ObservedChild) => {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      command.completed,
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => {
+          command.child.kill('SIGKILL');
+          reject(
+            new Error(
+              `Child did not exit after release\n${command.diagnostics()}`,
+            ),
+          );
+        }, processWaitTimeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+};
 
 const releaseFixture = (fixture: ReturnType<typeof createFixture>) => {
   for (const file of [
@@ -163,7 +217,7 @@ afterEach(() => {
   leaseProjects.clear();
 });
 
-describe('Host Playwright project ownership', () => {
+describe('Host Playwright project ownership', { timeout: 120_000 }, () => {
   it('rejects another project command before inspecting or changing MinIO', async () => {
     const fixture = createFixture();
     const ready = path.join(fixture.directory, 'owner-ready');
@@ -181,22 +235,42 @@ describe('Host Playwright project ownership', () => {
         ready,
         release,
       ],
-      { env: fixture.environment, stdio: 'ignore' },
+      { env: fixture.environment, stdio: ['ignore', 'pipe', 'pipe'] },
     );
-    const ownerExited = exited(owner);
+    const observedOwner = observeChild(owner, fixture.files.dockerLog);
     try {
-      await waitForFile(ready);
+      await waitForFile(ready, observedOwner);
       const result = spawnSync('bash', [hostScript], {
         env: fixture.environment,
         encoding: 'utf8',
-        timeout: 2000,
+        timeout: commandTimeoutMs,
       });
       expect(result.status, result.stderr).toBe(75);
       expect(result.stderr).toContain('operation=docker-stop');
       expect(fs.existsSync(fixture.files.dockerLog)).toBe(false);
     } finally {
       fs.writeFileSync(release, 'release');
-      await ownerExited;
+      await finishChild(observedOwner);
+    }
+  });
+
+  it('reports an early host exit with its status and stderr', async () => {
+    const fixture = createFixture();
+    const host = spawn('bash', [hostScript], {
+      env: { ...fixture.environment, APP_HOST_PORT: '' },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    const observedHost = observeChild(host, fixture.files.dockerLog);
+    try {
+      await expect(
+        waitForFile(fixture.files.initReady, observedHost),
+      ).rejects.toThrow(
+        /Child exited before[\s\S]*code=2[\s\S]*APP_HOST_PORT is required/u,
+      );
+      expect(fs.existsSync(fixture.files.dockerLog)).toBe(false);
+    } finally {
+      releaseFixture(fixture);
+      await finishChild(observedHost);
     }
   });
 
@@ -214,7 +288,7 @@ describe('Host Playwright project ownership', () => {
         'closed-descriptor',
         hostScript,
       ],
-      { env: fixture.environment, encoding: 'utf8', timeout: 2000 },
+      { env: fixture.environment, encoding: 'utf8', timeout: commandTimeoutMs },
     );
     expect(result.status, result.stderr).toBe(75);
     expect(result.stderr).toContain('requires the inherited lease descriptor');
@@ -227,7 +301,7 @@ describe('Host Playwright project ownership', () => {
     const targetLease = spawnSync(
       'bash',
       [leaseScript, 'docker-start', '--', 'true'],
-      { env: target.environment, encoding: 'utf8', timeout: 2000 },
+      { env: target.environment, encoding: 'utf8', timeout: commandTimeoutMs },
     );
     expect(targetLease.status, targetLease.stderr).toBe(0);
     const result = spawnSync(
@@ -241,7 +315,7 @@ describe('Host Playwright project ownership', () => {
         'bash',
         hostScript,
       ],
-      { env: fixture.environment, encoding: 'utf8', timeout: 2000 },
+      { env: fixture.environment, encoding: 'utf8', timeout: commandTimeoutMs },
     );
     expect(result.status, result.stderr).toBe(75);
     expect(result.stderr).toContain('requires the inherited lease descriptor');
@@ -259,40 +333,47 @@ describe('Host Playwright project ownership', () => {
       };
       const host = spawn('bash', [hostScript], {
         env: fixture.environment,
-        stdio: 'ignore',
+        stdio: ['ignore', 'pipe', 'pipe'],
       });
-      const hostExited = exited(host);
+      const observedHost = observeChild(host, fixture.files.dockerLog);
       const expectExclusion = () => {
         const result = spawnSync(
           'bash',
           [leaseScript, 'docker-stop', '--', 'true'],
-          { env: environment, encoding: 'utf8', timeout: 1000 },
+          { env: environment, encoding: 'utf8', timeout: commandTimeoutMs },
         );
         expect(result.status, result.stderr).toBe(75);
         expect(result.stderr).toContain('operation=host-e2e-webserver');
       };
       try {
-        await waitForFile(fixture.files.initReady);
+        await waitForFile(fixture.files.initReady, observedHost);
         expectExclusion();
         fs.writeFileSync(fixture.files.initRelease, 'release');
-        await waitForFile(fixture.files.appReady);
+        await waitForFile(fixture.files.appReady, observedHost);
         expectExclusion();
         const otherProject = spawnSync(
           'bash',
           [leaseScript, 'docker-stop', '--', 'true'],
-          { env: contender.environment, encoding: 'utf8', timeout: 1000 },
+          {
+            env: contender.environment,
+            encoding: 'utf8',
+            timeout: commandTimeoutMs,
+          },
         );
         expect(otherProject.status, otherProject.stderr).toBe(0);
         expect(host.kill('SIGTERM')).toBe(true);
-        await waitForFile(fixture.files.appStopping);
+        await waitForFile(fixture.files.appStopping, observedHost);
         expectExclusion();
         fs.writeFileSync(fixture.files.appRelease, 'release');
         if (minioState !== 'running') {
-          await waitForFile(fixture.files.restoreReady);
+          await waitForFile(fixture.files.restoreReady, observedHost);
           expectExclusion();
           fs.writeFileSync(fixture.files.restoreRelease, 'release');
         }
-        expect(await hostExited).toEqual({ code: 143, signal: null });
+        expect(
+          await finishChild(observedHost),
+          observedHost.diagnostics(),
+        ).toEqual({ code: 143, signal: null });
         const log = fs.readFileSync(fixture.files.dockerLog, 'utf8');
         expect(log).toContain('compose run --rm --no-deps minio-init');
         if (minioState === 'absent')
@@ -304,14 +385,14 @@ describe('Host Playwright project ownership', () => {
         const next = spawnSync(
           'bash',
           [leaseScript, 'docker-stop', '--', 'true'],
-          { env: environment, encoding: 'utf8', timeout: 1000 },
+          { env: environment, encoding: 'utf8', timeout: commandTimeoutMs },
         );
         expect(next.status, next.stderr).toBe(0);
       } finally {
         releaseFixture(fixture);
         if (host.exitCode === null && host.signalCode === null)
           host.kill('SIGTERM');
-        await hostExited;
+        await finishChild(observedHost);
       }
     },
   );
