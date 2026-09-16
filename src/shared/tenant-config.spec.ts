@@ -1,7 +1,10 @@
 import { Schema } from 'effect';
 import { describe, expect, it } from 'vitest';
 
-import { resolveReceiptCountrySettings } from './finance/receipt-countries';
+import {
+  buildSelectableReceiptCountries,
+  resolveReceiptCountrySettings,
+} from './finance/receipt-countries';
 import {
   createDefaultTenantDiscountProviders,
   resolveTenantDiscountProviders,
@@ -9,6 +12,34 @@ import {
 } from './tenant-config';
 
 describe('tenant persisted configuration', () => {
+  it.each(['false', 'true', 0, 1, null, undefined, {}, []])(
+    'rejects non-boolean receipt policy %j before constructing country choices',
+    (allowOther) => {
+      expect(() =>
+        buildSelectableReceiptCountries(
+          resolveReceiptCountrySettings({
+            allowOther,
+            receiptCountries: ['DE'],
+          }),
+        ),
+      ).toThrow('Receipt country allowOther setting must be a boolean');
+    },
+  );
+
+  it.each([false, true])(
+    'keeps the explicit boolean receipt policy %s',
+    (allowOther) => {
+      expect(
+        buildSelectableReceiptCountries(
+          resolveReceiptCountrySettings({
+            allowOther,
+            receiptCountries: ['DE'],
+          }),
+        ),
+      ).toEqual(allowOther ? ['DE', 'OTHER'] : ['DE']);
+    },
+  );
+
   it('requires explicit complete persisted receipt settings', () => {
     for (const input of [
       undefined,

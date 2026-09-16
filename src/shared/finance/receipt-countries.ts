@@ -74,9 +74,14 @@ export const isCanonicalReceiptCountryCode = (value: string): boolean =>
   normalizeReceiptCountryCode(value) === value;
 
 export const resolveReceiptCountrySettings = (configuredSettings: {
-  allowOther: boolean;
+  allowOther: unknown;
   receiptCountries: readonly string[];
 }): ReceiptCountrySettings => {
+  const { allowOther } = configuredSettings;
+  if (typeof allowOther !== 'boolean') {
+    throw new TypeError('Receipt country allowOther setting must be a boolean');
+  }
+
   if (configuredSettings.receiptCountries.length === 0) {
     throw new Error('At least one receipt country must be configured');
   }
@@ -97,7 +102,7 @@ export const resolveReceiptCountrySettings = (configuredSettings: {
   }
 
   return {
-    allowOther: configuredSettings.allowOther,
+    allowOther,
     receiptCountries,
   };
 };

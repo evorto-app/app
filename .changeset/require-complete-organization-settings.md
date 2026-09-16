@@ -15,3 +15,5 @@ an existing-domain conflict instead of an internal error.
 Check the current settings snapshot before fetching destination-account tax rates
 during Stripe account rotation. Release the database lock for the provider request
 and recheck the snapshot under lock before writing, preserving conflict recovery.
+
+Reject non-boolean receipt-country policies in direct consumers and verify PostgreSQL project discovery against every integration spec in the source tree.
