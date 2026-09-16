@@ -41,11 +41,16 @@ cleanup() {
     return
   fi
   cleanup_started='true'
-  trap - EXIT HUP INT TERM
+  trap - EXIT
+  trap ':' HUP INT TERM
 
   if [[ -n "${app_pid}" ]] && kill -0 "${app_pid}" 2>/dev/null; then
     kill -TERM "${app_pid}" 2>/dev/null || true
-    wait "${app_pid}" 2>/dev/null || true
+    # The app is this wrapper's only background job. A trapped signal can
+    # interrupt wait before that job exits, so keep waiting before restoring MinIO.
+    while [[ -n "$(jobs -p)" ]]; do
+      wait "${app_pid}" 2>/dev/null || true
+    done
   fi
 
   restore_minio_state
