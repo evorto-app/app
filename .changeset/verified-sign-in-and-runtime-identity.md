@@ -38,3 +38,14 @@ validation by rejecting explicit empty ports while preserving supported ports.
 Apply the application's optional TLS server-name normalization to raw schema,
 prerequisite, and reset settings: trim surrounding whitespace and verify the
 connection host when the setting is blank, without weakening certificate checks.
+
+Preserve explicit empty process and dotenv values until runtime configuration
+validation. Reject an empty supplied database CA even when TLS is optional, and
+never replace an empty higher-priority setting with a lower-priority value.
+
+Require Members Hub permission before reading its roles and member names through
+RPC, matching the protected page instead of allowing every signed-in account.
+
+Preserve PostgreSQL raw Unix socket paths for connections without a configured
+CA, while retaining IPv6 URL normalization and strict verified-TLS identity
+validation. Other malformed non-URL connection strings remain rejected.

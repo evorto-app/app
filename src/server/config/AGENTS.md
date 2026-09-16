@@ -8,6 +8,7 @@
 - `.env.dev.local` is the tracked shared default dev config file; `.env` is the untracked developer-secrets file.
 - The Effect provider consumes the resolved process environment first. When called directly, its local file fallback remains `.env.dev.local`, `.env.dev`, then `.env`, followed by schema defaults. That fallback is not a substitute for the invocation environment when launching local commands.
 - `.env.local`, `.env.runtime`, and `.env.ci` are unsupported in this repo and should not be created or referenced.
+- Preserve explicit empty strings in both Effect process and dotenv providers. Field parsers decide whether blank is invalid or optional; an empty higher-priority value must not silently select a lower-priority value. Omit an optional CA setting instead of assigning an empty certificate.
 - In CI and other cloud environments, do not rely on tracked or generated dotenv artifacts. Use explicit environment variables provided by GitHub Actions `env`, `vars`, and `secrets`.
 
 ## Explicit Runtime and Transport Settings
@@ -20,6 +21,7 @@
   slash, with no paths, dot segments, query/fragment markers, backslashes,
   credentials, empty explicit ports, or internal whitespace. Surrounding whitespace
   is trimmed.
+- Without a CA, shared PostgreSQL constructors retain the driver's raw absolute Unix socket path syntax, including its optional database suffix. Supplying a CA still requires a PostgreSQL URL with a host for verified TLS identity; a raw socket path cannot bypass that validation.
 - A provided database CA certificate must be nonblank even when
   `DATABASE_TLS_REQUIRED=false`; preserve its PEM bytes. Shared PostgreSQL
   constructors and raw ops entrypoints enforce this before creating a pool.

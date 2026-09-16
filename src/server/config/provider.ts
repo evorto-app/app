@@ -23,6 +23,7 @@ const loadDotEnvironmentProvider = (filePath: string) =>
 
       return ConfigProvider.fromDotEnvContents(
         fs.readFileSync(filePath, 'utf8'),
+        { preserveEmptyStrings: true },
       );
     },
   });
@@ -40,7 +41,7 @@ export const makeRuntimeConfigProvider = (
   options: RuntimeConfigProviderOptions = {},
 ) =>
   Effect.gen(function* () {
-    let provider = ConfigProvider.fromEnv();
+    let provider = ConfigProvider.fromEnv({ preserveEmptyStrings: true });
 
     for (const filePath of resolveRuntimeConfigFilePaths(options)) {
       const dotEnvironmentProvider =

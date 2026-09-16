@@ -1,6 +1,6 @@
 import type { PeerCertificate } from 'node:tls';
 
-import { describe, expect, it } from '@effect/vitest';
+import { describe, expect, it, vi } from '@effect/vitest';
 import { ConfigProvider, Effect, Option, Redacted } from 'effect';
 import { Client } from 'pg';
 
@@ -186,6 +186,69 @@ describe('pg-connection-config', () => {
       expect.objectContaining({ ca: caCertificate }),
     );
   });
+
+  for (const driver of [
+    {
+      connectionString: (databaseUrl: string) =>
+        createNodePgPoolConfig({ databaseUrl }).connectionString,
+      name: 'node',
+    },
+    {
+      connectionString: (databaseUrl: string) => {
+        const config = createPgClientConfig({ databaseUrl });
+        return config.url ? Redacted.value(config.url) : undefined;
+      },
+      name: 'effect',
+    },
+  ]) {
+    it.each([
+      { database: 'fixture-user', databaseUrl: '/var/run/postgresql' },
+      {
+        database: 'socket-database',
+        databaseUrl: '/var/run/postgresql socket-database',
+      },
+    ])(
+      `preserves supported raw socket paths without a CA for ${driver.name}: $databaseUrl`,
+      ({ database, databaseUrl }) => {
+        vi.stubEnv('PGDATABASE', undefined);
+        try {
+          const connectionString = driver.connectionString(databaseUrl);
+          expect(connectionString).toBe(databaseUrl);
+          const client = new Client({
+            connectionString,
+            ssl: false,
+            user: 'fixture-user',
+          });
+          expect(client.host).toBe('/var/run/postgresql');
+          expect(client.database).toBe(database);
+        } finally {
+          vi.unstubAllEnvs();
+        }
+      },
+    );
+  }
+
+  for (const [name, create] of [
+    ['node', createNodePgPoolConfig],
+    ['effect', createPgClientConfig],
+  ] as const) {
+    it.each(['/var/run/postgresql', '/var/run/postgresql socket-database'])(
+      `rejects raw socket paths with a configured CA for ${name}: %s`,
+      (databaseUrl) => {
+        for (const tlsServerName of [undefined, 'database.example']) {
+          expect(() =>
+            create({ caCertificate: 'fixture-ca', databaseUrl, tlsServerName }),
+          ).toThrow();
+        }
+      },
+    );
+    it.each(['not-a-url', 'relative/socket', 'postgresql://[invalid]/app'])(
+      `does not treat malformed connection strings as raw socket paths for ${name}: %s`,
+      (databaseUrl) => {
+        expect(() => create({ databaseUrl })).toThrow();
+      },
+    );
+  }
 
   it('uses the URL SSL mode and bounded pool settings for both clients', () => {
     const databaseUrl =

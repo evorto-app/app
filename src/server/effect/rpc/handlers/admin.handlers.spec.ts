@@ -1,6 +1,10 @@
-import { describe, expect, it } from '@effect/vitest';
+import { describe, expect, it, vi } from '@effect/vitest';
+import { AdminRolesFindHubRoles } from '@shared/rpc-contracts/app-rpcs/admin.rpcs';
+import { RpcRequestContextMiddleware } from '@shared/rpc-contracts/app-rpcs/rpc-request-context.middleware';
 import { Effect, Layer } from 'effect';
 import * as Headers from 'effect/unstable/http/Headers';
+import * as Rpc from 'effect/unstable/rpc/Rpc';
+import * as RpcMessage from 'effect/unstable/rpc/RpcMessage';
 import Stripe from 'stripe';
 
 import { Database, type DatabaseClient } from '../../../../db';
@@ -50,6 +54,13 @@ const createAdminHeaders = () => ({
 
 const createAdminOptions = () => ({
   headers: Headers.fromInput(createAdminHeaders()),
+});
+
+const createHubOptions = (headers: Record<string, string>) => ({
+  client: new Rpc.ServerClient(1),
+  headers: Headers.fromInput(headers),
+  requestId: RpcMessage.RequestId(1),
+  rpc: AdminRolesFindHubRoles.middleware(RpcRequestContextMiddleware),
 });
 
 const createSettingsAdminHeaders = (stripeAccountId: null | string = null) => ({
@@ -318,6 +329,91 @@ const taxRateImportLayer = (database: object) =>
   );
 
 describe('adminHandlers role permissions', () => {
+  it.effect.each([
+    {
+      authenticated: 'true',
+      errorTag: 'RpcForbiddenError',
+      label: 'an authenticated user without Members Hub permission',
+      permissions: [],
+    },
+    {
+      authenticated: 'false',
+      errorTag: 'RpcUnauthorizedError',
+      label: 'an unauthenticated request even with a permission header',
+      permissions: ['internal:viewInternalPages'],
+    },
+  ])('findHubRoles denies $label before querying roles', (scenario) =>
+    Effect.gen(function* () {
+      const findMany = vi.fn(() => Effect.succeed([]));
+      const result = yield* adminHandlers['admin.roles.findHubRoles'](
+        undefined,
+        createHubOptions({
+          [RPC_CONTEXT_HEADERS.AUTHENTICATED]: scenario.authenticated,
+          [RPC_CONTEXT_HEADERS.PERMISSIONS]: encodeRpcContextHeaderJson(
+            scenario.permissions,
+          ),
+          [RPC_CONTEXT_HEADERS.TENANT]:
+            encodeRpcContextHeaderJson(createTenant()),
+        }),
+      ).pipe(
+        Effect.provide(provideDatabase({ query: { roles: { findMany } } })),
+        Effect.result,
+      );
+
+      expect(result).toMatchObject({
+        _tag: 'Failure',
+        failure: { _tag: scenario.errorTag },
+      });
+      expect(findMany).not.toHaveBeenCalled();
+    }),
+  );
+
+  it.effect(
+    'findHubRoles returns visible roles only from the permitted tenant',
+    () =>
+      Effect.gen(function* () {
+        const user = { firstName: 'Alex', id: 'user-1', lastName: 'Morgan' };
+        const findMany = vi.fn(() =>
+          Effect.succeed([
+            {
+              description: 'Members Hub role',
+              id: 'role-1',
+              name: 'Member',
+              usersToTenants: [{ user }],
+            },
+          ]),
+        );
+        const roles = yield* adminHandlers['admin.roles.findHubRoles'](
+          undefined,
+          createHubOptions({
+            [RPC_CONTEXT_HEADERS.AUTHENTICATED]: 'true',
+            [RPC_CONTEXT_HEADERS.PERMISSIONS]: encodeRpcContextHeaderJson([
+              'internal:viewInternalPages',
+            ]),
+            [RPC_CONTEXT_HEADERS.TENANT]:
+              encodeRpcContextHeaderJson(createTenant()),
+          }),
+        ).pipe(
+          Effect.provide(provideDatabase({ query: { roles: { findMany } } })),
+        );
+
+        expect(findMany).toHaveBeenCalledExactlyOnceWith(
+          expect.objectContaining({
+            where: { displayInHub: true, tenantId: 'tenant-1' },
+          }),
+        );
+        expect(roles).toEqual([
+          {
+            description: 'Members Hub role',
+            id: 'role-1',
+            name: 'Member',
+            userCount: 1,
+            users: [user],
+          },
+        ]);
+      }),
+  );
+
   it.effect('findMany requires role management permission', () =>
     Effect.gen(function* () {
       const error = yield* adminHandlers['admin.roles.findMany'](

@@ -60,6 +60,9 @@ const normalizeDatabaseHostname = (hostname: string): string => {
 };
 
 const databaseConnectionUrl = (databaseUrl: string): string => {
+  // pg accepts raw Unix socket paths, with an optional database suffix.
+  if (databaseUrl.startsWith('/')) return databaseUrl;
+
   const parsedUrl = new URL(databaseUrl);
   const host =
     parsedUrl.searchParams.getAll('host').at(-1) || parsedUrl.hostname;
