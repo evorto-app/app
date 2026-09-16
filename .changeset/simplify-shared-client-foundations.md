@@ -38,3 +38,5 @@ Keep selected roles unverified while a required lookup is running, retaining the
 Remove URL usernames and passwords before browser telemetry is fingerprinted or
 logged, including encoded credentials in the report URL, message, name, or stack.
 Keep useful host/path details and the existing query/fragment redaction.
+
+Reject raw paths and malformed separators in the internal SSR RPC origin before accepting the normalized loopback address.

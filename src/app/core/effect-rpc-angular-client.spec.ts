@@ -40,6 +40,17 @@ describe('effect-rpc-angular-client', () => {
     'https://alpha.evorto.app',
     'http://user:password@localhost:4200',
     'http://localhost:4200/rpc',
+    'http://localhost:4200/.',
+    'http://localhost:4200/..',
+    'http://localhost:4200/rpc/..',
+    'http://localhost:4200/%2e',
+    'http://localhost:4200/%2e%2e',
+    'http://localhost:4200/rpc/%2e%2e',
+    'http://localhost:4200\\',
+    String.raw`http:\\localhost:4200`,
+    'http:/localhost:4200',
+    'http://local\nhost:4200',
+    'http://local\thost:4200',
     'http://localhost:4200?request=rpc',
     'http://localhost:4200#rpc',
   ])('rejects unsafe SSR_RPC_ORIGIN value: %s', (origin) => {
@@ -48,6 +59,16 @@ describe('effect-rpc-angular-client', () => {
     expect(() => resolveServerRpcOrigin()).toThrow(
       ServerRpcOriginResolutionError,
     );
+  });
+
+  it.each([
+    ['http://127.0.0.1:4200/', 'http://127.0.0.1:4200'],
+    ['http://[::1]:4200/', 'http://[::1]:4200'],
+    ['HTTPS://LOCALHOST:443/', 'https://localhost'],
+  ])('preserves valid loopback origin %s', (origin, expected) => {
+    process.env['SSR_RPC_ORIGIN'] = origin;
+
+    expect(resolveServerRpcOrigin()).toBe(expected);
   });
 
   it('fails visibly instead of using the public request origin', () => {

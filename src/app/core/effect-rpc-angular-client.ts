@@ -51,6 +51,7 @@ const normalizeInternalServerRpcOrigin = (value: string): string => {
   }
 
   if (
+    !/^https?:\/\/[^/\\\s@?#]+\/?$/iu.test(value) ||
     url.username !== '' ||
     url.password !== '' ||
     (url.pathname !== '' && url.pathname !== '/') ||
