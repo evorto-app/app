@@ -151,6 +151,25 @@ const invalidRegistrationOptionSpotsError = () =>
     reason: 'negativeSpots',
   });
 
+export const registrationOptionPriceError = (option: {
+  readonly isPaid: boolean;
+  readonly price: number;
+}): null | RpcBadRequestError => {
+  if (option.isPaid && option.price <= 0) {
+    return new RpcBadRequestError({
+      message: 'Paid event registration options require a positive price',
+      reason: 'paidEventRegistrationOptionRequiresPositivePrice',
+    });
+  }
+  if (!option.isPaid && option.price !== 0) {
+    return new RpcBadRequestError({
+      message: 'Free event registration options require a zero price',
+      reason: 'freeEventRegistrationOptionRequiresZeroPrice',
+    });
+  }
+  return null;
+};
+
 export const templateOptionSnapshotIsComplete = (
   submittedOptionIds: readonly (string | undefined)[],
   templateOptionIds: readonly string[],
@@ -211,6 +230,8 @@ const validateEventCreatePreflight = (
   }
 
   for (const option of input.registrationOptions) {
+    const priceError = registrationOptionPriceError(option);
+    if (priceError) return priceError;
     if (!Number.isInteger(option.spots) || option.spots < 0) {
       return invalidRegistrationOptionSpotsError();
     }
@@ -338,6 +359,10 @@ export const createEventGraph = (input: EventCreateInput) =>
         ),
       }),
     );
+    for (const option of sanitizedRegistrationOptions) {
+      const priceError = registrationOptionPriceError(option);
+      if (priceError) return yield* Effect.fail(priceError);
+    }
     const lockedStripeAccountId = yield* Database.use((database) =>
       lockTenantStripeAccount(database, tenant.id).pipe(Effect.orDie),
     );
@@ -877,6 +902,8 @@ export const eventLifecycleHandlers = {
       );
 
       for (const option of sanitizedRegistrationOptions) {
+        const priceError = registrationOptionPriceError(option);
+        if (priceError) return yield* Effect.fail(priceError);
         if (!Number.isInteger(option.spots) || option.spots < 0) {
           return yield* Effect.fail(invalidRegistrationOptionSpotsError());
         }

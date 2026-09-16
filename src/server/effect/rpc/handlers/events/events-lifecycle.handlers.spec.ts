@@ -1,8 +1,18 @@
 import { describe, expect, it } from '@effect/vitest';
 import { createDatabaseTestLayer } from '@server/testing/database-test-layer';
 import { RpcBadRequestError } from '@shared/errors/rpc-errors';
+import {
+  EventsCreateRpcError,
+  EventsUpdateRpcError,
+} from '@shared/rpc-contracts/app-rpcs/events.errors';
+import {
+  EventsCreate,
+  EventsUpdate,
+} from '@shared/rpc-contracts/app-rpcs/events.rpcs';
 import { TransactionRollbackError } from 'drizzle-orm';
-import { Effect, Layer } from 'effect';
+import { Effect, Layer, Schema } from 'effect';
+import * as Headers from 'effect/unstable/http/Headers';
+import { Rpc, RpcMessage } from 'effect/unstable/rpc';
 import { vi } from 'vitest';
 
 import { Database } from '../../../../../db';
@@ -17,12 +27,14 @@ import {
 } from '../../../../../db/schema';
 import {
   RpcRequestContext,
+  RpcRequestContextMiddleware,
   type RpcRequestContextShape,
 } from '../../../../../shared/rpc-contracts/app-rpcs';
 import { RpcAccess } from '../shared/rpc-access.service';
 import {
   buildEventAddonInsert,
   buildEventQuestionInsert,
+  createEventGraph,
   eventLifecycleHandlers,
   simpleEventOptionShapeIsValid,
   templateOptionSnapshotIsComplete,
@@ -278,6 +290,87 @@ describe('eventLifecycleHandlers', () => {
       ]),
     ).toBe(false);
   });
+
+  for (const pair of [
+    {
+      isPaid: true,
+      price: 0,
+      reason: 'paidEventRegistrationOptionRequiresPositivePrice',
+    },
+    {
+      isPaid: false,
+      price: 100,
+      reason: 'freeEventRegistrationOptionRequiresZeroPrice',
+    },
+  ]) {
+    for (const operation of ['create', 'sharedCreate', 'update'] as const) {
+      it.effect(
+        `${operation} returns a contract-valid pricing error before database access for isPaid=${pair.isPaid}, price=${pair.price}`,
+        () =>
+          Effect.gen(function* () {
+            const option = {
+              ...createInput.registrationOptions[0],
+              isPaid: pair.isPaid,
+              price: pair.price,
+              stripeTaxRateId: pair.isPaid ? 'txr_valid' : null,
+            };
+            const options = {
+              client: new Rpc.ServerClient(1),
+              headers: Headers.empty,
+              requestId: RpcMessage.RequestId(1),
+              rpc: EventsCreate.middleware(RpcRequestContextMiddleware),
+            };
+            const input = Schema.decodeUnknownSync(EventsCreate.payloadSchema)({
+              ...createInput,
+              registrationOptions: [option],
+            });
+            const effect: Effect.Effect<
+              { id: string },
+              EventsCreateRpcError | EventsUpdateRpcError,
+              Database | RpcAccess
+            > =
+              operation === 'update'
+                ? eventLifecycleHandlers['events.update'](
+                    Schema.decodeUnknownSync(EventsUpdate.payloadSchema)({
+                      ...updateInput,
+                      registrationOptions: [{ ...option, id: 'option-1' }],
+                    }),
+                    {
+                      ...options,
+                      rpc: EventsUpdate.middleware(RpcRequestContextMiddleware),
+                    },
+                  )
+                : operation === 'sharedCreate'
+                  ? createEventGraph(input)
+                  : eventLifecycleHandlers['events.create'](input, options);
+            const error = yield* effect.pipe(
+              Effect.flip,
+              Effect.provide(
+                Layer.mergeAll(
+                  RpcAccess.Default,
+                  Layer.succeed(RpcRequestContext, {
+                    ...requestContext,
+                    tenant: { ...tenant, stripeAccountId: 'acct_connected' },
+                  }),
+                  createDatabaseTestLayer(),
+                ),
+              ),
+            );
+            expect(error).toMatchObject({
+              _tag: 'RpcBadRequestError',
+              reason: pair.reason,
+            });
+            expect(
+              Schema.is(
+                operation === 'update'
+                  ? EventsUpdateRpcError
+                  : EventsCreateRpcError,
+              )(error),
+            ).toBe(true);
+          }),
+      );
+    }
+  }
 
   it.effect('events.create rejects an event end before its start', () =>
     Effect.gen(function* () {

@@ -60,6 +60,7 @@ import { purchasedAddOnRegistrationOptionRemovalMessage } from '../events/event-
 import {
   createEventGraph,
   EventCreationAttribution,
+  registrationOptionPriceError,
 } from '../events/events-lifecycle.handlers';
 import {
   providePlatformOperation,
@@ -103,15 +104,9 @@ export const platformEventGraphCompatibilityError = ({
     });
   }
 
-  if (
-    input.registrationOptions.some(
-      (option) => option.isPaid && option.price <= 0,
-    )
-  ) {
-    return new RpcBadRequestError({
-      message: 'Paid event registration options require a positive price',
-      reason: 'paidEventRegistrationOptionRequiresPositivePrice',
-    });
+  for (const option of input.registrationOptions) {
+    const priceError = registrationOptionPriceError(option);
+    if (priceError) return priceError;
   }
 
   if (input.addOns.some((addOn) => addOn.isPaid && addOn.price <= 0)) {
