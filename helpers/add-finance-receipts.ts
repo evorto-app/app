@@ -18,11 +18,11 @@ export const addFinanceReceipts = async (
     tenantId: string;
   },
 ) => {
-  const regularUserId = requireSeedUserId(usersToAuthenticate, 'user');
-  const reviewerUserId = requireSeedUserId(usersToAuthenticate, 'admin');
   if (options.eventIds.length === 0) {
     return;
   }
+  const regularUserId = requireSeedUserId(usersToAuthenticate, 'user');
+  const reviewerUserId = requireSeedUserId(usersToAuthenticate, 'admin');
 
   const reimbursementUserId = createId();
   await database.insert(schema.users).values({

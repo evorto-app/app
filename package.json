@@ -36,7 +36,7 @@
     "test:e2e:report": "playwright show-report",
     "db:push": "bun run env:run -- bash helpers/testing/with-docker-project-lease.sh database-push -- drizzle-kit push --force",
     "db:studio": "bun run env:run -- bash helpers/testing/with-docker-project-lease.sh database-studio -- drizzle-kit studio",
-    "db:reset": "bun run env:run -- bash helpers/testing/with-docker-project-lease.sh database-reset -- sh -c 'STAGING_SEED_PREFLIGHT_ONLY=true bun helpers/database.ts && bun helpers/reset-database-schema.ts && bun ./node_modules/drizzle-kit/bin.cjs push --force && bun helpers/database.ts'",
+    "db:reset": "bun run env:run -- bash helpers/testing/with-docker-project-lease.sh database-reset -- sh -c 'STAGING_SEED_PREFLIGHT_ONLY=true bun helpers/database.ts && LOCAL_DATABASE_CONFIRM_RESET=evorto-local-reset bun helpers/reset-database-schema.ts && bun ./node_modules/drizzle-kit/bin.cjs push --force && bun helpers/database.ts'",
     "docker:check": "bun run env:run -- bun helpers/testing/runtime-preflight.ts docker",
     "docker:ps": "bun run env:run -- bash helpers/testing/docker-stack.sh status",
     "docker:stop": "bun run env:run -- bash helpers/testing/with-docker-project-lease.sh docker-stop -- bash helpers/testing/docker-stack.sh stop",

@@ -76,6 +76,7 @@ const addPackageScripts = (fixture: ReturnType<typeof createFixture>) => {
   const scripts: Record<string, string> = {};
   for (const name of [
     'env:run',
+    'db:reset',
     'docker:webserver',
     'test:e2e',
     'test:e2e:check',
@@ -291,6 +292,145 @@ afterEach(async () => {
 });
 
 describe('runtime environment invocation', () => {
+  it.each([
+    {
+      label: 'valid seed configuration',
+      accountId: 'acct_fixture',
+      nowIso: undefined,
+      expectedStatus: 73,
+      preflightError: undefined,
+    },
+    {
+      label: 'missing seed account',
+      accountId: undefined,
+      nowIso: undefined,
+      expectedStatus: 1,
+      preflightError: 'STRIPE_TEST_ACCOUNT_ID',
+    },
+    {
+      label: 'invalid seed date',
+      accountId: 'acct_fixture',
+      nowIso: 'not-an-iso-date',
+      expectedStatus: 1,
+      preflightError: 'Invalid E2E_NOW_ISO',
+    },
+  ])(
+    'runs documented db:reset safely with $label',
+    ({ accountId, nowIso, expectedStatus, preflightError }) => {
+      const fixture = createFixture();
+      addPackageScripts(fixture);
+      const preflightMarker = path.join(
+        fixture.directory,
+        'seed-preflight.json',
+      );
+      const resetMarker = path.join(fixture.directory, 'validated-reset.json');
+      const networkMarker = path.join(fixture.directory, 'network-attempt');
+      const preload = path.join(fixture.directory, 'reset-boundary.mjs');
+      fs.symlinkSync(
+        path.join(process.cwd(), 'src'),
+        path.join(fixture.cwd, 'src'),
+      );
+      fs.symlinkSync(
+        path.join(process.cwd(), 'node_modules'),
+        path.join(fixture.cwd, 'node_modules'),
+      );
+      fs.copyFileSync(
+        path.join(process.cwd(), 'tsconfig.json'),
+        path.join(fixture.cwd, 'tsconfig.json'),
+      );
+      for (const file of ['database.ts', 'reset-database-schema.ts']) {
+        fs.symlinkSync(
+          path.join(process.cwd(), 'helpers', file),
+          path.join(fixture.cwd, 'helpers', file),
+        );
+      }
+      fs.writeFileSync(
+        preload,
+        `
+import fs from 'node:fs';
+import net from 'node:net';
+import tls from 'node:tls';
+import { spawnSync } from 'node:child_process';
+import { syncBuiltinESMExports } from 'node:module';
+import { mock } from 'bun:test';
+const denyConnection = () => {
+  fs.writeFileSync(${JSON.stringify(networkMarker)}, 'blocked');
+  throw new Error('Unexpected network access in reset command fixture');
+};
+net.Socket.prototype.connect = denyConnection;
+net.connect = denyConnection;
+net.createConnection = denyConnection;
+tls.connect = denyConnection;
+globalThis.fetch = denyConnection;
+Bun.connect = denyConnection;
+syncBuiltinESMExports();
+if (process.argv.some((argument) => argument.endsWith('helpers/database.ts'))) {
+  fs.writeFileSync(${JSON.stringify(preflightMarker)}, JSON.stringify({
+    preflight: process.env.STAGING_SEED_PREFLIGHT_ONLY,
+    confirmation: process.env.LOCAL_DATABASE_CONFIRM_RESET ?? null,
+  }));
+}
+mock.module(${JSON.stringify(path.join(process.cwd(), 'helpers/testing/postgres-integration-database.ts'))}, () => ({
+  ensureLocalPostgresIntegrationDatabase: async ({ databaseUrl }) => {
+    const contender = spawnSync('bash', [${JSON.stringify(leaseScript)}, 'reset-fixture-contender', '--', 'true'], { env: process.env });
+    fs.writeFileSync(${JSON.stringify(resetMarker)}, JSON.stringify({
+      databaseUrl,
+      confirmation: process.env.LOCAL_DATABASE_CONFIRM_RESET,
+      preflight: process.env.STAGING_SEED_PREFLIGHT_ONLY ?? null,
+      leaseHeld: process.env.EVORTO_DOCKER_PROJECT_LEASE_HELD,
+      contenderStatus: contender.status,
+    }));
+    process.exit(73);
+  },
+}));
+mock.module(${JSON.stringify(path.join(process.cwd(), 'helpers/testing/reset-public-schema.ts'))}, () => ({
+  resetPublicSchema: async () => { throw new Error('Schema mutation must not run in this fixture'); },
+}));
+`,
+      );
+      const bunConfig = path.join(fixture.cwd, 'bunfig.toml');
+      fs.writeFileSync(
+        bunConfig,
+        `preload = [${JSON.stringify(preload)}]\n${fs.readFileSync(bunConfig, 'utf8')}`,
+      );
+      const environment = environmentFor(fixture, {
+        ...(accountId === undefined
+          ? {}
+          : { STRIPE_TEST_ACCOUNT_ID: accountId }),
+        ...(nowIso === undefined ? {} : { E2E_NOW_ISO: nowIso }),
+      });
+      expect(environment['LOCAL_DATABASE_CONFIRM_RESET']).toBeUndefined();
+      const result = spawnSync('bun', ['run', 'db:reset'], {
+        cwd: fixture.cwd,
+        env: environment,
+        encoding: 'utf8',
+        timeout: 10_000,
+      });
+      const output = `${result.stdout}\n${result.stderr}`;
+      expect(result.error, output).toBeUndefined();
+      expect(result.signal, output).toBeNull();
+      expect(result.status, output).toBe(expectedStatus);
+      expect(fs.existsSync(networkMarker)).toBe(false);
+      expect(JSON.parse(fs.readFileSync(preflightMarker, 'utf8'))).toEqual({
+        preflight: 'true',
+        confirmation: null,
+      });
+      if (preflightError) {
+        expect(output).toContain(preflightError);
+        expect(fs.existsSync(resetMarker)).toBe(false);
+      } else {
+        expect(JSON.parse(fs.readFileSync(resetMarker, 'utf8'))).toEqual({
+          databaseUrl:
+            'postgresql://synthetic-user:synthetic-password@localhost:56001/appdb?sslmode=disable',
+          confirmation: 'evorto-local-reset',
+          preflight: null,
+          leaseHeld: 'true',
+          contenderStatus: 75,
+        });
+      }
+    },
+  );
+
   it.each([
     { callerPort: undefined, expectedPort: '4302' },
     { callerPort: '4303', expectedPort: '4303' },

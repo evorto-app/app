@@ -24,3 +24,8 @@ Run seed configuration preflight before Compose database setup resets or reappli
 Resolve file-backed seed dates and RNG keys before preflight or pool creation,
 with the same configuration precedence as database and Stripe settings. Preserve
 explicit caller overrides, including blank values, throughout nested seeding.
+
+Make the documented local database reset supply its explicit destructive-reset
+confirmation only to the guarded reset invocation, after seed preflight passes.
+Keep empty receipt seeding a no-op even without receipt users, while requiring
+those users before any writes or random-ID work when events are present.
