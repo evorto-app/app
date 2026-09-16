@@ -1,12 +1,21 @@
 import type { EventsEventListDayRecord } from '@shared/rpc-contracts/app-rpcs/events.rpcs';
 
-import { signal } from '@angular/core';
+import {
+  ApplicationRef,
+  createEnvironmentInjector,
+  EnvironmentInjector,
+  PLATFORM_ID,
+  signal,
+} from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
+import { createRpcQueryKey } from '@heddendorp/effect-angular-query';
+import { provideTanStackQuery } from '@tanstack/angular-query-experimental';
 import { InfiniteQueryObserver, QueryClient } from '@tanstack/query-core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ConfigService } from '../../core/config.service';
+import { APP_RPC_CLIENT, AppRpc } from '../../core/effect-rpc-angular-client';
 import { PermissionsService } from '../../core/permissions.service';
 import { TENANT_DATE_PIPE_TIMEZONE } from '../../core/tenant-date.pipe';
 import {
@@ -343,6 +352,267 @@ describe('EventListComponent load recovery', () => {
     expect(registeredCard?.textContent).not.toContain('unlisted');
     expect(unrelatedCard?.classList.contains('ring-success')).toBe(false);
     expect(unrelatedCard?.textContent).not.toContain('unlisted');
+  });
+});
+
+type EventListRpc = ReturnType<
+  typeof AppRpc.injectClient
+>['events']['eventList'];
+
+const readinessEventListKey: EventListRpc['queryKey'] = (input) =>
+  createRpcQueryKey(['events', 'eventList'], {
+    input,
+    keyPrefix: 'rpc',
+    type: 'query',
+  });
+
+const pendingEventListRead = () => {
+  let resolveRead:
+    ((events: readonly EventsEventListDayRecord[]) => void) | undefined;
+  let rejectRead: ((error: Error) => void) | undefined;
+  // Angular's browser library target does not expose Promise.withResolvers.
+  // eslint-disable-next-line unicorn/prefer-promise-with-resolvers
+  const promise = new Promise<readonly EventsEventListDayRecord[]>(
+    (resolve, reject) => {
+      resolveRead = resolve;
+      rejectRead = reject;
+    },
+  );
+  if (!resolveRead || !rejectRead)
+    throw new Error('Expected a controlled event-list read.');
+  return { promise, reject: rejectRead, resolve: resolveRead };
+};
+
+describe('EventListComponent server rendering readiness', () => {
+  const startAfter = '2030-01-01T00:00:00.000Z';
+  let childInjector: EnvironmentInjector | undefined;
+  let fixture: ComponentFixture<EventListComponent> | undefined;
+  let queryClient: QueryClient;
+  let read: ReturnType<typeof pendingEventListRead>;
+  let loadEvents: ReturnType<typeof vi.fn<EventListRpc['call']>>;
+
+  beforeEach(async () => {
+    // Only freeze Date; keep the real query and Angular notification timers.
+    vi.setSystemTime(new Date(startAfter));
+    read = pendingEventListRead();
+    loadEvents = vi.fn<EventListRpc['call']>(() => read.promise);
+    queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { gcTime: 0, retry: false, staleTime: Infinity },
+      },
+    });
+    const selfQueryKey = createRpcQueryKey(['users', 'maybeSelf'], {
+      keyPrefix: 'rpc',
+      type: 'query',
+    });
+    // Identity is already settled, so only the event read can hold readiness.
+    queryClient.setQueryData(selfQueryKey, null);
+    await TestBed.configureTestingModule({
+      imports: [EventListComponent],
+      providers: [
+        provideRouter([]),
+        provideTanStackQuery(queryClient),
+        { provide: PLATFORM_ID, useValue: 'server' },
+        { provide: TENANT_DATE_PIPE_TIMEZONE, useValue: 'Europe/Berlin' },
+        {
+          provide: APP_RPC_CLIENT,
+          useValue: {
+            events: {
+              eventList: { call: loadEvents, queryKey: readinessEventListKey },
+            },
+            users: {
+              maybeSelf: {
+                queryOptions: () => ({
+                  queryFn: () => Promise.resolve(null),
+                  queryKey: selfQueryKey,
+                }),
+              },
+            },
+          },
+        },
+        { provide: ConfigService, useValue: { updateTitle: vi.fn() } },
+        {
+          provide: PermissionsService,
+          useValue: {
+            hasPermission: () => signal(false),
+            hasPermissionSync: () => false,
+          },
+        },
+      ],
+    }).compileComponents();
+  });
+
+  afterEach(async () => {
+    const failures: unknown[] = [];
+    for (const cleanup of [
+      () => childInjector?.destroy(),
+      () => fixture?.destroy(),
+      () => queryClient.cancelQueries(),
+      () => read.resolve([]),
+      () => queryClient.clear(),
+      () => TestBed.resetTestingModule(),
+      () => vi.useRealTimers(),
+    ]) {
+      try {
+        await cleanup();
+      } catch (error) {
+        failures.push(error);
+      }
+    }
+    childInjector = undefined;
+    fixture = undefined;
+    if (failures.length > 0)
+      throw new AggregateError(
+        failures,
+        'Event-list readiness cleanup failed.',
+      );
+  });
+
+  const renderEventList = () => {
+    const rendered = TestBed.createComponent(EventListComponent);
+    fixture = rendered;
+    const root: unknown = rendered.nativeElement;
+    if (!(root instanceof HTMLElement))
+      throw new Error('Expected the actual event-list element.');
+    rendered.detectChanges();
+    return {
+      fixture: rendered,
+      root,
+      service: TestBed.inject(EventListService),
+    };
+  };
+
+  const cacheFirstPage = () => {
+    queryClient.setQueryData(
+      readinessEventListKey({
+        includeUnlisted: false,
+        limit: EVENT_LIST_PAGE_SIZE,
+        offset: 0,
+        startAfter,
+        status: ['APPROVED'],
+        userId: undefined,
+      }),
+      { pageParams: [0], pages: [listedEvents] },
+    );
+  };
+
+  it('renders event links at the first stable point after a server read succeeds', async () => {
+    const { fixture: rendered, root, service } = renderEventList();
+    expect(root.textContent).toContain('Loading events');
+    expect(loadEvents).toHaveBeenCalledOnce();
+    const firstStable = rendered.whenStable().then(() => ({
+      link: root.querySelector('a[href="/event-1"]')?.textContent,
+      pending: service.eventQuery.isPending(),
+      text: root.textContent,
+    }));
+
+    read.resolve(listedEvents);
+    const snapshot = await firstStable;
+
+    expect(snapshot.pending).toBe(false);
+    expect(snapshot.link).toContain('Recovery workshop');
+    expect(snapshot.text).not.toContain('Loading events');
+  });
+
+  it('renders an explicit failure at the first stable point after a server read fails', async () => {
+    const { fixture: rendered, root, service } = renderEventList();
+    const firstStable = rendered.whenStable().then(() => ({
+      alert: root.querySelector('[role="alert"]')?.textContent,
+      pending: service.eventQuery.isPending(),
+      text: root.textContent,
+    }));
+
+    read.reject(new Error('Events unavailable'));
+    const snapshot = await firstStable;
+
+    expect(snapshot.pending).toBe(false);
+    expect(snapshot.alert).toContain('Events could not be loaded');
+    expect(snapshot.alert).toContain('Try again');
+    expect(snapshot.text).not.toContain('Loading events');
+    expect(loadEvents).toHaveBeenCalledOnce();
+  });
+
+  it('renders cached server results without waiting for another request', async () => {
+    cacheFirstPage();
+    const { fixture: rendered, root, service } = renderEventList();
+
+    await rendered.whenStable();
+
+    expect(service.eventQuery.isPending()).toBe(false);
+    expect(root.querySelector('a[href="/event-1"]')?.textContent).toContain(
+      'Recovery workshop',
+    );
+    expect(root.textContent).not.toContain('Loading events');
+    expect(loadEvents).not.toHaveBeenCalled();
+  });
+
+  it('waits for a new server filter result after a cached result was ready', async () => {
+    cacheFirstPage();
+    const { fixture: rendered, root, service } = renderEventList();
+    await rendered.whenStable();
+    service.updateStartFilter(new Date('2030-01-02T00:00:00.000Z'));
+    rendered.detectChanges();
+    expect(service.eventQuery.isPending()).toBe(true);
+    expect(loadEvents).toHaveBeenCalledOnce();
+    const firstStable = rendered.whenStable().then(() => ({
+      link: root.querySelector('a[href="/event-1"]')?.textContent,
+      pending: service.eventQuery.isPending(),
+      text: root.textContent,
+    }));
+
+    read.resolve(listedEvents);
+    const snapshot = await firstStable;
+
+    expect(snapshot.pending).toBe(false);
+    expect(snapshot.link).toContain('Recovery workshop');
+    expect(snapshot.text).not.toContain('Loading events');
+  });
+
+  it('keeps browser loading interactive while the first request is unresolved', async () => {
+    TestBed.overrideProvider(PLATFORM_ID, { useValue: 'browser' });
+    const { fixture: rendered, root, service } = renderEventList();
+
+    await rendered.whenStable();
+
+    expect(service.eventQuery.isPending()).toBe(true);
+    expect(root.textContent).toContain('Loading events');
+    read.resolve(listedEvents);
+    await vi.waitFor(() => {
+      rendered.detectChanges();
+      expect(root.querySelector('a[href="/event-1"]')?.textContent).toContain(
+        'Recovery workshop',
+      );
+    });
+  });
+
+  it('releases application readiness when its injector is destroyed with an unresolved read', async () => {
+    const application = TestBed.inject(ApplicationRef);
+    const ownedInjector = createEnvironmentInjector(
+      [EventListService],
+      TestBed.inject(EnvironmentInjector),
+    );
+    childInjector = ownedInjector;
+    let stable = true;
+    const subscription = application.isStable.subscribe((value) => {
+      stable = value;
+    });
+    try {
+      const service = ownedInjector.get(EventListService);
+      TestBed.tick();
+      expect(loadEvents).toHaveBeenCalledOnce();
+      expect(service.eventQuery.isPending()).toBe(true);
+      expect(stable).toBe(false);
+      const firstStable = application.whenStable();
+
+      ownedInjector.destroy();
+      childInjector = undefined;
+      await firstStable;
+
+      expect(stable).toBe(true);
+      expect(service.eventQuery.isPending()).toBe(true);
+    } finally {
+      subscription.unsubscribe();
+    }
   });
 });
 
