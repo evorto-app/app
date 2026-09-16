@@ -8,6 +8,7 @@ import {
   RpcInternalServerError,
 } from '@shared/errors/rpc-errors';
 import { ClientTenantConfig } from '@shared/rpc-contracts/app-rpcs/config.rpcs';
+import { RoleLookupNotFoundError } from '@shared/rpc-contracts/app-rpcs/roles.errors';
 import { RoleLookupRecord } from '@shared/rpc-contracts/app-rpcs/roles.rpcs';
 import { TemplateGraphRecord } from '@shared/rpc-contracts/app-rpcs/templates.rpcs';
 import {
@@ -695,8 +696,41 @@ describe('TemplateCreateComponent save outcomes', () => {
                 ): ReturnType<
                   OutcomeRpcClient['roles']['findMany']['queryOptions']
                 > => ({
-                  queryFn: async () => roles,
+                  queryFn: async () => {
+                    const search = input.search;
+                    return search === undefined
+                      ? roles
+                      : roles
+                          .filter((role) =>
+                            role.name
+                              .toLowerCase()
+                              .includes(search.toLowerCase()),
+                          )
+                          .slice(0, 15);
+                  },
                   queryKey: [['roles', 'findMany'], { input, type: 'query' }],
+                }),
+              },
+              findOne: {
+                queryOptions: (
+                  input: Parameters<
+                    OutcomeRpcClient['roles']['findOne']['queryOptions']
+                  >[0],
+                ): ReturnType<
+                  OutcomeRpcClient['roles']['findOne']['queryOptions']
+                > => ({
+                  queryFn: async () => {
+                    const role = roles.find(
+                      (candidate) => candidate.id === input.id,
+                    );
+                    if (!role)
+                      throw new RoleLookupNotFoundError({
+                        id: input.id,
+                        message: 'Role not found',
+                      });
+                    return role;
+                  },
+                  queryKey: [['roles', 'findOne'], { input, type: 'query' }],
                 }),
               },
             },
