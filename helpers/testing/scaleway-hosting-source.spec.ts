@@ -981,6 +981,43 @@ fi
     expect(staging).toContain("github.event_name != 'schedule'");
   });
 
+  it('rescans the copied production digest before infrastructure and role deployment', () => {
+    const production = source('.github/workflows/scaleway-production.yml');
+    const scan = between(
+      production,
+      '- name: Scan promoted image vulnerabilities',
+      '- name: Reconcile complete production infrastructure',
+    );
+
+    expect(scan).toContain(
+      'uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25',
+    );
+    expect(scan).toContain('image-ref: ${{ steps.image.outputs.reference }}');
+    expect(scan).toContain('version: v0.70.0');
+    expect(scan).toContain('cache: false');
+    expect(scan).toContain('severity: HIGH,CRITICAL');
+    expect(scan).toContain('ignore-unfixed: false');
+    expect(scan).toContain('exit-code: "1"');
+    expect(scan).toContain('TRIVY_USERNAME: nologin');
+    expect(scan).toContain('TRIVY_PASSWORD: ${{ secrets.SCW_SECRET_KEY }}');
+    expect(scan).not.toMatch(/\b(?:if|continue-on-error):/u);
+    expect(scan).not.toContain('TRIVY_SKIP_DB_UPDATE');
+
+    const requiredSteps = [
+      '- name: Copy the accepted digest without rebuilding',
+      '- name: Scan promoted image vulnerabilities',
+      '- name: Reconcile complete production infrastructure',
+      '- name: Deploy production ops and apply only a stable safe schema plan',
+      '- name: Deploy production worker and web at the accepted digest',
+    ];
+    let previousIndex = -1;
+    for (const step of requiredSteps) {
+      const index = production.indexOf(step);
+      expect(index, step).toBeGreaterThan(previousIndex);
+      previousIndex = index;
+    }
+  });
+
   it('provides worker email delivery at the HTTP request boundary', () => {
     const server = source('src/server.ts');
 
