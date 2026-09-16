@@ -4,14 +4,17 @@ import { createNodePgPoolConfig } from '../../src/db/pg-connection-config';
 
 export const resetPublicSchema = async ({
   databaseUrl,
+  sslNegotiation,
 }: {
   readonly databaseUrl: string;
+  readonly sslNegotiation?: 'postgres';
 }): Promise<void> => {
-  const pool = new Pool(
-    createNodePgPoolConfig({
+  const pool = new Pool({
+    ...createNodePgPoolConfig({
       databaseUrl,
     }),
-  );
+    ...(sslNegotiation && { sslnegotiation: sslNegotiation }),
+  });
 
   try {
     const client = await pool.connect();

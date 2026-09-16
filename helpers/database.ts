@@ -5,7 +5,10 @@ import consola from 'consola';
 import { Effect, Option, Redacted } from 'effect';
 
 import { createDatabaseClient } from '../src/db/database-client';
-import { setupDatabase } from '../src/db/setup-database';
+import {
+  resolveDatabaseSeedInputs,
+  setupDatabase,
+} from '../src/db/setup-database';
 import { inspectStagingDatabaseInitialization } from '../src/db/staging-database-initialization';
 import {
   formatConfigError,
@@ -60,6 +63,8 @@ const main = Effect.gen(function* () {
     onNone: () => Effect.fail(missingFieldError('STRIPE_TEST_ACCOUNT_ID')),
     onSome: Effect.succeed,
   });
+  const seedInputs = yield* Effect.try(() => resolveDatabaseSeedInputs());
+  const setupOptions = { ...seedInputs, stripeTestAccountId };
   if (process.env['STAGING_SEED_PREFLIGHT_ONLY'] === 'true') {
     return;
   }
@@ -74,7 +79,6 @@ const main = Effect.gen(function* () {
     caCertificate,
     tlsServerName,
   );
-  const setupOptions = { stripeTestAccountId };
   const initializeEmptyStagingOnly =
     process.env['STAGING_INITIALIZE_ONLY'] === 'true';
 

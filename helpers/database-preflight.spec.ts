@@ -117,8 +117,10 @@ fs.writeFileSync(${JSON.stringify(readyPath)}, 'ready');
 const runSeedHelper = ({
   accountId,
   preflightOnly = true,
+  nowIso,
 }: {
   accountId?: string;
+  nowIso?: string;
   preflightOnly?: boolean;
 }) =>
   runDatabaseHelper({
@@ -129,6 +131,7 @@ const runSeedHelper = ({
       DATABASE_URL:
         'postgresql://fixture:fixture@127.0.0.1:1/seed_fixture?sslmode=disable',
       NODE_ENV: 'production',
+      ...(nowIso !== undefined && { E2E_NOW_ISO: nowIso }),
       ...(preflightOnly && { STAGING_SEED_PREFLIGHT_ONLY: 'true' }),
       ...(accountId !== undefined && { STRIPE_TEST_ACCOUNT_ID: accountId }),
     },
@@ -220,6 +223,29 @@ describe('local database reset preflight', () => {
 });
 
 describe('database seed preflight', () => {
+  it.each([true, false])(
+    'rejects invalid seed time before connecting (preflight %s)',
+    (preflightOnly) => {
+      const result = runSeedHelper({
+        accountId: 'acct_seed_fixture',
+        nowIso: 'not-an-iso-date',
+        preflightOnly,
+      });
+      expect(result.status).not.toBe(0);
+      expect(result.output).toContain('Invalid E2E_NOW_ISO');
+      expect(result.attemptedConnection).toBe(false);
+    },
+  );
+
+  it('accepts a valid pinned seed date without connecting', () => {
+    const result = runSeedHelper({
+      accountId: 'acct_seed_fixture',
+      nowIso: '2026-09-16T12:00:00.000Z',
+    });
+    expect(result.status, result.output).toBe(0);
+    expect(result.attemptedConnection).toBe(false);
+  });
+
   it.each([
     { accountId: undefined, label: 'missing' },
     { accountId: '   ', label: 'blank' },

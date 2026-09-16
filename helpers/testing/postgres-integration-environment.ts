@@ -51,6 +51,18 @@ const parseDatabaseUrl = (value: string): URL => {
     );
   }
 
+  const port = Number(databaseUrl.port);
+  if (
+    !databaseUrl.port ||
+    !Number.isInteger(port) ||
+    port < 1 ||
+    port > 65_535
+  ) {
+    throw new Error(
+      'POSTGRES_INTEGRATION_DATABASE_URL must include an explicit port between 1 and 65535',
+    );
+  }
+
   const unsupportedParameters = [
     ...new Set(databaseUrl.searchParams.keys()).difference(
       allowedConnectionParameters,
@@ -69,6 +81,18 @@ const parseDatabaseUrl = (value: string): URL => {
       `Local PostgreSQL integration tests require database ${postgresIntegrationDatabaseName}`,
     );
   }
+
+  if (
+    databaseUrl.searchParams
+      .getAll('sslmode')
+      .some((mode) => mode !== 'disable')
+  ) {
+    throw new Error(
+      'POSTGRES_INTEGRATION_DATABASE_URL must omit sslmode or use sslmode=disable',
+    );
+  }
+  // Bind parent maintenance/reset pools and child drivers to the same local TLS policy.
+  databaseUrl.searchParams.set('sslmode', 'disable');
 
   return databaseUrl;
 };
@@ -94,10 +118,26 @@ export const resolvePostgresIntegrationEnvironment = async ({
 
 export const postgresIntegrationChildEnvironment = (
   environment: PostgresIntegrationEnvironment,
-): Readonly<Record<string, string>> => ({
-  DATABASE_TLS_REQUIRED: 'false',
-  DATABASE_URL: environment.databaseUrl,
-  POSTGRES_DB: environment.databaseName,
-});
+  parentEnvironment: EnvironmentSource = process.env,
+): Readonly<Record<string, string>> => {
+  const inherited: Record<string, string> = {};
+  for (const [name, value] of Object.entries(parentEnvironment)) {
+    if (
+      value !== undefined &&
+      name !== 'DATABASE_TLS_CA_CERTIFICATE' &&
+      name !== 'DATABASE_TLS_SERVER_NAME' &&
+      !name.startsWith('PGSSL') &&
+      name !== 'PGREQUIRESSL'
+    ) {
+      inherited[name] = value;
+    }
+  }
+  return {
+    ...inherited,
+    DATABASE_TLS_REQUIRED: 'false',
+    DATABASE_URL: environment.databaseUrl,
+    POSTGRES_DB: environment.databaseName,
+  };
+};
 
 export const requiredPostgresMajorVersion = POSTGRES_MAJOR_VERSION;

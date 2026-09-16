@@ -18,9 +18,14 @@ const result = (value: unknown) => ({
 });
 
 describe('ops schema operations', () => {
-  it.each(['initialize', 'reset'] as const)(
-    'does not touch staging when %s seed preflight fails',
-    async (operation) => {
+  it.each([
+    { message: 'Missing STRIPE_TEST_ACCOUNT_ID', operation: 'initialize' },
+    { message: 'Missing STRIPE_TEST_ACCOUNT_ID', operation: 'reset' },
+    { message: 'Invalid E2E_NOW_ISO value', operation: 'initialize' },
+    { message: 'Invalid E2E_NOW_ISO value', operation: 'reset' },
+  ])(
+    'does not touch staging when $operation seed preflight fails: $message',
+    async ({ message, operation }) => {
       const commands: {
         command: readonly string[];
         environment?: Readonly<Record<string, string>>;
@@ -30,7 +35,7 @@ describe('ops schema operations', () => {
           commands.push({ command, environment: options?.environment });
           return Effect.succeed({
             exitCode: 1,
-            stderr: 'Missing STRIPE_TEST_ACCOUNT_ID',
+            stderr: message,
             stdout: '',
           });
         },

@@ -13,15 +13,26 @@ import * as schema from './schema';
 
 export type Database = NodePgDatabase<typeof relations>;
 
+// Resolve configuration before any connection/reset; persisted fixture checks
+// remain inside the seed transaction after their rows have been inserted.
+export const resolveDatabaseSeedInputs = (seedDate?: Date) => {
+  const resolvedSeedDate = seedDate ?? getSeedDate();
+  if (!Number.isFinite(resolvedSeedDate.getTime())) {
+    throw new TypeError('Invalid database seed date');
+  }
+  return { seedDate: resolvedSeedDate };
+};
+
 export async function setupDatabase(
   database: NodePgDatabase<typeof relations>,
   options?: {
     onlyDevelopmentTenants?: boolean;
+    seedDate?: Date;
     stripeTestAccountId?: string;
   },
 ) {
+  const { seedDate } = resolveDatabaseSeedInputs(options?.seedDate);
   return database.transaction(async (transaction) => {
-    const seedDate = getSeedDate();
     const seed = seedFalsoForScope('setup-database', seedDate);
     const onlyDevelopmentTenants = options?.onlyDevelopmentTenants ?? false;
     const stripeTestAccountId = options?.stripeTestAccountId?.trim();

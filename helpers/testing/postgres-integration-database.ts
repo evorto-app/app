@@ -25,14 +25,17 @@ export const postgresMaintenanceDatabaseUrl = (databaseUrl: string): string => {
 
 export const ensureLocalPostgresIntegrationDatabase = async ({
   databaseUrl,
+  sslNegotiation,
 }: {
   readonly databaseUrl: string;
+  readonly sslNegotiation?: 'postgres';
 }): Promise<void> => {
-  const pool = new Pool(
-    createNodePgPoolConfig({
+  const pool = new Pool({
+    ...createNodePgPoolConfig({
       databaseUrl: postgresMaintenanceDatabaseUrl(databaseUrl),
     }),
-  );
+    ...(sslNegotiation && { sslnegotiation: sslNegotiation }),
+  });
 
   try {
     await ensurePostgresIntegrationDatabase({

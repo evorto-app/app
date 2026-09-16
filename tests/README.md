@@ -195,7 +195,12 @@ every collected test passing.
 The runner refuses to start unless
 `POSTGRES_INTEGRATION_DISPOSABLE=true` and an explicit
 `POSTGRES_INTEGRATION_DATABASE_URL` are present. A loopback URL is accepted
-only for the exact database name `evorto_postgres_integration`. For example:
+only with explicit credentials and a port, for the exact database name
+`evorto_postgres_integration`. Omitted TLS mode is normalized to
+`sslmode=disable`; other modes are rejected. Integration child commands retain
+unrelated environment values but remove inherited database CA/server-name and
+PostgreSQL TLS settings. The runner's maintenance/reset pools use the same
+explicit local TLS policy without changing the caller's environment. For example:
 
 ```bash
 POSTGRES_INTEGRATION_DISPOSABLE=true \

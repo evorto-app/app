@@ -69,7 +69,7 @@ const commandFailurePatterns: readonly {
 }[] = [
   {
     kind: 'staging-seed-configuration-invalid',
-    patterns: [/STRIPE_TEST_ACCOUNT_ID/u],
+    patterns: [/STRIPE_TEST_ACCOUNT_ID/u, /E2E_NOW_ISO/u],
   },
   {
     kind: 'database-authentication-failed',

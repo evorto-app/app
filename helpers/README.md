@@ -266,3 +266,18 @@ If you need to modify the seeding process:
 
 For Playwright tests, prefer consuming `seeded.scenario` in fixtures/specs rather
 than searching for events by title, date, or incidental seeded content.
+
+## Seed configuration preflight
+
+`STAGING_SEED_PREFLIGHT_ONLY=true bun helpers/database.ts` validates database
+configuration, the required Stripe test account, and the pinned seed date
+(`E2E_NOW_ISO`) without opening a database connection or changing the seed RNG.
+The ordinary seed uses the same resolved date. Local database reset and staging
+ops run this configuration preflight before their destructive schema step.
+
+Roles and imported VAT rates are fixed seed declarations, not external fixture
+configuration or provider lookups. Checks on inserted roles, tax-rate rows,
+template registration options, and scenario handles still run in the seed
+transaction, where those rows exist. Configuration preflight does not certify
+future database writes or make the separate staging drop/apply/seed commands
+atomic; database or runtime failures can still interrupt that workflow.

@@ -14,11 +14,11 @@ import { resetPublicSchema } from './reset-public-schema';
 
 const runCommand = async (
   command: readonly string[],
-  environment: Readonly<Record<string, string | undefined>>,
+  environment: Readonly<Record<string, string>>,
 ): Promise<void> => {
   const subprocess = Bun.spawn(command, {
     cwd: process.cwd(),
-    env: { ...process.env, ...environment },
+    env: environment,
     stderr: 'inherit',
     stdin: 'inherit',
     stdout: 'inherit',
@@ -30,13 +30,14 @@ const runCommand = async (
 };
 
 const integrationEnvironment = await resolvePostgresIntegrationEnvironment();
-const pool = new Pool(
-  createNodePgPoolConfig({
+const pool = new Pool({
+  ...createNodePgPoolConfig({
     databaseUrl: postgresMaintenanceDatabaseUrl(
       integrationEnvironment.databaseUrl,
     ),
   }),
-);
+  sslnegotiation: 'postgres',
+});
 
 try {
   const versionResult = await pool.query<{ server_version_num: string }>(
@@ -56,8 +57,12 @@ try {
   await pool.end();
 }
 
-await ensureLocalPostgresIntegrationDatabase(integrationEnvironment);
-await resetPublicSchema(integrationEnvironment);
+const integrationConnection = {
+  ...integrationEnvironment,
+  sslNegotiation: 'postgres' as const,
+};
+await ensureLocalPostgresIntegrationDatabase(integrationConnection);
+await resetPublicSchema(integrationConnection);
 
 const childEnvironment = {
   ...postgresIntegrationChildEnvironment(integrationEnvironment),

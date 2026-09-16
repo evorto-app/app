@@ -28,7 +28,9 @@ describe('fail-loud local database and seed source', () => {
       seed.indexOf(preflightOnly),
     );
     expect(seed.indexOf(preflightOnly)).toBeLessThan(seed.indexOf(connection));
-    expect(seed).toContain('const setupOptions = { stripeTestAccountId };');
+    expect(seed).toContain(
+      'const setupOptions = { ...seedInputs, stripeTestAccountId };',
+    );
   });
 
   it('routes every project-owned local Drizzle push through the guarded config', () => {

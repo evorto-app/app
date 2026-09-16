@@ -1,4 +1,7 @@
-import { describe, expect, it } from '@effect/vitest';
+import { describe, expect, it, vi } from '@effect/vitest';
+
+import { createDatabaseClient } from '../src/db/database-client';
+import { setupDatabase } from '../src/db/setup-database';
 
 import {
   requireSeedFixture,
@@ -146,4 +149,45 @@ describe('seed requirements', () => {
       'Missing declared seed fixture: sports template equipment add-on',
     );
   });
+});
+
+describe('database seed configuration', () => {
+  it.each([
+    {
+      label: 'pinned environment date',
+      nowIso: 'not-an-iso-date',
+      seedDate: undefined,
+      message: 'Invalid E2E_NOW_ISO',
+    },
+    {
+      label: 'supplied Date',
+      nowIso: '2026-09-16',
+      seedDate: new Date(Number.NaN),
+      message: 'Invalid database seed date',
+    },
+  ])(
+    'rejects an invalid $label before a direct setup starts its transaction',
+    async ({ nowIso, seedDate, message }) => {
+      const { database, pool } = createDatabaseClient(
+        'postgresql://fixture:fixture@127.0.0.1:1/unused_seed_fixture',
+      );
+      // Reject at the transaction boundary if setup regresses, without SQL.
+      const transaction = vi
+        .spyOn(database, 'transaction')
+        .mockRejectedValue(
+          new Error('The database transaction must not begin'),
+        );
+      vi.stubEnv('E2E_NOW_ISO', nowIso);
+      try {
+        await expect(
+          setupDatabase(database, seedDate === undefined ? {} : { seedDate }),
+        ).rejects.toThrow(message);
+        expect(transaction).not.toHaveBeenCalled();
+      } finally {
+        vi.unstubAllEnvs();
+        transaction.mockRestore();
+        await pool.end();
+      }
+    },
+  );
 });
