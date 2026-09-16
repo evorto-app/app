@@ -272,7 +272,12 @@ than searching for events by title, date, or incidental seeded content.
 `STAGING_SEED_PREFLIGHT_ONLY=true bun helpers/database.ts` validates database
 configuration, the required Stripe test account, and the pinned seed date
 (`E2E_NOW_ISO`) without opening a database connection or changing the seed RNG.
-The ordinary seed uses the same resolved date. Local database reset, Compose
+The ordinary seed uses the same resolved date. Direct helper invocation resolves
+both `E2E_NOW_ISO` and `E2E_SEED_KEY` from the process environment, then
+`.env.dev.local`, `.env.dev`, and `.env`, using the same provider as database and
+Stripe settings. Explicit blank caller values retain the unpinned clock or daily
+RNG default instead of falling through to a file. Command-mode flags such as
+`STAGING_SEED_PREFLIGHT_ONLY` remain explicit process controls. Local database reset, Compose
 `db-setup`, and staging ops run this configuration preflight before their
 destructive schema step. A failed Compose preflight stops setup before reset,
 Drizzle schema application, or seeding.

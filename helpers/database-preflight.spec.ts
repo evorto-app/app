@@ -17,9 +17,15 @@ afterEach(() => {
 const runDatabaseHelper = ({
   entrypoint,
   environment,
+  dotenvFiles = {},
+  captureSetupInputs = false,
   playwright = false,
 }: {
   entrypoint: string;
+  dotenvFiles?: Readonly<
+    Partial<Record<'.env' | '.env.dev' | '.env.dev.local', string>>
+  >;
+  captureSetupInputs?: boolean;
   playwright?: boolean;
   environment: Readonly<Record<string, string>>;
 }) => {
@@ -27,6 +33,12 @@ const runDatabaseHelper = ({
     path.join(os.tmpdir(), 'evorto-database-preflight-'),
   );
   temporaryDirectories.push(directory);
+  fs.writeFileSync(path.join(directory, 'bunfig.toml'), 'env = false\n');
+  for (const [name, contents] of Object.entries(dotenvFiles)) {
+    fs.writeFileSync(path.join(directory, name), contents);
+  }
+  const seedInputsPath = path.join(directory, 'seed-inputs.json');
+  const clientCreatedPath = path.join(directory, 'client-created');
   const markerPath = path.join(directory, 'connection-attempt');
   const readyPath = path.join(directory, 'guard-ready');
   const preloadPath = path.join(directory, 'deny-network.mjs');
@@ -53,6 +65,30 @@ globalThis.fetch = denyConnection;
 if (typeof Bun !== 'undefined') Bun.connect = denyConnection;
 syncBuiltinESMExports();
 fs.writeFileSync(${JSON.stringify(readyPath)}, 'ready');
+${
+  captureSetupInputs
+    ? `
+const { mock } = await import('bun:test');
+const { getDailySeed } = await import(${JSON.stringify(path.join(repositoryRoot, 'helpers/seed-falso.ts'))});
+const { resolveDatabaseSeedInputs } = await import(${JSON.stringify(path.join(repositoryRoot, 'src/db/setup-database.ts'))});
+mock.module(${JSON.stringify(path.join(repositoryRoot, 'src/db/database-client.ts'))}, () => ({
+  createDatabaseClient: () => {
+    fs.writeFileSync(${JSON.stringify(clientCreatedPath)}, 'created');
+    return { database: {}, pool: { end: async () => {} } };
+  },
+}));
+mock.module(${JSON.stringify(path.join(repositoryRoot, 'src/db/setup-database.ts'))}, () => ({
+  resolveDatabaseSeedInputs,
+  setupDatabase: async (_database, options) => {
+    fs.writeFileSync(${JSON.stringify(seedInputsPath)}, JSON.stringify({
+      seedDate: options.seedDate.toISOString(),
+      seedKey: getDailySeed(options.seedDate),
+    }));
+  },
+}));
+`
+    : ''
+}
 `,
   );
 
@@ -109,6 +145,10 @@ fs.writeFileSync(${JSON.stringify(readyPath)}, 'ready');
   expect(fs.existsSync(readyPath)).toBe(true);
   return {
     attemptedConnection: fs.existsSync(markerPath),
+    clientCreated: fs.existsSync(clientCreatedPath),
+    seedInputs: fs.existsSync(seedInputsPath)
+      ? fs.readFileSync(seedInputsPath, 'utf8')
+      : undefined,
     output: `${result.stdout}\n${result.stderr}`,
     status: result.status,
   };
@@ -118,13 +158,23 @@ const runSeedHelper = ({
   accountId,
   preflightOnly = true,
   nowIso,
+  seedKey,
+  dotenvFiles,
+  captureSetupInputs,
 }: {
   accountId?: string;
   nowIso?: string;
+  seedKey?: string;
+  dotenvFiles?: Readonly<
+    Partial<Record<'.env' | '.env.dev' | '.env.dev.local', string>>
+  >;
+  captureSetupInputs?: boolean;
   preflightOnly?: boolean;
 }) =>
   runDatabaseHelper({
     entrypoint: 'helpers/database.ts',
+    dotenvFiles,
+    captureSetupInputs,
     environment: {
       APP_ENVIRONMENT: 'staging',
       DATABASE_TLS_REQUIRED: 'false',
@@ -132,6 +182,7 @@ const runSeedHelper = ({
         'postgresql://fixture:fixture@127.0.0.1:1/seed_fixture?sslmode=disable',
       NODE_ENV: 'production',
       ...(nowIso !== undefined && { E2E_NOW_ISO: nowIso }),
+      ...(seedKey !== undefined && { E2E_SEED_KEY: seedKey }),
       ...(preflightOnly && { STAGING_SEED_PREFLIGHT_ONLY: 'true' }),
       ...(accountId !== undefined && { STRIPE_TEST_ACCOUNT_ID: accountId }),
     },
@@ -223,6 +274,142 @@ describe('local database reset preflight', () => {
 });
 
 describe('database seed preflight', () => {
+  it.each([
+    ['.env', true],
+    ['.env.dev', true],
+    ['.env.dev.local', true],
+    ['.env.dev.local', false],
+  ] as const)(
+    'rejects an invalid date from %s before connecting (preflight %s)',
+    (file, preflightOnly) => {
+      const result = runSeedHelper({
+        accountId: 'acct_seed_fixture',
+        dotenvFiles: { [file]: 'E2E_NOW_ISO=not-an-iso-date\n' },
+        captureSetupInputs: true,
+        preflightOnly,
+      });
+      expect(result.status).not.toBe(0);
+      expect(result.output).toContain('Invalid E2E_NOW_ISO');
+      expect(result.clientCreated).toBe(false);
+      expect(result.attemptedConnection).toBe(false);
+    },
+  );
+
+  it.each([
+    {
+      label: 'base file',
+      dotenvFiles: {
+        '.env': 'E2E_NOW_ISO=2028-02-03T14:15:00Z\nE2E_SEED_KEY=base-key\n',
+      },
+      expectedDate: '2028-02-03T00:00:00.000Z',
+      expectedKey: 'base-key',
+    },
+    {
+      label: 'generated over base file',
+      dotenvFiles: {
+        '.env': 'E2E_NOW_ISO=not-an-iso-date\nE2E_SEED_KEY=base-key\n',
+        '.env.dev':
+          'E2E_NOW_ISO=2028-03-04T14:15:00Z\nE2E_SEED_KEY=generated-key\n',
+      },
+      expectedDate: '2028-03-04T00:00:00.000Z',
+      expectedKey: 'generated-key',
+    },
+    {
+      label: 'shared over generated and base files',
+      dotenvFiles: {
+        '.env': 'E2E_NOW_ISO=not-an-iso-date\nE2E_SEED_KEY=base-key\n',
+        '.env.dev': 'E2E_NOW_ISO=not-an-iso-date\nE2E_SEED_KEY=generated-key\n',
+        '.env.dev.local':
+          'E2E_NOW_ISO=2028-04-05T14:15:00Z\nE2E_SEED_KEY=shared-key\n',
+      },
+      expectedDate: '2028-04-05T00:00:00.000Z',
+      expectedKey: 'shared-key',
+    },
+  ])(
+    'resolves the actual seed date and RNG key from $label',
+    ({ dotenvFiles, expectedDate, expectedKey }) => {
+      const result = runSeedHelper({
+        accountId: 'acct_seed_fixture',
+        dotenvFiles,
+        captureSetupInputs: true,
+        preflightOnly: false,
+      });
+      expect(result.status, result.output).toBe(0);
+      expect(result.attemptedConnection).toBe(false);
+      expect(result.seedInputs).toBe(
+        JSON.stringify({ seedDate: expectedDate, seedKey: expectedKey }),
+      );
+    },
+  );
+
+  it('preserves explicit process seed settings over file configuration', () => {
+    const result = runSeedHelper({
+      accountId: 'acct_seed_fixture',
+      nowIso: '2028-05-06T14:15:00Z',
+      seedKey: 'process-key',
+      dotenvFiles: {
+        '.env.dev.local':
+          'E2E_NOW_ISO=not-an-iso-date\nE2E_SEED_KEY=shared-key\n',
+      },
+      captureSetupInputs: true,
+      preflightOnly: false,
+    });
+    expect(result.status, result.output).toBe(0);
+    expect(result.attemptedConnection).toBe(false);
+    expect(result.seedInputs).toBe(
+      JSON.stringify({
+        seedDate: '2028-05-06T00:00:00.000Z',
+        seedKey: 'process-key',
+      }),
+    );
+  });
+
+  it.each(['', '   '])(
+    'keeps an explicit blank caller clock override %j',
+    (nowIso) => {
+      const result = runSeedHelper({
+        accountId: 'acct_seed_fixture',
+        nowIso,
+        dotenvFiles: { '.env.dev.local': 'E2E_NOW_ISO=not-an-iso-date\n' },
+      });
+      expect(result.status, result.output).toBe(0);
+      expect(result.attemptedConnection).toBe(false);
+    },
+  );
+
+  it.each(['', '   '])(
+    'keeps an explicit blank caller RNG override %j',
+    (seedKey) => {
+      const result = runSeedHelper({
+        accountId: 'acct_seed_fixture',
+        nowIso: '2028-05-06T14:15:00Z',
+        seedKey,
+        dotenvFiles: { '.env.dev.local': 'E2E_SEED_KEY=shared-key\n' },
+        captureSetupInputs: true,
+        preflightOnly: false,
+      });
+      expect(result.status, result.output).toBe(0);
+      expect(result.attemptedConnection).toBe(false);
+      expect(result.seedInputs).toBe(
+        JSON.stringify({
+          seedDate: '2028-05-06T00:00:00.000Z',
+          seedKey: '2028-05-06',
+        }),
+      );
+    },
+  );
+
+  it('does not hide an invalid process date behind a valid file date', () => {
+    const result = runSeedHelper({
+      accountId: 'acct_seed_fixture',
+      nowIso: 'not-an-iso-date',
+      dotenvFiles: { '.env.dev.local': 'E2E_NOW_ISO=2028-05-06T14:15:00Z\n' },
+    });
+    expect(result.status).not.toBe(0);
+    expect(result.output).toContain('Invalid E2E_NOW_ISO');
+    expect(result.attemptedConnection).toBe(false);
+  });
+
   it.each([true, false])(
     'rejects invalid seed time before connecting (preflight %s)',
     (preflightOnly) => {

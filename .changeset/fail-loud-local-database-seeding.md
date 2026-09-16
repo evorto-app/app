@@ -20,3 +20,7 @@ Show the bounded staging seed configuration diagnostic when a private ops call f
 Validate pinned seed dates before connecting or beginning a reset, and reject invalid supplied dates before the seed transaction starts.
 
 Run seed configuration preflight before Compose database setup resets or reapplies the schema.
+
+Resolve file-backed seed dates and RNG keys before preflight or pool creation,
+with the same configuration precedence as database and Stripe settings. Preserve
+explicit caller overrides, including blank values, throughout nested seeding.

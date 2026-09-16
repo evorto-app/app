@@ -2,7 +2,7 @@ import * as BunRuntime from '@effect/platform-bun/BunRuntime';
 import { databaseConfig } from '@db/database-config';
 import { stripeConfig } from '@server/config/stripe-config';
 import consola from 'consola';
-import { Effect, Option, Redacted } from 'effect';
+import { Config, ConfigProvider, Effect, Option, Redacted } from 'effect';
 
 import { createDatabaseClient } from '../src/db/database-client';
 import {
@@ -63,6 +63,20 @@ const main = Effect.gen(function* () {
     onNone: () => Effect.fail(missingFieldError('STRIPE_TEST_ACCOUNT_ID')),
     onSome: Effect.succeed,
   });
+  const seedEnvironment = yield* Config.all({
+    E2E_NOW_ISO: Config.option(Config.string('E2E_NOW_ISO')),
+    E2E_SEED_KEY: Config.option(Config.string('E2E_SEED_KEY')),
+  }).parse(
+    ConfigProvider.orElse(
+      ConfigProvider.fromEnv({ preserveEmptyStrings: true }),
+      runtimeConfigProvider,
+    ),
+  );
+  // Nested seed helpers read these process values. Resolve their file fallback
+  // once at this CLI boundary while preserving explicit blank caller overrides.
+  for (const [name, value] of Object.entries(seedEnvironment)) {
+    if (Option.isSome(value)) process.env[name] = value.value;
+  }
   const seedInputs = yield* Effect.try(() => resolveDatabaseSeedInputs());
   const setupOptions = { ...seedInputs, stripeTestAccountId };
   if (process.env['STAGING_SEED_PREFLIGHT_ONLY'] === 'true') {
