@@ -83,7 +83,7 @@ test('add a valid template icon and explain invalid icon names', async ({
 
   await searchInput.fill('invalid/icon');
   await expect(
-    iconDialog.getByText('No matching icons found. Try another search.'),
+    iconDialog.getByText('To add an Icons8 icon, use a lowercase name'),
   ).toBeVisible();
   await expect(iconDialog.getByTestId('direct-access-icon')).toBeHidden();
 

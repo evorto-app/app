@@ -53,8 +53,8 @@ Redact registration-transfer credentials in page URLs and diagnostic text before
 logging or serialization, including encoded routes and credentials.
 
 Refresh event details and review lists when an event disappears during approval.
-Keep icon selection responsive to its dialog width, render one role icon, and
-reject malformed HTTP origin syntax before URL normalization.
+Render one role icon and reject malformed HTTP origin syntax before URL
+normalization.
 
 Use one visible Edit button for rich-text previews, keeping saved links outside interactive button semantics.
 
