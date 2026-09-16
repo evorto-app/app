@@ -22,7 +22,6 @@ concurrency:
 jobs:
   promote:
     name: Promote accepted staging digest
-    if: vars.PRODUCTION_ENABLED == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 90
     environment: scaleway-production
@@ -50,6 +49,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.PRODUCTION_TERRAFORM_STATE_SECRET_ACCESS_KEY }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CONFIRMATION: ${{ inputs.confirmation }}
+          PRODUCTION_ENABLED: ${{ vars.PRODUCTION_ENABLED }}
           PROTECTED_SECRET_VALUES: ${{ secrets.ROLE_SECRET_VALUES_JSON }}
           RUNTIME_DATABASE_PASSWORD: ${{ secrets.PRODUCTION_RUNTIME_DATABASE_PASSWORD }}
           SCHEMA_DATABASE_PASSWORD: ${{ secrets.PRODUCTION_SCHEMA_DATABASE_PASSWORD }}
@@ -57,6 +57,10 @@ jobs:
           SCW_SECRET_KEY: ${{ secrets.SCW_SECRET_KEY }}
           PRODUCTION_TERRAFORM_STATE_BUCKET: ${{ vars.PRODUCTION_TERRAFORM_STATE_BUCKET }}
         run: |
+          if [ "${PRODUCTION_ENABLED:-}" != "true" ]; then
+            echo "::error::Production promotion requires PRODUCTION_ENABLED to be exactly true"
+            exit 1
+          fi
           if [ "${CONFIRMATION}" != "promote-alpha" ]; then
             echo "::error::Production promotion confirmation did not match promote-alpha"
             exit 1
