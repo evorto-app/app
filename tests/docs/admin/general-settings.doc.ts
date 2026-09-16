@@ -432,7 +432,7 @@ When both fields are saved, the public footer gives the external URL precedence 
   const publicPage = await publicContext.newPage();
   await publicPage.goto(`${tenantUrl.origin}/events`);
   await expect(
-    publicPage.getByRole('link', { name: 'Login', exact: true }),
+    publicPage.getByRole('link', { name: 'Sign in', exact: true }),
   ).toBeVisible();
   const publicFooter = publicPage.getByRole('contentinfo');
   await expect(
