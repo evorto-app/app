@@ -751,7 +751,6 @@ describe('storage-state use boundary', () => {
         expect(newContext).toHaveBeenCalledExactlyOnceWith({
           baseURL: 'http://127.0.0.1:4200',
           colorScheme: 'light',
-          ignoreHTTPSErrors: true,
           storageState: state,
         });
         expect(newContext.mock.calls[0]?.[0]?.storageState).not.toBe(pathname);
