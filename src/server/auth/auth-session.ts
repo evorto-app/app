@@ -377,6 +377,51 @@ export const getRequestAuthData = (authSession: AuthSession | undefined) =>
 export const isAuthenticated = (authSession: AuthSession | undefined) =>
   authSession !== undefined;
 
+export const invalidAuthSessionRecoveryResponse = Effect.fn(
+  'invalidAuthSessionRecoveryResponse',
+)(function* (
+  request: HttpServerRequest.HttpServerRequest,
+  applicationEnvironment: Parameters<
+    typeof shouldSecureAuthCookies
+  >[0] = 'production',
+) {
+  const storeOptions = createAuthStoreOptions(
+    toCookieRecord(request.cookies),
+    shouldSecureAuthCookies(
+      applicationEnvironment,
+      resolveRequestOrigin(request).isSecure,
+    ),
+  );
+  const chunkPrefix = `${AUTH_SESSION_COOKIE_IDENTIFIER}.`;
+  for (const name of Object.keys(storeOptions.cookies)) {
+    if (
+      name === AUTH_SESSION_COOKIE_IDENTIFIER ||
+      (name.startsWith(chunkPrefix) &&
+        /^\d+$/u.test(name.slice(chunkPrefix.length)))
+    ) {
+      cookieHandler.deleteCookie(name, storeOptions);
+    }
+  }
+
+  const headers = { 'Cache-Control': 'no-store' };
+  const response = request.headers['accept']?.includes('text/html')
+    ? HttpServerResponse.text(
+        '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Sign in again</title></head><body><main><h1>Sign in again</h1><p>Your sign-in session is no longer valid.</p><p><a href="/login">Sign in again to continue</a></p></main></body></html>',
+        { contentType: 'text/html', headers, status: 401 },
+      )
+    : HttpServerResponse.jsonUnsafe(
+        {
+          error: 'Unauthorized',
+          message:
+            'Your sign-in session is no longer valid. Sign in again to continue.',
+        },
+        { headers, status: 401 },
+      );
+  return yield* applyCookieMutations(response, storeOptions.mutations).pipe(
+    Effect.orDie,
+  );
+});
+
 export const loadAuthSession = (request: HttpServerRequest.HttpServerRequest) =>
   Effect.gen(function* () {
     const { auth0Client, storeOptions } =

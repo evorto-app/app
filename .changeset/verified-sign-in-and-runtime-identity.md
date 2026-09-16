@@ -49,3 +49,7 @@ RPC, matching the protected page instead of allowing every signed-in account.
 Preserve PostgreSQL raw Unix socket paths for connections without a configured
 CA, while retaining IPv6 URL normalization and strict verified-TLS identity
 validation. Other malformed non-URL connection strings remain rejected.
+
+Recover invalid decoded sign-in sessions with a non-cacheable sign-in response
+and expire only their session cookies. Keep unexpected identity-provider failures
+on the existing server-error path.
