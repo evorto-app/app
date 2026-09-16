@@ -22,6 +22,7 @@ import {
   playwrightEnvironmentConfig,
 } from '../config/environment';
 import { runDatabaseCleanups } from '../utils/database-cleanup';
+import { validateStorageStateBeforeUse } from '../utils/storage-state';
 import {
   routeLocalTenantRequests,
   closeTenantRequestPages,
@@ -84,6 +85,7 @@ interface BaseFixtures {
   ) => void;
   protectedValueCapturePolicy: void;
   seedDate: Date;
+  storageStateValidation: void;
   testClock: DateTime;
   tenantDomain?: string;
 }
@@ -245,6 +247,7 @@ export const test = base.extend<BaseFixtures>({
     },
     { auto: true },
   ],
+  storageStateValidation: [validateStorageStateBeforeUse, { auto: true }],
   tenantDomain: async ({}, use) => {
     try {
       const runtimePath = path.resolve('.e2e-runtime.json');

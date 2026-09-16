@@ -367,6 +367,19 @@ credentials must not be printed or committed.
   Playwright own a fresh stack, or explicitly start the exact checkout being
   pushed and verify that provenance. `/readyz` proves behavior, not commit or
   image identity.
+  Saved authentication state is validated before the shared test context is
+  created and before an explicitly authenticated helper creates another context.
+  The saved-state contract requires complete serialized cookies and canonical
+  HTTP(S) origins with valid local-storage records. Optional captured IndexedDB,
+  OPFS, and credential records retain their supported structural shape. This is
+  validation of saved output, not the looser URL-based `addCookies` input format.
+  Missing or invalid selected files fail with a setup instruction; they do not
+  silently become anonymous sessions or trigger automatic authentication. Normal
+  setup always signs in and replaces the six state files. There is no file-age
+  reuse or refresh policy. An intentional undefined state remains anonymous, and
+  valid inline state is preserved. Validation errors never include cookie values
+  or malformed JSON fragments.
+
 - `bun run test:e2e:ui` first creates the six authenticated storage states in a
   trace-off setup run, then opens a baseline-only Playwright UI. The UI baseline
   projects retain their `database-setup` dependency for the newly started UI

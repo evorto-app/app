@@ -1,6 +1,8 @@
 import type { Browser, BrowserContext, Page } from '@playwright/test';
 import type { DateTime } from 'luxon';
 
+import { resolveStorageState } from './storage-state';
+
 import {
   closeTenantRequestContext,
   routeLocalTenantRequests,
@@ -20,17 +22,18 @@ export const openAuthenticatedTestPage = async ({
   testClock,
 }: {
   baseUrl: string;
-  browser: Browser;
+  browser: Pick<Browser, 'newContext'>;
   storageState: string;
   tenantDomain: string;
   testClock: DateTime;
 }): Promise<AuthenticatedTestPage> => {
   const resolvedBaseUrl = new URL(baseUrl);
+  const savedState = resolveStorageState(storageState);
   const context = await browser.newContext({
     baseURL: resolvedBaseUrl.origin,
     colorScheme: 'light',
     ignoreHTTPSErrors: true,
-    storageState,
+    storageState: savedState,
   });
 
   try {

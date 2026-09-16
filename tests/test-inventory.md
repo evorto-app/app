@@ -224,7 +224,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - `docs/events/event-management.doc.ts` (organizer overview context)
   - `specs/scanning/scanner.test.ts`
 - Runtime, reporting, screenshots, and seed health:
-  - `specs/auth/storage-state-refresh.test.ts`
+  - `specs/auth/storage-state-refresh.test.ts` validates selected saved/inline state before context use and roundtrips synthetic cookies/local storage through offline contexts; it does not certify an age-based refresh policy.
   - `specs/reporting/reporter-paths.test.ts`
   - `specs/screenshot/doc-screenshot.test.ts`
   - `specs/seed/seed-baseline.test.ts` proves the seeded tenant has default

@@ -10,4 +10,4 @@ Preserve complete browser request headers during tenant routing and keep failed 
 
 Use typed sign-in recovery when an encrypted session's optional profile claims do not match the shared RPC contract. Keep valid custom metadata available to request authorization.
 
-Reject malformed saved browser origins and local-storage entries before treating test authentication state as reusable.
+Validate selected browser state before context creation, including canonical HTTP(S) origins, complete serialized cookies, and captured storage records. Reject missing or invalid state with an authentication-setup instruction; preserve intentional anonymous contexts and valid inline state. Authentication setup remains explicit, with no age-based reuse or automatic login fallback.
