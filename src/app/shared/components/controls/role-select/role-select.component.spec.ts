@@ -907,11 +907,7 @@ describe('RoleSelectQueries cached role verification', () => {
       vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
       try {
         const verifiedAt = Date.now();
-        queryClient.setQueryData(
-          keyFor({ defaultOrganizerRole: true }),
-          [role],
-          { updatedAt: verifiedAt },
-        );
+        queryClient.setQueryData(keyFor({}), [role], { updatedAt: verifiedAt });
         const host = TestBed.createComponent(RoleSelectFormHost);
         host.detectChanges();
         const otherHost = TestBed.createComponent(RoleSelectFormHost);
@@ -1016,9 +1012,7 @@ describe('RoleSelectQueries cached role verification', () => {
     async (operation) => {
       vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
       try {
-        queryClient.setQueryData(keyFor({ defaultOrganizerRole: true }), [
-          role,
-        ]);
+        queryClient.setQueryData(keyFor({}), [role]);
         const host = TestBed.createComponent(RoleSelectFormHost);
         host.detectChanges();
         await vi.waitFor(() => {
