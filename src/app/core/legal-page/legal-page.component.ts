@@ -35,7 +35,8 @@ import {
         </div>
       } @else {
         <p class="text-on-surface-variant">
-          This organization has not published this legal page yet.
+          This legal page has not been configured for the current organization
+          yet.
         </p>
       }
     </main>
