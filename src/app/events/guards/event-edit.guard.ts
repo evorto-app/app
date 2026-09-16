@@ -3,36 +3,33 @@ import { CanActivateFn, Router } from '@angular/router';
 import { QueryClient } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
-import { PermissionsService } from '../../core/permissions.service';
+import { eventRouteErrorPath } from '../event-rpc-error';
 
 export const eventEditGuard: CanActivateFn = async (route) => {
   const router = inject(Router);
   const queryClient = inject(QueryClient);
   const rpc = AppRpc.injectClient();
-  const permissions = inject(PermissionsService);
-  const eventId = route.params['eventId'] as string | undefined;
+  const eventId = route.paramMap.get('eventId');
 
   if (!eventId) {
     return router.createUrlTree(['/404']);
   }
 
   try {
-    const self = await rpc.users.maybeSelf.call();
-    const event = await queryClient.fetchQuery(
-      rpc.events.findOne.queryOptions({ id: eventId }),
+    await queryClient.fetchQuery(
+      rpc.events.findGraphForEdit.queryOptions({ id: eventId }),
     );
-    const canEditAll = permissions.hasPermissionSync('events:editAll');
-    const canEdit = canEditAll || self?.id === event.creatorId;
-    if (!canEdit) {
-      return router.createUrlTree(['/403']);
-    }
-    if (event.status !== 'DRAFT') {
+    return true;
+  } catch (error) {
+    const tag =
+      error && typeof error === 'object' && '_tag' in error
+        ? error._tag
+        : undefined;
+    if (tag === 'EventConflictError') {
       return router.createUrlTree(['/events', eventId], {
         queryParams: { error: 'event-locked' },
       });
     }
-    return true;
-  } catch {
-    return router.createUrlTree(['/404']);
+    return router.createUrlTree([eventRouteErrorPath(error)]);
   }
 };

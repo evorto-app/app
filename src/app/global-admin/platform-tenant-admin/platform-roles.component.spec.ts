@@ -4,6 +4,10 @@ import { TestBed } from '@angular/core/testing';
 import { MatButtonHarness } from '@angular/material/button/testing';
 import { MatInputHarness } from '@angular/material/input/testing';
 import { MatSelectHarness } from '@angular/material/select/testing';
+import {
+  ALL_PERMISSIONS,
+  includesPermission,
+} from '@shared/permissions/permissions';
 import { PlatformRoleRecord } from '@shared/rpc-contracts/app-rpcs/platform-tenant-admin.rpcs';
 import {
   provideTanStackQuery,
@@ -52,7 +56,10 @@ describe('platform role permission editing', () => {
     permissions: ['events:create'],
   });
   const createRole = vi.fn();
-  const updateRole = vi.fn();
+  const updateRole =
+    vi.fn<
+      NonNullable<ReturnType<PlatformRolesOperations['update']>['mutationFn']>
+    >();
   let queryClient: QueryClient;
 
   beforeEach(async () => {
@@ -156,12 +163,24 @@ describe('platform role permission editing', () => {
     await taxPermission.click();
     await permissions.close();
     await save.click();
-    await vi.waitFor(() =>
-      expect(updateRole).toHaveBeenCalledWith(
-        expect.objectContaining({
-          permissions: ['users:*', 'admin:manageRoles', 'admin:changeSettings'],
-        }),
-        expect.anything(),
+    await vi.waitFor(() => expect(updateRole).toHaveBeenCalledOnce());
+    const [payload] = updateRole.mock.calls[0] ?? [];
+    if (!payload) throw new Error('Expected the role update payload');
+    expect(payload).toMatchObject({
+      roleId: storedRole.id,
+      targetTenantId: 'tenant-1',
+    });
+    expect(payload.permissions).toContain('users:*');
+    expect(payload.permissions).not.toContain('admin:*');
+    expect(
+      ALL_PERMISSIONS.filter((permission) =>
+        includesPermission(permission, payload.permissions),
+      ),
+    ).toEqual(
+      ALL_PERMISSIONS.filter(
+        (permission) =>
+          permission !== 'admin:tax' &&
+          includesPermission(permission, storedRole.permissions),
       ),
     );
   });

@@ -5,7 +5,7 @@ import {
   DEFAULT_TENANT_RECEIPT_ALLOW_OTHER,
   DEFAULT_TENANT_RECEIPT_COUNTRIES,
 } from '@shared/tenant-config';
-import { Effect, Layer } from 'effect';
+import { Effect, Layer, Result } from 'effect';
 import * as Headers from 'effect/unstable/http/Headers';
 import { Rpc, RpcMessage } from 'effect/unstable/rpc';
 
@@ -147,135 +147,169 @@ const createContextLayer = ({
 };
 
 describe('event discount tenant isolation', () => {
-  it.effect('ignores a verified ESN card that belongs to another tenant', () =>
-    Effect.gen(function* () {
-      const findCards = vi.fn((query: { where: { tenantId?: string } }) =>
-        Effect.succeed(
-          query.where.tenantId === tenant.id
-            ? []
-            : [
-                {
-                  validFrom: new Date('2000-01-01T00:00:00.000Z'),
-                  validTo: new Date('2100-01-01T00:00:00.000Z'),
-                },
-              ],
-        ),
-      );
-      const select = vi.fn(() => ({
-        from: (table: unknown) => {
-          if (table === eventAddons) {
-            return {
-              innerJoin: () => ({
-                where: () => Effect.succeed([]),
-              }),
-            };
-          }
-          if (table === eventRegistrationQuestions) {
-            return {
-              where: () => ({
-                orderBy: () => Effect.succeed([]),
-              }),
-            };
-          }
-          if (table === eventRegistrationOptionDiscounts) {
-            return {
-              where: () =>
-                Effect.succeed([
-                  {
-                    discountedPrice: 1000,
-                    discountType: 'esnCard' as const,
-                    registrationOptionId: 'option-1',
-                  },
-                ]),
-            };
-          }
-          throw new Error('Unexpected event detail table');
-        },
-      }));
-      const database = {
-        query: {
-          eventInstances: {
-            findFirst: () =>
-              Effect.succeed({
-                creatorId: 'organizer-1',
-                description: 'Tenant-scoped event',
-                end: new Date('2099-01-02T00:00:00.000Z'),
-                icon: 'calendar',
-                id: 'event-1',
-                location: null,
-                registrationOptions: [
-                  {
-                    checkedInSpots: 0,
-                    closeRegistrationTime: new Date('2099-01-01T00:00:00.000Z'),
-                    confirmedSpots: 0,
-                    description: null,
-                    eventId: 'event-1',
-                    id: 'option-1',
-                    isPaid: true,
-                    openRegistrationTime: new Date('2098-01-01T00:00:00.000Z'),
-                    organizingRegistration: false,
-                    price: 2000,
-                    registeredDescription: null,
-                    registrationMode: 'fcfs' as const,
-                    reservedSpots: 0,
-                    roleIds: [],
-                    spots: 20,
-                    stripeTaxRateId: null,
-                    title: 'Participant',
-                  },
-                ],
-                reviewer: null,
-                start: new Date('2099-01-01T12:00:00.000Z'),
-                status: 'APPROVED' as const,
-                statusComment: null,
-                title: 'Tenant-scoped event',
-                unlisted: false,
-              }),
-          },
-          userDiscountCards: {
-            findMany: findCards,
-          },
-        },
-        select,
-      };
-
-      const event = yield* eventQueryHandlers['events.findOne'](
-        { id: 'event-1' },
-        createRpcOptions(
-          EventsRpcs.EventsFindOne.middleware(RpcRequestContextMiddleware),
-        ),
-      ).pipe(
-        Effect.provide(
-          createContextLayer({
-            database,
-            tenantOverride: {
-              ...tenant,
-              discountProviders: {
-                esnCard: { config: {}, status: 'enabled' },
+  for (const questionCount of [0, 25, 26]) {
+    it.effect(
+      `preserves tenant discount isolation and rejects invalid actionable question count ${questionCount}`,
+      () =>
+        Effect.gen(function* () {
+          const findCards = vi.fn((query: { where: { tenantId?: string } }) =>
+            Effect.succeed(
+              query.where.tenantId === tenant.id
+                ? []
+                : [
+                    {
+                      validFrom: new Date('2000-01-01T00:00:00.000Z'),
+                      validTo: new Date('2100-01-01T00:00:00.000Z'),
+                    },
+                  ],
+            ),
+          );
+          const select = vi.fn(() => ({
+            from: (table: unknown) => {
+              if (table === eventAddons) {
+                return {
+                  innerJoin: () => ({
+                    where: () => Effect.succeed([]),
+                  }),
+                };
+              }
+              if (table === eventRegistrationQuestions) {
+                return {
+                  where: () => ({
+                    orderBy: () =>
+                      Effect.succeed(
+                        Array.from({ length: questionCount }, (_, index) => ({
+                          description: null,
+                          id: `question-${index}`,
+                          registrationOptionId: 'option-1',
+                          required: true,
+                          sortOrder: index,
+                          title: `Question ${index}`,
+                        })),
+                      ),
+                  }),
+                };
+              }
+              if (table === eventRegistrationOptionDiscounts) {
+                return {
+                  where: () =>
+                    Effect.succeed([
+                      {
+                        discountedPrice: 1000,
+                        discountType: 'esnCard' as const,
+                        registrationOptionId: 'option-1',
+                      },
+                    ]),
+                };
+              }
+              throw new Error('Unexpected event detail table');
+            },
+          }));
+          const database = {
+            query: {
+              eventInstances: {
+                findFirst: () =>
+                  Effect.succeed({
+                    creatorId: 'organizer-1',
+                    description: 'Tenant-scoped event',
+                    end: new Date('2099-01-02T00:00:00.000Z'),
+                    icon: 'calendar',
+                    id: 'event-1',
+                    location: null,
+                    registrationOptions: [
+                      {
+                        checkedInSpots: 0,
+                        closeRegistrationTime: new Date(
+                          '2099-01-01T00:00:00.000Z',
+                        ),
+                        confirmedSpots: 0,
+                        description: null,
+                        eventId: 'event-1',
+                        id: 'option-1',
+                        isPaid: true,
+                        openRegistrationTime: new Date(
+                          '2098-01-01T00:00:00.000Z',
+                        ),
+                        organizingRegistration: false,
+                        price: 2000,
+                        registeredDescription: null,
+                        registrationMode: 'fcfs' as const,
+                        reservedSpots: 0,
+                        roleIds: [],
+                        spots: 20,
+                        stripeTaxRateId: null,
+                        title: 'Participant',
+                      },
+                    ],
+                    reviewer: null,
+                    start: new Date('2099-01-01T12:00:00.000Z'),
+                    status: 'APPROVED' as const,
+                    statusComment: null,
+                    title: 'Tenant-scoped event',
+                    unlisted: false,
+                  }),
+              },
+              userDiscountCards: {
+                findMany: findCards,
               },
             },
-          }),
-        ),
-      );
+            select,
+          };
 
-      expect(event.registrationOptions[0]).toMatchObject({
-        appliedDiscountType: null,
-        discountApplied: false,
-        effectivePrice: 2000,
-        esnCardDiscountedPrice: null,
-      });
-      expect(findCards).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: {
-            status: 'verified',
-            tenantId: tenant.id,
-            type: 'esnCard',
-            userId: 'user-1',
-          },
+          const result = yield* eventQueryHandlers['events.findOne'](
+            { id: 'event-1' },
+            createRpcOptions(
+              EventsRpcs.EventsFindOne.middleware(RpcRequestContextMiddleware),
+            ),
+          ).pipe(
+            Effect.result,
+            Effect.provide(
+              createContextLayer({
+                database,
+                tenantOverride: {
+                  ...tenant,
+                  discountProviders: {
+                    esnCard: { config: {}, status: 'enabled' },
+                  },
+                },
+              }),
+            ),
+          );
+
+          if (questionCount > 25) {
+            expect(Result.isFailure(result)).toBe(true);
+            if (Result.isFailure(result))
+              expect(result.failure).toMatchObject({
+                _tag: 'EventConflictError',
+              });
+            expect(findCards).not.toHaveBeenCalled();
+            return;
+          }
+          expect(Result.isSuccess(result)).toBe(true);
+          if (!Result.isSuccess(result)) return;
+          const event = result.success;
+          expect(event.registrationOptions[0]?.questions).toHaveLength(
+            questionCount,
+          );
+          expect(event.registrationOptions[0]).toMatchObject({
+            appliedDiscountType: null,
+            discountApplied: false,
+            effectivePrice: 2000,
+            esnCardDiscountedPrice: null,
+          });
+          expect(findCards).toHaveBeenCalledWith(
+            expect.objectContaining({
+              where: {
+                status: 'verified',
+                tenantId: tenant.id,
+                type: 'esnCard',
+                userId: 'user-1',
+              },
+            }),
+          );
         }),
-      );
-    }),
-  );
+    );
+  }
 });
 
 describe('eventHandlers composition', () => {

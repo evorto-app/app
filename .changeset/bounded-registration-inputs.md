@@ -12,3 +12,5 @@ zero-percent rates. Free add-on browser fixtures own their event and registratio
 graph so failed setup cannot remove seeded acquisition history. Apply the current
 schema through the existing isolated reset/setup flow; no incremental migration
 is introduced.
+
+Reject oversized stored question sets and implicit included add-on selections before registration or transfer actions. Require tax references for paid add-on and transfer prices, preserving free and included quantities and zero-percent rates. Validate persisted Checkout snapshots, including their 100-line limit, before resuming provider requests. Explain unavailable registration settings to participants while preserving the authorized event edit route.

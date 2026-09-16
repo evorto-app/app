@@ -3,6 +3,7 @@ import {
   includesPermission,
   type Permission,
 } from '@shared/permissions/permissions';
+import { MAX_REGISTRATION_QUESTIONS } from '@shared/registration-question-limits';
 import {
   EventConflictError,
   EventNotFoundError,
@@ -596,6 +597,26 @@ export const eventQueryHandlers = {
                   asc(eventRegistrationQuestions.id),
                 ),
             );
+      const questionsByRegistrationOptionId = groupBy(
+        eventQuestionRows.toSorted((left, right) => {
+          if (left.sortOrder !== right.sortOrder) {
+            return left.sortOrder - right.sortOrder;
+          }
+
+          return left.title.localeCompare(right.title);
+        }),
+        (question) => question.registrationOptionId,
+      );
+      if (
+        Object.values(questionsByRegistrationOptionId).some(
+          (questions) => questions.length > MAX_REGISTRATION_QUESTIONS,
+        )
+      ) {
+        return yield* new EventConflictError({
+          message:
+            'Registration is unavailable because its sign-up questions need to be corrected. Contact the organizer.',
+        });
+      }
       const registrationOptionTaxRateIds = [
         ...new Set(
           event.registrationOptions
@@ -666,16 +687,6 @@ export const eventQueryHandlers = {
       );
       const esnCardDiscountedPriceByOptionId =
         getEsnCardDiscountedPriceByOptionId(optionDiscounts);
-      const questionsByRegistrationOptionId = groupBy(
-        eventQuestionRows.toSorted((left, right) => {
-          if (left.sortOrder !== right.sortOrder) {
-            return left.sortOrder - right.sortOrder;
-          }
-
-          return left.title.localeCompare(right.title);
-        }),
-        (question) => question.registrationOptionId,
-      );
       const addOnsById = new Map<
         string,
         {

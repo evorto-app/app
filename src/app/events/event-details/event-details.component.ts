@@ -332,6 +332,15 @@ export class EventDetailsComponent {
   protected readonly eventQuery = injectQuery(() =>
     this.operations.findEvent(this.eventId()),
   );
+  protected readonly registrationUnavailable = computed(() => {
+    const error = this.eventQuery.error();
+    return (
+      error !== null &&
+      typeof error === 'object' &&
+      '_tag' in error &&
+      error._tag === 'EventConflictError'
+    );
+  });
   protected readonly selfQery = injectQuery(() => this.operations.self());
   private readonly isEventCreator = computed(() => {
     const event = this.eventQuery.data();

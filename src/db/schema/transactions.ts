@@ -16,6 +16,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { Schema } from 'effect';
 
+import { MAX_STRIPE_CHECKOUT_LINE_ITEMS } from '../../shared/registration-quantity-limits';
 import { eventInstances } from './event-instances';
 import { eventRegistrations } from './event-registrations';
 import { modelOfTenant } from './model';
@@ -69,7 +70,9 @@ export const RegistrationCheckoutSnapshotSchema = Schema.Struct({
   eventTitle: Schema.String,
   eventUrl: Schema.String,
   expiresAt: Schema.Number,
-  lineItems: Schema.Array(RegistrationCheckoutLineItemSnapshotSchema),
+  lineItems: Schema.Array(RegistrationCheckoutLineItemSnapshotSchema).check(
+    Schema.isMaxLength(MAX_STRIPE_CHECKOUT_LINE_ITEMS),
+  ),
   notificationEmail: Schema.String,
 });
 
