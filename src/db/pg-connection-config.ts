@@ -44,17 +44,35 @@ const validatePoolSettings = (
   return pool;
 };
 
+const normalizeDatabaseHostname = (hostname: string): string => {
+  if (!hostname.includes('[') && !hostname.includes(']')) return hostname;
+  const unbracketed = hostname.slice(1, -1);
+  if (
+    hostname.startsWith('[') &&
+    hostname.endsWith(']') &&
+    isIP(unbracketed) === 6
+  ) {
+    return unbracketed;
+  }
+  throw new Error(
+    'Database TLS identity brackets must contain one valid IPv6 address',
+  );
+};
+
 const databaseConnectionUrl = (databaseUrl: string): string => {
   const parsedUrl = new URL(databaseUrl);
+  const host =
+    parsedUrl.searchParams.getAll('host').at(-1) || parsedUrl.hostname;
   if (
-    !parsedUrl.hostname.startsWith('[') ||
-    parsedUrl.searchParams.getAll('host').at(-1)
+    !host.startsWith('[') ||
+    !host.endsWith(']') ||
+    isIP(host.slice(1, -1)) !== 6
   ) {
     return databaseUrl;
   }
 
   // pg preserves URL brackets but honors an explicit host query parameter.
-  parsedUrl.searchParams.set('host', parsedUrl.hostname.slice(1, -1));
+  parsedUrl.searchParams.set('host', host.slice(1, -1));
   return parsedUrl.toString();
 };
 
@@ -81,8 +99,9 @@ const databaseServerIdentity = (
   }
 
   const host =
-    parsedUrl.searchParams.getAll('host').at(-1) || parsedUrl.hostname;
-  return tlsServerName || host.replaceAll(/^\[|\]$/gu, '');
+    parsedUrl.searchParams.getAll('host').at(-1) ||
+    decodeURIComponent(parsedUrl.hostname);
+  return normalizeDatabaseHostname(tlsServerName || host);
 };
 
 const createDatabaseTlsOptions = (
@@ -100,8 +119,7 @@ const createDatabaseTlsOptions = (
     checkServerIdentity: (_hostname, certificate) =>
       checkServerIdentity(identity, certificate),
     rejectUnauthorized: true,
-    ...(tlsServerName &&
-      isIP(tlsServerName) === 0 && { servername: tlsServerName }),
+    ...(tlsServerName && isIP(identity) === 0 && { servername: identity }),
   };
 };
 

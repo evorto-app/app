@@ -61,6 +61,27 @@ describe('pg-connection-config', () => {
     );
   }
 
+  for (const [name, create] of [
+    ['node', createNodePgPoolConfig],
+    ['effect', createPgClientConfig],
+  ] as const) {
+    it.each([
+      '[db.example.test]',
+      'db.example.test]',
+      '[db.example.test',
+      '[[2001:db8::2]]',
+    ])(
+      `rejects malformed or non-IP bracketed TLS identities in ${name}: %s`,
+      (tlsServerName) => {
+        expect(() =>
+          create({ caCertificate: 'fixture-ca', databaseUrl, tlsServerName }),
+        ).toThrow(
+          'Database TLS identity brackets must contain one valid IPv6 address',
+        );
+      },
+    );
+  }
+
   it('preserves every nonblank CA byte in both shared constructors', () => {
     const caCertificate =
       '\n-----BEGIN CERTIFICATE-----\nca\n-----END CERTIFICATE-----\n';
@@ -216,6 +237,12 @@ describe('pg-connection-config', () => {
       subjectaltname: 'IP Address:2001:db8:0:0:0:0:0:2',
       tlsServerName: '2001:db8::2',
     },
+    {
+      identity: 'a bracketed IPv6 override without SNI',
+      servername: undefined,
+      subjectaltname: 'IP Address:2001:db8:0:0:0:0:0:2',
+      tlsServerName: '[2001:db8::2]',
+    },
   ])(
     'verifies IP-SAN connections against $identity',
     ({ servername, subjectaltname, tlsServerName }) => {
@@ -251,6 +278,64 @@ describe('pg-connection-config', () => {
           ssl.checkServerIdentity(
             '::1',
             identityCertificate('IP Address:2001:db8:0:0:0:0:0:3'),
+          ),
+        ).toBeInstanceOf(Error);
+      }
+    },
+  );
+
+  it.each([
+    {
+      databaseUrl: 'postgresql://fixture:fixture@data%62ase.example:5432/appdb',
+      host: 'database.example',
+      san: 'DNS:database.example',
+    },
+    {
+      databaseUrl:
+        'postgresql://fixture:fixture@localhost:5432/appdb?host=%5B2001%3Adb8%3A%3A2%5D',
+      host: '2001:db8::2',
+      san: 'IP Address:2001:db8:0:0:0:0:0:2',
+    },
+  ])(
+    'connects and verifies the same normalized host $host in both clients',
+    ({ databaseUrl, host, san }) => {
+      const node = createNodePgPoolConfig({
+        caCertificate: 'fixture-ca',
+        databaseUrl,
+      });
+      const effect = createPgClientConfig({
+        caCertificate: 'fixture-ca',
+        databaseUrl,
+      });
+      if (!effect.url) throw new Error('Expected the Effect PostgreSQL URL');
+      const clients = [
+        { client: new Client(node), ssl: node.ssl },
+        {
+          client: new Client({
+            connectionString: Redacted.value(effect.url),
+            ssl: effect.ssl,
+          }),
+          ssl: effect.ssl,
+        },
+      ];
+      for (const { client, ssl } of clients) {
+        expect(client.host).toBe(host);
+        expect(client.ssl).toBe(ssl);
+        if (
+          typeof ssl !== 'object' ||
+          ssl === null ||
+          !ssl.checkServerIdentity
+        ) {
+          throw new Error('Expected PostgreSQL TLS identity verification');
+        }
+        expect(ssl.servername).toBeUndefined();
+        expect(
+          ssl.checkServerIdentity('ignored', identityCertificate(san)),
+        ).toBeUndefined();
+        expect(
+          ssl.checkServerIdentity(
+            host,
+            identityCertificate('DNS:wrong.example'),
           ),
         ).toBeInstanceOf(Error);
       }

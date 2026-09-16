@@ -23,3 +23,14 @@ and certificate identity. Reject a supplied blank CA before any raw ops entrypoi
 connects, including when verified TLS is optional, without trimming valid PEM.
 Recover missing sign-in transactions with the same explicit callback failure
 response while retaining unexpected SDK failures as defects.
+
+Use a supplied CA for managed schema operations even when TLS is optional, and
+normalize IPv6 certificate identities before verification or SNI. Keep effective
+connection hosts, port/user/password overrides, and database pathname decoding
+consistent with the pinned PostgreSQL driver. Managed URLs with a CA now reject
+unsupported query settings instead of silently dropping them; URL credentials
+remain explicit, with no ambient PostgreSQL credential fallback.
+
+Reject malformed or non-IPv6 bracketed TLS identities instead of repairing them
+into DNS names. Keep authentication configuration consistent with client origin
+validation by rejecting explicit empty ports while preserving supported ports.

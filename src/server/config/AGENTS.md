@@ -18,12 +18,31 @@
   use HTTP for local loopback development. Validate the raw origin shape before
   accepting URL normalization: allow only the authority and an optional trailing
   slash, with no paths, dot segments, query/fragment markers, backslashes,
-  credentials, or internal whitespace. Surrounding whitespace is trimmed.
+  credentials, empty explicit ports, or internal whitespace. Surrounding whitespace
+  is trimmed.
 - A provided database CA certificate must be nonblank even when
   `DATABASE_TLS_REQUIRED=false`; preserve its PEM bytes. Shared PostgreSQL
   constructors and raw ops entrypoints enforce this before creating a pool.
   When configuring a CA, keep SSL settings out of `DATABASE_URL` so they cannot
   override certificate and server-name verification in the PostgreSQL driver.
+- Managed schema operations also use a supplied CA when TLS is optional. Explicit
+  bracketed IPv6 TLS identities are unwrapped for IP-SAN checks and omitted from
+  SNI. Only one complete pair around a valid IPv6 address may be unwrapped;
+  malformed brackets and bracketed DNS identities fail configuration validation.
+  IPv6 connection hosts and certificate identities use the same normalized
+  effective host in both PostgreSQL clients.
+- With a CA, managed Drizzle URLs support only `host`, `port`, `user`, and
+  `password` query options. Match the pinned PostgreSQL parser: the final value
+  wins, and an empty final value uses the authority value. Decode the database
+  pathname like that parser; `database` is not a query override. Reject other
+  query options explicitly, including session options, rather than silently
+  dropping settings such as `options=-c search_path=...`. This tightens the
+  managed URL contract; move necessary session configuration to an explicit
+  database-role policy before running schema operations.
+- Managed schema credentials require a host, user, password, and database in the
+  URL. The effective port must be an integer from 1 through 65535 and defaults
+  to 5432. These values never fall back to ambient `PG*` variables. Without a CA,
+  optional-TLS Drizzle commands retain their existing driver URL configuration.
 
 ## Effect Config Shape
 

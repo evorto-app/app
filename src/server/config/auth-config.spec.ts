@@ -149,6 +149,14 @@ describe('auth-config', () => {
 
   for (const field of ['BASE_URL', 'ISSUER_BASE_URL'] as const) {
     for (const rawOrigin of [
+      'https://app.example:',
+      'https://app.example:/',
+      'https://localhost:',
+      'https://localhost:/',
+      'https://127.0.0.1:',
+      'https://127.0.0.1:/',
+      'https://[::1]:',
+      'https://[::1]:/',
       'https://app.example/.',
       'https://app.example/..',
       'https://app.example/a/..',
@@ -186,6 +194,30 @@ describe('auth-config', () => {
       );
     }
   }
+
+  it.effect.each([
+    'http://localhost:',
+    'http://localhost:/',
+    'http://127.0.0.1:',
+    'http://127.0.0.1:/',
+    'http://[::1]:',
+    'http://[::1]:/',
+  ])('rejects an empty local BASE_URL port: %s', (baseUrl) =>
+    Effect.gen(function* () {
+      const error = yield* Effect.flip(
+        authConfig.parse(
+          providerFromEnvironment({
+            APP_ENVIRONMENT: 'local',
+            BASE_URL: baseUrl,
+          }),
+        ),
+      );
+      expect(error).toBeInstanceOf(Config.ConfigError);
+      expect(error.message).toContain(
+        'Expected BASE_URL to be an absolute http(s) origin',
+      );
+    }),
+  );
 
   it.effect(
     'retains IPv6, default-port, and trailing-slash normalization',
