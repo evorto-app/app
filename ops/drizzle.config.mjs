@@ -69,10 +69,15 @@ const managedDatabaseCredentials = () => {
   }
 
   const database = decodeURI(parsedUrl.pathname.slice(1));
-  const host = normalizeDatabaseHostname(
+  const effectiveHost =
     parsedUrl.searchParams.getAll("host").at(-1) ||
-      decodeURIComponent(parsedUrl.hostname),
-  );
+    decodeURIComponent(parsedUrl.hostname);
+  if (!effectiveHost || effectiveHost.startsWith("/")) {
+    throw new Error(
+      "DATABASE_URL must identify a TCP PostgreSQL host when a CA is configured",
+    );
+  }
+  const host = normalizeDatabaseHostname(effectiveHost);
   const user =
     parsedUrl.searchParams.getAll("user").at(-1) ||
     decodeURIComponent(parsedUrl.username);

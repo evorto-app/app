@@ -529,3 +529,89 @@ await assert.rejects(import(${JSON.stringify(configUrl)}), {
     },
   );
 });
+
+describe.each(['true', 'false'])(
+  'managed PostgreSQL transport with DATABASE_TLS_REQUIRED=%s',
+  (tlsRequired) => {
+    it.each([
+      'postgresql:///appdb?host=database.example&user=fixture&password=fixture',
+      'postgresql:///appdb?host=%2Ftmp&host=database.example&user=fixture&password=fixture',
+    ])(
+      'accepts a final TCP query host without an authority: %s',
+      (databaseUrl) => {
+        const result = spawnSync(
+          'node',
+          [
+            '--input-type=module',
+            '--eval',
+            `
+import assert from 'node:assert/strict';
+import { Client } from 'pg';
+import config from ${JSON.stringify(configUrl)};
+const expected = new Client({ connectionString: process.env.DATABASE_URL });
+const actual = new Client(config.dbCredentials);
+for (const field of ['host', 'port', 'user', 'password', 'database']) {
+  assert.equal(actual[field], expected[field], field);
+}
+assert.equal(actual.host, 'database.example');
+assert.equal(config.dbCredentials.ssl.rejectUnauthorized, true);
+assert.equal(config.dbCredentials.ssl.checkServerIdentity('ignored', { subjectaltname: 'DNS:database.example' }), undefined);
+assert.ok(config.dbCredentials.ssl.checkServerIdentity('ignored', { subjectaltname: 'DNS:other.example' }) instanceof Error);
+`,
+          ],
+          {
+            encoding: 'utf8',
+            env: {
+              DATABASE_TLS_CA_CERTIFICATE: 'fixture-ca',
+              DATABASE_TLS_REQUIRED: tlsRequired,
+              DATABASE_URL: databaseUrl,
+              PATH: process.env['PATH'],
+            },
+            timeout: 5000,
+          },
+        );
+        expect(result.error).toBeUndefined();
+        expect(result.signal).toBeNull();
+        expect(result.status, result.stderr).toBe(0);
+      },
+    );
+
+    it.each([
+      'postgresql://fixture:fixture@localhost/appdb?host=%2Fvar%2Frun%2Fpostgresql',
+      'postgresql:///appdb?host=database.example&host=%2Fvar%2Frun%2Fpostgresql&user=fixture&password=fixture',
+      'postgresql://fixture:fixture@%2Fvar%2Frun%2Fpostgresql/appdb',
+      'postgresql:///appdb?host=database.example&host=&user=fixture&password=fixture',
+    ])(
+      'rejects a socket or missing effective host even with a TLS name: %s',
+      (databaseUrl) => {
+        for (const tlsServerName of ['', 'certificate.example']) {
+          const result = spawnSync(
+            'node',
+            [
+              '--input-type=module',
+              '--eval',
+              `
+import assert from 'node:assert/strict';
+await assert.rejects(import(${JSON.stringify(configUrl)}), /must identify a TCP PostgreSQL host/);
+`,
+            ],
+            {
+              encoding: 'utf8',
+              env: {
+                DATABASE_TLS_CA_CERTIFICATE: 'fixture-ca',
+                DATABASE_TLS_REQUIRED: tlsRequired,
+                DATABASE_TLS_SERVER_NAME: tlsServerName,
+                DATABASE_URL: databaseUrl,
+                PATH: process.env['PATH'],
+              },
+              timeout: 5000,
+            },
+          );
+          expect(result.error).toBeUndefined();
+          expect(result.signal).toBeNull();
+          expect(result.status, result.stderr).toBe(0);
+        }
+      },
+    );
+  },
+);

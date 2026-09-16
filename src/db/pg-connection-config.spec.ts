@@ -204,6 +204,11 @@ describe('pg-connection-config', () => {
     it.each([
       { database: 'fixture-user', databaseUrl: '/var/run/postgresql' },
       {
+        database: 'appdb',
+        databaseUrl:
+          'postgresql://fixture:fixture@ignored/appdb?host=%2Fvar%2Frun%2Fpostgresql',
+      },
+      {
         database: 'socket-database',
         databaseUrl: '/var/run/postgresql socket-database',
       },
@@ -232,7 +237,14 @@ describe('pg-connection-config', () => {
     ['node', createNodePgPoolConfig],
     ['effect', createPgClientConfig],
   ] as const) {
-    it.each(['/var/run/postgresql', '/var/run/postgresql socket-database'])(
+    it.each([
+      '/var/run/postgresql',
+      '/var/run/postgresql socket-database',
+      'postgresql://fixture:fixture@localhost/appdb?host=%2Fvar%2Frun%2Fpostgresql',
+      'postgresql:///appdb?host=ignored.example&host=%2Fvar%2Frun%2Fpostgresql',
+      'postgresql://fixture:fixture@%2Fvar%2Frun%2Fpostgresql/appdb',
+      'postgresql:///appdb',
+    ])(
       `rejects raw socket paths with a configured CA for ${name}: %s`,
       (databaseUrl) => {
         for (const tlsServerName of [undefined, 'database.example']) {
@@ -442,6 +454,21 @@ describe('pg-connection-config', () => {
   );
 
   it.each([
+    {
+      databaseUrl: 'postgresql:///appdb?host=database.example',
+      host: 'database.example',
+      san: 'DNS:database.example',
+    },
+    {
+      databaseUrl: 'postgresql:///appdb?host=%2Ftmp&host=database.example',
+      host: 'database.example',
+      san: 'DNS:database.example',
+    },
+    {
+      databaseUrl: 'postgresql:///appdb?host=%5B2001%3Adb8%3A%3A2%5D',
+      host: '2001:db8::2',
+      san: 'IP Address:2001:db8:0:0:0:0:0:2',
+    },
     {
       databaseUrl: 'postgresql://fixture:fixture@data%62ase.example:5432/appdb',
       host: 'database.example',

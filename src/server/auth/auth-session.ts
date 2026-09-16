@@ -5,7 +5,6 @@ import {
   MissingTransactionError,
   ServerClient,
   type ServerClientOptions,
-  type SessionData,
   StatelessStateStore,
 } from '@auth0/auth0-server-js';
 import { Duration, Effect, Option, Redacted, Schema } from 'effect';
@@ -308,24 +307,37 @@ const invalidAuthSession = (
   message: string,
 ) => new InvalidAuthSessionError({ message, reason });
 
+const isPrimaryTokenSet = Schema.is(
+  Schema.Struct({
+    accessToken: Schema.NonEmptyString,
+    audience: Schema.String,
+    expiresAt: Schema.Finite,
+    scope: Schema.optional(Schema.String),
+  }),
+);
+
 export const toAuthSession = (
-  sessionData: SessionData | undefined,
+  sessionData: unknown,
 ): Effect.Effect<AuthSession | undefined, InvalidAuthSessionError> => {
   if (sessionData === undefined) {
     return Effect.succeed(undefined);
   }
 
-  const primaryTokenSet = sessionData.tokenSets[0];
-  if (!primaryTokenSet) {
+  const session = toRecord(sessionData);
+  const tokenSets = session?.['tokenSets'];
+  const primaryTokenSet: unknown = Array.isArray(tokenSets)
+    ? tokenSets[0]
+    : undefined;
+  if (!isPrimaryTokenSet(primaryTokenSet)) {
     return Effect.fail(
       invalidAuthSession(
         'missing-primary-token-set',
-        'Auth0 returned a session without its primary token set',
+        'Auth0 returned a session without a valid primary token set',
       ),
     );
   }
 
-  const authData = toRecord(sessionData.user);
+  const authData = toRecord(session?.['user']);
   if (!authData) {
     return Effect.fail(
       invalidAuthSession(

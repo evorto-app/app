@@ -85,9 +85,8 @@ const databaseServerIdentity = (
 ): string => {
   const parsedUrl = new URL(databaseUrl);
   if (
-    (parsedUrl.protocol !== 'postgresql:' &&
-      parsedUrl.protocol !== 'postgres:') ||
-    !parsedUrl.hostname
+    parsedUrl.protocol !== 'postgresql:' &&
+    parsedUrl.protocol !== 'postgres:'
   ) {
     throw new Error('DATABASE_URL must identify a PostgreSQL host');
   }
@@ -104,6 +103,11 @@ const databaseServerIdentity = (
   const host =
     parsedUrl.searchParams.getAll('host').at(-1) ||
     decodeURIComponent(parsedUrl.hostname);
+  if (!host || host.startsWith('/')) {
+    throw new Error(
+      'DATABASE_URL must identify a TCP PostgreSQL host when a CA is configured',
+    );
+  }
   return normalizeDatabaseHostname(tlsServerName || host);
 };
 

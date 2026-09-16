@@ -1,5 +1,3 @@
-import type { SessionData } from '@auth0/auth0-server-js';
-
 import { describe, expect, it } from '@effect/vitest';
 import { Cause, Effect, Exit, Layer } from 'effect';
 import {
@@ -38,7 +36,47 @@ const makeTestHandler = Effect.fn('makeTestHandler')(function* (
 });
 
 describe('server response middleware', () => {
-  const invalidSessions: readonly SessionData[] = [
+  const invalidSessions: readonly unknown[] = [
+    null,
+    false,
+    'invalid-session',
+    [],
+    {},
+    { user: { sub: 'fixture-user' } },
+    { tokenSets: null, user: { sub: 'fixture-user' } },
+    { tokenSets: 'invalid', user: { sub: 'fixture-user' } },
+    { tokenSets: { 0: {} }, user: { sub: 'fixture-user' } },
+    { tokenSets: [null], user: { sub: 'fixture-user' } },
+    { tokenSets: [[]], user: { sub: 'fixture-user' } },
+    { tokenSets: ['invalid'], user: { sub: 'fixture-user' } },
+    { tokenSets: [{}], user: { sub: 'fixture-user' } },
+    {
+      tokenSets: [{ accessToken: '', audience: 'default', expiresAt: 0 }],
+      user: { sub: 'fixture-user' },
+    },
+    {
+      tokenSets: [
+        { accessToken: 'fixture', audience: 'default', expiresAt: '0' },
+      ],
+      user: { sub: 'fixture-user' },
+    },
+    {
+      tokenSets: [
+        { accessToken: 'fixture', audience: 'default', expiresAt: NaN },
+      ],
+      user: { sub: 'fixture-user' },
+    },
+    {
+      tokenSets: [
+        {
+          accessToken: 'fixture',
+          audience: 'default',
+          expiresAt: 0,
+          scope: [],
+        },
+      ],
+      user: { sub: 'fixture-user' },
+    },
     {
       idToken: 'fixture-id-token',
       refreshToken: undefined,
@@ -161,7 +199,8 @@ describe('server response middleware', () => {
     () =>
       Effect.gen(function* () {
         const session = invalidSessions[0];
-        if (!session) throw new Error('Expected invalid session fixture');
+        if (session === undefined)
+          throw new Error('Expected invalid session fixture');
         const { handler } = yield* makeTestHandler(
           HttpRouter.add(
             'POST',

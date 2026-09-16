@@ -53,3 +53,8 @@ validation. Other malformed non-URL connection strings remain rejected.
 Recover invalid decoded sign-in sessions with a non-cacheable sign-in response
 and expire only their session cookies. Keep unexpected identity-provider failures
 on the existing server-error path.
+
+Validate decoded session containers and primary token-set shapes before reading
+them, so malformed stored values receive the same explicit sign-in recovery.
+Use the effective PostgreSQL query host even without a URL authority, and reject
+Unix-socket hosts whenever a CA is supplied, including explicit TLS-name overrides.
