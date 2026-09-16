@@ -507,7 +507,7 @@ describe('evaluateRuntimePreflight', () => {
     expect(evortoService).not.toContain('command:');
     expect(workerService).not.toContain('command:');
 
-    expect(mailpitService).toContain('axllent/mailpit:v1.28.2@sha256:');
+    expect(mailpitService).toContain('axllent/mailpit:v1.31.1@sha256:');
     expect(mailpitService).toContain('MAILPIT_HOST_PORT');
     expect(mailpitService).toContain(
       '"127.0.0.1:${MAILPIT_HOST_PORT:?MAILPIT_HOST_PORT is required}:8025"',
