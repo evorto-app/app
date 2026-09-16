@@ -2,50 +2,16 @@ const platformAdministratorClaim = 'platformAdministrator';
 
 export interface PlatformAdministratorClaimFixtureClient {
   readAppMetadata: () => Promise<Record<string, unknown> | undefined>;
-  updateAppMetadata: (metadata: Record<string, unknown>) => Promise<void>;
 }
 
-export const preparePlatformAdministratorClaim = async (
+export const requirePlatformAdministratorClaim = async (
   client: PlatformAdministratorClaimFixtureClient,
-): Promise<() => Promise<void>> => {
-  const appMetadata = (await client.readAppMetadata()) ?? {};
-  const claimWasPresent = Object.hasOwn(
-    appMetadata,
-    platformAdministratorClaim,
-  );
-  const previousClaim = appMetadata[platformAdministratorClaim];
+): Promise<void> => {
+  const appMetadata = await client.readAppMetadata();
 
-  if (previousClaim === true) {
-    return async () => {};
+  if (appMetadata?.[platformAdministratorClaim] !== true) {
+    throw new Error(
+      'The dedicated Auth0 administrator test account must be preconfigured with app_metadata.platformAdministrator=true by an authorized owner. Authenticated tests never grant or revoke administrator access.',
+    );
   }
-
-  let restored = false;
-  const restore = async () => {
-    if (restored) return;
-
-    await client.updateAppMetadata({
-      [platformAdministratorClaim]: claimWasPresent ? previousClaim : null,
-    });
-    restored = true;
-  };
-
-  try {
-    await client.updateAppMetadata({
-      [platformAdministratorClaim]: true,
-    });
-  } catch (enableError) {
-    try {
-      await restore();
-    } catch (restoreError) {
-      throw new AggregateError(
-        [enableError, restoreError],
-        'Failed to enable and restore the platform administrator claim',
-        { cause: restoreError },
-      );
-    }
-
-    throw enableError;
-  }
-
-  return restore;
 };

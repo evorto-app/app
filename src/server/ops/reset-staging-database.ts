@@ -22,7 +22,7 @@ if (tlsRequiredValue !== 'true' && tlsRequiredValue !== 'false') {
 const tlsRequired = tlsRequiredValue === 'true';
 const caCertificate = process.env['DATABASE_TLS_CA_CERTIFICATE'];
 const tlsServerName = process.env['DATABASE_TLS_SERVER_NAME'];
-if (tlsRequired && !caCertificate) {
+if (tlsRequired && !caCertificate?.trim()) {
   throw new Error(
     'DATABASE_TLS_CA_CERTIFICATE is required when DATABASE_TLS_REQUIRED=true',
   );

@@ -1,3 +1,5 @@
+import type { PeerCertificate } from 'node:tls';
+
 import { describe, expect, it } from '@effect/vitest';
 import { Redacted } from 'effect';
 import { Client } from 'pg';
@@ -6,6 +8,23 @@ import {
   createNodePgPoolConfig,
   createPgClientConfig,
 } from './pg-connection-config';
+
+const identityCertificate = (subjectaltname: string): PeerCertificate => {
+  const distinguishedName = { C: '', CN: '', L: '', O: '', OU: '', ST: '' };
+  return {
+    ca: false,
+    fingerprint: '',
+    fingerprint256: '',
+    fingerprint512: '',
+    issuer: distinguishedName,
+    raw: Buffer.alloc(0),
+    serialNumber: '01',
+    subject: distinguishedName,
+    subjectaltname,
+    valid_from: 'Jan 1 00:00:00 2026 GMT',
+    valid_to: 'Jan 1 00:00:00 2036 GMT',
+  };
+};
 
 const expectVerifiedTlsOptions = (
   ssl: unknown,
@@ -152,6 +171,66 @@ describe('pg-connection-config', () => {
       }
     }
   });
+
+  it.each([
+    {
+      identity: 'the IPv6 connection host',
+      servername: undefined,
+      subjectaltname: 'IP Address:0:0:0:0:0:0:0:1',
+      tlsServerName: undefined,
+    },
+    {
+      identity: 'an explicit DNS identity and SNI',
+      servername: 'database.example',
+      subjectaltname: 'DNS:database.example',
+      tlsServerName: 'database.example',
+    },
+    {
+      identity: 'an explicit IPv6 identity without SNI',
+      servername: undefined,
+      subjectaltname: 'IP Address:2001:db8:0:0:0:0:0:2',
+      tlsServerName: '2001:db8::2',
+    },
+  ])(
+    'verifies IP-SAN connections against $identity',
+    ({ servername, subjectaltname, tlsServerName }) => {
+      const caCertificate =
+        '\n-----BEGIN CERTIFICATE-----\nca\n-----END CERTIFICATE-----\n';
+      for (const buildConfig of [
+        createNodePgPoolConfig,
+        createPgClientConfig,
+      ]) {
+        const ssl = buildConfig({
+          caCertificate,
+          databaseUrl: 'postgresql://evorto:local@[::1]:5432/appdb',
+          tlsServerName,
+        }).ssl;
+        if (
+          typeof ssl !== 'object' ||
+          ssl === null ||
+          !ssl.checkServerIdentity
+        ) {
+          throw new Error('Expected PostgreSQL TLS identity verification');
+        }
+
+        expect(ssl.ca).toBe(caCertificate);
+        expect(ssl.rejectUnauthorized).toBe(true);
+        expect(ssl.servername).toBe(servername);
+        expect(
+          ssl.checkServerIdentity(
+            'ignored-driver-host.example',
+            identityCertificate(subjectaltname),
+          ),
+        ).toBeUndefined();
+        expect(
+          ssl.checkServerIdentity(
+            '::1',
+            identityCertificate('IP Address:2001:db8:0:0:0:0:0:3'),
+          ),
+        ).toBeInstanceOf(Error);
+      }
+    },
+  );
 
   it('retains verified TLS after the PostgreSQL driver parses each client configuration', () => {
     const caCertificate =

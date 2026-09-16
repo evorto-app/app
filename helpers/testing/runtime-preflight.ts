@@ -46,12 +46,12 @@ const e2eTestAccountPasswordVariables = e2eTestUserPasswordVariables.map(
 const auth0ManagementVariables = [
   {
     description:
-      'Auth0 Management client id for reversible authenticated test identities',
+      'Auth0 Management client id for authenticated test identity checks',
     name: 'AUTH0_MANAGEMENT_CLIENT_ID',
   },
   {
     description:
-      'Auth0 Management secret for reversible authenticated test identities',
+      'Auth0 Management secret for authenticated test identity checks',
     name: 'AUTH0_MANAGEMENT_CLIENT_SECRET',
   },
 ] satisfies RequiredVariable[];

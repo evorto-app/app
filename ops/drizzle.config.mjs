@@ -17,7 +17,7 @@ const tlsRequired = tlsRequiredValue === "true";
 const caCertificate = process.env.DATABASE_TLS_CA_CERTIFICATE;
 const tlsServerName = process.env.DATABASE_TLS_SERVER_NAME;
 
-if (tlsRequired && !caCertificate) {
+if (tlsRequired && !caCertificate?.trim()) {
   throw new Error(
     "DATABASE_TLS_CA_CERTIFICATE is required for managed schema operations",
   );
@@ -33,18 +33,19 @@ const managedDatabaseCredentials = () => {
   }
 
   const database = decodeURIComponent(parsedUrl.pathname.replace(/^\/+/, ""));
+  const host = parsedUrl.hostname.replace(/^\[|\]$/gu, "");
   const user = decodeURIComponent(parsedUrl.username);
   const password = decodeURIComponent(parsedUrl.password);
-  if (!parsedUrl.hostname || !database || !user || !password) {
+  if (!host || !database || !user || !password) {
     throw new Error(
       "DATABASE_URL must include host, database, user, and password for managed schema operations",
     );
   }
-  const serverIdentity = tlsServerName || parsedUrl.hostname;
+  const serverIdentity = tlsServerName || host;
 
   return {
     database,
-    host: parsedUrl.hostname,
+    host,
     password,
     port: parsedUrl.port ? Number(parsedUrl.port) : 5432,
     ssl: {

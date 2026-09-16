@@ -44,6 +44,20 @@ const validatePoolSettings = (
   return pool;
 };
 
+const databaseConnectionUrl = (databaseUrl: string): string => {
+  const parsedUrl = new URL(databaseUrl);
+  if (
+    !parsedUrl.hostname.startsWith('[') ||
+    parsedUrl.searchParams.getAll('host').at(-1)
+  ) {
+    return databaseUrl;
+  }
+
+  // pg preserves URL brackets but honors an explicit host query parameter.
+  parsedUrl.searchParams.set('host', parsedUrl.hostname.slice(1, -1));
+  return parsedUrl.toString();
+};
+
 const databaseServerIdentity = (
   databaseUrl: string,
   tlsServerName?: string,
@@ -66,7 +80,9 @@ const databaseServerIdentity = (
     );
   }
 
-  return tlsServerName || parsedUrl.hostname;
+  const host =
+    parsedUrl.searchParams.getAll('host').at(-1) || parsedUrl.hostname;
+  return tlsServerName || host.replaceAll(/^\[|\]$/gu, '');
 };
 
 const createDatabaseTlsOptions = (
@@ -106,7 +122,7 @@ export const createPgClientConfig = ({
       ssl: createDatabaseTlsOptions(caCertificate, databaseUrl, tlsServerName),
     }),
     types: pgTypes,
-    url: Redacted.make(databaseUrl),
+    url: Redacted.make(databaseConnectionUrl(databaseUrl)),
   };
 };
 
@@ -123,7 +139,7 @@ export const createNodePgPoolConfig = ({
 }): PoolConfig => {
   const boundedPool = validatePoolSettings(pool);
   return {
-    connectionString: databaseUrl,
+    connectionString: databaseConnectionUrl(databaseUrl),
     connectionTimeoutMillis: boundedPool.connectTimeoutMs,
     idleTimeoutMillis: boundedPool.idleTimeoutMs,
     max: boundedPool.max,

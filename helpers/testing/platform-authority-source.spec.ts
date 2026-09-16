@@ -53,7 +53,17 @@ describe('platform authority source', () => {
     for (const source of authoritySources) {
       expect(source).not.toContain(retiredAllowlistName);
     }
-    expect(setup).toContain('enablePlatformAdministratorClaim(');
+    const fixture = readSource('tests/support/fixtures/base-test.ts');
+    const claimFixture = readSource(
+      'tests/support/auth0/platform-administrator-claim-fixture.ts',
+    );
+    expect(setup).toContain('requirePlatformAdministratorClaim(');
+    expect(setup.indexOf('requirePlatformAdministratorClaim(')).toBeLessThan(
+      setup.indexOf("page.goto('/login'"),
+    );
+    expect(fixture).toContain('auth0.users.get(auth0Id)');
+    expect(fixture).not.toContain('auth0.users.update(');
+    expect(claimFixture).not.toContain('updateAppMetadata');
     expect(setup).toContain("page.goto('/global-admin/tenants')");
   });
 

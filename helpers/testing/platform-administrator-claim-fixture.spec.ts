@@ -1,106 +1,68 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { preparePlatformAdministratorClaim } from '../../tests/support/auth0/platform-administrator-claim-fixture';
+import { requirePlatformAdministratorClaim } from '../../tests/support/auth0/platform-administrator-claim-fixture';
 
 describe('platform administrator Auth0 claim fixture', () => {
-  it('sets the production metadata field and removes it after the test', async () => {
-    const updateAppMetadata = vi.fn(async () => {});
-    const restore = await preparePlatformAdministratorClaim({
-      readAppMetadata: async () => ({ existingSetting: 'kept' }),
-      updateAppMetadata,
-    });
-
-    expect(updateAppMetadata).toHaveBeenNthCalledWith(1, {
-      platformAdministrator: true,
-    });
-
-    await restore();
-    await restore();
-
-    expect(updateAppMetadata).toHaveBeenNthCalledWith(2, {
-      platformAdministrator: null,
-    });
-    expect(updateAppMetadata).toHaveBeenCalledTimes(2);
-  });
-
-  it('restores an existing non-authoritative value exactly', async () => {
-    const updateAppMetadata = vi.fn(async () => {});
-    const restore = await preparePlatformAdministratorClaim({
-      readAppMetadata: async () => ({ platformAdministrator: false }),
-      updateAppMetadata,
-    });
-
-    await restore();
-
-    expect(updateAppMetadata).toHaveBeenNthCalledWith(1, {
-      platformAdministrator: true,
-    });
-    expect(updateAppMetadata).toHaveBeenNthCalledWith(2, {
-      platformAdministrator: false,
-    });
-  });
-
-  it('does not mutate an identity that already has the production claim', async () => {
-    const updateAppMetadata = vi.fn(async () => {});
-    const restore = await preparePlatformAdministratorClaim({
-      readAppMetadata: async () => ({ platformAdministrator: true }),
-      updateAppMetadata,
-    });
-
-    await restore();
-
-    expect(updateAppMetadata).not.toHaveBeenCalled();
-  });
-
-  it('restores a claim when enabling changes the remote state and then rejects', async () => {
-    const enableError = new Error('The update response was lost');
-    let appMetadata: Record<string, unknown> = {
-      existingSetting: 'kept',
-      platformAdministrator: false,
+  it.each([
+    undefined,
+    {},
+    { platformAdministrator: false },
+    { platformAdministrator: null },
+    { platformAdministrator: 'true' },
+    { platformAdministrator: 1 },
+  ])('rejects an unconfigured administrator claim: %j', async (metadata) => {
+    const client = {
+      readAppMetadata: async () => metadata,
+      updateAppMetadata: vi.fn(async () => {}),
     };
-    const updateAppMetadata = vi.fn(
-      async (metadata: Record<string, unknown>) => {
-        appMetadata = { ...appMetadata, ...metadata };
-        if (metadata['platformAdministrator'] === true) throw enableError;
-      },
+
+    await expect(requirePlatformAdministratorClaim(client)).rejects.toThrow(
+      'must be preconfigured with app_metadata.platformAdministrator=true by an authorized owner',
     );
+    expect(client.updateAppMetadata).not.toHaveBeenCalled();
+  });
+
+  it('allows concurrent runs without changing their shared administrator claim', async () => {
+    const metadata = Object.freeze({
+      existingSetting: 'kept',
+      platformAdministrator: true,
+    });
+    const client = {
+      readAppMetadata: vi.fn(async () => metadata),
+      updateAppMetadata: vi.fn(async () => {}),
+    };
 
     await expect(
-      preparePlatformAdministratorClaim({
-        readAppMetadata: async () => appMetadata,
-        updateAppMetadata,
-      }),
-    ).rejects.toBe(enableError);
+      Promise.all([
+        requirePlatformAdministratorClaim(client),
+        requirePlatformAdministratorClaim(client),
+      ]),
+    ).resolves.toEqual([undefined, undefined]);
 
-    expect(appMetadata).toEqual({
+    expect(client.readAppMetadata).toHaveBeenCalledTimes(2);
+    expect(client.updateAppMetadata).not.toHaveBeenCalled();
+    expect(metadata).toEqual({
       existingSetting: 'kept',
-      platformAdministrator: false,
+      platformAdministrator: true,
     });
-    expect(updateAppMetadata).toHaveBeenCalledTimes(2);
-    expect(updateAppMetadata).toHaveBeenNthCalledWith(2, {
-      platformAdministrator: false,
-    });
+    await expect(
+      requirePlatformAdministratorClaim(client),
+    ).resolves.toBeUndefined();
+    expect(client.updateAppMetadata).not.toHaveBeenCalled();
   });
 
-  it('preserves both errors when enabling and rollback fail', async () => {
-    const enableError = new Error('Could not confirm the claim update');
-    const restoreError = new Error('Could not restore the claim');
-    const updateAppMetadata = vi
-      .fn<() => Promise<void>>()
-      .mockRejectedValueOnce(enableError)
-      .mockRejectedValueOnce(restoreError);
-    const preparation = preparePlatformAdministratorClaim({
-      readAppMetadata: async () => ({}),
-      updateAppMetadata,
-    });
+  it('preserves provider read failures without attempting a metadata write', async () => {
+    const readError = new Error('Could not read the configured test identity');
+    const client = {
+      readAppMetadata: vi
+        .fn<() => Promise<Record<string, unknown>>>()
+        .mockRejectedValue(readError),
+      updateAppMetadata: vi.fn(async () => {}),
+    };
 
-    await expect(preparation).rejects.toBeInstanceOf(AggregateError);
-    await expect(preparation).rejects.toMatchObject({
-      cause: restoreError,
-      errors: [enableError, restoreError],
-    });
-    expect(updateAppMetadata).toHaveBeenNthCalledWith(2, {
-      platformAdministrator: null,
-    });
+    await expect(requirePlatformAdministratorClaim(client)).rejects.toBe(
+      readError,
+    );
+    expect(client.updateAppMetadata).not.toHaveBeenCalled();
   });
 });

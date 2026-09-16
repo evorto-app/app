@@ -469,12 +469,12 @@ Playwright separates external-service coverage with dedicated projects:
 
 CI infers whether Google Maps credentials are required from the selected
 Playwright projects. Authenticated setup always requires the Auth0 Management
-test client so it can configure the stable administrator identity with the real
-production claim for login and then restore its previous metadata. If you
+test client so it can verify the dedicated administrator identity already has
+the real production claim before login. It never changes shared metadata. If you
 select `local-chrome-integration` or `docs-integration`, CI/runtime validation
 also demands the Google Maps credential. UI mode is intentionally baseline-only:
 it omits protected-input provider and account-creation tests, but its initial
-authenticated setup still uses the reversible administrator identity fixture.
+authenticated setup still verifies the dedicated administrator identity.
 CI baseline jobs set `E2E_SELECTED_PROJECTS` so Playwright worker processes
 that no longer expose the original CLI `--project` flags still use the
 baseline credential contract.
@@ -511,10 +511,14 @@ Required for full Playwright flows:
   Docker-provided `STRIPE_WEBHOOK_SECRET_FILE` path for app webhook verification
 
 The Auth0 test tenant's post-login action must copy `event.user.app_metadata`
-into the `evorto.app/app_metadata` ID-token claim. The administrator setup
-temporarily sets `platformAdministrator: true`, signs in, proves the resulting
-session can open an administrator page, and restores the prior metadata before
-the setup test ends. There is no local identity allowlist.
+into the `evorto.app/app_metadata` ID-token claim. The dedicated administrator
+account must already have an owner-approved `platformAdministrator: true`
+app-metadata field. Setup checks that field, signs in, and proves the resulting
+session can open an administrator page. Missing or non-boolean claims fail
+closed; tests never grant, revoke, or restore administrator access. This keeps
+overlapping CI workflows and local processes independent. Before provisioning
+the claim, drain older test runs that still mutate and restore this account's
+metadata. There is no local identity allowlist.
 
 The Docker stack can use `STRIPE_WEBHOOK_SECRET_FILE` for the app container
 instead of a static `STRIPE_WEBHOOK_SECRET`; the Compose-managed Stripe CLI
@@ -562,8 +566,8 @@ The ordinary `test:e2e`, `test:e2e:ui`, `test:e2e:integration`, and
 requires all six passwords and the Auth0 Management test client before
 Docker-backed test startup. `docker:check` does not require them, so starting
 the development stack remains independent of test-account custody. The
-management client needs `read:users` and `update:users_app_metadata` for
-the reversible administrator identity fixture. Account-creation integration
+management client needs `read:users` for the administrator identity check.
+Account-creation integration
 tests additionally need permission to create and delete their temporary users.
 
 Required in CI baseline docs/functional jobs:
@@ -588,7 +592,7 @@ Required for every live-provider run (but not for local Docker startup):
   Its credential preflight fails closed before Playwright starts when either
   identifier is absent. The dedicated `local-chrome-live-esncard` project does
   not require Google Maps credentials; its shared authenticated setup still
-  uses the reversible Auth0 administrator identity fixture.
+  verifies the dedicated Auth0 administrator identity.
 
 ### Production provider certification credential ownership and rotation
 

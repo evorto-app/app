@@ -44,7 +44,7 @@ const waitForRuntime = async (
 for (const userData of usersToAuthenticate) {
   setup(
     `authenticate ${userData.email}`,
-    async ({ enablePlatformAdministratorClaim, page }) => {
+    async ({ requirePlatformAdministratorClaim, page }) => {
       const runtime = await waitForRuntime();
 
       if (runtime.tenantDomain) {
@@ -60,7 +60,7 @@ for (const userData of usersToAuthenticate) {
       }
 
       if (userData.platformAdministrator) {
-        await enablePlatformAdministratorClaim(userData.authId);
+        await requirePlatformAdministratorClaim(userData.authId);
       }
 
       await page.goto('/login', { waitUntil: 'domcontentloaded' });

@@ -188,6 +188,61 @@ const runSeedHelper = ({
     },
   });
 
+describe('managed database TLS preflight', () => {
+  const entrypoints = [
+    'ops/drizzle.config.mjs',
+    'src/server/ops/database-prerequisites.ts',
+    'src/server/ops/reset-staging-database.ts',
+  ];
+  const environment = {
+    APP_ENVIRONMENT: 'staging',
+    DATABASE_RUNTIME_ROLE: 'evorto_runtime',
+    DATABASE_TLS_REQUIRED: 'true',
+    DATABASE_URL: 'postgresql://fixture:fixture@127.0.0.1:1/tls_fixture',
+    STAGING_RESET_CONFIRMATION: 'reset-and-seed-staging',
+  };
+
+  it.each(entrypoints)(
+    'rejects a whitespace-only CA before %s can connect',
+    (entrypoint) => {
+      const result = runDatabaseHelper({
+        entrypoint,
+        environment: {
+          ...environment,
+          DATABASE_TLS_CA_CERTIFICATE: ' \t\r\n ',
+        },
+      });
+
+      expect(result.status).not.toBe(0);
+      expect(result.output).toContain(
+        'DATABASE_TLS_CA_CERTIFICATE is required',
+      );
+      expect(result.attemptedConnection).toBe(false);
+    },
+  );
+
+  it.each(entrypoints)(
+    'accepts a nonblank CA before the connection guard for %s',
+    (entrypoint) => {
+      const result = runDatabaseHelper({
+        entrypoint,
+        environment: {
+          ...environment,
+          DATABASE_TLS_CA_CERTIFICATE:
+            '\n-----BEGIN CERTIFICATE-----\nfixture\n-----END CERTIFICATE-----\n',
+        },
+      });
+      const opensConnection = entrypoint !== 'ops/drizzle.config.mjs';
+
+      expect(result.status, result.output).toBe(opensConnection ? 86 : 0);
+      expect(result.attemptedConnection).toBe(opensConnection);
+      if (opensConnection) {
+        expect(result.output).toContain(connectionMarker);
+      }
+    },
+  );
+});
+
 describe('local database reset preflight', () => {
   it('rejects the reserved integration name before application reset connects', () => {
     const result = runDatabaseHelper({

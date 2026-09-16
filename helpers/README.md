@@ -190,14 +190,16 @@ Browser or Playwright runs only work when that exact callback URL is registered
 in Auth0. If the generated port is not registered, free port 4200 and start the
 stack with `APP_HOST_PORT=4200 bun run docker:start`.
 
-Authenticated Playwright setup uses the Auth0 Management test client to set
-`app_metadata.platformAdministrator` on the stable administrator identity for
-the duration of its login, then restores the previous value. The Auth0
+Authenticated Playwright setup uses the Auth0 Management test client to verify
+that the dedicated administrator account already has the owner-approved
+`app_metadata.platformAdministrator: true` claim. It never changes or restores
+shared metadata, so concurrent CI and local runs cannot revoke each other's
+authority. The Auth0
 post-login action must copy app metadata into the namespaced
 `evorto.app/app_metadata` session claim. Setup opens an administrator page
 before saving browser state, so a missing action or claim fails visibly instead
 of granting authority through a local override. The management client needs
-`read:users` and `update:users_app_metadata`; keep those credentials in the
+`read:users` for this check; keep those credentials in the
 ignored `.env` file.
 
 Run `bun run docker:check` before investigating Docker startup failures. The
