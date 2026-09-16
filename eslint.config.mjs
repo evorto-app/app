@@ -27,7 +27,7 @@ export default defineConfig(
   },
   {
     files: ["**/*.ts"],
-    ignores: ["old/**/*", "tests/**/*", ...toolingFiles],
+    ignores: ["tests/**/*", ...toolingFiles],
     extends: [baseConfig, ...angular.configs.tsRecommended],
     plugins: {
       "unused-imports": unusedImports,
