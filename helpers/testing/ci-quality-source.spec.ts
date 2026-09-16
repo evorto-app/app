@@ -223,6 +223,26 @@ describe('CI quality source', () => {
     expect(baselineWorkflow).toContain('!test-results/docs/**');
   });
 
+  it('keeps Copilot source review independent of credentials and application setup', () => {
+    const source = readSource('.github/workflows/copilot-code-review.yml');
+
+    expect(source).toContain('  copilot-setup-steps:');
+    expect(source).toContain('contents: read');
+    expect(source).not.toMatch(/\b(?:secrets|vars)\./u);
+    expect(source).not.toMatch(/\b(?:run|services|environment):/u);
+    expect(source).not.toMatch(/:\s*write\b/u);
+    expect(source).toContain('bun-version: "1.4.2"');
+    expect(source).toContain('node-version: "24.21.0"');
+    const actions = actionStepBlocks(
+      source.slice(source.indexOf('\njobs:\n')),
+    ).map((step) => step.match(/uses:\s+(\S+?)@/u)?.[1]);
+    expect(actions).toEqual([
+      'actions/checkout',
+      'oven-sh/setup-bun',
+      'actions/setup-node',
+    ]);
+  });
+
   it('does not retain or upload authenticated Playwright traces', () => {
     const baselineWorkflow = readSource('.github/workflows/e2e-baseline.yml');
     const cancellationDocumentation = readSource(
