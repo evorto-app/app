@@ -14,6 +14,23 @@ const PackageManifest = Schema.Struct({
 });
 
 describe('fail-loud local database and seed source', () => {
+  it('validates required Stripe seed configuration before opening the database', () => {
+    const seed = source('helpers/database.ts');
+    const requiredAccount =
+      "Effect.fail(missingFieldError('STRIPE_TEST_ACCOUNT_ID'))";
+    const preflightOnly =
+      "if (process.env['STAGING_SEED_PREFLIGHT_ONLY'] === 'true')";
+    const connection = 'const { database, pool } = createDatabaseClient(';
+    expect(seed).toContain(requiredAccount);
+    expect(seed).toContain(preflightOnly);
+    expect(seed).toContain(connection);
+    expect(seed.indexOf(requiredAccount)).toBeLessThan(
+      seed.indexOf(preflightOnly),
+    );
+    expect(seed.indexOf(preflightOnly)).toBeLessThan(seed.indexOf(connection));
+    expect(seed).toContain('const setupOptions = { stripeTestAccountId };');
+  });
+
   it('routes every project-owned local Drizzle push through the guarded config', () => {
     const packageJson = Schema.decodeUnknownSync(PackageManifest)(
       JSON.parse(source('package.json')),

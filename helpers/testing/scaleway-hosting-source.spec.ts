@@ -853,6 +853,13 @@ fi
     expect(secrets).toContain(
       'var.environment == "staging" ? toset(["STAGING_EMAIL_ALLOWLIST"])',
     );
+    const opsSecrets = between(secrets, '    ops = setunion(', '\n  }');
+    expect(opsSecrets).toContain(
+      'var.environment == "staging" ? toset(["STRIPE_TEST_ACCOUNT_ID"]) : toset([])',
+    );
+    expect(source('infrastructure/scaleway/README.md')).toContain(
+      'ops/STRIPE_TEST_ACCOUNT_ID',
+    );
     expect(secrets).toContain('protected   = true');
     expect(secrets).not.toContain('scaleway_secret_version');
     expect(

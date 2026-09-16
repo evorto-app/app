@@ -7,7 +7,10 @@ import { Effect, Option, Redacted } from 'effect';
 import { createDatabaseClient } from '../src/db/database-client';
 import { setupDatabase } from '../src/db/setup-database';
 import { inspectStagingDatabaseInitialization } from '../src/db/staging-database-initialization';
-import { formatConfigError } from '../src/server/config/config-error';
+import {
+  formatConfigError,
+  missingFieldError,
+} from '../src/server/config/config-error';
 import { makeRuntimeConfigProvider } from '../src/server/config/provider';
 
 /**
@@ -53,6 +56,14 @@ const main = Effect.gen(function* () {
           ),
       ),
     );
+  const stripeTestAccountId = yield* Option.match(STRIPE_TEST_ACCOUNT_ID, {
+    onNone: () => Effect.fail(missingFieldError('STRIPE_TEST_ACCOUNT_ID')),
+    onSome: Effect.succeed,
+  });
+  if (process.env['STAGING_SEED_PREFLIGHT_ONLY'] === 'true') {
+    return;
+  }
+
   const caCertificate = config.DATABASE_TLS_CA_CERTIFICATE.pipe(
     Option.map((certificate) => Redacted.value(certificate)),
     Option.getOrUndefined,
@@ -63,10 +74,7 @@ const main = Effect.gen(function* () {
     caCertificate,
     tlsServerName,
   );
-  const setupOptions = Option.match(STRIPE_TEST_ACCOUNT_ID, {
-    onNone: () => ({}),
-    onSome: (stripeTestAccountId) => ({ stripeTestAccountId }),
-  });
+  const setupOptions = { stripeTestAccountId };
   const initializeEmptyStagingOnly =
     process.env['STAGING_INITIALIZE_ONLY'] === 'true';
 

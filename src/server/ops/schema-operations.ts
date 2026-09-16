@@ -25,6 +25,7 @@ export const opsCommandFailureKinds = [
   'database-unreachable',
   'drizzle-cli-incompatible',
   'runtime-artifact-missing',
+  'staging-seed-configuration-invalid',
 ] as const;
 
 export type OpsCommandFailureKind = (typeof opsCommandFailureKinds)[number];
@@ -66,6 +67,10 @@ const commandFailurePatterns: readonly {
   readonly kind: OpsCommandFailureKind;
   readonly patterns: readonly RegExp[];
 }[] = [
+  {
+    kind: 'staging-seed-configuration-invalid',
+    patterns: [/STRIPE_TEST_ACCOUNT_ID/u],
+  },
   {
     kind: 'database-authentication-failed',
     patterns: [
@@ -592,11 +597,21 @@ const requireSuccessfulBoundedCommand = (
   result: OpsCommandResult,
 ) => (result.exitCode === 0 ? Effect.void : failOpsCommand(operation, result));
 
+const preflightStagingSeed = Effect.fn('preflightStagingSeed')(function* (
+  runner: OpsCommandRunner,
+) {
+  const result = yield* runner.run(['bun', stagingSeedExecutable], {
+    environment: { STAGING_SEED_PREFLIGHT_ONLY: 'true' },
+  });
+  yield* requireSuccessfulBoundedCommand('Staging seed preflight', result);
+});
+
 export const seedStaging = (
   confirmation: 'reset-and-seed-staging',
   runner: OpsCommandRunner = liveOpsCommandRunner,
 ) =>
   Effect.gen(function* () {
+    yield* preflightStagingSeed(runner);
     const resetResult = yield* runner.run(['bun', stagingResetExecutable], {
       environment: { STAGING_RESET_CONFIRMATION: confirmation },
     });
@@ -631,6 +646,7 @@ export const initializeEmptyStaging = (
   runner: OpsCommandRunner = liveOpsCommandRunner,
 ) =>
   Effect.gen(function* () {
+    yield* preflightStagingSeed(runner);
     const seedResult = yield* runner.run(['bun', stagingSeedExecutable], {
       environment: { STAGING_INITIALIZE_ONLY: 'true' },
     });
