@@ -322,7 +322,7 @@ describe('roleHandlers lookup permissions', () => {
               return [[false, false, 'announcement-role', 'Attendees']];
             }),
         });
-        const result = yield* roleHandlers['roles.findMany']().pipe(
+        const result = yield* roleHandlers['roles.findMany']({}).pipe(
           Effect.provide(
             createContextLayer(
               ['events:changeAnnouncementDiscovery'],
