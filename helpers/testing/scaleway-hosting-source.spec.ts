@@ -473,8 +473,8 @@ fi
       expect(currentSource).not.toContain('evorto.fly.dev');
     }
     expect(seoMetadata).not.toContain('alpha.evorto.app');
-    expect(server).toContain('robotsRouteLayer');
-    expect(server).toContain('sitemapRouteLayer');
+    expect(server).toMatch(/\bseoMetadataRouteLayer,/u);
+    expect(seoMetadata).toContain('export const seoMetadataRouteLayer');
     expect(existsSync(path.join(repositoryRoot, 'public/robots.txt'))).toBe(
       false,
     );
