@@ -17,6 +17,12 @@ import { randomUUID } from 'node:crypto';
 import { Pool, type PoolClient } from 'pg';
 import Stripe from 'stripe';
 
+import { runDatabaseCleanups } from '../../../tests/support/utils/database-cleanup';
+import { deleteRegistrationAcquisitionLedger } from '../../../tests/support/utils/registration-acquisition-cleanup';
+import {
+  seedFreeAddonRegistrationEvent,
+  seedFreeRegistrationAddon,
+} from '../../../tests/support/utils/seed-registration-addons';
 import {
   Adapters,
   type ValidationResult,
@@ -94,6 +100,7 @@ interface RegistrationAnswerFixture {
   registrationId: string;
   templateId: string;
   tenantIds: readonly [string, string];
+  transferId: string;
   userId: string;
 }
 
@@ -160,6 +167,7 @@ const makeFixture = (): RegistrationAnswerFixture => {
     registrationId: `reg-${suffix}`,
     templateId: `tpl-${suffix}`,
     tenantIds: [`ten-a-${suffix}`, `ten-b-${suffix}`],
+    transferId: `tr-${suffix}`,
     userId: `usr-${suffix}`,
   };
 };
@@ -191,6 +199,7 @@ const expectConstraintViolation = async ({
 const seedFixture = async (
   database: TestDatabase,
   fixture: RegistrationAnswerFixture,
+  includeFinancialHistory = true,
 ) => {
   const now = Date.now();
 
@@ -307,6 +316,31 @@ const seedFixture = async (
       tenantId: fixture.tenantIds[0],
       userId: fixture.userId,
     });
+    if (includeFinancialHistory) {
+      await transaction.insert(registrationAcquisitions).values({
+        acquiredAt: new Date(now),
+        eventId: fixture.eventIds[0],
+        kind: 'initial',
+        operationKey: `registration-initial:${fixture.registrationId}`,
+        ordinal: 0,
+        ownerUserId: fixture.userId,
+        registrationId: fixture.registrationId,
+        spotCount: 1,
+        tenantId: fixture.tenantIds[0],
+      });
+      await transaction.insert(registrationTransfers).values({
+        claimCodeHash: fixture.transferId.padEnd(64, 'a'),
+        claimTokenHash: fixture.transferId.padEnd(64, 'b'),
+        eventId: fixture.eventIds[0],
+        expiresAt: new Date(now + 60_000),
+        id: fixture.transferId,
+        registrationOptionId: fixture.optionIds[0],
+        sourceRegistrationId: fixture.registrationId,
+        sourceSpotCount: 1,
+        sourceUserId: fixture.userId,
+        tenantId: fixture.tenantIds[0],
+      });
+    }
   });
 };
 
@@ -352,6 +386,11 @@ const cleanFixture = async (
   await database
     .delete(registrationTransfers)
     .where(inArray(registrationTransfers.tenantId, fixture.tenantIds));
+  await deleteRegistrationAcquisitionLedger({
+    database,
+    registrationIds: [fixture.registrationId],
+    tenantId: fixture.tenantIds[0],
+  });
   await database
     .delete(eventRegistrationQuestionAnswers)
     .where(
@@ -635,6 +674,248 @@ describe('registration answer integrity in PostgreSQL', () => {
       }),
     ).rejects.toMatchObject({ cause: { code: '22001' } });
   });
+
+  it('stores a transfer answer at the exact destination character limit', async () => {
+    const boundedAnswer = 'a'.repeat(MAX_REGISTRATION_ANSWER_LENGTH);
+    try {
+      const rows = await database
+        .insert(registrationTransferAnswers)
+        .values({
+          answer: boundedAnswer,
+          eventId: fixture.eventIds[0],
+          questionId: fixture.questionIds[0],
+          registrationOptionId: fixture.optionIds[0],
+          tenantId: fixture.tenantIds[0],
+          transferId: fixture.transferId,
+        })
+        .returning({ answer: registrationTransferAnswers.answer });
+      expect(rows).toEqual([{ answer: boundedAnswer }]);
+    } finally {
+      await database
+        .delete(registrationTransferAnswers)
+        .where(eq(registrationTransferAnswers.transferId, fixture.transferId));
+    }
+  });
+
+  it('rejects a transfer answer that cannot fit the destination storage', async () => {
+    await expect(
+      database.insert(registrationTransferAnswers).values({
+        answer: 'a'.repeat(MAX_REGISTRATION_ANSWER_LENGTH + 1),
+        eventId: fixture.eventIds[0],
+        questionId: fixture.questionIds[0],
+        registrationOptionId: fixture.optionIds[0],
+        tenantId: fixture.tenantIds[0],
+        transferId: fixture.transferId,
+      }),
+    ).rejects.toMatchObject({ cause: { code: '22001' } });
+  });
+
+  const originalState = () =>
+    Promise.all([
+      database
+        .select()
+        .from(eventInstances)
+        .where(inArray(eventInstances.id, fixture.eventIds)),
+      database
+        .select()
+        .from(eventRegistrationOptions)
+        .where(inArray(eventRegistrationOptions.id, fixture.optionIds)),
+      database
+        .select()
+        .from(eventRegistrations)
+        .where(eq(eventRegistrations.id, fixture.registrationId)),
+      database
+        .select()
+        .from(registrationAcquisitions)
+        .where(
+          eq(registrationAcquisitions.registrationId, fixture.registrationId),
+        ),
+      database
+        .select()
+        .from(registrationAcquisitionComponents)
+        .where(
+          eq(
+            registrationAcquisitionComponents.registrationId,
+            fixture.registrationId,
+          ),
+        ),
+      database
+        .select()
+        .from(eventRegistrationQuestionAnswers)
+        .where(
+          eq(
+            eventRegistrationQuestionAnswers.registrationId,
+            fixture.registrationId,
+          ),
+        ),
+    ]);
+  const fixtureWindow = () => ({
+    closeRegistrationTime: new Date(Date.now() + 60_000),
+    end: new Date(Date.now() + 180_000),
+    openRegistrationTime: new Date(Date.now() - 60_000),
+    start: new Date(Date.now() + 120_000),
+  });
+
+  it('leaves original registrations and acquisitions intact when owned setup fails', async () => {
+    const before = await originalState();
+    const cleanups: (() => Promise<void>)[] = [];
+    const beforeEvents = await database
+      .select({ id: eventInstances.id })
+      .from(eventInstances)
+      .where(eq(eventInstances.tenantId, fixture.tenantIds[0]));
+    await expect(
+      seedFreeAddonRegistrationEvent({
+        database,
+        registerDatabaseCleanup: (cleanup) => {
+          cleanups.push(cleanup);
+        },
+        sourceEventId: fixture.eventIds[0],
+        sourceOptionId: fixture.optionIds[0],
+        tenantId: fixture.tenantIds[0],
+        window: { ...fixtureWindow(), closeRegistrationTime: new Date(0) },
+      }),
+    ).rejects.toMatchObject({ cause: { code: '23514' } });
+    expect(cleanups).toHaveLength(1);
+    await runDatabaseCleanups(cleanups, async () => {
+      /* Suite teardown owns the pool. */
+    });
+    expect(await originalState()).toEqual(before);
+    expect(
+      await database
+        .select({ id: eventInstances.id })
+        .from(eventInstances)
+        .where(eq(eventInstances.tenantId, fixture.tenantIds[0])),
+    ).toEqual(beforeEvents);
+  });
+
+  it('cleans only the owned registration graph after successful setup', async () => {
+    const before = await originalState();
+    const cleanups: (() => Promise<void>)[] = [];
+    const scenario = await seedFreeAddonRegistrationEvent({
+      database,
+      registerDatabaseCleanup: (cleanup) => {
+        cleanups.push(cleanup);
+      },
+      sourceEventId: fixture.eventIds[0],
+      sourceOptionId: fixture.optionIds[0],
+      tenantId: fixture.tenantIds[0],
+      window: fixtureWindow(),
+    });
+    try {
+      const [registration] = await database
+        .insert(eventRegistrations)
+        .values({
+          basePriceAtRegistration: 0,
+          discountAmount: 0,
+          eventId: scenario.eventId,
+          registrationOptionId: scenario.optionId,
+          status: 'CONFIRMED',
+          tenantId: fixture.tenantIds[0],
+          userId: fixture.userId,
+        })
+        .returning();
+      if (!registration) throw new Error('Expected owned registration');
+      const [acquisition] = await database
+        .insert(registrationAcquisitions)
+        .values({
+          acquiredAt: new Date(),
+          eventId: scenario.eventId,
+          kind: 'initial',
+          operationKey: `registration-initial:${registration.id}`,
+          ordinal: 0,
+          ownerUserId: fixture.userId,
+          registrationId: registration.id,
+          spotCount: 1,
+          tenantId: fixture.tenantIds[0],
+        })
+        .returning();
+      if (!acquisition) throw new Error('Expected owned acquisition');
+      await database.insert(registrationAcquisitionComponents).values({
+        acquiredAt: new Date(),
+        acquisitionId: acquisition.id,
+        allocationKey: `registration-initial:${registration.id}`,
+        applicationFeeAmount: 0,
+        baseAmount: 0,
+        currency: 'EUR',
+        eventId: scenario.eventId,
+        grossAmount: 0,
+        kind: 'registration',
+        netAmount: 0,
+        quantity: 1,
+        registrationId: registration.id,
+        stripeFeeAmount: 0,
+        taxAmount: 0,
+        tenantId: fixture.tenantIds[0],
+      });
+      const addonId = `addon-${fixture.registrationId.slice(-10)}`;
+      await seedFreeRegistrationAddon({
+        addonId,
+        database,
+        eventId: scenario.eventId,
+        registrationOptionId: scenario.optionId,
+      });
+      await database.insert(eventRegistrationAddonPurchases).values({
+        addonId,
+        eventId: scenario.eventId,
+        includedQuantity: 0,
+        purchasedQuantity: 1,
+        quantity: 1,
+        registrationId: registration.id,
+        registrationOptionId: scenario.optionId,
+        tenantId: fixture.tenantIds[0],
+        unitPrice: 0,
+      });
+      const [question] = await database
+        .insert(eventRegistrationQuestions)
+        .values({
+          eventId: scenario.eventId,
+          registrationOptionId: scenario.optionId,
+          title: 'Owned question',
+        })
+        .returning();
+      if (!question) throw new Error('Expected owned question');
+      await database.insert(eventRegistrationQuestionAnswers).values({
+        answer: 'Owned answer',
+        eventId: scenario.eventId,
+        questionId: question.id,
+        registrationId: registration.id,
+        registrationOptionId: scenario.optionId,
+        tenantId: fixture.tenantIds[0],
+      });
+    } finally {
+      await runDatabaseCleanups(cleanups, async () => {
+        /* Suite teardown owns the pool. */
+      });
+    }
+    await runDatabaseCleanups(cleanups, async () => {
+      /* Suite teardown owns the pool. */
+    });
+    expect(await originalState()).toEqual(before);
+    expect(
+      await database
+        .select()
+        .from(eventInstances)
+        .where(eq(eventInstances.id, scenario.eventId)),
+    ).toEqual([]);
+    expect(
+      await database
+        .select()
+        .from(registrationAcquisitions)
+        .where(eq(registrationAcquisitions.eventId, scenario.eventId)),
+    ).toEqual([]);
+    expect(
+      await database
+        .select()
+        .from(registrationAcquisitionComponents)
+        .where(eq(registrationAcquisitionComponents.eventId, scenario.eventId)),
+    ).toEqual([]);
+    expect(
+      await database
+        .select()
+        .from(eventAddons)
+        .where(eq(eventAddons.eventId, scenario.eventId)),
+    ).toEqual([]);
+  });
 });
 
 const questionRaceLayer = (
@@ -688,7 +969,7 @@ describe('question answer history concurrency in PostgreSQL', () => {
     for (const mutation of ['remove', 'change'] as const) {
       it(`preserves ${history} history when an answer wins a question ${mutation}`, async () => {
         const fixture = makeFixture();
-        await seedFixture(database, fixture);
+        await seedFixture(database, fixture, false);
         const client = await pool.connect();
         const writer = drizzle({ client, relations });
         const failures: unknown[] = [];
@@ -837,7 +1118,7 @@ describe('question answer history concurrency in PostgreSQL', () => {
     for (const mutation of ['remove', 'require', 'add required'] as const) {
       it(`revalidates ${writer} answers when a question ${mutation} wins`, async () => {
         const fixture = makeFixture();
-        await seedFixture(database, fixture);
+        await seedFixture(database, fixture, false);
         await database
           .update(eventRegistrations)
           .set({ status: 'CANCELLED' })
@@ -992,7 +1273,7 @@ describe('question answer history concurrency in PostgreSQL', () => {
   }
   it('lets an answer writer finish its option write while a transfer offer waits on tenant terms', async () => {
     const fixture = makeFixture();
-    await seedFixture(database, fixture);
+    await seedFixture(database, fixture, false);
     await database
       .update(eventInstances)
       .set({ reviewedAt: new Date(), status: 'APPROVED' })

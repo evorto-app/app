@@ -66,7 +66,7 @@ const validationSuccess = (
 });
 
 /**
- * Get all compatible (inclusive & active) tax rates for a tenant
+ * Get all compatible (inclusive, active & percentage-based) tax rates for a tenant
  */
 export const getCompatibleTaxRates = Effect.fn('getCompatibleTaxRates')(
   function* (database: DatabaseClient, tenantId: string) {
@@ -84,6 +84,7 @@ export const getCompatibleTaxRates = Effect.fn('getCompatibleTaxRates')(
       where: {
         active: true,
         inclusive: true,
+        percentage: { isNotNull: true },
         stripeAccountId: tenant.stripeAccountId,
         tenantId,
       },

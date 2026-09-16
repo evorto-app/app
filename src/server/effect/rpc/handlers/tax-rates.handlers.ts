@@ -50,6 +50,7 @@ export const taxRateHandlers = {
           where: {
             active: true,
             inclusive: true,
+            percentage: { isNotNull: true },
             stripeAccountId,
             tenantId: tenant.id,
           },
