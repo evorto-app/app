@@ -6,7 +6,6 @@ import type {
 
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MatDialog } from '@angular/material/dialog';
-import { EventRegistrationConflictError } from '@shared/rpc-contracts/app-rpcs/events.errors';
 import {
   EventRegistrationConflictError,
   EventRegistrationInternalError,
