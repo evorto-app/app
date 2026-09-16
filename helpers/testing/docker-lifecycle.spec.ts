@@ -186,6 +186,9 @@ if [[ "$1" == 'inspect' ]]; then
   fi
   exit 0
 fi
+if [[ "$1" == 'start' && "$2" == "$FAKE_START_FAILURE_SERVICE-container" ]]; then
+  exit "$FAKE_START_FAILURE_STATUS"
+fi
 if [[ "$*" == 'compose build' ]]; then
   exit 0
 fi
@@ -215,6 +218,8 @@ exit 0
       FAKE_REMAINING_CONTAINER_CHECKS: String(remainingContainerChecks),
       FAKE_REMAINING_NETWORK_CHECKS: String(remainingNetworkChecks),
       FAKE_REMAINING_VOLUME_CHECKS: String(remainingVolumeChecks),
+      FAKE_START_FAILURE_SERVICE: '',
+      FAKE_START_FAILURE_STATUS: '1',
       FAKE_UNHEALTHY_SERVICE: '',
       FAKE_UP_STATUS: String(upStatus),
       PATH: `${directory}:${process.env['PATH'] ?? ''}`,
@@ -610,6 +615,35 @@ while true; do sleep 0.05; done`,
     ).toEqual([
       'start db-container minio-container mailpit-container',
       'start stripe-container',
+    ]);
+  });
+
+  it('preserves worker startup failure and does not start the web application', () => {
+    const { environment, logPath } = createFakeDocker();
+    const result = spawnSync('bash', [resumeScript], {
+      encoding: 'utf8',
+      env: {
+        ...environment,
+        FAKE_START_FAILURE_SERVICE: 'worker',
+        FAKE_START_FAILURE_STATUS: '37',
+      },
+    });
+
+    expect(result.status).toBe(37);
+    expect(result.stderr).toContain(
+      'Docker startup for background worker failed with status 37.',
+    );
+    expect(result.stderr).toContain('Current Docker Compose state:');
+    expect(
+      fs
+        .readFileSync(logPath, 'utf8')
+        .trim()
+        .split('\n')
+        .filter((command) => command.startsWith('start ')),
+    ).toEqual([
+      'start db-container minio-container mailpit-container',
+      'start stripe-container',
+      'start worker-container',
     ]);
   });
 

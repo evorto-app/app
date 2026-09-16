@@ -42,7 +42,7 @@ More specific guidance may exist deeper in some subtrees.
 
 ## Build, Test, and Development Commands
 
-- `bun run dev:start` - refresh worktree-local runtime env and run Angular dev server at the generated `BASE_URL`.
+- `bun run dev:start` - resolve local settings in memory and run the Angular dev server on the resolved `APP_HOST_PORT`.
 - `bun run build:app` - build client + server bundles.
 - `bun run test:unit` - run unit tests.
 - `bun run test:unit:server` - run server unit tests.
