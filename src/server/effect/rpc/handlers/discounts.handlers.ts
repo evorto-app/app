@@ -11,7 +11,9 @@ import {
 } from '@shared/rpc-contracts/app-rpcs/discounts.errors';
 import { resolveTenantDiscountProviders } from '@shared/tenant-config';
 import { and, eq } from 'drizzle-orm';
-import { Effect } from 'effect';
+import { EffectDrizzleQueryError } from 'drizzle-orm/effect-core';
+import { Cause, Effect } from 'effect';
+import { isSqlError } from 'effect/unstable/sql/SqlError';
 
 import type { AppRpcHandlers } from './shared/handler-types';
 
@@ -32,6 +34,87 @@ const databaseEffect = <A>(
   operation: (database: DatabaseClient) => Effect.Effect<A, unknown, never>,
 ): Effect.Effect<A, never, Database> =>
   Database.use((database) => operation(database).pipe(Effect.orDie));
+
+const cardSaveConflict = (error: unknown) => {
+  if (
+    !(error instanceof EffectDrizzleQueryError) ||
+    !Cause.isCause(error.cause) ||
+    error.cause.reasons.length !== 1
+  )
+    return;
+  const failure = error.cause.reasons[0];
+  if (
+    !failure ||
+    !Cause.isFailReason(failure) ||
+    !isSqlError(failure.error) ||
+    failure.error.reason._tag !== 'UniqueViolation'
+  )
+    return;
+  switch (failure.error.reason.constraint) {
+    case 'user_discount_cards_tenantId_type_identifier_unique': {
+      return new DiscountCardConflictError({
+        message:
+          'This ESNcard is already linked to another account in this organization.',
+      });
+    }
+    case 'user_discount_cards_userId_tenantId_type_unique': {
+      return new DiscountCardChangedError({
+        message:
+          'Your saved ESNcard changed or was removed while it was being checked. Review your current card and try again.',
+      });
+    }
+    default: {
+      return;
+    }
+  }
+};
+
+const databaseCardSaveEffect = <A>(
+  card: Pick<
+    typeof userDiscountCards.$inferSelect,
+    'identifier' | 'tenantId' | 'type' | 'userId'
+  >,
+  operation: (database: DatabaseClient) => Effect.Effect<A, unknown, never>,
+): Effect.Effect<
+  A,
+  DiscountCardChangedError | DiscountCardConflictError,
+  Database
+> =>
+  Database.use((database) =>
+    operation(database).pipe(
+      Effect.catch((error) => {
+        const conflict = cardSaveConflict(error);
+        if (!conflict) return Effect.die(error);
+        if (!(conflict instanceof DiscountCardConflictError))
+          return Effect.fail(conflict);
+        // PostgreSQL may choose either unique index when simultaneous initial
+        // saves use the same user and identifier. Check the current owner before
+        // telling a member that the card belongs to somebody else.
+        return database.query.userDiscountCards
+          .findFirst({
+            columns: { userId: true },
+            where: {
+              identifier: card.identifier,
+              tenantId: card.tenantId,
+              type: card.type,
+            },
+          })
+          .pipe(
+            Effect.orDie,
+            Effect.flatMap((owner) =>
+              Effect.fail(
+                owner && owner.userId !== card.userId
+                  ? conflict
+                  : new DiscountCardChangedError({
+                      message:
+                        'Your saved ESNcard changed or was removed while it was being checked. Review your current card and try again.',
+                    }),
+              ),
+            ),
+          );
+      }),
+    ),
+  );
 
 const normalizeUserDiscountCardRecord = (
   card: Pick<
@@ -363,47 +446,61 @@ export const discountHandlers = {
         validTo: validationResult.validTo ?? null,
       };
       const upsertedCards = existingCard
-        ? yield* databaseEffect((database) =>
-            database
-              .update(userDiscountCards)
-              .set({
-                ...validatedCardFields,
-                identifier: input.identifier,
-              })
-              .where(
-                and(
-                  eq(userDiscountCards.id, existingCard.id),
-                  eq(userDiscountCards.tenantId, tenant.id),
-                  eq(userDiscountCards.userId, user.id),
-                  eq(userDiscountCards.type, input.type),
-                  eq(userDiscountCards.identifier, existingCard.identifier),
-                ),
-              )
-              .returning({
-                id: userDiscountCards.id,
-                identifier: userDiscountCards.identifier,
-                status: userDiscountCards.status,
-                type: userDiscountCards.type,
-                validTo: userDiscountCards.validTo,
-              }),
+        ? yield* databaseCardSaveEffect(
+            {
+              identifier: input.identifier,
+              tenantId: tenant.id,
+              type: input.type,
+              userId: user.id,
+            },
+            (database) =>
+              database
+                .update(userDiscountCards)
+                .set({
+                  ...validatedCardFields,
+                  identifier: input.identifier,
+                })
+                .where(
+                  and(
+                    eq(userDiscountCards.id, existingCard.id),
+                    eq(userDiscountCards.tenantId, tenant.id),
+                    eq(userDiscountCards.userId, user.id),
+                    eq(userDiscountCards.type, input.type),
+                    eq(userDiscountCards.identifier, existingCard.identifier),
+                  ),
+                )
+                .returning({
+                  id: userDiscountCards.id,
+                  identifier: userDiscountCards.identifier,
+                  status: userDiscountCards.status,
+                  type: userDiscountCards.type,
+                  validTo: userDiscountCards.validTo,
+                }),
           )
-        : yield* databaseEffect((database) =>
-            database
-              .insert(userDiscountCards)
-              .values({
-                ...validatedCardFields,
-                identifier: input.identifier,
-                tenantId: tenant.id,
-                type: input.type,
-                userId: user.id,
-              })
-              .returning({
-                id: userDiscountCards.id,
-                identifier: userDiscountCards.identifier,
-                status: userDiscountCards.status,
-                type: userDiscountCards.type,
-                validTo: userDiscountCards.validTo,
-              }),
+        : yield* databaseCardSaveEffect(
+            {
+              identifier: input.identifier,
+              tenantId: tenant.id,
+              type: input.type,
+              userId: user.id,
+            },
+            (database) =>
+              database
+                .insert(userDiscountCards)
+                .values({
+                  ...validatedCardFields,
+                  identifier: input.identifier,
+                  tenantId: tenant.id,
+                  type: input.type,
+                  userId: user.id,
+                })
+                .returning({
+                  id: userDiscountCards.id,
+                  identifier: userDiscountCards.identifier,
+                  status: userDiscountCards.status,
+                  type: userDiscountCards.type,
+                  validTo: userDiscountCards.validTo,
+                }),
           );
       const upsertedCard = upsertedCards[0];
       if (!upsertedCard) {

@@ -10,10 +10,16 @@ import {
   RpcInternalServerError,
   RpcUnauthorizedError,
 } from '@shared/errors/rpc-errors';
+import { EffectDrizzleQueryError } from 'drizzle-orm/effect-core';
 import * as PgDrizzle from 'drizzle-orm/effect-postgres';
 import { Cause, Effect, Exit, Layer, Result, Schema, Stream } from 'effect';
 import * as Headers from 'effect/unstable/http/Headers';
 import { Rpc, RpcMessage } from 'effect/unstable/rpc';
+import {
+  ConstraintError,
+  SqlError,
+  UniqueViolation,
+} from 'effect/unstable/sql/SqlError';
 
 import { Database } from '../../../../db';
 import { relations } from '../../../../db/relations';
@@ -178,11 +184,15 @@ const cardRow = (card: StoredCard) => [
 ];
 
 const createDiscountDatabase = ({
+  concurrentCard,
   initialCards = [],
   providerStatus = 'enabled',
+  writeFailure,
 }: {
+  concurrentCard?: StoredCard;
   initialCards?: StoredCard[];
   providerStatus?: 'disabled' | 'enabled';
+  writeFailure?: SqlError;
 } = {}) => {
   let cards = initialCards.map((card) => ({ ...card }));
   const operations: string[] = [];
@@ -327,63 +337,72 @@ const createDiscountDatabase = ({
     statement,
     parameters,
   ) =>
-    Effect.sync(() => {
-      switch (statement) {
-        case cardListSql: {
-          return readCardList(parameters);
-        }
-        case currentCardSql: {
-          return readCurrentCard(parameters);
-        }
-        case guardedUpsertUpdateSql:
-        case upsertUpdateSql: {
-          return updateExistingCard(parameters);
-        }
-        case identifierOwnerSql: {
-          return readIdentifierOwner(parameters);
-        }
-        case insertCardSql: {
-          return insertNewCard(parameters);
-        }
-        // Model omitted SQL columns as retained fields so stale-data regressions
-        // fail on persisted state instead of only on a changed SQL string.
-        case partialRefreshUpdateSql:
-        case partialUpsertUpdateSql: {
-          const saving = statement === partialUpsertUpdateSql;
-          operations.push(
-            saving ? 'updateExistingCard' : 'refreshOriginalCard',
-          );
-          const card = cards.find(
-            (candidate) =>
-              candidate.id === parameters[saving ? 4 : 3] &&
-              (saving ||
-                (candidate.tenantId === parameters[4] &&
-                  candidate.userId === parameters[5] &&
-                  candidate.type === parameters[6] &&
-                  candidate.identifier === parameters[7])),
-          );
-          if (!card) return [];
-          const updated = {
-            ...card,
-            ...(saving && { identifier: decodeString(parameters[1]) }),
-            lastCheckedAt: decodeTimestamp(parameters[saving ? 2 : 1]),
-            status: decodeStatus(parameters[saving ? 3 : 2]),
-          };
-          cards = cards.map((candidate) =>
-            candidate.id === card.id ? updated : candidate,
-          );
-          return [cardRow(updated)];
-        }
-        case refreshUpdateSql: {
-          return refreshOriginalCard(parameters);
-        }
-        case tenantReadSql: {
-          return readTenantProviders(parameters);
-        }
-        default: {
-          throw new Error(`Unexpected discount card SQL: ${statement}`);
-        }
+    Effect.suspend(() => {
+      if (
+        writeFailure &&
+        (statement === guardedUpsertUpdateSql || statement === insertCardSql)
+      ) {
+        if (concurrentCard) cards.push(concurrentCard);
+        return Effect.fail(writeFailure);
       }
+      return Effect.sync(() => {
+        switch (statement) {
+          case cardListSql: {
+            return readCardList(parameters);
+          }
+          case currentCardSql: {
+            return readCurrentCard(parameters);
+          }
+          case guardedUpsertUpdateSql:
+          case upsertUpdateSql: {
+            return updateExistingCard(parameters);
+          }
+          case identifierOwnerSql: {
+            return readIdentifierOwner(parameters);
+          }
+          case insertCardSql: {
+            return insertNewCard(parameters);
+          }
+          // Model omitted SQL columns as retained fields so stale-data regressions
+          // fail on persisted state instead of only on a changed SQL string.
+          case partialRefreshUpdateSql:
+          case partialUpsertUpdateSql: {
+            const saving = statement === partialUpsertUpdateSql;
+            operations.push(
+              saving ? 'updateExistingCard' : 'refreshOriginalCard',
+            );
+            const card = cards.find(
+              (candidate) =>
+                candidate.id === parameters[saving ? 4 : 3] &&
+                (saving ||
+                  (candidate.tenantId === parameters[4] &&
+                    candidate.userId === parameters[5] &&
+                    candidate.type === parameters[6] &&
+                    candidate.identifier === parameters[7])),
+            );
+            if (!card) return [];
+            const updated = {
+              ...card,
+              ...(saving && { identifier: decodeString(parameters[1]) }),
+              lastCheckedAt: decodeTimestamp(parameters[saving ? 2 : 1]),
+              status: decodeStatus(parameters[saving ? 3 : 2]),
+            };
+            cards = cards.map((candidate) =>
+              candidate.id === card.id ? updated : candidate,
+            );
+            return [cardRow(updated)];
+          }
+          case refreshUpdateSql: {
+            return refreshOriginalCard(parameters);
+          }
+          case tenantReadSql: {
+            return readTenantProviders(parameters);
+          }
+          default: {
+            throw new Error(`Unexpected discount card SQL: ${statement}`);
+          }
+        }
+      });
     });
   const unexpectedDatabaseAccess = Effect.die(
     new Error('Unexpected discount card database operation'),
@@ -657,6 +676,114 @@ layer(discountHandlerLayer)('discountHandlers', (it) => {
       }),
     );
   });
+
+  for (const scenario of [
+    {
+      constraint: 'user_discount_cards_tenantId_type_identifier_unique',
+      existing: true,
+      tag: 'DiscountCardConflictError',
+      winnerUser: 'user-2',
+    },
+    {
+      constraint: 'user_discount_cards_tenantId_type_identifier_unique',
+      existing: false,
+      tag: 'DiscountCardConflictError',
+      winnerUser: 'user-2',
+    },
+    {
+      constraint: 'user_discount_cards_userId_tenantId_type_unique',
+      existing: false,
+      tag: 'DiscountCardChangedError',
+      winnerUser: 'user-1',
+    },
+    {
+      constraint: 'user_discount_cards_tenantId_type_identifier_unique',
+      existing: false,
+      tag: 'DiscountCardChangedError',
+      winnerUser: 'user-1',
+    },
+  ]) {
+    it.effect(
+      `reports ${scenario.tag} for a write-time ${scenario.existing ? 'update' : 'insert'} ${scenario.constraint} race`,
+      () =>
+        withEsnCardAdapter(
+          async () => verifiedResult,
+          Effect.gen(function* () {
+            const initialCards = scenario.existing
+              ? [createCard({ identifier: 'ORIGINAL' })]
+              : [];
+            const concurrentCard = createCard({
+              id: 'winner-card',
+              userId: scenario.winnerUser,
+            });
+            const fixture = createDiscountDatabase({
+              concurrentCard,
+              initialCards,
+              writeFailure: new SqlError({
+                reason: new UniqueViolation({
+                  cause: new Error('synthetic write race'),
+                  constraint: scenario.constraint,
+                }),
+              }),
+            });
+            const error = yield* upsertMyCard().pipe(
+              Effect.flip,
+              Effect.provide(fixture.databaseLayer),
+            );
+            expect(error).toMatchObject({ _tag: scenario.tag });
+            expect(fixture.getCards()).toEqual([
+              ...initialCards,
+              concurrentCard,
+            ]);
+          }),
+        ),
+    );
+  }
+
+  for (const reason of [
+    new UniqueViolation({
+      cause: new Error('synthetic unrelated constraint'),
+      constraint: 'unrelated_unique',
+    }),
+    new ConstraintError({
+      cause: {
+        constraint: 'user_discount_cards_tenantId_type_identifier_unique',
+      },
+    }),
+  ]) {
+    it.effect(
+      `preserves an unrelated ${reason._tag} write failure as a defect`,
+      () =>
+        withEsnCardAdapter(
+          async () => verifiedResult,
+          Effect.gen(function* () {
+            const failure = new SqlError({ reason });
+            const fixture = createDiscountDatabase({ writeFailure: failure });
+            const exit = yield* upsertMyCard().pipe(
+              Effect.exit,
+              Effect.provide(fixture.databaseLayer),
+            );
+            expect(Exit.isFailure(exit)).toBe(true);
+            if (!Exit.isFailure(exit)) return;
+            expect(exit.cause.reasons).toHaveLength(1);
+            const defect = exit.cause.reasons[0];
+            expect(defect && Cause.isDieReason(defect)).toBe(true);
+            if (!defect || !Cause.isDieReason(defect)) return;
+            expect(defect.defect).toBeInstanceOf(EffectDrizzleQueryError);
+            if (
+              !(defect.defect instanceof EffectDrizzleQueryError) ||
+              !Cause.isCause(defect.defect.cause)
+            )
+              return;
+            const underlying = defect.defect.cause.reasons[0];
+            expect(
+              underlying && Cause.isFailReason(underlying) && underlying.error,
+            ).toBe(failure);
+            expect(fixture.getCards()).toEqual([]);
+          }),
+        ),
+    );
+  }
 
   it.effect('upsertMyCard validates before inserting a new card', () => {
     const validate = vi.fn(async () => verifiedResult);

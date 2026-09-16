@@ -71,6 +71,126 @@ describe('safeServerErrorSummary', () => {
     });
   });
 
+  it('preserves ordinary inherited data properties without invoking inherited getters', () => {
+    const getter = vi.fn(() => {
+      throw new Error('inherited getter must not be called');
+    });
+    const prototype = Object.create(null, {
+      code: { value: '23505' },
+      constraint: { value: 'registrations_user_unique' },
+      requestId: { get: getter },
+    });
+
+    expect(
+      safeServerErrorSummary('database.insert', Object.create(prototype)),
+    ).toEqual({
+      constraint: 'registrations_user_unique',
+      operation: 'database.insert',
+      sqlState: '23505',
+    });
+    expect(getter).not.toHaveBeenCalled();
+  });
+
+  it.each(['cycle', 'fresh'] as const)(
+    'bounds a %s prototype chain without depending on a trap to terminate it',
+    (kind) => {
+      const prototypeReads = new Map<string | symbol, number>();
+      let inspectedKey: string | symbol = '';
+      const createPrototype = (): object => {
+        const proxy = new Proxy(
+          {},
+          {
+            getOwnPropertyDescriptor(target, key) {
+              inspectedKey = key;
+              return Reflect.getOwnPropertyDescriptor(target, key);
+            },
+            getPrototypeOf(): object {
+              const reads = (prototypeReads.get(inspectedKey) ?? 0) + 1;
+              prototypeReads.set(inspectedKey, reads);
+              // Fail finitely against the old unbounded loop instead of hanging Vitest.
+              if (reads > 64) throw new Error('prototype traversal tripwire');
+              return kind === 'cycle' ? proxy : createPrototype();
+            },
+          },
+        );
+        return proxy;
+      };
+
+      expect(
+        safeServerErrorSummary('database.insert', createPrototype()),
+      ).toEqual({
+        operation: 'database.insert',
+      });
+      expect(prototypeReads.size).toBeGreaterThan(0);
+      expect(Math.max(...prototypeReads.values())).toBeLessThanOrEqual(32);
+    },
+  );
+
+  it('reads a reasons array length through its descriptor without invoking a get trap', () => {
+    const get = vi.fn(() => {
+      throw new Error('normal reasons property reads must not be used');
+    });
+    const reasons = new Proxy([{ code: '23505' }], { get });
+
+    expect(safeServerErrorSummary('database.insert', { reasons })).toEqual({
+      operation: 'database.insert',
+      sqlState: '23505',
+    });
+    expect(get).not.toHaveBeenCalled();
+  });
+
+  it.each([-1, 1.5, Infinity])(
+    'ignores an invalid reasons length descriptor: %s',
+    (length) => {
+      const reasons = new Proxy([{ code: '23505' }], {
+        getOwnPropertyDescriptor(target, key) {
+          const descriptor = Reflect.getOwnPropertyDescriptor(target, key);
+          return key === 'length' && descriptor
+            ? { ...descriptor, value: length }
+            : descriptor;
+        },
+      });
+
+      expect(safeServerErrorSummary('database.insert', { reasons })).toEqual({
+        operation: 'database.insert',
+      });
+    },
+  );
+
+  it('does not coerce an untrusted reasons length descriptor', () => {
+    const coerce = vi.fn(() => {
+      throw new Error('length coercion must not be called');
+    });
+    const reasons = new Proxy([{ code: '23505' }], {
+      getOwnPropertyDescriptor(target, key) {
+        const descriptor = Reflect.getOwnPropertyDescriptor(target, key);
+        return key === 'length' && descriptor
+          ? { ...descriptor, value: { [Symbol.toPrimitive]: coerce } }
+          : descriptor;
+      },
+    });
+
+    expect(safeServerErrorSummary('database.insert', { reasons })).toEqual({
+      operation: 'database.insert',
+    });
+    expect(coerce).not.toHaveBeenCalled();
+  });
+
+  it.each(['root', 'headers', 'reasons', 'cause'] as const)(
+    'ignores a revoked Proxy at %s while retaining other safe diagnostics',
+    (location) => {
+      const { proxy, revoke } = Proxy.revocable([], {});
+      revoke();
+      const error =
+        location === 'root' ? proxy : { code: '23505', [location]: proxy };
+
+      expect(safeServerErrorSummary('database.insert', error)).toEqual({
+        operation: 'database.insert',
+        ...(location !== 'root' && { sqlState: '23505' }),
+      });
+    },
+  );
+
   it.each(['objects', 'primitives', 'sparse'])(
     'bounds reason entry reads for a large %s array',
     (kind) => {
