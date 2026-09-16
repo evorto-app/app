@@ -73,7 +73,6 @@
               "msgpackr-extract",
               "node-domexception"
             ],
-            "externalDependencies": ["skia-canvas"],
             "security": {
               "allowedHosts": [
                 "localhost",
@@ -144,7 +143,6 @@
             "lintFilePatterns": [
               "*.config.ts",
               "helpers/**/*.ts",
-              "migration/**/*.ts",
               "src/**/*.ts",
               "src/**/*.html",
               "tests/**/*.ts"

@@ -464,7 +464,6 @@ fi
 
     for (const currentSource of [
       source('angular.json'),
-      source('migration/index.ts'),
       source('public/robots.txt'),
       source('public/sitemap.xml'),
       source('src/db/setup-database.ts'),

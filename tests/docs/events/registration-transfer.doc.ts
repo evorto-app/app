@@ -1,6 +1,6 @@
 import { createId } from '@db/create-id';
 import * as schema from '@db/schema';
-import { TENANT_FORMATTING_LOCALE } from '@types/custom/tenant';
+import { TENANT_FORMATTING_LOCALE } from '../../../src/types/custom/tenant';
 import { and, eq, inArray, like } from 'drizzle-orm';
 
 import {

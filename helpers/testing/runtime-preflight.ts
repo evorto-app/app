@@ -45,8 +45,7 @@ const e2eTestAccountPasswordVariables = e2eTestUserPasswordVariables.map(
 
 const dockerRequiredVariables = [
   {
-    description:
-      'Font Awesome package registry access for premium and brand icons',
+    description: 'Font Awesome package registry access for the premium icons',
     name: 'FONT_AWESOME_TOKEN',
   },
   {

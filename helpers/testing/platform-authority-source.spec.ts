@@ -71,8 +71,6 @@ describe('platform authority source', () => {
       auditSchema,
       readSource('.github/workflows/scaleway-staging.yml'),
       readSource('helpers/reset-database-schema.ts'),
-      readSource('migration/index.ts'),
-      readSource('migration/migrator-database.ts'),
       readSource('package.json'),
     ].join('\n');
 

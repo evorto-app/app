@@ -155,7 +155,7 @@ app metadata claims, not tenant roles.
 Run `bun run docker:check` before investigating Docker startup failures. The
 check validates required local secrets before Compose tears down or starts
 containers, including Auth0, Stripe, the app session secret, and
-Font Awesome package registry access for premium and brand icons. It also
+Font Awesome package registry access for the premium icon package. It also
 reports local tooling readiness such as Bun, Docker Compose, Compose config
 validation, Playwright CLI availability, and whether the matching Playwright
 browser cache is installed. Required and optional variables that are already
