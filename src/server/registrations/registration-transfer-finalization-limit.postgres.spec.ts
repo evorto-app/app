@@ -24,6 +24,7 @@ import {
   roles,
   rolesToTenantUsers,
   tenants,
+  tenantStripeTaxRates,
   transactions,
   users,
   usersToTenants,
@@ -289,6 +290,14 @@ const seedTransferLimitFixture = async (
     name: 'Transfer finalization limit',
     stripeAccountId: 'acct_transfer_limit',
   });
+  await database.insert(tenantStripeTaxRates).values({
+    active: true,
+    inclusive: true,
+    percentage: '0',
+    stripeAccountId: 'acct_transfer_limit',
+    stripeTaxRateId: 'txr_transfer_limit',
+    tenantId,
+  });
   const userValues: (typeof users.$inferInsert)[] = [
     ...candidates.map(({ sourceUserId }, index) => ({
       auth0Id: `auth0|transfer-source-${sourceUserId}`,
@@ -375,6 +384,7 @@ const seedTransferLimitFixture = async (
       registrationMode: 'fcfs',
       roleIds: [eligibleRoleId],
       spots: 10,
+      stripeTaxRateId: 'txr_transfer_limit',
       title: 'Participant',
     }));
   await database.insert(eventRegistrationOptions).values(optionValues);
@@ -561,6 +571,9 @@ const cleanTransferLimitFixture = async (
   for (const candidate of fixture.candidates) {
     await database.delete(users).where(eq(users.id, candidate.sourceUserId));
   }
+  await database
+    .delete(tenantStripeTaxRates)
+    .where(eq(tenantStripeTaxRates.tenantId, fixture.tenantId));
   await database.delete(tenants).where(eq(tenants.id, fixture.tenantId));
 };
 
@@ -1192,15 +1205,14 @@ describe('registration transfer finalization tenant limit', () => {
     );
 
     expect(outcome).toMatchObject({
-      error: {
-        _tag: 'RegistrationTransferConflictError',
-        message:
-          'You are already on the waitlist for this event. Leave the waitlist before accepting this ticket. The transfer was not accepted, and no payment or refund was started.',
-      },
+      error: { _tag: 'RegistrationTransferConflictError' },
       status: 'failure',
     });
     if (outcome.status === 'failure') {
       expect(outcome.error).toBeInstanceOf(RegistrationTransferConflictError);
+      expect(outcome.error.message).toBe(
+        'You are already on the waitlist for this event. Leave the waitlist before accepting this ticket. The transfer was not accepted, and no payment or refund was started.',
+      );
     }
 
     const [transferAfter, registrationsAfter, transactionsAfter] =
@@ -1683,7 +1695,7 @@ describe('registration transfer finalization tenant limit', () => {
 
     await database
       .update(eventRegistrationOptions)
-      .set({ isPaid: false, price: 0 })
+      .set({ isPaid: false, price: 0, stripeTaxRateId: null })
       .where(eq(eventRegistrationOptions.id, candidate.optionId));
     const optionBefore =
       await database.query.eventRegistrationOptions.findFirst({

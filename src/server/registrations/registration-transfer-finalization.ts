@@ -479,6 +479,19 @@ export const finalizeRegistrationTransferCheckout = Effect.fn(
     tenantLockMode: 'key share',
     userId: recipientUserId,
   });
+  const tenantSettings = yield* tx
+    .select({
+      maxActiveRegistrationsPerUser: tenants.maxActiveRegistrationsPerUser,
+    })
+    .from(tenants)
+    .where(eq(tenants.id, input.tenantId))
+    .limit(1);
+  const tenantSetting = tenantSettings[0];
+  if (!tenantSetting) {
+    return yield* compensate(
+      'The organization could not be verified after payment; a full refund was queued and the ticket stayed with its previous holder.',
+    );
+  }
   if (lockedEligibility._tag === 'NotMember') {
     return yield* compensate(
       'Recipient eligibility changed after payment; a full recipient refund was queued.',
@@ -503,19 +516,6 @@ export const finalizeRegistrationTransferCheckout = Effect.fn(
     );
   }
 
-  const tenantSettings = yield* tx
-    .select({
-      maxActiveRegistrationsPerUser: tenants.maxActiveRegistrationsPerUser,
-    })
-    .from(tenants)
-    .where(eq(tenants.id, input.tenantId))
-    .limit(1);
-  const tenantSetting = tenantSettings[0];
-  if (!tenantSetting) {
-    return yield* compensate(
-      'The organization could not be verified after payment; a full refund was queued and the ticket stayed with its previous holder.',
-    );
-  }
   const maxActiveRegistrationsPerUser =
     tenantSetting.maxActiveRegistrationsPerUser;
   if (maxActiveRegistrationsPerUser > 0) {
