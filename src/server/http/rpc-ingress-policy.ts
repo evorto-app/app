@@ -44,8 +44,13 @@ const resolveInternalSsrOrigin = (
     return;
   }
 
+  const origin = configuredOrigin.trim();
+  if (!/^https?:\/\/[^/\\\s@?#]+\/?$/iu.test(origin)) {
+    return;
+  }
+
   try {
-    const url = new URL(configuredOrigin.trim());
+    const url = new URL(origin);
     if (
       (url.protocol !== 'http:' && url.protocol !== 'https:') ||
       !isLoopbackHostname(url.hostname) ||

@@ -200,6 +200,41 @@ describe('runRpcIngressPolicy', () => {
     });
   });
 
+  it.each([
+    'http://127.0.0.1:4200/.',
+    'http://127.0.0.1:4200/..',
+    'http://127.0.0.1:4200/rpc/..',
+    'http://127.0.0.1:4200/%2e',
+    'http://127.0.0.1:4200/%2e%2e',
+    'http://127.0.0.1:4200/rpc/%2e%2e',
+    'http://127.0.0.1:4200\\',
+    String.raw`http:\\127.0.0.1:4200`,
+    'http:/127.0.0.1:4200',
+    'http://127.0.\n0.1:4200',
+    'http://127.0.\t0.1:4200',
+  ])('rejects malformed configured SSR origin %s', (ssrRpcOrigin) => {
+    const { handler, result } = applyPolicy(
+      makeRequest({
+        cookie: 'appSession=session',
+        headers: {
+          [trustedSsrSourceHeader]: trustedSsrSourceValue,
+          [trustedTenantDomainHeader]: 'tenant.example.com',
+        },
+        url: 'http://127.0.0.1:4200/rpc',
+      }),
+      {
+        applicationOrigin: 'http://127.0.0.1:4200',
+        ssrRpcOrigin,
+      },
+    );
+
+    expect(result.accepted).toBe(false);
+    if (!result.accepted) {
+      expect(result.response.status).toBe(403);
+    }
+    expect(handler).not.toHaveBeenCalled();
+  });
+
   it('passes the trusted tenant route for anonymous internal SSR', () => {
     const { handler, result } = applyPolicy(
       makeRequest({
