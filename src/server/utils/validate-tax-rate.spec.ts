@@ -11,6 +11,7 @@ const createDatabase = (
     | {
         active: boolean;
         inclusive: boolean;
+        percentage?: null | string;
       },
   stripeAccountId: null | string = 'acct_current',
 ) => {
@@ -44,7 +45,11 @@ describe('validateTaxRate', () => {
     'accepts paid options with a tenant-owned active inclusive tax rate',
     () =>
       Effect.gen(function* () {
-        const database = createDatabase({ active: true, inclusive: true });
+        const database = createDatabase({
+          active: true,
+          inclusive: true,
+          percentage: '19',
+        });
         const result = yield* validateTaxRate(database as never, {
           isPaid: true,
           stripeTaxRateId: 'txr_active_inclusive',
@@ -149,6 +154,31 @@ describe('validateTaxRate', () => {
           success: false,
         });
       }
+    }),
+  );
+
+  it.effect('rejects a tax rate without a percentage', () =>
+    Effect.gen(function* () {
+      const result = yield* validateTaxRate(
+        createDatabase({
+          active: true,
+          inclusive: true,
+          percentage: null,
+        }) as never,
+        {
+          isPaid: true,
+          stripeTaxRateId: 'txr_fixed_amount',
+          tenantId: 'tenant-1',
+        },
+      );
+
+      expect(result).toEqual({
+        error: {
+          code: TAX_RATE_ERROR_CODES.ERR_TAX_RATE_PERCENTAGE_REQUIRED,
+          message: 'Selected tax rate must have a percentage',
+        },
+        success: false,
+      });
     }),
   );
 
