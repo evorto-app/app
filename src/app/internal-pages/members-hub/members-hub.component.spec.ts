@@ -106,7 +106,7 @@ describe('MembersHubComponent', () => {
     expect(text).not.toContain('1 members');
   });
 
-  it('shows a readable error when hub roles fail to load', async () => {
+  it('shows a readable error without exposing raw failures', async () => {
     hubRolesQuery.mockRejectedValue(new Error('Hub roles unavailable'));
 
     const fixture = TestBed.createComponent(MembersHubComponent);
@@ -115,8 +115,9 @@ describe('MembersHubComponent', () => {
     await vi.waitFor(() => {
       fixture.detectChanges();
       expect(normalizeText(fixture)).toContain(
-        'Error loading roles: Hub roles unavailable',
+        'Error loading roles: Unknown error',
       );
+      expect(normalizeText(fixture)).not.toContain('Hub roles unavailable');
     });
   });
 });

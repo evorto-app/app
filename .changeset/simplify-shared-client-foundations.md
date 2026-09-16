@@ -15,3 +15,6 @@ default: patch
 Preserve actionable onboarding and registration errors, reject inherited timezone keys, and verify selected roles before saving while keeping failed lookups removable and role search bounded.
 
 Keep location selection tied to the latest request and preserve cancellation while the dialog closes. Preserve safe organizer, organization-settings, and tax-import guidance without exposing provider or internal errors.
+
+Keep website address validation visible when creating or editing an
+organization, while keeping unexpected errors out of user-facing messages.
