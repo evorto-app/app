@@ -14,7 +14,6 @@ export default defineConfig({
       '@helpers': resolveFromRoot('helpers'),
       '@server': resolveFromRoot('src/server'),
       '@shared': resolveFromRoot('src/shared'),
-      '@types': resolveFromRoot('src/types'),
     },
   },
   test: {
