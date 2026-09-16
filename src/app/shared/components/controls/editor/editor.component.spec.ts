@@ -20,7 +20,7 @@ describe('EditorComponent saved content', () => {
   it('preserves a saved image when surrounding text is edited and formatted', async () => {
     const imageSource = 'https://images.example.invalid/existing.png';
     const model = signal({
-      content: `<p>Original description</p><img src="${imageSource}" alt="Existing illustration" title="Existing title">`,
+      content: `<p>Original description</p><p><a href="https://example.invalid/details">Saved link</a></p><img src="${imageSource}" alt="Existing illustration" title="Existing title">`,
     });
     const fields = TestBed.runInInjectionContext(() => form(model));
     const fixture = TestBed.createComponent(EditorComponent);
@@ -31,11 +31,23 @@ describe('EditorComponent saved content', () => {
     if (!(root instanceof HTMLElement)) {
       throw new TypeError('Expected the editor component element');
     }
-    const placeholder = root.querySelector<HTMLElement>(
+    const placeholder = root.querySelector<HTMLButtonElement>(
       '[data-testid="rich-editor-placeholder"]',
     );
     if (!placeholder)
       throw new Error('Expected the saved-content editor entry');
+    expect(placeholder.tagName).toBe('BUTTON');
+    expect(placeholder.getAttribute('aria-label')).toBe('Edit content');
+    expect(root.querySelectorAll('button')).toHaveLength(1);
+    const savedLink = root.querySelector('a');
+    expect(savedLink?.textContent).toBe('Saved link');
+    expect(savedLink?.closest('[role="button"], button')).toBeNull();
+    const preview = savedLink?.closest('div');
+    preview?.click();
+    await fixture.whenStable();
+    expect(
+      root.querySelector('[data-testid="rich-editor-content"]'),
+    ).toBeNull();
     placeholder.click();
     await fixture.whenStable();
 

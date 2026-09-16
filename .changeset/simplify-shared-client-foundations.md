@@ -48,3 +48,14 @@ Recheck selected roles when their cached verification expires while a form stays
 Validate platform template role selections against the target organization before saving, including pending, failed, and missing role lookups. Preserve unavailable selections so they can be removed.
 
 Omit oversized diagnostic fields before parsing or redaction, keeping browser error handling responsive without exposing a truncated credential prefix.
+
+Redact registration-transfer credentials in page URLs and diagnostic text before
+logging or serialization, including encoded routes and credentials.
+
+Refresh event details and review lists when an event disappears during approval.
+Keep icon selection responsive to its dialog width, render one role icon, and
+reject malformed HTTP origin syntax before URL normalization.
+
+Use one visible Edit button for rich-text previews, keeping saved links outside interactive button semantics.
+
+Keep initialized platform template forms visible during role lookup failures and retries. Retain cached or saved role labels for removal, and block saving until target roles are verified.

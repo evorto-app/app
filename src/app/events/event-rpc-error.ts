@@ -9,4 +9,7 @@ const eventRpcErrorTag = (error: unknown): string | undefined => {
 
 export const eventReviewActionErrorRequiresRefresh = (
   error: unknown,
-): boolean => eventRpcErrorTag(error) === 'EventConflictError';
+): boolean => {
+  const tag = eventRpcErrorTag(error);
+  return tag === 'EventConflictError' || tag === 'EventNotFoundError';
+};

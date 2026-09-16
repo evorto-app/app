@@ -5,17 +5,44 @@ import {
   deriveTenantPublicOrigin,
   normalizeTenantDomain,
   resolveTenantPublicOrigin,
+  TenantDomainValidationError,
 } from './tenant-origin';
 
 describe('tenant origin', () => {
   it.each([
     'section.example.org',
     'section.example.org/',
+    'section.example.org:443',
+    'https://section.example.org:443/',
     'https://section.example.org/',
     'http://section.example.org:80/',
   ])('accepts a domain with an optional root slash: %s', (value) => {
     expect(normalizeTenantDomain(value)).toBe('section.example.org');
   });
+
+  it.each([
+    'http:443',
+    'https:443',
+    ' HTTP:443/ ',
+    'https:0443',
+    'http:/section.example.org',
+    'https:///section.example.org',
+  ])('rejects malformed HTTP scheme prefixes: %s', (value) => {
+    expect(() => normalizeTenantDomain(value)).toThrow(
+      TenantDomainValidationError,
+    );
+    expect(() => deriveTenantPublicOrigin(value)).toThrow(
+      TenantDomainValidationError,
+    );
+  });
+
+  it.each(['[::1]', '[::1]:443', 'http://[::1]:80/', 'https://[::1]:443/'])(
+    'preserves bracketed IPv6 primary-domain syntax: %s',
+    (value) => {
+      expect(normalizeTenantDomain(value)).toBe('[::1]');
+      expect(deriveTenantPublicOrigin(value)).toBe('https://[::1]');
+    },
+  );
 
   it('normalizes primary domains and derives HTTPS public origins', () => {
     expect(normalizeTenantDomain(' HTTPS://Section.Example.Org:443 ')).toBe(

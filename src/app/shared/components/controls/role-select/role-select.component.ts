@@ -25,7 +25,7 @@ import {
 import { MatButtonModule } from '@angular/material/button';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatFormFieldModule } from '@angular/material/form-field';
-import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
+import { FaDuotoneIconComponent } from '@fortawesome/angular-fontawesome';
 import { faCircleXmark } from '@fortawesome/duotone-regular-svg-icons';
 import { RoleLookupNotFoundError } from '@shared/rpc-contracts/app-rpcs/roles.errors';
 import {
@@ -117,7 +117,7 @@ export class RoleSelectQueries {
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    FontAwesomeModule,
+    FaDuotoneIconComponent,
     MatButtonModule,
     MatFormFieldModule,
     MatAutocompleteModule,

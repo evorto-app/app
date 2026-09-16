@@ -15,8 +15,37 @@ const fieldCharacterLimits = {
 } as const;
 const oversizedFieldRedaction = '[REDACTED_OVERSIZED_FIELD]';
 
+const redactTransferPathCredentials = (value: string): string =>
+  value.replaceAll(
+    /(^|[\s"'(<=>])((?:https?:\/\/[^\s/?#]+)?)(\/[^\s?#"'<>]*)/giu,
+    (_match: string, boundary: string, origin: string, pathname: string) => {
+      // Angular accepts primary routes inside outlet groups as well as /paths.
+      const safePath = pathname.replaceAll(
+        /(^\/|\(|\/\/)(primary:)?([^/;():]+)(;[^/()]*)?\/([^/()]+)/gu,
+        (
+          match: string,
+          prefix: string,
+          outlet: string | undefined,
+          route: string,
+          parameters: string | undefined,
+        ) => {
+          let routeName: string;
+          try {
+            routeName = decodeURIComponent(route);
+          } catch {
+            return match;
+          }
+          return routeName.toLowerCase() === 'registration-transfers'
+            ? `${prefix}${outlet ?? ''}${route}${parameters ?? ''}/[REDACTED_TOKEN]`
+            : match;
+        },
+      );
+      return `${boundary}${origin}${safePath}`;
+    },
+  );
+
 const redactPatterns = (value: string): string =>
-  value
+  redactTransferPathCredentials(value)
     .replaceAll(/(\b[a-z][a-z0-9+.-]*:\/\/)[^\s/\\?#]*@/giu, '$1')
     .replaceAll(/(bearer\s+)[a-z0-9._~+/=-]+/giu, '$1[REDACTED]')
     .replaceAll(

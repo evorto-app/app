@@ -357,6 +357,179 @@ describe('PlatformTemplateEditorComponent recovery', () => {
     );
   });
 
+  it('keeps cached role labels removable after lookup failure without duplicating or adding unverified options', async () => {
+    loadRoles.mockResolvedValue([
+      {
+        defaultOrganizerRole: true,
+        defaultUserRole: true,
+        id: 'role-1',
+        name: 'Member',
+      },
+      {
+        defaultOrganizerRole: false,
+        defaultUserRole: false,
+        id: 'helper-role',
+        name: 'Helper',
+      },
+      {
+        defaultOrganizerRole: false,
+        defaultUserRole: false,
+        id: 'observer-role',
+        name: 'Observer',
+      },
+    ]);
+    const { field, fixture, root } = await renderExistingTemplate([
+      'role-1',
+      'helper-role',
+    ]);
+    loadRoles.mockRejectedValueOnce(new Error('Role lookup failed'));
+    await queryClient.refetchQueries({
+      exact: true,
+      queryKey: ['platform-template', 'roles', 'tenant-1'],
+    });
+    await fixture.whenStable();
+
+    await vi.waitFor(async () => {
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(root.textContent).toContain(
+        'organization roles could not be loaded',
+      );
+      expect(root.querySelector('form')).not.toBeNull();
+    });
+    const roles = await TestbedHarnessEnvironment.loader(fixture).getHarness(
+      MatSelectHarness.with({ selector: 'mat-select[multiple]' }),
+    );
+    expect(await roles.getValueText()).toBe('Member, Helper');
+    await roles.open();
+    expect(await roles.getOptions()).toHaveLength(3);
+    const [helper] = await roles.getOptions({ text: 'Helper' });
+    const [observer] = await roles.getOptions({ text: 'Observer' });
+    if (!helper || !observer) throw new Error('Expected retained role options');
+    expect(await helper.isSelected()).toBe(true);
+    expect(await helper.isDisabled()).toBe(false);
+    expect(await observer.isDisabled()).toBe(true);
+    await helper.click();
+    await roles.close();
+    expect(field().value()).toEqual(['role-1']);
+    expect(field().errors()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: 'roleUnverified' }),
+      ]),
+    );
+    await submitTemplate(fixture);
+    expect(savedTemplate).not.toHaveBeenCalled();
+    expect(
+      root.querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled,
+    ).toBe(true);
+
+    const retry = [...root.querySelectorAll('button')].find(
+      (button) => button.textContent?.trim() === 'Try again',
+    );
+    if (!retry) throw new Error('Expected the role retry action');
+    retry.click();
+    await vi.waitFor(async () => {
+      await fixture.whenStable();
+      expect(field().errors()).toEqual([]);
+      expect(
+        root.querySelector<HTMLButtonElement>('button[type="submit"]')
+          ?.disabled,
+      ).toBe(false);
+    });
+    expect(field().value()).toEqual(['role-1']);
+    await submitTemplate(fixture);
+    expect(savedTemplate).toHaveBeenCalledOnce();
+    expect(savedTemplate.mock.calls[0]).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          registrationOptions: expect.arrayContaining([
+            expect.objectContaining({
+              id: 'organizer-option',
+              roleIds: ['role-1'],
+            }),
+          ]),
+          targetTenantId: 'tenant-1',
+        }),
+      ]),
+    );
+  });
+
+  it('preserves persisted role labels for removal when the initial catalog lookup fails', async () => {
+    loadRoles.mockRejectedValueOnce(new Error('Initial role lookup failed'));
+    const { field, fixture, root } = await renderExistingTemplate([
+      'organizer-role',
+      'role-1',
+    ]);
+    const roles = await TestbedHarnessEnvironment.loader(fixture).getHarness(
+      MatSelectHarness.with({ selector: 'mat-select[multiple]' }),
+    );
+    expect(await roles.getValueText()).toContain('Organizer (not verified)');
+    await roles.open();
+    const [organizer] = await roles.getOptions({
+      text: 'Organizer (not verified)',
+    });
+    if (!organizer) throw new Error('Expected the persisted role label');
+    expect(await organizer.isSelected()).toBe(true);
+    expect(await organizer.isDisabled()).toBe(false);
+    await organizer.click();
+    await roles.close();
+    expect(field().value()).toEqual(['role-1']);
+    await submitTemplate(fixture);
+    expect(savedTemplate).not.toHaveBeenCalled();
+    expect(
+      root.querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled,
+    ).toBe(true);
+
+    const retry = [...root.querySelectorAll('button')].find(
+      (button) => button.textContent?.trim() === 'Try again',
+    );
+    if (!retry) throw new Error('Expected the role retry action');
+    let finishRetry:
+      ((roles: Awaited<ReturnType<typeof loadRoles>>) => void) | undefined;
+    // Angular's browser library target does not expose Promise.withResolvers.
+    // eslint-disable-next-line unicorn/prefer-promise-with-resolvers
+    const retryResult = new Promise<Awaited<ReturnType<typeof loadRoles>>>(
+      (resolve) => {
+        finishRetry = resolve;
+      },
+    );
+    loadRoles.mockReturnValueOnce(retryResult);
+    retry.click();
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(
+        queryClient.getQueryState(['platform-template', 'roles', 'tenant-1'])
+          ?.fetchStatus,
+      ).toBe('fetching');
+      expect(root.querySelector('form')).not.toBeNull();
+      expect(root.textContent).toContain('Loading organization roles');
+      expect(field().value()).toEqual(['role-1']);
+      expect(
+        root.querySelector<HTMLButtonElement>('button[type="submit"]')
+          ?.disabled,
+      ).toBe(true);
+    });
+    if (!finishRetry) throw new Error('Expected the pending role retry');
+    finishRetry([
+      {
+        defaultOrganizerRole: true,
+        defaultUserRole: true,
+        id: 'role-1',
+        name: 'Member',
+      },
+    ]);
+    await vi.waitFor(async () => {
+      await fixture.whenStable();
+      expect(field().errors()).toEqual([]);
+      expect(
+        root.querySelector<HTMLButtonElement>('button[type="submit"]')
+          ?.disabled,
+      ).toBe(false);
+    });
+    expect(await roles.getValueText()).toBe('Member');
+    expect(field().value()).toEqual(['role-1']);
+  });
+
   it.each(['available', 'missing', 'error'])(
     'blocks role revalidation until the target catalog resolves as %s',
     async (outcome) => {
@@ -953,8 +1126,8 @@ describe('platform template editor graph mapping', () => {
     expect(template).toContain(
       'Previously selected category (no longer available)',
     );
-    expect(template).toContain(
-      'Previously selected organization role (no longer available)',
+    expect(template).toMatch(
+      /Previously selected organization role \(no longer\s+available\)/u,
     );
     expect(template.match(/Previously selected tax rate/g)?.length).toBe(2);
     expect(template).not.toContain('{{ selectedCategoryId }}');

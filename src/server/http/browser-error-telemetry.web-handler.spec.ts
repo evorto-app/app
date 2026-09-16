@@ -23,6 +23,44 @@ const telemetryRequest = (
   });
 
 describe('browser error telemetry', () => {
+  it.effect(
+    'redacts direct transfer-link reports before logging and deduplication',
+    () =>
+      Effect.gen(function* () {
+        const log = vi.fn(() => Effect.void);
+        const handler = makeBrowserErrorTelemetryHandler({
+          log,
+          now: () => 100,
+        });
+        for (const credential of [
+          'private-first-token',
+          'private-second-token',
+        ]) {
+          const url = `https://staging.evorto.app/(primary:registration-transfers/${credential})`;
+          const response = yield* handler(
+            telemetryRequest({
+              message: `Failed to open ${url}`,
+              name: 'Error',
+              stack: `at claim (${url})`,
+              url,
+            }),
+          );
+          expect(response.status).toBe(204);
+        }
+
+        expect(log).toHaveBeenCalledExactlyOnceWith(
+          expect.objectContaining({
+            message:
+              'Failed to open https://staging.evorto.app/(primary:registration-transfers/[REDACTED_TOKEN])',
+            name: 'Error',
+            stack:
+              'at claim (https://staging.evorto.app/(primary:registration-transfers/[REDACTED_TOKEN]))',
+            url: 'https://staging.evorto.app/(primary:registration-transfers/[REDACTED_TOKEN])',
+          }),
+        );
+      }),
+  );
+
   it.each([
     'https://private-user:private-password@staging.evorto.app/events?token=private-query#private-fragment',
     'https://private%40user:p%40ss%3Aword@staging.evorto.app/events?token=private-query#private-fragment',

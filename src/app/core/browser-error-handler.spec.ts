@@ -28,7 +28,7 @@ describe('application error reporting', () => {
       vi.stubGlobal('fetch', fetchReport);
       vi.stubGlobal('navigator', { sendBeacon: undefined });
       vi.stubGlobal('location', {
-        href: 'https://page-user:page-password@tenant.example.com/events?private=query#fragment',
+        href: 'https://page-user:page-password@tenant.example.com/registration-transfers/private-transfer-token?private=query#fragment',
       });
       TestBed.configureTestingModule({
         providers: [
@@ -47,7 +47,7 @@ describe('application error reporting', () => {
           'Failed https://tenant.example.com/events for [REDACTED_EMAIL]; Bearer [REDACTED]',
         name: 'Error',
         stack: expect.stringContaining('[REDACTED_EMAIL]'),
-        url: 'https://tenant.example.com/events',
+        url: 'https://tenant.example.com/registration-transfers/[REDACTED_TOKEN]',
       });
       if (platformId === 'browser') {
         expect(fetchReport).toHaveBeenCalledExactlyOnceWith(
@@ -59,6 +59,7 @@ describe('application error reporting', () => {
         expect(body).toContain('[REDACTED_EMAIL]');
         expect(body).not.toContain('password');
         expect(body).not.toContain('private-token');
+        expect(body).not.toContain('private-transfer-token');
         expect(body).not.toContain('private=query');
       } else {
         expect(fetchReport).not.toHaveBeenCalled();

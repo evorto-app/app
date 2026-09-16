@@ -1,4 +1,5 @@
 import { RpcBadRequestError } from '@shared/errors/rpc-errors';
+import { EventNotFoundError } from '@shared/rpc-contracts/app-rpcs/events.errors';
 import { Schema } from 'effect';
 import { describe, expect, it } from 'vitest';
 
@@ -97,23 +98,31 @@ describe('getErrorMessage', () => {
 });
 
 describe('eventReviewActionErrorRequiresRefresh', () => {
-  it('refreshes only for the typed review conflict', () => {
-    expect(
-      eventReviewActionErrorRequiresRefresh({
-        _tag: 'EventConflictError',
-        message: 'copy can change without changing recovery',
-      }),
-    ).toBe(true);
-    expect(
-      eventReviewActionErrorRequiresRefresh({
-        _tag: 'EventNotFoundError',
-        message: 'conflict',
-      }),
-    ).toBe(false);
-    expect(
-      eventReviewActionErrorRequiresRefresh(
-        new Error('status changed; refresh and try again'),
-      ),
-    ).toBe(false);
+  it.each([
+    {
+      _tag: 'EventConflictError',
+      message: 'copy can change without changing recovery',
+    },
+    Schema.decodeUnknownSync(EventNotFoundError)({
+      _tag: 'EventNotFoundError',
+      id: 'event-1',
+      message: 'Event not found',
+    }),
+  ])('refreshes stale event state for $_tag', (error) => {
+    expect(eventReviewActionErrorRequiresRefresh(error)).toBe(true);
+  });
+
+  it.each([
+    null,
+    undefined,
+    'EventNotFoundError',
+    new Error('status changed; refresh and try again'),
+    { _tag: 'RpcForbiddenError', message: 'permission denied' },
+    { _tag: 'RpcUnauthorizedError', message: 'sign in required' },
+    { _tag: 'RpcInternalServerError', message: 'private failure' },
+    { _tag: 'RpcBadRequestError', message: 'invalid input' },
+    { _tag: 'UnknownError', message: 'Event not found' },
+  ])('does not refresh for unrelated or untyped failures', (error) => {
+    expect(eventReviewActionErrorRequiresRefresh(error)).toBe(false);
   });
 });

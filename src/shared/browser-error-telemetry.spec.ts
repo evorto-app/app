@@ -7,6 +7,52 @@ import {
 } from './browser-error-telemetry';
 
 describe('browser error telemetry serialization', () => {
+  it.each([
+    '/registration-transfers/private-transfer-token',
+    '/registration-transfers/private%2Ftransfer-token',
+    '/%72egistration-transfers/private-transfer-token',
+    '/registration-transfers;source=email/private-transfer-token',
+    '/(registration-transfers/private-transfer-token)',
+    '/(primary:registration-transfers/private-transfer-token)',
+    '/(aux:help//primary:registration-transfers/private-transfer-token)',
+    '/(registration-transfers/private-transfer-token//aux:help)',
+  ])('redacts the claim credential in %s across telemetry fields', (path) => {
+    const safePath = path.replace(
+      /private(?:-|%2F)transfer-token/u,
+      '[REDACTED_TOKEN]',
+    );
+    const payload = {
+      message: `Could not open ${path}`,
+      name: 'Error',
+      stack: `at https://tenant.example.com${path}`,
+      url: `https://tenant.example.com${path}?from=email#details`,
+    };
+    const expected = {
+      message: `Could not open ${safePath}`,
+      name: 'Error',
+      stack: `at https://tenant.example.com${safePath}`,
+      url: `https://tenant.example.com${safePath}`,
+    };
+
+    expect(sanitizeBrowserErrorTelemetryPayload(payload)).toEqual(expected);
+    expect(serializeBrowserErrorTelemetryPayload(payload)).toBe(
+      JSON.stringify(expected),
+    );
+    expect(sanitizeBrowserErrorTelemetryPayload(expected)).toEqual(expected);
+  });
+
+  it('preserves the transfer entry route and unrelated source-file paths', () => {
+    const payload = {
+      message: 'Open /registration-transfers to enter a code',
+      name: 'Error',
+      stack:
+        'at https://tenant.example.com/src/app/registration-transfers/claim.component.ts\n at src/registration-transfers/claim.component.ts',
+      url: 'https://tenant.example.com/registration-transfers',
+    };
+
+    expect(sanitizeBrowserErrorTelemetryPayload(payload)).toEqual(payload);
+  });
+
   it('redacts credentials before either logging or serialization', () => {
     const payload = {
       message: 'Failure at https://user:password@tenant.example.com/events',

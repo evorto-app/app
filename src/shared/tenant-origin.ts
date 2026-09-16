@@ -46,9 +46,11 @@ export const normalizeTenantDomain = (value: string): string => {
   if (!trimmedValue) {
     throw new TenantDomainValidationError('Website address is required.');
   }
-  const originValue = trimmedValue.includes('://')
-    ? trimmedValue
-    : `https://${trimmedValue}`;
+  // Keep malformed HTTP(S) prefixes visible to the raw-origin check.
+  const originValue =
+    /^https?:/u.test(trimmedValue) || trimmedValue.includes('://')
+      ? trimmedValue
+      : `https://${trimmedValue}`;
   if (!hasRawOriginShape(originValue)) {
     throw new TenantDomainValidationError();
   }
