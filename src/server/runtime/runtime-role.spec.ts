@@ -61,7 +61,10 @@ describe('runtime role configuration', () => {
                 return {
                   exitCode: 0,
                   stderr: '',
-                  stdout: JSON.stringify({ status: 'ok' }),
+                  stdout: JSON.stringify({
+                    dialect: 'postgresql',
+                    status: 'ok',
+                  }),
                 };
               }),
           };
@@ -102,7 +105,7 @@ describe('runtime role configuration', () => {
               return {
                 exitCode: 0,
                 stderr: '',
-                stdout: JSON.stringify({ status: 'ok' }),
+                stdout: JSON.stringify({ dialect: 'postgresql', status: 'ok' }),
               };
             }),
         };
@@ -149,7 +152,7 @@ describe('runtime role configuration', () => {
               return {
                 exitCode: 0,
                 stderr: '',
-                stdout: JSON.stringify({ status: 'ok' }),
+                stdout: JSON.stringify({ dialect: 'postgresql', status: 'ok' }),
               };
             }),
         };
