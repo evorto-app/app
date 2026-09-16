@@ -11,15 +11,16 @@ export class TenantDomainValidationError extends Error {
   }
 }
 
-const containsForbiddenRawUrlSyntax = (value: string): boolean =>
-  value.includes('@') || value.includes('?') || value.includes('#');
+// Check the input before URL parsing erases dot segments, backslashes or tabs.
+const hasRawOriginShape = (value: string): boolean =>
+  /^https?:\/\/[^/\\\s@?#]+\/?$/iu.test(value);
 
 const parseOrigin = (value: string, label: string): URL => {
   const trimmedValue = value.trim();
   if (!trimmedValue) {
     throw new Error(`${label} is required`);
   }
-  if (containsForbiddenRawUrlSyntax(trimmedValue)) {
+  if (!hasRawOriginShape(trimmedValue)) {
     throw new Error(`${label} must be an origin without credentials or a path`);
   }
 
@@ -45,15 +46,16 @@ export const normalizeTenantDomain = (value: string): string => {
   if (!trimmedValue) {
     throw new TenantDomainValidationError('Website address is required.');
   }
-  if (containsForbiddenRawUrlSyntax(trimmedValue)) {
+  const originValue = trimmedValue.includes('://')
+    ? trimmedValue
+    : `https://${trimmedValue}`;
+  if (!hasRawOriginShape(originValue)) {
     throw new TenantDomainValidationError();
   }
 
   let url: URL;
   try {
-    url = new URL(
-      trimmedValue.includes('://') ? trimmedValue : `https://${trimmedValue}`,
-    );
+    url = new URL(originValue);
   } catch {
     throw new TenantDomainValidationError();
   }

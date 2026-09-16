@@ -18,3 +18,6 @@ Keep location selection tied to the latest request and preserve cancellation whi
 
 Keep website address validation visible when creating or editing an
 organization, while keeping unexpected errors out of user-facing messages.
+
+Reject raw paths, backslashes, and embedded whitespace before URL normalization
+when validating tenant domains or local development origins.

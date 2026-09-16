@@ -8,6 +8,15 @@ import {
 } from './tenant-origin';
 
 describe('tenant origin', () => {
+  it.each([
+    'section.example.org',
+    'section.example.org/',
+    'https://section.example.org/',
+    'http://section.example.org:80/',
+  ])('accepts a domain with an optional root slash: %s', (value) => {
+    expect(normalizeTenantDomain(value)).toBe('section.example.org');
+  });
+
   it('normalizes primary domains and derives HTTPS public origins', () => {
     expect(normalizeTenantDomain(' HTTPS://Section.Example.Org:443 ')).toBe(
       'section.example.org',
@@ -21,6 +30,14 @@ describe('tenant origin', () => {
     'https://section.example.org:8443',
     'https://user@section.example.org',
     'https://section.example.org/events',
+    'https://section.example.org/.',
+    'https://section.example.org/..',
+    'https://section.example.org/events/..',
+    'section.example.org/%2e%2e',
+    'https://section.example.org/%2e/',
+    'https://section.example.org\\',
+    String.raw`https://section.example.org\events\..`,
+    'https://section.\texample.org',
     'https://section.example.org?next=/events',
     'https://section.example.org#events',
     'https://section.example.org?',
@@ -79,6 +96,36 @@ describe('tenant origin', () => {
     ).toThrow(
       'Enter the main website address only, for example section.example.org.',
     );
+  });
+
+  it.each([
+    'http://localhost:4200/..',
+    'http://localhost:4200/events/..',
+    'http://localhost:4200/%2e%2e',
+    'http://localhost:4200\\',
+    'http:localhost:4200',
+    'http://local\thost:4200',
+  ])(
+    'ignores development origins with normalized-away syntax: %s',
+    (baseUrl) => {
+      expect(
+        resolveTenantPublicOrigin({
+          baseUrl,
+          nodeEnvironment: 'development',
+          primaryDomain: 'section.example.org',
+        }),
+      ).toBe('https://section.example.org');
+    },
+  );
+
+  it('preserves a valid IPv6 loopback origin and port', () => {
+    expect(
+      resolveTenantPublicOrigin({
+        baseUrl: 'http://[::1]:4200/',
+        nodeEnvironment: 'test',
+        primaryDomain: 'section.example.org',
+      }),
+    ).toBe('http://[::1]:4200');
   });
 
   it('builds a tenant path without allowing an absolute-origin override', () => {
