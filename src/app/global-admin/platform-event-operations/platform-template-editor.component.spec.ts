@@ -327,7 +327,7 @@ describe('PlatformTemplateEditorComponent recovery', () => {
     const reasonField = [...root.querySelectorAll('mat-form-field')].find(
       (field) =>
         field.querySelector('mat-label')?.textContent?.trim() ===
-        'Operational reason',
+        'Reason for this change',
     );
     const reason = reasonField?.querySelector('textarea');
     if (!reason) throw new Error('Expected the operational reason input');
