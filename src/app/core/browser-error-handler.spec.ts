@@ -6,22 +6,11 @@ import { BrowserErrorHandler } from './browser-error-handler';
 
 const browserErrorLog = vi.hoisted(() => vi.fn());
 
-vi.mock('consola/browser', async (importOriginal) => {
-  const original = await importOriginal<typeof import('consola/browser')>();
-  return {
-    ...original,
-    default: {
-      ...original.default,
-      withTag: (tag: string) => {
-        const logger = original.default.withTag(tag);
-        if (tag === 'app/browser-error') {
-          vi.spyOn(logger, 'error').mockImplementation(browserErrorLog);
-        }
-        return logger;
-      },
-    },
-  };
-});
+vi.mock('consola/browser', () => ({
+  default: {
+    withTag: () => ({ error: browserErrorLog }),
+  },
+}));
 
 describe('application error reporting', () => {
   afterEach(() => {
