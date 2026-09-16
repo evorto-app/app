@@ -16,6 +16,7 @@ import {
   EventConflictError,
   EventNotFoundError,
 } from '@shared/rpc-contracts/app-rpcs/events.errors';
+import { RoleLookupNotFoundError } from '@shared/rpc-contracts/app-rpcs/roles.errors';
 import {
   onlineManager,
   provideTanStackQuery,
@@ -1610,11 +1611,39 @@ describe('EventDetailsComponent review action outcomes', () => {
         {
           provide: RoleSelectQueries,
           useValue: {
-            catalog: (): ReturnType<RoleSelectQueries['catalog']> => ({
-              queryFn: async () => roles,
-              queryKey: [['roles', 'findMany'], { input: {}, type: 'query' }],
+            search: (
+              search: string,
+            ): ReturnType<RoleSelectQueries['search']> => ({
+              queryFn: async () =>
+                roles
+                  .filter((role) =>
+                    role.name.toLowerCase().includes(search.toLowerCase()),
+                  )
+                  .slice(0, 15),
+              queryKey: [
+                ['roles', 'findMany'],
+                { input: { search }, type: 'query' },
+              ],
             }),
-          } satisfies Pick<RoleSelectQueries, 'catalog'>,
+            selected: (
+              id: string,
+            ): ReturnType<RoleSelectQueries['selected']> => ({
+              queryFn: async () => {
+                const role = roles.find((role) => role.id === id);
+                if (!role)
+                  throw new RoleLookupNotFoundError({
+                    id,
+                    message: 'Role not found',
+                  });
+                return role;
+              },
+              queryKey: [
+                ['roles', 'findOne'],
+                { input: { id }, type: 'query' },
+              ],
+              retry: false,
+            }),
+          } satisfies Pick<RoleSelectQueries, 'search' | 'selected'>,
         },
       ],
     }).compileComponents();
