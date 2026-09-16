@@ -627,8 +627,11 @@ wait "$worker_pid" || true
       const result = await finishCommand(command);
       expect(fs.readFileSync(cleanupFile, 'utf8')).toBe('started\ncompleted\n');
       if (delivery === 'group') {
-        expect(result.code).toBeNull();
-        expect(result.signal).toBe(signal);
+        // Bun can preserve the cleanup command's exit or the package signal.
+        expect([
+          { code: 29, signal: null },
+          { code: null, signal },
+        ]).toContainEqual({ code: result.code, signal: result.signal });
       } else {
         expect(result.code, result.stderr).toBe(29);
         expect(result.signal).toBeNull();
