@@ -86,10 +86,14 @@ const databaseServerIdentity = (
 };
 
 const createDatabaseTlsOptions = (
-  caCertificate: string,
+  caCertificate: string | undefined,
   databaseUrl: string,
   tlsServerName?: string,
-): ConnectionOptions => {
+): ConnectionOptions | undefined => {
+  if (caCertificate === undefined) return;
+  if (caCertificate.trim().length === 0) {
+    throw new Error('DATABASE_TLS_CA_CERTIFICATE must not be blank');
+  }
   const identity = databaseServerIdentity(databaseUrl, tlsServerName);
   return {
     ca: caCertificate,
@@ -113,14 +117,17 @@ export const createPgClientConfig = ({
   tlsServerName?: string | undefined;
 }): PgPoolConfig => {
   const boundedPool = validatePoolSettings(pool);
+  const ssl = createDatabaseTlsOptions(
+    caCertificate,
+    databaseUrl,
+    tlsServerName,
+  );
   return {
     connectTimeout: boundedPool.connectTimeoutMs,
     idleTimeout: boundedPool.idleTimeoutMs,
     maxConnections: boundedPool.max,
     minConnections: boundedPool.min,
-    ...(caCertificate && {
-      ssl: createDatabaseTlsOptions(caCertificate, databaseUrl, tlsServerName),
-    }),
+    ...(ssl && { ssl }),
     types: pgTypes,
     url: Redacted.make(databaseConnectionUrl(databaseUrl)),
   };
@@ -138,15 +145,18 @@ export const createNodePgPoolConfig = ({
   tlsServerName?: string | undefined;
 }): PoolConfig => {
   const boundedPool = validatePoolSettings(pool);
+  const ssl = createDatabaseTlsOptions(
+    caCertificate,
+    databaseUrl,
+    tlsServerName,
+  );
   return {
     connectionString: databaseConnectionUrl(databaseUrl),
     connectionTimeoutMillis: boundedPool.connectTimeoutMs,
     idleTimeoutMillis: boundedPool.idleTimeoutMs,
     max: boundedPool.max,
     min: boundedPool.min,
-    ...(caCertificate && {
-      ssl: createDatabaseTlsOptions(caCertificate, databaseUrl, tlsServerName),
-    }),
+    ...(ssl && { ssl }),
     types: pgTypes,
   };
 };

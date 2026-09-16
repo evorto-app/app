@@ -173,8 +173,8 @@ const runSeedHelper = ({
 }) =>
   runDatabaseHelper({
     entrypoint: 'helpers/database.ts',
-    dotenvFiles,
-    captureSetupInputs,
+    ...(dotenvFiles !== undefined && { dotenvFiles }),
+    ...(captureSetupInputs !== undefined && { captureSetupInputs }),
     environment: {
       APP_ENVIRONMENT: 'staging',
       DATABASE_TLS_REQUIRED: 'false',
@@ -218,6 +218,27 @@ describe('managed database TLS preflight', () => {
         'DATABASE_TLS_CA_CERTIFICATE is required',
       );
       expect(result.attemptedConnection).toBe(false);
+    },
+  );
+
+  it.each(entrypoints)(
+    'rejects a defined blank CA with optional TLS before %s can connect',
+    (entrypoint) => {
+      for (const certificate of ['', ' \t\r\n ']) {
+        const result = runDatabaseHelper({
+          entrypoint,
+          environment: {
+            ...environment,
+            DATABASE_TLS_REQUIRED: 'false',
+            DATABASE_TLS_CA_CERTIFICATE: certificate,
+          },
+        });
+        expect(result.status).not.toBe(0);
+        expect(result.output).toContain(
+          'DATABASE_TLS_CA_CERTIFICATE must not be blank',
+        );
+        expect(result.attemptedConnection).toBe(false);
+      }
     },
   );
 

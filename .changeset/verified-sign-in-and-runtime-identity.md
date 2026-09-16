@@ -17,3 +17,9 @@ Reject auth origins whose raw paths, dot segments, empty query/fragment markers,
 backslashes, credentials, or internal whitespace would disappear during URL
 normalization. Preserve valid default ports, IPv6 origins, and local loopback
 base URLs while retaining typed configuration failures.
+
+Use the effective PostgreSQL host query value for managed schema connections
+and certificate identity. Reject a supplied blank CA before any raw ops entrypoint
+connects, including when verified TLS is optional, without trimming valid PEM.
+Recover missing sign-in transactions with the same explicit callback failure
+response while retaining unexpected SDK failures as defects.

@@ -2,6 +2,7 @@ import {
   type CookieHandler,
   type CookieSerializeOptions,
   CookieTransactionStore,
+  MissingTransactionError,
   ServerClient,
   type ServerClientOptions,
   type SessionData,
@@ -427,6 +428,12 @@ export const handleLoginRequest = (
     );
   });
 
+const callbackRecoveryResponse = () =>
+  HttpServerResponse.text(
+    'Sign-in could not be completed. Return to Evorto and try again.',
+    { headers: { 'Cache-Control': 'no-store' }, status: 400 },
+  );
+
 export const handleCallbackRequest = (
   request: HttpServerRequest.HttpServerRequest,
 ) =>
@@ -434,10 +441,7 @@ export const handleCallbackRequest = (
     const requestUrl = toAbsoluteRequestUrl(request);
 
     if (!requestUrl.searchParams.get('code')) {
-      return HttpServerResponse.text(
-        'Sign-in could not be completed. Return to Evorto and try again.',
-        { status: 400 },
-      );
+      return callbackRecoveryResponse();
     }
 
     const { auth0Client, storeOptions } =
@@ -445,16 +449,25 @@ export const handleCallbackRequest = (
 
     const completedLogin = yield* runAuth0SdkOperation(
       'handleCallbackRequest',
-      () =>
-        auth0Client.completeInteractiveLogin<LoginAppState>(
-          requestUrl,
-          storeOptions,
-        ),
+      async () => {
+        try {
+          return Option.some(
+            await auth0Client.completeInteractiveLogin<LoginAppState>(
+              requestUrl,
+              storeOptions,
+            ),
+          );
+        } catch (error) {
+          if (error instanceof MissingTransactionError) return Option.none();
+          throw error;
+        }
+      },
     );
+    if (Option.isNone(completedLogin)) return callbackRecoveryResponse();
 
     const redirectUrl =
       sanitizeRelativeRedirectPath(
-        asString(completedLogin.appState?.redirectUrl),
+        asString(completedLogin.value.appState?.redirectUrl),
       ) ?? '/';
 
     const redirectResponse = HttpServerResponse.redirect(redirectUrl);

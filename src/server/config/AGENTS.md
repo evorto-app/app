@@ -19,7 +19,9 @@
   accepting URL normalization: allow only the authority and an optional trailing
   slash, with no paths, dot segments, query/fragment markers, backslashes,
   credentials, or internal whitespace. Surrounding whitespace is trimmed.
-- A provided database CA certificate must be nonblank; preserve its PEM bytes.
+- A provided database CA certificate must be nonblank even when
+  `DATABASE_TLS_REQUIRED=false`; preserve its PEM bytes. Shared PostgreSQL
+  constructors and raw ops entrypoints enforce this before creating a pool.
   When configuring a CA, keep SSL settings out of `DATABASE_URL` so they cannot
   override certificate and server-name verification in the PostgreSQL driver.
 
@@ -133,3 +135,9 @@ fallback alone does not satisfy this requirement. Both startup/request validatio
 and the child command share `isDatabaseRuntimeRoleName`; surrounding whitespace
 is invalid.
 Web, worker, initial bootstrap, and local seed commands do not require this setting.
+
+## Sign-in Callback Recovery
+
+A stale or replayed callback with the SDK's `MissingTransactionError` receives
+an explicit non-cacheable 400 response. Handle this only at the callback boundary;
+unknown SDK failures and errors merely named like an expected error remain defects.

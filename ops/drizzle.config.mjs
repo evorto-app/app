@@ -23,6 +23,10 @@ if (tlsRequired && !caCertificate?.trim()) {
   );
 }
 
+if (caCertificate !== undefined && caCertificate.trim().length === 0) {
+  throw new Error("DATABASE_TLS_CA_CERTIFICATE must not be blank");
+}
+
 const managedDatabaseCredentials = () => {
   const parsedUrl = new URL(databaseUrl);
   if (
@@ -33,7 +37,9 @@ const managedDatabaseCredentials = () => {
   }
 
   const database = decodeURIComponent(parsedUrl.pathname.replace(/^\/+/, ""));
-  const host = parsedUrl.hostname.replace(/^\[|\]$/gu, "");
+  const host = (
+    parsedUrl.searchParams.getAll("host").at(-1) || parsedUrl.hostname
+  ).replace(/^\[|\]$/gu, "");
   const user = decodeURIComponent(parsedUrl.username);
   const password = decodeURIComponent(parsedUrl.password);
   if (!host || !database || !user || !password) {

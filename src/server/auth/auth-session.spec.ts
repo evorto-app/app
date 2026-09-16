@@ -1,18 +1,23 @@
 import {
   MissingSessionError,
   MissingTransactionError,
+  ServerClient,
   type SessionData,
   type StateData,
   type TransactionData,
 } from '@auth0/auth0-server-js';
-import { describe, expect, it } from '@effect/vitest';
-import { Cause, Effect, Exit, Option } from 'effect';
+import { afterEach, describe, expect, it, vi } from '@effect/vitest';
+import { Cause, ConfigProvider, Effect, Exit, Option } from 'effect';
+import * as HttpServerRequest from 'effect/unstable/http/HttpServerRequest';
+import * as HttpServerResponse from 'effect/unstable/http/HttpServerResponse';
 
+import { RuntimeConfig } from '../config/runtime-config';
 import {
   AUTH_SESSION_COOKIE_IDENTIFIER,
   AUTH_TRANSACTION_COOKIE_IDENTIFIER,
   createAuth0ServerClientOptions,
   createAuthStoreOptions,
+  handleCallbackRequest,
   InvalidAuthSessionError,
   isAuthenticated,
   runAuth0SdkOperation,
@@ -147,8 +152,10 @@ describe('Auth0 application sessions', () => {
   it('emits and deletes the exact hosted session cookie with hardened flags', async () => {
     const options = clientOptions(true);
     const storeOptions = createAuthStoreOptions({}, true);
+    const stateStore = options.stateStore;
+    if (!stateStore) throw new Error('Expected an Auth0 state store');
 
-    await options.stateStore.set(
+    await stateStore.set(
       AUTH_SESSION_COOKIE_IDENTIFIER,
       storedStateData(),
       false,
@@ -168,10 +175,7 @@ describe('Auth0 application sessions', () => {
       }),
     );
 
-    await options.stateStore.delete(
-      AUTH_SESSION_COOKIE_IDENTIFIER,
-      storeOptions,
-    );
+    await stateStore.delete(AUTH_SESSION_COOKIE_IDENTIFIER, storeOptions);
 
     expect(storeOptions.mutations).toContainEqual({
       name: `${AUTH_SESSION_COOKIE_IDENTIFIER}.0`,
@@ -277,4 +281,107 @@ describe('Auth0 application sessions', () => {
       }
     }
   });
+});
+
+const callbackRuntimeConfig = RuntimeConfig.make.pipe(
+  Effect.provideService(
+    ConfigProvider.ConfigProvider,
+    ConfigProvider.fromEnv({
+      env: {
+        APP_ENVIRONMENT: 'production',
+        APP_ROLE: 'web',
+        BASE_URL: 'https://app.example',
+        CLIENT_ID: 'fixture-client',
+        CLIENT_SECRET: 'fixture-secret',
+        DATABASE_TLS_REQUIRED: 'false',
+        DATABASE_URL: 'postgresql://fixture:fixture@127.0.0.1:1/unused',
+        ISSUER_BASE_URL: 'https://issuer.example',
+        SECRET: 's'.repeat(32),
+        WORKER_TRIGGER_MODE: 'http',
+      },
+    }),
+  ),
+);
+const callbackRequest = () =>
+  HttpServerRequest.fromWeb(
+    new Request(
+      'https://app.example/callback?code=stale-code&state=stale-state',
+      { headers: { host: 'app.example', 'x-forwarded-proto': 'https' } },
+    ),
+  );
+
+describe('Auth0 callback recovery', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it.effect(
+    'recovers stale or replayed callbacks without contacting the provider',
+    () =>
+      Effect.gen(function* () {
+        const fetch = vi
+          .spyOn(globalThis, 'fetch')
+          .mockRejectedValue(new Error('Network is forbidden in this test'));
+        const runtime = yield* callbackRuntimeConfig;
+        for (let attempt = 0; attempt < 2; attempt += 1) {
+          const response = yield* handleCallbackRequest(callbackRequest()).pipe(
+            Effect.provideService(RuntimeConfig, runtime),
+          );
+          const webResponse = HttpServerResponse.toWeb(response);
+          expect(webResponse.status).toBe(400);
+          expect(webResponse.headers.get('Cache-Control')).toBe('no-store');
+          expect(yield* Effect.promise(() => webResponse.text())).toBe(
+            'Sign-in could not be completed. Return to Evorto and try again.',
+          );
+        }
+        expect(fetch).not.toHaveBeenCalled();
+      }),
+  );
+
+  it.effect(
+    'preserves defects for unexpected or merely named callback failures',
+    () =>
+      Effect.gen(function* () {
+        const runtime = yield* callbackRuntimeConfig;
+        const complete = vi.spyOn(
+          ServerClient.prototype,
+          'completeInteractiveLogin',
+        );
+        for (const failure of [
+          new Error('provider unavailable'),
+          new MissingSessionError('missing session'),
+          { message: 'spoofed failure', name: 'MissingTransactionError' },
+        ]) {
+          complete.mockRejectedValueOnce(failure);
+          const exit = yield* Effect.exit(
+            handleCallbackRequest(callbackRequest()).pipe(
+              Effect.provideService(RuntimeConfig, runtime),
+            ),
+          );
+          expect(Exit.isFailure(exit)).toBe(true);
+          if (Exit.isFailure(exit))
+            expect(Cause.squash(exit.cause)).toBe(failure);
+        }
+      }),
+  );
+
+  it.effect('keeps successful callback redirects sanitized', () =>
+    Effect.gen(function* () {
+      const runtime = yield* callbackRuntimeConfig;
+      const complete = vi.spyOn(
+        ServerClient.prototype,
+        'completeInteractiveLogin',
+      );
+      for (const [redirectUrl, expected] of [
+        ['/events', '/events'],
+        ['https://attacker.example', '/'],
+      ] as const) {
+        complete.mockResolvedValueOnce({ appState: { redirectUrl } });
+        const response = yield* handleCallbackRequest(callbackRequest()).pipe(
+          Effect.provideService(RuntimeConfig, runtime),
+        );
+        expect(HttpServerResponse.toWeb(response).headers.get('Location')).toBe(
+          expected,
+        );
+      }
+    }),
+  );
 });

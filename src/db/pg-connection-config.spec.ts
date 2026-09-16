@@ -47,6 +47,31 @@ describe('pg-connection-config', () => {
   const databaseUrl =
     'postgresql://evorto:local@localhost:55432/appdb?application_name=evorto';
 
+  for (const [name, create] of [
+    ['node', createNodePgPoolConfig],
+    ['effect', createPgClientConfig],
+  ] as const) {
+    it.each(['', '  ', '\n\t'])(
+      `rejects a defined blank CA before constructing ${name} client options: %j`,
+      (caCertificate) => {
+        expect(() => create({ caCertificate, databaseUrl })).toThrow(
+          'DATABASE_TLS_CA_CERTIFICATE must not be blank',
+        );
+      },
+    );
+  }
+
+  it('preserves every nonblank CA byte in both shared constructors', () => {
+    const caCertificate =
+      '\n-----BEGIN CERTIFICATE-----\nca\n-----END CERTIFICATE-----\n';
+    expect(createNodePgPoolConfig({ caCertificate, databaseUrl }).ssl).toEqual(
+      expect.objectContaining({ ca: caCertificate }),
+    );
+    expect(createPgClientConfig({ caCertificate, databaseUrl }).ssl).toEqual(
+      expect.objectContaining({ ca: caCertificate }),
+    );
+  });
+
   it('uses the URL SSL mode and bounded pool settings for both clients', () => {
     const databaseUrl =
       'postgresql://evorto:local@localhost:55432/appdb?sslmode=disable';
