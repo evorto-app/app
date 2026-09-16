@@ -33,6 +33,7 @@
       placeholder="Add role…"
       #roleInput
       [formField]="searchForm.query"
+      [attr.maxlength]="roleSearchMaxLength"
       [matChipInputFor]="chipGrid"
       [matAutocomplete]="auto"
       [matChipInputSeparatorKeyCodes]="separatorKeysCodes"
@@ -48,6 +49,11 @@
       }
     </mat-autocomplete>
   </mat-form-field>
+  @if (!searchWithinLimit()) {
+    <p class="text-error text-sm" role="alert">
+      Search using no more than {{ roleSearchMaxLength }} characters.
+    </p>
+  }
   @if (unavailableSelectedRoleCount() > 0) {
     <p class="text-error text-sm" role="alert">
       {{ unavailableSelectedRoleCount() }}
@@ -84,7 +90,9 @@
         </button>
       </div>
     </div>
-  } @else if (!rolesQuery.isSuccess() || selectedRolesLoading()) {
+  } @else if (
+    (searchWithinLimit() && !rolesQuery.isSuccess()) || selectedRolesLoading()
+  ) {
     <p class="text-on-surface-variant text-sm" role="status">Loading roles…</p>
   }
 }

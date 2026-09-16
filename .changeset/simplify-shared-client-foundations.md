@@ -30,3 +30,5 @@ keys and 100 fingerprints. Multiple web instances have independent budgets,
 and restarts reset them; these are not service-wide or rolling-minute limits.
 Anonymous callers can consume the process budget, so this remains bounded,
 best-effort diagnostics rather than a tenant-authenticated delivery guarantee.
+
+Limit role searches to 64 characters and reuse recently verified role lookup results without repeating one request per known selected role. Keep stale, failed, or missing selections subject to verification and removal before saving.

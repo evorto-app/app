@@ -2,6 +2,7 @@ import { RpcBadRequestError } from '@shared/errors/rpc-errors';
 import { Schema } from 'effect';
 import { describe, expect, it } from 'vitest';
 
+import { eventReviewActionErrorRequiresRefresh } from '../events/event-rpc-error';
 import { getErrorMessage } from './error-message';
 
 describe('getErrorMessage', () => {
@@ -92,5 +93,27 @@ describe('getErrorMessage', () => {
         ['EventRegistrationConflictError'],
       ),
     ).toBe(contextualFallback);
+  });
+});
+
+describe('eventReviewActionErrorRequiresRefresh', () => {
+  it('refreshes only for the typed review conflict', () => {
+    expect(
+      eventReviewActionErrorRequiresRefresh({
+        _tag: 'EventConflictError',
+        message: 'copy can change without changing recovery',
+      }),
+    ).toBe(true);
+    expect(
+      eventReviewActionErrorRequiresRefresh({
+        _tag: 'EventNotFoundError',
+        message: 'conflict',
+      }),
+    ).toBe(false);
+    expect(
+      eventReviewActionErrorRequiresRefresh(
+        new Error('status changed; refresh and try again'),
+      ),
+    ).toBe(false);
   });
 });

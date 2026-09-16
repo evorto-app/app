@@ -7,14 +7,18 @@ import { apply, form, FormField, submit } from '@angular/forms/signals';
 import { MatAutocompleteHarness } from '@angular/material/autocomplete/testing';
 import { MatChipGridHarness } from '@angular/material/chips/testing';
 import { MatFormFieldHarness } from '@angular/material/form-field/testing';
+import { createRpcQueryKey } from '@heddendorp/effect-angular-query';
 import { RoleLookupNotFoundError } from '@shared/rpc-contracts/app-rpcs/roles.errors';
+import { RolesFindManyInput } from '@shared/rpc-contracts/app-rpcs/roles.rpcs';
 import {
   provideTanStackQuery,
   QueryClient,
 } from '@tanstack/angular-query-experimental';
+import { Schema } from 'effect';
 import { firstValueFrom, Subject } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { APP_RPC_CLIENT } from '../../../../core/effect-rpc-angular-client';
 import {
   RoleSelectComponent,
   RoleSelectQueries,
@@ -440,6 +444,34 @@ describe('RoleSelectComponent', () => {
     expect(fixture.nativeElement.textContent).not.toContain('no longer exists');
   });
 
+  it('limits the native role input to the RPC search maximum', () => {
+    const input: HTMLInputElement =
+      fixture.nativeElement.querySelector('input');
+    expect(input.maxLength).toBe(64);
+  });
+
+  it('does not dispatch oversized searches and resumes after the input is corrected', async () => {
+    await fixture.whenStable();
+    const input: HTMLInputElement =
+      fixture.nativeElement.querySelector('input');
+    loadRoles.mockClear();
+    input.value = 'x'.repeat(65);
+    input.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    await new Promise((resolve) => setTimeout(resolve, 350));
+    await fixture.whenStable();
+    expect(loadRoles).not.toHaveBeenCalled();
+    expect(fixture.nativeElement.querySelectorAll('mat-option')).toHaveLength(
+      0,
+    );
+    input.value = 'finance';
+    input.dispatchEvent(new Event('input'));
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(loadRoles).toHaveBeenCalledExactlyOnceWith('finance');
+    });
+  });
+
   it('adds the clicked autocomplete result after Material writes its option value', async () => {
     const loader = TestbedHarnessEnvironment.loader(fixture);
     const autocomplete = await loader.getHarness(MatAutocompleteHarness);
@@ -590,4 +622,264 @@ describe('RoleSelectComponent', () => {
       ).toContain('roleMissing');
     });
   });
+});
+
+describe('role lookup search boundary', () => {
+  it('accepts 64 characters and rejects longer RPC searches', () => {
+    expect(Schema.is(RolesFindManyInput)({ search: 'x'.repeat(64) })).toBe(
+      true,
+    );
+    expect(Schema.is(RolesFindManyInput)({ search: 'x'.repeat(65) })).toBe(
+      false,
+    );
+    expect(Schema.is(RolesFindManyInput)({ defaultUserRole: true })).toBe(true);
+  });
+});
+
+describe('RoleSelectQueries cached role verification', () => {
+  const loadRole = vi.fn(resolveRole);
+  let queryClient: QueryClient;
+  let queries: RoleSelectQueries;
+  const keyFor = (input: RolesFindManyInput, prefix = 'rpc') =>
+    createRpcQueryKey(['roles', 'findMany'], {
+      input,
+      keyPrefix: prefix,
+      type: 'query',
+    });
+
+  beforeEach(async () => {
+    loadRole.mockReset().mockImplementation(resolveRole);
+    queryClient = new QueryClient({
+      defaultOptions: { queries: { gcTime: 0, retry: false } },
+    });
+    await TestBed.configureTestingModule({
+      imports: [RoleSelectComponent, RoleSelectFormHost],
+      providers: [
+        provideTanStackQuery(queryClient),
+        {
+          provide: APP_RPC_CLIENT,
+          useValue: {
+            roles: {
+              findMany: {
+                queryOptions: (input: RolesFindManyInput) => ({
+                  queryFn: async () => [role, financeRole],
+                  queryKey: keyFor(input),
+                }),
+              },
+              findOne: {
+                queryOptions: ({ id }: { id: string }) => ({
+                  queryFn: () => loadRole(id),
+                  queryKey: createRpcQueryKey(['roles', 'findOne'], {
+                    input: { id },
+                    keyPrefix: 'rpc',
+                    type: 'query',
+                  }),
+                }),
+              },
+            },
+          },
+        },
+      ],
+    }).compileComponents();
+    queries = TestBed.inject(RoleSelectQueries);
+  });
+
+  afterEach(() => {
+    TestBed.resetTestingModule();
+    queryClient.clear();
+  });
+
+  it('verifies many default selections from an existing lookup without per-role requests', async () => {
+    const defaults = Array.from({ length: 60 }, (_, index) => ({
+      ...role,
+      id: `default-${index}`,
+      name: `Default ${index}`,
+    }));
+    const updatedAt = Date.now() - 1000;
+    queryClient.setQueryData(keyFor({ defaultOrganizerRole: true }), defaults, {
+      updatedAt,
+    });
+    const host = TestBed.createComponent(RoleSelectFormHost);
+    host.componentInstance.model.set({ roleIds: defaults.map(({ id }) => id) });
+    host.detectChanges();
+    await host.whenStable();
+    expect(loadRole).not.toHaveBeenCalled();
+    expect(host.componentInstance.roleForm().valid()).toBe(true);
+    expect(host.nativeElement.querySelectorAll('mat-chip-row')).toHaveLength(
+      60,
+    );
+    expect(host.nativeElement.textContent).toContain('Default 59');
+    for (const { id } of defaults) {
+      expect(
+        queryClient.getQueryState(queries.selected(id).queryKey)?.dataUpdatedAt,
+      ).toBe(updatedAt);
+    }
+  });
+
+  it('uses the newest successful lookup while retaining its original freshness timestamp', async () => {
+    const updatedAt = Date.now() - 1000;
+    queryClient.setQueryData(
+      keyFor({ search: '' }),
+      [{ ...role, name: 'Older name' }],
+      { updatedAt: updatedAt - 1000 },
+    );
+    queryClient.setQueryData(keyFor({ defaultOrganizerRole: true }), [role], {
+      updatedAt,
+    });
+    expect(await queryClient.fetchQuery(queries.selected(role.id))).toEqual(
+      role,
+    );
+    expect(loadRole).not.toHaveBeenCalled();
+    expect(
+      queryClient.getQueryState(queries.selected(role.id).queryKey)
+        ?.dataUpdatedAt,
+    ).toBe(updatedAt);
+  });
+
+  it.each([
+    'stale',
+    'invalidated',
+    'failed',
+    'incomplete',
+    'malformed',
+    'overbroad',
+    'other-rpc-scope',
+    'other-procedure',
+  ] as const)(
+    'does not confirm selected roles from a %s lookup',
+    async (state) => {
+      const lookupKey =
+        state === 'other-procedure'
+          ? createRpcQueryKey(['roles', 'findMany', 'other'], {
+              input: {},
+              keyPrefix: 'rpc',
+              type: 'query',
+            })
+          : keyFor(
+              { defaultOrganizerRole: true },
+              state === 'other-rpc-scope' ? 'other-app' : 'rpc',
+            );
+      queryClient.setQueryData(
+        lookupKey,
+        state === 'malformed'
+          ? [{ id: role.id, name: role.name }]
+          : state === 'overbroad'
+            ? [{ ...role, permissions: ['admin:manageRoles'] }]
+            : [role],
+        { updatedAt: Date.now() - (state === 'stale' ? 31_000 : 1000) },
+      );
+      const lookup = queryClient
+        .getQueryCache()
+        .find({ exact: true, queryKey: lookupKey });
+      switch (state) {
+        case 'failed': {
+          lookup?.setState({
+            error: new Error('Lookup failed'),
+            status: 'error',
+          });
+          break;
+        }
+        case 'incomplete': {
+          {
+            lookup?.setState({ fetchStatus: 'fetching' });
+            // No default
+          }
+          break;
+        }
+        case 'invalidated': {
+          lookup?.invalidate();
+          break;
+        }
+      }
+      const resolution = new Subject<RoleLookupRecord>();
+      loadRole.mockReturnValueOnce(firstValueFrom(resolution));
+      const host = TestBed.createComponent(RoleSelectFormHost);
+      host.detectChanges();
+      await vi.waitFor(() =>
+        expect(loadRole).toHaveBeenCalledExactlyOnceWith(role.id),
+      );
+      expect(host.componentInstance.roleForm().invalid()).toBe(true);
+      resolution.next(role);
+      await vi.waitFor(() => {
+        host.detectChanges();
+        expect(host.componentInstance.roleForm().valid()).toBe(true);
+      });
+    },
+  );
+
+  it('revalidates a hydrated selection after invalidation and preserves missing-role recovery', async () => {
+    queryClient.setQueryData(keyFor({ defaultOrganizerRole: true }), [role]);
+    const host = TestBed.createComponent(RoleSelectFormHost);
+    host.detectChanges();
+    await host.whenStable();
+    expect(host.componentInstance.roleForm().valid()).toBe(true);
+    expect(loadRole).not.toHaveBeenCalled();
+
+    loadRole.mockRejectedValueOnce(
+      new RoleLookupNotFoundError({ id: role.id, message: 'Role not found' }),
+    );
+    await queryClient.invalidateQueries({
+      exact: true,
+      queryKey: queries.selected(role.id).queryKey,
+    });
+    await vi.waitFor(() => {
+      host.detectChanges();
+      expect(
+        host.componentInstance.roleForm
+          .roleIds()
+          .errors()
+          .map(({ kind }) => kind),
+      ).toContain('roleMissing');
+    });
+    expect(loadRole).toHaveBeenCalledExactlyOnceWith(role.id);
+    expect(host.nativeElement.textContent).toContain(
+      'selected role no longer exists',
+    );
+    const remove: HTMLButtonElement = host.nativeElement.querySelector(
+      'button[matChipRemove]',
+    );
+    remove.click();
+    await vi.waitFor(() => {
+      host.detectChanges();
+      expect(host.componentInstance.roleForm().valid()).toBe(true);
+    });
+  });
+
+  it.each([
+    [
+      'missing',
+      new RoleLookupNotFoundError({
+        id: 'missing-role',
+        message: 'Role not found',
+      }),
+      'roleMissing',
+    ],
+    ['unknown', new Error('Lookup unavailable'), 'roleUnverified'],
+  ] as const)(
+    'keeps uncached %s selections invalid and removable',
+    async (_name, failure, kind) => {
+      queryClient.setQueryData(keyFor({ defaultOrganizerRole: true }), [role]);
+      loadRole.mockRejectedValue(failure);
+      const host = TestBed.createComponent(RoleSelectFormHost);
+      host.componentInstance.model.set({ roleIds: ['missing-role'] });
+      host.detectChanges();
+      await vi.waitFor(() => {
+        host.detectChanges();
+        expect(
+          host.componentInstance.roleForm
+            .roleIds()
+            .errors()
+            .map(({ kind }) => kind),
+        ).toContain(kind);
+      });
+      const remove: HTMLButtonElement = host.nativeElement.querySelector(
+        'button[matChipRemove]',
+      );
+      remove.click();
+      await vi.waitFor(() => {
+        host.detectChanges();
+        expect(host.componentInstance.roleForm().valid()).toBe(true);
+      });
+    },
+  );
 });

@@ -1,5 +1,3 @@
-import type { RoleLookupRecord } from '@shared/rpc-contracts/app-rpcs/roles.rpcs';
-
 import { COMMA, ENTER } from '@angular/cdk/keycodes';
 import {
   ChangeDetectionStrategy,
@@ -17,6 +15,7 @@ import {
   form,
   FormField,
   FormValueControl,
+  maxLength,
 } from '@angular/forms/signals';
 import {
   MatAutocompleteModule,
@@ -28,9 +27,13 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faCircleXmark } from '@fortawesome/duotone-regular-svg-icons';
 import { RoleLookupNotFoundError } from '@shared/rpc-contracts/app-rpcs/roles.errors';
-import { injectQuery } from '@tanstack/angular-query-experimental';
+import {
+  RoleLookupRecord,
+  roleSearchMaxLength,
+} from '@shared/rpc-contracts/app-rpcs/roles.rpcs';
+import { injectQuery, QueryClient } from '@tanstack/angular-query-experimental';
 import { injectQueries } from '@tanstack/angular-query-experimental/inject-queries-experimental';
-import { Schema } from 'effect';
+import { Option, Schema } from 'effect';
 
 import { AppRpc } from '../../../../core/effect-rpc-angular-client';
 import {
@@ -44,16 +47,69 @@ interface SelectedRoleView {
   readonly status: 'available' | 'loading' | 'missing' | 'unknown';
 }
 
+const roleLookupFreshnessMs = 30_000;
+const decodeRoleLookups = Schema.decodeUnknownOption(
+  Schema.Array(RoleLookupRecord),
+  {
+    onExcessProperty: 'error',
+  },
+);
+
 @Injectable({ providedIn: 'root' })
 export class RoleSelectQueries {
   private readonly rpc = AppRpc.injectClient();
+  private readonly queryClient = inject(QueryClient);
 
   search(search: string) {
     return this.rpc.roles.findMany.queryOptions({ search });
   }
 
   selected(id: string) {
-    return { ...this.rpc.roles.findOne.queryOptions({ id }), retry: false };
+    const cached = this.cachedRole(id);
+    return {
+      ...this.rpc.roles.findOne.queryOptions({ id }),
+      ...(cached && {
+        initialData: cached.role,
+        initialDataUpdatedAt: cached.updatedAt,
+        staleTime: roleLookupFreshnessMs,
+      }),
+      retry: false,
+    };
+  }
+
+  private cachedRole(id: string) {
+    // This QueryClient belongs to one browser/SSR app. Derive the exact current
+    // RPC path so platform-tenant/admin lookups cannot supply these records.
+    const [rpcPath] = this.rpc.roles.findMany.queryOptions({}).queryKey;
+    const now = Date.now();
+    let cached: undefined | { role: RoleLookupRecord; updatedAt: number };
+    for (const { state } of this.queryClient.getQueryCache().findAll({
+      predicate: (query) => {
+        const candidatePath = query.queryKey[0];
+        return (
+          query.queryKey.length === 2 &&
+          Array.isArray(candidatePath) &&
+          candidatePath.length === rpcPath.length
+        );
+      },
+      queryKey: [rpcPath],
+    })) {
+      if (
+        state.status !== 'success' ||
+        state.fetchStatus !== 'idle' ||
+        state.isInvalidated ||
+        state.dataUpdatedAt <= 0 ||
+        state.dataUpdatedAt > now ||
+        now - state.dataUpdatedAt >= roleLookupFreshnessMs ||
+        (cached && state.dataUpdatedAt <= cached.updatedAt)
+      )
+        continue;
+      const records = decodeRoleLookups(state.data);
+      if (Option.isNone(records)) continue;
+      const role = records.value.find((candidate) => candidate.id === id);
+      if (role) cached = { role, updatedAt: state.dataUpdatedAt };
+    }
+    return cached;
   }
 }
 
@@ -87,11 +143,17 @@ export class RoleSelectComponent
   protected readonly searchModel = signal({ query: '' });
   protected readonly searchForm = form(this.searchModel, (schema) => {
     debounce(schema.query, 300);
+    maxLength(schema.query, roleSearchMaxLength);
     disabled(schema.query, () => this.disabled() || this.readonly());
   });
-  protected readonly rolesQuery = injectQuery(() =>
-    this.queries.search(this.searchForm.query().value().trim()),
+  protected readonly roleSearchMaxLength = roleSearchMaxLength;
+  protected readonly searchWithinLimit = computed(
+    () => this.searchForm.query().value().length <= roleSearchMaxLength,
   );
+  protected readonly rolesQuery = injectQuery(() => ({
+    ...this.queries.search(this.searchForm.query().value().trim()),
+    enabled: this.searchWithinLimit(),
+  }));
   private readonly selectedRoleIds = computed(() => [...new Set(this.value())]);
   private readonly selectedRoleQueries = injectQueries(() => ({
     queries: this.selectedRoleIds().map((id) => this.queries.selected(id)),
@@ -134,6 +196,7 @@ export class RoleSelectComponent
   protected readonly availableRoles = computed<readonly RoleLookupRecord[]>(
     () => {
       if (
+        this.searchForm.query().controlValue().length > roleSearchMaxLength ||
         this.searchForm.query().controlValue().trim() !==
           this.searchForm.query().value().trim() ||
         !this.rolesQuery.isSuccess()
