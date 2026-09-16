@@ -17,7 +17,13 @@ const openUserAssignment = async (
   await expect(page.getByRole('heading', { name: 'All users' })).toBeVisible();
   await expect(page.locator('[ngh]')).toHaveCount(0, { timeout: 20_000 });
   await expect(page.getByRole('table')).toBeVisible({ timeout: 15_000 });
-  await page.getByPlaceholder('Name or email').fill(scenario.user.email);
+  const searchInput = page.getByPlaceholder('Name or email');
+  // The hydration markers can disappear before event replay has finished.
+  await expect(searchInput).not.toHaveAttribute('jsaction', /input/, {
+    timeout: 20_000,
+  });
+  await searchInput.fill(scenario.user.email);
+  await expect(searchInput).toHaveValue(scenario.user.email);
   const userRow = page
     .getByRole('row')
     .filter({ has: page.getByText(scenario.user.email, { exact: true }) });
