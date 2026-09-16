@@ -176,7 +176,7 @@ describe('authTokenInterceptor', () => {
   });
 
   it.each(['/rpc', '/rpc/'])(
-    'forwards the session and explicit trusted tenant route to internal SSR at %s',
+    'routes accepted SSR path %s to the canonical credential-bearing endpoint',
     (path) => {
       process.env['SSR_RPC_ORIGIN'] = 'http://localhost:4200';
       const { http, httpTesting } = configureServerHttp();
@@ -184,7 +184,12 @@ describe('authTokenInterceptor', () => {
 
       http.post(rpcUrl, {}).subscribe();
 
-      const rpcRequest = httpTesting.expectOne(rpcUrl);
+      const rpcRequest = httpTesting.expectOne(
+        `${resolveServerRpcOrigin()}/rpc`,
+      );
+      expect(rpcRequest.request.urlWithParams).toBe(
+        `${resolveServerRpcOrigin()}/rpc`,
+      );
       expect(rpcRequest.request.headers.get('Cookie')).toBe(sessionCookies);
       expect(rpcRequest.request.headers.get('Authorization')).toBe(
         `Bearer ${ssrRpcCapability}`,
@@ -256,6 +261,30 @@ describe('authTokenInterceptor', () => {
       httpTesting.verify();
     },
   );
+
+  it('does not attach SSR credentials when HttpClient adds query parameters', () => {
+    process.env['SSR_RPC_ORIGIN'] = 'http://localhost:4200';
+    const { http, httpTesting } = configureServerHttp();
+    const rpcUrl = `${resolveServerRpcOrigin()}/rpc/`;
+
+    http
+      .post(rpcUrl, {}, { params: { operation: 'events.findOne' } })
+      .subscribe();
+
+    const outgoingRequest = httpTesting.expectOne(
+      `${rpcUrl}?operation=events.findOne`,
+    );
+    expect(outgoingRequest.request.headers.has('Cookie')).toBe(false);
+    expect(outgoingRequest.request.headers.has('Authorization')).toBe(false);
+    expect(outgoingRequest.request.headers.has(trustedSsrSourceHeader)).toBe(
+      false,
+    );
+    expect(outgoingRequest.request.headers.has(trustedTenantDomainHeader)).toBe(
+      false,
+    );
+    outgoingRequest.flush({});
+    httpTesting.verify();
+  });
 
   it.each([
     'https://api.example.net/rpc',

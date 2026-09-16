@@ -56,7 +56,7 @@ export const authTokenInterceptor: HttpInterceptorFn = (request, next) => {
         incomingRequest &&
         capability &&
         request.method === 'POST' &&
-        isInternalServerRpcRequest(request.url)
+        isInternalServerRpcRequest(request.urlWithParams)
       ) {
         request = request.clone({
           setHeaders: {
@@ -65,6 +65,7 @@ export const authTokenInterceptor: HttpInterceptorFn = (request, next) => {
             [trustedSsrSourceHeader]: trustedSsrSourceValue,
             [trustedTenantDomainHeader]: requestContext.tenant.domain,
           },
+          url: new URL('/rpc', request.url).href,
         });
       }
     }
