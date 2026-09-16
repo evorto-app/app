@@ -5,9 +5,7 @@ import { readRequestBody } from './request-body';
 
 const maxEventsPerWindow = 10;
 const maxTotalEventsPerWindow = 100;
-const maxTrackedHosts = 100;
 const rateLimitWindowMs = 60_000;
-const deduplicationWindowMs = 60_000;
 const noStoreHeaders = { 'Cache-Control': 'no-store' };
 
 interface BrowserErrorTelemetryHandlerOptions {
@@ -17,9 +15,7 @@ interface BrowserErrorTelemetryHandlerOptions {
 
 interface BrowserErrorTelemetryHostState {
   eventCount: number;
-  readonly fingerprints: Map<string, number>;
-  lastSeenAt: number;
-  windowStartedAt: number;
+  readonly fingerprints: Set<string>;
 }
 
 class BrowserErrorPayload extends Schema.Class<BrowserErrorPayload>(
@@ -90,7 +86,7 @@ const stableFingerprint = (payload: BrowserErrorPayload): string => {
   return (hash >>> 0).toString(16);
 };
 
-const resolveTrustedHost = (request: Request): string | undefined => {
+const resolveSameOriginHost = (request: Request): string | undefined => {
   const originValue = request.headers.get('origin');
   if (!originValue) {
     return;
@@ -116,6 +112,14 @@ const decodePayload = (body: ArrayBuffer) =>
     Effect.option,
   );
 
+/**
+ * One handler owns one web process's fixed 60-second quota window: 100 admitted
+ * reports total, at most 10 per host, with deduplication inside that window.
+ * Other web processes and restarts have independent budgets. Same-origin hosts
+ * remain caller-controlled; this bounds telemetry resources, not tenant access.
+ * Clearing host state with the total quota prevents old host keys from denying
+ * new hosts a renewed budget. At most 100 hosts and fingerprints can be retained.
+ */
 export const makeBrowserErrorTelemetryHandler = ({
   log,
   now = Date.now,
@@ -125,8 +129,8 @@ export const makeBrowserErrorTelemetryHandler = ({
   let totalWindowStartedAt = now();
 
   return Effect.fn('handleBrowserErrorTelemetry')(function* (request: Request) {
-    const trustedHost = resolveTrustedHost(request);
-    if (!trustedHost) {
+    const sameOriginHost = resolveSameOriginHost(request);
+    if (!sameOriginHost) {
       return new Response(null, { headers: noStoreHeaders, status: 403 });
     }
     if (
@@ -162,33 +166,19 @@ export const makeBrowserErrorTelemetryHandler = ({
     if (currentTime - totalWindowStartedAt >= rateLimitWindowMs) {
       totalEventCount = 0;
       totalWindowStartedAt = currentTime;
+      hostStates.clear();
     }
     if (totalEventCount >= maxTotalEventsPerWindow) {
       return new Response(null, { headers: noStoreHeaders, status: 429 });
     }
 
-    for (const [candidateHost, state] of hostStates) {
-      if (currentTime - state.lastSeenAt >= rateLimitWindowMs) {
-        hostStates.delete(candidateHost);
-      }
-    }
-    let hostState = hostStates.get(trustedHost);
+    let hostState = hostStates.get(sameOriginHost);
     if (!hostState) {
-      if (hostStates.size >= maxTrackedHosts) {
-        return new Response(null, { headers: noStoreHeaders, status: 429 });
-      }
       hostState = {
         eventCount: 0,
-        fingerprints: new Map<string, number>(),
-        lastSeenAt: currentTime,
-        windowStartedAt: currentTime,
+        fingerprints: new Set<string>(),
       };
-      hostStates.set(trustedHost, hostState);
-    }
-    hostState.lastSeenAt = currentTime;
-    if (currentTime - hostState.windowStartedAt >= rateLimitWindowMs) {
-      hostState.eventCount = 0;
-      hostState.windowStartedAt = currentTime;
+      hostStates.set(sameOriginHost, hostState);
     }
     if (hostState.eventCount >= maxEventsPerWindow) {
       return new Response(null, { headers: noStoreHeaders, status: 429 });
@@ -198,17 +188,8 @@ export const makeBrowserErrorTelemetryHandler = ({
 
     const sanitizedPayload = sanitizeBrowserErrorPayload(payloadOption.value);
     const fingerprint = stableFingerprint(sanitizedPayload);
-    const lastSeenAt = hostState.fingerprints.get(fingerprint);
-    for (const [candidate, seenAt] of hostState.fingerprints) {
-      if (currentTime - seenAt >= deduplicationWindowMs) {
-        hostState.fingerprints.delete(candidate);
-      }
-    }
-    hostState.fingerprints.set(fingerprint, currentTime);
-    if (
-      lastSeenAt === undefined ||
-      currentTime - lastSeenAt >= deduplicationWindowMs
-    ) {
+    if (!hostState.fingerprints.has(fingerprint)) {
+      hostState.fingerprints.add(fingerprint);
       yield* log(sanitizedPayload);
     }
 

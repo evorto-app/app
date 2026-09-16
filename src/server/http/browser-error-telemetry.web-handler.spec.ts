@@ -92,7 +92,7 @@ describe('browser error telemetry', () => {
     }),
   );
 
-  it.effect('isolates deduplication state by trusted host', () =>
+  it.effect('isolates deduplication state by same-origin host', () =>
     Effect.gen(function* () {
       const log = vi.fn(() => Effect.void);
       const handler = makeBrowserErrorTelemetryHandler({ log, now: () => 100 });
@@ -180,7 +180,7 @@ describe('browser error telemetry', () => {
       expect(otherHost.status).toBe(204);
       expect(log).toHaveBeenCalledTimes(11);
 
-      now = 60_100;
+      now = 60_099;
       const beforeReset = yield* handler(
         telemetryRequest({
           message: 'after window',
@@ -190,7 +190,7 @@ describe('browser error telemetry', () => {
         }),
       );
       expect(beforeReset.status).toBe(429);
-      now = 60_101;
+      now = 60_100;
       const afterReset = yield* handler(
         telemetryRequest({
           message: 'after window',
@@ -204,61 +204,59 @@ describe('browser error telemetry', () => {
     }),
   );
 
-  it.effect(
-    'bounds reports across rotating hosts and renews the shared window',
-    () =>
-      Effect.gen(function* () {
-        const log = vi.fn(() => Effect.void);
-        let now = 0;
-        const handler = makeBrowserErrorTelemetryHandler({
-          log,
-          now: () => now,
-        });
-        const payload = {
-          message: 'render failed',
-          name: 'Error',
-          stack: null,
-          url: null,
-        };
+  it.effect('bounds reports across rotating hosts in one process window', () =>
+    Effect.gen(function* () {
+      const log = vi.fn(() => Effect.void);
+      let now = 0;
+      const handler = makeBrowserErrorTelemetryHandler({
+        log,
+        now: () => now,
+      });
+      const payload = {
+        message: 'render failed',
+        name: 'Error',
+        stack: null,
+        url: null,
+      };
 
-        for (let index = 0; index < 100; index += 1) {
-          const response = yield* handler(
-            telemetryRequest(payload, {}, `host-${index}.example.test`),
-          );
-          expect(response.status).toBe(204);
-        }
-        expect(log).toHaveBeenCalledTimes(100);
-
-        for (let index = 100; index < 120; index += 1) {
-          const response = yield* handler(
-            telemetryRequest(payload, {}, `host-${index}.example.test`),
-          );
-          expect(response.status).toBe(429);
-          expect(response.headers.get('Cache-Control')).toBe('no-store');
-          expect(yield* Effect.promise(() => response.text())).toBe('');
-        }
-        const malformed = yield* handler(
-          telemetryRequest({ message: 'invalid' }),
+      for (let index = 0; index < 100; index += 1) {
+        const response = yield* handler(
+          telemetryRequest(payload, {}, `host-${index}.example.test`),
         );
-        const crossOrigin = yield* handler(
-          telemetryRequest(payload, { Origin: 'https://attacker.example' }),
-        );
-        expect(malformed.status).toBe(400);
-        expect(crossOrigin.status).toBe(403);
+        expect(response.status).toBe(204);
+      }
+      expect(log).toHaveBeenCalledTimes(100);
 
-        now = 59_999;
-        const beforeReset = yield* handler(telemetryRequest(payload));
-        expect(beforeReset.status).toBe(429);
-        expect(log).toHaveBeenCalledTimes(100);
-        now = 60_000;
-        const afterReset = yield* handler(telemetryRequest(payload));
-        expect(afterReset.status).toBe(204);
-        expect(log).toHaveBeenCalledTimes(101);
-      }),
+      for (let index = 100; index < 120; index += 1) {
+        const response = yield* handler(
+          telemetryRequest(payload, {}, `host-${index}.example.test`),
+        );
+        expect(response.status).toBe(429);
+        expect(response.headers.get('Cache-Control')).toBe('no-store');
+        expect(yield* Effect.promise(() => response.text())).toBe('');
+      }
+      const malformed = yield* handler(
+        telemetryRequest({ message: 'invalid' }),
+      );
+      const crossOrigin = yield* handler(
+        telemetryRequest(payload, { Origin: 'https://attacker.example' }),
+      );
+      expect(malformed.status).toBe(400);
+      expect(crossOrigin.status).toBe(403);
+
+      now = 59_999;
+      const beforeReset = yield* handler(telemetryRequest(payload));
+      expect(beforeReset.status).toBe(429);
+      expect(log).toHaveBeenCalledTimes(100);
+      now = 60_000;
+      const afterReset = yield* handler(telemetryRequest(payload));
+      expect(afterReset.status).toBe(204);
+      expect(log).toHaveBeenCalledTimes(101);
+    }),
   );
 
   it.effect(
-    'preserves active host state at capacity and admits hosts after expiry',
+    'admits fresh hosts after rollover without allowing churn to reset an active host quota',
     () =>
       Effect.gen(function* () {
         const log = vi.fn(() => Effect.void);
@@ -281,49 +279,97 @@ describe('browser error telemetry', () => {
           );
           expect(response.status).toBe(204);
         }
+        now = 59_999;
+        expect(
+          (yield* handler(telemetryRequest(payload, {}, 'host-0.example.test')))
+            .status,
+        ).toBe(429);
 
-        // The shared window has reset, but every existing host is still active.
         now = 60_000;
-        for (let index = 100; index < 120; index += 1) {
+        for (let index = 0; index < 10; index += 1) {
           const response = yield* handler(
-            telemetryRequest(payload, {}, `host-${index}.example.test`),
-          );
-          expect(response.status).toBe(429);
-          expect(response.headers.get('Cache-Control')).toBe('no-store');
-        }
-        const duplicate = yield* handler(
-          telemetryRequest(payload, {}, 'host-0.example.test'),
-        );
-        expect(duplicate.status).toBe(204);
-        expect(log).toHaveBeenCalledTimes(100);
-
-        // The duplicate consumed one of the host's ten report slots.
-        for (let index = 0; index < 8; index += 1) {
-          const response = yield* handler(
-            telemetryRequest(
-              { ...payload, message: `failure-${index}` },
-              {},
-              'host-0.example.test',
-            ),
+            telemetryRequest({ ...payload, message: `fresh-${index}` }),
           );
           expect(response.status).toBe(204);
         }
-        const limited = yield* handler(
-          telemetryRequest(
-            { ...payload, message: 'over limit' },
-            {},
-            'host-0.example.test',
-          ),
-        );
-        expect(limited.status).toBe(429);
-        expect(log).toHaveBeenCalledTimes(108);
+        for (let index = 0; index < 89; index += 1) {
+          const response = yield* handler(
+            telemetryRequest(payload, {}, `replacement-${index}.example.test`),
+          );
+          expect(response.status).toBe(204);
+        }
+        expect(
+          (yield* handler(
+            telemetryRequest({ ...payload, message: 'over host quota' }),
+          )).status,
+        ).toBe(429);
+        expect(
+          (yield* handler(telemetryRequest(payload, {}, 'final.example.test')))
+            .status,
+        ).toBe(204);
+        expect(
+          (yield* handler(
+            telemetryRequest(payload, {}, 'overflow.example.test'),
+          )).status,
+        ).toBe(429);
+        expect(log).toHaveBeenCalledTimes(200);
+      }),
+  );
 
-        now = 110_000;
-        const replacement = yield* handler(
-          telemetryRequest(payload, {}, 'replacement.example.test'),
-        );
-        expect(replacement.status).toBe(204);
-        expect(log).toHaveBeenCalledTimes(109);
+  it.effect('renews deduplication with the process window', () =>
+    Effect.gen(function* () {
+      const log = vi.fn(() => Effect.void);
+      let now = 0;
+      const handler = makeBrowserErrorTelemetryHandler({ log, now: () => now });
+      const payload = {
+        message: 'same error',
+        name: 'Error',
+        stack: null,
+        url: null,
+      };
+      now = 59_999;
+      expect((yield* handler(telemetryRequest(payload))).status).toBe(204);
+      expect((yield* handler(telemetryRequest(payload))).status).toBe(204);
+      expect(log).toHaveBeenCalledTimes(1);
+      now = 60_000;
+      expect((yield* handler(telemetryRequest(payload))).status).toBe(204);
+      expect(log).toHaveBeenCalledTimes(2);
+    }),
+  );
+
+  it.effect(
+    'keeps quotas and deduplication independent between web processes',
+    () =>
+      Effect.gen(function* () {
+        const firstLog = vi.fn(() => Effect.void);
+        const secondLog = vi.fn(() => Effect.void);
+        const first = makeBrowserErrorTelemetryHandler({
+          log: firstLog,
+          now: () => 0,
+        });
+        const second = makeBrowserErrorTelemetryHandler({
+          log: secondLog,
+          now: () => 0,
+        });
+        const payload = {
+          message: 'same error',
+          name: 'Error',
+          stack: null,
+          url: null,
+        };
+        for (let index = 0; index < 100; index += 1) {
+          const host = `host-${index}.example.test`;
+          expect(
+            (yield* first(telemetryRequest(payload, {}, host))).status,
+          ).toBe(204);
+          expect(
+            (yield* second(telemetryRequest(payload, {}, host))).status,
+          ).toBe(204);
+        }
+        expect((yield* first(telemetryRequest(payload))).status).toBe(429);
+        expect((yield* second(telemetryRequest(payload))).status).toBe(429);
+        expect(firstLog).toHaveBeenCalledTimes(100);
+        expect(secondLog).toHaveBeenCalledTimes(100);
       }),
   );
 });
