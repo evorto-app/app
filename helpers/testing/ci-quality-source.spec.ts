@@ -233,9 +233,15 @@ describe('CI quality source', () => {
     expect(source).not.toMatch(/:\s*write\b/u);
     expect(source).toContain('bun-version: "1.4.2"');
     expect(source).toContain('node-version: "24.21.0"');
-    const actions = actionStepBlocks(
+    const actionSteps = actionStepBlocks(
       source.slice(source.indexOf('\njobs:\n')),
-    ).map((step) => step.match(/uses:\s+(\S+?)@/u)?.[1]);
+    );
+    expect(
+      actionSteps.find((step) => step.includes('uses: actions/checkout@')),
+    ).toMatch(/^\s+persist-credentials: false\s*$/mu);
+    const actions = actionSteps.map(
+      (step) => step.match(/uses:\s+(\S+?)@/u)?.[1],
+    );
     expect(actions).toEqual([
       'actions/checkout',
       'oven-sh/setup-bun',
