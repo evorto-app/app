@@ -1,6 +1,16 @@
 import type { EventsEventListDayRecord } from '@shared/rpc-contracts/app-rpcs/events.rpcs';
 
-import { computed, inject, Injectable, signal } from '@angular/core';
+import { isPlatformServer } from '@angular/common';
+import {
+  computed,
+  DestroyRef,
+  effect,
+  inject,
+  Injectable,
+  PendingTasks,
+  PLATFORM_ID,
+  signal,
+} from '@angular/core';
 import { form } from '@angular/forms/signals';
 import {
   injectInfiniteQuery,
@@ -104,6 +114,24 @@ export class EventListService {
   readonly eventDays = computed(() =>
     mergeEventListPages(this.eventQuery.data()?.pages ?? []),
   );
+
+  constructor() {
+    if (!isPlatformServer(inject(PLATFORM_ID))) return;
+
+    const pendingTasks = inject(PendingTasks);
+    let complete: (() => void) | undefined = pendingTasks.add();
+    inject(DestroyRef).onDestroy(() => complete?.());
+
+    // HTTP completion can precede publication of the query result to Angular.
+    effect(() => {
+      if (this.eventQuery.isPending()) {
+        complete ??= pendingTasks.add();
+      } else {
+        complete?.();
+        complete = undefined;
+      }
+    });
+  }
 
   updateStartFilter(date: Date) {
     this.startFilter.set(date);
