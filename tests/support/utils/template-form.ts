@@ -30,7 +30,7 @@ export const fillTemplateBasics = async (
     await expect(changeIconButton).not.toHaveAttribute('jsaction', /click/);
     await changeIconButton.click();
     await expect(
-      page.getByRole('heading', { name: 'Select an Icon' }),
+      page.getByRole('heading', { name: 'Choose an icon' }),
     ).toBeVisible();
     await page
       .locator('app-icon-selector-dialog')
