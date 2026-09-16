@@ -91,8 +91,9 @@ export const validateEsnCard = async ({
     let data: unknown;
     try {
       data = await response.json();
-    } catch {
-      throw invalidEsnCardResponse();
+    } catch (error) {
+      if (error instanceof SyntaxError) throw invalidEsnCardResponse();
+      throw error;
     }
     if (!Array.isArray(data)) throw invalidEsnCardResponse();
     if (data.length === 0) return { status: 'invalid' };

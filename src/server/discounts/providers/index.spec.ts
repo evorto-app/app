@@ -173,4 +173,37 @@ describe('validateEsnCard', () => {
       reason: 'invalidResponse',
     } satisfies Partial<ProviderValidationUnavailableError>);
   });
+
+  it.each([
+    {
+      cause: new DOMException('The operation was aborted', 'AbortError'),
+      reason: 'timeout',
+    },
+    {
+      cause: new TypeError('Response body connection terminated'),
+      reason: 'network',
+    },
+  ])(
+    'preserves $reason failures while reading a successful response body',
+    async ({ cause, reason }) => {
+      const fetchImpl = vi.fn(
+        async () =>
+          new Response(
+            new ReadableStream({
+              start(controller) {
+                controller.error(cause);
+              },
+            }),
+            { status: 200 },
+          ),
+      );
+
+      await expect(
+        validateEsnCard({ fetchImpl, identifier: 'ESN-123' }),
+      ).rejects.toMatchObject({
+        name: 'ProviderValidationUnavailableError',
+        reason,
+      });
+    },
+  );
 });
