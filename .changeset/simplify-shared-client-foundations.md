@@ -61,3 +61,7 @@ Use one visible Edit button for rich-text previews, keeping saved links outside 
 Keep initialized platform template forms visible during role lookup failures and retries. Retain cached or saved role labels for removal, and block saving until target roles are verified.
 
 Reject explicit empty ports in organization, development, and internal SSR origins before URL normalization.
+
+Prevent an interrupted PostgreSQL query from cancelling an unrelated request after
+its pooled connection is reused. Retain the connection until query and cancellation
+completion are known, and discard connections when cancellation cleanup is uncertain.
