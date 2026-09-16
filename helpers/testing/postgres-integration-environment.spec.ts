@@ -1,4 +1,5 @@
 import { inspect } from 'node:util';
+import { Client } from 'pg';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -24,6 +25,64 @@ describe('PostgreSQL integration environment', () => {
         'postgresql://evorto:secret@localhost:5432/evorto_postgres_integration',
     });
   });
+
+  it('accepts ordinary percent escapes with the same database name as pg', async () => {
+    const databaseUrl =
+      'postgresql://evorto:secret@localhost:5432/%65vorto%5Fpostgres_integration';
+    // Constructing a client parses the target without opening a connection.
+    const client = new Client({ connectionString: databaseUrl });
+    const resolved = await resolvePostgresIntegrationEnvironment({
+      environment: {
+        ...localEnvironment,
+        POSTGRES_INTEGRATION_DATABASE_URL: databaseUrl,
+      },
+    });
+
+    expect(client.database).toBe('evorto_postgres_integration');
+    expect(resolved.databaseName).toBe(client.database);
+    expect(resolved.databaseUrl).toBe(databaseUrl);
+  });
+
+  it.each([
+    {
+      driverName: '/evorto_postgres_integration',
+      pathname: '//evorto_postgres_integration',
+    },
+    {
+      driverName: '//evorto_postgres_integration',
+      pathname: '///evorto_postgres_integration',
+    },
+    {
+      driverName: 'evorto_postgres_integration%2Fother',
+      pathname: '/evorto_postgres_integration%2Fother',
+    },
+    {
+      driverName: 'evorto_postgres_integration%23other',
+      pathname: '/evorto_postgres_integration%23other',
+    },
+    {
+      driverName: 'evorto_postgres_integration%3Fother',
+      pathname: '/evorto_postgres_integration%3Fother',
+    },
+  ])(
+    'rejects a different pg target before returning an environment: $pathname',
+    async ({ driverName, pathname }) => {
+      const databaseUrl = `postgresql://evorto:secret@localhost:5432${pathname}`;
+      expect(new Client({ connectionString: databaseUrl }).database).toBe(
+        driverName,
+      );
+      await expect(
+        resolvePostgresIntegrationEnvironment({
+          environment: {
+            ...localEnvironment,
+            POSTGRES_INTEGRATION_DATABASE_URL: databaseUrl,
+          },
+        }),
+      ).rejects.toThrow(
+        'Local PostgreSQL integration tests require database evorto_postgres_integration',
+      );
+    },
+  );
 
   it('accepts the named disposable database through IPv6 loopback', async () => {
     await expect(

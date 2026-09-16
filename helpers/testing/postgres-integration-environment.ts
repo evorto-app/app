@@ -62,9 +62,8 @@ const parseDatabaseUrl = (value: string): URL => {
     );
   }
 
-  const databaseName = decodeURIComponent(
-    databaseUrl.pathname.replace(/^\/+/, ''),
-  );
+  // Match pg-connection-string: remove one URL slash and retain reserved escapes.
+  const databaseName = decodeURI(databaseUrl.pathname.slice(1));
   if (databaseName !== postgresIntegrationDatabaseName) {
     throw new Error(
       `Local PostgreSQL integration tests require database ${postgresIntegrationDatabaseName}`,
@@ -88,7 +87,7 @@ export const resolvePostgresIntegrationEnvironment = async ({
     requiredValue(environment, 'POSTGRES_INTEGRATION_DATABASE_URL'),
   );
   return {
-    databaseName: decodeURIComponent(databaseUrl.pathname.replace(/^\/+/, '')),
+    databaseName: decodeURI(databaseUrl.pathname.slice(1)),
     databaseUrl: databaseUrl.toString(),
   };
 };
