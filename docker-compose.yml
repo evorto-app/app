@@ -36,6 +36,7 @@ services:
       E2E_SEED_KEY:
       LOCAL_DATABASE: "true"
       LOCAL_DATABASE_CONFIRM_RESET: evorto-local-reset
+      POSTGRES_DB: "${POSTGRES_DB:-appdb}"
       STRIPE_TEST_ACCOUNT_ID:
     command:
       - /bin/sh

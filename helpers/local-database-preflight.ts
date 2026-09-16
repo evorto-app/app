@@ -14,10 +14,7 @@ const requiredValue = (
   return value;
 };
 
-const parseDatabaseUrl = (
-  value: string,
-  expectedDatabaseName: string | undefined,
-): URL => {
+const parseDatabaseUrl = (value: string, expectedDatabaseName: string): URL => {
   let databaseUrl: URL;
   try {
     databaseUrl = new URL(value);
@@ -55,14 +52,13 @@ const parseDatabaseUrl = (
     );
   }
 
-  const databaseName = decodeURIComponent(
-    databaseUrl.pathname.replace(/^\/+/, ''),
-  );
+  // Match pg-connection-string so the guard checks the database pg will open.
+  const databaseName = decodeURI(databaseUrl.pathname.slice(1));
   if (!databaseName) {
     throw new Error('DATABASE_URL must identify a local database');
   }
 
-  if (expectedDatabaseName && databaseName !== expectedDatabaseName) {
+  if (databaseName !== expectedDatabaseName) {
     throw new Error(
       `DATABASE_URL must target the configured local database (${expectedDatabaseName})`,
     );
@@ -80,9 +76,14 @@ export const resolveLocalDatabaseEnvironment = (
     );
   }
 
+  const expectedDatabaseName = environment['POSTGRES_DB'];
+  if (!expectedDatabaseName) {
+    throw new Error('POSTGRES_DB is required for local database operations');
+  }
+
   const databaseUrl = parseDatabaseUrl(
     requiredValue(environment, 'DATABASE_URL'),
-    environment['POSTGRES_DB'],
+    expectedDatabaseName,
   );
   return { databaseUrl: databaseUrl.toString() };
 };

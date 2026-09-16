@@ -14,12 +14,12 @@ afterEach(() => {
   }
 });
 
-const runSeedHelper = ({
-  accountId,
-  preflightOnly = true,
+const runDatabaseHelper = ({
+  entrypoint,
+  environment,
 }: {
-  accountId?: string;
-  preflightOnly?: boolean;
+  entrypoint: string;
+  environment: Readonly<Record<string, string>>;
 }) => {
   const directory = fs.mkdtempSync(
     path.join(os.tmpdir(), 'evorto-database-preflight-'),
@@ -61,20 +61,14 @@ fs.writeFileSync(${JSON.stringify(readyPath)}, 'ready');
       path.join(repositoryRoot, 'tsconfig.json'),
       '--preload',
       preloadPath,
-      path.join(repositoryRoot, 'helpers/database.ts'),
+      path.join(repositoryRoot, entrypoint),
     ],
     {
       cwd: directory,
       encoding: 'utf8',
       env: {
-        APP_ENVIRONMENT: 'staging',
-        DATABASE_TLS_REQUIRED: 'false',
-        DATABASE_URL:
-          'postgresql://fixture:fixture@127.0.0.1:1/seed_fixture?sslmode=disable',
-        NODE_ENV: 'production',
         PATH: process.env['PATH'],
-        ...(preflightOnly && { STAGING_SEED_PREFLIGHT_ONLY: 'true' }),
-        ...(accountId !== undefined && { STRIPE_TEST_ACCOUNT_ID: accountId }),
+        ...environment,
       },
       timeout: 5000,
     },
@@ -89,6 +83,95 @@ fs.writeFileSync(${JSON.stringify(readyPath)}, 'ready');
     status: result.status,
   };
 };
+
+const runSeedHelper = ({
+  accountId,
+  preflightOnly = true,
+}: {
+  accountId?: string;
+  preflightOnly?: boolean;
+}) =>
+  runDatabaseHelper({
+    entrypoint: 'helpers/database.ts',
+    environment: {
+      APP_ENVIRONMENT: 'staging',
+      DATABASE_TLS_REQUIRED: 'false',
+      DATABASE_URL:
+        'postgresql://fixture:fixture@127.0.0.1:1/seed_fixture?sslmode=disable',
+      NODE_ENV: 'production',
+      ...(preflightOnly && { STAGING_SEED_PREFLIGHT_ONLY: 'true' }),
+      ...(accountId !== undefined && { STRIPE_TEST_ACCOUNT_ID: accountId }),
+    },
+  });
+
+describe('local database reset preflight', () => {
+  const environment = {
+    DATABASE_URL:
+      'postgresql://fixture:fixture@127.0.0.1:1/unrelated_database?sslmode=disable',
+    LOCAL_DATABASE: 'true',
+    LOCAL_DATABASE_CONFIRM_RESET: 'evorto-local-reset',
+  };
+
+  it.each([
+    {
+      databaseName: undefined,
+      pathname: '/unrelated_database',
+      message: 'POSTGRES_DB is required',
+    },
+    {
+      databaseName: '',
+      pathname: '/unrelated_database',
+      message: 'POSTGRES_DB is required',
+    },
+    {
+      databaseName: 'appdb',
+      pathname: '/unrelated_database',
+      message: 'configured local database (appdb)',
+    },
+    {
+      databaseName: 'appdb',
+      pathname: '//appdb',
+      message: 'configured local database (appdb)',
+    },
+    {
+      databaseName: 'reports#1',
+      pathname: '/reports%231',
+      message: 'configured local database (reports#1)',
+    },
+  ])(
+    'rejects $databaseName before connecting or mutating',
+    ({ databaseName, message, pathname }) => {
+      const result = runDatabaseHelper({
+        entrypoint: 'helpers/reset-database-schema.ts',
+        environment: {
+          ...environment,
+          DATABASE_URL: `postgresql://fixture:fixture@127.0.0.1:1${pathname}?sslmode=disable`,
+          ...(databaseName !== undefined && { POSTGRES_DB: databaseName }),
+        },
+      });
+
+      expect(result.status).not.toBe(0);
+      expect(result.output).toContain(message);
+      expect(result.attemptedConnection).toBe(false);
+    },
+  );
+
+  it('accepts an exact literal name before the test guard blocks its connection', () => {
+    const databaseName = ' fixture % ü ';
+    const result = runDatabaseHelper({
+      entrypoint: 'helpers/reset-database-schema.ts',
+      environment: {
+        ...environment,
+        DATABASE_URL: `postgresql://fixture:fixture@127.0.0.1:1/${encodeURIComponent(databaseName)}?sslmode=disable`,
+        POSTGRES_DB: databaseName,
+      },
+    });
+
+    expect(result.status, result.output).toBe(86);
+    expect(result.output).toContain(connectionMarker);
+    expect(result.attemptedConnection).toBe(true);
+  });
+});
 
 describe('database seed preflight', () => {
   it.each([

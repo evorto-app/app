@@ -308,83 +308,99 @@ describe('runtime environment invocation', () => {
     );
   });
 
-  it('derives CLI URLs from shared ports and database inputs before expanding dependent file values', () => {
-    const fixture = createFixture();
-    fs.writeFileSync(
-      path.join(fixture.cwd, '.env'),
-      'FORWARD_REFERENCE=${LATER_VALUE}\nBASE_URL_REFERENCE=${BASE_URL}/from-base-file\nLATER_VALUE=forward-value\nAPP_HOST_PORT=invalid-base\nPOSTGRES_HOST_PORT=invalid-base\nPOSTGRES_USER=base-user\nDATABASE_URL=postgresql://base:base@remote.invalid/base\n',
-    );
-    fs.writeFileSync(
-      path.join(fixture.cwd, '.env.dev.local'),
-      [
-        'APP_HOST_PORT=04321',
-        'POSTGRES_HOST_PORT=056321',
-        'POSTGRES_USER=" shared user "',
-        'POSTGRES_PASSWORD=" shared password "',
-        'POSTGRES_DB=" shared/db?name# "',
-        'SSR_RPC_ORIGIN=${BASE_URL}',
-      ].join('\n'),
-    );
-    const overrides = {
-      APP_HOST_PORT: undefined,
-      POSTGRES_HOST_PORT: undefined,
-      POSTGRES_USER: undefined,
-      POSTGRES_PASSWORD: undefined,
-      POSTGRES_DB: undefined,
-    };
-    const expectedDatabaseUrl =
-      'postgresql://%20shared%20user%20:%20shared%20password%20@localhost:56321/%20shared%2Fdb%3Fname%23%20?sslmode=disable';
-    expect(captureInvocation(fixture, overrides)).toMatchObject({
-      appPort: '4321',
-      forwardReference: 'forward-value',
-      baseUrlReference: 'http://localhost:4321/from-base-file',
-      baseUrl: 'http://localhost:4321',
-      ssrOrigin: 'http://localhost:4321',
-      postgresPort: '56321',
-      databaseUser: ' shared user ',
-      databasePassword: ' shared password ',
+  it.each([
+    {
+      databaseName: ' shared database ',
+      encodedDatabaseName: '%20shared%20database%20',
+      guardAllowed: true,
+    },
+    {
       databaseName: ' shared/db?name# ',
-      databaseUrl: expectedDatabaseUrl,
-      integrationDatabaseUrl:
-        'postgresql://%20shared%20user%20:%20shared%20password%20@localhost:56321/evorto_postgres_integration?sslmode=disable',
-    });
-    const guard = spawnSync(
-      bunExecutable,
-      invocationArguments(
+      encodedDatabaseName: '%20shared%2Fdb%3Fname%23%20',
+      guardAllowed: false,
+    },
+  ])(
+    'derives CLI URLs from shared inputs and validates the database target: $databaseName',
+    ({ databaseName, encodedDatabaseName, guardAllowed }) => {
+      const fixture = createFixture();
+      fs.writeFileSync(
+        path.join(fixture.cwd, '.env'),
+        'FORWARD_REFERENCE=${LATER_VALUE}\nBASE_URL_REFERENCE=${BASE_URL}/from-base-file\nLATER_VALUE=forward-value\nAPP_HOST_PORT=invalid-base\nPOSTGRES_HOST_PORT=invalid-base\nPOSTGRES_USER=base-user\nDATABASE_URL=postgresql://base:base@remote.invalid/base\n',
+      );
+      fs.writeFileSync(
+        path.join(fixture.cwd, '.env.dev.local'),
+        [
+          'APP_HOST_PORT=04321',
+          'POSTGRES_HOST_PORT=056321',
+          'POSTGRES_USER=" shared user "',
+          'POSTGRES_PASSWORD=" shared password "',
+          `POSTGRES_DB="${databaseName}"`,
+          'SSR_RPC_ORIGIN=${BASE_URL}',
+        ].join('\n'),
+      );
+      const overrides = {
+        APP_HOST_PORT: undefined,
+        POSTGRES_HOST_PORT: undefined,
+        POSTGRES_USER: undefined,
+        POSTGRES_PASSWORD: undefined,
+        POSTGRES_DB: undefined,
+      };
+      const expectedDatabaseUrl = `postgresql://%20shared%20user%20:%20shared%20password%20@localhost:56321/${encodedDatabaseName}?sslmode=disable`;
+      expect(captureInvocation(fixture, overrides)).toMatchObject({
+        appPort: '4321',
+        forwardReference: 'forward-value',
+        baseUrlReference: 'http://localhost:4321/from-base-file',
+        baseUrl: 'http://localhost:4321',
+        ssrOrigin: 'http://localhost:4321',
+        postgresPort: '56321',
+        databaseUser: ' shared user ',
+        databasePassword: ' shared password ',
+        databaseName,
+        databaseUrl: expectedDatabaseUrl,
+        integrationDatabaseUrl:
+          'postgresql://%20shared%20user%20:%20shared%20password%20@localhost:56321/evorto_postgres_integration?sslmode=disable',
+      });
+      const guard = spawnSync(
         bunExecutable,
-        '--no-env-file',
-        '-e',
-        `import { resolveLocalDatabaseEnvironment } from ${JSON.stringify(localDatabaseModule)}; resolveLocalDatabaseEnvironment();`,
-      ),
-      {
-        cwd: fixture.cwd,
-        encoding: 'utf8',
-        env: environmentFor(fixture, overrides),
-        timeout: 5000,
-      },
-    );
-    expect(guard.status, guard.stderr).toBe(0);
-    const snapshot = spawnSync(
-      bunExecutable,
-      ['--no-env-file', runtimeScript],
-      {
-        cwd: fixture.cwd,
-        encoding: 'utf8',
-        env: environmentFor(fixture, overrides),
-        timeout: 5000,
-      },
-    );
-    expect(snapshot.status, snapshot.stderr).toBe(0);
-    expect(
-      parse(fs.readFileSync(path.join(fixture.cwd, '.env.dev'))),
-    ).toMatchObject({
-      APP_HOST_PORT: '4321',
-      BASE_URL: 'http://localhost:4321',
-      POSTGRES_HOST_PORT: '56321',
-      DATABASE_URL: expectedDatabaseUrl,
-      POSTGRES_PASSWORD: ' shared password ',
-    });
-  });
+        invocationArguments(
+          bunExecutable,
+          '--no-env-file',
+          '-e',
+          `import { resolveLocalDatabaseEnvironment } from ${JSON.stringify(localDatabaseModule)}; resolveLocalDatabaseEnvironment();`,
+        ),
+        {
+          cwd: fixture.cwd,
+          encoding: 'utf8',
+          env: environmentFor(fixture, overrides),
+          timeout: 5000,
+        },
+      );
+      expect(guard.status, guard.stderr).toBe(guardAllowed ? 0 : 1);
+      if (!guardAllowed) {
+        expect(guard.stderr).toContain('configured local database');
+      }
+      const snapshot = spawnSync(
+        bunExecutable,
+        ['--no-env-file', runtimeScript],
+        {
+          cwd: fixture.cwd,
+          encoding: 'utf8',
+          env: environmentFor(fixture, overrides),
+          timeout: 5000,
+        },
+      );
+      expect(snapshot.status, snapshot.stderr).toBe(0);
+      expect(
+        parse(fs.readFileSync(path.join(fixture.cwd, '.env.dev'))),
+      ).toMatchObject({
+        APP_HOST_PORT: '4321',
+        BASE_URL: 'http://localhost:4321',
+        POSTGRES_HOST_PORT: '56321',
+        DATABASE_URL: expectedDatabaseUrl,
+        POSTGRES_PASSWORD: ' shared password ',
+      });
+    },
+  );
 
   it('keeps caller ports and literal credentials above shared settings in the executed command', () => {
     const fixture = createFixture();

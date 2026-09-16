@@ -9,3 +9,5 @@ instead of leaving partial or misleading sample data.
 
 Require the staging ops Stripe test account in its protected secret contract
 and validate seed configuration before initialization or destructive reset.
+
+Require an explicit local database name and match the PostgreSQL driver target before reset or schema operations. Pass the same name into Compose database setup so missing or mismatched targets fail before connecting.
