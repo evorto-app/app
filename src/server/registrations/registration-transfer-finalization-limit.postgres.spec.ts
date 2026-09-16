@@ -1288,7 +1288,7 @@ describe('registration transfer finalization tenant limit', () => {
     ).toEqual(['CONFIRMED', 'WAITLIST']);
   });
 
-  it('treats a saved limit of zero as unlimited during paid transfer finalization', async () => {
+  it('finalizes unlimited paid transfers while a compatible tenant settings lock is held', async () => {
     const fixture = await seedTransferLimitFixture(database);
     fixtures.push(fixture);
     await database
@@ -1296,12 +1296,35 @@ describe('registration transfer finalization tenant limit', () => {
       .set({ maxActiveRegistrationsPerUser: 0 })
       .where(eq(tenants.id, fixture.tenantId));
 
-    const outcomes = [];
-    for (const candidate of fixture.candidates) {
-      outcomes.push(
-        await finalizeCandidate(layer, fixture.tenantId, candidate),
-      );
-    }
+    // Non-key tenant updates are compatible with KEY SHARE. Finalization must
+    // finish before this transaction releases its row lock, without upgrading.
+    const outcomes = await database.transaction(async (tenantTransaction) => {
+      await tenantTransaction
+        .select({ id: tenants.id })
+        .from(tenants)
+        .where(eq(tenants.id, fixture.tenantId))
+        .for('no key update');
+      const finalized = [];
+      for (const candidate of fixture.candidates) {
+        finalized.push(
+          await Effect.runPromise(
+            Database.use((effectDatabase) =>
+              effectDatabase.transaction((tx) =>
+                Effect.gen(function* () {
+                  yield* tx.execute(sql`SET LOCAL lock_timeout = '2s'`);
+                  return yield* finalizeRegistrationTransferCheckout(tx, {
+                    registrationId: candidate.registrationId,
+                    tenantId: fixture.tenantId,
+                    transactionId: candidate.transactionId,
+                  });
+                }),
+              ),
+            ).pipe(Effect.provide(layer)),
+          ),
+        );
+      }
+      return finalized;
+    });
 
     expect(outcomes).toEqual(['finalized', 'finalized']);
     const recipientRegistrations = await database
