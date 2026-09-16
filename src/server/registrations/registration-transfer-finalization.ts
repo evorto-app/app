@@ -476,6 +476,7 @@ export const finalizeRegistrationTransferCheckout = Effect.fn(
     eventId: transfer.eventId,
     registrationOptionId: transfer.registrationOptionId,
     tenantId: input.tenantId,
+    tenantLockMode: 'key share',
     userId: recipientUserId,
   });
   if (lockedEligibility._tag === 'NotMember') {
