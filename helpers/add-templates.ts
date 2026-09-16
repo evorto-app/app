@@ -6,6 +6,7 @@ import { relations } from '../src/db/relations';
 import * as schema from '../src/db/schema';
 import { getId } from './get-id';
 import {
+  requireSeedFixture,
   requireSeedRoles,
   requireSeedStripeTaxRates,
 } from './seed-requirements';
@@ -49,6 +50,31 @@ export type SeedTemplateKey =
   | 'hike'
   | 'sports'
   | 'weekend-trip';
+
+export const requireSeedTemplateOption = ({
+  description,
+  registrationOptions,
+  seedKey,
+  templates,
+}: {
+  readonly description: string;
+  readonly registrationOptions: ReadonlyMap<
+    string,
+    Pick<InferInsertModel<typeof schema.templateRegistrationOptions>, 'id'>
+  >;
+  readonly seedKey: SeedTemplateKey;
+  readonly templates: readonly Pick<SeedTemplate, 'id' | 'seedKey'>[];
+}) => {
+  const template = requireSeedFixture(
+    templates.find((candidate) => candidate.seedKey === seedKey),
+    `${description} template (${seedKey})`,
+  );
+  const registrationOptionId = requireSeedFixture(
+    registrationOptions.get(template.id)?.id,
+    `${description} registration option (${seedKey})`,
+  );
+  return { registrationOptionId, templateId: template.id };
+};
 
 export const addTemplates = async (
   database: NodePgDatabase<typeof relations>,
@@ -315,58 +341,45 @@ export const addTemplates = async (
       totalAvailableQuantity: 15,
     },
   ];
-  const addonValues = addonTemplateCandidates.flatMap((candidate) => {
-    const template = [...createdFreeTemplates, ...createdPaidTemplates].find(
-      (createdTemplate) => createdTemplate.seedKey === candidate.seedKey,
-    );
-    if (!template) {
-      return [];
-    }
+  const addonValues = addonTemplateCandidates.map((candidate) => {
+    const { templateId } = requireSeedTemplateOption({
+      description: `add-on "${candidate.title}"`,
+      registrationOptions: registrationOptionByTemplateId,
+      seedKey: candidate.seedKey,
+      templates: [...createdFreeTemplates, ...createdPaidTemplates],
+    });
 
-    const registrationOption = registrationOptionByTemplateId.get(template.id);
-    if (!registrationOption) {
-      return [];
-    }
-
-    return [
-      {
-        allowMultiple: false,
-        allowPurchaseBeforeEvent: true,
-        allowPurchaseDuringEvent: false,
-        allowPurchaseDuringRegistration: true,
-        description: candidate.description,
-        id: getId(),
-        isPaid: candidate.isPaid,
-        maxQuantityPerUser: 1,
-        price: candidate.price,
-        stripeTaxRateId: candidate.stripeTaxRateId,
-        templateId: template.id,
-        title: candidate.title,
-        totalAvailableQuantity: candidate.totalAvailableQuantity,
-      } satisfies InferInsertModel<typeof schema.templateEventAddons>,
-    ];
+    return {
+      allowMultiple: false,
+      allowPurchaseBeforeEvent: true,
+      allowPurchaseDuringEvent: false,
+      allowPurchaseDuringRegistration: true,
+      description: candidate.description,
+      id: getId(),
+      isPaid: candidate.isPaid,
+      maxQuantityPerUser: 1,
+      price: candidate.price,
+      stripeTaxRateId: candidate.stripeTaxRateId,
+      templateId,
+      title: candidate.title,
+      totalAvailableQuantity: candidate.totalAvailableQuantity,
+    } satisfies InferInsertModel<typeof schema.templateEventAddons>;
   });
-  const addonRegistrationOptionValues = addonValues.flatMap((addon) => {
-    const registrationOption = registrationOptionByTemplateId.get(
-      addon.templateId,
-    );
-    const registrationOptionId = registrationOption?.id;
-    if (!registrationOptionId) {
-      return [];
-    }
-
-    return [
-      {
+  const addonRegistrationOptionValues = addonValues.map(
+    (addon) =>
+      ({
         addonId: addon.id,
         includedQuantity: 0,
         optionalPurchaseQuantity: 1,
-        registrationOptionId,
+        registrationOptionId: requireSeedFixture(
+          registrationOptionByTemplateId.get(addon.templateId)?.id,
+          `add-on "${addon.title}" attachment registration option`,
+        ),
         templateId: addon.templateId,
-      } satisfies InferInsertModel<
+      }) satisfies InferInsertModel<
         typeof schema.addonToTemplateRegistrationOptions
       >,
-    ];
-  });
+  );
   if (addonValues.length > 0) {
     await database.insert(schema.templateEventAddons).values(addonValues);
     await database
@@ -391,34 +404,26 @@ export const addTemplates = async (
       title: 'Which organizer task would you prefer to help with?',
     },
   ];
-  const questionValues = questionTemplateCandidates.flatMap((candidate) => {
-    const template = [...createdFreeTemplates, ...createdPaidTemplates].find(
-      (createdTemplate) => createdTemplate.seedKey === candidate.seedKey,
-    );
-    if (!template) {
-      return [];
-    }
+  const questionValues = questionTemplateCandidates.map((candidate) => {
+    const { registrationOptionId, templateId } = requireSeedTemplateOption({
+      description: `${candidate.registrationOptionKind} question "${candidate.title}"`,
+      registrationOptions:
+        candidate.registrationOptionKind === 'organizer'
+          ? organizerRegistrationOptionByTemplateId
+          : registrationOptionByTemplateId,
+      seedKey: candidate.seedKey,
+      templates: [...createdFreeTemplates, ...createdPaidTemplates],
+    });
 
-    const registrationOption =
-      candidate.registrationOptionKind === 'organizer'
-        ? organizerRegistrationOptionByTemplateId.get(template.id)
-        : registrationOptionByTemplateId.get(template.id);
-    const registrationOptionId = registrationOption?.id;
-    if (!registrationOptionId) {
-      return [];
-    }
-
-    return [
-      {
-        description: candidate.description,
-        id: getId(),
-        registrationOptionId,
-        required: candidate.required,
-        sortOrder: 0,
-        templateId: template.id,
-        title: candidate.title,
-      } satisfies InferInsertModel<typeof schema.templateRegistrationQuestions>,
-    ];
+    return {
+      description: candidate.description,
+      id: getId(),
+      registrationOptionId,
+      required: candidate.required,
+      sortOrder: 0,
+      templateId,
+      title: candidate.title,
+    } satisfies InferInsertModel<typeof schema.templateRegistrationQuestions>;
   });
   if (questionValues.length > 0) {
     await database
@@ -431,11 +436,7 @@ export const addTemplates = async (
   for (const addon of addonValues) {
     const attachedOptionIds = addonRegistrationOptionValues
       .filter((attachment) => attachment.addonId === addon.id)
-      .flatMap((attachment) =>
-        attachment.registrationOptionId
-          ? [attachment.registrationOptionId]
-          : [],
-      );
+      .map((attachment) => attachment.registrationOptionId);
     const existing = addonByTemplateId.get(addon.templateId) ?? [];
     existing.push({
       id: addon.id,

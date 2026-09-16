@@ -229,7 +229,9 @@ scenario handles for open/closed/draft/past registration states, confirmed
 registrations, and at least one checked-in aggregate for scanner review.
 The setup reset and every seeded tenant commit in one database transaction.
 Tenant domain, name, and currency are explicit seed inputs, and missing
-administrator, organizer, or regular-user roles fail the seed.
+administrator, organizer, or regular-user roles fail the seed. Declared add-ons
+and registration questions also require their template and exact registration
+option; a missing lookup aborts the seed instead of silently omitting a fixture.
 
 The local Stripe listener image includes its startup script and uses a pinned
 Stripe CLI release. It writes its generated webhook signing secret into a shared
