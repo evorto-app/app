@@ -757,14 +757,14 @@ describe('EventActiveRegistrationComponent add-on purchase', () => {
       dialogOpen.mockReturnValue({ afterClosed: () => of(true) });
       const fixture = render(registrationStatus());
 
-      findButton(fixture, 'Cancel registration')?.click();
+      findButton(fixture, 'Cancel ticket')?.click();
 
       await vi.waitFor(async () => {
         await fixture.whenStable();
         expect(cancelRegistration).toHaveBeenCalledOnce();
         expect(normalizeText(fixture)).toContain(
           expectedMessage ??
-            'The sign-up could not be cancelled. Check its current status and contact an organizer for help.',
+            'The cancellation outcome could not be confirmed. Load the page again to check the current sign-up status before trying again.',
         );
         expect(normalizeText(fixture)).not.toContain('Private registration');
       });
