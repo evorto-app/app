@@ -102,6 +102,7 @@ describe('RoleSelectComponent', () => {
             selected: (id: string) => ({
               queryFn: () => loadRole(id),
               queryKey: ['roles', 'selected', id],
+              staleTime: 30_000,
             }),
           },
         },
@@ -476,8 +477,13 @@ describe('RoleSelectComponent', () => {
     const loader = TestbedHarnessEnvironment.loader(fixture);
     const autocomplete = await loader.getHarness(MatAutocompleteHarness);
     await autocomplete.enterText('fin');
-    await vi.waitFor(() => {
+    await vi.waitFor(async () => {
+      fixture.detectChanges();
       expect(loadRoles).toHaveBeenCalledWith('fin');
+      expect(await autocomplete.isOpen()).toBe(true);
+      expect(
+        await autocomplete.getOptions({ text: financeRole.name }),
+      ).toHaveLength(1);
     });
 
     await autocomplete.selectOption({ text: financeRole.name });
@@ -895,6 +901,152 @@ describe('RoleSelectQueries cached role verification', () => {
       }
       await submit(host.componentInstance.roleForm, action);
       expect(action).toHaveBeenCalledOnce();
+    },
+  );
+
+  it.each(['available', 'missing', 'unknown'] as const)(
+    'rechecks a mounted selection when freshness expires and handles an %s result',
+    async (outcome) => {
+      vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+      try {
+        const verifiedAt = Date.now();
+        queryClient.setQueryData(
+          keyFor({ defaultOrganizerRole: true }),
+          [role],
+          { updatedAt: verifiedAt },
+        );
+        const host = TestBed.createComponent(RoleSelectFormHost);
+        host.detectChanges();
+        const otherHost = TestBed.createComponent(RoleSelectFormHost);
+        otherHost.detectChanges();
+        await vi.waitFor(() => {
+          host.detectChanges();
+          expect(host.componentInstance.roleForm().valid()).toBe(true);
+          otherHost.detectChanges();
+          expect(otherHost.componentInstance.roleForm().valid()).toBe(true);
+        });
+        expect(loadRole).not.toHaveBeenCalled();
+        const resolution = new Subject<RoleLookupRecord>();
+        loadRole.mockReturnValueOnce(firstValueFrom(resolution));
+
+        await vi.advanceTimersByTimeAsync(30_001 - (Date.now() - verifiedAt));
+        await vi.waitFor(() => {
+          host.detectChanges();
+          otherHost.detectChanges();
+          expect(host.componentInstance.roleForm().invalid()).toBe(true);
+          expect(otherHost.componentInstance.roleForm().invalid()).toBe(true);
+          expect(loadRole).toHaveBeenCalledExactlyOnceWith(role.id);
+        });
+        expect(host.nativeElement.textContent).toContain('Organizer');
+        expect(host.nativeElement.textContent).toContain('(checking…)');
+        const remove: HTMLButtonElement = host.nativeElement.querySelector(
+          'button[aria-label="Remove Organizer"]',
+        );
+        expect(remove.disabled).toBe(false);
+        const action = vi.fn(() => Promise.resolve());
+        await submit(host.componentInstance.roleForm, action);
+        expect(action).not.toHaveBeenCalled();
+
+        if (outcome === 'available')
+          resolution.next({ ...role, name: 'Verified organizer' });
+        else
+          resolution.error(
+            outcome === 'missing'
+              ? new RoleLookupNotFoundError({
+                  id: role.id,
+                  message: 'Role not found',
+                })
+              : new Error('Lookup unavailable'),
+          );
+        await vi.waitFor(() => {
+          host.detectChanges();
+          expect(host.nativeElement.textContent).not.toContain('(checking…)');
+          expect(host.componentInstance.roleForm().valid()).toBe(
+            outcome === 'available',
+          );
+        });
+        if (outcome === 'available') {
+          expect(host.nativeElement.textContent).toContain(
+            'Verified organizer',
+          );
+          expect(
+            queryClient.getQueryState(queries.selected(role.id).queryKey)
+              ?.dataUpdatedAt,
+          ).toBeGreaterThan(verifiedAt);
+        } else {
+          expect(
+            host.componentInstance.roleForm
+              .roleIds()
+              .errors()
+              .map(({ kind }) => kind),
+          ).toContain(outcome === 'missing' ? 'roleMissing' : 'roleUnverified');
+          await submit(host.componentInstance.roleForm, action);
+          expect(action).not.toHaveBeenCalled();
+          await vi.advanceTimersByTimeAsync(60_000);
+          host.detectChanges();
+          expect(loadRole).toHaveBeenCalledOnce();
+          if (outcome === 'missing') {
+            const unavailable: HTMLButtonElement =
+              host.nativeElement.querySelector('button[matChipRemove]');
+            unavailable.click();
+          } else {
+            expect(host.nativeElement.textContent).toContain('Organizer');
+            expect(host.nativeElement.textContent).not.toContain(
+              'no longer exists',
+            );
+            const retry: HTMLButtonElement = host.nativeElement.querySelector(
+              'button[mat-stroked-button]',
+            );
+            retry.click();
+          }
+          await vi.waitFor(() => {
+            host.detectChanges();
+            expect(host.componentInstance.roleForm().valid()).toBe(true);
+          });
+        }
+        await submit(host.componentInstance.roleForm, action);
+        expect(action).toHaveBeenCalledOnce();
+      } finally {
+        TestBed.resetTestingModule();
+        queryClient.clear();
+        vi.useRealTimers();
+      }
+    },
+  );
+
+  it.each(['remove', 'destroy'] as const)(
+    'does not recheck an expired selection after %s',
+    async (operation) => {
+      vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+      try {
+        queryClient.setQueryData(keyFor({ defaultOrganizerRole: true }), [
+          role,
+        ]);
+        const host = TestBed.createComponent(RoleSelectFormHost);
+        host.detectChanges();
+        await vi.waitFor(() => {
+          host.detectChanges();
+          expect(host.componentInstance.roleForm().valid()).toBe(true);
+        });
+        if (operation === 'destroy') host.destroy();
+        else {
+          const remove: HTMLButtonElement = host.nativeElement.querySelector(
+            'button[matChipRemove]',
+          );
+          remove.click();
+          await vi.waitFor(() => {
+            host.detectChanges();
+            expect(host.componentInstance.model().roleIds).toEqual([]);
+            expect(host.componentInstance.roleForm().valid()).toBe(true);
+          });
+        }
+        await vi.advanceTimersByTimeAsync(60_001);
+        expect(loadRole).not.toHaveBeenCalled();
+      } finally {
+        TestBed.resetTestingModule();
+        queryClient.clear();
+        vi.useRealTimers();
+      }
     },
   );
 

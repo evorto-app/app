@@ -3,9 +3,13 @@ import '@angular/compiler';
 import type { TemplateGraphRecord } from '@shared/rpc-contracts/app-rpcs/templates.rpcs';
 import type { IconValue } from '@shared/types/icon';
 
+import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
 import { Component, input, output } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { FormField } from '@angular/forms/signals';
 import { MatDialog } from '@angular/material/dialog';
+import { MatSelectHarness } from '@angular/material/select/testing';
+import { By } from '@angular/platform-browser';
 import { provideRouter } from '@angular/router';
 import {
   provideTanStackQuery,
@@ -13,7 +17,7 @@ import {
 } from '@tanstack/angular-query-experimental';
 import { readFileSync } from 'node:fs';
 import nodePath from 'node:path';
-import { afterEach, beforeEach, expect, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 import type { EventLocationType } from '../../../types/location';
 
@@ -120,6 +124,20 @@ describe('platform template editor readiness', () => {
 describe('PlatformTemplateEditorComponent recovery', () => {
   let optionFailuresRemaining = 0;
   let queryClient: QueryClient;
+  const savedTemplate = vi.fn(async () => ({ id: 'template-1' }));
+  const loadTemplate = vi.fn(async () => completeTemplate());
+  const loadRoles = vi.fn(async () => [
+    {
+      defaultOrganizerRole: true,
+      defaultUserRole: true,
+      id: 'role-1',
+      name: 'Member',
+    },
+  ]);
+  const roleOptions = vi.fn((targetTenantId: string) => ({
+    queryFn: loadRoles,
+    queryKey: ['platform-template', 'roles', targetTenantId],
+  }));
   const loadOptions = vi.fn(async () => {
     if (optionFailuresRemaining > 0) {
       optionFailuresRemaining -= 1;
@@ -141,6 +159,16 @@ describe('PlatformTemplateEditorComponent recovery', () => {
 
   beforeEach(async () => {
     optionFailuresRemaining = 0;
+    savedTemplate.mockClear();
+    loadTemplate.mockReset().mockResolvedValue(completeTemplate());
+    loadRoles.mockReset().mockResolvedValue([
+      {
+        defaultOrganizerRole: true,
+        defaultUserRole: true,
+        id: 'role-1',
+        name: 'Member',
+      },
+    ]);
     queryClient = new QueryClient({
       defaultOptions: {
         mutations: { retry: false },
@@ -179,28 +207,18 @@ describe('PlatformTemplateEditorComponent recovery', () => {
           provide: PlatformTemplateEditorOperations,
           useValue: {
             create: () => ({
-              mutationFn: vi.fn(),
+              mutationFn: savedTemplate,
               mutationKey: ['platform-template', 'create'],
             }),
             findOne: () => ({
-              queryFn: vi.fn(),
+              queryFn: loadTemplate,
               queryKey: ['platform-template', 'detail'],
             }),
             formOptions: () => ({
               queryFn: loadOptions,
               queryKey: ['platform-template', 'options'],
             }),
-            roles: () => ({
-              queryFn: async () => [
-                {
-                  defaultOrganizerRole: true,
-                  defaultUserRole: true,
-                  id: 'role-1',
-                  name: 'Member',
-                },
-              ],
-              queryKey: ['platform-template', 'roles'],
-            }),
+            roles: roleOptions,
             taxRates: () => ({
               queryFn: async () => [],
               queryKey: ['platform-template', 'tax-rates'],
@@ -216,7 +234,7 @@ describe('PlatformTemplateEditorComponent recovery', () => {
               queryKey: ['platform-template', 'tenant'],
             }),
             update: () => ({
-              mutationFn: vi.fn(),
+              mutationFn: savedTemplate,
               mutationKey: ['platform-template', 'update'],
             }),
           },
@@ -237,6 +255,217 @@ describe('PlatformTemplateEditorComponent recovery', () => {
     fixture.componentRef.setInput('tenantId', 'tenant-1');
     return fixture;
   };
+
+  const renderExistingTemplate = async (roleIds: string[]) => {
+    const source = completeTemplate();
+    loadTemplate.mockResolvedValue({
+      ...source,
+      registrationOptions: source.registrationOptions.map((option, index) => ({
+        ...option,
+        roleIds: index === 0 ? roleIds : ['role-1'],
+      })),
+    });
+    const fixture = render();
+    fixture.componentRef.setInput('templateId', 'template-1');
+    await vi.waitFor(async () => {
+      await fixture.whenStable();
+      expect(fixture.nativeElement.querySelector('form')).not.toBeNull();
+    });
+    const root: HTMLElement = fixture.nativeElement;
+    const reasonField = [...root.querySelectorAll('mat-form-field')].find(
+      (field) =>
+        field.querySelector('mat-label')?.textContent?.trim() ===
+        'Operational reason',
+    );
+    const reason = reasonField?.querySelector('textarea');
+    if (!reason) throw new Error('Expected the operational reason input');
+    reason.value = 'Repair template eligibility';
+    reason.dispatchEvent(new Event('input'));
+    await fixture.whenStable();
+    const roleBinding = fixture.debugElement.query(
+      By.css('mat-select[multiple]'),
+    );
+    const field = roleBinding.injector.get(FormField).state;
+    return { field, fixture, root };
+  };
+
+  const submitTemplate = async (
+    fixture: ComponentFixture<PlatformTemplateEditorComponent>,
+  ) => {
+    const root: HTMLElement = fixture.nativeElement;
+    const form = root.querySelector('form');
+    if (!form) throw new Error('Expected the template form');
+    form.dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true }),
+    );
+    await fixture.whenStable();
+  };
+
+  it('blocks unavailable target-organization roles until they are removed from the selection', async () => {
+    const { field, fixture, root } = await renderExistingTemplate([
+      'role-1',
+      'deleted-role',
+    ]);
+
+    expect(roleOptions).toHaveBeenCalledWith('tenant-1');
+    expect(field().errors()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: 'roleMissing' }),
+      ]),
+    );
+    await submitTemplate(fixture);
+    expect(savedTemplate).not.toHaveBeenCalled();
+    expect(root.textContent).toContain(
+      'Remove unavailable organization roles before saving.',
+    );
+    expect(
+      root.querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled,
+    ).toBe(true);
+
+    const roles = await TestbedHarnessEnvironment.loader(fixture).getHarness(
+      MatSelectHarness.with({ selector: 'mat-select[multiple]' }),
+    );
+    await roles.open();
+    const [missingRole] = await roles.getOptions({
+      text: 'Previously selected organization role (no longer available)',
+    });
+    if (!missingRole)
+      throw new Error('Expected the removable unavailable role');
+    expect(await missingRole.isSelected()).toBe(true);
+    await missingRole.click();
+    await roles.close();
+    await fixture.whenStable();
+    expect(field().errors()).toEqual([]);
+    expect(
+      root.querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled,
+    ).toBe(false);
+
+    await submitTemplate(fixture);
+    expect(savedTemplate).toHaveBeenCalledOnce();
+    expect(savedTemplate.mock.calls[0]).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          registrationOptions: expect.arrayContaining([
+            expect.objectContaining({
+              id: 'organizer-option',
+              roleIds: ['role-1'],
+            }),
+          ]),
+          targetTenantId: 'tenant-1',
+        }),
+      ]),
+    );
+  });
+
+  it.each(['available', 'missing', 'error'])(
+    'blocks role revalidation until the target catalog resolves as %s',
+    async (outcome) => {
+      const { field, fixture, root } = await renderExistingTemplate(['role-1']);
+      expect(field().errors()).toEqual([]);
+      expect(
+        root.querySelector<HTMLButtonElement>('button[type="submit"]')
+          ?.disabled,
+      ).toBe(false);
+      let resolveRoles:
+        ((roles: Awaited<ReturnType<typeof loadRoles>>) => void) | undefined;
+      let rejectRoles: ((error: Error) => void) | undefined;
+      // Angular's browser library target does not expose Promise.withResolvers.
+      // eslint-disable-next-line unicorn/prefer-promise-with-resolvers
+      const pendingRoles = new Promise<Awaited<ReturnType<typeof loadRoles>>>(
+        (resolve, reject) => {
+          resolveRoles = resolve;
+          rejectRoles = reject;
+        },
+      );
+      loadRoles.mockImplementationOnce(() => pendingRoles);
+      const refetch = queryClient.refetchQueries({
+        exact: true,
+        queryKey: ['platform-template', 'roles', 'tenant-1'],
+      });
+      await vi.waitFor(() => {
+        fixture.detectChanges();
+        expect(
+          queryClient.getQueryState(['platform-template', 'roles', 'tenant-1'])
+            ?.fetchStatus,
+        ).toBe('fetching');
+        expect(loadRoles).toHaveBeenCalledTimes(2);
+        expect(field().errors()).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ kind: 'roleUnverified' }),
+          ]),
+        );
+        expect(
+          root.querySelector<HTMLButtonElement>('button[type="submit"]')
+            ?.disabled,
+        ).toBe(true);
+      });
+      const pendingForm = root.querySelector('form');
+      if (!pendingForm) throw new Error('Expected the pending template form');
+      pendingForm.dispatchEvent(
+        new Event('submit', { bubbles: true, cancelable: true }),
+      );
+      fixture.detectChanges();
+      expect(savedTemplate).not.toHaveBeenCalled();
+
+      if (!resolveRoles || !rejectRoles)
+        throw new Error('Expected a pending target role lookup');
+      if (outcome === 'error')
+        rejectRoles(new Error('Role provider unavailable'));
+      else
+        resolveRoles(
+          outcome === 'missing'
+            ? []
+            : [
+                {
+                  defaultOrganizerRole: true,
+                  defaultUserRole: true,
+                  id: 'role-1',
+                  name: 'Member',
+                },
+              ],
+        );
+      await refetch;
+      await fixture.whenStable();
+      if (outcome === 'available') {
+        expect(field().errors()).toEqual([]);
+        await submitTemplate(fixture);
+        expect(savedTemplate).toHaveBeenCalledOnce();
+      } else if (outcome === 'missing') {
+        expect(field().errors()).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ kind: 'roleMissing' }),
+          ]),
+        );
+        await submitTemplate(fixture);
+        expect(savedTemplate).not.toHaveBeenCalled();
+      } else {
+        expect(field().errors()).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ kind: 'roleUnverified' }),
+          ]),
+        );
+        expect(root.textContent).toContain(
+          'organization roles could not be loaded',
+        );
+        expect(savedTemplate).not.toHaveBeenCalled();
+        const retry = [...root.querySelectorAll('button')].find(
+          (button) => button.textContent?.trim() === 'Try again',
+        );
+        if (!retry) throw new Error('Expected the role retry action');
+        retry.click();
+        await vi.waitFor(async () => {
+          await fixture.whenStable();
+          expect(field().errors()).toEqual([]);
+          expect(
+            root.querySelector<HTMLButtonElement>('button[type="submit"]')
+              ?.disabled,
+          ).toBe(false);
+        });
+        await submitTemplate(fixture);
+        expect(savedTemplate).toHaveBeenCalledOnce();
+      }
+    },
+  );
 
   it('retries failed target-organization form options from the page', async () => {
     optionFailuresRemaining = 1;

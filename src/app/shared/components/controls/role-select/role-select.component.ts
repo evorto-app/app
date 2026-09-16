@@ -3,6 +3,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  effect,
   inject,
   Injectable,
   input,
@@ -164,7 +165,12 @@ export class RoleSelectComponent
       // Retained data can name a chip while a mandatory recheck is unfinished.
       const cached = query?.data();
       const name = cached?.id === id ? cached.name : `Role ${id}`;
-      if (!query || query.isPending() || query.fetchStatus() !== 'idle') {
+      if (
+        !query ||
+        query.isPending() ||
+        query.fetchStatus() !== 'idle' ||
+        (query.isSuccess() && query.isStale())
+      ) {
         return { id, name, status: 'loading' };
       }
       if (query.isSuccess() && query.data().id === id) {
@@ -217,6 +223,21 @@ export class RoleSelectComponent
   protected readonly hasChipGridRole = computed(
     () => this.searchInputHasValue() || this.selectedRoles().length > 0,
   );
+
+  constructor() {
+    effect(() => {
+      for (const query of this.selectedRoleQueries()) {
+        if (
+          query.isSuccess() &&
+          query.isStale() &&
+          query.fetchStatus() === 'idle'
+        ) {
+          // Share an in-flight recheck when several controls select this role.
+          void query.refetch({ cancelRefetch: false });
+        }
+      }
+    });
+  }
 
   validate(roleIds: readonly string[]) {
     const selected = new Map(

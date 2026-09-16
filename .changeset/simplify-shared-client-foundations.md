@@ -40,3 +40,11 @@ logged, including encoded credentials in the report URL, message, name, or stack
 Keep useful host/path details and the existing query/fragment redaction.
 
 Reject raw paths and malformed separators in the internal SSR RPC origin before accepting the normalized loopback address.
+
+Apply the same telemetry redaction before client logging and transmission, and retain server-side sanitization for directly submitted reports.
+
+Recheck selected roles when their cached verification expires while a form stays open. Keep saving blocked until that check succeeds, while preserving removal and manual retry after failures.
+
+Validate platform template role selections against the target organization before saving, including pending, failed, and missing role lookups. Preserve unavailable selections so they can be removed.
+
+Omit oversized diagnostic fields before parsing or redaction, keeping browser error handling responsive without exposing a truncated credential prefix.

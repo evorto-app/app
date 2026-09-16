@@ -131,30 +131,30 @@ test.describe('Auth0-backed account creation docs', () => {
 {% callout type="note" title="For first time visits" %}
 This guide assumes that you are signed in but have not completed setup for the current organization. Completing setup records the current privacy-policy acceptance and adds your account to the organization with its standard member access.
 {% /callout %}
-## Sign in
-Open the app page and click on the **Sign in** link.`,
+## Login
+Open the app page and click on the **Login** link.`,
       });
       await page.context().clearCookies();
       await page.goto('/logout');
       await page.goto('.');
-      const loginLink = page.getByRole('link', { name: 'Sign in' }).first();
+      const loginLink = page.getByRole('link', { name: 'Login' }).first();
       if (!(await loginLink.isVisible())) {
-        const logoutLink = page.getByRole('link', { name: 'Sign out' }).first();
+        const logoutLink = page.getByRole('link', { name: 'Logout' }).first();
         if (await logoutLink.isVisible()) {
           await logoutLink.click();
           await page.waitForURL(/\/(login|$)/);
         }
       }
-      await page.getByRole('link', { name: 'Sign in' }).first().waitFor({
+      await page.getByRole('link', { name: 'Login' }).first().waitFor({
         state: 'visible',
       });
       await takeScreenshot(
         testInfo,
-        page.getByRole('link', { name: 'Sign in' }),
+        page.getByRole('link', { name: 'Login' }),
         page,
-        'Sign-in link on desktop browsers',
+        'Login link on desktop browsers',
       );
-      await page.getByRole('link', { name: 'Sign in' }).click();
+      await page.getByRole('link', { name: 'Login' }).click();
       await testInfo.attach('markdown', {
         body: `
 After starting the login flow, sign in with the account you want to use for this organization.

@@ -42,7 +42,7 @@ describe('mobileMoreNavigationAvailable', () => {
   } as const;
 
   it.each([
-    ['Evorto administration', { hasPlatformAuthority: true }],
+    ['platform administration', { hasPlatformAuthority: true }],
     ['tenant administration', { hasTenantAdminPermission: true }],
     ['finance', { hasFinancePermission: true }],
     ['Members Hub', { hasInternalPermission: true }],
@@ -212,7 +212,7 @@ describe('NavigationComponent accessibility', () => {
       ).not.toBeNull();
       expect(
         dialog?.querySelector('a[href="/global-admin"]')?.textContent,
-      ).toContain('Evorto admin');
+      ).toContain('Platform admin');
     });
   });
 

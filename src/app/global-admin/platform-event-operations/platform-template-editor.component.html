@@ -378,7 +378,10 @@
                   </mat-option>
                 }
               </mat-select>
-              @for (error of registration.roleIds().errors(); track error) {
+              @for (
+                error of registration.roleIds().errors();
+                track error.kind
+              ) {
                 <mat-error>{{ error.message }}</mat-error>
               }
             </mat-form-field>

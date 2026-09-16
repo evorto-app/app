@@ -355,6 +355,25 @@ export class PlatformTemplateEditorComponent {
 
     applyEach(template.registrationOptions, (registration) => {
       apply(registration, templateGraphRegistrationOptionFormSchema);
+      validate(registration.roleIds, ({ value }) => {
+        if (value().length === 0) return;
+        if (
+          !this.rolesQuery.isSuccess() ||
+          this.rolesQuery.fetchStatus() !== 'idle'
+        ) {
+          return {
+            kind: 'roleUnverified',
+            message:
+              'Wait for organization roles to be verified before saving.',
+          };
+        }
+        return this.missingRoleIds(value()).length > 0
+          ? {
+              kind: 'roleMissing',
+              message: 'Remove unavailable organization roles before saving.',
+            }
+          : undefined;
+      });
       disabled(registration.isPaid, () => !this.stripeConnected());
       disabled(registration.price, () => !this.stripeConnected());
       disabled(

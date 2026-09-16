@@ -1,6 +1,9 @@
 import { Effect, Schema } from 'effect';
 
-import { MAX_BROWSER_ERROR_TELEMETRY_BODY_SIZE_BYTES } from '../../shared/browser-error-telemetry';
+import {
+  MAX_BROWSER_ERROR_TELEMETRY_BODY_SIZE_BYTES,
+  sanitizeBrowserErrorTelemetryPayload,
+} from '../../shared/browser-error-telemetry';
 import { readRequestBody } from './request-body';
 
 const maxEventsPerWindow = 10;
@@ -27,57 +30,10 @@ class BrowserErrorPayload extends Schema.Class<BrowserErrorPayload>(
   url: Schema.NullOr(Schema.String),
 }) {}
 
-const redactPatterns = (value: string): string =>
-  value
-    .replaceAll(/(\b[a-z][a-z0-9+.-]*:\/\/)[^\s/\\?#]*@/giu, '$1')
-    .replaceAll(/(bearer\s+)[a-z0-9._~+/=-]+/giu, '$1[REDACTED]')
-    .replaceAll(
-      /\b(?:[0-9a-f]{4}-){7}[0-9a-f]{4}\b/giu,
-      '[REDACTED_CLAIM_CODE]',
-    )
-    .replaceAll(
-      /\b[a-z0-9_-]{10,}\.[a-z0-9_-]{10,}\.[a-z0-9_-]{10,}\b/giu,
-      '[REDACTED_TOKEN]',
-    )
-    .replaceAll(
-      /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/giu,
-      '[REDACTED_ID]',
-    )
-    .replaceAll(/\bauth0\|[a-z0-9_-]+\b/giu, '[REDACTED_ID]')
-    .replaceAll(
-      /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/giu,
-      '[REDACTED_EMAIL]',
-    );
-
-const sanitizeUrl = (value: null | string): null | string => {
-  if (value === null) {
-    return null;
-  }
-
-  try {
-    const url = new URL(value);
-    url.username = '';
-    url.password = '';
-    url.hash = '';
-    url.search = '';
-    return redactPatterns(url.href).slice(0, 1000);
-  } catch {
-    return null;
-  }
-};
-
 export const sanitizeBrowserErrorPayload = (
   payload: BrowserErrorPayload,
 ): BrowserErrorPayload =>
-  BrowserErrorPayload.make({
-    message: redactPatterns(payload.message).slice(0, 2000),
-    name: redactPatterns(payload.name).slice(0, 200),
-    stack:
-      payload.stack === null
-        ? null
-        : redactPatterns(payload.stack).slice(0, 4000),
-    url: sanitizeUrl(payload.url),
-  });
+  BrowserErrorPayload.make(sanitizeBrowserErrorTelemetryPayload(payload));
 
 const stableFingerprint = (payload: BrowserErrorPayload): string => {
   const value = `${payload.name}\u{0}${payload.message}\u{0}${payload.stack ?? ''}\u{0}${payload.url ?? ''}`;
