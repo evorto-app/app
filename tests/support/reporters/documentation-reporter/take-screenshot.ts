@@ -1,4 +1,10 @@
-import { Locator, Page, TestInfo } from '@playwright/test';
+import {
+  ElementHandle,
+  expect,
+  Locator,
+  Page,
+  TestInfo,
+} from '@playwright/test';
 
 const settleScreenshotPage = async (page: Page): Promise<void> => {
   await page.locator('body').waitFor({ state: 'visible' });
@@ -16,17 +22,42 @@ const assertNoVisibleLoadingState = async (page: Page): Promise<void> => {
   const visibleLoadingCopy = page
     .getByText(/^Loading(?:\s+.*?)?(?:…|\.{3})$/u)
     .filter({ visible: true });
-  const messages = await visibleLoadingCopy.allTextContents();
-  if (messages.length > 0) {
+  try {
+    await expect(visibleLoadingCopy).toHaveCount(0);
+  } catch (cause) {
+    const messages = await visibleLoadingCopy.allTextContents();
+    if (messages.length === 0) throw cause;
     throw new Error(
       `Documentation screenshot still contains loading copy: ${messages.join(', ')}`,
+      { cause },
     );
   }
 };
 
-export const captureDocumentationScreenshot = async (page: Page) => {
+export const captureDocumentationScreenshot = async (
+  page: Page,
+  options: Readonly<{
+    beforeCapture?: () => Promise<void>;
+    cropTo?: Locator;
+    focusPoints?: readonly Locator[];
+  }> = {},
+) => {
+  if (options.cropTo) {
+    await expect(options.cropTo).toBeVisible();
+    await options.cropTo.scrollIntoViewIfNeeded();
+  }
   await settleScreenshotPage(page);
   await assertNoVisibleLoadingState(page);
+  for (const locator of options.focusPoints ?? []) {
+    await expect(locator.first()).toBeVisible();
+  }
+  if (options.cropTo) {
+    await expect(options.cropTo).toBeVisible();
+  }
+  await options.beforeCapture?.();
+  if (options.cropTo) {
+    return options.cropTo.screenshot({ animations: 'disabled' });
+  }
 
   return page.screenshot({
     animations: 'disabled',
@@ -74,30 +105,40 @@ export async function takeScreenshot(
   };
 
   const failures: unknown[] = [];
-  try {
+  const highlightedElements: ElementHandle<HTMLElement | SVGElement>[] = [];
+  const highlightFocusPoints = async (scroll: boolean) => {
     for (const locator of focusPoints) {
       await runWithRetry(async () => {
-        const target = locator.first();
-        await target.waitFor({ state: 'attached' });
-        await target.evaluate((element) => {
-          const htmlElement = element as HTMLElement;
-          htmlElement.scrollIntoView({ behavior: 'instant', block: 'center' });
-          htmlElement.dataset['docsPrevOutline'] =
-            htmlElement.style.outline ?? '';
-          htmlElement.dataset['docsPrevZIndex'] =
-            htmlElement.style.zIndex ?? '';
+        const target = await locator.first().elementHandle();
+        if (!target) throw new Error('Element is not attached to the DOM');
+        highlightedElements.push(target);
+        await target.evaluate((htmlElement, scroll) => {
+          if (scroll) {
+            htmlElement.scrollIntoView({
+              behavior: 'instant',
+              block: 'center',
+            });
+          }
+          if (!('docsPrevOutline' in htmlElement.dataset)) {
+            htmlElement.dataset['docsPrevOutline'] = htmlElement.style.outline;
+            htmlElement.dataset['docsPrevZIndex'] = htmlElement.style.zIndex;
+          }
           htmlElement.style.outline = 'thick solid rgb(236, 72, 153)';
           htmlElement.style.zIndex = '10000';
           return htmlElement;
-        });
+        }, scroll);
       });
     }
+  };
+  try {
+    await highlightFocusPoints(true);
 
-    await assertNoVisibleLoadingState(page);
     await testInfo.attach('image', {
-      body: options.cropTo
-        ? await options.cropTo.screenshot({ animations: 'disabled' })
-        : await captureDocumentationScreenshot(page),
+      body: await captureDocumentationScreenshot(page, {
+        ...options,
+        beforeCapture: () => highlightFocusPoints(false),
+        focusPoints,
+      }),
       contentType: 'image/png',
     });
     await testInfo.attach('image-caption', {
@@ -107,25 +148,24 @@ export async function takeScreenshot(
     failures.push(error);
   }
 
-  for (const locator of focusPoints) {
+  for (const target of highlightedElements) {
     try {
-      await runWithRetry(async () => {
-        const target = locator.first();
-        await target.waitFor({ state: 'attached' });
-        await target.evaluate((element) => {
-          const htmlElement = element as HTMLElement;
-          if (!('docsPrevOutline' in htmlElement.dataset)) return htmlElement;
-          htmlElement.style.outline =
-            htmlElement.dataset['docsPrevOutline'] ?? '';
-          htmlElement.style.zIndex =
-            htmlElement.dataset['docsPrevZIndex'] ?? '';
-          delete htmlElement.dataset['docsPrevOutline'];
-          delete htmlElement.dataset['docsPrevZIndex'];
-          return htmlElement;
-        });
+      await target.evaluate((htmlElement) => {
+        if (!('docsPrevOutline' in htmlElement.dataset)) return;
+        htmlElement.style.outline =
+          htmlElement.dataset['docsPrevOutline'] ?? '';
+        htmlElement.style.zIndex = htmlElement.dataset['docsPrevZIndex'] ?? '';
+        delete htmlElement.dataset['docsPrevOutline'];
+        delete htmlElement.dataset['docsPrevZIndex'];
       });
     } catch (error) {
       if (!isDetachedError(error)) {
+        failures.push(error);
+      }
+    } finally {
+      try {
+        await target.dispose();
+      } catch (error) {
         failures.push(error);
       }
     }
