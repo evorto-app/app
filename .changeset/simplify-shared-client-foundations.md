@@ -59,3 +59,5 @@ reject malformed HTTP origin syntax before URL normalization.
 Use one visible Edit button for rich-text previews, keeping saved links outside interactive button semantics.
 
 Keep initialized platform template forms visible during role lookup failures and retries. Retain cached or saved role labels for removal, and block saving until target roles are verified.
+
+Reject explicit empty ports in organization, development, and internal SSR origins before URL normalization.

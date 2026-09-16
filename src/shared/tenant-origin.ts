@@ -13,7 +13,7 @@ export class TenantDomainValidationError extends Error {
 
 // Check the input before URL parsing erases dot segments, backslashes or tabs.
 const hasRawOriginShape = (value: string): boolean =>
-  /^https?:\/\/[^/\\\s@?#]+\/?$/iu.test(value);
+  /^https?:\/\/[^/\\\s@?#]+\/?$/iu.test(value) && !/:\/?$/u.test(value);
 
 const parseOrigin = (value: string, label: string): URL => {
   const trimmedValue = value.trim();

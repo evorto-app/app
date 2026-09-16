@@ -29,6 +29,12 @@ const isLoopbackHostname = (hostname: string): boolean =>
   hostname === '[::1]';
 
 const normalizeInternalServerRpcOrigin = (value: string): string => {
+  if (/^https?:\/\/[^/\\\s@?#]+:\/?$/iu.test(value)) {
+    throw new ServerRpcOriginResolutionError(
+      'SSR_RPC_ORIGIN must not include an empty port',
+    );
+  }
+
   let url: URL;
   try {
     url = new URL(value);

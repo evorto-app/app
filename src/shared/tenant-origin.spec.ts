@@ -44,6 +44,29 @@ describe('tenant origin', () => {
     },
   );
 
+  it.each([
+    'section.example.org:',
+    'section.example.org:/',
+    'https://section.example.org:',
+    'https://section.example.org:/',
+    'http://localhost:',
+    'http://localhost:/',
+    'https://127.0.0.1:',
+    'https://127.0.0.1:/',
+    'https://[::1]:',
+    'https://[::1]:/',
+  ])(
+    'rejects an empty primary-domain port before normalization: %s',
+    (value) => {
+      expect(() => normalizeTenantDomain(value)).toThrow(
+        TenantDomainValidationError,
+      );
+      expect(() => deriveTenantPublicOrigin(value)).toThrow(
+        TenantDomainValidationError,
+      );
+    },
+  );
+
   it('normalizes primary domains and derives HTTPS public origins', () => {
     expect(normalizeTenantDomain(' HTTPS://Section.Example.Org:443 ')).toBe(
       'section.example.org',
@@ -126,6 +149,12 @@ describe('tenant origin', () => {
   });
 
   it.each([
+    'http://localhost:',
+    'http://localhost:/',
+    'https://127.0.0.1:',
+    'https://127.0.0.1:/',
+    'http://[::1]:',
+    'http://[::1]:/',
     'http://localhost:4200/..',
     'http://localhost:4200/events/..',
     'http://localhost:4200/%2e%2e',
@@ -145,14 +174,20 @@ describe('tenant origin', () => {
     },
   );
 
-  it('preserves a valid IPv6 loopback origin and port', () => {
+  it.each([
+    ['http://[::1]:4200/', 'http://[::1]:4200'],
+    ['http://localhost:80/', 'http://localhost'],
+    ['https://127.0.0.1:443/', 'https://127.0.0.1'],
+    ['https://[::1]:443/', 'https://[::1]'],
+    ['https://localhost:8443/', 'https://localhost:8443'],
+  ])('preserves valid loopback origin and port %s', (baseUrl, expected) => {
     expect(
       resolveTenantPublicOrigin({
-        baseUrl: 'http://[::1]:4200/',
+        baseUrl,
         nodeEnvironment: 'test',
         primaryDomain: 'section.example.org',
       }),
-    ).toBe('http://[::1]:4200');
+    ).toBe(expected);
   });
 
   it('builds a tenant path without allowing an absolute-origin override', () => {

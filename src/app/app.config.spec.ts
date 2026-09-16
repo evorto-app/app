@@ -26,6 +26,20 @@ describe('application configuration initialization', () => {
     expect(configFactory).not.toHaveBeenCalled();
   });
 
+  it('initializes with the platform token default and no server token provider', async () => {
+    const initialize = vi
+      .fn<() => Promise<void>>()
+      .mockResolvedValue(undefined);
+    TestBed.configureTestingModule({
+      providers: [{ provide: ConfigService, useValue: { initialize } }],
+    });
+
+    expect(TestBed.inject(IS_DISCOVERING_ROUTES)).toBe(false);
+    await TestBed.runInInjectionContext(initializeApplicationConfig);
+
+    expect(initialize).toHaveBeenCalledExactlyOnceWith();
+  });
+
   it('initializes ConfigService outside route discovery', async () => {
     const initialize = vi.fn();
     TestBed.configureTestingModule({
