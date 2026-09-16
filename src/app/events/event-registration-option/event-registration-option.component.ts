@@ -274,6 +274,12 @@ export const registrationQuestionAnswerPayload = (
     }))
     .filter((answer) => answer.answer.length > 0);
 
+export const registrationWriteErrorMessage = (error: unknown): string =>
+  getErrorMessage(error, "We couldn't complete this request. Try again.", [
+    'EventRegistrationConflictError',
+    'EventRegistrationNotFoundError',
+  ]);
+
 export const registrationQuestionsMissingRequired = (
   option: Pick<EventRegistrationOptionView, 'questions'>,
   answers: Readonly<Record<string, string>>,
@@ -585,7 +591,7 @@ export class EventRegistrationOptionComponent {
   }
 
   protected errorMessage(error: unknown): string {
-    return getErrorMessage(error, 'Unknown error');
+    return registrationWriteErrorMessage(error);
   }
 
   private async refreshRegistrationState(eventId: string): Promise<void> {

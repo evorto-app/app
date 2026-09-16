@@ -1,17 +1,24 @@
 import { Effect, Schema } from 'effect';
 
+import {
+  MAX_BROWSER_ERROR_TELEMETRY_BODY_SIZE_BYTES,
+  sanitizeBrowserErrorTelemetryPayload,
+} from '../../shared/browser-error-telemetry';
 import { readRequestBody } from './request-body';
 
-export const MAX_BROWSER_ERROR_TELEMETRY_BODY_SIZE_BYTES = 8 * 1024;
-
 const maxEventsPerWindow = 10;
+const maxTotalEventsPerWindow = 100;
 const rateLimitWindowMs = 60_000;
-const deduplicationWindowMs = 60_000;
 const noStoreHeaders = { 'Cache-Control': 'no-store' };
 
 interface BrowserErrorTelemetryHandlerOptions {
   log: (payload: BrowserErrorPayload) => Effect.Effect<void>;
   now?: () => number;
+}
+
+interface BrowserErrorTelemetryHostState {
+  eventCount: number;
+  readonly fingerprints: Set<string>;
 }
 
 class BrowserErrorPayload extends Schema.Class<BrowserErrorPayload>(
@@ -23,53 +30,13 @@ class BrowserErrorPayload extends Schema.Class<BrowserErrorPayload>(
   url: Schema.NullOr(Schema.String),
 }) {}
 
-const redactPatterns = (value: string): string =>
-  value
-    .replaceAll(/(bearer\s+)[a-z0-9._~+/=-]+/giu, '$1[REDACTED]')
-    .replaceAll(
-      /\b[a-z0-9_-]{10,}\.[a-z0-9_-]{10,}\.[a-z0-9_-]{10,}\b/giu,
-      '[REDACTED_TOKEN]',
-    )
-    .replaceAll(
-      /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/giu,
-      '[REDACTED_ID]',
-    )
-    .replaceAll(/\bauth0\|[a-z0-9_-]+\b/giu, '[REDACTED_ID]')
-    .replaceAll(
-      /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/giu,
-      '[REDACTED_EMAIL]',
-    );
-
-const sanitizeUrl = (value: null | string): null | string => {
-  if (value === null) {
-    return null;
-  }
-
-  try {
-    const url = new URL(value);
-    url.hash = '';
-    url.search = '';
-    return redactPatterns(url.href).slice(0, 1000);
-  } catch {
-    return null;
-  }
-};
-
 export const sanitizeBrowserErrorPayload = (
   payload: BrowserErrorPayload,
 ): BrowserErrorPayload =>
-  BrowserErrorPayload.make({
-    message: redactPatterns(payload.message).slice(0, 2000),
-    name: redactPatterns(payload.name).slice(0, 200),
-    stack:
-      payload.stack === null
-        ? null
-        : redactPatterns(payload.stack).slice(0, 4000),
-    url: sanitizeUrl(payload.url),
-  });
+  BrowserErrorPayload.make(sanitizeBrowserErrorTelemetryPayload(payload));
 
 const stableFingerprint = (payload: BrowserErrorPayload): string => {
-  const value = `${payload.name}\u{0}${payload.message}\u{0}${payload.stack ?? ''}`;
+  const value = `${payload.name}\u{0}${payload.message}\u{0}${payload.stack ?? ''}\u{0}${payload.url ?? ''}`;
   let hash = 2_166_136_261;
   for (const character of value) {
     hash ^= character.codePointAt(0) ?? 0;
@@ -78,22 +45,21 @@ const stableFingerprint = (payload: BrowserErrorPayload): string => {
   return (hash >>> 0).toString(16);
 };
 
-const hasTrustedOrigin = (request: Request): boolean => {
+const resolveSameOriginHost = (request: Request): string | undefined => {
   const originValue = request.headers.get('origin');
   if (!originValue) {
-    return false;
+    return;
   }
 
   try {
     const origin = new URL(originValue);
     const requestUrl = new URL(request.url);
-    const requestHost = request.headers.get('host') ?? requestUrl.host;
-    const requestProtocol = requestUrl.protocol.replace(/:$/u, '');
-    return (
-      origin.host === requestHost && origin.protocol === `${requestProtocol}:`
-    );
+    if (origin.origin !== requestUrl.origin) {
+      return;
+    }
+    return requestUrl.host.toLowerCase();
   } catch {
-    return false;
+    return;
   }
 };
 
@@ -105,16 +71,25 @@ const decodePayload = (body: ArrayBuffer) =>
     Effect.option,
   );
 
+/**
+ * One handler owns one web process's fixed 60-second quota window: 100 admitted
+ * reports total, at most 10 per host, with deduplication inside that window.
+ * Other web processes and restarts have independent budgets. Same-origin hosts
+ * remain caller-controlled; this bounds telemetry resources, not tenant access.
+ * Clearing host state with the total quota prevents old host keys from denying
+ * new hosts a renewed budget. At most 100 hosts and fingerprints can be retained.
+ */
 export const makeBrowserErrorTelemetryHandler = ({
   log,
   now = Date.now,
 }: BrowserErrorTelemetryHandlerOptions) => {
-  let eventCount = 0;
-  let windowStartedAt = 0;
-  const fingerprints = new Map<string, number>();
+  const hostStates = new Map<string, BrowserErrorTelemetryHostState>();
+  let totalEventCount = 0;
+  let totalWindowStartedAt = now();
 
   return Effect.fn('handleBrowserErrorTelemetry')(function* (request: Request) {
-    if (!hasTrustedOrigin(request)) {
+    const sameOriginHost = resolveSameOriginHost(request);
+    if (!sameOriginHost) {
       return new Response(null, { headers: noStoreHeaders, status: 403 });
     }
     if (
@@ -147,28 +122,33 @@ export const makeBrowserErrorTelemetryHandler = ({
     }
 
     const currentTime = now();
-    if (currentTime - windowStartedAt >= rateLimitWindowMs) {
-      eventCount = 0;
-      windowStartedAt = currentTime;
+    if (currentTime - totalWindowStartedAt >= rateLimitWindowMs) {
+      totalEventCount = 0;
+      totalWindowStartedAt = currentTime;
+      hostStates.clear();
     }
-    eventCount += 1;
-    if (eventCount > maxEventsPerWindow) {
+    if (totalEventCount >= maxTotalEventsPerWindow) {
       return new Response(null, { headers: noStoreHeaders, status: 429 });
     }
 
+    let hostState = hostStates.get(sameOriginHost);
+    if (!hostState) {
+      hostState = {
+        eventCount: 0,
+        fingerprints: new Set<string>(),
+      };
+      hostStates.set(sameOriginHost, hostState);
+    }
+    if (hostState.eventCount >= maxEventsPerWindow) {
+      return new Response(null, { headers: noStoreHeaders, status: 429 });
+    }
+    hostState.eventCount += 1;
+    totalEventCount += 1;
+
     const sanitizedPayload = sanitizeBrowserErrorPayload(payloadOption.value);
     const fingerprint = stableFingerprint(sanitizedPayload);
-    const lastSeenAt = fingerprints.get(fingerprint);
-    for (const [candidate, seenAt] of fingerprints) {
-      if (currentTime - seenAt >= deduplicationWindowMs) {
-        fingerprints.delete(candidate);
-      }
-    }
-    fingerprints.set(fingerprint, currentTime);
-    if (
-      lastSeenAt === undefined ||
-      currentTime - lastSeenAt >= deduplicationWindowMs
-    ) {
+    if (!hostState.fingerprints.has(fingerprint)) {
+      hostState.fingerprints.add(fingerprint);
       yield* log(sanitizedPayload);
     }
 
@@ -183,3 +163,5 @@ export const handleBrowserErrorTelemetryWebRequest =
         Effect.annotateLogs({ browserError: payload }),
       ),
   });
+
+export { MAX_BROWSER_ERROR_TELEMETRY_BODY_SIZE_BYTES } from '../../shared/browser-error-telemetry';

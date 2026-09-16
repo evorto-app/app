@@ -1,7 +1,9 @@
+import { TenantDomainValidationError } from '@shared/tenant-origin';
 import { describe, expect, it } from 'vitest';
 
 import {
   createGlobalAdminTenantFormModel,
+  globalAdminTenantDomainValidationMessage,
   globalAdminTenantFormModelFromRecord,
   globalAdminTenantPayloadFromForm,
   globalAdminTenantSubmitDisabled,
@@ -165,7 +167,7 @@ describe('global admin tenant form model', () => {
       normalizeGlobalAdminTenantDomain(' https://Section.Example.Org:443 '),
     ).toBe('section.example.org');
     expect(() => normalizeGlobalAdminTenantDomain(' LOCALHOST:4200 ')).toThrow(
-      'Domain must be a single host name',
+      'Enter the main website address only, for example section.example.org.',
     );
   });
 
@@ -180,7 +182,22 @@ describe('global admin tenant form model', () => {
         theme: 'evorto',
         timezone: 'Europe/Berlin',
       }),
-    ).toThrow('Domain must be a single host name');
+    ).toThrow(
+      'Enter the main website address only, for example section.example.org.',
+    );
+  });
+
+  it('handles only the expected website-address validation error at the form boundary', () => {
+    expect(
+      globalAdminTenantDomainValidationMessage(
+        new TenantDomainValidationError('Enter a public website address.'),
+      ),
+    ).toBe('Enter a public website address.');
+
+    const unexpected = new Error('Unexpected parser failure');
+    expect(() => globalAdminTenantDomainValidationMessage(unexpected)).toThrow(
+      unexpected,
+    );
   });
 
   it('rejects credential-like domain input before deriving a trusted origin', () => {
@@ -194,7 +211,18 @@ describe('global admin tenant form model', () => {
         theme: 'evorto',
         timezone: 'Europe/Berlin',
       }),
-    ).toThrow('Domain must be a single host name');
+    ).toThrow(
+      'Enter the main website address only, for example section.example.org.',
+    );
+  });
+
+  it('preserves a typed organization validation reason', () => {
+    expect(
+      globalAdminTenantUpdateErrorMessage({
+        _tag: 'RpcBadRequestError',
+        message: 'Organization domain already exists',
+      }),
+    ).toBe('Organization domain already exists');
   });
 
   it('shows the actionable reason for typed public URL migration blockers', () => {
@@ -210,7 +238,7 @@ describe('global admin tenant form model', () => {
         tenantId: 'tenant-1',
       }),
     ).toBe(
-      "Organization public URL cannot change while issued links are active. Complete or cancel every active registration transfer before changing the organization's public URL.",
+      "Failed to update organization. Complete or cancel every active registration transfer before changing the organization's public URL.",
     );
   });
 

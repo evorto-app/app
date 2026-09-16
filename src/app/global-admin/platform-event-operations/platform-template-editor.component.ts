@@ -262,6 +262,12 @@ export class PlatformTemplateEditorComponent {
       (Boolean(this.templateId()) && this.templateQuery.isFetching()),
   );
   protected readonly editorLoadError = signal('');
+  protected readonly editorModelInitialized = computed(() => {
+    const templateId = this.templateId();
+    return templateId
+      ? this.initializedTemplateId() === templateId
+      : this.initializedNewTemplateTenantId() === this.tenantId();
+  });
   protected readonly esnCardEnabled = computed(
     () =>
       this.optionsQuery.isSuccess() && this.optionsQuery.data().esnCardEnabled,
@@ -355,6 +361,25 @@ export class PlatformTemplateEditorComponent {
 
     applyEach(template.registrationOptions, (registration) => {
       apply(registration, templateGraphRegistrationOptionFormSchema);
+      validate(registration.roleIds, ({ value }) => {
+        if (value().length === 0) return;
+        if (
+          !this.rolesQuery.isSuccess() ||
+          this.rolesQuery.fetchStatus() !== 'idle'
+        ) {
+          return {
+            kind: 'roleUnverified',
+            message:
+              'Wait for organization roles to be verified before saving.',
+          };
+        }
+        return this.missingRoleIds(value()).length > 0
+          ? {
+              kind: 'roleMissing',
+              message: 'Remove unavailable organization roles before saving.',
+            }
+          : undefined;
+      });
       disabled(registration.isPaid, () => !this.stripeConnected());
       disabled(registration.price, () => !this.stripeConnected());
       disabled(
@@ -587,9 +612,11 @@ export class PlatformTemplateEditorComponent {
   }
 
   protected missingRoleIds(roleIds: readonly string[]): readonly string[] {
-    if (!this.rolesQuery.isSuccess()) return roleIds;
-    const available = new Set(this.rolesQuery.data().map((role) => role.id));
-    return roleIds.filter((roleId) => !available.has(roleId));
+    // Retain cached labels after an error without treating them as verified.
+    const knownRoleIds = new Set(
+      (this.rolesQuery.data() ?? []).map((role) => role.id),
+    );
+    return roleIds.filter((roleId) => !knownRoleIds.has(roleId));
   }
 
   protected mutationPending(): boolean {
@@ -716,6 +743,16 @@ export class PlatformTemplateEditorComponent {
     if (this.templateId() && this.templateQuery.isError()) {
       void this.templateQuery.refetch();
     }
+  }
+
+  protected unverifiedRoleLabel(roleId: string): string {
+    return (
+      this.templateQuery
+        .data()
+        ?.registrationOptions.flatMap((option) => option.roles)
+        .find((role) => role.id === roleId)?.name ??
+      'Previously selected organization role'
+    );
   }
 
   protected roleLabel(role: PlatformRoleRecord): string {

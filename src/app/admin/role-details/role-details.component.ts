@@ -38,6 +38,6 @@ export class RoleDetailsComponent {
   }
 
   protected errorMessage(error: unknown): string {
-    return getErrorMessage(error, 'Unknown error');
+    return getErrorMessage(error, 'Unknown error', ['AdminRoleNotFoundError']);
   }
 }

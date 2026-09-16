@@ -1,6 +1,7 @@
 import type { RegistrationMode } from '@shared/registration-modes';
 
 import {
+  apply,
   hidden,
   min,
   required,
@@ -15,6 +16,7 @@ import {
   type SupportedTenantTimezone,
 } from '../../../../../types/custom/tenant';
 import { tenantNow } from '../../../../core/tenant-runtime';
+import { roleSelectionSchema } from '../../controls/role-select/role-selection.schema';
 
 export interface RegistrationOptionFormModel {
   cancellationDeadlineHoursBeforeStart: null | number;
@@ -62,6 +64,7 @@ export const createRegistrationOptionFormModel = (
 
 export const registrationOptionFormSchema = schema<RegistrationOptionFormModel>(
   (form) => {
+    apply(form.roleIds, roleSelectionSchema);
     validate(form.description, ({ value }) => {
       return hasTemporaryRichTextImageSources(value())
         ? {

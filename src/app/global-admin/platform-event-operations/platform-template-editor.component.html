@@ -5,12 +5,14 @@
 
 @if (
   optionsQuery.isPending() ||
-  rolesQuery.isPending() ||
+  (rolesQuery.isPending() && !editorModelInitialized()) ||
   (templateId() && templateQuery.isPending())
 ) {
   <p role="status" aria-live="polite">Loading template editor...</p>
 } @else if (
-  optionsQuery.isError() || rolesQuery.isError() || templateQuery.isError()
+  optionsQuery.isError() ||
+  (rolesQuery.isError() && !editorModelInitialized()) ||
+  templateQuery.isError()
 ) {
   <section
     class="bg-error-container text-on-error-container grid justify-items-start gap-3 p-4"
@@ -40,6 +42,30 @@
     data-testid="platform-template-editor"
     (submit)="save($event)"
   >
+    @if (rolesQuery.isPending()) {
+      <p role="status" aria-live="polite">
+        Loading organization roles. Selected roles can still be removed.
+      </p>
+    } @else if (rolesQuery.isError()) {
+      <section
+        class="bg-error-container text-on-error-container grid justify-items-start gap-3 p-4"
+        role="alert"
+      >
+        <p>The organization roles could not be loaded.</p>
+        <p class="body-small">
+          Selected roles remain visible and can be removed. Try again to verify
+          them before saving.
+        </p>
+        <button
+          mat-stroked-button
+          type="button"
+          [disabled]="editorDataRetrying()"
+          (click)="retryEditorData()"
+        >
+          {{ editorDataRetrying() ? "Retrying..." : "Try again" }}
+        </button>
+      </section>
+    }
     <section class="grid gap-4" aria-labelledby="template-details-title">
       <h2 id="template-details-title" class="title-medium">Template details</h2>
 
@@ -369,16 +395,30 @@
                   track missingRoleId
                 ) {
                   <mat-option [value]="missingRoleId">
-                    Previously selected organization role (no longer available)
+                    @if (rolesQuery.isSuccess()) {
+                      Previously selected organization role (no longer
+                      available)
+                    } @else {
+                      {{ unverifiedRoleLabel(missingRoleId) }} (not verified)
+                    }
                   </mat-option>
                 }
                 @for (role of rolesQuery.data() ?? []; track role.id) {
-                  <mat-option [value]="role.id">
+                  <mat-option
+                    [value]="role.id"
+                    [disabled]="
+                      !rolesQuery.isSuccess() &&
+                      !registration.roleIds().value().includes(role.id)
+                    "
+                  >
                     {{ roleLabel(role) }}
                   </mat-option>
                 }
               </mat-select>
-              @for (error of registration.roleIds().errors(); track error) {
+              @for (
+                error of registration.roleIds().errors();
+                track error.kind
+              ) {
                 <mat-error>{{ error.message }}</mat-error>
               }
             </mat-form-field>

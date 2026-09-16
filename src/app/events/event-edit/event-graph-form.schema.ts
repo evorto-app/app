@@ -12,6 +12,7 @@ import { hasTemporaryRichTextImageSources } from '@shared/utils/rich-text-media'
 
 import type { EventGraphFormModel } from './event-graph-form.model';
 
+import { roleSelectionSchema } from '../../shared/components/controls/role-select/role-selection.schema';
 import { simpleEventGraphIssue } from './event-graph-form.model';
 
 const nonNegativeIntegerError = (value: null | number) =>
@@ -70,6 +71,7 @@ export const eventGraphFormSchema = schema<EventGraphFormModel>((form) => {
   hidden(form.addOns, ({ valueOf }) => valueOf(form.simpleModeEnabled));
 
   applyEach(form.registrationOptions, (option) => {
+    apply(option.roleIds, roleSelectionSchema);
     required(option.title, { message: 'Enter an option name.' });
     required(option.openRegistrationTime, {
       message: 'Enter a registration opening time.',

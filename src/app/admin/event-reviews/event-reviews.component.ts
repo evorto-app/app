@@ -26,6 +26,7 @@ import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
 import { TenantDatePipe } from '../../core/tenant-date.pipe';
 import { EventReviewDialogComponent } from '../../events/event-review-dialog/event-review-dialog.component';
+import { eventReviewActionErrorRequiresRefresh } from '../../events/event-rpc-error';
 
 export const eventReviewQueueActionDisabled = ({
   actionPending,
@@ -208,16 +209,12 @@ export class EventReviewsComponent {
   private async handleReviewActionError(error: unknown): Promise<void> {
     const message = getErrorMessage(
       error,
-      'Failed to update event review status',
+      'The event review could not be updated. Try again.',
+      ['EventConflictError', 'EventNotFoundError', 'RpcBadRequestError'],
     );
-    const normalizedMessage = message.toLowerCase();
-    if (
-      normalizedMessage.includes('status changed') ||
-      normalizedMessage.includes('refresh and try again') ||
-      normalizedMessage.includes('no longer pending review')
-    ) {
+    if (eventReviewActionErrorRequiresRefresh(error)) {
       this.notifications.showError(
-        'Event status changed. Refreshed the latest state.',
+        'This event changed while you were working. We loaded the latest details. Review them and try again.',
       );
       await this.refreshReviewState();
       return;

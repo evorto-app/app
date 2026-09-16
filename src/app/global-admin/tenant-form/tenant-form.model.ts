@@ -4,7 +4,10 @@ import type {
   GlobalAdminTenantWriteInput,
 } from '@shared/rpc-contracts/app-rpcs/global-admin.rpcs';
 
-import { normalizeTenantDomain } from '@shared/tenant-origin';
+import {
+  normalizeTenantDomain,
+  TenantDomainValidationError,
+} from '@shared/tenant-origin';
 
 import { getErrorMessage } from '../../core/error-message';
 
@@ -77,8 +80,19 @@ const optionalTrimmed = (value: string): string | undefined =>
 export const normalizeGlobalAdminTenantDomain = (value: string): string =>
   normalizeTenantDomain(value);
 
+export const globalAdminTenantDomainValidationMessage = (
+  error: unknown,
+): string => {
+  if (error instanceof TenantDomainValidationError) {
+    return error.message;
+  }
+  throw error;
+};
+
 export const globalAdminTenantUpdateErrorMessage = (error: unknown): string => {
-  const message = getErrorMessage(error, 'Failed to update organization');
+  const message = getErrorMessage(error, 'Failed to update organization', [
+    'RpcBadRequestError',
+  ]);
   if (
     !error ||
     typeof error !== 'object' ||

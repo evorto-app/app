@@ -38,6 +38,7 @@ import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
 import {
+  globalAdminTenantDomainValidationMessage,
   type GlobalAdminTenantFormModel,
   globalAdminTenantPayloadFromForm,
   globalAdminTenantSubmitDisabled,
@@ -117,7 +118,7 @@ export class TenantEditComponent {
           return globalAdminTenantPayloadFromForm(formState().value());
         } catch (error) {
           this.notifications.showError(
-            getErrorMessage(error, 'Failed to update organization'),
+            globalAdminTenantDomainValidationMessage(error),
           );
           return null;
         }

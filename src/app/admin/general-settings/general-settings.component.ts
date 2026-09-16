@@ -281,7 +281,10 @@ export class GeneralSettingsComponent {
         }
       } catch (error) {
         this.notifications.showError(
-          getErrorMessage(error, 'Failed to update organization settings'),
+          getErrorMessage(error, 'Failed to update organization settings', [
+            'AdminTenantNotFoundError',
+            'RpcBadRequestError',
+          ]),
         );
       }
     });
@@ -343,7 +346,9 @@ export class GeneralSettingsComponent {
       );
     } catch (error) {
       this.notifications.showError(
-        getErrorMessage(error, 'Failed to upload brand asset'),
+        getErrorMessage(error, 'Failed to upload brand asset', [
+          'RpcBadRequestError',
+        ]),
       );
     } finally {
       this.uploadingBrandAsset.set(null);

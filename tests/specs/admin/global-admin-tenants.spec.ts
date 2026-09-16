@@ -180,7 +180,9 @@ test('platform administrator reviews tenant list, detail, and forms @admin @glob
   ).toBeEnabled();
   await page.getByRole('button', { name: 'Create organization' }).click();
   await expect(
-    page.getByText('Domain must be a single host name'),
+    page.getByText(
+      'Enter the main website address only, for example section.example.org.',
+    ),
   ).toBeVisible();
   await expect(page).toHaveURL(/\/global-admin\/tenants\/create$/);
   await createTenantInputs.nth(1).fill(originalTenant.domain);
@@ -268,7 +270,7 @@ test('platform administrator reviews tenant list, detail, and forms @admin @glob
   await page.getByRole('button', { name: 'Save organization' }).click();
   await expect(
     page.getByText(
-      "Organization public URL cannot change while issued links are active. Complete or cancel every pending Stripe Checkout or refund before changing the organization's public URL.",
+      "Failed to update organization. Complete or cancel every pending Stripe Checkout or refund before changing the organization's public URL.",
     ),
   ).toBeVisible();
   await expect(page).toHaveURL(/\/global-admin\/tenants\/[^/]+\/edit$/);

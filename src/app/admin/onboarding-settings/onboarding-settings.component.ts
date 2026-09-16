@@ -223,7 +223,10 @@ export class OnboardingSettingsComponent {
         this.notifications.showSuccess(onboardingPublishNotice(result));
       } catch (error) {
         this.notifications.showError(
-          getErrorMessage(error, 'Failed to publish onboarding settings'),
+          getErrorMessage(error, 'Failed to publish onboarding settings', [
+            'TenantOnboardingConfigurationError',
+            'TenantOnboardingValidationError',
+          ]),
         );
       }
     });

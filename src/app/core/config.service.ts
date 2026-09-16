@@ -19,6 +19,12 @@ import { PlatformAdministratorAuthority } from '../../types/custom/platform-auth
 import { Tenant } from '../../types/custom/tenant';
 import { AppRpc } from './effect-rpc-angular-client';
 
+// Material surface colors, shared by standard and increased-contrast modes.
+const themeColors = {
+  esn: { dark: '#0f1418', light: '#f5faff' },
+  evorto: { dark: '#131410', light: '#fcf9f2' },
+} satisfies Record<Tenant['theme'], { dark: string; light: string }>;
+
 @Injectable({
   providedIn: 'root',
 })
@@ -76,18 +82,7 @@ export class ConfigService {
     effect(() => {
       const currentTenant = this.currentTenantQuery.data();
       if (currentTenant) {
-        const previousTenant = this.tenantSignal();
-        if (previousTenant) {
-          this.renderer.removeClass(
-            this.document.documentElement,
-            `theme-${previousTenant.theme}`,
-          );
-        }
         this.applyTenantConfig(currentTenant);
-        this.renderer.addClass(
-          this.document.documentElement,
-          `theme-${this.tenant.theme}`,
-        );
       }
     });
   }
@@ -132,6 +127,29 @@ export class ConfigService {
   }
 
   private applyTenantConfig(tenant: Tenant): void {
+    const previousTheme = this.tenantSignal()?.theme;
+    if (previousTheme && previousTheme !== tenant.theme) {
+      this.renderer.removeClass(
+        this.document.documentElement,
+        `theme-${previousTheme}`,
+      );
+    }
+    this.renderer.addClass(
+      this.document.documentElement,
+      `theme-${tenant.theme}`,
+    );
+    for (const colorScheme of ['light', 'dark'] as const) {
+      const media = `(prefers-color-scheme: ${colorScheme})`;
+      this.meta.updateTag(
+        {
+          content: themeColors[tenant.theme][colorScheme],
+          media,
+          name: 'theme-color',
+        },
+        `name='theme-color'][media='${media}'`,
+      );
+    }
+
     this._tenant = tenant;
     this.tenantSignal.set(tenant);
     this.title.setTitle(tenant.seoTitle ?? tenant.name);

@@ -335,6 +335,10 @@ export class EventOrganize {
               registration.paymentSetupRequired
                 ? 'Failed to set up registration payment'
                 : 'Failed to approve application',
+              [
+                'EventRegistrationConflictError',
+                'EventRegistrationNotFoundError',
+              ],
             ),
           );
         },
@@ -429,7 +433,10 @@ export class EventOrganize {
             await this.invalidateOrganizerState();
           } finally {
             this.notifications.showError(
-              getErrorMessage(error, 'Failed to cancel registration'),
+              getErrorMessage(error, 'Failed to cancel registration', [
+                'EventRegistrationConflictError',
+                'EventRegistrationNotFoundError',
+              ]),
             );
           }
         },
@@ -492,7 +499,10 @@ export class EventOrganize {
         {
           onError: (error) => {
             this.notifications.showError(
-              getErrorMessage(error, 'Failed to submit receipt'),
+              getErrorMessage(error, 'Failed to submit receipt', [
+                'RpcBadRequestError',
+                'FinanceResourceNotFoundError',
+              ]),
             );
           },
           onSuccess: async () => {
@@ -516,7 +526,12 @@ export class EventOrganize {
       );
     } catch (error) {
       this.notifications.showError(
-        getErrorMessage(error, 'Failed to upload receipt file'),
+        getErrorMessage(error, 'Failed to upload receipt file', [
+          'RpcBadRequestError',
+          'FinanceResourceNotFoundError',
+          'ReceiptMediaBadRequestError',
+          'ReceiptMediaServiceUnavailableError',
+        ]),
       );
     }
   }
@@ -568,7 +583,10 @@ export class EventOrganize {
       {
         onError: (error) => {
           this.notifications.showError(
-            getErrorMessage(error, 'Failed to transfer registration'),
+            getErrorMessage(error, 'Failed to transfer registration', [
+              'EventRegistrationConflictError',
+              'EventRegistrationNotFoundError',
+            ]),
           );
         },
         onSuccess: async () => {

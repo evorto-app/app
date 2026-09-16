@@ -1,9 +1,21 @@
 import type { TemplateFindOneRecord } from '@shared/rpc-contracts/app-rpcs/templates.rpcs';
 
-import { describe, expect, it } from 'vitest';
+import { TestBed } from '@angular/core/testing';
+import { RpcForbiddenError } from '@shared/errors/rpc-errors';
+import {
+  TemplateSimpleInternalError,
+  TemplateSimpleNotFoundError,
+} from '@shared/rpc-contracts/app-rpcs/templates.errors';
+import {
+  provideTanStackQuery,
+  QueryClient,
+} from '@tanstack/angular-query-experimental';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { APP_RPC_CLIENT } from '../../core/effect-rpc-angular-client';
 import {
   templateAddonPurchaseTiming,
+  TemplateDetailsComponent,
   templateRegistrationOptionTitle,
 } from './template-details.component';
 
@@ -96,4 +108,92 @@ describe('template detail add-on helpers', () => {
       templateRegistrationOptionTitle(createTemplate(), 'missing-option'),
     ).toBe('Broken registration option configuration');
   });
+});
+
+describe('template detail error state', () => {
+  const loadTemplate = vi.fn();
+  let queryClient: QueryClient;
+
+  beforeEach(async () => {
+    loadTemplate.mockReset();
+    queryClient = new QueryClient({
+      defaultOptions: { queries: { gcTime: 0, retry: false } },
+    });
+    TestBed.overrideComponent(TemplateDetailsComponent, {
+      set: {
+        template: `
+      @if (templateQuery.isError()) { <p role="alert">{{ errorMessage(templateQuery.error()) }}</p> }
+    `,
+      },
+    });
+    await TestBed.configureTestingModule({
+      imports: [TemplateDetailsComponent],
+      providers: [
+        provideTanStackQuery(queryClient),
+        {
+          provide: APP_RPC_CLIENT,
+          useValue: {
+            taxRates: {
+              listActive: {
+                queryOptions: () => ({
+                  enabled: false,
+                  queryKey: ['tax-rates'],
+                }),
+              },
+            },
+            templates: {
+              findOne: {
+                queryOptions: () => ({
+                  queryFn: loadTemplate,
+                  queryKey: ['template-details'],
+                }),
+              },
+            },
+          },
+        },
+      ],
+    }).compileComponents();
+  });
+
+  afterEach(() => {
+    queryClient.clear();
+    TestBed.resetTestingModule();
+  });
+
+  it.each([
+    {
+      error: new TemplateSimpleNotFoundError({ message: 'Template not found' }),
+      expected: 'Template not found',
+    },
+    {
+      error: new RpcForbiddenError({
+        message: 'private authorization details',
+      }),
+      expected: 'Unknown error',
+    },
+    {
+      error: new TemplateSimpleInternalError({
+        message: 'private database details',
+      }),
+      expected: 'Unknown error',
+    },
+    {
+      error: new Error('private transport details'),
+      expected: 'Unknown error',
+    },
+  ])(
+    'distinguishes a deleted template without exposing unsafe failures: $expected',
+    async ({ error, expected }) => {
+      loadTemplate.mockRejectedValueOnce(error);
+      const fixture = TestBed.createComponent(TemplateDetailsComponent);
+      fixture.componentRef.setInput('templateId', 'template-1');
+      fixture.detectChanges();
+      await vi.waitFor(() => {
+        fixture.detectChanges();
+        expect(
+          fixture.nativeElement.querySelector('[role="alert"]')?.textContent,
+        ).toBe(expected);
+      });
+    },
+  );
 });

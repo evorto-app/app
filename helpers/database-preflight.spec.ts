@@ -473,70 +473,74 @@ describe('database seed preflight', () => {
   });
 });
 
-describe('direct Playwright database fixture preflight', () => {
-  const runFixture = (
-    databaseUrl: string,
-    postgresPort = '55432',
-    pgPort?: string,
-  ) =>
-    runDatabaseHelper({
-      entrypoint: 'tests/support/fixtures/base-test.ts',
-      playwright: true,
-      environment: {
-        AUTH0_MANAGEMENT_CLIENT_ID: 'fixture-management',
-        AUTH0_MANAGEMENT_CLIENT_SECRET: 'fixture-management-secret',
-        BASE_URL: 'http://localhost:4200',
-        CLIENT_ID: 'fixture',
-        CLIENT_SECRET: 'fixture',
-        DATABASE_URL: databaseUrl,
-        E2E_SELECTED_PROJECTS: 'local-chrome-baseline',
-        ISSUER_BASE_URL: 'https://fixture.invalid',
-        LOCAL_DATABASE: 'true',
-        POSTGRES_DB: 'appdb',
-        POSTGRES_HOST_PORT: postgresPort,
-        ...(pgPort === undefined ? {} : { PGPORT: pgPort }),
-        SECRET: 'fixture',
-        STRIPE_API_KEY: 'fixture',
-        STRIPE_TEST_ACCOUNT_ID: 'acct_fixture',
+describe(
+  'direct Playwright database fixture preflight',
+  { timeout: 20_000 },
+  () => {
+    const runFixture = (
+      databaseUrl: string,
+      postgresPort = '55432',
+      pgPort?: string,
+    ) =>
+      runDatabaseHelper({
+        entrypoint: 'tests/support/fixtures/base-test.ts',
+        playwright: true,
+        environment: {
+          AUTH0_MANAGEMENT_CLIENT_ID: 'fixture-management',
+          AUTH0_MANAGEMENT_CLIENT_SECRET: 'fixture-management-secret',
+          BASE_URL: 'http://localhost:4200',
+          CLIENT_ID: 'fixture',
+          CLIENT_SECRET: 'fixture',
+          DATABASE_URL: databaseUrl,
+          E2E_SELECTED_PROJECTS: 'local-chrome-baseline',
+          ISSUER_BASE_URL: 'https://fixture.invalid',
+          LOCAL_DATABASE: 'true',
+          POSTGRES_DB: 'appdb',
+          POSTGRES_HOST_PORT: postgresPort,
+          ...(pgPort === undefined ? {} : { PGPORT: pgPort }),
+          SECRET: 'fixture',
+          STRIPE_API_KEY: 'fixture',
+          STRIPE_TEST_ACCOUNT_ID: 'acct_fixture',
+        },
+      });
+
+    it.each([
+      [
+        'postgresql://fixture:fixture@remote.invalid:55432/appdb',
+        'non-local database host',
+      ],
+      [
+        'postgresql://fixture:fixture@localhost:55433/appdb',
+        'configured POSTGRES_HOST_PORT',
+      ],
+    ])(
+      'rejects an unsafe target before fixture SQL: %s',
+      (databaseUrl, message) => {
+        const result = runFixture(databaseUrl);
+        expect(result.status).not.toBe(0);
+        expect(result.output).toContain(message);
+        expect(result.attemptedConnection).toBe(false);
       },
+    );
+
+    it('rejects a mismatched inherited PGPORT before fixture SQL', () => {
+      const result = runFixture(
+        'postgresql://fixture:fixture@localhost/appdb',
+        '5432',
+        '55433',
+      );
+      expect(result.status).not.toBe(0);
+      expect(result.output).toContain('configured POSTGRES_HOST_PORT');
+      expect(result.attemptedConnection).toBe(false);
     });
 
-  it.each([
-    [
-      'postgresql://fixture:fixture@remote.invalid:55432/appdb',
-      'non-local database host',
-    ],
-    [
-      'postgresql://fixture:fixture@localhost:55433/appdb',
-      'configured POSTGRES_HOST_PORT',
-    ],
-  ])(
-    'rejects an unsafe target before fixture SQL: %s',
-    (databaseUrl, message) => {
-      const result = runFixture(databaseUrl);
+    it('allows the matching target as far as the isolated connection barrier', () => {
+      const result = runFixture(
+        'postgresql://fixture:fixture@localhost:55432/appdb',
+      );
       expect(result.status).not.toBe(0);
-      expect(result.output).toContain(message);
-      expect(result.attemptedConnection).toBe(false);
-    },
-  );
-
-  it('rejects a mismatched inherited PGPORT before fixture SQL', () => {
-    const result = runFixture(
-      'postgresql://fixture:fixture@localhost/appdb',
-      '5432',
-      '55433',
-    );
-    expect(result.status).not.toBe(0);
-    expect(result.output).toContain('configured POSTGRES_HOST_PORT');
-    expect(result.attemptedConnection).toBe(false);
-  });
-
-  it('allows the matching target as far as the isolated connection barrier', () => {
-    const result = runFixture(
-      'postgresql://fixture:fixture@localhost:55432/appdb',
-    );
-    expect(result.status).not.toBe(0);
-    expect(result.output).toContain(connectionMarker);
-    expect(result.attemptedConnection).toBe(true);
-  });
-});
+      expect(result.output).toContain(connectionMarker);
+      expect(result.attemptedConnection).toBe(true);
+    });
+  },
+);

@@ -1,0 +1,436 @@
+diff --git a/dist/PgClient.js b/dist/PgClient.js
+index 48bf1a4c45d19eedba0cdf657b9569f2de0544a8..16597100480bb2be87a9572fa6afffafc97e0318 100644
+--- a/dist/PgClient.js
++++ b/dist/PgClient.js
+@@ -154,34 +154,60 @@ export const makeClient = options => fromClient({
+  */
+ export const fromPool = /*#__PURE__*/Effect.fnUntraced(function* (options) {
+   const pool = yield* options.acquire;
+-  const makeConection = client => new ConnectionImpl(function runWithClient(f) {
++  const discardedClients = new WeakMap();
++  const discard = (client, cause) => {
++    if (discardedClients.has(client))
++      return;
++    discardedClients.set(client, cause);
++    client.end(() => { });
++  };
++  const makeConection = (client) => new ConnectionImpl(function runWithClient(f) {
+     if (client !== undefined) {
+-      return Effect.callback(resume => {
+-        f(client, resume);
+-        return makeCancel(pool, client);
++      return Effect.callback((resume) => {
++        const cause = discardedClients.get(client);
++        if (cause) {
++          return resume(Effect.fail(new SqlError({
++            reason: new ConnectionError({
++              cause,
++              message: "PostgreSQL connection discarded after uncertain query cancellation",
++              operation: "execute"
++            })
++          })));
++        }
++        const cancellation = makeCancel(pool, client, (cause) => discard(client, cause));
++        f(client, (effect) => {
++          cancellation.complete();
++          resume(effect);
++        });
++        return cancellation.cancel;
+       });
+     }
+-    return Effect.callback(resume => {
++    return Effect.callback((resume) => {
+       let done = false;
+-      let cancel = undefined;
++      let cancellation = undefined;
+       let client = undefined;
++      let release = undefined;
++      let releaseCause = undefined;
+       function onError(cause) {
+-        cleanup(cause);
+-        resume(Effect.fail(new SqlError({
+-          reason: classifyError(cause, "Connection error", "acquireConnection")
+-        })));
++        releaseCause = cause;
++        if (!cancellation || cancellation.complete())
++          cleanup();
++        resume(Effect.fail(new SqlError({ reason: classifyError(cause, "Connection error", "acquireConnection") })));
+       }
+-      function cleanup(cause) {
+-        if (!done) client?.release(cause);
++      function cleanup() {
++        if (done)
++          return;
+         done = true;
+         client?.off("error", onError);
++        release?.(releaseCause ?? (client && discardedClients.get(client)));
+       }
+       pool.connect((cause, client_) => {
+         if (cause) {
+           return resume(Effect.fail(new SqlError({
+             reason: classifyError(cause, "Failed to acquire connection", "acquireConnection")
+           })));
+-        } else if (!client_) {
++        }
++        else if (!client_) {
+           return resume(Effect.fail(new SqlError({
+             reason: new ConnectionError({
+               message: "Failed to acquire connection",
+@@ -189,24 +215,27 @@ export const fromPool = /*#__PURE__*/Effect.fnUntraced(function* (options) {
+               operation: "acquireConnection"
+             })
+           })));
+-        } else if (done) {
++        }
++        else if (done) {
+           client_.release();
+           return;
+         }
+         client = client_;
++        release = client.release;
+         client.once("error", onError);
+-        cancel = makeCancel(pool, client);
+-        f(client, eff => {
+-          cleanup();
++        cancellation = makeCancel(pool, client, (cause) => discard(client, cause));
++        f(client, (eff) => {
++          if (cancellation.complete())
++            cleanup();
+           resume(eff);
+         });
+       });
+       return Effect.suspend(() => {
+-        if (!cancel) {
++        if (!cancellation) {
+           cleanup();
+           return Effect.void;
+         }
+-        return Effect.ensuring(cancel, Effect.sync(cleanup));
++        return Effect.ensuring(cancellation.cancel, Effect.sync(cleanup));
+       });
+     });
+   }, client ? Effect.succeed(client) : reserveRaw);
+@@ -234,7 +263,7 @@ export const fromPool = /*#__PURE__*/Effect.fnUntraced(function* (options) {
+       client.on("error", onError);
+       resume(Effect.as(Scope.addFinalizer(scope, Effect.sync(() => {
+         client.off("error", onError);
+-        release(cause);
++        release(cause ?? discardedClients.get(client));
+       })), client));
+     });
+   });
+@@ -475,22 +504,95 @@ class ConnectionImpl {
+     })));
+   }
+ }
+-const cancelEffects = /*#__PURE__*/new WeakMap();
+-const makeCancel = (pool, client) => {
+-  if (cancelEffects.has(client)) {
+-    return cancelEffects.get(client);
+-  }
++const makeCancel = (pool, client, discard) => {
++  let completed = false;
++  let interrupted = false;
++  let dispatched = false;
++  let acknowledged = false;
++  let closed = false;
++  let failure;
++  let wake;
++  let releaseControl;
+   const processId = client.processID;
+-  const eff = processId !== undefined
+-  // query cancelation is best-effort, so we don't fail if it doesn't work
+-  ? Effect.callback(resume => {
+-    if (pool.ending) return resume(Effect.void);
+-    pool.query(`SELECT pg_cancel_backend(${processId})`, () => {
+-      resume(Effect.void);
+-    });
+-  }).pipe(Effect.interruptible, Effect.timeoutOption(5000)) : undefined;
+-  cancelEffects.set(client, eff);
+-  return eff;
++  const finish = () => {
++    if (failure || (completed && acknowledged))
++      wake?.();
++  };
++  const complete = () => {
++    completed = true;
++    if (!dispatched)
++      acknowledged = true;
++    finish();
++    return !interrupted;
++  };
++  const cancel = Effect.suspend(() => {
++    interrupted = true;
++    if (completed)
++      return Effect.void;
++    return Effect.callback((resume) => {
++      wake = () => resume(Effect.void);
++      if (processId === undefined || pool.ending) {
++        acknowledged = true;
++        finish();
++        return;
++      }
++      pool.connect((cause, control) => {
++        if (cause || !control) {
++          acknowledged = true;
++          finish();
++          return;
++        }
++        const release = control.release;
++        if (closed || completed) {
++          release();
++          acknowledged = true;
++          finish();
++          return;
++        }
++        let released = false;
++        releaseControl = (cause) => {
++          if (released)
++            return;
++          released = true;
++          control.off("error", onError);
++          releaseControl = undefined;
++          release(cause);
++        };
++        const onError = (cause) => {
++          if (closed || released)
++            return;
++          failure = cause;
++          releaseControl?.(cause);
++          finish();
++        };
++        control.once("error", onError);
++        dispatched = true;
++        try {
++          control.query(`SELECT pg_cancel_backend(${processId})`, (cause) => {
++            if (closed || released)
++              return;
++            if (cause)
++              failure = cause;
++            else
++              acknowledged = true;
++            releaseControl?.(cause ?? undefined);
++            finish();
++          });
++        }
++        catch (cause) {
++          onError(cause instanceof Error ? cause : new Error(String(cause)));
++        }
++      });
++    }).pipe(Effect.interruptible, Effect.timeoutOption(5000), Effect.ensuring(Effect.sync(() => {
++      closed = true;
++      wake = undefined;
++      if (failure || !completed || !acknowledged) {
++        discard(failure ?? new Error("PostgreSQL query cancellation did not finish before cleanup"));
++      }
++      releaseControl?.(new Error("PostgreSQL cancellation connection discarded during cleanup"));
++    })), Effect.asVoid);
++  });
++  return { complete, cancel };
+ };
+ /**
+  * Creates a layer from an effect that acquires a `PgClient`, providing both `PgClient` and `SqlClient`.
+diff --git a/src/PgClient.ts b/src/PgClient.ts
+index 4e33ab77a8dcf7da35f795f48394ad6e61ebdf5b..5714f5c20c3913c4a17d34a5d5dd5efef1a0d2a2 100644
+--- a/src/PgClient.ts
++++ b/src/PgClient.ts
+@@ -285,28 +285,52 @@ export const fromPool = Effect.fnUntraced(function*(
+   }
+ ): Effect.fn.Return<PgClient, SqlError, Scope.Scope | Reactivity.Reactivity> {
+   const pool = yield* options.acquire
++  const discardedClients = new WeakMap<Pg.PoolClient, Error>()
++  const discard = (client: Pg.PoolClient, cause: Error) => {
++    if (discardedClients.has(client)) return
++    discardedClients.set(client, cause)
++    client.end(() => {})
++  }
+ 
+   const makeConection = (client?: Pg.PoolClient) =>
+     new ConnectionImpl(
+       function runWithClient<A>(f: (client: Pg.ClientBase, resume: (_: Effect.Effect<A, SqlError>) => void) => void) {
+         if (client !== undefined) {
+           return Effect.callback<A, SqlError>((resume) => {
+-            f(client!, resume)
+-            return makeCancel(pool, client!)
++            const cause = discardedClients.get(client)
++            if (cause) {
++              return resume(Effect.fail(new SqlError({
++                reason: new ConnectionError({
++                  cause,
++                  message: "PostgreSQL connection discarded after uncertain query cancellation",
++                  operation: "execute"
++                })
++              })))
++            }
++            const cancellation = makeCancel(pool, client, (cause) => discard(client, cause))
++            f(client, (effect) => {
++              cancellation.complete()
++              resume(effect)
++            })
++            return cancellation.cancel
+           })
+         }
+         return Effect.callback<A, SqlError>((resume) => {
+           let done = false
+-          let cancel: Effect.Effect<void> | undefined = undefined
++          let cancellation: ReturnType<typeof makeCancel> | undefined = undefined
+           let client: Pg.PoolClient | undefined = undefined
++          let release: Pg.PoolClient["release"] | undefined = undefined
++          let releaseCause: Error | undefined = undefined
+           function onError(cause: Error) {
+-            cleanup(cause)
++            releaseCause = cause
++            if (!cancellation || cancellation.complete()) cleanup()
+             resume(Effect.fail(new SqlError({ reason: classifyError(cause, "Connection error", "acquireConnection") })))
+           }
+-          function cleanup(cause?: Error) {
+-            if (!done) client?.release(cause)
++          function cleanup() {
++            if (done) return
+             done = true
+             client?.off("error", onError)
++            release?.(releaseCause ?? (client && discardedClients.get(client)))
+           }
+           pool.connect((cause, client_) => {
+             if (cause) {
+@@ -334,19 +358,20 @@ export const fromPool = Effect.fnUntraced(function*(
+               return
+             }
+             client = client_
++            release = client.release
+             client.once("error", onError)
+-            cancel = makeCancel(pool, client)
++            cancellation = makeCancel(pool, client, (cause) => discard(client!, cause))
+             f(client, (eff) => {
+-              cleanup()
++              if (cancellation!.complete()) cleanup()
+               resume(eff)
+             })
+           })
+           return Effect.suspend(() => {
+-            if (!cancel) {
++            if (!cancellation) {
+               cleanup()
+               return Effect.void
+             }
+-            return Effect.ensuring(cancel, Effect.sync(cleanup))
++            return Effect.ensuring(cancellation.cancel, Effect.sync(cleanup))
+           })
+         })
+       },
+@@ -392,7 +417,7 @@ export const fromPool = Effect.fnUntraced(function*(
+           scope,
+           Effect.sync(() => {
+             client.off("error", onError)
+-            release(cause)
++            release(cause ?? discardedClients.get(client))
+           })
+         ),
+         client
+@@ -747,26 +772,91 @@ class ConnectionImpl implements Connection {
+   }
+ }
+ 
+-const cancelEffects = new WeakMap<Pg.PoolClient, Effect.Effect<void> | undefined>()
+-const makeCancel = (pool: Pg.Pool, client: Pg.PoolClient) => {
+-  if (cancelEffects.has(client)) {
+-    return cancelEffects.get(client)!
+-  }
++const makeCancel = (pool: Pg.Pool, client: Pg.PoolClient, discard: (cause: Error) => void) => {
++  let completed = false
++  let interrupted = false
++  let dispatched = false
++  let acknowledged = false
++  let closed = false
++  let failure: Error | undefined
++  let wake: (() => void) | undefined
++  let releaseControl: ((cause?: Error) => void) | undefined
+   const processId = (client as any).processID
+-  const eff = processId !== undefined
+-    // query cancelation is best-effort, so we don't fail if it doesn't work
+-    ? Effect.callback<void>((resume) => {
+-      if (pool.ending) return resume(Effect.void)
+-      pool.query(`SELECT pg_cancel_backend(${processId})`, () => {
+-        resume(Effect.void)
++  const finish = () => {
++    if (failure || (completed && acknowledged)) wake?.()
++  }
++  const complete = () => {
++    completed = true
++    if (!dispatched) acknowledged = true
++    finish()
++    return !interrupted
++  }
++  const cancel = Effect.suspend(() => {
++    interrupted = true
++    if (completed) return Effect.void
++    return Effect.callback<void>((resume) => {
++      wake = () => resume(Effect.void)
++      if (processId === undefined || pool.ending) {
++        acknowledged = true
++        finish()
++        return
++      }
++      pool.connect((cause, control) => {
++        if (cause || !control) {
++          acknowledged = true
++          finish()
++          return
++        }
++        const release = control.release
++        if (closed || completed) {
++          release()
++          acknowledged = true
++          finish()
++          return
++        }
++        let released = false
++        releaseControl = (cause) => {
++          if (released) return
++          released = true
++          control.off("error", onError)
++          releaseControl = undefined
++          release(cause)
++        }
++        const onError = (cause: Error) => {
++          if (closed || released) return
++          failure = cause
++          releaseControl?.(cause)
++          finish()
++        }
++        control.once("error", onError)
++        dispatched = true
++        try {
++          control.query(`SELECT pg_cancel_backend(${processId})`, (cause) => {
++            if (closed || released) return
++            if (cause) failure = cause
++            else acknowledged = true
++            releaseControl?.(cause ?? undefined)
++            finish()
++          })
++        } catch (cause) {
++          onError(cause instanceof Error ? cause : new Error(String(cause)))
++        }
+       })
+     }).pipe(
+       Effect.interruptible,
+-      Effect.timeoutOption(5000)
++      Effect.timeoutOption(5000),
++      Effect.ensuring(Effect.sync(() => {
++        closed = true
++        wake = undefined
++        if (failure || !completed || !acknowledged) {
++          discard(failure ?? new Error("PostgreSQL query cancellation did not finish before cleanup"))
++        }
++        releaseControl?.(new Error("PostgreSQL cancellation connection discarded during cleanup"))
++      })),
++      Effect.asVoid
+     )
+-    : undefined
+-  cancelEffects.set(client, eff)
+-  return eff
++  })
++  return { complete, cancel }
+ }
+ 
+ /**

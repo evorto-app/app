@@ -101,4 +101,7 @@ export const createAccountSubmitDisabled = ({
 }): boolean => formInvalid || formSubmitting || mutationPending;
 
 export const createAccountErrorMessage = (error: unknown): string =>
-  getErrorMessage(error, 'Failed to complete organization setup');
+  getErrorMessage(error, 'Failed to complete organization setup', [
+    'TenantOnboardingRequirementsChangedError',
+    'TenantOnboardingValidationError',
+  ]);

@@ -24,6 +24,51 @@ const semanticPairs = [
     label: 'warning container',
   },
 ] as const;
+const materialPairs = [
+  {
+    background: '--mat-sys-primary',
+    foreground: '--mat-sys-on-primary',
+    label: 'primary',
+  },
+  {
+    background: '--mat-sys-primary-container',
+    foreground: '--mat-sys-on-primary-container',
+    label: 'primary container',
+  },
+  {
+    background: '--mat-sys-tertiary',
+    foreground: '--mat-sys-on-tertiary',
+    label: 'tertiary',
+  },
+  {
+    background: '--mat-sys-surface',
+    foreground: '--mat-sys-on-surface',
+    label: 'surface',
+  },
+] as const;
+
+const expectedPrimaryChannels = {
+  'theme-evorto': {
+    dark: {
+      increased: [240, 238, 255],
+      standard: [189, 194, 255],
+    },
+    light: {
+      increased: [1, 18, 146],
+      standard: [69, 82, 196],
+    },
+  },
+  'theme-esn': {
+    dark: {
+      increased: [226, 242, 255],
+      standard: [130, 207, 255],
+    },
+    light: {
+      increased: [0, 48, 69],
+      standard: [0, 101, 141],
+    },
+  },
+} as const;
 
 interface RenderedPair {
   background: string;
@@ -31,7 +76,14 @@ interface RenderedPair {
   label: string;
 }
 
-const readRenderedPairs = (page: Page): Promise<RenderedPair[]> =>
+const readRenderedPairs = (
+  page: Page,
+  pairs: readonly {
+    readonly background: string;
+    readonly foreground: string;
+    readonly label: string;
+  }[],
+): Promise<RenderedPair[]> =>
   page.evaluate((pairs) => {
     const rootStyle = getComputedStyle(document.documentElement);
 
@@ -56,7 +108,7 @@ const readRenderedPairs = (page: Page): Promise<RenderedPair[]> =>
       probe.remove();
       return rendered;
     });
-  }, semanticPairs);
+  }, pairs);
 
 const colorChannels = (color: string): readonly [number, number, number] => {
   const channels = color.match(/[\d.]+/g)?.map(Number);
@@ -92,7 +144,7 @@ const contrastRatio = ({ background, foreground }: RenderedPair): number => {
   return (light + 0.05) / (dark + 0.05);
 };
 
-test('success and warning roles stay legible across both themes and contrast modes', async ({
+test('success and warning roles stay legible across all themes and contrast modes', async ({
   page,
 }) => {
   await page.goto('/events');
@@ -106,7 +158,7 @@ test('success and warning roles stay legible across both themes and contrast mod
 
     for (const colorScheme of colorSchemes) {
       await page.emulateMedia({ colorScheme, contrast: 'no-preference' });
-      const standardPairs = await readRenderedPairs(page);
+      const standardPairs = await readRenderedPairs(page, semanticPairs);
 
       for (const pair of standardPairs) {
         expect(
@@ -115,8 +167,23 @@ test('success and warning roles stay legible across both themes and contrast mod
         ).toBeGreaterThanOrEqual(4.5);
       }
 
+      const standardMaterialPairs = await readRenderedPairs(
+        page,
+        materialPairs,
+      );
+      for (const pair of standardMaterialPairs) {
+        expect(
+          contrastRatio(pair),
+          `${theme} ${colorScheme} ${pair.label} standard contrast`,
+        ).toBeGreaterThanOrEqual(4.5);
+      }
+      expect(
+        colorChannels(standardMaterialPairs[0].background).map(Math.round),
+        `${theme} ${colorScheme} standard primary role`,
+      ).toEqual(expectedPrimaryChannels[theme][colorScheme].standard);
+
       await page.emulateMedia({ colorScheme, contrast: 'more' });
-      const increasedPairs = await readRenderedPairs(page);
+      const increasedPairs = await readRenderedPairs(page, semanticPairs);
 
       for (const [index, pair] of increasedPairs.entries()) {
         expect(
@@ -125,6 +192,62 @@ test('success and warning roles stay legible across both themes and contrast mod
         ).toBeGreaterThanOrEqual(7);
         expect(pair.background).not.toBe(standardPairs[index].background);
       }
+
+      const increasedMaterialPairs = await readRenderedPairs(
+        page,
+        materialPairs,
+      );
+      for (const pair of increasedMaterialPairs) {
+        expect(
+          contrastRatio(pair),
+          `${theme} ${colorScheme} ${pair.label} increased contrast`,
+        ).toBeGreaterThanOrEqual(7);
+      }
+      expect(
+        colorChannels(increasedMaterialPairs[0].background).map(Math.round),
+        `${theme} ${colorScheme} increased-contrast primary role`,
+      ).toEqual(expectedPrimaryChannels[theme][colorScheme].increased);
+    }
+  }
+});
+
+test('browser chrome follows the tenant surface in light and dark color schemes', async ({
+  page,
+}) => {
+  await page.goto('/events');
+  await expect(page.locator('html')).toHaveClass(/theme-(?:esn|evorto)/);
+  await expect(page.locator('meta[name="theme-color"]')).toHaveCount(2);
+
+  for (const colorScheme of colorSchemes) {
+    for (const contrast of ['no-preference', 'more'] as const) {
+      await page.emulateMedia({ colorScheme, contrast });
+      const themeColor = await page.evaluate(() => {
+        const activeTags = Array.from(
+          document.querySelectorAll<HTMLMetaElement>(
+            'meta[name="theme-color"]',
+          ),
+        ).filter(
+          (tag) => window.matchMedia(tag.getAttribute('media') ?? '').matches,
+        );
+        if (activeTags.length !== 1) {
+          throw new Error('Expected exactly one active browser chrome color');
+        }
+        const probe = document.createElement('span');
+        probe.style.backgroundColor = activeTags[0].content;
+        return probe.style.backgroundColor;
+      });
+      const [surface] = await readRenderedPairs(page, [
+        {
+          background: '--mat-sys-surface',
+          foreground: '--mat-sys-on-surface',
+          label: 'surface',
+        },
+      ]);
+
+      expect(
+        colorChannels(themeColor).map(Math.round),
+        `${colorScheme} ${contrast} browser chrome matches the theme surface`,
+      ).toEqual(colorChannels(surface.background).map(Math.round));
     }
   }
 });

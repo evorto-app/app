@@ -14,10 +14,14 @@ export const RoleLookupRecord = Schema.Struct({
 
 export type RoleLookupRecord = Schema.Schema.Type<typeof RoleLookupRecord>;
 
+export const roleSearchMaxLength = 64;
+
 export const RolesFindManyInput = Schema.Struct({
   defaultOrganizerRole: Schema.optional(Schema.Boolean),
   defaultUserRole: Schema.optional(Schema.Boolean),
-  search: Schema.optional(Schema.String),
+  search: Schema.optional(
+    Schema.String.check(Schema.isMaxLength(roleSearchMaxLength)),
+  ),
 });
 
 export type RolesFindManyInput = Schema.Schema.Type<typeof RolesFindManyInput>;

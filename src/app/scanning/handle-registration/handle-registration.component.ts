@@ -311,6 +311,16 @@ export const scanGuestCheckInCountFromInput = ({
   );
 };
 
+export const scannerRegistrationErrorMessage = (
+  error: unknown,
+  fallback: string,
+): string =>
+  getErrorMessage(error, fallback, [
+    'EventCheckInUnavailableError',
+    'EventRegistrationConflictError',
+    'EventRegistrationNotFoundError',
+  ]);
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
@@ -506,7 +516,10 @@ export class HandleRegistrationComponent {
   }
 
   protected errorMessage(error: unknown): string {
-    return getErrorMessage(error, 'Unknown error');
+    return scannerRegistrationErrorMessage(
+      error,
+      'This action could not be completed. Try again.',
+    );
   }
 
   protected redeemAddon(addOn: EventsRegistrationAddonFulfillmentRecord): void {

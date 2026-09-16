@@ -177,7 +177,9 @@ export class PlatformRolesComponent {
         this.createRole();
       } catch (error) {
         this.notifications.showError(
-          getErrorMessage(error, 'Failed to delete role'),
+          getErrorMessage(error, 'Failed to delete role', [
+            'RpcBadRequestError',
+          ]),
         );
       }
     })();
@@ -243,6 +245,7 @@ export class PlatformRolesComponent {
           getErrorMessage(
             error,
             roleId ? 'Failed to update role' : 'Failed to create role',
+            ['RpcBadRequestError'],
           ),
         );
       }

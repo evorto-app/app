@@ -1,5 +1,9 @@
 import { isPlatformBrowser } from '@angular/common';
 import { ErrorHandler, inject, Injectable, PLATFORM_ID } from '@angular/core';
+import {
+  sanitizeBrowserErrorTelemetryPayload,
+  serializeBrowserErrorTelemetryPayload,
+} from '@shared/browser-error-telemetry';
 import consola from 'consola/browser';
 
 const logger = consola.withTag('app/browser-error');
@@ -24,15 +28,13 @@ export class BrowserErrorHandler implements ErrorHandler {
   private readonly platformId = inject(PLATFORM_ID);
 
   handleError(error: unknown): void {
-    logger.error(error);
+    const payload = sanitizeBrowserErrorTelemetryPayload(asErrorPayload(error));
+    logger.error(payload);
     if (!isPlatformBrowser(this.platformId)) {
       return;
     }
 
-    const body = JSON.stringify(asErrorPayload(error));
-    if (new TextEncoder().encode(body).byteLength > 8 * 1024) {
-      return;
-    }
+    const body = serializeBrowserErrorTelemetryPayload(payload);
 
     if (navigator.sendBeacon) {
       navigator.sendBeacon(

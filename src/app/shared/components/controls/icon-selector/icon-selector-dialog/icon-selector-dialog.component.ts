@@ -37,19 +37,19 @@ export const iconAddErrorMessage = (error: unknown): string => {
     error && typeof error === 'object' ? Reflect.get(error, '_tag') : undefined;
   switch (tag) {
     case 'IconSourceBusyError': {
-      return 'The icon source is busy. Try again shortly.';
+      return "We couldn't add this icon right now. Try again.";
     }
     case 'IconSourceUnavailableError': {
-      return 'That Icons8 icon could not be verified. Check the name and try again.';
+      return "We couldn't add this icon right now. Try again.";
     }
     case 'InvalidIconNameError': {
-      return 'Use a lowercase Icons8 name with letters, numbers, hyphens, and at most one style suffix.';
+      return "We couldn't find that icon. Choose one from the list or try another search.";
     }
     case 'RpcForbiddenError': {
-      return 'You do not have permission to add icons here.';
+      return 'Your account does not have access to add icons here.';
     }
     default: {
-      return getErrorMessage(error, 'The icon could not be added.');
+      return getErrorMessage(error, "We couldn't add this icon. Try again.");
     }
   }
 };

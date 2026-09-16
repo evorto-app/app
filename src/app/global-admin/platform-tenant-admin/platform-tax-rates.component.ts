@@ -134,7 +134,9 @@ export class PlatformTaxRatesComponent {
         this.importForm().reset();
       } catch (error) {
         this.notifications.showError(
-          getErrorMessage(error, 'Failed to import tax rates'),
+          getErrorMessage(error, 'Failed to import tax rates', [
+            'RpcBadRequestError',
+          ]),
         );
       }
     });

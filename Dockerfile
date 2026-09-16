@@ -18,9 +18,7 @@ ENV NG_BUILD_PARTIAL_SSR=1
 ENV NG_BUILD_MAX_WORKERS=2
 
 COPY package.json bun.lock bunfig.toml ./
-COPY patches/@material-material-color-utilities-npm-0.4.0-9d48ca70b8.patch patches/@material-material-color-utilities-npm-0.4.0-9d48ca70b8.patch
-COPY patches/heddendorp-effect-angular-query-0.1.4-angular22.patch patches/heddendorp-effect-angular-query-0.1.4-angular22.patch
-COPY patches/heddendorp-effect-platform-angular-0.0.9-angular22.patch patches/heddendorp-effect-platform-angular-0.0.9-angular22.patch
+COPY patches/ ./patches/
 COPY ops/scaleway/prime-bun-fontawesome-cache.mjs ops/scaleway/prime-bun-fontawesome-cache.mjs
 RUN --mount=type=cache,id=bun-install-cache-${TARGETPLATFORM},target=/home/bun/.bun/install/cache,uid=1000,gid=1000,sharing=locked \
     --mount=type=secret,id=FONT_AWESOME_TOKEN,mode=0444,required=true \
@@ -38,9 +36,7 @@ ENV NG_BUILD_PARTIAL_SSR=1
 ENV NG_BUILD_MAX_WORKERS=2
 
 COPY package.json bun.lock bunfig.toml ./
-COPY patches/@material-material-color-utilities-npm-0.4.0-9d48ca70b8.patch patches/@material-material-color-utilities-npm-0.4.0-9d48ca70b8.patch
-COPY patches/heddendorp-effect-angular-query-0.1.4-angular22.patch patches/heddendorp-effect-angular-query-0.1.4-angular22.patch
-COPY patches/heddendorp-effect-platform-angular-0.0.9-angular22.patch patches/heddendorp-effect-platform-angular-0.0.9-angular22.patch
+COPY patches/ ./patches/
 COPY ops/scaleway/prime-bun-fontawesome-cache.mjs ops/scaleway/prime-bun-fontawesome-cache.mjs
 RUN --mount=type=cache,id=bun-build-install-cache-${BUILDPLATFORM},target=/home/bun/.bun/install/cache,uid=1000,gid=1000,sharing=locked \
     --mount=type=secret,id=FONT_AWESOME_TOKEN,mode=0444,required=true \

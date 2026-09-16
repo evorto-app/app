@@ -2,6 +2,7 @@ import { AsyncPipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
+  DestroyRef,
   inject,
   signal,
 } from '@angular/core';
@@ -11,7 +12,11 @@ import {
   MatAutocompleteSelectedEvent,
 } from '@angular/material/autocomplete';
 import { MatButtonModule } from '@angular/material/button';
-import { MatDialogModule, MatDialogRef } from '@angular/material/dialog';
+import {
+  MatDialogModule,
+  MatDialogRef,
+  MatDialogState,
+} from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
@@ -69,6 +74,10 @@ type PlaceDetailsOutcome =
 type PlaceSelectionState =
   | {
       readonly failure: LocationProviderError;
+      readonly status: 'invalid-result';
+    }
+  | {
+      readonly failure: LocationProviderError;
       readonly status: 'provider-error';
     }
   | { readonly status: 'idle' }
@@ -103,6 +112,8 @@ const isLocationSuggestion = (value: unknown): value is LocationSuggestion =>
 export class LocationSelectorDialog {
   protected readonly searchQuery = signal<LocationSuggestion | string>('');
   private readonly configService = inject(ConfigService);
+  private readonly destroyRef = inject(DestroyRef);
+  private placeDetailsRequestId = 0;
   private readonly locationSearch = inject(LocationSearch);
   private readonly searchRetry = signal(0);
 
@@ -155,7 +166,14 @@ export class LocationSelectorDialog {
   async selectOption(event: MatAutocompleteSelectedEvent): Promise<void> {
     const value: unknown = event.option.value;
     if (!isLocationSuggestion(value)) {
-      consola.warn('Ignoring an invalid location search result');
+      this.placeDetailsRequestId += 1;
+      this.pendingSuggestion.set(null);
+      const failure = new LocationProviderError({
+        cause: new TypeError('Location search returned an invalid selection'),
+        operation: 'placeDetails',
+      });
+      consola.error('Location search returned an invalid selection', failure);
+      this.selectionState.set({ failure, status: 'invalid-result' });
       return;
     }
 
@@ -182,6 +200,9 @@ export class LocationSelectorDialog {
   protected updateSearchQuery(event: Event): void {
     const input = event.target;
     if (input instanceof HTMLInputElement) {
+      this.placeDetailsRequestId += 1;
+      this.pendingSuggestion.set(null);
+      this.selectionState.set({ status: 'idle' });
       this.searchQuery.set(input.value);
     }
   }
@@ -199,6 +220,7 @@ export class LocationSelectorDialog {
   private async loadPlaceDetails(
     suggestion: LocationSuggestion,
   ): Promise<void> {
+    const requestId = ++this.placeDetailsRequestId;
     this.pendingSuggestion.set(suggestion);
     this.selectionState.set({ status: 'loading' });
 
@@ -228,6 +250,14 @@ export class LocationSelectorDialog {
         }),
         status: 'failure',
       };
+    }
+
+    if (
+      this.destroyRef.destroyed ||
+      this.dialog.getState() !== MatDialogState.OPEN ||
+      requestId !== this.placeDetailsRequestId
+    ) {
+      return;
     }
 
     if (outcome.status === 'success') {

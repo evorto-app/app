@@ -92,7 +92,9 @@ export class TemplateDetailsComponent {
   );
 
   protected errorMessage(error: unknown): string {
-    return getErrorMessage(error, 'Unknown error');
+    return getErrorMessage(error, 'Unknown error', [
+      'TemplateSimpleNotFoundError',
+    ]);
   }
 
   protected findRateByStripeId(id: null | string | undefined) {

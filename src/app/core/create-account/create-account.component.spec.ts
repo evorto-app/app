@@ -280,7 +280,9 @@ describe('CreateAccountComponent load recovery', () => {
     await vi.waitFor(() => {
       fixture.detectChanges();
       expect(completeOnboarding).toHaveBeenCalledOnce();
-      expect(normalizeText(fixture)).toContain('Temporary connection problem');
+      expect(normalizeText(fixture)).toContain(
+        'Failed to complete organization setup',
+      );
     });
 
     const retainedAnswer: HTMLInputElement | null =
@@ -373,6 +375,9 @@ describe('CreateAccountComponent load recovery', () => {
       fixture.nativeElement.querySelector('[data-question-id="question-1"]');
     expect(retainedAnswer?.value).toBe('Keep this matched answer');
     expect(loadRequirements).toHaveBeenCalledTimes(2);
+    expect(normalizeText(fixture)).toContain(
+      'The questions changed. Review them and submit again.',
+    );
   });
 
   it('merges a background requirements refresh by id after the form is touched', async () => {

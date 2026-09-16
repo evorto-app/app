@@ -3,6 +3,7 @@ import { Component, input, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MatDialog } from '@angular/material/dialog';
 import { provideRouter } from '@angular/router';
+import { EventNotFoundError } from '@shared/rpc-contracts/app-rpcs/events.errors';
 import {
   provideTanStackQuery,
   QueryClient,
@@ -409,10 +410,17 @@ class EventActiveRegistrationStubComponent {
 
 describe('EventDetailsComponent load recovery', () => {
   let queryClient: QueryClient;
+  const reviewEvent =
+    vi.fn<
+      NonNullable<
+        ReturnType<EventDetailsOperations['reviewEvent']>['mutationFn']
+      >
+    >();
 
   beforeEach(async () => {
     findEvent.mockReset();
     findRegistrationStatus.mockReset();
+    reviewEvent.mockReset().mockResolvedValue(undefined);
     queryClient = new QueryClient({
       defaultOptions: {
         queries: { gcTime: 0, retry: false },
@@ -462,7 +470,7 @@ describe('EventDetailsComponent load recovery', () => {
               queryKey: ['registration-status', eventId],
             }),
             reviewEvent: () => ({
-              mutationFn: async () => true,
+              mutationFn: reviewEvent,
               mutationKey: ['review-event'],
             }),
             self: () => ({
@@ -550,6 +558,70 @@ describe('EventDetailsComponent load recovery', () => {
     });
     expect(findEvent).toHaveBeenCalledTimes(2);
     expect(fixture.nativeElement.querySelector('[role="alert"]')).toBeNull();
+  });
+
+  it('refreshes deleted event details and invalidates list and review caches after approval fails', async () => {
+    TestBed.overrideProvider(PermissionsService, {
+      useValue: {
+        hasPermission: () => signal(true).asReadonly(),
+        hasPermissionSync: () => true,
+      },
+    });
+    const deletedEvent = new EventNotFoundError({
+      id: 'event-1',
+      message: 'Event not found',
+    });
+    findEvent
+      .mockResolvedValueOnce({ ...eventDetails, status: 'PENDING_REVIEW' })
+      .mockRejectedValue(deletedEvent);
+    reviewEvent.mockRejectedValue(deletedEvent);
+    findRegistrationStatus.mockResolvedValue({
+      isRegistered: false,
+      outgoingTransfers: [],
+      registrations: [],
+    });
+    queryClient.setQueryDefaults(['events'], { gcTime: Infinity });
+    queryClient.setQueryDefaults(['pending-event-reviews'], {
+      gcTime: Infinity,
+    });
+    queryClient.setQueryData(['events'], [eventDetails]);
+    queryClient.setQueryData(['pending-event-reviews'], [eventDetails]);
+    const fixture = render();
+    const root: HTMLElement = fixture.nativeElement;
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      const approve = [...root.querySelectorAll('button')].find(
+        (button) => button.textContent?.trim() === 'Approve',
+      );
+      expect(approve?.disabled).toBe(false);
+    });
+    const approve = [...root.querySelectorAll('button')].find(
+      (button) => button.textContent?.trim() === 'Approve',
+    );
+    if (!approve) throw new Error('Expected an event approval button');
+    approve.click();
+
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(findEvent).toHaveBeenCalledTimes(2);
+      expect(queryClient.getQueryState(['events'])?.isInvalidated).toBe(true);
+      expect(
+        queryClient.getQueryState(['pending-event-reviews'])?.isInvalidated,
+      ).toBe(true);
+      expect(normalizeText(fixture)).toContain('Event unavailable');
+      expect(normalizeText(fixture)).toContain('Event could not be loaded');
+      expect(normalizeText(fixture)).not.toContain('Recovery workshop');
+      expect(
+        [...root.querySelectorAll('button')].some(
+          (button) => button.textContent?.trim() === 'Approve',
+        ),
+      ).toBe(false);
+    });
+    expect(reviewEvent).toHaveBeenCalledTimes(1);
+    expect(reviewEvent.mock.calls[0]?.[0]).toEqual({
+      approved: true,
+      eventId: 'event-1',
+    });
   });
 
   it('keeps event details visible while registration actions recover independently', async () => {

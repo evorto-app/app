@@ -348,7 +348,13 @@ export class ReceiptRefundListComponent {
       }));
     } catch (error) {
       this.notifications.showError(
-        getErrorMessage(error, 'Failed to record reimbursement'),
+        getErrorMessage(error, 'Failed to record reimbursement', [
+          'RpcBadRequestError',
+          'FinanceReceiptNotFoundError',
+          'FinanceResourceNotFoundError',
+          'ReceiptMediaBadRequestError',
+          'ReceiptMediaServiceUnavailableError',
+        ]),
       );
     }
   }

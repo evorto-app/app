@@ -4,7 +4,7 @@ import {
   MatAutocompleteSelectedEvent,
   MatOption,
 } from '@angular/material/autocomplete';
-import { MatDialogRef } from '@angular/material/dialog';
+import { MatDialogRef, MatDialogState } from '@angular/material/dialog';
 import { Effect } from 'effect';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -24,6 +24,7 @@ describe('LocationSelectorDialog', () => {
   const search = vi.fn<LocationSearch['search']>();
   const getPlaceDetails = vi.fn<LocationSearch['getPlaceDetails']>();
   const close = vi.fn<MatDialogRef<LocationSelectorDialog>['close']>();
+  const getState = vi.fn<MatDialogRef<LocationSelectorDialog>['getState']>();
   let searchEffect: Effect.Effect<LocationSuggestion[], LocationSearchError>;
   let placeDetailsEffect: Effect.Effect<
     GoogleLocationType,
@@ -39,6 +40,7 @@ describe('LocationSelectorDialog', () => {
     getPlaceDetails.mockReset();
     getPlaceDetails.mockImplementation(() => placeDetailsEffect);
     close.mockReset();
+    getState.mockReset().mockReturnValue(MatDialogState.OPEN);
 
     await TestBed.configureTestingModule({
       imports: [LocationSelectorDialog],
@@ -51,7 +53,7 @@ describe('LocationSelectorDialog', () => {
           provide: LocationSearch,
           useValue: { getPlaceDetails, search },
         },
-        { provide: MatDialogRef, useValue: { close } },
+        { provide: MatDialogRef, useValue: { close, getState } },
       ],
     }).compileComponents();
 
@@ -102,11 +104,11 @@ describe('LocationSelectorDialog', () => {
     await vi.waitFor(() => {
       fixture.detectChanges();
       expect(fixture.nativeElement.textContent).toContain(
-        'Location search is not configured for this site.',
+        'Location search is unavailable.',
       );
     });
     expect(fixture.nativeElement.textContent).toContain(
-      'Ask a site administrator to enable Google Maps',
+      'Contact Evorto support before choosing a location.',
     );
     expect(fixture.nativeElement.textContent).not.toContain('API key');
     expect(fixture.nativeElement.textContent).not.toContain(
@@ -129,12 +131,15 @@ describe('LocationSelectorDialog', () => {
     await vi.waitFor(() => {
       fixture.detectChanges();
       expect(fixture.nativeElement.textContent).toContain(
-        'Google Maps is unavailable right now.',
+        "We couldn't search for locations.",
+      );
+      expect(fixture.nativeElement.textContent).toContain(
+        'If the search still fails, contact Evorto support.',
       );
     });
 
     searchEffect = Effect.succeed([]);
-    const retryButton = findButton('Retry location search');
+    const retryButton = findButton('Try location search again');
     retryButton.click();
 
     await vi.waitFor(() => {
@@ -195,7 +200,10 @@ describe('LocationSelectorDialog', () => {
 
     expect(close).not.toHaveBeenCalled();
     expect(fixture.nativeElement.textContent).toContain(
-      'Google Maps could not load this place.',
+      "We couldn't load this location.",
+    );
+    expect(fixture.nativeElement.textContent).toContain(
+      'If neither works, contact Evorto support.',
     );
 
     const location: GoogleLocationType = {
@@ -206,13 +214,157 @@ describe('LocationSelectorDialog', () => {
       type: 'google',
     };
     placeDetailsEffect = Effect.succeed(location);
-    findButton('Retry location details').click();
+    findButton('Try this location again').click();
 
     await vi.waitFor(() => {
       fixture.detectChanges();
       expect(getPlaceDetails).toHaveBeenCalledTimes(2);
       expect(close).toHaveBeenCalledWith(location);
     });
+  });
+
+  it.each(['success', 'failure'])(
+    'keeps the newer selection loading after an older %s',
+    async (olderOutcome) => {
+      const older = pendingDetails();
+      const newer = pendingDetails();
+      getPlaceDetails
+        .mockReturnValueOnce(older.effect)
+        .mockReturnValueOnce(newer.effect);
+      const olderRequest = selectSuggestion(makeSuggestion('place-1'));
+      const newerRequest = selectSuggestion(makeSuggestion('place-2'));
+
+      if (olderOutcome === 'success') older.succeed(makeLocation('place-1'));
+      else older.fail();
+      await olderRequest;
+      fixture.detectChanges();
+
+      expect(close).not.toHaveBeenCalled();
+      expect(fixture.nativeElement.textContent).toContain('Loading location…');
+      expect(fixture.nativeElement.querySelector('[role="alert"]')).toBeNull();
+
+      const newerLocation = makeLocation('place-2');
+      newer.succeed(newerLocation);
+      await newerRequest;
+      expect(close).toHaveBeenCalledExactlyOnceWith(newerLocation);
+    },
+  );
+
+  it('preserves a newer failure and retries that selection after an older success', async () => {
+    const older = pendingDetails();
+    const newer = pendingDetails();
+    const newerSuggestion = makeSuggestion('place-2');
+    getPlaceDetails
+      .mockReturnValueOnce(older.effect)
+      .mockReturnValueOnce(newer.effect);
+    const olderRequest = selectSuggestion(makeSuggestion('place-1'));
+    const newerRequest = selectSuggestion(newerSuggestion);
+
+    newer.fail();
+    await newerRequest;
+    older.succeed(makeLocation('place-1'));
+    await olderRequest;
+    fixture.detectChanges();
+
+    expect(close).not.toHaveBeenCalled();
+    expect(fixture.nativeElement.textContent).toContain(
+      "We couldn't load this location.",
+    );
+    const newerLocation = makeLocation('place-2');
+    getPlaceDetails.mockReturnValueOnce(Effect.succeed(newerLocation));
+    findButton('Try this location again').click();
+
+    await vi.waitFor(() => {
+      expect(getPlaceDetails).toHaveBeenLastCalledWith(newerSuggestion.place);
+      expect(close).toHaveBeenCalledExactlyOnceWith(newerLocation);
+    });
+  });
+
+  it('ignores pending place details when the user starts a different search', async () => {
+    const pendingSelection = pendingDetails();
+    getPlaceDetails.mockReturnValueOnce(pendingSelection.effect);
+    const selection = selectSuggestion(makeSuggestion());
+    const input: HTMLInputElement | null =
+      fixture.nativeElement.querySelector('input');
+    if (!input) throw new Error('Location input was not rendered');
+    input.value = 'A different location';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+
+    pendingSelection.succeed(makeLocation('place-1'));
+    await selection;
+    fixture.detectChanges();
+
+    expect(close).not.toHaveBeenCalled();
+    expect(input.value).toBe('A different location');
+    expect(fixture.nativeElement.textContent).not.toContain(
+      'Loading location…',
+    );
+    expect(fixture.nativeElement.textContent).not.toContain(
+      'Try this location again',
+    );
+  });
+
+  it('preserves an invalid newer selection after older place details finish', async () => {
+    const pendingSelection = pendingDetails();
+    getPlaceDetails.mockReturnValueOnce(pendingSelection.effect);
+    const selection = selectSuggestion(makeSuggestion());
+    await selectSuggestion({ placeId: 'invalid' });
+    pendingSelection.succeed(makeLocation('place-1'));
+    await selection;
+    fixture.detectChanges();
+
+    expect(close).not.toHaveBeenCalled();
+    expect(fixture.nativeElement.textContent).toContain(
+      "We couldn't use this location result.",
+    );
+  });
+
+  it('preserves cancellation while the dialog exit animation is running', async () => {
+    const pendingSelection = pendingDetails();
+    getPlaceDetails.mockReturnValueOnce(pendingSelection.effect);
+    const selection = selectSuggestion(makeSuggestion());
+    getState.mockReturnValue(MatDialogState.CLOSING);
+    pendingSelection.succeed(makeLocation('place-1'));
+    await selection;
+
+    expect(close).not.toHaveBeenCalled();
+  });
+
+  it('does not commit place details after the dialog is destroyed', async () => {
+    const pendingSelection = pendingDetails();
+    getPlaceDetails.mockReturnValueOnce(pendingSelection.effect);
+    const selection = selectSuggestion(makeSuggestion());
+    fixture.destroy();
+    pendingSelection.succeed(makeLocation('place-1'));
+    await selection;
+
+    expect(close).not.toHaveBeenCalled();
+  });
+
+  it('shows an explicit failure for an invalid provider result', async () => {
+    const autocomplete = TestBed.createComponent(MatAutocomplete);
+    const option = TestBed.createComponent(MatOption);
+    option.componentInstance.value = { placeId: 'incomplete' };
+
+    await fixture.componentInstance.selectOption(
+      new MatAutocompleteSelectedEvent(
+        autocomplete.componentInstance,
+        option.componentInstance,
+      ),
+    );
+    fixture.detectChanges();
+
+    expect(getPlaceDetails).not.toHaveBeenCalled();
+    expect(close).not.toHaveBeenCalled();
+    expect(fixture.nativeElement.textContent).toContain(
+      "We couldn't use this location result.",
+    );
+    expect(fixture.nativeElement.textContent).toContain(
+      'Choose another result.',
+    );
+    expect(
+      fixture.nativeElement.querySelector('[role="alert"]'),
+    ).not.toBeNull();
   });
 
   async function enterQuery(query: string): Promise<void> {
@@ -240,18 +392,61 @@ describe('LocationSelectorDialog', () => {
     return button;
   }
 
-  function makeSuggestion(): LocationSuggestion {
+  function makeLocation(placeId: string): GoogleLocationType {
+    return {
+      address: 'Berlin',
+      coordinates: { lat: 52.5219, lng: 13.4132 },
+      name: placeId,
+      placeId,
+      type: 'google',
+    };
+  }
+
+  function pendingDetails() {
+    let resolveDetails: ((location: GoogleLocationType) => void) | undefined;
+    let rejectDetails: ((reason: Error) => void) | undefined;
+    // eslint-disable-next-line unicorn/prefer-promise-with-resolvers -- the project TypeScript lib intentionally remains below ES2024
+    const promise = new Promise<GoogleLocationType>((resolve, reject) => {
+      resolveDetails = resolve;
+      rejectDetails = reject;
+    });
+    return {
+      effect: Effect.tryPromise({
+        catch: (cause) =>
+          new LocationProviderError({ cause, operation: 'placeDetails' }),
+        try: () => promise,
+      }),
+      fail: () => rejectDetails?.(new Error('details unavailable')),
+      succeed: (location: GoogleLocationType) => resolveDetails?.(location),
+    };
+  }
+
+  function selectSuggestion(
+    suggestion: LocationSuggestion | { placeId: string },
+  ): Promise<void> {
+    const autocomplete = TestBed.createComponent(MatAutocomplete);
+    const option = TestBed.createComponent(MatOption);
+    option.componentInstance.value = suggestion;
+    return fixture.componentInstance.selectOption(
+      new MatAutocompleteSelectedEvent(
+        autocomplete.componentInstance,
+        option.componentInstance,
+      ),
+    );
+  }
+
+  function makeSuggestion(placeId = 'place-1'): LocationSuggestion {
     const place: GooglePlaceReference = {
       displayName: null,
       fetchFields: vi.fn<GooglePlaceReference['fetchFields']>(),
       formattedAddress: null,
-      id: 'place-1',
+      id: placeId,
       location: null,
     };
     return {
       mainText: 'Alexanderplatz',
       place,
-      placeId: 'place-1',
+      placeId,
       secondaryText: 'Berlin, Germany',
     };
   }

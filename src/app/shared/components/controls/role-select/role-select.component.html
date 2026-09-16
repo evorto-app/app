@@ -1,35 +1,39 @@
 @if (!hidden()) {
   <mat-form-field class="w-full">
-    <mat-label>Selected Roles</mat-label>
+    <mat-label>Selected roles</mat-label>
     <mat-chip-grid
       #chipGrid
       [attr.aria-label]="hasChipGridRole() ? 'Selected roles' : null"
       [disabled]="disabled() || readonly()"
     >
-      @for (
-        role of currentRolesQuery();
-        track value()[$index] ?? role.data()?.id ?? $index
-      ) {
-        @if (role.data(); as roleData) {
-          <mat-chip-row (removed)="remove(roleData.id)">
-            {{ roleData.name }}
-            <button
-              type="button"
-              matChipRemove
-              [attr.aria-label]="'Remove ' + roleData.name"
-              [disabled]="disabled() || readonly()"
-            >
-              <fa-icon [icon]="faCircleXmark" />
-            </button>
-          </mat-chip-row>
-        }
+      @for (role of selectedRoles(); track role.id) {
+        <mat-chip-row (removed)="remove(role.id)">
+          {{ role.name }}
+          @if (role.status === "missing") {
+            <span class="text-error"> (no longer available)</span>
+          } @else if (role.status === "unknown") {
+            <span class="text-error"> (could not be verified)</span>
+          } @else if (role.status === "loading") {
+            <span> (checking…)</span>
+          }
+          <button
+            type="button"
+            matChipRemove
+            [attr.aria-label]="'Remove ' + role.name"
+            [disabled]="disabled() || readonly()"
+          >
+            <fa-duotone-icon [icon]="faCircleXmark" />
+          </button>
+        </mat-chip-row>
       }
     </mat-chip-grid>
     <input
       name="currentRoles"
-      placeholder="Add Role..."
+      autocomplete="off"
+      placeholder="Add role…"
       #roleInput
       [formField]="searchForm.query"
+      [attr.maxlength]="roleSearchMaxLength"
       [matChipInputFor]="chipGrid"
       [matAutocomplete]="auto"
       [matChipInputSeparatorKeyCodes]="separatorKeysCodes"
@@ -45,4 +49,50 @@
       }
     </mat-autocomplete>
   </mat-form-field>
+  @if (!searchWithinLimit()) {
+    <p class="text-error text-sm" role="alert">
+      Search using no more than {{ roleSearchMaxLength }} characters.
+    </p>
+  }
+  @if (unavailableSelectedRoleCount() > 0) {
+    <p class="text-error text-sm" role="alert">
+      {{ unavailableSelectedRoleCount() }}
+      {{
+        unavailableSelectedRoleCount() === 1
+          ? "selected role no longer exists"
+          : "selected roles no longer exist"
+      }}. Remove the unavailable
+      {{ unavailableSelectedRoleCount() === 1 ? "role" : "roles" }} before
+      saving.
+    </p>
+  }
+  @if (rolesQuery.isError() || selectedRolesUnverified()) {
+    <div class="text-error grid gap-2 text-sm" role="alert">
+      @if (rolesQuery.isError()) {
+        <p>
+          Role search could not be loaded. Existing selections were not changed.
+        </p>
+      }
+      @if (selectedRolesUnverified()) {
+        <p>
+          Selected roles could not be verified. Retry or remove unverified
+          selections before saving.
+        </p>
+      }
+      <div>
+        <button
+          type="button"
+          mat-stroked-button
+          [disabled]="rolesFetching()"
+          (click)="retry()"
+        >
+          {{ rolesFetching() ? "Trying again…" : "Try again" }}
+        </button>
+      </div>
+    </div>
+  } @else if (
+    (searchWithinLimit() && !rolesQuery.isSuccess()) || selectedRolesLoading()
+  ) {
+    <p class="text-on-surface-variant text-sm" role="status">Loading roles…</p>
+  }
 }
