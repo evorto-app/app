@@ -2,6 +2,7 @@ import { describe, expect, it } from '@effect/vitest';
 import { createDatabaseTestLayer } from '@server/testing/database-test-layer';
 import { EventRegistrationInternalError } from '@shared/rpc-contracts/app-rpcs/events.errors';
 import {
+  PlatformEventsUpdateInput,
   PlatformRegistrationPageLimit,
   PlatformRegistrationsListInput,
 } from '@shared/rpc-contracts/app-rpcs/platform-events.rpcs';
@@ -668,6 +669,84 @@ describe('platform event, template, and registration handlers', () => {
         });
       }),
   );
+
+  for (const { addonId, optionalQuantity } of [undefined, 'addon-1'].flatMap(
+    (addonId) =>
+      [4, 5].map((optionalQuantity) => ({ addonId, optionalQuantity })),
+  )) {
+    it.effect(
+      `${optionalQuantity === 4 ? 'accepts the maximum' : 'rejects excessive'} combined quantity for ${addonId ? 'existing' : 'new'} add-ons before database access`,
+      () =>
+        Effect.gen(function* () {
+          const executeValues = vi.fn(() => Effect.succeed([]));
+          const input = Schema.decodeUnknownSync(PlatformEventsUpdateInput)({
+            addOns: [
+              {
+                allowMultiple: true,
+                allowPurchaseBeforeEvent: true,
+                allowPurchaseDuringEvent: true,
+                allowPurchaseDuringRegistration: true,
+                description: null,
+                ...(addonId && { id: addonId }),
+                isPaid: false,
+                maxQuantityPerUser: 10,
+                price: 0,
+                registrationOptions: [
+                  {
+                    includedQuantity: 6,
+                    optionalPurchaseQuantity: optionalQuantity,
+                    registrationOptionId: 'option-1',
+                  },
+                ],
+                stripeTaxRateId: null,
+                title: 'Equipment',
+                totalAvailableQuantity: 100,
+              },
+            ],
+            description: eventRecord.description,
+            end: eventRecord.end,
+            eventId: eventRecord.id,
+            icon: eventRecord.icon,
+            location: eventRecord.location,
+            questions: eventRecord.questions,
+            reason: 'Correct the add-on allowance',
+            registrationOptions: eventRecord.registrationOptions,
+            start: eventRecord.start,
+            targetTenantId: targetTenant.id,
+            title: eventRecord.title,
+          });
+          const error = yield* platformHandlers['platform.events.update'](
+            input,
+            undefined,
+          ).pipe(
+            Effect.flip,
+            Effect.provide(
+              Layer.mergeAll(
+                createDatabaseTestLayer(executeValues),
+                RpcAccess.Default,
+                Layer.succeed(RpcRequestContext, operation.requestContext),
+              ),
+            ),
+          );
+
+          if (optionalQuantity === 4) {
+            expect(error).toMatchObject({
+              _tag: 'RpcBadRequestError',
+              message: 'Target tenant not found',
+            });
+            expect(executeValues).toHaveBeenCalledOnce();
+          } else {
+            expect(error).toMatchObject({
+              _tag: 'RpcBadRequestError',
+              message:
+                'Included and optional add-on quantities cannot exceed 10 per sign-up.',
+              reason: 'invalidEventAddon',
+            });
+            expect(executeValues).not.toHaveBeenCalled();
+          }
+        }),
+    );
+  }
 
   it.effect('plans attendee and guest counters without double counting', () =>
     Effect.gen(function* () {
