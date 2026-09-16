@@ -23,6 +23,122 @@ const telemetryRequest = (
   });
 
 describe('browser error telemetry', () => {
+  it.each([
+    'https://private-user:private-password@staging.evorto.app/events?token=private-query#private-fragment',
+    'https://private%40user:p%40ss%3Aword@staging.evorto.app/events?token=private-query#private-fragment',
+    'https://private-user@staging.evorto.app/events?token=private-query#private-fragment',
+    'https://:private-password@staging.evorto.app/events?token=private-query#private-fragment',
+  ])('removes all URL credentials along with query and fragment: %s', (url) => {
+    const sanitized = sanitizeBrowserErrorPayload({
+      message: 'Request failed',
+      name: 'Error',
+      stack: null,
+      url,
+    });
+    expect(sanitized.url).toBe('https://staging.evorto.app/events');
+  });
+
+  it.each([
+    [
+      'https://private-user:private-password@localhost:4200/events',
+      'https://localhost:4200/events',
+    ],
+    [
+      'https://private%40user:p%40ss%3Aword@staging.evorto.app/events',
+      'https://staging.evorto.app/events',
+    ],
+    [
+      'https://first:secret@second@staging.evorto.app/events',
+      'https://staging.evorto.app/events',
+    ],
+    [
+      'http://private-user:private-password@[::1]:4200/events',
+      'http://[::1]:4200/events',
+    ],
+  ])(
+    'removes URL credentials in every text field without losing diagnostic location: %s',
+    (url, expectedUrl) => {
+      const sanitized = sanitizeBrowserErrorPayload({
+        message: `Request failed for "${url}"`,
+        name: `FetchError: ${url}`,
+        stack: `at load (${url}:12:4)`,
+        url: null,
+      });
+      expect(sanitized.message).toBe(`Request failed for "${expectedUrl}"`);
+      expect(sanitized.name).toBe(`FetchError: ${expectedUrl}`);
+      expect(sanitized.stack).toBe(`at load (${expectedUrl}:12:4)`);
+    },
+  );
+
+  it.each([
+    'https://localhost/events@marker',
+    'https://localhost?route=user@marker',
+    'https://localhost#frame@marker',
+    'https://localhost user@marker',
+    String.raw`https://localhost\folder@marker`,
+  ])(
+    'does not consume non-authority text as URL credentials: %s',
+    (message) => {
+      expect(
+        sanitizeBrowserErrorPayload({
+          message,
+          name: 'Error',
+          stack: message,
+          url: null,
+        }),
+      ).toMatchObject({ message, stack: message });
+    },
+  );
+
+  it('preserves ordinary URL origin and path in diagnostic text', () => {
+    const url = 'https://staging.evorto.app:8443/assets/main.js';
+    const sanitized = sanitizeBrowserErrorPayload({
+      message: `Request failed for ${url}`,
+      name: 'Error',
+      stack: `at load (${url}:12:4)`,
+      url: `${url}?token=secret#private`,
+    });
+    expect(sanitized.message).toBe(`Request failed for ${url}`);
+    expect(sanitized.stack).toBe(`at load (${url}:12:4)`);
+    expect(sanitized.url).toBe(url);
+  });
+
+  it.effect(
+    'logs only sanitized credentials and deduplicates credential-only differences',
+    () =>
+      Effect.gen(function* () {
+        const log = vi.fn(() => Effect.void);
+        const handler = makeBrowserErrorTelemetryHandler({
+          log,
+          now: () => 100,
+        });
+        for (const credentials of [
+          'private-user:private-password',
+          'other%40user:p%40ss%3Aword',
+        ]) {
+          const url = `https://${credentials}@staging.evorto.app/assets/main.js`;
+          const result = yield* handler(
+            telemetryRequest({
+              message: `Request failed for ${url}`,
+              name: 'Error',
+              stack: `at load (${url}:12:4)`,
+              url: `${url}?secret=private#fragment`,
+            }),
+          );
+          expect(result.status).toBe(204);
+        }
+        expect(log).toHaveBeenCalledExactlyOnceWith(
+          expect.objectContaining({
+            message:
+              'Request failed for https://staging.evorto.app/assets/main.js',
+            name: 'Error',
+            stack: 'at load (https://staging.evorto.app/assets/main.js:12:4)',
+            url: 'https://staging.evorto.app/assets/main.js',
+          }),
+        );
+      }),
+  );
+
   it('redacts claim codes, tokens, identities, emails, and URL queries', () => {
     const claimCode = 'ABCD-1234-EF56-7890-ABCD-1234-EF56-7890';
     const sanitized = sanitizeBrowserErrorPayload({

@@ -71,9 +71,9 @@ export class RoleSelectQueries {
       ...(cached && {
         initialData: cached.role,
         initialDataUpdatedAt: cached.updatedAt,
-        staleTime: roleLookupFreshnessMs,
       }),
       retry: false,
+      staleTime: roleLookupFreshnessMs,
     };
   }
 
@@ -161,7 +161,13 @@ export class RoleSelectComponent
   protected readonly selectedRoles = computed<readonly SelectedRoleView[]>(() =>
     this.selectedRoleIds().map((id, index) => {
       const query = this.selectedRoleQueries()[index];
-      if (query?.isSuccess() && query.data().id === id) {
+      // Retained data can name a chip while a mandatory recheck is unfinished.
+      const cached = query?.data();
+      const name = cached?.id === id ? cached.name : `Role ${id}`;
+      if (!query || query.isPending() || query.fetchStatus() !== 'idle') {
+        return { id, name, status: 'loading' };
+      }
+      if (query.isSuccess() && query.data().id === id) {
         return { id, name: query.data().name, status: 'available' };
       }
       const error = query?.error();
@@ -170,7 +176,7 @@ export class RoleSelectComponent
       }
       return {
         id,
-        name: `Role ${id}`,
+        name,
         status: query?.isError() ? 'unknown' : 'loading',
       };
     }),

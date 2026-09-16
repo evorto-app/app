@@ -32,3 +32,9 @@ Anonymous callers can consume the process budget, so this remains bounded,
 best-effort diagnostics rather than a tenant-authenticated delivery guarantee.
 
 Limit role searches to 64 characters and reuse recently verified role lookup results without repeating one request per known selected role. Keep stale, failed, or missing selections subject to verification and removal before saving.
+
+Keep selected roles unverified while a required lookup is running, retaining their labels and removal controls. Reuse successful per-role checks for 30 seconds from their original verification time.
+
+Remove URL usernames and passwords before browser telemetry is fingerprinted or
+logged, including encoded credentials in the report URL, message, name, or stack.
+Keep useful host/path details and the existing query/fragment redaction.

@@ -29,6 +29,7 @@ class BrowserErrorPayload extends Schema.Class<BrowserErrorPayload>(
 
 const redactPatterns = (value: string): string =>
   value
+    .replaceAll(/(\b[a-z][a-z0-9+.-]*:\/\/)[^\s/\\?#]*@/giu, '$1')
     .replaceAll(/(bearer\s+)[a-z0-9._~+/=-]+/giu, '$1[REDACTED]')
     .replaceAll(
       /\b(?:[0-9a-f]{4}-){7}[0-9a-f]{4}\b/giu,
@@ -55,6 +56,8 @@ const sanitizeUrl = (value: null | string): null | string => {
 
   try {
     const url = new URL(value);
+    url.username = '';
+    url.password = '';
     url.hash = '';
     url.search = '';
     return redactPatterns(url.href).slice(0, 1000);

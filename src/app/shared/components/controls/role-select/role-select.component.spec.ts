@@ -807,42 +807,156 @@ describe('RoleSelectQueries cached role verification', () => {
     },
   );
 
-  it('revalidates a hydrated selection after invalidation and preserves missing-role recovery', async () => {
-    queryClient.setQueryData(keyFor({ defaultOrganizerRole: true }), [role]);
-    const host = TestBed.createComponent(RoleSelectFormHost);
-    host.detectChanges();
-    await host.whenStable();
-    expect(host.componentInstance.roleForm().valid()).toBe(true);
-    expect(loadRole).not.toHaveBeenCalled();
-
-    loadRole.mockRejectedValueOnce(
-      new RoleLookupNotFoundError({ id: role.id, message: 'Role not found' }),
-    );
-    await queryClient.invalidateQueries({
-      exact: true,
-      queryKey: queries.selected(role.id).queryKey,
-    });
-    await vi.waitFor(() => {
+  it.each(['available', 'missing', 'unknown'] as const)(
+    'blocks parent submission throughout invalidation until an %s result settles',
+    async (outcome) => {
+      queryClient.setQueryData(keyFor({}), [role]);
+      const host = TestBed.createComponent(RoleSelectFormHost);
       host.detectChanges();
-      expect(
-        host.componentInstance.roleForm
-          .roleIds()
-          .errors()
-          .map(({ kind }) => kind),
-      ).toContain('roleMissing');
-    });
-    expect(loadRole).toHaveBeenCalledExactlyOnceWith(role.id);
-    expect(host.nativeElement.textContent).toContain(
-      'selected role no longer exists',
-    );
-    const remove: HTMLButtonElement = host.nativeElement.querySelector(
-      'button[matChipRemove]',
-    );
-    remove.click();
-    await vi.waitFor(() => {
-      host.detectChanges();
+      await host.whenStable();
       expect(host.componentInstance.roleForm().valid()).toBe(true);
-    });
+      expect(loadRole).not.toHaveBeenCalled();
+
+      const resolution = new Subject<RoleLookupRecord>();
+      loadRole.mockReturnValueOnce(firstValueFrom(resolution));
+      const selectedKey = queries.selected(role.id).queryKey;
+      const recheck = queryClient.invalidateQueries({
+        exact: true,
+        queryKey: selectedKey,
+      });
+      await vi.waitFor(() => {
+        host.detectChanges();
+        expect(loadRole).toHaveBeenCalledExactlyOnceWith(role.id);
+        expect(host.componentInstance.roleForm().invalid()).toBe(true);
+      });
+      expect(queryClient.getQueryState(selectedKey)?.status).toBe('success');
+      expect(queryClient.getQueryState(selectedKey)?.fetchStatus).toBe(
+        'fetching',
+      );
+      expect(host.nativeElement.textContent).toContain('Organizer');
+      expect(host.nativeElement.textContent).toContain('(checking…)');
+      const remove: HTMLButtonElement = host.nativeElement.querySelector(
+        'button[aria-label="Remove Organizer"]',
+      );
+      expect(remove.disabled).toBe(false);
+      const save: HTMLButtonElement = host.nativeElement.querySelector(
+        'button:not([matChipRemove])',
+      );
+      expect(save.disabled).toBe(true);
+      const action = vi.fn(() => Promise.resolve());
+      await submit(host.componentInstance.roleForm, action);
+      expect(action).not.toHaveBeenCalled();
+
+      if (outcome === 'available') resolution.next(role);
+      else
+        resolution.error(
+          outcome === 'missing'
+            ? new RoleLookupNotFoundError({
+                id: role.id,
+                message: 'Role not found',
+              })
+            : new Error('Lookup unavailable'),
+        );
+      await recheck;
+      await vi.waitFor(() => {
+        host.detectChanges();
+        expect(host.nativeElement.textContent).not.toContain('(checking…)');
+        expect(host.componentInstance.roleForm().valid()).toBe(
+          outcome === 'available',
+        );
+      });
+      if (outcome !== 'available') {
+        expect(
+          host.componentInstance.roleForm
+            .roleIds()
+            .errors()
+            .map(({ kind }) => kind),
+        ).toContain(outcome === 'missing' ? 'roleMissing' : 'roleUnverified');
+        await submit(host.componentInstance.roleForm, action);
+        expect(action).not.toHaveBeenCalled();
+        if (outcome === 'missing') {
+          const unavailable: HTMLButtonElement =
+            host.nativeElement.querySelector('button[matChipRemove]');
+          unavailable.click();
+        } else {
+          expect(host.nativeElement.textContent).toContain('Organizer');
+          expect(host.nativeElement.textContent).not.toContain(
+            'no longer exists',
+          );
+          const retry: HTMLButtonElement = host.nativeElement.querySelector(
+            'button[mat-stroked-button]',
+          );
+          retry.click();
+        }
+        await vi.waitFor(() => {
+          host.detectChanges();
+          expect(host.componentInstance.roleForm().valid()).toBe(true);
+        });
+      }
+      await submit(host.componentInstance.roleForm, action);
+      expect(action).toHaveBeenCalledOnce();
+    },
+  );
+
+  it('reuses a successful per-ID lookup on remount within its original 30-second freshness window', async () => {
+    const verifiedAt = Date.now();
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(verifiedAt);
+    try {
+      const options = queries.selected(role.id);
+      await queryClient.fetchQuery({ ...options, gcTime: 60_000 });
+      expect(loadRole).toHaveBeenCalledExactlyOnceWith(role.id);
+      clock.mockReturnValue(verifiedAt + 29_000);
+      const host = TestBed.createComponent(RoleSelectFormHost);
+      host.detectChanges();
+      await host.whenStable();
+      expect(host.componentInstance.roleForm().valid()).toBe(true);
+      expect(loadRole).toHaveBeenCalledOnce();
+      host.destroy();
+      const remounted = TestBed.createComponent(RoleSelectFormHost);
+      remounted.detectChanges();
+      await remounted.whenStable();
+      expect(remounted.componentInstance.roleForm().valid()).toBe(true);
+      expect(loadRole).toHaveBeenCalledOnce();
+      expect(queryClient.getQueryState(options.queryKey)?.dataUpdatedAt).toBe(
+        verifiedAt,
+      );
+    } finally {
+      clock.mockRestore();
+    }
+  });
+
+  it('rechecks a stale per-ID result on remount and blocks submission until its replacement arrives', async () => {
+    const verifiedAt = Date.now();
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(verifiedAt);
+    try {
+      const options = queries.selected(role.id);
+      await queryClient.fetchQuery({ ...options, gcTime: 60_000 });
+      clock.mockReturnValue(verifiedAt + 30_001);
+      const resolution = new Subject<RoleLookupRecord>();
+      loadRole.mockReturnValueOnce(firstValueFrom(resolution));
+      const host = TestBed.createComponent(RoleSelectFormHost);
+      host.detectChanges();
+      await vi.waitFor(() => {
+        host.detectChanges();
+        expect(loadRole).toHaveBeenCalledTimes(2);
+        expect(host.componentInstance.roleForm().invalid()).toBe(true);
+      });
+      expect(host.nativeElement.textContent).toContain('Organizer');
+      expect(host.nativeElement.textContent).toContain('(checking…)');
+      const action = vi.fn(() => Promise.resolve());
+      await submit(host.componentInstance.roleForm, action);
+      expect(action).not.toHaveBeenCalled();
+      resolution.next({ ...role, name: 'Current organizer' });
+      await vi.waitFor(() => {
+        host.detectChanges();
+        expect(host.componentInstance.roleForm().valid()).toBe(true);
+        expect(host.nativeElement.textContent).toContain('Current organizer');
+      });
+      await submit(host.componentInstance.roleForm, action);
+      expect(action).toHaveBeenCalledOnce();
+    } finally {
+      clock.mockRestore();
+    }
   });
 
   it.each([
