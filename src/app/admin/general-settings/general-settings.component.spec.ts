@@ -291,8 +291,8 @@ describe('general settings error notifications', () => {
   });
 
   it('advances the saved snapshot without overwriting edits made during the request', async () => {
-    const pending = new Subject<Tenant>();
-    save.mockReturnValueOnce(firstValueFrom(pending));
+    const updateResponse = new Subject<Tenant>();
+    save.mockReturnValueOnce(firstValueFrom(updateResponse));
     const fixture = TestBed.createComponent(GeneralSettingsComponent);
     fixture.detectChanges();
     const input: HTMLInputElement | null = fixture.nativeElement.querySelector(
@@ -317,8 +317,8 @@ describe('general settings error notifications', () => {
       fixture.nativeElement.querySelector('button[type="submit"]');
     if (!saveButton) throw new Error('Settings save action not rendered');
     expect(saveButton.disabled).toBe(true);
-    pending.next(saved);
-    pending.complete();
+    updateResponse.next(saved);
+    updateResponse.complete();
     await pendingSave;
     await fixture.whenStable();
     fixture.detectChanges();

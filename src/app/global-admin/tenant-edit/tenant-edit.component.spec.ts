@@ -193,8 +193,8 @@ describe('platform tenant stale-edit recovery', () => {
   });
 
   it('does not block another tenant when the previous tenant save reports a late conflict', async () => {
-    const pending = new Subject<GlobalAdminTenantRecord>();
-    save.mockReturnValueOnce(firstValueFrom(pending));
+    const updateResponse = new Subject<GlobalAdminTenantRecord>();
+    save.mockReturnValueOnce(firstValueFrom(updateResponse));
     const rendered = await render();
     const reason: HTMLTextAreaElement | null =
       rendered.nativeElement.querySelector('textarea');
@@ -233,7 +233,7 @@ describe('platform tenant stale-edit recovery', () => {
     nextReason.value = 'Update the second organization';
     nextReason.dispatchEvent(new Event('input', { bubbles: true }));
 
-    pending.error(tenantSettingsConflict());
+    updateResponse.error(tenantSettingsConflict());
     await rendered.whenStable();
     rendered.detectChanges();
     expect(showError).toHaveBeenCalledExactlyOnceWith(
