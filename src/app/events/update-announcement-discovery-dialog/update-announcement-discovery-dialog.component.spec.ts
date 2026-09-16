@@ -2,6 +2,7 @@ import '@angular/compiler';
 import { TestBed } from '@angular/core/testing';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
+import { RoleLookupNotFoundError } from '@shared/rpc-contracts/app-rpcs/roles.errors';
 import {
   provideTanStackQuery,
   QueryClient,
@@ -29,11 +30,21 @@ const saveButton = (root: HTMLElement): HTMLButtonElement => {
 describe('UpdateAnnouncementDiscoveryDialogComponent', () => {
   const close = vi.fn();
   const loadRoles = vi.fn(async () => [role]);
+  const loadRole = vi.fn(async (id: string) => {
+    if (id !== role.id)
+      throw new RoleLookupNotFoundError({ id, message: 'Role not found' });
+    return role;
+  });
   let queryClient: QueryClient;
 
   beforeEach(async () => {
     close.mockReset();
     loadRoles.mockReset().mockResolvedValue([role]);
+    loadRole.mockReset().mockImplementation(async (id: string) => {
+      if (id !== role.id)
+        throw new RoleLookupNotFoundError({ id, message: 'Role not found' });
+      return role;
+    });
     queryClient = new QueryClient({
       defaultOptions: {
         queries: { gcTime: 0, retry: false },
@@ -61,11 +72,33 @@ describe('UpdateAnnouncementDiscoveryDialogComponent', () => {
         {
           provide: RoleSelectQueries,
           useValue: {
-            catalog: () => ({
-              queryFn: loadRoles,
-              queryKey: ['roles', 'announcement-targeting'],
+            search: (
+              search: string,
+            ): ReturnType<RoleSelectQueries['search']> => ({
+              queryFn: async () => {
+                const loadedRoles = await loadRoles();
+                return loadedRoles
+                  .filter((role) =>
+                    role.name.toLowerCase().includes(search.toLowerCase()),
+                  )
+                  .slice(0, 15);
+              },
+              queryKey: [
+                ['roles', 'findMany'],
+                { input: { search }, type: 'query' },
+              ],
             }),
-          },
+            selected: (
+              id: string,
+            ): ReturnType<RoleSelectQueries['selected']> => ({
+              queryFn: () => loadRole(id),
+              queryKey: [
+                ['roles', 'findOne'],
+                { input: { id }, type: 'query' },
+              ],
+              retry: false,
+            }),
+          } satisfies Pick<RoleSelectQueries, 'search' | 'selected'>,
         },
       ],
     }).compileComponents();
@@ -101,8 +134,13 @@ describe('UpdateAnnouncementDiscoveryDialogComponent', () => {
     expect(close).toHaveBeenCalledWith({ announcementRoleIds: [] });
   });
 
-  it('does not allow saving when roles cannot be loaded', async () => {
-    loadRoles.mockRejectedValue(new Error('Unavailable'));
+  it('does not allow saving when a selected role cannot be verified', async () => {
+    loadRole.mockRejectedValue(new Error('Unavailable'));
+    TestBed.overrideProvider(MAT_DIALOG_DATA, {
+      useValue: {
+        event: { announcementRoleIds: [role.id], title: 'Welcome week' },
+      },
+    });
     const fixture = TestBed.createComponent(
       UpdateAnnouncementDiscoveryDialogComponent,
     );
@@ -113,9 +151,15 @@ describe('UpdateAnnouncementDiscoveryDialogComponent', () => {
 
     await vi.waitFor(async () => {
       await fixture.whenStable();
-      expect(root.textContent).toContain('Roles could not be loaded.');
+      expect(root.textContent).toContain(
+        'Selected roles could not be verified.',
+      );
     });
 
+    expect(loadRole).toHaveBeenCalledWith(role.id);
+    expect(
+      root.querySelector('button[aria-label="Remove Role role-organizer"]'),
+    ).not.toBeNull();
     expect(saveButton(root).disabled).toBe(true);
     saveButton(root).click();
     expect(close).not.toHaveBeenCalled();
