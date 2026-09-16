@@ -7,6 +7,7 @@ export const TAX_RATE_ERROR_CODES = {
   ERR_FREE_CANNOT_HAVE_TAX_RATE: 'ERR_FREE_CANNOT_HAVE_TAX_RATE',
   ERR_INCOMPATIBLE_TAX_RATE: 'ERR_INCOMPATIBLE_TAX_RATE',
   ERR_PAID_REQUIRES_TAX_RATE: 'ERR_PAID_REQUIRES_TAX_RATE',
+  ERR_TAX_RATE_PERCENTAGE_REQUIRED: 'ERR_TAX_RATE_PERCENTAGE_REQUIRED',
 } as const;
 
 export type TaxRateErrorCode =
@@ -108,7 +109,7 @@ export const hasCompatibleTaxRates = (
  * Rules:
  * - If isPaid=true → stripeTaxRateId REQUIRED and must reference compatible rate
  * - If isPaid=false → stripeTaxRateId MUST be null
- * - Compatible rate = inclusive=true AND active=true for tenant
+ * - Compatible rate = inclusive=true, active=true, and percentage-based for tenant
  */
 export const validateTaxRate = (
   database: DatabaseClient,
@@ -163,6 +164,12 @@ export const validateTaxRate = (
         return validationError(
           TAX_RATE_ERROR_CODES.ERR_INCOMPATIBLE_TAX_RATE,
           'Selected tax rate is not compatible (must be inclusive and active)',
+        );
+      }
+      if (taxRate.percentage === null) {
+        return validationError(
+          TAX_RATE_ERROR_CODES.ERR_TAX_RATE_PERCENTAGE_REQUIRED,
+          'Selected tax rate must have a percentage',
         );
       }
     }
