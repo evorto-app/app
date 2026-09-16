@@ -50,6 +50,7 @@ process.kill = (pid, signal) => {
 const createFakeDocker = ({
   downFailures = 0,
   downStatus = 1,
+  holdDown = false,
   remainingContainerChecks = 0,
   remainingNetworkChecks = 0,
   remainingVolumeChecks = 0,
@@ -58,6 +59,7 @@ const createFakeDocker = ({
 }: {
   downFailures?: number;
   downStatus?: number;
+  holdDown?: boolean;
   remainingContainerChecks?: number;
   remainingNetworkChecks?: number;
   remainingVolumeChecks?: number;
@@ -105,6 +107,10 @@ if [[ "$1" == 'compose' && "$2" == 'ps' && "$3" == '--all' && "$4" == '-q' ]]; t
   exit 0
 fi
 if [[ "$*" == 'compose down --timeout 60 --remove-orphans --volumes' ]]; then
+  if [[ "$FAKE_HOLD_DOWN" == true ]]; then
+    printf '%s' ready > "$DOCKER_LOG.down-ready"
+    while [[ ! -f "$DOCKER_LOG.down-release" ]]; do sleep 0.02; done
+  fi
   count_file="$DOCKER_LOG.down-count"
   count=0
   if [[ -f "$count_file" ]]; then
@@ -200,6 +206,7 @@ exit 0
       FAKE_CONTAINER_DELETE_BRANCH: 'true',
       FAKE_DOWN_FAILURES: String(downFailures),
       FAKE_DOWN_STATUS: String(downStatus),
+      FAKE_HOLD_DOWN: String(holdDown),
       FAKE_FAILED_SETUP_SERVICE: '',
       FAKE_MISSING_HEALTHCHECK_SERVICE: '',
       FAKE_MISSING_SERVICE: '',
@@ -671,6 +678,75 @@ while true; do sleep 0.05; done`,
 
     expect(exit).toEqual({ code: 143, signal: null });
     await waitForProcessExit(descendantPid);
+    expect(fs.readFileSync(logPath, 'utf8').trim().split('\n')).toEqual([
+      'compose ps --all -q db',
+      'compose build',
+      'compose up --no-build --abort-on-container-failure',
+      'compose up terminated',
+      'compose down --timeout 60 --remove-orphans --volumes',
+      'ps --all --quiet --filter label=com.docker.compose.project=evorto-test-project',
+      'network ls --quiet --filter label=com.docker.compose.project=evorto-test-project',
+      'volume ls --quiet --filter label=com.docker.compose.project=evorto-test-project',
+    ]);
+  });
+
+  it('finishes verified teardown and holds its lease when SIGTERM arrives during SIGINT cleanup', async () => {
+    const { environment, logPath } = createFakeDocker({
+      holdDown: true,
+      upBehavior: 'wait',
+    });
+    const leaseScript = path.join(
+      process.cwd(),
+      'helpers/testing/with-docker-project-lease.sh',
+    );
+    const ownedEnvironment = {
+      ...environment,
+      FAKE_MISSING_SERVICE: 'db',
+      TMPDIR: path.dirname(logPath),
+    };
+    const child = spawn(
+      'bash',
+      [leaseScript, 'docker-webserver', '--', 'bash', webserverScript],
+      {
+        env: ownedEnvironment,
+        stdio: 'pipe',
+      },
+    );
+    childProcesses.push(child);
+    const exited = new Promise<{
+      code: number | null;
+      signal: NodeJS.Signals | null;
+    }>((resolve) => {
+      child.once('close', (code, signal) => resolve({ code, signal }));
+    });
+    const acquireLease = () =>
+      spawnSync('bash', [leaseScript, 'docker-stop', '--', 'true'], {
+        env: ownedEnvironment,
+        encoding: 'utf8',
+        timeout: 1000,
+      });
+    let exit:
+      { code: number | null; signal: NodeJS.Signals | null } | undefined;
+    try {
+      await waitForText(
+        logPath,
+        'compose up --no-build --abort-on-container-failure',
+      );
+      expect(child.kill('SIGINT')).toBe(true);
+      await waitForFileContents(`${logPath}.down-ready`);
+      expect(acquireLease().status).toBe(75);
+      expect(child.kill('SIGTERM')).toBe(true);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(child.exitCode).toBeNull();
+      expect(child.signalCode).toBeNull();
+      expect(acquireLease().status).toBe(75);
+    } finally {
+      fs.writeFileSync(`${logPath}.down-release`, 'release');
+      exit = await exited;
+    }
+    expect(exit).toEqual({ code: 130, signal: null });
+    const next = acquireLease();
+    expect(next.status, next.stderr).toBe(0);
     expect(fs.readFileSync(logPath, 'utf8').trim().split('\n')).toEqual([
       'compose ps --all -q db',
       'compose build',

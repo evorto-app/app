@@ -810,7 +810,8 @@ cleanup_started=false
 cleanup() {
   if [[ "$cleanup_started" = true ]]; then return; fi
   cleanup_started=true
-  trap - EXIT HUP INT TERM
+  trap - EXIT
+  trap ':' HUP INT TERM
   if [[ -n "$worker_pid" ]]; then
     kill "$worker_pid" 2>/dev/null || true
     wait "$worker_pid" 2>/dev/null || true

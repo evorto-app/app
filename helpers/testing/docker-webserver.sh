@@ -158,7 +158,10 @@ cleanup() {
     return
   fi
   cleanup_started='true'
-  trap - EXIT HUP INT TERM
+  trap - EXIT
+  # Nested launchers can forward the same signal again while teardown runs.
+  # Catch it without inheriting ignored signals into cleanup subprocesses.
+  trap ':' HUP INT TERM
 
   set +e
   terminate_compose_process
