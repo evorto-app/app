@@ -1,16 +1,33 @@
+import * as PgClient from '@effect/sql-pg/PgClient';
 import { afterAll, beforeAll, describe, expect, it, vi } from '@effect/vitest';
-import { and, eq } from 'drizzle-orm';
+import { EventRegistrationConflictError } from '@shared/rpc-contracts/app-rpcs/events.errors';
+import { RpcRequestContext } from '@shared/rpc-contracts/app-rpcs/rpc-request-context.middleware';
+import { and, eq, getTableName } from 'drizzle-orm';
+import * as PgDrizzle from 'drizzle-orm/effect-postgres';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { Cause, ConfigProvider, Effect, Exit, Layer, Schema } from 'effect';
+import {
+  Cause,
+  ConfigProvider,
+  Deferred,
+  Effect,
+  Exit,
+  Layer,
+  Option,
+  Schema,
+} from 'effect';
 import { Pool } from 'pg';
 import Stripe from 'stripe';
 
 import { Database, databaseLayer } from '../../db';
 import { createId } from '../../db/create-id';
-import { createNodePgPoolConfig } from '../../db/pg-connection-config';
+import {
+  createNodePgPoolConfig,
+  createPgClientConfig,
+} from '../../db/pg-connection-config';
 import { relations } from '../../db/relations';
 import {
   addonToEventRegistrationOptions,
+  emailOutbox,
   eventAddons,
   eventInstances,
   eventRegistrationAddonPurchaseLots,
@@ -20,14 +37,23 @@ import {
   eventRegistrations,
   eventTemplateCategories,
   eventTemplates,
+  platformAuditEntries,
   registrationAcquisitionComponents,
   registrationAcquisitionPayments,
   registrationAcquisitions,
+  roles,
+  rolesToTenantUsers,
   tenants,
   tenantStripeTaxRates,
   transactions,
   users,
+  usersToTenants,
 } from '../../db/schema';
+import { PlatformAdministratorAuthority } from '../../types/custom/platform-authority';
+import { Tenant } from '../../types/custom/tenant';
+import { EventRegistrationService } from '../effect/rpc/handlers/events/event-registration.service';
+import { platformTenantAdminHandlers } from '../effect/rpc/handlers/platform/platform-tenant-admin.handlers';
+import { RpcAccess } from '../effect/rpc/handlers/shared/rpc-access.service';
 import { buildCheckoutSessionExpiresAt } from '../integrations/stripe-checkout';
 import { StripeClient } from '../stripe-client';
 import {
@@ -45,6 +71,7 @@ import {
   type PurchaseRegistrationAddonInput,
 } from './addon-purchase.service';
 import { expiredUnboundAddonPurchaseCheckoutPredicate } from './expired-checkout-cleanup';
+import { completePaidRegistrationCheckout } from './registration-checkout-completion';
 
 const databaseUrl = process.env['DATABASE_URL'];
 if (!databaseUrl) {
@@ -61,6 +88,7 @@ interface Fixture {
   readonly purchaseId?: string | undefined;
   readonly purchaseLotId?: string | undefined;
   readonly registrationIds: readonly string[];
+  readonly sharedTenant?: boolean;
   readonly templateId: string;
   readonly tenantId: string;
   readonly transactionId?: string | undefined;
@@ -150,6 +178,7 @@ const seedFixture = async (
   input: {
     readonly eventEnd?: Date;
     readonly eventStart?: Date;
+    readonly existingTenantId?: string;
     readonly paid: boolean;
     readonly registrationCount?: number;
     readonly reservationExpiresAt?: Date;
@@ -157,7 +186,7 @@ const seedFixture = async (
     readonly stock: number;
   },
 ): Promise<Fixture> => {
-  const tenantId = createId();
+  const tenantId = input.existingTenantId ?? createId();
   const categoryId = createId();
   const templateId = createId();
   const eventId = createId();
@@ -174,12 +203,13 @@ const seedFixture = async (
   const creatorId = requireValue(userIds[0], 'fixture creator');
 
   return database.transaction(async (transaction) => {
-    await transaction.insert(tenants).values({
-      domain: `${tenantId}.addon-purchase.example`,
-      id: tenantId,
-      name: 'Add-on purchase test',
-      stripeAccountId: 'acct_addon_purchase_test',
-    });
+    if (!input.existingTenantId)
+      await transaction.insert(tenants).values({
+        domain: `${tenantId}.addon-purchase.example`,
+        id: tenantId,
+        name: 'Add-on purchase test',
+        stripeAccountId: 'acct_addon_purchase_test',
+      });
     await transaction.insert(users).values(
       userIds.map((userId, index) => ({
         auth0Id: `auth0|${userId}`,
@@ -412,6 +442,19 @@ const seedFixture = async (
 
 const cleanFixture = async (database: TestDatabase, fixture: Fixture) => {
   await database
+    .delete(emailOutbox)
+    .where(eq(emailOutbox.tenantId, fixture.tenantId));
+  await database
+    .delete(platformAuditEntries)
+    .where(eq(platformAuditEntries.targetTenantId, fixture.tenantId));
+  await database
+    .delete(rolesToTenantUsers)
+    .where(eq(rolesToTenantUsers.tenantId, fixture.tenantId));
+  await database.delete(roles).where(eq(roles.tenantId, fixture.tenantId));
+  await database
+    .delete(usersToTenants)
+    .where(eq(usersToTenants.tenantId, fixture.tenantId));
+  await database
     .delete(registrationAcquisitionComponents)
     .where(eq(registrationAcquisitionComponents.eventId, fixture.eventId));
   await database
@@ -457,7 +500,8 @@ const cleanFixture = async (database: TestDatabase, fixture: Fixture) => {
   await database
     .delete(tenantStripeTaxRates)
     .where(eq(tenantStripeTaxRates.tenantId, fixture.tenantId));
-  await database.delete(tenants).where(eq(tenants.id, fixture.tenantId));
+  if (!fixture.sharedTenant)
+    await database.delete(tenants).where(eq(tenants.id, fixture.tenantId));
 };
 
 const completedSession = (fixture: Fixture): Stripe.Checkout.Session => {
@@ -676,6 +720,78 @@ const createAddonStripeTestClient = () => {
   return stripe;
 };
 
+// Interpose only scheduling barriers on the real transaction connection.
+// Query construction, row locks, state changes and commits remain PostgreSQL's.
+const withQueryBarriers = <A, E, R>(
+  effect: Effect.Effect<A, E, R>,
+  before: (statement: string) => Effect.Effect<void>,
+  after: (statement: string) => Effect.Effect<void>,
+) =>
+  Effect.gen(function* () {
+    const database = yield* Database;
+    const client = yield* PgClient.PgClient;
+    const transaction = database.transaction.bind(database);
+    const interception = vi
+      .spyOn(database, 'transaction')
+      .mockImplementation((run) =>
+        transaction((tx) =>
+          Effect.gen(function* () {
+            const [connection, depth] = yield* client.transactionService;
+            return yield* run(tx).pipe(
+              Effect.provideService(client.transactionService, [
+                {
+                  execute: connection.execute.bind(connection),
+                  executeRaw: connection.executeRaw.bind(connection),
+                  executeStream: connection.executeStream.bind(connection),
+                  executeUnprepared:
+                    connection.executeUnprepared.bind(connection),
+                  executeValues: (statement, parameters) =>
+                    before(statement).pipe(
+                      Effect.andThen(
+                        connection.executeValues(statement, parameters),
+                      ),
+                      Effect.tap(() => after(statement)),
+                    ),
+                  executeValuesUnprepared:
+                    connection.executeValuesUnprepared.bind(connection),
+                },
+                depth,
+              ]),
+            );
+          }),
+        ),
+      );
+    return yield* effect.pipe(
+      Effect.ensuring(Effect.sync(() => interception.mockRestore())),
+    );
+  });
+
+const makeBarrierLayer = (url: string, stripe: Stripe) => {
+  const config = ConfigProvider.layer(
+    ConfigProvider.fromEnv({
+      env: {
+        BASE_URL: 'https://addon-purchase.example',
+        DATABASE_TLS_REQUIRED: 'false',
+        NODE_ENV: 'test',
+      },
+    }),
+  );
+  return Layer.mergeAll(
+    config,
+    Layer.effect(Database, PgDrizzle.makeWithDefaults({ relations })).pipe(
+      Layer.provideMerge(
+        PgClient.layer(createPgClientConfig({ databaseUrl: url })),
+      ),
+    ),
+    Layer.succeed(StripeClient, stripe),
+  );
+};
+
+const isTableLock = (statement: string, table: string) =>
+  statement.includes(`from "${table}"`) &&
+  (statement.endsWith('for update') ||
+    statement.endsWith(`for update of "${table}"`));
+
 describe('post-registration add-on purchase concurrency', () => {
   let database: TestDatabase;
   const fixtures: Fixture[] = [];
@@ -706,6 +822,586 @@ describe('post-registration add-on purchase concurrency', () => {
     if (failures.length > 1)
       throw new AggregateError(failures, 'Add-on fixture cleanup failures');
   });
+
+  it('serializes a paid sign-up with an existing attendee add-on purchase without deadlock', async () => {
+    const fixture = await seedFixture(database, { paid: false, stock: 1 });
+    const participantId = createId();
+    fixtures.push({ ...fixture, userIds: [...fixture.userIds, participantId] });
+    await database.insert(users).values({
+      auth0Id: `auth0|${participantId}`,
+      communicationEmail: `${participantId}@example.com`,
+      email: `${participantId}@example.com`,
+      firstName: 'New',
+      id: participantId,
+      lastName: 'Participant',
+    });
+    await database
+      .insert(usersToTenants)
+      .values({ tenantId: fixture.tenantId, userId: participantId });
+    await database.insert(tenantStripeTaxRates).values({
+      active: true,
+      displayName: 'Zero tax',
+      inclusive: true,
+      percentage: '0',
+      stripeAccountId: 'acct_addon_purchase_test',
+      stripeTaxRateId: `txr_${fixture.eventId}`,
+      tenantId: fixture.tenantId,
+    });
+    await database
+      .update(eventRegistrationOptions)
+      .set({
+        confirmedSpots: 1,
+        isPaid: true,
+        price: 100,
+        stripeTaxRateId: `txr_${fixture.eventId}`,
+      })
+      .where(eq(eventRegistrationOptions.id, fixture.optionId));
+    const tenant = requireValue(
+      await database.query.tenants.findFirst({
+        where: { id: fixture.tenantId },
+      }),
+      'tenant',
+    );
+    const stripe = createAddonStripeTestClient();
+    vi.mocked(stripe.checkout.sessions.create).mockImplementation(
+      async (parameters) =>
+        addonCreatedSessionResponse(parameters, {
+          id: `cs_${fixture.eventId}`,
+          url: `https://checkout.stripe.com/c/pay/cs_${fixture.eventId}`,
+        }),
+    );
+    const outcomes = await Effect.runPromise(
+      Effect.gen(function* () {
+        const addonHasTenant = yield* Deferred.make<undefined>();
+        const registrationNeedsTenant = yield* Deferred.make<undefined>();
+        const purchase = withQueryBarriers(
+          purchaseRegistrationAddon(addonPurchaseInput(fixture)),
+          () => Effect.void,
+          (statement) =>
+            isTableLock(statement, getTableName(tenants))
+              ? Deferred.succeed(addonHasTenant, undefined).pipe(
+                  Effect.andThen(Deferred.await(registrationNeedsTenant)),
+                )
+              : Effect.void,
+        ).pipe(
+          Effect.provide(makeBarrierLayer(databaseUrl, stripe)),
+          Effect.exit,
+        );
+        const registration = Deferred.await(addonHasTenant).pipe(
+          Effect.andThen(
+            withQueryBarriers(
+              EventRegistrationService.registerForEvent({
+                eventId: fixture.eventId,
+                guestCount: 0,
+                registrationOptionId: fixture.optionId,
+                tenant: {
+                  ...tenant,
+                  emailSenderEmail: undefined,
+                  emailSenderName: undefined,
+                  stripeAccountId: tenant.stripeAccountId ?? undefined,
+                },
+                user: {
+                  email: `${participantId}@example.com`,
+                  id: participantId,
+                  roleIds: [],
+                },
+              }).pipe(Effect.provide(EventRegistrationService.Default)),
+              (statement) =>
+                isTableLock(statement, getTableName(tenants))
+                  ? Deferred.succeed(registrationNeedsTenant, undefined).pipe(
+                      Effect.asVoid,
+                    )
+                  : Effect.void,
+              () => Effect.void,
+            ).pipe(
+              Effect.provide(makeBarrierLayer(databaseUrl, stripe)),
+              Effect.exit,
+            ),
+          ),
+        );
+        return yield* Effect.all([purchase, registration], {
+          concurrency: 'unbounded',
+        });
+      }).pipe(Effect.timeout('15 seconds')),
+    );
+    expect(
+      outcomes.map((outcome) =>
+        Exit.isFailure(outcome) ? Cause.pretty(outcome.cause) : 'success',
+      ),
+    ).toEqual(['success', 'success']);
+    expect(stripe.checkout.sessions.create).toHaveBeenCalledTimes(1);
+    expect(
+      await database.query.eventRegistrationAddonPurchaseOrders.findMany({
+        where: { eventId: fixture.eventId },
+      }),
+    ).toMatchObject([{ status: 'completed' }]);
+    expect(
+      await database.query.transactions.findMany({
+        where: { eventId: fixture.eventId },
+      }),
+    ).toMatchObject([{ status: 'pending', targetUserId: participantId }]);
+  }, 20_000);
+
+  it('serializes paid application approval replay with Checkout completion without deadlock', async () => {
+    const fixture = await seedFixture(database, { paid: false, stock: 1 });
+    const participantId = createId();
+    fixtures.push({ ...fixture, userIds: [...fixture.userIds, participantId] });
+    await database.insert(users).values({
+      auth0Id: `auth0|${participantId}`,
+      communicationEmail: `${participantId}@example.com`,
+      email: `${participantId}@example.com`,
+      firstName: 'New',
+      id: participantId,
+      lastName: 'Applicant',
+    });
+    await database
+      .insert(usersToTenants)
+      .values({ tenantId: fixture.tenantId, userId: participantId });
+    await database.insert(tenantStripeTaxRates).values({
+      active: true,
+      displayName: 'Zero tax',
+      inclusive: true,
+      percentage: '0',
+      stripeAccountId: 'acct_addon_purchase_test',
+      stripeTaxRateId: `txr_${fixture.eventId}`,
+      tenantId: fixture.tenantId,
+    });
+    await database
+      .update(eventRegistrationOptions)
+      .set({
+        confirmedSpots: 1,
+        isPaid: true,
+        price: 100,
+        registrationMode: 'application',
+        stripeTaxRateId: `txr_${fixture.eventId}`,
+      })
+      .where(eq(eventRegistrationOptions.id, fixture.optionId));
+    const tenant = requireValue(
+      await database.query.tenants.findFirst({
+        where: { id: fixture.tenantId },
+      }),
+      'tenant',
+    );
+    const targetTenant = {
+      ...tenant,
+      emailSenderEmail: undefined,
+      emailSenderName: undefined,
+      stripeAccountId: tenant.stripeAccountId ?? undefined,
+    };
+    const stripe = createAddonStripeTestClient();
+    let createdSession: Stripe.Checkout.Session | undefined;
+    vi.mocked(stripe.checkout.sessions.create).mockImplementation(
+      async (parameters) => {
+        const session = addonCreatedSessionResponse(parameters, {
+          id: `cs_${fixture.eventId}`,
+          url: `https://checkout.stripe.com/c/pay/cs_${fixture.eventId}`,
+        });
+        createdSession = session;
+        return session;
+      },
+    );
+    vi.spyOn(stripe.charges, 'retrieve').mockImplementation(
+      requireValue(
+        vi.mocked(fakeStripe.charges.retrieve).getMockImplementation(),
+        'charge fixture',
+      ),
+    );
+    await Effect.runPromise(
+      EventRegistrationService.registerForEvent({
+        eventId: fixture.eventId,
+        guestCount: 0,
+        registrationOptionId: fixture.optionId,
+        tenant: targetTenant,
+        user: {
+          email: `${participantId}@example.com`,
+          id: participantId,
+          roleIds: [],
+        },
+      }).pipe(
+        Effect.provide(EventRegistrationService.Default),
+        Effect.provide(makeBarrierLayer(databaseUrl, stripe)),
+      ),
+    );
+    const registration = requireValue(
+      await database.query.eventRegistrations.findFirst({
+        where: { eventId: fixture.eventId, userId: participantId },
+      }),
+      'application',
+    );
+    const approve = EventRegistrationService.approveManualRegistration({
+      executiveUserId: requireValue(fixture.userIds[0], 'organizer'),
+      expectedEventId: fixture.eventId,
+      registrationId: registration.id,
+      targetTenant,
+    }).pipe(Effect.provide(EventRegistrationService.Default));
+    await Effect.runPromise(
+      approve.pipe(Effect.provide(makeBarrierLayer(databaseUrl, stripe))),
+    );
+    const payment = requireValue(
+      await database.query.transactions.findFirst({
+        where: { eventRegistrationId: registration.id },
+      }),
+      'payment',
+    );
+    const session = requireValue(createdSession, 'created Checkout');
+    const paidSession: Stripe.Checkout.Session = {
+      ...session,
+      payment_intent: stripePaymentIntentResponse({
+        amount: 100,
+        amount_received: 100,
+        currency: 'eur',
+        id: `pi_${fixture.eventId}`,
+        latest_charge: `ch_${fixture.eventId}`,
+      }),
+      payment_status: 'paid',
+      status: 'complete',
+    };
+    const outcomes = await Effect.runPromise(
+      Effect.gen(function* () {
+        const completionHasRegistration = yield* Deferred.make<undefined>();
+        const approvalNeedsRegistration = yield* Deferred.make<undefined>();
+        const complete = withQueryBarriers(
+          completePaidRegistrationCheckout(
+            {
+              registrationId: registration.id,
+              stripeAccountId: 'acct_addon_purchase_test',
+              stripeCheckoutSessionId: session.id,
+              tenantId: fixture.tenantId,
+              transactionId: payment.id,
+            },
+            paidSession,
+          ),
+          () => Effect.void,
+          (statement) =>
+            isTableLock(statement, getTableName(eventRegistrations))
+              ? Deferred.succeed(completionHasRegistration, undefined).pipe(
+                  Effect.andThen(Deferred.await(approvalNeedsRegistration)),
+                )
+              : Effect.void,
+        ).pipe(
+          Effect.provide(makeBarrierLayer(databaseUrl, stripe)),
+          Effect.exit,
+        );
+        const replay = Deferred.await(completionHasRegistration).pipe(
+          Effect.andThen(
+            withQueryBarriers(
+              approve,
+              (statement) =>
+                isTableLock(statement, getTableName(eventRegistrations))
+                  ? Deferred.succeed(approvalNeedsRegistration, undefined).pipe(
+                      Effect.asVoid,
+                    )
+                  : Effect.void,
+              () => Effect.void,
+            ).pipe(
+              Effect.provide(makeBarrierLayer(databaseUrl, stripe)),
+              Effect.exit,
+            ),
+          ),
+        );
+        return yield* Effect.all([complete, replay], {
+          concurrency: 'unbounded',
+        });
+      }).pipe(Effect.timeout('15 seconds')),
+    );
+    const completion = requireValue(outcomes[0], 'completion outcome');
+    expect(
+      Exit.isFailure(completion)
+        ? Cause.pretty(completion.cause)
+        : completion.value,
+    ).toBe('finalized');
+    const replay = requireValue(outcomes[1], 'approval replay outcome');
+    if (Exit.isSuccess(replay))
+      throw new Error('Approval replay must reject the completed registration');
+    expect(Cause.hasDies(replay.cause)).toBe(false);
+    expect(Cause.hasInterrupts(replay.cause)).toBe(false);
+    const replayError = Option.getOrThrow(Cause.findErrorOption(replay.cause));
+    expect(replayError).toBeInstanceOf(EventRegistrationConflictError);
+    expect(replayError.message).toBe(
+      'Only pending manual approval registrations can be approved',
+    );
+    expect(
+      await database.query.eventRegistrations.findFirst({
+        where: { id: registration.id },
+      }),
+    ).toMatchObject({ status: 'CONFIRMED' });
+    expect(
+      await database.query.eventRegistrationOptions.findFirst({
+        where: { id: fixture.optionId },
+      }),
+    ).toMatchObject({ confirmedSpots: 2, reservedSpots: 0 });
+    expect(stripe.checkout.sessions.create).toHaveBeenCalledTimes(1);
+    expect(
+      await database.query.transactions.findMany({
+        where: { eventId: fixture.eventId },
+      }),
+    ).toMatchObject([
+      { id: payment.id, status: 'successful', targetUserId: participantId },
+    ]);
+    expect(
+      await database.query.emailOutbox.findMany({
+        where: { kind: 'manualApproval', tenantId: fixture.tenantId },
+      }),
+    ).toHaveLength(1);
+  }, 20_000);
+
+  it('lets free sign-ups for different events share the tenant guard concurrently', async () => {
+    const first = await seedFixture(database, { paid: false, stock: 1 });
+    const second = await seedFixture(database, {
+      existingTenantId: first.tenantId,
+      paid: false,
+      stock: 1,
+    });
+    const firstUserId = createId();
+    const secondUserId = createId();
+    fixtures.push(
+      { ...first, userIds: [...first.userIds, firstUserId] },
+      {
+        ...second,
+        sharedTenant: true,
+        userIds: [...second.userIds, secondUserId],
+      },
+    );
+    for (const userId of [firstUserId, secondUserId]) {
+      await database.insert(users).values({
+        auth0Id: `auth0|${userId}`,
+        communicationEmail: `${userId}@example.com`,
+        email: `${userId}@example.com`,
+        firstName: 'Free',
+        id: userId,
+        lastName: 'Participant',
+      });
+      await database
+        .insert(usersToTenants)
+        .values({ tenantId: first.tenantId, userId });
+    }
+    const tenant = requireValue(
+      await database.query.tenants.findFirst({ where: { id: first.tenantId } }),
+      'tenant',
+    );
+    const stripe = createAddonStripeTestClient();
+    const register = (fixture: Fixture, userId: string) =>
+      EventRegistrationService.registerForEvent({
+        eventId: fixture.eventId,
+        guestCount: 0,
+        registrationOptionId: fixture.optionId,
+        tenant: {
+          ...tenant,
+          emailSenderEmail: undefined,
+          emailSenderName: undefined,
+          stripeAccountId: tenant.stripeAccountId ?? undefined,
+        },
+        user: { email: `${userId}@example.com`, id: userId, roleIds: [] },
+      }).pipe(Effect.provide(EventRegistrationService.Default));
+    const outcomes = await Effect.runPromise(
+      Effect.gen(function* () {
+        const firstHasEvent = yield* Deferred.make<undefined>();
+        const secondCommitted = yield* Deferred.make<undefined>();
+        const paused = withQueryBarriers(
+          register(first, firstUserId),
+          () => Effect.void,
+          (statement) =>
+            isTableLock(statement, getTableName(eventRegistrationOptions))
+              ? Deferred.succeed(firstHasEvent, undefined).pipe(
+                  Effect.andThen(Deferred.await(secondCommitted)),
+                )
+              : Effect.void,
+        ).pipe(
+          Effect.provide(makeBarrierLayer(databaseUrl, stripe)),
+          Effect.exit,
+        );
+        const concurrent = Deferred.await(firstHasEvent).pipe(
+          Effect.andThen(
+            register(second, secondUserId).pipe(
+              Effect.provide(makeBarrierLayer(databaseUrl, stripe)),
+              Effect.tap(() => Deferred.succeed(secondCommitted, undefined)),
+              Effect.exit,
+            ),
+          ),
+        );
+        return yield* Effect.all([paused, concurrent], {
+          concurrency: 'unbounded',
+        });
+      }).pipe(Effect.timeout('10 seconds')),
+    );
+    expect(
+      outcomes.map((outcome) =>
+        Exit.isFailure(outcome) ? Cause.pretty(outcome.cause) : 'success',
+      ),
+    ).toEqual(['success', 'success']);
+    for (const [fixture, userId] of [
+      [first, firstUserId],
+      [second, secondUserId],
+    ] as const) {
+      expect(
+        await database.query.eventRegistrations.findFirst({
+          where: { eventId: fixture.eventId, userId },
+        }),
+      ).toMatchObject({
+        basePriceAtRegistration: 0,
+        discountAmount: 0,
+        status: 'CONFIRMED',
+      });
+    }
+    expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
+  }, 15_000);
+
+  it('serializes platform role revocation after an eligible sign-up without deadlock', async () => {
+    const fixture = await seedFixture(database, { paid: false, stock: 1 });
+    const participantId = createId();
+    fixtures.push({ ...fixture, userIds: [...fixture.userIds, participantId] });
+    await database.insert(users).values({
+      auth0Id: `auth0|${participantId}`,
+      communicationEmail: `${participantId}@example.com`,
+      email: `${participantId}@example.com`,
+      firstName: 'Eligible',
+      id: participantId,
+      lastName: 'Participant',
+    });
+    const insertedMemberships = await database
+      .insert(usersToTenants)
+      .values({ tenantId: fixture.tenantId, userId: participantId })
+      .returning({ id: usersToTenants.id });
+    const membership = requireValue(insertedMemberships[0], 'membership');
+    const roleId = createId();
+    await database
+      .insert(roles)
+      .values({ id: roleId, name: 'Eligible', tenantId: fixture.tenantId });
+    await database.insert(rolesToTenantUsers).values({
+      roleId,
+      tenantId: fixture.tenantId,
+      userTenantId: membership.id,
+    });
+    await database
+      .update(eventRegistrationOptions)
+      .set({ confirmedSpots: 1, roleIds: [roleId] })
+      .where(eq(eventRegistrationOptions.id, fixture.optionId));
+    const tenant = requireValue(
+      await database.query.tenants.findFirst({
+        where: { id: fixture.tenantId },
+      }),
+      'tenant',
+    );
+    const authority = PlatformAdministratorAuthority.make({
+      actorEmail: 'platform@example.com',
+      actorId: 'auth0|platform-lock-order',
+      kind: 'platformAdministrator',
+    });
+    const stripe = createAddonStripeTestClient();
+    const outcomes = await Effect.runPromise(
+      Effect.gen(function* () {
+        const registrationHasMembership = yield* Deferred.make<undefined>();
+        const assignmentNeedsMembership = yield* Deferred.make<undefined>();
+        const registration = withQueryBarriers(
+          EventRegistrationService.registerForEvent({
+            eventId: fixture.eventId,
+            guestCount: 0,
+            registrationOptionId: fixture.optionId,
+            tenant: {
+              ...tenant,
+              emailSenderEmail: undefined,
+              emailSenderName: undefined,
+              stripeAccountId: tenant.stripeAccountId ?? undefined,
+            },
+            user: {
+              email: `${participantId}@example.com`,
+              id: participantId,
+              roleIds: [roleId],
+            },
+          }).pipe(Effect.provide(EventRegistrationService.Default)),
+          () => Effect.void,
+          (statement) =>
+            isTableLock(statement, getTableName(usersToTenants))
+              ? Deferred.succeed(registrationHasMembership, undefined).pipe(
+                  Effect.andThen(Deferred.await(assignmentNeedsMembership)),
+                )
+              : Effect.void,
+        ).pipe(
+          Effect.provide(makeBarrierLayer(databaseUrl, stripe)),
+          Effect.exit,
+        );
+        const assignment = Deferred.await(registrationHasMembership).pipe(
+          Effect.andThen(
+            withQueryBarriers(
+              platformTenantAdminHandlers['platform.tenantUsers.assignRoles'](
+                {
+                  reason:
+                    'Remove expired eligibility after current registration',
+                  roleIds: [],
+                  targetTenantId: fixture.tenantId,
+                  userId: participantId,
+                },
+                undefined,
+              ).pipe(
+                Effect.provide(RpcAccess.Default),
+                Effect.provideService(RpcRequestContext, {
+                  authData: { sub: authority.actorId },
+                  authenticated: true,
+                  permissions: [],
+                  platformAuthority: authority,
+                  tenant: Schema.decodeUnknownSync(Tenant)(tenant),
+                  user: null,
+                  userAssigned: false,
+                }),
+              ),
+              (statement) =>
+                isTableLock(statement, getTableName(usersToTenants))
+                  ? Deferred.succeed(assignmentNeedsMembership, undefined).pipe(
+                      Effect.asVoid,
+                    )
+                  : Effect.void,
+              () => Effect.void,
+            ).pipe(
+              Effect.provide(makeBarrierLayer(databaseUrl, stripe)),
+              Effect.exit,
+            ),
+          ),
+        );
+        return yield* Effect.all([registration, assignment], {
+          concurrency: 'unbounded',
+        });
+      }).pipe(Effect.timeout('15 seconds')),
+    );
+    expect(outcomes).toMatchObject([{ _tag: 'Success' }, { _tag: 'Success' }]);
+    expect(
+      await database.query.eventRegistrations.findFirst({
+        where: { eventId: fixture.eventId, userId: participantId },
+      }),
+    ).toMatchObject({ status: 'CONFIRMED' });
+    expect(
+      await database.query.eventRegistrationOptions.findFirst({
+        where: { id: fixture.optionId },
+      }),
+    ).toMatchObject({ confirmedSpots: 2, reservedSpots: 0 });
+    expect(
+      await database.query.rolesToTenantUsers.findMany({
+        where: { tenantId: fixture.tenantId, userTenantId: membership.id },
+      }),
+    ).toEqual([]);
+    expect(
+      await database.query.platformAuditEntries.findMany({
+        where: { targetTenantId: fixture.tenantId },
+      }),
+    ).toMatchObject([
+      {
+        action: 'user.assignRoles',
+        actorEmail: authority.actorEmail,
+        actorId: authority.actorId,
+        after: {
+          resourceId: participantId,
+          resourceType: 'userRoleAssignment',
+          state: { roleIds: [], userId: participantId },
+        },
+        before: {
+          resourceId: participantId,
+          resourceType: 'userRoleAssignment',
+          state: { roleIds: [roleId], userId: participantId },
+        },
+        targetTenantId: fixture.tenantId,
+      },
+    ]);
+    expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
+  }, 20_000);
 
   it('preserves a committed binding when its acknowledgement fails and replays without another provider create', async () => {
     const fixture = await seedFixture(database, {

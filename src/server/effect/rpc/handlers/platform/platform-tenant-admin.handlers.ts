@@ -757,7 +757,6 @@ export const platformTenantAdminHandlers = {
           database.transaction((transaction) =>
             Effect.gen(function* () {
               yield* lockTenantRoleGraph(transaction, input.targetTenantId);
-              yield* lockTargetTenant(transaction, input.targetTenantId);
               const memberships = yield* transaction
                 .select({ id: usersToTenants.id })
                 .from(usersToTenants)
@@ -769,6 +768,8 @@ export const platformTenantAdminHandlers = {
                 )
                 .for('update')
                 .pipe(Effect.orDie);
+              // Registration eligibility also locks membership before tenant.
+              yield* lockTargetTenant(transaction, input.targetTenantId);
               const membership = memberships[0];
               if (!membership) {
                 return yield* new RpcBadRequestError({
