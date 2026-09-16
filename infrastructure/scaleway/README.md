@@ -3,8 +3,9 @@
 This directory defines the staging-first Scaleway platform in `fr-par`.
 `bootstrap`, `staging`, and `production` are independent Terraform roots with
 separate private state buckets, state identities, and fixed keys. Applying
-staging cannot read, plan, or change a production resource. The production
-workflow remains a no-op until the protected GitHub variable
+staging cannot read, plan, or change a production resource. A production dispatch
+waits for protected-environment approval, then its first validation step fails
+before external commands unless the `scaleway-production` environment variable
 `PRODUCTION_ENABLED` is exactly `true`.
 
 The application remains the authorization boundary. The database has separate
@@ -296,12 +297,15 @@ not update the successful manifest pointer. It never redeploys an older image
 after a schema release. Apply a reviewed infrastructure change explicitly or
 ship a corrected forward revision, then rerun the deployment.
 
-The production workflow is dispatch-only and is a no-op unless the repository
-variable `PRODUCTION_ENABLED` is exactly `true`. It accepts only an immutable,
-successful staging manifest, copies that exact digest into the production
-registry without rebuilding, waits for protected-environment approval, requires
-an empty read-only production Terraform plan, applies a safe schema plan, and
-smokes `alpha.evorto.app`.
+The production workflow is dispatch-only. Set `PRODUCTION_ENABLED` on the
+protected `scaleway-production` GitHub environment. After environment approval,
+the first validation step requires its value to be exactly `true`; a false,
+missing, or other value fails the job before external commands. Environment
+variables are available only after the job starts, so this check belongs in the
+protected step rather than the job condition. The workflow then accepts only an
+immutable, successful staging manifest, copies that exact digest into the
+production registry without rebuilding, requires an empty read-only production
+Terraform plan, applies a safe schema plan, and smokes `alpha.evorto.app`.
 
 ## Operational drills
 

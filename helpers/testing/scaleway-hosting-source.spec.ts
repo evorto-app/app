@@ -700,13 +700,97 @@ fi
       expect(root).not.toContain('coalesce(');
       expect(root).not.toContain('moved {');
     }
-    expect(production).toContain("if: vars.PRODUCTION_ENABLED == 'true'");
+    expect(between(production, '  promote:', '    steps:')).not.toContain(
+      'PRODUCTION_ENABLED',
+    );
+    expect(production).toContain('environment: scaleway-production');
     expect(production).toContain('CONFIRMATION: ${{ inputs.confirmation }}');
     expect(production).toContain(
       'if [ "${CONFIRMATION}" != "promote-alpha" ]; then',
     );
     expect(production).not.toContain('pull_request_target:');
   });
+
+  it.each([
+    { name: 'true', value: 'true', expectedStatus: 0 },
+    { name: 'false', value: 'false', expectedStatus: 1 },
+    { name: 'missing', value: undefined, expectedStatus: 1 },
+    { name: 'empty', value: '', expectedStatus: 1 },
+    { name: 'uppercase true', value: 'TRUE', expectedStatus: 1 },
+  ])(
+    'validates protected production enablement with $name',
+    ({ value, expectedStatus }) => {
+      const production = source('.github/workflows/scaleway-production.yml');
+      const steps = between(production, '    steps:\n');
+      expect(steps).toMatch(
+        /^ {4}steps:\n {6}- name: Validate explicit production enablement and protected configuration\n/u,
+      );
+      const validation = between(
+        steps,
+        '- name: Validate explicit production enablement and protected configuration',
+        '      - name: Fetch and validate the accepted staging manifest',
+      );
+      expect(validation).toContain(
+        'PRODUCTION_ENABLED: ${{ vars.PRODUCTION_ENABLED }}',
+      );
+      const runBody = validation.split('        run: |\n')[1];
+      if (!runBody) {
+        throw new Error('Missing protected production validation commands');
+      }
+      const result = spawnSync(
+        '/bin/bash',
+        [
+          '--noprofile',
+          '--norc',
+          '-eu',
+          '-c',
+          `aws() { return 99; }
+jq() { printf '%s\\n' 'protected-tool-check' >&2; }
+${runBody.replace(/^ {10}/gmu, '').trim()}`,
+        ],
+        {
+          encoding: 'utf8',
+          env: {
+            AWS_ACCESS_KEY_ID: 'fixture',
+            AWS_SECRET_ACCESS_KEY: 'fixture',
+            CLOUDFLARE_API_TOKEN: 'fixture',
+            CONFIRMATION: 'promote-alpha',
+            PRODUCTION_ENABLED: value,
+            PRODUCTION_TERRAFORM_STATE_BUCKET: 'fixture',
+            PROTECTED_SECRET_VALUES: '{}',
+            RUNTIME_DATABASE_PASSWORD: 'fixture',
+            SCHEMA_DATABASE_PASSWORD: 'fixture',
+            SCW_ACCESS_KEY: 'fixture',
+            SCW_DEFAULT_ORGANIZATION_ID: 'fixture',
+            SCW_DEFAULT_PROJECT_ID: 'fixture',
+            SCW_SECRET_KEY: 'fixture',
+            TF_VAR_alert_email: 'fixture',
+            TF_VAR_bucket_suffix: 'fixture',
+            TF_VAR_cloudflare_zone_id: 'fixture',
+            TF_VAR_deployer_application_id: 'fixture',
+            TF_VAR_project_id: 'fixture',
+            TF_VAR_runtime_database_password_version: 'fixture',
+            TF_VAR_schema_database_password_version: 'fixture',
+            TF_VAR_tem_project_id: 'fixture',
+            TF_VAR_web_application_id: 'fixture',
+            TF_VAR_worker_application_id: 'fixture',
+          },
+          timeout: 5000,
+        },
+      );
+      expect(result.error).toBeUndefined();
+      expect(result.signal).toBeNull();
+      expect(result.status).toBe(expectedStatus);
+      expect(result.stdout).toBe(
+        expectedStatus === 0
+          ? ''
+          : '::error::Production promotion requires PRODUCTION_ENABLED to be exactly true\n',
+      );
+      expect(result.stderr).toBe(
+        expectedStatus === 0 ? 'protected-tool-check\n' : '',
+      );
+    },
+  );
 
   it('provisions private PostgreSQL 17 with separate runtime and schema users', () => {
     const stagingMain = source('infrastructure/scaleway/staging/main.tf');
