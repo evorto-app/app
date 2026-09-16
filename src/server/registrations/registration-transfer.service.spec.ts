@@ -499,6 +499,7 @@ const createTransferTaxFixture = ({
   taxRowExists?: boolean;
 }) => {
   const writes: string[] = [];
+  const questionLocks: string[] = [];
   const { checkout, stripe } = checkoutFixture();
   const quantity = includedQuantity + purchasedQuantity;
   const optionPrice = optionIsPaid ? 1000 : 0;
@@ -523,11 +524,39 @@ const createTransferTaxFixture = ({
       : [];
   const executeValues: SqlConnection.Connection['executeValues'] = (
     statement,
+    parameters,
   ) =>
     Effect.sync(() => {
       if (!statement.startsWith('select ')) {
         writes.push(statement);
         throw new Error(`Unexpected transfer tax fixture write: ${statement}`);
+      }
+      if (
+        statement ===
+        'select "id" from "tenants" where "tenants"."id" = $1 for key share'
+      ) {
+        expect(questionLocks).toEqual([]);
+        expect(parameters).toEqual(['tenant-1']);
+        questionLocks.push('tenant');
+        return [['tenant-1']];
+      }
+      if (
+        statement ===
+        'select "id" from "event_instances" where (("event_instances"."id" = $1) and ("event_instances"."tenantId" = $2)) for share'
+      ) {
+        expect(questionLocks).toEqual(['tenant']);
+        expect(parameters).toEqual(['event-1', 'tenant-1']);
+        questionLocks.push('event');
+        return [['event-1']];
+      }
+      if (
+        statement ===
+        'select "id", "required" from "event_registration_questions" where (("event_registration_questions"."eventId" = $1) and ("event_registration_questions"."registrationOptionId" = $2)) order by "event_registration_questions"."id" for share'
+      ) {
+        expect(questionLocks).toEqual(['tenant', 'event']);
+        expect(parameters).toEqual(['event-1', 'option-1']);
+        questionLocks.push('questions');
+        return [];
       }
       if (statement.includes(' from "registration_transfers"')) {
         return statement.includes(' for update')
