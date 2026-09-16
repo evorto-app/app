@@ -1,5 +1,5 @@
 import { describe, expect, it } from '@effect/vitest';
-import { ConfigProvider, Effect, Option, Redacted } from 'effect';
+import { Config, ConfigProvider, Effect, Option, Redacted } from 'effect';
 
 import { authConfig } from './auth-config';
 import { formatConfigError } from './config-error';
@@ -143,6 +143,96 @@ describe('auth-config', () => {
 
             expect(error.message).toContain(field);
           }
+        }
+      }),
+  );
+
+  for (const field of ['BASE_URL', 'ISSUER_BASE_URL'] as const) {
+    for (const rawOrigin of [
+      'https://app.example/.',
+      'https://app.example/..',
+      'https://app.example/a/..',
+      'https://app.example/%2e',
+      'https://app.example/%2E%2e',
+      'https://app.example/.%2e',
+      'https://app.example/%2e.',
+      'https://app.example/a/%2e%2e',
+      'https://app.example?',
+      'https://app.example#',
+      'https://app.example/?',
+      'https://app.example/#',
+      String.raw`https:\\app.example`,
+      'https://app.example\\',
+      String.raw`https://app.example\ignored\..`,
+      'https:app.example',
+      'https:/app.example',
+      'https:///app.example',
+      'https://app.exa\tmple',
+      'https://app.exa\nmple',
+      'https://@app.example',
+    ]) {
+      it.effect(
+        `rejects normalized-away syntax in ${field}: ${JSON.stringify(rawOrigin)}`,
+        () =>
+          Effect.gen(function* () {
+            const error = yield* Effect.flip(
+              authConfig.parse(providerFromEnvironment({ [field]: rawOrigin })),
+            );
+            expect(error).toBeInstanceOf(Config.ConfigError);
+            expect(error.message).toContain(
+              `Expected ${field} to be an absolute http(s) origin without credentials, path, query, or fragment`,
+            );
+          }),
+      );
+    }
+  }
+
+  it.effect(
+    'retains IPv6, default-port, and trailing-slash normalization',
+    () =>
+      Effect.gen(function* () {
+        for (const [baseUrl, expectedBaseUrl, issuerUrl, expectedIssuerUrl] of [
+          [
+            'https://APP.EXAMPLE:443/',
+            'https://app.example',
+            'https://ISSUER.EXAMPLE:443/',
+            'https://issuer.example',
+          ],
+          [
+            'https://[::1]:443/',
+            'https://[::1]',
+            'https://[::1]:443/',
+            'https://[::1]',
+          ],
+          [
+            'https://app.example:8443/',
+            'https://app.example:8443',
+            'https://issuer.example/',
+            'https://issuer.example',
+          ],
+        ] as const) {
+          const configured = yield* authConfig.parse(
+            providerFromEnvironment({
+              BASE_URL: baseUrl,
+              ISSUER_BASE_URL: issuerUrl,
+            }),
+          );
+          expect(configured.BASE_URL).toBe(expectedBaseUrl);
+          expect(configured.ISSUER_BASE_URL).toBe(expectedIssuerUrl);
+        }
+        for (const [origin, expectedOrigin] of [
+          ['http://127.0.0.1:80/', 'http://127.0.0.1'],
+          ['http://localhost:80/', 'http://localhost'],
+          ['http://[::1]:80/', 'http://[::1]'],
+          ['http://[::1]:4200/', 'http://[::1]:4200'],
+        ] as const) {
+          const configured = yield* authConfig.parse(
+            providerFromEnvironment({
+              APP_ENVIRONMENT: 'local',
+              BASE_URL: origin,
+            }),
+          );
+          expect(configured.BASE_URL).toBe(expectedOrigin);
         }
       }),
   );

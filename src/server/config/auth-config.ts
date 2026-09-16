@@ -36,7 +36,9 @@ const strictAuthOrigin = (
     );
   }
 
+  // URL parsing removes dot segments, empty suffixes, and backslashes.
   if (
+    !/^https?:\/\/[^/\\\s@?#]+\/?$/iu.test(value) ||
     (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') ||
     parsed.username.length > 0 ||
     parsed.password.length > 0 ||

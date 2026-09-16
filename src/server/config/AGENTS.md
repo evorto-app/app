@@ -15,7 +15,10 @@
 - Require `APP_ENVIRONMENT`, `APP_ROLE`, `WORKER_TRIGGER_MODE`, and
   `DATABASE_TLS_REQUIRED`; local environment generation supplies their local values.
 - Auth0 issuer origins must use HTTPS on its default port. Only `BASE_URL` may
-  use HTTP for local loopback development.
+  use HTTP for local loopback development. Validate the raw origin shape before
+  accepting URL normalization: allow only the authority and an optional trailing
+  slash, with no paths, dot segments, query/fragment markers, backslashes,
+  credentials, or internal whitespace. Surrounding whitespace is trimmed.
 - A provided database CA certificate must be nonblank; preserve its PEM bytes.
   When configuring a CA, keep SSL settings out of `DATABASE_URL` so they cannot
   override certificate and server-name verification in the PostgreSQL driver.
