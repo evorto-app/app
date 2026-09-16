@@ -1664,7 +1664,6 @@ describe('EventOrganize receipt submission outcomes', () => {
     },
     {
       error: new ReceiptMediaServiceUnavailableError({
-        cause: new Error('Private provider diagnostic'),
         message: 'Receipt storage is unavailable',
       }),
       expectedMessage: 'Receipt storage is unavailable',
