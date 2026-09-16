@@ -312,17 +312,20 @@ describe('platform tax-rate import error notifications', () => {
       error: new RpcInternalServerError({
         message: 'private provider details',
       }),
-      expected: 'The tax rates could not be added. Try again.',
+      expected:
+        'The import outcome could not be confirmed. Load the page again to check the current tax rates before trying again.',
     },
     {
       error: new RpcForbiddenError({
         message: 'private authorization details',
       }),
-      expected: 'The tax rates could not be added. Try again.',
+      expected:
+        'The import outcome could not be confirmed. Load the page again to check the current tax rates before trying again.',
     },
     {
       error: new Error('private transport details'),
-      expected: 'The tax rates could not be added. Try again.',
+      expected:
+        'The import outcome could not be confirmed. Load the page again to check the current tax rates before trying again.',
     },
   ])(
     'reports only actionable safe import guidance: $expected',
@@ -338,7 +341,7 @@ describe('platform tax-rate import error notifications', () => {
       await vi.waitFor(() =>
         expect(showError).toHaveBeenCalledExactlyOnceWith(expected),
       );
-      expect(importRates).toHaveBeenCalledWith(
+      expect(importRates).toHaveBeenCalledExactlyOnceWith(
         {
           ids: ['rate-1'],
           reason: 'Repair tenant tax setup',
