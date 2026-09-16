@@ -256,6 +256,7 @@ const saveCard = (tenant: Tenant, userId: string, identifier: string) =>
       user: Schema.decodeUnknownSync(User)({
         attributes: [],
         auth0Id: `card-window|${userId}`,
+        communicationEmail: `${userId}@example.com`,
         email: `${userId}@example.com`,
         firstName: 'Card',
         id: userId,
