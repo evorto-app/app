@@ -11,6 +11,7 @@ import {
   GlobalAdminEmailOutboxRecord,
   GlobalAdminPlatformAuditCursor,
   GlobalAdminPlatformAuditRecord,
+  GlobalAdminPlatformAuditState,
   GlobalAdminTenantCreateInput,
   GlobalAdminTenantUpdateError,
   GlobalAdminTenantUpdateInput,
@@ -140,6 +141,33 @@ describe('GlobalAdminPlatformAuditRecord', () => {
       taxRateUpdatedCount: 2,
     });
   });
+});
+
+describe('GlobalAdminPlatformAuditState role assignment summary', () => {
+  it('retains safe role counts while omitting persisted identifiers', () => {
+    expect(
+      Schema.decodeUnknownSync(GlobalAdminPlatformAuditState)({
+        roleAddedCount: 1,
+        roleCount: 2,
+        roleIds: ['private-role'],
+        roleRemovedCount: 0,
+        userId: 'private-member',
+      }),
+    ).toEqual({ roleAddedCount: 1, roleCount: 2, roleRemovedCount: 0 });
+  });
+
+  it.each(['roleAddedCount', 'roleRemovedCount'])(
+    'rejects invalid %s values',
+    (field) => {
+      for (const value of [-1, 0.5, Infinity, NaN]) {
+        expect(() =>
+          Schema.decodeUnknownSync(GlobalAdminPlatformAuditState)({
+            [field]: value,
+          }),
+        ).toThrow();
+      }
+    },
+  );
 });
 
 describe('GlobalAdminTenantWriteInput', () => {

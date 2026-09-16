@@ -30,6 +30,8 @@ import {
 import type { PlatformRoleRecord } from '../../../shared/rpc-contracts/app-rpcs/platform-tenant-admin.rpcs';
 
 import {
+  ALL_PERMISSIONS,
+  includesPermission,
   PERMISSION_GROUPS,
   type TenantRolePermission,
 } from '../../../shared/permissions/permissions';
@@ -37,6 +39,10 @@ import {
   ROLE_DESCRIPTION_MAX_LENGTH,
   ROLE_NAME_MAX_LENGTH,
 } from '../../../shared/rpc-contracts/app-rpcs/role-write.shared';
+import {
+  createRoleFormModel,
+  roleFormPermissionsToSubmit,
+} from '../../admin/components/role-form/role-form.schema';
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
@@ -48,6 +54,7 @@ interface PlatformRoleFormModel {
   description: string;
   displayInHub: boolean;
   name: string;
+  originalPermissions: TenantRolePermission[];
   permissions: TenantRolePermission[];
   reason: string;
 }
@@ -58,6 +65,7 @@ const emptyRole = (): PlatformRoleFormModel => ({
   description: '',
   displayInHub: false,
   name: '',
+  originalPermissions: [],
   permissions: [],
   reason: '',
 });
@@ -196,7 +204,10 @@ export class PlatformRolesComponent {
       description: role.description ?? '',
       displayInHub: role.displayInHub,
       name: role.name,
-      permissions: [...role.permissions],
+      originalPermissions: [...role.permissions],
+      permissions: ALL_PERMISSIONS.filter((permission) =>
+        includesPermission(permission, role.permissions),
+      ),
       reason: '',
     });
     this.roleForm().reset();
@@ -218,13 +229,19 @@ export class PlatformRolesComponent {
     void submit(this.roleForm, async () => {
       const role = this.roleModel();
       const roleId = this.selectedRoleId();
+      const permissionSelection = createRoleFormModel({
+        originalPermissions: role.originalPermissions,
+      });
+      for (const permission of role.permissions) {
+        permissionSelection.permissions[permission] = true;
+      }
       const payload = {
         defaultOrganizerRole: role.defaultOrganizerRole,
         defaultUserRole: role.defaultUserRole,
         description: role.description.trim() || null,
         displayInHub: role.displayInHub,
         name: role.name,
-        permissions: role.permissions,
+        permissions: roleFormPermissionsToSubmit(permissionSelection),
         reason: role.reason,
         targetTenantId: this.tenantId(),
       };

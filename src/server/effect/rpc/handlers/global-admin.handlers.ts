@@ -204,6 +204,10 @@ const PersistedGlobalAdminTaxRateAuditState = Schema.Struct({
   rates: Schema.Array(PersistedGlobalAdminTaxRateAuditRecord),
 });
 
+const PersistedGlobalAdminRoleAssignmentAuditState = Schema.Struct({
+  roleIds: Schema.Array(Schema.NonEmptyString),
+});
+
 const PersistedGlobalAdminPlatformAuditState = Schema.Struct({
   addOns: Schema.optional(Schema.Array(Schema.Unknown)),
   alcoholAmount: Schema.optional(Schema.Number),
@@ -227,7 +231,9 @@ const PersistedGlobalAdminPlatformAuditState = Schema.Struct({
   receiptCount: GlobalAdminPlatformAuditState.fields.receiptCount,
   registrationOptions: Schema.optional(Schema.Array(Schema.Unknown)),
   remainingGuestCount: GlobalAdminPlatformAuditState.fields.remainingGuestCount,
-  roleIds: Schema.optional(Schema.Array(Schema.Unknown)),
+  roleIds: Schema.optional(
+    PersistedGlobalAdminRoleAssignmentAuditState.fields.roleIds,
+  ),
   simpleModeEnabled: GlobalAdminPlatformAuditState.fields.simpleModeEnabled,
   sortOrder: GlobalAdminPlatformAuditState.fields.sortOrder,
   status: GlobalAdminPlatformAuditState.fields.status,
@@ -241,15 +247,18 @@ const PersistedGlobalAdminPlatformAuditState = Schema.Struct({
   unlisted: GlobalAdminPlatformAuditState.fields.unlisted,
 });
 
-interface TaxRateImportAuditSummary {
-  readonly taxRateAddedCount?: number;
-  readonly taxRateUnchangedCount?: number;
-  readonly taxRateUpdatedCount?: number;
-}
+type PlatformAuditChangeSummary = Pick<
+  GlobalAdminPlatformAuditSnapshotType['state'],
+  | 'roleAddedCount'
+  | 'roleRemovedCount'
+  | 'taxRateAddedCount'
+  | 'taxRateUnchangedCount'
+  | 'taxRateUpdatedCount'
+>;
 
 const toGlobalAdminPlatformAuditSnapshot = (
   snapshot: PlatformAuditSnapshot,
-  taxRateSummary: TaxRateImportAuditSummary = {},
+  changeSummary: PlatformAuditChangeSummary = {},
 ): GlobalAdminPlatformAuditSnapshotType => {
   const state = Schema.decodeUnknownSync(
     PersistedGlobalAdminPlatformAuditState,
@@ -284,7 +293,7 @@ const toGlobalAdminPlatformAuditSnapshot = (
       sortOrder: state.sortOrder,
       status: state.status,
       stripeConnected: state.stripeConnected,
-      ...taxRateSummary,
+      ...changeSummary,
       taxRateCount: state.rates?.length,
       theme: state.theme,
       timezone: state.timezone,
@@ -309,7 +318,7 @@ const taxRateMetadataMatches = (
 const taxRateImportAuditSummary = (
   before: PlatformAuditSnapshot,
   after: PlatformAuditSnapshot,
-): TaxRateImportAuditSummary => {
+): PlatformAuditChangeSummary => {
   if (
     before.resourceType !== 'taxRateBatch' ||
     after.resourceType !== 'taxRateBatch'
@@ -347,6 +356,35 @@ const taxRateImportAuditSummary = (
   };
 };
 
+const roleAssignmentAuditSummary = (
+  before: PlatformAuditSnapshot,
+  after: PlatformAuditSnapshot,
+) => {
+  if (
+    before.resourceType !== 'userRoleAssignment' ||
+    after.resourceType !== 'userRoleAssignment'
+  ) {
+    throw new Error('Role assignments require member role snapshots');
+  }
+
+  const beforeRoleIds = new Set(
+    Schema.decodeUnknownSync(PersistedGlobalAdminRoleAssignmentAuditState)(
+      before.state,
+    ).roleIds,
+  );
+  const afterRoleIds = new Set(
+    Schema.decodeUnknownSync(PersistedGlobalAdminRoleAssignmentAuditState)(
+      after.state,
+    ).roleIds,
+  );
+  return {
+    roleAddedCount: [...afterRoleIds].filter((id) => !beforeRoleIds.has(id))
+      .length,
+    roleRemovedCount: [...beforeRoleIds].filter((id) => !afterRoleIds.has(id))
+      .length,
+  };
+};
+
 const toGlobalAdminPlatformAuditRecord = (entry: {
   action: PlatformTenantAuditAction;
   actorEmail: null | string;
@@ -357,14 +395,21 @@ const toGlobalAdminPlatformAuditRecord = (entry: {
   reason: string;
   targetTenantName: null | string;
 }) => {
-  let taxRateSummary: TaxRateImportAuditSummary = {};
+  let changeSummary: PlatformAuditChangeSummary = {};
   if (entry.action === 'taxRates.import') {
     if (entry.before === null || entry.after === null) {
       throw new Error(
         'Tax-rate import audits require before and after snapshots',
       );
     }
-    taxRateSummary = taxRateImportAuditSummary(entry.before, entry.after);
+    changeSummary = taxRateImportAuditSummary(entry.before, entry.after);
+  } else if (entry.action === 'user.assignRoles') {
+    if (entry.before === null || entry.after === null) {
+      throw new Error(
+        'Role assignment audits require before and after snapshots',
+      );
+    }
+    changeSummary = roleAssignmentAuditSummary(entry.before, entry.after);
   }
 
   return Schema.decodeUnknownSync(GlobalAdminPlatformAuditRecord)({
@@ -373,7 +418,7 @@ const toGlobalAdminPlatformAuditRecord = (entry: {
     after:
       entry.after === null
         ? null
-        : toGlobalAdminPlatformAuditSnapshot(entry.after, taxRateSummary),
+        : toGlobalAdminPlatformAuditSnapshot(entry.after, changeSummary),
     before:
       entry.before === null
         ? null

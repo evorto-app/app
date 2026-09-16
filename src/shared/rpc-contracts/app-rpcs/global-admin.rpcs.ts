@@ -60,7 +60,13 @@ export const GlobalAdminPlatformAuditState = Schema.Struct({
   receiptCount: Schema.optional(Schema.Number),
   registrationOptionCount: Schema.optional(Schema.Number),
   remainingGuestCount: Schema.optional(Schema.Number),
+  roleAddedCount: Schema.optional(
+    Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+  ),
   roleCount: Schema.optional(Schema.Number),
+  roleRemovedCount: Schema.optional(
+    Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+  ),
   simpleModeEnabled: Schema.optional(Schema.Boolean),
   sortOrder: Schema.optional(Schema.Number),
   status: Schema.optional(Schema.NonEmptyString),

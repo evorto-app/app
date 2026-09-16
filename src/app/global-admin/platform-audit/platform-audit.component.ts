@@ -143,6 +143,28 @@ export const platformAuditChangedRows = (
   entry: Partial<Pick<GlobalAdminPlatformAuditRecord, 'action'>> &
     Pick<GlobalAdminPlatformAuditRecord, 'after' | 'before'>,
 ): readonly PlatformAuditChangedRow[] => {
+  const beforeRoleCount = entry.before?.state.roleCount;
+  const assignment = entry.after?.state;
+  if (
+    entry.action === 'user.assignRoles' &&
+    beforeRoleCount !== undefined &&
+    assignment?.roleCount !== undefined &&
+    assignment.roleAddedCount !== undefined &&
+    assignment.roleRemovedCount !== undefined
+  ) {
+    const { roleAddedCount, roleCount, roleRemovedCount } = assignment;
+    return [
+      {
+        after:
+          roleAddedCount === 0 && roleRemovedCount === 0
+            ? `No role changes (${roleCount} assigned)`
+            : `${roleCount} assigned; ${roleAddedCount} added, ${roleRemovedCount} removed`,
+        before: `${beforeRoleCount} assigned`,
+        label: 'Member roles',
+      },
+    ];
+  }
+
   const before = snapshotState(entry.before);
   const after = snapshotState(entry.after);
   const changedRows = safeAuditFields.flatMap(([key, label, format]) => {

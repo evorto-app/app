@@ -409,7 +409,7 @@ Return to the organization and choose **Manage members**. Search by the existing
     testInfo,
     page.locator('app-platform-tenant-users form'),
     page,
-    'Assign an organization role with an reason',
+    'Assign an organization role with a reason',
   );
   await page.getByRole('button', { name: 'Save roles' }).click();
   await expect(page.getByText('Member roles updated')).toBeVisible();

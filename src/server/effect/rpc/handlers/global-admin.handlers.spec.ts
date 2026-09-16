@@ -7,7 +7,7 @@ import {
   platformTenantSettingsSnapshot,
 } from '@shared/tenant-settings-snapshot';
 import * as PgDrizzle from 'drizzle-orm/effect-postgres';
-import { Effect, Layer, Schema, Stream } from 'effect';
+import { Effect, Exit, Layer, Schema, Stream } from 'effect';
 import * as Headers from 'effect/unstable/http/Headers';
 import { Rpc, RpcMessage } from 'effect/unstable/rpc';
 import Stripe from 'stripe';
@@ -949,6 +949,107 @@ describe('globalAdminHandlers', () => {
       expect(page.items[0]).not.toHaveProperty('actorId');
       expect(page.items[0]).not.toHaveProperty('targetTenantId');
       expect(page.items[0]?.after).not.toHaveProperty('resourceId');
+    }),
+  );
+
+  it.effect.each([
+    {
+      added: 1,
+      after: ['role-new'],
+      before: ['role-old'],
+      name: 'same-count replacement',
+      removed: 1,
+    },
+    {
+      added: 1,
+      after: ['role-kept', 'role-new'],
+      before: ['role-kept'],
+      name: 'addition',
+      removed: 0,
+    },
+    {
+      added: 0,
+      after: ['role-kept'],
+      before: ['role-kept', 'role-old'],
+      name: 'removal',
+      removed: 1,
+    },
+    {
+      added: 0,
+      after: ['role-kept'],
+      before: ['role-kept'],
+      name: 'unchanged assignment',
+      removed: 0,
+    },
+    {
+      added: 0,
+      after: ['role-two', 'role-one'],
+      before: ['role-one', 'role-two'],
+      name: 'reordered assignment',
+      removed: 0,
+    },
+    { added: 0, after: [], before: [], name: 'empty assignment', removed: 0 },
+  ])(
+    'summarizes $name without exposing member or role identifiers',
+    (assignment) =>
+      Effect.gen(function* () {
+        const page = yield* readAuditPage([
+          auditFixtureRow({
+            action: 'user.assignRoles',
+            after: {
+              resourceId: 'private-member',
+              resourceType: 'userRoleAssignment',
+              state: { roleIds: assignment.after, userId: 'private-member' },
+            },
+            before: {
+              resourceId: 'private-member',
+              resourceType: 'userRoleAssignment',
+              state: { roleIds: assignment.before, userId: 'private-member' },
+            },
+          }),
+        ]);
+        expect(page.items[0]?.before).toEqual({
+          resourceType: 'userRoleAssignment',
+          state: { roleCount: assignment.before.length },
+        });
+        expect(page.items[0]?.after).toEqual({
+          resourceType: 'userRoleAssignment',
+          state: {
+            roleAddedCount: assignment.added,
+            roleCount: assignment.after.length,
+            roleRemovedCount: assignment.removed,
+          },
+        });
+        expect(JSON.stringify(page)).not.toContain('private-member');
+        expect(JSON.stringify(page)).not.toContain('roleIds');
+        for (const roleId of [...assignment.before, ...assignment.after]) {
+          expect(JSON.stringify(page)).not.toContain(roleId);
+        }
+      }),
+  );
+
+  it.effect.each([
+    { name: 'missing role IDs', state: {} },
+    { name: 'non-string role IDs', state: { roleIds: [123] } },
+    { name: 'empty role IDs', state: { roleIds: [''] } },
+  ])('rejects assignment audit snapshots with $name', ({ state }) =>
+    Effect.gen(function* () {
+      const exit = yield* readAuditPage([
+        auditFixtureRow({
+          action: 'user.assignRoles',
+          after: {
+            resourceId: 'member-1',
+            resourceType: 'userRoleAssignment',
+            state,
+          },
+          before: {
+            resourceId: 'member-1',
+            resourceType: 'userRoleAssignment',
+            state: { roleIds: [] },
+          },
+        }),
+      ]).pipe(Effect.exit);
+      expect(Exit.isFailure(exit)).toBe(true);
     }),
   );
 

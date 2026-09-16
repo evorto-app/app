@@ -4,6 +4,7 @@ import {
   provideTanStackQuery,
   QueryClient,
 } from '@tanstack/angular-query-experimental';
+import { Schema } from 'effect';
 import { readFileSync } from 'node:fs';
 import nodePath from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -11,7 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   type GlobalAdminPlatformAuditCursor,
   type GlobalAdminPlatformAuditPage,
-  type GlobalAdminPlatformAuditRecord,
+  GlobalAdminPlatformAuditRecord,
 } from '../../../shared/rpc-contracts/app-rpcs/global-admin.rpcs';
 import { APP_RPC_CLIENT } from '../../core/effect-rpc-angular-client';
 import {
@@ -153,6 +154,16 @@ describe('platformAuditChangedRows', () => {
       ).toEqual([{ after: label, before: 'Submitted', label: 'Status' }]);
     },
   );
+
+  it('retains the historical count-only assignment summary', () => {
+    expect(
+      platformAuditChangedRows({
+        action: 'user.assignRoles',
+        after: { resourceType: 'userRoleAssignment', state: { roleCount: 2 } },
+        before: { resourceType: 'userRoleAssignment', state: { roleCount: 1 } },
+      }),
+    ).toEqual([{ after: '2', before: '1', label: 'Member roles' }]);
+  });
 
   it('describes payment readiness without exposing account details', () => {
     expect(
@@ -396,6 +407,95 @@ describe('PlatformAuditComponent pagination', () => {
     queryClient.clear();
     TestBed.resetTestingModule();
   });
+
+  it.each([
+    {
+      added: 1,
+      afterCount: 1,
+      beforeCount: 1,
+      name: 'same-count replacement',
+      removed: 1,
+      summary: '1 assigned; 1 added, 1 removed',
+    },
+    {
+      added: 1,
+      afterCount: 2,
+      beforeCount: 1,
+      name: 'addition',
+      removed: 0,
+      summary: '2 assigned; 1 added, 0 removed',
+    },
+    {
+      added: 0,
+      afterCount: 1,
+      beforeCount: 2,
+      name: 'removal',
+      removed: 1,
+      summary: '1 assigned; 0 added, 1 removed',
+    },
+    {
+      added: 0,
+      afterCount: 1,
+      beforeCount: 1,
+      name: 'no-op',
+      removed: 0,
+      summary: 'No role changes (1 assigned)',
+    },
+    {
+      added: 0,
+      afterCount: 0,
+      beforeCount: 0,
+      name: 'empty no-op',
+      removed: 0,
+      summary: 'No role changes (0 assigned)',
+    },
+  ])(
+    'renders a meaningful member role summary for $name',
+    async (assignment) => {
+      const entry = Schema.decodeUnknownSync(GlobalAdminPlatformAuditRecord)({
+        ...makeAuditRecord({
+          id: 'audit-roles',
+          reason: 'Update committee access',
+        }),
+        action: 'user.assignRoles',
+        after: {
+          resourceType: 'userRoleAssignment',
+          state: {
+            roleAddedCount: assignment.added,
+            roleCount: assignment.afterCount,
+            roleIds: ['private-role'],
+            roleRemovedCount: assignment.removed,
+            userId: 'private-member',
+          },
+        },
+        before: {
+          resourceType: 'userRoleAssignment',
+          state: { roleCount: assignment.beforeCount },
+        },
+      });
+      loadAuditPage.mockResolvedValueOnce({ items: [entry], nextCursor: null });
+      const fixture = TestBed.createComponent(PlatformAuditComponent);
+      fixture.detectChanges();
+
+      await vi.waitFor(() => {
+        fixture.detectChanges();
+        const text = normalizedText(fixture);
+        expect(text).toContain('Member roles');
+        expect(text).toContain(`${assignment.beforeCount} assigned`);
+        expect(text).toContain(assignment.summary);
+        expect(text).not.toContain('This change summary is unavailable');
+        expect(text).not.toContain('private-role');
+        expect(text).not.toContain('private-member');
+      });
+      expect(platformAuditChangedRows(entry)).toEqual([
+        {
+          after: assignment.summary,
+          before: `${assignment.beforeCount} assigned`,
+          label: 'Member roles',
+        },
+      ]);
+    },
+  );
 
   it('loads older entries and displays only business-readable details', async () => {
     const nextCursor: GlobalAdminPlatformAuditCursor = {

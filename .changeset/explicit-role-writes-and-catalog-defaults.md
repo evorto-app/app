@@ -6,4 +6,6 @@ Validate organization and platform role changes consistently, report duplicate n
 
 Browse organization members in bounded pages and assign roles with clear validation messages. Review platform changes through stable pages of readable before-and-after summaries, with operator reasons and private implementation identifiers omitted from the response.
 
+Preserve wildcard and legacy grants when editing platform-managed roles, while allowing their visible permissions to be revoked explicitly. Summarize added and removed member roles even when the total number of assigned roles stays the same.
+
 Keep fractional audit timestamps intact across page boundaries and decode sanitized descriptions for readable plain-text summaries.
