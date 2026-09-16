@@ -8,7 +8,10 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { resolveLocalDatabaseEnvironment } from '../local-database-preflight';
+import {
+  resolveLocalApplicationDatabaseEnvironment,
+  resolveLocalHostDatabaseEnvironment,
+} from '../local-database-preflight';
 
 // Generates worktree-local runtime ports and names so parallel Docker/test
 // runs do not collide with the main checkout or other Codex worktrees.
@@ -273,7 +276,7 @@ const resolveRuntimeEnvironment = (
   });
   const inputs = expandEnvironment(defaults);
   const generated = createRuntimeEnvironment(cwd, inputs);
-  resolveLocalDatabaseEnvironment({
+  resolveLocalApplicationDatabaseEnvironment({
     ...generated,
     DATABASE_URL: generated.DOCKER_DATABASE_URL,
   });
@@ -287,6 +290,7 @@ const resolveRuntimeEnvironment = (
       ),
     ),
   };
+  resolveLocalHostDatabaseEnvironment(resolved);
   return { generated, resolved };
 };
 

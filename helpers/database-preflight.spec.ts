@@ -17,8 +17,10 @@ afterEach(() => {
 const runDatabaseHelper = ({
   entrypoint,
   environment,
+  playwright = false,
 }: {
   entrypoint: string;
+  playwright?: boolean;
   environment: Readonly<Record<string, string>>;
 }) => {
   const directory = fs.mkdtempSync(
@@ -48,29 +50,57 @@ net.connect = denyConnection;
 net.createConnection = denyConnection;
 tls.connect = denyConnection;
 globalThis.fetch = denyConnection;
-Bun.connect = denyConnection;
+if (typeof Bun !== 'undefined') Bun.connect = denyConnection;
 syncBuiltinESMExports();
 fs.writeFileSync(${JSON.stringify(readyPath)}, 'ready');
 `,
   );
 
+  if (playwright) {
+    fs.writeFileSync(
+      path.join(directory, 'fixture.test.ts'),
+      `import { test } from ${JSON.stringify(path.join(repositoryRoot, entrypoint))};
+       test('uses the actual database fixture', async ({ database }) => {
+         await database.execute('select 1');
+       });`,
+    );
+    fs.writeFileSync(
+      path.join(directory, 'playwright.config.mjs'),
+      `export default ${JSON.stringify({
+        testDir: directory,
+        tsconfig: path.join(repositoryRoot, 'tsconfig.json'),
+        outputDir: path.join(directory, 'results'),
+        reporter: 'line',
+        workers: 1,
+      })};`,
+    );
+  }
+
   const result = spawnSync(
-    'bun',
-    [
-      '--tsconfig-override',
-      path.join(repositoryRoot, 'tsconfig.json'),
-      '--preload',
-      preloadPath,
-      path.join(repositoryRoot, entrypoint),
-    ],
+    playwright ? 'node' : 'bun',
+    playwright
+      ? [
+          path.join(repositoryRoot, 'node_modules/@playwright/test/cli.js'),
+          'test',
+          '--config',
+          path.join(directory, 'playwright.config.mjs'),
+        ]
+      : [
+          '--tsconfig-override',
+          path.join(repositoryRoot, 'tsconfig.json'),
+          '--preload',
+          preloadPath,
+          path.join(repositoryRoot, entrypoint),
+        ],
     {
       cwd: directory,
       encoding: 'utf8',
       env: {
         PATH: process.env['PATH'],
+        ...(playwright && { NODE_OPTIONS: `--import=${preloadPath}` }),
         ...environment,
       },
-      timeout: 5000,
+      timeout: playwright ? 15_000 : 5000,
     },
   );
 
@@ -105,6 +135,22 @@ const runSeedHelper = ({
   });
 
 describe('local database reset preflight', () => {
+  it('rejects the reserved integration name before application reset connects', () => {
+    const result = runDatabaseHelper({
+      entrypoint: 'helpers/reset-database-schema.ts',
+      environment: {
+        LOCAL_DATABASE: 'true',
+        LOCAL_DATABASE_CONFIRM_RESET: 'evorto-local-reset',
+        POSTGRES_DB: 'evorto_postgres_integration',
+        DATABASE_URL:
+          'postgresql://fixture:fixture@127.0.0.1:1/evorto_postgres_integration?sslmode=disable',
+      },
+    });
+    expect(result.status).not.toBe(0);
+    expect(result.output).toContain('reserved integration database');
+    expect(result.attemptedConnection).toBe(false);
+  });
+
   const environment = {
     DATABASE_URL:
       'postgresql://fixture:fixture@127.0.0.1:1/unrelated_database?sslmode=disable',
@@ -209,6 +255,72 @@ describe('database seed preflight', () => {
     });
 
     expect(result.status, result.output).toBe(86);
+    expect(result.output).toContain(connectionMarker);
+    expect(result.attemptedConnection).toBe(true);
+  });
+});
+
+describe('direct Playwright database fixture preflight', () => {
+  const runFixture = (
+    databaseUrl: string,
+    postgresPort = '55432',
+    pgPort?: string,
+  ) =>
+    runDatabaseHelper({
+      entrypoint: 'tests/support/fixtures/base-test.ts',
+      playwright: true,
+      environment: {
+        BASE_URL: 'http://localhost:4200',
+        CLIENT_ID: 'fixture',
+        CLIENT_SECRET: 'fixture',
+        DATABASE_URL: databaseUrl,
+        E2E_SELECTED_PROJECTS: 'local-chrome-baseline',
+        ISSUER_BASE_URL: 'https://fixture.invalid',
+        LOCAL_DATABASE: 'true',
+        POSTGRES_DB: 'appdb',
+        POSTGRES_HOST_PORT: postgresPort,
+        ...(pgPort === undefined ? {} : { PGPORT: pgPort }),
+        SECRET: 'fixture',
+        STRIPE_API_KEY: 'fixture',
+        STRIPE_TEST_ACCOUNT_ID: 'acct_fixture',
+      },
+    });
+
+  it.each([
+    [
+      'postgresql://fixture:fixture@remote.invalid:55432/appdb',
+      'non-local database host',
+    ],
+    [
+      'postgresql://fixture:fixture@localhost:55433/appdb',
+      'configured POSTGRES_HOST_PORT',
+    ],
+  ])(
+    'rejects an unsafe target before fixture SQL: %s',
+    (databaseUrl, message) => {
+      const result = runFixture(databaseUrl);
+      expect(result.status).not.toBe(0);
+      expect(result.output).toContain(message);
+      expect(result.attemptedConnection).toBe(false);
+    },
+  );
+
+  it('rejects a mismatched inherited PGPORT before fixture SQL', () => {
+    const result = runFixture(
+      'postgresql://fixture:fixture@localhost/appdb',
+      '5432',
+      '55433',
+    );
+    expect(result.status).not.toBe(0);
+    expect(result.output).toContain('configured POSTGRES_HOST_PORT');
+    expect(result.attemptedConnection).toBe(false);
+  });
+
+  it('allows the matching target as far as the isolated connection barrier', () => {
+    const result = runFixture(
+      'postgresql://fixture:fixture@localhost:55432/appdb',
+    );
+    expect(result.status).not.toBe(0);
     expect(result.output).toContain(connectionMarker);
     expect(result.attemptedConnection).toBe(true);
   });

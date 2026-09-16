@@ -98,6 +98,7 @@ jobs:
       E2E_RUNTIME_MODE: playwright
       E2E_SEED_KEY: evorto-e2e-default-v1
       ISSUER_BASE_URL: ${{ vars.ISSUER_BASE_URL }}
+      LOCAL_DATABASE: "true"
       POSTGRES_DB: appdb
       POSTGRES_HOST_PORT: 55432
       POSTGRES_PASSWORD: evorto-certification-local

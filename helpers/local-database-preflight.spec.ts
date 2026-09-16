@@ -1,7 +1,11 @@
 import { describe, expect, it } from '@effect/vitest';
 import { Client } from 'pg';
+import { vi } from 'vitest';
 
-import { resolveLocalDatabaseEnvironment } from './local-database-preflight';
+import {
+  resolveLocalDatabaseEnvironment,
+  resolveLocalHostDatabaseEnvironment,
+} from './local-database-preflight';
 
 const localEnvironment = {
   DATABASE_URL:
@@ -118,5 +122,124 @@ describe('local database preflight', () => {
     },
   ])('rejects an unsafe target: $message', ({ environment, message }) => {
     expect(() => resolveLocalDatabaseEnvironment(environment)).toThrow(message);
+  });
+});
+
+describe('local host application database preflight', () => {
+  const environment = { ...localEnvironment, POSTGRES_HOST_PORT: '55432' };
+
+  it.each(['localhost', '127.0.0.1', '[::1]'])(
+    'preserves explicit credentials and loopback alias %s on the configured port',
+    (host) => {
+      const databaseUrl = `postgresql://explicit:p%40ss@${host}:55432/appdb?sslmode=disable`;
+      expect(
+        resolveLocalHostDatabaseEnvironment({
+          ...environment,
+          DATABASE_URL: databaseUrl,
+        }),
+      ).toEqual({ databaseUrl });
+    },
+  );
+
+  it('accepts an omitted default port only when it is the configured port', () => {
+    const databaseUrl = 'postgresql://explicit:secret@localhost/appdb';
+    expect(
+      resolveLocalHostDatabaseEnvironment({
+        ...environment,
+        POSTGRES_HOST_PORT: '5432',
+        DATABASE_URL: databaseUrl,
+      }),
+    ).toEqual({ databaseUrl });
+    expect(() =>
+      resolveLocalHostDatabaseEnvironment({
+        ...environment,
+        DATABASE_URL: databaseUrl,
+      }),
+    ).toThrow('configured POSTGRES_HOST_PORT');
+  });
+
+  it('checks the driver PGPORT fallback when the URL omits a port', () => {
+    const databaseUrl = 'postgresql://explicit:secret@localhost/appdb';
+    vi.stubEnv('PGPORT', '55433');
+    try {
+      expect(new Client({ connectionString: databaseUrl }).port).toBe(55433);
+      expect(() =>
+        resolveLocalHostDatabaseEnvironment({
+          ...environment,
+          DATABASE_URL: databaseUrl,
+          POSTGRES_HOST_PORT: '5432',
+          PGPORT: process.env['PGPORT'],
+        }),
+      ).toThrow('configured POSTGRES_HOST_PORT');
+      expect(
+        resolveLocalHostDatabaseEnvironment({
+          ...environment,
+          DATABASE_URL: databaseUrl,
+          POSTGRES_HOST_PORT: '55433',
+          PGPORT: process.env['PGPORT'],
+        }),
+      ).toEqual({ databaseUrl });
+      expect(
+        resolveLocalHostDatabaseEnvironment({
+          ...environment,
+          PGPORT: '55433',
+        }),
+      ).toEqual({ databaseUrl: environment.DATABASE_URL });
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it.each([
+    [
+      'postgresql://explicit:secret@localhost:55433/appdb',
+      'configured POSTGRES_HOST_PORT',
+    ],
+    [
+      'postgresql://explicit:secret@db:55432/appdb',
+      'configured loopback database',
+    ],
+    [
+      'postgresql://explicit:secret@localhost:55432/appdb?host=remote.invalid',
+      'unsupported connection parameters: host',
+    ],
+    [
+      'postgresql://explicit:secret@localhost:55432/appdb?port=55433',
+      'unsupported connection parameters: port',
+    ],
+  ])('rejects a host target override: %s', (databaseUrl, message) => {
+    expect(() =>
+      resolveLocalHostDatabaseEnvironment({
+        ...environment,
+        DATABASE_URL: databaseUrl,
+      }),
+    ).toThrow(message);
+  });
+
+  it.each([undefined, '', 'bad', '1', '65536'])(
+    'rejects an invalid configured port: %s',
+    (port) => {
+      expect(() =>
+        resolveLocalHostDatabaseEnvironment({
+          ...environment,
+          POSTGRES_HOST_PORT: port,
+        }),
+      ).toThrow('POSTGRES_HOST_PORT');
+    },
+  );
+
+  it('reserves the integration name for the integration runner, not app fixtures', () => {
+    const integrationEnvironment = {
+      ...environment,
+      POSTGRES_DB: 'evorto_postgres_integration',
+      DATABASE_URL:
+        'postgresql://explicit:secret@localhost:55432/evorto_postgres_integration',
+    };
+    expect(resolveLocalDatabaseEnvironment(integrationEnvironment)).toEqual({
+      databaseUrl: integrationEnvironment.DATABASE_URL,
+    });
+    expect(() =>
+      resolveLocalHostDatabaseEnvironment(integrationEnvironment),
+    ).toThrow('reserved integration database');
   });
 });

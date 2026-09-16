@@ -44,6 +44,7 @@ jobs:
       BASE_URL: http://localhost:4200
       APP_READY_PATH: /readyz
       COMPOSE_PROJECT_NAME: evorto-ci
+      LOCAL_DATABASE: "true"
       POSTGRES_DB: appdb
       POSTGRES_HOST_PORT: 55432
       POSTGRES_PASSWORD: evorto-ci-local

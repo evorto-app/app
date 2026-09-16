@@ -2,6 +2,14 @@
 
 This directory contains the active Playwright suite.
 
+Local Playwright database fixtures require `LOCAL_DATABASE=true` and a
+`DATABASE_URL` whose driver target matches `POSTGRES_DB` and
+`POSTGRES_HOST_PORT` on loopback. Explicit credentials and loopback aliases
+are supported; remote hosts, Compose-internal URLs, connection query overrides,
+and the reserved `evorto_postgres_integration` app database name fail before
+pool creation. Supported package commands validate the final environment before
+dispatch; direct CI invocations must supply the same target settings.
+
 ## Structure
 
 - Functional/e2e tests: `tests/specs/**`

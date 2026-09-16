@@ -1,6 +1,6 @@
 import { resetPublicSchema } from './testing/reset-public-schema';
 import { ensureLocalPostgresIntegrationDatabase } from './testing/postgres-integration-database';
-import { resolveLocalDatabaseEnvironment } from './local-database-preflight';
+import { resolveLocalApplicationDatabaseEnvironment } from './local-database-preflight';
 
 const confirmation = process.env['LOCAL_DATABASE_CONFIRM_RESET']?.trim();
 if (confirmation !== 'evorto-local-reset') {
@@ -9,7 +9,7 @@ if (confirmation !== 'evorto-local-reset') {
   );
 }
 
-const { databaseUrl } = resolveLocalDatabaseEnvironment();
+const { databaseUrl } = resolveLocalApplicationDatabaseEnvironment();
 
 await ensureLocalPostgresIntegrationDatabase({ databaseUrl });
 await resetPublicSchema({ databaseUrl });

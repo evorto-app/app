@@ -1,3 +1,5 @@
+import { postgresIntegrationDatabaseName } from './testing/postgres-integration-environment';
+
 const localDatabaseHosts = new Set(['127.0.0.1', '::1', 'db', 'localhost']);
 const allowedConnectionParameters = new Set(['sslmode']);
 
@@ -86,4 +88,42 @@ export const resolveLocalDatabaseEnvironment = (
     expectedDatabaseName,
   );
   return { databaseUrl: databaseUrl.toString() };
+};
+
+// App resets and fixtures must never share the integration suite's reset target.
+export const resolveLocalApplicationDatabaseEnvironment = (
+  environment: EnvironmentSource = process.env,
+): { readonly databaseUrl: string } => {
+  if (environment['POSTGRES_DB'] === postgresIntegrationDatabaseName) {
+    throw new Error(
+      'POSTGRES_DB must not use the reserved integration database',
+    );
+  }
+  return resolveLocalDatabaseEnvironment(environment);
+};
+
+export const resolveLocalHostDatabaseEnvironment = (
+  environment: EnvironmentSource = process.env,
+): { readonly databaseUrl: string } => {
+  const resolved = resolveLocalApplicationDatabaseEnvironment(environment);
+  const databaseUrl = new URL(resolved.databaseUrl);
+  if (databaseUrl.hostname === 'db') {
+    throw new Error(
+      'DATABASE_URL must target the configured loopback database',
+    );
+  }
+  const port = requiredValue(environment, 'POSTGRES_HOST_PORT');
+  if (!/^\d+$/.test(port) || Number(port) < 1024 || Number(port) > 65_535) {
+    throw new Error(
+      'POSTGRES_HOST_PORT must be a decimal port between 1024 and 65535',
+    );
+  }
+  // pg falls back to PGPORT before 5432 when a connection URL omits its port.
+  const effectivePort = databaseUrl.port || environment['PGPORT'] || '5432';
+  if (!/^\d+$/.test(effectivePort) || Number(effectivePort) !== Number(port)) {
+    throw new Error(
+      'DATABASE_URL must target the configured POSTGRES_HOST_PORT',
+    );
+  }
+  return resolved;
 };

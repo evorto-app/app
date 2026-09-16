@@ -41,17 +41,24 @@ interface RunningCommand {
 
 const fixtureDirectories: string[] = [];
 const runningCommands: RunningCommand[] = [];
+const fixtureProjects: string[] = [];
+const userId = process.getuid?.();
+if (userId === undefined)
+  throw new Error('Runtime lease tests require a POSIX user');
+const leaseRoot = path.join('/tmp', `evorto-docker-project-leases-${userId}`);
 
 const createFixture = () => {
   const directory = fs.mkdtempSync(
     path.join(os.tmpdir(), 'evorto-runtime-invocation-test-'),
   );
   fixtureDirectories.push(directory);
+  const projectName = path.basename(directory).toLowerCase();
+  fixtureProjects.push(projectName);
   const cwd = path.join(directory, 'worktree with spaces');
   const temporaryDirectory = path.join(directory, 'tmp');
   const home = path.join(directory, 'home');
   for (const target of [cwd, temporaryDirectory, home]) fs.mkdirSync(target);
-  return { cwd, directory, home, temporaryDirectory };
+  return { cwd, directory, home, projectName, temporaryDirectory };
 };
 
 const addPackageScripts = (fixture: ReturnType<typeof createFixture>) => {
@@ -67,7 +74,12 @@ const addPackageScripts = (fixture: ReturnType<typeof createFixture>) => {
   )
     throw new Error('Expected package scripts');
   const scripts: Record<string, string> = {};
-  for (const name of ['env:run', 'docker:webserver']) {
+  for (const name of [
+    'env:run',
+    'docker:webserver',
+    'test:e2e',
+    'test:e2e:check',
+  ]) {
     const script: unknown = Reflect.get(packageJson.scripts, name);
     if (typeof script !== 'string')
       throw new Error(`Expected ${name} package script`);
@@ -104,7 +116,7 @@ const environmentFor = (
 ): NodeJS.ProcessEnv => ({
   APP_HOST_PORT: '4301',
   BUN_RUNTIME_TRANSPILER_CACHE_PATH: '0',
-  COMPOSE_PROJECT_NAME: 'evorto-invocation-test',
+  COMPOSE_PROJECT_NAME: fixture.projectName,
   HOME: fixture.home,
   MAILPIT_HOST_PORT: '10101',
   MINIO_CONSOLE_HOST_PORT: '9501',
@@ -210,6 +222,9 @@ const capture = () => {
     project: process.env.COMPOSE_PROJECT_NAME,
     appPort: process.env.APP_HOST_PORT,
     ready: process.env.EVORTO_RUNTIME_ENV_READY,
+    baseOnly: process.env.BASE_ONLY,
+    sharedOnly: process.env.SHARED_ONLY,
+    unsupportedAutoFile: process.env.UNSUPPORTED_AUTO_FILE,
     pid: process.pid,
   };
 };
@@ -238,6 +253,26 @@ const captureInvocation = (
   return captured;
 };
 
+const addPlaywrightDispatchProbe = (
+  fixture: ReturnType<typeof createFixture>,
+) => {
+  const testingDirectory = addPackageScripts(fixture);
+  const binaryDirectory = path.join(fixture.directory, 'bin');
+  fs.mkdirSync(binaryDirectory);
+  const marker = path.join(fixture.directory, 'preflight-ran');
+  fs.writeFileSync(
+    path.join(testingDirectory, 'runtime-preflight.ts'),
+    `import fs from 'node:fs';\nfs.writeFileSync(${JSON.stringify(marker)}, 'ran');\n`,
+  );
+  const playwright = path.join(binaryDirectory, 'playwright');
+  fs.writeFileSync(
+    playwright,
+    `#!/usr/bin/env node\n${captureEnvironmentSource}\nprocess.stdout.write(JSON.stringify(capture()));\n`,
+  );
+  fs.chmodSync(playwright, 0o700);
+  return { marker, path: `${binaryDirectory}:${process.env['PATH'] ?? ''}` };
+};
+
 afterEach(async () => {
   const directories = fixtureDirectories.splice(0);
   for (const directory of directories)
@@ -249,9 +284,129 @@ afterEach(async () => {
   }
   for (const directory of directories)
     fs.rmSync(directory, { force: true, recursive: true });
+  for (const project of fixtureProjects.splice(0)) {
+    for (const suffix of ['lock', 'owner'])
+      fs.rmSync(path.join(leaseRoot, `${project}.${suffix}`), { force: true });
+  }
 });
 
 describe('runtime environment invocation', () => {
+  it.each([
+    { callerPort: undefined, expectedPort: '4302' },
+    { callerPort: '4303', expectedPort: '4303' },
+  ])(
+    'preserves dotenv precedence through the real outer bun run with caller port $callerPort',
+    ({ callerPort, expectedPort }) => {
+      const fixture = createFixture();
+      const probe = addPlaywrightDispatchProbe(fixture);
+      fs.writeFileSync(
+        path.join(fixture.cwd, '.env'),
+        'APP_HOST_PORT=invalid-base\nPOSTGRES_HOST_PORT=invalid-base\nDATABASE_URL=postgresql://base:base@remote.invalid/base\nBASE_ONLY=base-value\n',
+      );
+      fs.writeFileSync(
+        path.join(fixture.cwd, '.env.dev.local'),
+        'APP_HOST_PORT=4302\nPOSTGRES_HOST_PORT=56202\nPOSTGRES_DB=shared-db\nSHARED_ONLY=shared-value\n',
+      );
+      fs.writeFileSync(
+        path.join(fixture.cwd, '.env.local'),
+        'APP_HOST_PORT=invalid-auto-file\nUNSUPPORTED_AUTO_FILE=must-not-load\n',
+      );
+      const result = spawnSync(bunExecutable, ['run', 'test:e2e'], {
+        cwd: fixture.cwd,
+        encoding: 'utf8',
+        env: environmentFor(fixture, {
+          APP_HOST_PORT: callerPort,
+          PATH: probe.path,
+          POSTGRES_DB: undefined,
+          POSTGRES_HOST_PORT: undefined,
+        }),
+        timeout: 5000,
+      });
+      expect(result.status, result.stderr).toBe(0);
+      const captured: unknown = JSON.parse(result.stdout);
+      expect(captured).toMatchObject({
+        appPort: expectedPort,
+        baseOnly: 'base-value',
+        databaseName: 'shared-db',
+        databaseUrl:
+          'postgresql://synthetic-user:synthetic-password@localhost:56202/shared-db?sslmode=disable',
+        postgresPort: '56202',
+        sharedOnly: 'shared-value',
+      });
+      expect(captured).not.toHaveProperty('unsupportedAutoFile');
+      expect(fs.existsSync(probe.marker)).toBe(true);
+    },
+  );
+
+  it.each([
+    {
+      label: 'caller remote target',
+      environment: {
+        DATABASE_URL: 'postgresql://u:p@remote.invalid:56001/appdb',
+      },
+    },
+    {
+      label: 'shared remote target',
+      sharedUrl: 'postgresql://u:p@remote.invalid:56001/appdb',
+    },
+    {
+      label: 'wrong database name',
+      environment: { DATABASE_URL: 'postgresql://u:p@localhost:56001/other' },
+    },
+    {
+      label: 'another local project port',
+      environment: { DATABASE_URL: 'postgresql://u:p@localhost:56002/appdb' },
+    },
+    {
+      label: 'driver host query override',
+      environment: {
+        DATABASE_URL:
+          'postgresql://u:p@localhost:56001/appdb?host=remote.invalid',
+      },
+    },
+    {
+      label: 'driver port query override',
+      environment: {
+        DATABASE_URL: 'postgresql://u:p@localhost:56001/appdb?port=56002',
+      },
+    },
+    {
+      label: 'reserved application database name',
+      environment: { POSTGRES_DB: 'evorto_postgres_integration' },
+    },
+    {
+      label: 'disabled local database acknowledgement',
+      environment: { LOCAL_DATABASE: 'false' },
+    },
+  ])(
+    'rejects $label before the outer package starts a child',
+    ({ environment, sharedUrl }) => {
+      const fixture = createFixture();
+      const probe = addPlaywrightDispatchProbe(fixture);
+      if (sharedUrl) {
+        fs.writeFileSync(
+          path.join(fixture.cwd, '.env.dev.local'),
+          `DATABASE_URL=${sharedUrl}\n`,
+        );
+      }
+      const result = spawnSync(bunExecutable, ['run', 'test:e2e:check'], {
+        cwd: fixture.cwd,
+        encoding: 'utf8',
+        env: environmentFor(fixture, { ...environment, PATH: probe.path }),
+        timeout: 5000,
+      });
+      expect(result.status, result.stderr).not.toBe(0);
+      expect(result.stderr).toMatch(
+        /DATABASE_URL|POSTGRES_DB|LOCAL_DATABASE|non-local database host/u,
+      );
+      expect(fs.existsSync(probe.marker)).toBe(false);
+      expect(
+        fs.existsSync(path.join(leaseRoot, `${fixture.projectName}.owner`)),
+      ).toBe(false);
+      expect(fs.existsSync(path.join(fixture.cwd, '.env.dev'))).toBe(false);
+    },
+  );
+
   it('preserves process, shared, generated, and base precedence while expanding values', () => {
     const fixture = createFixture();
     fs.writeFileSync(
@@ -489,12 +644,7 @@ describe('runtime environment invocation', () => {
         expect(fs.existsSync(payloadFile)).toBe(false);
         expect(fs.existsSync(path.join(fixture.cwd, '.env.dev'))).toBe(false);
         expect(
-          fs.existsSync(
-            path.join(
-              fixture.temporaryDirectory,
-              'evorto-docker-project-leases',
-            ),
-          ),
+          fs.existsSync(path.join(leaseRoot, `${fixture.projectName}.owner`)),
         ).toBe(false);
       }
     },
@@ -551,7 +701,7 @@ describe('runtime environment invocation', () => {
     });
   });
 
-  it('preserves explicit shared and caller URL overrides instead of replacing them with derived URLs', () => {
+  it('preserves safe explicit shared and caller URL overrides instead of replacing them with derived URLs', () => {
     const fixture = createFixture();
     fs.writeFileSync(
       path.join(fixture.cwd, '.env.dev.local'),
@@ -560,14 +710,14 @@ describe('runtime environment invocation', () => {
     expect(
       captureInvocation(fixture, {
         BASE_URL: 'https://caller.invalid',
-        DATABASE_URL: 'postgresql://explicit:literal@remote.invalid/explicit',
+        DATABASE_URL: 'postgresql://explicit:literal@127.0.0.1:56001/appdb',
         POSTGRES_INTEGRATION_DATABASE_URL:
           'postgresql://explicit:literal@remote.invalid/integration',
       }),
     ).toMatchObject({
       baseUrl: 'https://caller.invalid',
       ssrOrigin: 'https://shared-rpc.invalid',
-      databaseUrl: 'postgresql://explicit:literal@remote.invalid/explicit',
+      databaseUrl: 'postgresql://explicit:literal@127.0.0.1:56001/appdb',
       integrationDatabaseUrl:
         'postgresql://explicit:literal@remote.invalid/integration',
     });
@@ -745,7 +895,7 @@ const timer = setInterval(() => {
     expect(fs.readdirSync(fixture.temporaryDirectory)).toEqual([]);
   });
 
-  it('preserves an explicit remote database URL so local preflight rejects it before connecting', () => {
+  it('rejects an explicit remote database URL before dispatching local preflight', () => {
     const fixture = createFixture();
     const validationScript = path.join(fixture.directory, 'validate.ts');
     fs.writeFileSync(
