@@ -64,7 +64,8 @@ const isGooglePlaceReference = (
 
   return (
     typeof value['fetchFields'] === 'function' &&
-    typeof value['id'] === 'string'
+    typeof value['id'] === 'string' &&
+    value['id'].trim().length > 0
   );
 };
 

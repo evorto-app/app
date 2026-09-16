@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { safeServerErrorSummary } from './safe-server-error-summary';
 
@@ -67,6 +67,127 @@ describe('safeServerErrorSummary', () => {
 
     expect(safeServerErrorSummary('database.insert', error)).toEqual({
       operation: 'database.insert',
+      sqlState: '23505',
+    });
+  });
+
+  it.each(['objects', 'primitives', 'sparse'])(
+    'bounds reason entry reads for a large %s array',
+    (kind) => {
+      const entries: unknown[] = Array.from({ length: 10_000 }, () =>
+        kind === 'objects' ? {} : null,
+      );
+      if (kind === 'sparse') {
+        entries.length = 0;
+        entries.length = 10_000;
+      }
+      let entryReads = 0;
+      const recordEntryRead = (key: string | symbol) => {
+        if (!(typeof key === 'string' && /^\d+$/u.test(key))) {
+          return;
+        }
+
+        entryReads += 1;
+        if (entryReads > 32) {
+          throw new Error('reason entry scan exceeded its budget');
+        }
+      };
+      const reasons = new Proxy(entries, {
+        get(target, key, receiver) {
+          recordEntryRead(key);
+          return Reflect.get(target, key, receiver);
+        },
+        getOwnPropertyDescriptor(target, key) {
+          recordEntryRead(key);
+          return Reflect.getOwnPropertyDescriptor(target, key);
+        },
+      });
+
+      expect(safeServerErrorSummary('database.insert', { reasons })).toEqual({
+        operation: 'database.insert',
+      });
+      expect(entryReads).toBeGreaterThan(0);
+      expect(entryReads).toBeLessThanOrEqual(32);
+    },
+  );
+
+  it('shares the reason scan budget across nested failures', () => {
+    let entryReads = 0;
+    const trackEntries = (entries: unknown[]) =>
+      new Proxy(entries, {
+        get(target, key, receiver) {
+          if (typeof key === 'string' && /^\d+$/u.test(key)) {
+            entryReads += 1;
+          }
+          return Reflect.get(target, key, receiver);
+        },
+        getOwnPropertyDescriptor(target, key) {
+          if (typeof key === 'string' && /^\d+$/u.test(key)) {
+            entryReads += 1;
+          }
+          return Reflect.getOwnPropertyDescriptor(target, key);
+        },
+      });
+    const nested = {
+      code: '23505',
+      reasons: trackEntries(Array.from({ length: 24 }, () => null)),
+    };
+    const reasons = trackEntries([
+      nested,
+      ...Array.from({ length: 23 }, () => null),
+    ]);
+
+    expect(safeServerErrorSummary('database.insert', { reasons })).toEqual({
+      operation: 'database.insert',
+      sqlState: '23505',
+    });
+    expect(entryReads).toBeLessThanOrEqual(32);
+  });
+
+  it('does not invoke reason iterators or entry getters', () => {
+    const reasons = [{ code: '23505' }];
+    const getter = vi.fn(() => {
+      throw new Error('reason getter must not be called');
+    });
+    const iterator = vi.fn(() => {
+      throw new Error('reason iterator must not be called');
+    });
+    Object.defineProperties(reasons, {
+      '1': { get: getter },
+      [Symbol.iterator]: { value: iterator },
+    });
+
+    expect(safeServerErrorSummary('database.insert', { reasons })).toEqual({
+      operation: 'database.insert',
+      sqlState: '23505',
+    });
+    expect(getter).not.toHaveBeenCalled();
+    expect(iterator).not.toHaveBeenCalled();
+  });
+
+  it('preserves diagnostics through cycles and repeated failure aliases', () => {
+    const reasons: unknown[] = [];
+    const failure = {
+      code: '23505',
+      constraint: 'registrations_user_unique',
+      reasons,
+    };
+    const error = {
+      cause: failure,
+      error: failure,
+      raw: failure,
+      reason: failure,
+      reasons,
+    };
+    reasons.push(error, failure, {
+      headers: { 'request-id': 'req_safe_123' },
+      message: sensitiveEmail,
+    });
+
+    expect(safeServerErrorSummary('database.insert', error)).toEqual({
+      constraint: 'registrations_user_unique',
+      operation: 'database.insert',
+      requestId: 'req_safe_123',
       sqlState: '23505',
     });
   });

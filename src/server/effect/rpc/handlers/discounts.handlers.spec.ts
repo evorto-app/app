@@ -145,6 +145,9 @@ const identifierOwnerSql =
 const cardReturningSql =
   'returning "id", "identifier", "status", "type", "validTo"::text';
 const upsertUpdateSql = `update "user_discount_cards" set "updatedAt" = $1, "identifier" = $2, "lastCheckedAt" = $3, "metadata" = $4, "status" = $5, "validFrom" = $6, "validTo" = $7 where "user_discount_cards"."id" = $8 ${cardReturningSql}`;
+const guardedUpsertUpdateSql = `update "user_discount_cards" set "updatedAt" = $1, "identifier" = $2, "lastCheckedAt" = $3, "metadata" = $4, "status" = $5, "validFrom" = $6, "validTo" = $7 where (("user_discount_cards"."id" = $8) and ("user_discount_cards"."tenantId" = $9) and ("user_discount_cards"."userId" = $10) and ("user_discount_cards"."type" = $11) and ("user_discount_cards"."identifier" = $12)) ${cardReturningSql}`;
+const partialUpsertUpdateSql = `update "user_discount_cards" set "updatedAt" = $1, "identifier" = $2, "lastCheckedAt" = $3, "status" = $4 where "user_discount_cards"."id" = $5 ${cardReturningSql}`;
+const partialRefreshUpdateSql = `update "user_discount_cards" set "updatedAt" = $1, "lastCheckedAt" = $2, "status" = $3 where (("user_discount_cards"."id" = $4) and ("user_discount_cards"."tenantId" = $5) and ("user_discount_cards"."userId" = $6) and ("user_discount_cards"."type" = $7) and ("user_discount_cards"."identifier" = $8)) ${cardReturningSql}`;
 const refreshUpdateSql = `update "user_discount_cards" set "updatedAt" = $1, "lastCheckedAt" = $2, "metadata" = $3, "status" = $4, "validFrom" = $5, "validTo" = $6 where (("user_discount_cards"."id" = $7) and ("user_discount_cards"."tenantId" = $8) and ("user_discount_cards"."userId" = $9) and ("user_discount_cards"."type" = $10) and ("user_discount_cards"."identifier" = $11)) ${cardReturningSql}`;
 const insertCardSql = `insert into "user_discount_cards" ("createdAt", "id", "updatedAt", "identifier", "lastCheckedAt", "metadata", "status", "tenantId", "type", "userId", "validFrom", "validTo") values (default, $1, default, $2, $3, $4, $5, $6, $7, $8, $9, $10) ${cardReturningSql}`;
 const deleteCardSql =
@@ -152,16 +155,20 @@ const deleteCardSql =
 
 const decodeString = Schema.decodeUnknownSync(Schema.NonEmptyString);
 const decodeStatus = Schema.decodeUnknownSync(
-  Schema.Literals(['expired', 'verified']),
+  Schema.Literals(['expired', 'invalid', 'unverified', 'verified']),
 );
 const decodeMetadata = Schema.decodeUnknownSync(
-  Schema.fromJsonString(Schema.Struct({ provider: Schema.String })),
+  Schema.NullOr(
+    Schema.fromJsonString(Schema.Struct({ provider: Schema.String })),
+  ),
 );
 const decodeTimestamp = (value: unknown): Date => {
   const date = new Date(decodeString(value));
   expect(Number.isNaN(date.getTime())).toBe(false);
   return date;
 };
+const decodeNullableTimestamp = (value: unknown) =>
+  value === null ? null : decodeTimestamp(value);
 const cardRow = (card: StoredCard) => [
   card.id,
   card.identifier,
@@ -219,20 +226,36 @@ const createDiscountDatabase = ({
   };
   const updateExistingCard = (parameters: readonly unknown[]) => {
     operations.push('updateExistingCard');
-    expect(parameters).toHaveLength(8);
+    expect([8, 12]).toContain(parameters.length);
     decodeTimestamp(parameters[0]);
     expect(parameters[1]).toBe('ESN-123');
     expect(parameters[7]).toBe('card-1');
-    const card = cards.find((candidate) => candidate.id === parameters[7]);
-    if (!card) throw new Error('Expected the existing card to update');
+    if (parameters.length === 12) {
+      expect(parameters.slice(8)).toEqual([
+        'tenant-2',
+        'user-1',
+        'esnCard',
+        initialCards.find((card) => card.id === 'card-1')?.identifier,
+      ]);
+    }
+    const card = cards.find(
+      (candidate) =>
+        candidate.id === parameters[7] &&
+        (parameters.length === 8 ||
+          (candidate.tenantId === parameters[8] &&
+            candidate.userId === parameters[9] &&
+            candidate.type === parameters[10] &&
+            candidate.identifier === parameters[11])),
+    );
+    if (!card) return [];
     const updated = {
       ...card,
       identifier: decodeString(parameters[1]),
       lastCheckedAt: decodeTimestamp(parameters[2]),
       metadata: decodeMetadata(parameters[3]),
       status: decodeStatus(parameters[4]),
-      validFrom: decodeTimestamp(parameters[5]),
-      validTo: decodeTimestamp(parameters[6]),
+      validFrom: decodeNullableTimestamp(parameters[5]),
+      validTo: decodeNullableTimestamp(parameters[6]),
     };
     cards = cards.map((candidate) =>
       candidate.id === card.id ? updated : candidate,
@@ -247,8 +270,8 @@ const createDiscountDatabase = ({
       lastCheckedAt: decodeTimestamp(parameters[1]),
       metadata: decodeMetadata(parameters[2]),
       status: decodeStatus(parameters[3]),
-      validFrom: decodeTimestamp(parameters[4]),
-      validTo: decodeTimestamp(parameters[5]),
+      validFrom: decodeNullableTimestamp(parameters[4]),
+      validTo: decodeNullableTimestamp(parameters[5]),
     };
     expect(parameters.slice(6)).toEqual([
       'card-1',
@@ -282,8 +305,8 @@ const createDiscountDatabase = ({
       status: decodeStatus(parameters[4]),
       tenantId: decodeString(parameters[5]),
       userId: decodeString(parameters[7]),
-      validFrom: decodeTimestamp(parameters[8]),
-      validTo: decodeTimestamp(parameters[9]),
+      validFrom: decodeNullableTimestamp(parameters[8]),
+      validTo: decodeNullableTimestamp(parameters[9]),
     });
     cards.push(card);
     return [cardRow(card)];
@@ -312,20 +335,50 @@ const createDiscountDatabase = ({
         case currentCardSql: {
           return readCurrentCard(parameters);
         }
+        case guardedUpsertUpdateSql:
+        case upsertUpdateSql: {
+          return updateExistingCard(parameters);
+        }
         case identifierOwnerSql: {
           return readIdentifierOwner(parameters);
         }
         case insertCardSql: {
           return insertNewCard(parameters);
         }
+        // Model omitted SQL columns as retained fields so stale-data regressions
+        // fail on persisted state instead of only on a changed SQL string.
+        case partialRefreshUpdateSql:
+        case partialUpsertUpdateSql: {
+          const saving = statement === partialUpsertUpdateSql;
+          operations.push(
+            saving ? 'updateExistingCard' : 'refreshOriginalCard',
+          );
+          const card = cards.find(
+            (candidate) =>
+              candidate.id === parameters[saving ? 4 : 3] &&
+              (saving ||
+                (candidate.tenantId === parameters[4] &&
+                  candidate.userId === parameters[5] &&
+                  candidate.type === parameters[6] &&
+                  candidate.identifier === parameters[7])),
+          );
+          if (!card) return [];
+          const updated = {
+            ...card,
+            ...(saving && { identifier: decodeString(parameters[1]) }),
+            lastCheckedAt: decodeTimestamp(parameters[saving ? 2 : 1]),
+            status: decodeStatus(parameters[saving ? 3 : 2]),
+          };
+          cards = cards.map((candidate) =>
+            candidate.id === card.id ? updated : candidate,
+          );
+          return [cardRow(updated)];
+        }
         case refreshUpdateSql: {
           return refreshOriginalCard(parameters);
         }
         case tenantReadSql: {
           return readTenantProviders(parameters);
-        }
-        case upsertUpdateSql: {
-          return updateExistingCard(parameters);
         }
         default: {
           throw new Error(`Unexpected discount card SQL: ${statement}`);
@@ -839,6 +892,105 @@ layer(discountHandlerLayer)('discountHandlers', (it) => {
       );
     },
   );
+
+  for (const action of ['save', 'refresh']) {
+    for (const status of ['invalid', 'unverified'] as const) {
+      it.effect(
+        `${action} replaces stale verified fields after an authoritative ${status} result`,
+        () => {
+          const validate = vi.fn(async (): Promise<ValidationResult> => ({
+            status,
+          }));
+          return withEsnCardAdapter(
+            validate,
+            Effect.gen(function* () {
+              const fixture = createDiscountDatabase({
+                initialCards: [
+                  createCard({ status: 'verified', validFrom, validTo }),
+                ],
+              });
+              const result =
+                action === 'save'
+                  ? yield* upsertMyCard().pipe(
+                      Effect.provide(fixture.databaseLayer),
+                    )
+                  : yield* refreshMyCard().pipe(
+                      Effect.provide(fixture.databaseLayer),
+                    );
+              expect(result).toMatchObject({ status, validTo: null });
+              expect(fixture.getCards()).toEqual([
+                expect.objectContaining({
+                  lastCheckedAt: expect.any(Date),
+                  metadata: null,
+                  status,
+                  validFrom: null,
+                  validTo: null,
+                }),
+              ]);
+              expect(validate).toHaveBeenCalledExactlyOnceWith({
+                identifier: 'ESN-123',
+              });
+            }),
+          );
+        },
+      );
+    }
+  }
+
+  for (const scenario of ['unchanged', 'replaced', 'removed']) {
+    it.effect(
+      `upsertMyCard handles a card that is ${scenario} during validation`,
+      () => {
+        const original = createCard();
+        const fixture = createDiscountDatabase({ initialCards: [original] });
+        const validate = vi.fn(async () => {
+          await Promise.resolve();
+          if (scenario === 'replaced') fixture.replaceOriginalCard();
+          else if (scenario === 'removed') fixture.removeOriginalCard();
+          return verifiedResult;
+        });
+        return withEsnCardAdapter(
+          validate,
+          Effect.gen(function* () {
+            const result = yield* upsertMyCard().pipe(
+              Effect.result,
+              Effect.provide(fixture.databaseLayer),
+            );
+            if (scenario === 'unchanged') {
+              expect(Result.isSuccess(result)).toBe(true);
+              if (Result.isFailure(result)) return;
+              expect(result.success).toMatchObject({
+                id: original.id,
+                identifier: original.identifier,
+                status: 'verified',
+                validTo: validTo.toISOString(),
+              });
+            } else {
+              expect(Result.isFailure(result)).toBe(true);
+              if (Result.isSuccess(result)) return;
+              expect(result.failure).toMatchObject({
+                _tag: 'DiscountCardChangedError',
+              });
+              expect(fixture.getCards()).toEqual(
+                scenario === 'removed'
+                  ? []
+                  : [{ ...original, identifier: 'ESN-456' }],
+              );
+            }
+            expect(validate).toHaveBeenCalledExactlyOnceWith({
+              identifier: 'ESN-123',
+            });
+            expect(fixture.operations).toEqual([
+              'readTenantProviders',
+              'readIdentifierOwner',
+              'readCurrentCard',
+              'updateExistingCard',
+            ]);
+          }),
+        );
+      },
+    );
+  }
 
   for (const scenario of ['unchanged', 'replaced', 'removed']) {
     it.effect(

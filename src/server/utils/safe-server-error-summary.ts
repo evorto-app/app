@@ -8,6 +8,7 @@ export interface SafeServerErrorSummary {
   readonly sqlState?: string;
 }
 
+const maximumScannedReasons = 32;
 const maximumTraversalDepth = 6;
 const maximumTraversedObjects = 32;
 const safeConstraintPattern = /^[A-Za-z_][A-Za-z0-9_$]{0,127}$/u;
@@ -60,23 +61,31 @@ export const safeServerErrorSummary = (
   let sqlState: string | undefined;
 
   const queue: { readonly depth: number; readonly value: object }[] = [];
-  if (Predicate.isObject(error)) {
-    queue.push({ depth: 0, value: error });
-  }
-  const visited = new WeakSet<object>();
-  let visitedCount = 0;
+  const seen = new WeakSet<object>();
+  const enqueue = (value: unknown, depth: number) => {
+    if (
+      queue.length >= maximumTraversedObjects ||
+      !Predicate.isObject(value) ||
+      seen.has(value)
+    ) {
+      return;
+    }
+    seen.add(value);
+    queue.push({ depth, value });
+  };
+  enqueue(error, 0);
+  let queueIndex = 0;
+  let scannedReasons = 0;
 
   while (
-    queue.length > 0 &&
-    visitedCount < maximumTraversedObjects &&
+    queueIndex < queue.length &&
     (!constraint || !requestId || !sqlState)
   ) {
-    const current = queue.shift();
-    if (!current || visited.has(current.value)) {
+    const current = queue[queueIndex];
+    queueIndex += 1;
+    if (!current) {
       continue;
     }
-    visited.add(current.value);
-    visitedCount += 1;
 
     constraint ??= firstSafeString(
       current.value,
@@ -108,18 +117,21 @@ export const safeServerErrorSummary = (
     }
     for (const key of ['cause', 'error', 'raw', 'reason']) {
       const nested = readDataProperty(current.value, key);
-      if (Predicate.isObject(nested)) {
-        queue.push({ depth: current.depth + 1, value: nested });
-      }
+      enqueue(nested, current.depth + 1);
     }
 
     const reasons = readDataProperty(current.value, 'reasons');
     if (Array.isArray(reasons)) {
       const reasonList: readonly unknown[] = reasons;
-      for (const reason of reasonList) {
-        if (Predicate.isObject(reason)) {
-          queue.push({ depth: current.depth + 1, value: reason });
-        }
+      for (
+        let index = 0;
+        index < reasonList.length &&
+        scannedReasons < maximumScannedReasons &&
+        queue.length < maximumTraversedObjects;
+        index += 1
+      ) {
+        scannedReasons += 1;
+        enqueue(readDataProperty(reasonList, String(index)), current.depth + 1);
       }
     }
   }

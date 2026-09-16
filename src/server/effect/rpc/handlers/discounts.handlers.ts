@@ -240,10 +240,10 @@ export const discountHandlers = {
           .update(userDiscountCards)
           .set({
             lastCheckedAt: new Date(),
-            metadata: result.metadata,
+            metadata: result.metadata ?? null,
             status: result.status,
-            validFrom: result.validFrom ?? undefined,
-            validTo: result.validTo ?? undefined,
+            validFrom: result.validFrom ?? null,
+            validTo: result.validTo ?? null,
           })
           .where(
             and(
@@ -357,10 +357,10 @@ export const discountHandlers = {
       });
       const validatedCardFields = {
         lastCheckedAt: new Date(),
-        metadata: validationResult.metadata,
+        metadata: validationResult.metadata ?? null,
         status: validationResult.status,
-        validFrom: validationResult.validFrom ?? undefined,
-        validTo: validationResult.validTo ?? undefined,
+        validFrom: validationResult.validFrom ?? null,
+        validTo: validationResult.validTo ?? null,
       };
       const upsertedCards = existingCard
         ? yield* databaseEffect((database) =>
@@ -370,7 +370,15 @@ export const discountHandlers = {
                 ...validatedCardFields,
                 identifier: input.identifier,
               })
-              .where(eq(userDiscountCards.id, existingCard.id))
+              .where(
+                and(
+                  eq(userDiscountCards.id, existingCard.id),
+                  eq(userDiscountCards.tenantId, tenant.id),
+                  eq(userDiscountCards.userId, user.id),
+                  eq(userDiscountCards.type, input.type),
+                  eq(userDiscountCards.identifier, existingCard.identifier),
+                ),
+              )
               .returning({
                 id: userDiscountCards.id,
                 identifier: userDiscountCards.identifier,
@@ -399,6 +407,14 @@ export const discountHandlers = {
           );
       const upsertedCard = upsertedCards[0];
       if (!upsertedCard) {
+        if (existingCard) {
+          return yield* Effect.fail(
+            new DiscountCardChangedError({
+              message:
+                'Your saved ESNcard changed or was removed while it was being checked. Review your current card and try again.',
+            }),
+          );
+        }
         yield* Effect.logError('Discount card upsert returned no rows').pipe(
           Effect.annotateLogs({
             discountType: input.type,

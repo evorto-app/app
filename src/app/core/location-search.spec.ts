@@ -80,6 +80,32 @@ describe('LocationSearch', () => {
     }),
   );
 
+  it.each(['', ' \t '])(
+    'rejects a suggestion whose returned place has a blank ID: %j',
+    (id) => {
+      const place: GooglePlaceReference = {
+        displayName: undefined,
+        fetchFields: vi.fn<GooglePlaceReference['fetchFields']>(),
+        formattedAddress: undefined,
+        id,
+        location: undefined,
+      };
+      expect(() =>
+        decodeLocationSuggestions({
+          suggestions: [
+            {
+              placePrediction: {
+                mainText: { text: 'Berlin' },
+                placeId: 'place-1',
+                toPlace: () => place,
+              },
+            },
+          ],
+        }),
+      ).toThrow('has invalid details');
+    },
+  );
+
   it('accepts unloaded place details without hiding malformed suggestions', () => {
     const place: GooglePlaceReference = {
       displayName: undefined,
