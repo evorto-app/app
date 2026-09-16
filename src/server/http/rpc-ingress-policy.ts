@@ -13,6 +13,7 @@ export interface RpcIngressContext {
 
 export interface RpcIngressPolicyOptions {
   readonly applicationOrigin: string;
+  readonly ssrRpcCapability: string;
   readonly ssrRpcOrigin: string | undefined;
 }
 
@@ -73,14 +74,16 @@ const isTrustedInternalSsrRequest = (
   request: Request,
   applicationOrigin: string | undefined,
   configuredOrigin: string | undefined,
+  capability: string,
 ): boolean => {
   const internalSsrOrigin = resolveInternalSsrOrigin(configuredOrigin);
-  if (!internalSsrOrigin) {
+  if (!internalSsrOrigin || !capability) {
     return false;
   }
 
   try {
     return (
+      request.headers.get('authorization') === `Bearer ${capability}` &&
       applicationOrigin === internalSsrOrigin &&
       new URL(request.url).origin === internalSsrOrigin &&
       request.headers.get(trustedSsrSourceHeader) === trustedSsrSourceValue &&
@@ -131,6 +134,7 @@ export const runRpcIngressPolicy = <A>(
       request,
       applicationOrigin,
       options.ssrRpcOrigin,
+      options.ssrRpcCapability,
     );
   if (origin !== null) {
     if (origin !== applicationOrigin) {

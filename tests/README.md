@@ -303,6 +303,14 @@ credentials must not be printed or committed.
 - Scaleway web containers set `SSR_RPC_ORIGIN=http://127.0.0.1:4200` so their
   readiness SSR check reaches RPC inside the candidate revision before the
   public custom domain routes traffic to it.
+- `SSR_RPC_ORIGIN` must return to the same HTTP runtime process that is rendering
+  the page, including during Vite development. Internal SSR requests carry a
+  process-local capability through a non-enumerable render-context property and
+  the redacted Authorization header; public routing markers alone grant no trust.
+  Do not point this origin at a load balancer or a different worker. Missing or
+  mismatched capabilities cannot bypass the cookie-origin check or choose a
+  tenant. Contextless prerender/development fallbacks have no capability, and
+  an in-flight render during a server reload may need to be requested again.
 - Auth0 callback URLs are registered out-of-band. Worktree-local generated
   ports keep stacks isolated, but authenticated Browser/Playwright validation
   needs a callback URL Auth0 accepts. On this machine, run Docker-backed

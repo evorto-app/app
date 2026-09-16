@@ -50,6 +50,42 @@ describe('Playwright storage state', () => {
     ).toThrow(SyntaxError);
   });
 
+  it.each([
+    { label: 'empty object', state: {} },
+    { label: 'unrecognized properties', state: { foo: 1 } },
+  ])('rejects $label instead of reusing recent state', ({ state }) => {
+    const statePath = createFixturePath();
+    writeFileSync(statePath, JSON.stringify(state));
+
+    expect(() => readStorageState(statePath)).toThrow('is invalid');
+    expect(() =>
+      isStorageStateFresh({
+        maxAgeMs: 60_000,
+        pathname: statePath,
+      }),
+    ).toThrow('is invalid');
+  });
+
+  it.each([
+    { label: 'empty cookies', state: { cookies: [] } },
+    { label: 'empty origins', state: { origins: [] } },
+    {
+      label: 'cookie-only fixtures',
+      state: { cookies: [{ name: 'appSession', value: 'session' }] },
+    },
+  ])('accepts $label as recognized state', ({ state }) => {
+    const statePath = createFixturePath();
+    writeFileSync(statePath, JSON.stringify(state));
+
+    expect(readStorageState(statePath)).toEqual(state);
+    expect(
+      isStorageStateFresh({
+        maxAgeMs: 60_000,
+        pathname: statePath,
+      }),
+    ).toBe(true);
+  });
+
   it('requires valid current storage state', () => {
     const statePath = createFixturePath();
     writeFileSync(statePath, JSON.stringify({ cookies: [{}] }));

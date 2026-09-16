@@ -30,6 +30,7 @@ const isStorageState = (value: unknown): value is StorageState => {
   const cookies = value['cookies'];
   const origins = value['origins'];
   return (
+    (cookies !== undefined || origins !== undefined) &&
     (cookies === undefined ||
       (Array.isArray(cookies) && cookies.every(isStorageCookie))) &&
     (origins === undefined || Array.isArray(origins))

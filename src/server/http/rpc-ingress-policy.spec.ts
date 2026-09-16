@@ -1,3 +1,4 @@
+import { Headers as EffectHeaders } from 'effect/unstable/http';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
@@ -18,8 +19,11 @@ interface RequestOptions {
   readonly url?: string;
 }
 
+const ssrRpcCapability = 'runtime-issued-test-capability';
+
 const defaultPolicyOptions: RpcIngressPolicyOptions = {
   applicationOrigin: 'https://tenant.example.com',
+  ssrRpcCapability,
   ssrRpcOrigin: undefined,
 };
 
@@ -59,6 +63,61 @@ const applyPolicy = (
 };
 
 describe('runRpcIngressPolicy', () => {
+  it('redacts the capability from Effect request-header diagnostics', () => {
+    const headers = EffectHeaders.fromInput({
+      Authorization: `Bearer ${ssrRpcCapability}`,
+    });
+    expect(JSON.stringify(headers)).not.toContain(ssrRpcCapability);
+    expect(JSON.stringify(headers)).toContain('<redacted>');
+  });
+  it.each([
+    undefined,
+    'Bearer forged-capability',
+    `Bearer ${ssrRpcCapability}, Bearer forged`,
+  ])(
+    'rejects spoofed loopback Host and public SSR markers with capability %s',
+    (authorization) => {
+      const { handler, result } = applyPolicy(
+        makeRequest({
+          cookie: 'appSession=session',
+          headers: {
+            ...(authorization && { Authorization: authorization }),
+            [trustedSsrSourceHeader]: trustedSsrSourceValue,
+            [trustedTenantDomainHeader]: 'attacker.example.com',
+          },
+          url: 'http://127.0.0.1:4200/rpc',
+        }),
+        {
+          applicationOrigin: 'http://127.0.0.1:4200',
+          ssrRpcCapability,
+          ssrRpcOrigin: 'http://127.0.0.1:4200',
+        },
+      );
+      expect(result.accepted).toBe(false);
+      if (!result.accepted) expect(result.response.status).toBe(403);
+      expect(handler).not.toHaveBeenCalled();
+    },
+  );
+
+  it('does not give an anonymous forged SSR caller tenant-routing authority', () => {
+    const { handler, result } = applyPolicy(
+      makeRequest({
+        headers: {
+          [trustedSsrSourceHeader]: trustedSsrSourceValue,
+          [trustedTenantDomainHeader]: 'attacker.example.com',
+        },
+        url: 'http://127.0.0.1:4200/rpc',
+      }),
+      {
+        applicationOrigin: 'http://127.0.0.1:4200',
+        ssrRpcCapability,
+        ssrRpcOrigin: 'http://127.0.0.1:4200',
+      },
+    );
+    expect(result.accepted).toBe(true);
+    expect(handler).toHaveBeenCalledWith({ trustedTenantDomain: undefined });
+  });
+
   it('passes same-origin JSON to the RPC handler', () => {
     const { handler, result } = applyPolicy(
       makeRequest({
@@ -80,6 +139,7 @@ describe('runRpcIngressPolicy', () => {
       }),
       {
         applicationOrigin: 'https://tenant.example.com',
+        ssrRpcCapability,
         ssrRpcOrigin: undefined,
       },
     );
@@ -157,6 +217,7 @@ describe('runRpcIngressPolicy', () => {
         makeRequest({
           cookie: 'appSession=session',
           headers: {
+            Authorization: `Bearer ${ssrRpcCapability}`,
             [trustedSsrSourceHeader]: trustedSsrSourceValue,
             [trustedTenantDomainHeader]: 'tenant.example.com',
           },
@@ -164,6 +225,7 @@ describe('runRpcIngressPolicy', () => {
         }),
         {
           applicationOrigin: 'http://127.0.0.1:4200',
+          ssrRpcCapability,
           ssrRpcOrigin: undefined,
         },
       );
@@ -183,6 +245,7 @@ describe('runRpcIngressPolicy', () => {
       makeRequest({
         cookie: 'appSession=session; evorto-tenant=attacker.example.com',
         headers: {
+          Authorization: `Bearer ${ssrRpcCapability}`,
           [trustedSsrSourceHeader]: trustedSsrSourceValue,
           [trustedTenantDomainHeader]: 'tenant.example.com',
         },
@@ -190,6 +253,7 @@ describe('runRpcIngressPolicy', () => {
       }),
       {
         applicationOrigin: 'http://127.0.0.1:4200',
+        ssrRpcCapability,
         ssrRpcOrigin: 'http://127.0.0.1:4200',
       },
     );
@@ -217,6 +281,7 @@ describe('runRpcIngressPolicy', () => {
       makeRequest({
         cookie: 'appSession=session',
         headers: {
+          Authorization: `Bearer ${ssrRpcCapability}`,
           [trustedSsrSourceHeader]: trustedSsrSourceValue,
           [trustedTenantDomainHeader]: 'tenant.example.com',
         },
@@ -224,6 +289,7 @@ describe('runRpcIngressPolicy', () => {
       }),
       {
         applicationOrigin: 'http://127.0.0.1:4200',
+        ssrRpcCapability,
         ssrRpcOrigin,
       },
     );
@@ -239,6 +305,7 @@ describe('runRpcIngressPolicy', () => {
     const { handler, result } = applyPolicy(
       makeRequest({
         headers: {
+          Authorization: `Bearer ${ssrRpcCapability}`,
           [trustedSsrSourceHeader]: trustedSsrSourceValue,
           [trustedTenantDomainHeader]: 'tenant.example.com',
         },
@@ -246,6 +313,7 @@ describe('runRpcIngressPolicy', () => {
       }),
       {
         applicationOrigin: 'http://127.0.0.1:4200',
+        ssrRpcCapability,
         ssrRpcOrigin: 'http://127.0.0.1:4200',
       },
     );
@@ -261,6 +329,7 @@ describe('runRpcIngressPolicy', () => {
       makeRequest({
         cookie: 'appSession=session',
         headers: {
+          Authorization: `Bearer ${ssrRpcCapability}`,
           [trustedSsrSourceHeader]: trustedSsrSourceValue,
           [trustedTenantDomainHeader]: 'attacker.example.com',
         },
@@ -295,6 +364,7 @@ describe('runRpcIngressPolicy', () => {
         makeRequest({
           cookie: 'appSession=session',
           headers: {
+            Authorization: `Bearer ${ssrRpcCapability}`,
             [trustedSsrSourceHeader]: trustedSsrSourceValue,
             [trustedTenantDomainHeader]: 'attacker.example.com',
           },
@@ -302,6 +372,7 @@ describe('runRpcIngressPolicy', () => {
         }),
         {
           applicationOrigin: new URL(url).origin,
+          ssrRpcCapability,
           ssrRpcOrigin: configuredOrigin,
         },
       );

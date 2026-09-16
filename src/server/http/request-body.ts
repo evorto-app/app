@@ -56,7 +56,7 @@ const concatenateChunks = (chunks: readonly Uint8Array[]) => {
   return body.buffer;
 };
 
-const cancelBody = Effect.fn('cancelRequestBody')(function* (
+export const discardRequestBody = Effect.fn('discardRequestBody')(function* (
   body: null | ReadableStream<Uint8Array>,
 ) {
   if (!body) {
@@ -153,14 +153,14 @@ export const readRequestBody = Effect.fn('readRequestBody')(function* (
 ) {
   const contentLength = request.headers.get('content-length');
   if (contentLength !== null && !contentLengthPattern.test(contentLength)) {
-    yield* cancelBody(request.body);
+    yield* discardRequestBody(request.body);
     return yield* new RequestBodyInvalidContentLengthError({
       contentLength,
     });
   }
 
   if (contentLength !== null && BigInt(contentLength) > BigInt(maxBytes)) {
-    yield* cancelBody(request.body);
+    yield* discardRequestBody(request.body);
     return yield* new RequestBodyTooLargeError({ maxBytes });
   }
 

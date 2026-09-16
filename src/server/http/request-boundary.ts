@@ -7,6 +7,7 @@ import {
 } from 'effect/unstable/http';
 
 import {
+  discardRequestBody,
   readRequestBody,
   type RequestBodyInvalidContentLengthError,
   type RequestBodyReadError,
@@ -216,6 +217,17 @@ export const makeRequestBoundaryMiddleware = (
           sourceRequest.method,
           new URL(boundary.url).pathname,
         );
+        if (
+          options.requestBodyLimit &&
+          maxBodyBytes === undefined &&
+          sourceRequest.method !== 'GET' &&
+          sourceRequest.method !== 'HEAD'
+        ) {
+          yield* discardRequestBody(body);
+          return applySecurityHeaders(
+            HttpServerResponse.empty({ status: 404 }),
+          );
+        }
         if (body && maxBodyBytes !== undefined) {
           const bodyResult = yield* readRequestBody(
             sourceRequest,

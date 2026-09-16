@@ -222,6 +222,104 @@ describe('request boundary', () => {
       }),
   );
 
+  it.effect('discards an unsupported body without waiting for its end', () =>
+    Effect.gen(function* () {
+      let cancelled = false;
+      let downstreamInvoked = false;
+      const body = new ReadableStream<Uint8Array>({
+        cancel() {
+          cancelled = true;
+        },
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode('held-open'));
+        },
+      });
+      const requestInit = {
+        body,
+        duplex: 'half',
+        headers: { host: 'tenant.example.com' },
+        method: 'POST',
+      } satisfies RequestInit & { duplex: 'half' };
+      const request = HttpServerRequest.fromWeb(
+        new Request('http://internal.example/unsupported', requestInit),
+      );
+
+      const response = yield* makeRequestBoundaryMiddleware({
+        requestBodyLimit: (method, pathname) =>
+          method === 'POST' && pathname === '/rpc' ? 1024 : undefined,
+        transportProtocol: 'http',
+        trustPlatformProxy: false,
+      })(
+        Effect.sync(() => {
+          downstreamInvoked = true;
+          return HttpServerResponse.empty({ status: 204 });
+        }),
+      ).pipe(
+        Effect.provideService(HttpServerRequest.HttpServerRequest, request),
+      );
+
+      expect(response.status).toBe(404);
+      expect(cancelled).toBe(true);
+      expect(downstreamInvoked).toBe(false);
+    }),
+  );
+
+  it.effect(
+    'preserves the unsupported response when body cancellation fails',
+    () =>
+      Effect.gen(function* () {
+        const body = new ReadableStream<Uint8Array>({
+          cancel() {
+            return Promise.reject(new Error('Client disconnected'));
+          },
+        });
+        const requestInit = {
+          body,
+          duplex: 'half',
+          headers: { host: 'tenant.example.com' },
+          method: 'POST',
+        } satisfies RequestInit & { duplex: 'half' };
+        const request = HttpServerRequest.fromWeb(
+          new Request('http://internal.example/unsupported', requestInit),
+        );
+
+        const response = yield* makeRequestBoundaryMiddleware({
+          requestBodyLimit: (method, pathname) =>
+            method === 'POST' && pathname === '/rpc' ? 1024 : undefined,
+          transportProtocol: 'http',
+          trustPlatformProxy: false,
+        })(Effect.die(new Error('Unsupported route reached downstream'))).pipe(
+          Effect.provideService(HttpServerRequest.HttpServerRequest, request),
+        );
+
+        expect(response.status).toBe(404);
+      }),
+  );
+
+  it.effect.each(['GET', 'HEAD'])(
+    'passes through %s when the configured policy has no body limit',
+    (method) =>
+      Effect.gen(function* () {
+        const request = HttpServerRequest.fromWeb(
+          new Request('http://internal.example/events', {
+            headers: { host: 'tenant.example.com' },
+            method,
+          }),
+        );
+
+        const response = yield* makeRequestBoundaryMiddleware({
+          requestBodyLimit: (method, pathname) =>
+            method === 'POST' && pathname === '/rpc' ? 1024 : undefined,
+          transportProtocol: 'http',
+          trustPlatformProxy: false,
+        })(Effect.succeed(HttpServerResponse.empty({ status: 204 }))).pipe(
+          Effect.provideService(HttpServerRequest.HttpServerRequest, request),
+        );
+
+        expect(response.status).toBe(204);
+      }),
+  );
+
   it.effect('rejects an oversized body before invoking downstream', () =>
     Effect.gen(function* () {
       const request = HttpServerRequest.fromWeb(

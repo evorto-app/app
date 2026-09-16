@@ -183,6 +183,13 @@ describe('readRequestBody', () => {
     expect(stderr).toBe('');
     expect(JSON.parse(stdout)).toEqual({
       aborted: 'RequestBodyReadError',
+      bodylessCleanup: [true, true],
+      bodylessDrains: [true, true],
+      bodylessGet: { body: 'bodyless response', status: 200 },
+      bodylessHead: { body: '', status: 200 },
+      bunUnsupportedBodyCancelled: true,
+      bunUnsupportedDownstreamInvoked: false,
+      bunUnsupportedStatus: 404,
       exact: { body: 'abcd', status: 200 },
       oversized: 'RequestBodyTooLargeError',
       oversizedStatus: 413,
@@ -211,6 +218,12 @@ describe('readRequestBody', () => {
     );
     expect(adapterSource).toContain('readNodeRequestBody(request, maxBytes)');
     expect(adapterSource).toContain('discardNodeRequestBody(request)');
+    expect(
+      adapterSource.slice(
+        adapterSource.indexOf("if (method === 'GET' || method === 'HEAD')"),
+        adapterSource.indexOf('const maxBytes = requestBodyLimit'),
+      ),
+    ).toContain('discardNodeRequestBody(request)');
     expect(adapterSource).not.toContain('drainNodeRequestBody');
     expect(adapterSource).not.toContain('createWebRequestFromNodeRequest');
     expect(adapterSource).not.toContain('nodeRequestAbortSignal');

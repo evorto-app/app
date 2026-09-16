@@ -1,7 +1,11 @@
-const canonicalOrigin = (baseUrl: string): string => new URL(baseUrl).origin;
+import type { HttpServerRequest } from 'effect/unstable/http/HttpServerRequest';
 
-export const createRobotsWebResponse = (baseUrl: string): Response => {
-  const origin = canonicalOrigin(baseUrl);
+import { resolveRequestOrigin } from '../auth/auth-session';
+
+export const createRobotsWebResponse = (
+  request: HttpServerRequest,
+): Response => {
+  const { origin } = resolveRequestOrigin(request);
   return new Response(
     [
       'User-agent: *',
@@ -19,8 +23,10 @@ export const createRobotsWebResponse = (baseUrl: string): Response => {
   );
 };
 
-export const createSitemapWebResponse = (baseUrl: string): Response => {
-  const origin = canonicalOrigin(baseUrl);
+export const createSitemapWebResponse = (
+  request: HttpServerRequest,
+): Response => {
+  const { origin } = resolveRequestOrigin(request);
   return new Response(
     [
       '<?xml version="1.0" encoding="UTF-8"?>',

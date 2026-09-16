@@ -122,10 +122,13 @@ import {
 import { validateRuntimeRoleConfiguration } from './server/runtime/runtime-role';
 import { stripeClientLayer } from './server/stripe-client';
 import { sanitizeRelativeRedirectPath } from './shared/auth-redirect';
+import { attachSsrRpcCapability } from './shared/request-routing';
 
 const angularApp = new AngularAppEngine({
   trustProxyHeaders: ['x-forwarded-proto'],
 });
+// Issued once by this HTTP runtime; never persisted or exposed through config.
+const ssrRpcCapability = crypto.randomUUID();
 const browserDistributionUrl = new URL('../browser/', import.meta.url);
 const cacheControlHeader = 'public, max-age=31536000';
 const notFoundServerResponse = HttpServerResponse.empty({ status: 404 });
@@ -301,7 +304,10 @@ const renderSsrWeb = (request: HttpServerRequest.HttpServerRequest) =>
 
     const webRequest = yield* HttpServerRequest.toWeb(request);
     const renderedResponse = yield* Effect.tryPromise(() =>
-      angularApp.handle(webRequest, requestContext),
+      angularApp.handle(
+        webRequest,
+        attachSsrRpcCapability(requestContext, ssrRpcCapability),
+      ),
     );
 
     return renderedResponse;
@@ -379,24 +385,19 @@ const versionRouteLayer = HttpLayerRouter.add('GET', '/version', () =>
   }).pipe(withoutServerTracing),
 );
 
-const robotsRouteLayer = HttpLayerRouter.add('GET', '/robots.txt', () =>
-  RuntimeConfig.use((runtime) =>
-    Effect.succeed(
-      HttpServerResponse.fromWeb(
-        createRobotsWebResponse(runtime.auth.BASE_URL),
-      ),
-    ),
+const robotsRouteLayer = HttpLayerRouter.add('GET', '/robots.txt', (request) =>
+  Effect.sync(() =>
+    HttpServerResponse.fromWeb(createRobotsWebResponse(request)),
   ),
 );
 
-const sitemapRouteLayer = HttpLayerRouter.add('GET', '/sitemap.xml', () =>
-  RuntimeConfig.use((runtime) =>
-    Effect.succeed(
-      HttpServerResponse.fromWeb(
-        createSitemapWebResponse(runtime.auth.BASE_URL),
-      ),
+const sitemapRouteLayer = HttpLayerRouter.add(
+  'GET',
+  '/sitemap.xml',
+  (request) =>
+    Effect.sync(() =>
+      HttpServerResponse.fromWeb(createSitemapWebResponse(request)),
     ),
-  ),
 );
 
 const browserErrorTelemetryRouteLayer = HttpLayerRouter.add(
@@ -653,6 +654,7 @@ const rpcRouteLayer = HttpLayerRouter.add('POST', rpcPath, (request) =>
         }),
       {
         applicationOrigin: resolveRequestOrigin(request).origin,
+        ssrRpcCapability,
         ssrRpcOrigin: Option.getOrUndefined(server.SSR_RPC_ORIGIN),
       },
     );
@@ -888,6 +890,7 @@ const toNodeWebRequest = async (request: IncomingMessage) => {
   }
 
   if (method === 'GET' || method === 'HEAD') {
+    discardNodeRequestBody(request);
     return new Request(requestBoundary.url, {
       headers: requestBoundary.headers,
       method,

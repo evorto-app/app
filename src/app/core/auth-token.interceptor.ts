@@ -3,6 +3,7 @@ import { HttpInterceptorFn } from '@angular/common/http';
 import { inject, PLATFORM_ID, REQUEST, REQUEST_CONTEXT } from '@angular/core';
 
 import {
+  readSsrRpcCapability,
   trustedSsrSourceHeader,
   trustedSsrSourceValue,
   trustedTenantDomainHeader,
@@ -21,6 +22,8 @@ const isInternalServerRpcRequest = (outgoingUrl: string): boolean => {
 
     return (
       outgoing.origin === trustedOrigin &&
+      outgoing.username === '' &&
+      outgoing.password === '' &&
       (outgoing.pathname === '/rpc' || outgoing.pathname === '/rpc/') &&
       outgoing.search === '' &&
       outgoing.hash === ''
@@ -44,13 +47,20 @@ export const authTokenInterceptor: HttpInterceptorFn = (request, next) => {
     } else {
       const incomingRequest = inject(REQUEST, { optional: true });
       const cookieHeader = incomingRequest?.headers.get('cookie');
+      const capability = readSsrRpcCapability(requestContext);
 
       // Auth0 sessions can span multiple encrypted, chunked cookies. Preserve
       // those chunks when present and pass the already resolved tenant through
       // the separately gated internal SSR route.
-      if (incomingRequest && isInternalServerRpcRequest(request.url)) {
+      if (
+        incomingRequest &&
+        capability &&
+        request.method === 'POST' &&
+        isInternalServerRpcRequest(request.url)
+      ) {
         request = request.clone({
           setHeaders: {
+            Authorization: `Bearer ${capability}`,
             ...(cookieHeader && { Cookie: cookieHeader }),
             [trustedSsrSourceHeader]: trustedSsrSourceValue,
             [trustedTenantDomainHeader]: requestContext.tenant.domain,
