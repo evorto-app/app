@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  computed,
   inject,
   Injectable,
   signal,
@@ -91,6 +92,7 @@ export class UserListComponent {
     this.operations.findRoles(),
   );
   private readonly filterInput = signal<UserListFilter>({});
+  protected readonly pageSize = computed(() => this.filterInput().limit ?? 100);
   protected readonly usersQuery = injectQuery(() =>
     this.operations.findUsers(this.filterInput()),
   );
