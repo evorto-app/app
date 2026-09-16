@@ -28,6 +28,7 @@ import {
   eventTemplates,
   platformAuditEntries,
   registrationTransfers,
+  tenantPrivacyPolicyVersions,
   tenants,
   transactions,
   users,
@@ -38,7 +39,10 @@ import {
   type RpcRequestContextShape,
 } from '../shared/rpc-contracts/app-rpcs';
 import { AdminTenantUpdateSettings } from '../shared/rpc-contracts/app-rpcs/admin.rpcs';
-import { GlobalAdminTenantsUpdate } from '../shared/rpc-contracts/app-rpcs/global-admin.rpcs';
+import {
+  GlobalAdminTenantsCreate,
+  GlobalAdminTenantsUpdate,
+} from '../shared/rpc-contracts/app-rpcs/global-admin.rpcs';
 import { PlatformAdministratorAuthority } from '../types/custom/platform-authority';
 import { Tenant } from '../types/custom/tenant';
 import { adminHandlers } from './effect/rpc/handlers/admin.handlers';
@@ -151,6 +155,25 @@ const waitForBlockedTenantLock = async (pool: Pool) => {
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
   throw new Error('Timed out waiting for blocked tenant URL migration lock');
+};
+
+const waitForBlockedDomainWrite = async (pool: Pool) => {
+  const deadline = Date.now() + 10_000;
+  while (Date.now() < deadline) {
+    const blocked = await pool.query<{ count: string }>(`
+      SELECT count(*)::text AS count
+      FROM pg_stat_activity
+      WHERE datname = current_database()
+        AND pid <> pg_backend_pid()
+        AND wait_event_type = 'Lock'
+        AND query ILIKE '%tenants%'
+        AND query NOT ILIKE '%FOR UPDATE%'
+        AND (query ILIKE 'insert%' OR query ILIKE 'update%')
+    `);
+    if (Number(blocked.rows[0]?.count ?? 0) >= 1) return;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error('Timed out waiting for a tenant-domain uniqueness collision');
 };
 
 class NoNetworkStripeHttpClient extends Stripe.HttpClient {
@@ -350,6 +373,9 @@ describe('tenant public URL migration serialization', () => {
       if (fixture.userId) {
         await database.delete(users).where(eq(users.id, fixture.userId));
       }
+      await database
+        .delete(tenantPrivacyPolicyVersions)
+        .where(eq(tenantPrivacyPolicyVersions.tenantId, fixture.tenantId));
       await database.delete(tenants).where(eq(tenants.id, fixture.tenantId));
     }
     await pool.end();
@@ -598,6 +624,157 @@ describe('tenant public URL migration serialization', () => {
     });
     expect(persistedTenant?.domain).toBe(domain);
   }, 30_000);
+  it.each(['create', 'update'] as const)(
+    'returns a typed domain conflict when a concurrent %s loses the unique-domain write',
+    async (kind) => {
+      const suffix = randomUUID().replaceAll('-', '').slice(0, 8);
+      const sourceId = makeId('source', suffix);
+      const competingId = makeId('winner', suffix);
+      const nextDomain = `${suffix}.claimed-domain.example`;
+      const originalDomain = `${suffix}.source-domain.example`;
+      fixtures.push({ tenantId: sourceId }, { tenantId: competingId });
+      await database.insert(tenants).values({
+        domain: originalDomain,
+        id: sourceId,
+        name: 'Original organization',
+      });
+      const original = Schema.decodeUnknownSync(Tenant)(
+        await database.query.tenants.findFirst({ where: { id: sourceId } }),
+      );
+      const context = createPlatformRequestContext({
+        ...original,
+        stripeAccountId: original.stripeAccountId ?? null,
+      });
+      const input = {
+        currency: original.currency,
+        domain: nextDomain,
+        name: 'Losing organization',
+        theme: original.theme,
+        timezone: original.timezone,
+      };
+      const operation =
+        kind === 'create'
+          ? globalAdminHandlers['globalAdmin.tenants.create'](
+              {
+                initialPrivacyPolicy: {
+                  privacyPolicyText: 'Fixture privacy policy',
+                  privacyPolicyUrl: '',
+                },
+                reason: 'Exercise concurrent domain creation',
+                tenant: input,
+              },
+              {
+                ...platformHandlerOptions,
+                rpc: GlobalAdminTenantsCreate.middleware(
+                  RpcRequestContextMiddleware,
+                ),
+              },
+            )
+          : globalAdminHandlers['globalAdmin.tenants.update'](
+              {
+                expectedSettings: platformTenantSettingsSnapshot(original),
+                id: sourceId,
+                reason: 'Exercise concurrent domain update',
+                tenant: input,
+              },
+              platformHandlerOptions,
+            );
+      const writer = await pool.connect();
+      let transactionOpen = false;
+      const failures: unknown[] = [];
+      let waitingResult: Promise<PromiseSettledResult<unknown>[]> | undefined;
+      try {
+        await writer.query('BEGIN');
+        transactionOpen = true;
+        await writer.query(
+          'INSERT INTO tenants (id, domain, name) VALUES ($1, $2, $3)',
+          [competingId, nextDomain, 'Winning organization'],
+        );
+        // This uncommitted claim is invisible to the handler preflight, but
+        // PostgreSQL makes the real INSERT/UPDATE wait on its unique index.
+        waitingResult = Promise.allSettled([
+          Effect.runPromise(
+            operation.pipe(
+              Effect.match({
+                onFailure: (error) => ({ error, status: 'failure' as const }),
+                onSuccess: (tenant) => ({ status: 'success' as const, tenant }),
+              }),
+              Effect.provide(
+                Layer.mergeAll(
+                  RpcAccess.Default,
+                  Layer.succeed(StripeClient, stripeClient),
+                  Layer.succeed(RpcRequestContext, context),
+                ),
+              ),
+              Effect.provide(makeDatabaseServiceLayer(databaseUrl)),
+            ),
+          ),
+        ]);
+        await waitForBlockedDomainWrite(pool);
+        await writer.query('COMMIT');
+        transactionOpen = false;
+        const [result] = await waitingResult;
+        if (!result)
+          throw new Error('Expected the losing domain operation result');
+        if (result.status === 'rejected') throw result.reason;
+        expect(result.value).toMatchObject({
+          error: {
+            _tag: 'RpcBadRequestError',
+            message: 'Organization domain already exists',
+            reason: nextDomain,
+          },
+          status: 'failure',
+        });
+        expect(
+          await database.query.tenants.findFirst({ where: { id: sourceId } }),
+        ).toMatchObject({
+          domain: originalDomain,
+          name: 'Original organization',
+        });
+        expect(
+          await database.query.tenants.findMany({
+            where: { domain: nextDomain },
+          }),
+        ).toMatchObject([{ id: competingId, name: 'Winning organization' }]);
+        expect(
+          await database.query.platformAuditEntries.findMany({
+            where: { targetTenantId: sourceId },
+          }),
+        ).toEqual([]);
+        expect(
+          await database.query.tenantPrivacyPolicyVersions.findMany({
+            where: { tenantId: sourceId },
+          }),
+        ).toEqual([]);
+      } catch (error) {
+        failures.push(error);
+      } finally {
+        if (transactionOpen) {
+          try {
+            await writer.query('ROLLBACK');
+          } catch (error) {
+            failures.push(error);
+          }
+        }
+        try {
+          writer.release();
+        } catch (error) {
+          failures.push(error);
+        }
+        for (const result of (await waitingResult) ?? []) {
+          if (result.status === 'rejected' && !failures.includes(result.reason))
+            failures.push(result.reason);
+        }
+      }
+      if (failures.length > 0)
+        throw new AggregateError(
+          failures,
+          'Concurrent domain-write regression failed',
+        );
+    },
+    30_000,
+  );
+
   it.each(['ordinary', 'platform'] as const)(
     'rejects a stale %s form after waiting for a concurrent settings commit and allows an explicit reload',
     async (kind) => {

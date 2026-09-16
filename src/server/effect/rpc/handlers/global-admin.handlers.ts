@@ -71,6 +71,7 @@ import {
   tenantCurrencyChangeBlockedErrorDetails,
   tenantHasCurrencyDependentData,
 } from '../../../tenant-currency-integrity';
+import { isUniqueConstraintViolation } from './events/database-constraint-errors';
 import { RpcAccess } from './shared/rpc-access.service';
 
 const databaseEffect = <A>(
@@ -78,7 +79,31 @@ const databaseEffect = <A>(
 ): Effect.Effect<A, never, Database> =>
   Database.use((database) => operation(database).pipe(Effect.orDie));
 
+// PostgreSQL names the schema's unnamed column UNIQUE constraint.
+const tenantDomainUniqueConstraint = 'tenants_domain_key';
+
+const tenantDomainAlreadyExists = (domain: string) =>
+  new RpcBadRequestError({
+    message: 'Organization domain already exists',
+    reason: domain,
+  });
+
+const databaseEffectWithTenantDomainError = <A>(
+  domain: string,
+  operation: (database: DatabaseClient) => Effect.Effect<A, unknown, never>,
+): Effect.Effect<A, RpcBadRequestError, Database> =>
+  Database.use((database) =>
+    operation(database).pipe(
+      Effect.catch((error) =>
+        isUniqueConstraintViolation(error, tenantDomainUniqueConstraint)
+          ? Effect.fail(tenantDomainAlreadyExists(domain))
+          : Effect.die(error),
+      ),
+    ),
+  );
+
 const databaseEffectWithTenantUpdateError = <A>(
+  domain: string,
   operation: (database: DatabaseClient) => Effect.Effect<A, unknown, never>,
 ): Effect.Effect<
   A,
@@ -90,11 +115,13 @@ const databaseEffectWithTenantUpdateError = <A>(
   Database.use((database) =>
     operation(database).pipe(
       Effect.catch((error) =>
-        error instanceof GlobalAdminTenantUrlMigrationBlockedError ||
-        error instanceof TenantSettingsConflictError ||
-        error instanceof RpcBadRequestError
-          ? Effect.fail(error)
-          : Effect.die(error),
+        isUniqueConstraintViolation(error, tenantDomainUniqueConstraint)
+          ? Effect.fail(tenantDomainAlreadyExists(domain))
+          : error instanceof GlobalAdminTenantUrlMigrationBlockedError ||
+              error instanceof TenantSettingsConflictError ||
+              error instanceof RpcBadRequestError
+            ? Effect.fail(error)
+            : Effect.die(error),
       ),
     ),
   );
@@ -452,64 +479,63 @@ export const globalAdminHandlers = {
       );
       if (existingDomainTenant) {
         return yield* Effect.fail(
-          new RpcBadRequestError({
-            message: 'Organization domain already exists',
-            reason: tenantInput.domain,
-          }),
+          tenantDomainAlreadyExists(tenantInput.domain),
         );
       }
 
-      return yield* databaseEffect((database) =>
-        database.transaction((transaction) =>
-          Effect.gen(function* () {
-            const createdTenants = yield* transaction
-              .insert(tenants)
-              .values({
-                ...tenantInput,
-                stripeAccountId: tenantInput.stripeAccountId ?? null,
-              })
-              .returning(globalAdminTenantReturningColumns);
-            const createdTenant = createdTenants[0];
-            if (!createdTenant) {
-              return yield* Effect.die(
-                new Error('Tenant creation returned no rows'),
-              );
-            }
+      return yield* databaseEffectWithTenantDomainError(
+        tenantInput.domain,
+        (database) =>
+          database.transaction((transaction) =>
+            Effect.gen(function* () {
+              const createdTenants = yield* transaction
+                .insert(tenants)
+                .values({
+                  ...tenantInput,
+                  stripeAccountId: tenantInput.stripeAccountId ?? null,
+                })
+                .returning(globalAdminTenantReturningColumns);
+              const createdTenant = createdTenants[0];
+              if (!createdTenant) {
+                return yield* Effect.die(
+                  new Error('Tenant creation returned no rows'),
+                );
+              }
 
-            const after = toGlobalAdminTenantRecord(createdTenant);
-            const createdPolicies = yield* transaction
-              .insert(tenantPrivacyPolicyVersions)
-              .values({
-                createdByUserId: null,
-                privacyPolicyText: initialPrivacyPolicy.privacyPolicyText,
-                privacyPolicyUrl: initialPrivacyPolicy.privacyPolicyUrl,
-                tenantId: after.id,
-                version: 1,
-              })
-              .returning({ id: tenantPrivacyPolicyVersions.id });
-            const createdPolicy = createdPolicies[0];
-            if (!createdPolicy) {
-              return yield* Effect.die(
-                new Error('Initial privacy policy creation returned no row'),
-              );
-            }
-            yield* transaction.insert(platformAuditEntries).values({
-              action: 'tenant.create',
-              actorEmail: authority.actorEmail,
-              actorId: authority.actorId,
-              after: toPlatformTenantAuditSnapshot(after, {
-                privacyPolicyDigestSha256:
-                  tenantPrivacyPolicyDigest(initialPrivacyPolicy),
-                privacyPolicyVersionId: createdPolicy.id,
-              }),
-              before: null,
-              reason,
-              targetTenantId: after.id,
-            });
+              const after = toGlobalAdminTenantRecord(createdTenant);
+              const createdPolicies = yield* transaction
+                .insert(tenantPrivacyPolicyVersions)
+                .values({
+                  createdByUserId: null,
+                  privacyPolicyText: initialPrivacyPolicy.privacyPolicyText,
+                  privacyPolicyUrl: initialPrivacyPolicy.privacyPolicyUrl,
+                  tenantId: after.id,
+                  version: 1,
+                })
+                .returning({ id: tenantPrivacyPolicyVersions.id });
+              const createdPolicy = createdPolicies[0];
+              if (!createdPolicy) {
+                return yield* Effect.die(
+                  new Error('Initial privacy policy creation returned no row'),
+                );
+              }
+              yield* transaction.insert(platformAuditEntries).values({
+                action: 'tenant.create',
+                actorEmail: authority.actorEmail,
+                actorId: authority.actorId,
+                after: toPlatformTenantAuditSnapshot(after, {
+                  privacyPolicyDigestSha256:
+                    tenantPrivacyPolicyDigest(initialPrivacyPolicy),
+                  privacyPolicyVersionId: createdPolicy.id,
+                }),
+                before: null,
+                reason,
+                targetTenantId: after.id,
+              });
 
-            return after;
-          }),
-        ),
+              return after;
+            }),
+          ),
       );
     }),
   'globalAdmin.tenants.findMany': (_payload, _options) =>
@@ -556,10 +582,7 @@ export const globalAdminHandlers = {
       );
       if (existingDomainTenant && existingDomainTenant.id !== id) {
         return yield* Effect.fail(
-          new RpcBadRequestError({
-            message: 'Organization domain already exists',
-            reason: tenantInput.domain,
-          }),
+          tenantDomainAlreadyExists(tenantInput.domain),
         );
       }
 
@@ -590,157 +613,159 @@ export const globalAdminHandlers = {
           );
       }
 
-      return yield* databaseEffectWithTenantUpdateError((database) =>
-        database.transaction((transaction) =>
-          Effect.gen(function* () {
-            const beforeRows = yield* transaction
-              .select(globalAdminTenantReturningColumns)
-              .from(tenants)
-              .where(eq(tenants.id, id))
-              .for('update');
-            const beforeTenant = beforeRows[0];
-            if (!beforeTenant) {
-              return yield* Effect.die(
-                new Error('Tenant disappeared during platform update'),
-              );
-            }
+      return yield* databaseEffectWithTenantUpdateError(
+        tenantInput.domain,
+        (database) =>
+          database.transaction((transaction) =>
+            Effect.gen(function* () {
+              const beforeRows = yield* transaction
+                .select(globalAdminTenantReturningColumns)
+                .from(tenants)
+                .where(eq(tenants.id, id))
+                .for('update');
+              const beforeTenant = beforeRows[0];
+              if (!beforeTenant) {
+                return yield* Effect.die(
+                  new Error('Tenant disappeared during platform update'),
+                );
+              }
 
-            if (
-              !Schema.toEquivalence(PlatformTenantSettingsSnapshot)(
-                input.expectedSettings,
-                platformTenantSettingsSnapshot(beforeTenant),
-              )
-            ) {
-              return yield* tenantSettingsConflict();
-            }
+              if (
+                !Schema.toEquivalence(PlatformTenantSettingsSnapshot)(
+                  input.expectedSettings,
+                  platformTenantSettingsSnapshot(beforeTenant),
+                )
+              ) {
+                return yield* tenantSettingsConflict();
+              }
 
-            const tenantPublicUrlChanged =
-              beforeTenant.domain !== tenantInput.domain;
-            if (tenantPublicUrlChanged) {
-              // The tenant row is the serialization lock shared with Checkout
-              // and transfer-offer creation. Keep these existence reads
-              // unlocked: transfer claim flows lock transfer rows before the
-              // tenant, so reversing that order here would invite deadlocks.
-              const pendingStripeObligations =
-                yield* tenantHasPendingStripeObligations(transaction, id);
-              const activeRegistrationTransfers =
-                yield* tenantHasActiveRegistrationTransfers(transaction, id);
-              if (pendingStripeObligations || activeRegistrationTransfers) {
-                return yield* new GlobalAdminTenantUrlMigrationBlockedError({
-                  activeRegistrationTransfers,
-                  message:
-                    'Organization public URL cannot change while issued links are active',
-                  pendingStripeObligations,
-                  reason: tenantUrlMigrationBlockedReason({
+              const tenantPublicUrlChanged =
+                beforeTenant.domain !== tenantInput.domain;
+              if (tenantPublicUrlChanged) {
+                // The tenant row is the serialization lock shared with Checkout
+                // and transfer-offer creation. Keep these existence reads
+                // unlocked: transfer claim flows lock transfer rows before the
+                // tenant, so reversing that order here would invite deadlocks.
+                const pendingStripeObligations =
+                  yield* tenantHasPendingStripeObligations(transaction, id);
+                const activeRegistrationTransfers =
+                  yield* tenantHasActiveRegistrationTransfers(transaction, id);
+                if (pendingStripeObligations || activeRegistrationTransfers) {
+                  return yield* new GlobalAdminTenantUrlMigrationBlockedError({
                     activeRegistrationTransfers,
+                    message:
+                      'Organization public URL cannot change while issued links are active',
                     pendingStripeObligations,
-                  }),
-                  tenantId: id,
-                });
-              }
-            }
-
-            let rotationPlan: StripeTaxRateAccountRotationPlan | undefined;
-            if (beforeTenant.stripeAccountId !== nextStripeAccountId) {
-              const hasPendingStripeObligations =
-                yield* tenantHasPendingStripeObligations(transaction, id);
-              if (hasPendingStripeObligations) {
-                return yield* new RpcBadRequestError({
-                  message:
-                    'Stripe account cannot change while registration Checkouts or refunds are pending',
-                  reason:
-                    'Complete or cancel every pending Checkout and refund before changing the connected account.',
-                });
-              }
-
-              if (nextStripeAccountId === null) {
-                const hasPaidEventConfiguration =
-                  yield* tenantHasPaidEventConfiguration(transaction, id);
-                if (hasPaidEventConfiguration) {
-                  return yield* new RpcBadRequestError(
-                    stripeAccountRemovalBlockedByPaidConfigurationErrorDetails,
-                  );
-                }
-                const hasStripeTaxRateConfiguration =
-                  yield* tenantHasStripeTaxRateConfiguration(transaction, id);
-                if (hasStripeTaxRateConfiguration) {
-                  return yield* new RpcBadRequestError(
-                    stripeAccountRemovalBlockedByTaxConfigurationErrorDetails,
-                  );
-                }
-              } else if (beforeTenant.stripeAccountId) {
-                rotationPlan = yield* planStripeTaxRateAccountRotation(
-                  transaction,
-                  {
-                    sourceStripeAccountId: beforeTenant.stripeAccountId,
-                    targetRates: stripeTaxRateRotationTargets,
-                    targetStripeAccountId: nextStripeAccountId,
+                    reason: tenantUrlMigrationBlockedReason({
+                      activeRegistrationTransfers,
+                      pendingStripeObligations,
+                    }),
                     tenantId: id,
-                  },
-                );
-              } else {
-                const hasStripeTaxRateConfiguration =
-                  yield* tenantHasStripeTaxRateConfiguration(transaction, id);
-                if (hasStripeTaxRateConfiguration) {
+                  });
+                }
+              }
+
+              let rotationPlan: StripeTaxRateAccountRotationPlan | undefined;
+              if (beforeTenant.stripeAccountId !== nextStripeAccountId) {
+                const hasPendingStripeObligations =
+                  yield* tenantHasPendingStripeObligations(transaction, id);
+                if (hasPendingStripeObligations) {
+                  return yield* new RpcBadRequestError({
+                    message:
+                      'Stripe account cannot change while registration Checkouts or refunds are pending',
+                    reason:
+                      'Complete or cancel every pending Checkout and refund before changing the connected account.',
+                  });
+                }
+
+                if (nextStripeAccountId === null) {
+                  const hasPaidEventConfiguration =
+                    yield* tenantHasPaidEventConfiguration(transaction, id);
+                  if (hasPaidEventConfiguration) {
+                    return yield* new RpcBadRequestError(
+                      stripeAccountRemovalBlockedByPaidConfigurationErrorDetails,
+                    );
+                  }
+                  const hasStripeTaxRateConfiguration =
+                    yield* tenantHasStripeTaxRateConfiguration(transaction, id);
+                  if (hasStripeTaxRateConfiguration) {
+                    return yield* new RpcBadRequestError(
+                      stripeAccountRemovalBlockedByTaxConfigurationErrorDetails,
+                    );
+                  }
+                } else if (beforeTenant.stripeAccountId) {
+                  rotationPlan = yield* planStripeTaxRateAccountRotation(
+                    transaction,
+                    {
+                      sourceStripeAccountId: beforeTenant.stripeAccountId,
+                      targetRates: stripeTaxRateRotationTargets,
+                      targetStripeAccountId: nextStripeAccountId,
+                      tenantId: id,
+                    },
+                  );
+                } else {
+                  const hasStripeTaxRateConfiguration =
+                    yield* tenantHasStripeTaxRateConfiguration(transaction, id);
+                  if (hasStripeTaxRateConfiguration) {
+                    return yield* new RpcBadRequestError(
+                      stripeAccountRemovalBlockedByTaxConfigurationErrorDetails,
+                    );
+                  }
+                }
+
+                yield* transaction
+                  .delete(tenantStripeTaxRates)
+                  .where(eq(tenantStripeTaxRates.tenantId, id));
+              }
+
+              if (beforeTenant.currency !== tenantInput.currency) {
+                const hasCurrencyDependentData =
+                  yield* tenantHasCurrencyDependentData(transaction, id);
+                if (hasCurrencyDependentData) {
                   return yield* new RpcBadRequestError(
-                    stripeAccountRemovalBlockedByTaxConfigurationErrorDetails,
+                    tenantCurrencyChangeBlockedErrorDetails,
                   );
                 }
               }
 
-              yield* transaction
-                .delete(tenantStripeTaxRates)
-                .where(eq(tenantStripeTaxRates.tenantId, id));
-            }
-
-            if (beforeTenant.currency !== tenantInput.currency) {
-              const hasCurrencyDependentData =
-                yield* tenantHasCurrencyDependentData(transaction, id);
-              if (hasCurrencyDependentData) {
-                return yield* new RpcBadRequestError(
-                  tenantCurrencyChangeBlockedErrorDetails,
+              const updatedTenants = yield* transaction
+                .update(tenants)
+                .set({
+                  ...tenantInput,
+                  stripeAccountId: nextStripeAccountId,
+                })
+                .where(eq(tenants.id, id))
+                .returning(globalAdminTenantReturningColumns);
+              const updatedTenant = updatedTenants[0];
+              if (!updatedTenant) {
+                return yield* Effect.die(
+                  new Error('Tenant update returned no rows'),
                 );
               }
-            }
+              if (rotationPlan) {
+                // Source metadata was removed with the old account; restore
+                // only the provider-verified target-account matches.
+                yield* applyStripeTaxRateAccountRotation(
+                  transaction,
+                  rotationPlan,
+                );
+              }
 
-            const updatedTenants = yield* transaction
-              .update(tenants)
-              .set({
-                ...tenantInput,
-                stripeAccountId: nextStripeAccountId,
-              })
-              .where(eq(tenants.id, id))
-              .returning(globalAdminTenantReturningColumns);
-            const updatedTenant = updatedTenants[0];
-            if (!updatedTenant) {
-              return yield* Effect.die(
-                new Error('Tenant update returned no rows'),
-              );
-            }
-            if (rotationPlan) {
-              // Source metadata was removed with the old account; restore
-              // only the provider-verified target-account matches.
-              yield* applyStripeTaxRateAccountRotation(
-                transaction,
-                rotationPlan,
-              );
-            }
+              const before = toGlobalAdminTenantRecord(beforeTenant);
+              const after = toGlobalAdminTenantRecord(updatedTenant);
+              yield* transaction.insert(platformAuditEntries).values({
+                action: 'tenant.update',
+                actorEmail: authority.actorEmail,
+                actorId: authority.actorId,
+                after: toPlatformTenantAuditSnapshot(after),
+                before: toPlatformTenantAuditSnapshot(before),
+                reason,
+                targetTenantId: id,
+              });
 
-            const before = toGlobalAdminTenantRecord(beforeTenant);
-            const after = toGlobalAdminTenantRecord(updatedTenant);
-            yield* transaction.insert(platformAuditEntries).values({
-              action: 'tenant.update',
-              actorEmail: authority.actorEmail,
-              actorId: authority.actorId,
-              after: toPlatformTenantAuditSnapshot(after),
-              before: toPlatformTenantAuditSnapshot(before),
-              reason,
-              targetTenantId: id,
-            });
-
-            return after;
-          }),
-        ),
+              return after;
+            }),
+          ),
       );
     }),
 } satisfies Partial<AppRpcHandlers>;

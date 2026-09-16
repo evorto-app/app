@@ -4,6 +4,7 @@ import { DOCUMENT } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
+  DestroyRef,
   inject,
   input,
   linkedSignal,
@@ -25,7 +26,10 @@ import {
   faArrowLeft,
   faCircleInfo,
 } from '@fortawesome/duotone-regular-svg-icons';
-import { TenantSettingsConflictError } from '@shared/tenant-settings-snapshot';
+import {
+  platformTenantSettingsSnapshot,
+  TenantSettingsConflictError,
+} from '@shared/tenant-settings-snapshot';
 import {
   injectMutation,
   injectQuery,
@@ -110,6 +114,7 @@ export class TenantEditComponent {
   private readonly queryClient = inject(QueryClient);
   private readonly router = inject(Router);
   private readonly document = inject(DOCUMENT);
+  private readonly destroyRef = inject(DestroyRef);
 
   protected errorMessage(error: unknown): string {
     return getErrorMessage(error, 'Failed to load organization');
@@ -117,18 +122,21 @@ export class TenantEditComponent {
 
   protected async updateTenant(event: Event): Promise<void> {
     event.preventDefault();
+    const tenantId = this.tenantId();
     const expectedSettings = this.tenantModel().expectedSettings;
     if (
       !expectedSettings ||
       this.settingsConflict() ||
+      this.tenantForm().submitting() ||
       this.updateTenantMutation.isPending()
     ) {
       return;
     }
     await submit(this.tenantForm, async (formState) => {
+      const submittedModel = formState().value();
       const payload = (() => {
         try {
-          return globalAdminTenantPayloadFromForm(formState().value());
+          return globalAdminTenantPayloadFromForm(submittedModel);
         } catch (error) {
           this.notifications.showError(
             globalAdminTenantDomainValidationMessage(error),
@@ -141,51 +149,67 @@ export class TenantEditComponent {
         return;
       }
 
-      this.updateTenantMutation.mutate(
-        {
+      let updatedTenant: GlobalAdminTenantRecord;
+      try {
+        updatedTenant = await this.updateTenantMutation.mutateAsync({
           ...payload,
           expectedSettings,
-          id: this.tenantId(),
-        },
-        {
-          onError: (error) => {
-            if (
-              Schema.is(TenantSettingsConflictError)(error) &&
-              this.tenantModel().expectedSettings === expectedSettings
-            ) {
-              this.settingsConflict.set(true);
-            }
-            this.notifications.showError(
-              globalAdminTenantUpdateErrorMessage(error),
-            );
-          },
-          onSuccess: async (updatedTenant) => {
-            this.queryClient.setQueriesData<GlobalAdminTenantRecord | null>(
-              this.rpc.queryFilter(['globalAdmin', 'tenants.findOne']),
-              (tenant) =>
-                tenant?.id === updatedTenant.id ? updatedTenant : tenant,
-            );
-            this.queryClient.setQueriesData<GlobalAdminTenantRecord[]>(
-              this.rpc.queryFilter(['globalAdmin', 'tenants.findMany']),
-              (tenants) =>
-                tenants?.map((tenant) =>
-                  tenant.id === updatedTenant.id ? updatedTenant : tenant,
-                ) ?? tenants,
-            );
-            await this.queryClient.invalidateQueries(
-              this.rpc.queryFilter(['globalAdmin', 'tenants.findMany']),
-            );
-            await this.queryClient.invalidateQueries(
-              this.rpc.queryFilter(['globalAdmin', 'tenants.findOne']),
-            );
-            this.notifications.showSuccess('Organization updated');
-            await this.router.navigate([
-              '/global-admin/tenants',
-              this.tenantId(),
-            ]);
-          },
-        },
+          id: tenantId,
+        });
+      } catch (error) {
+        if (this.destroyRef.destroyed) return;
+        if (
+          Schema.is(TenantSettingsConflictError)(error) &&
+          this.tenantId() === tenantId &&
+          this.tenantModel().expectedSettings === expectedSettings
+        ) {
+          this.settingsConflict.set(true);
+        }
+        this.notifications.showError(
+          globalAdminTenantUpdateErrorMessage(error),
+        );
+        return;
+      }
+
+      const currentModel = this.tenantModel();
+      const savedModel = {
+        ...currentModel,
+        expectedSettings: platformTenantSettingsSnapshot(updatedTenant),
+      };
+      if (
+        !this.destroyRef.destroyed &&
+        updatedTenant.id === tenantId &&
+        this.tenantId() === tenantId &&
+        currentModel.expectedSettings === expectedSettings
+      ) {
+        this.tenantModel.set(savedModel);
+      }
+      this.queryClient.setQueriesData<GlobalAdminTenantRecord | null>(
+        this.rpc.queryFilter(['globalAdmin', 'tenants.findOne']),
+        (tenant) => (tenant?.id === updatedTenant.id ? updatedTenant : tenant),
       );
+      this.queryClient.setQueriesData<GlobalAdminTenantRecord[]>(
+        this.rpc.queryFilter(['globalAdmin', 'tenants.findMany']),
+        (tenants) =>
+          tenants?.map((tenant) =>
+            tenant.id === updatedTenant.id ? updatedTenant : tenant,
+          ) ?? tenants,
+      );
+      await this.queryClient.invalidateQueries(
+        this.rpc.queryFilter(['globalAdmin', 'tenants.findMany']),
+      );
+      await this.queryClient.invalidateQueries(
+        this.rpc.queryFilter(['globalAdmin', 'tenants.findOne']),
+      );
+      if (this.destroyRef.destroyed) return;
+      this.notifications.showSuccess('Organization updated');
+      if (
+        this.tenantId() === tenantId &&
+        currentModel === submittedModel &&
+        this.tenantModel() === savedModel
+      ) {
+        await this.router.navigate(['/global-admin/tenants', tenantId]);
+      }
     });
   }
 

@@ -1,5 +1,8 @@
 import type { ComponentFixture } from '@angular/core/testing';
-import type { GlobalAdminTenantRecord } from '@shared/rpc-contracts/app-rpcs/global-admin.rpcs';
+import type {
+  GlobalAdminTenantRecord,
+  GlobalAdminTenantUpdateInput,
+} from '@shared/rpc-contracts/app-rpcs/global-admin.rpcs';
 
 import { DOCUMENT } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
@@ -21,13 +24,18 @@ import { TenantEditComponent } from './tenant-edit.component';
 
 describe('platform tenant stale-edit recovery', () => {
   const loadTenant = vi.fn<() => Promise<GlobalAdminTenantRecord>>();
-  const save = vi.fn();
+  const save =
+    vi.fn<
+      (input: GlobalAdminTenantUpdateInput) => Promise<GlobalAdminTenantRecord>
+    >();
+  const releases: (() => void)[] = [];
   const showError = vi.fn();
   let initialTenant: GlobalAdminTenantRecord;
   let queryClient: QueryClient;
   let fixture: ComponentFixture<TenantEditComponent> | undefined;
 
   beforeEach(async () => {
+    releases.length = 0;
     loadTenant.mockReset();
     save.mockReset();
     showError.mockReset();
@@ -83,8 +91,10 @@ describe('platform tenant stale-edit recovery', () => {
     vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    for (const release of releases) release();
     fixture?.destroy();
+    await queryClient.cancelQueries();
     queryClient.clear();
     TestBed.resetTestingModule();
     vi.restoreAllMocks();
@@ -101,6 +111,246 @@ describe('platform tenant stale-edit recovery', () => {
     });
     return rendered;
   };
+
+  const hold = <Value>(value: Value) => {
+    const response = new Subject<Value>();
+    const promise = firstValueFrom(response);
+    const resolve = () => {
+      response.next(value);
+      response.complete();
+    };
+    releases.push(resolve);
+    return { promise, resolve };
+  };
+
+  const editForm = (rendered: ComponentFixture<TenantEditComponent>) => {
+    const name: HTMLInputElement | null =
+      rendered.nativeElement.querySelector('input');
+    const reason: HTMLTextAreaElement | null =
+      rendered.nativeElement.querySelector('textarea');
+    const form: HTMLFormElement | null =
+      rendered.nativeElement.querySelector('form');
+    const button = form?.querySelector('button[type="submit"]');
+    if (!name || !reason || !form || !(button instanceof HTMLButtonElement))
+      throw new Error('Tenant edit form not rendered');
+    return { button, form, name, reason };
+  };
+
+  const enter = (
+    input: HTMLInputElement | HTMLTextAreaElement,
+    value: string,
+  ) => {
+    input.value = value;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  };
+
+  const submitForm = (form: HTMLFormElement) => {
+    form.dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true }),
+    );
+  };
+
+  it('keeps Save disabled through both refreshes and navigation, then advances the next save snapshot', async () => {
+    const saved = { ...initialTenant, name: 'Saved organization' };
+    const mutation = hold(saved);
+    const listRefresh = hold(undefined);
+    const detailRefresh = hold(undefined);
+    const navigation = hold(false);
+    save.mockReturnValueOnce(mutation.promise);
+    const invalidate = vi
+      .spyOn(queryClient, 'invalidateQueries')
+      .mockReturnValueOnce(listRefresh.promise)
+      .mockReturnValueOnce(detailRefresh.promise)
+      .mockResolvedValue();
+    const navigate = vi.mocked(TestBed.inject(Router).navigate);
+    navigate.mockReturnValueOnce(navigation.promise).mockResolvedValue(false);
+    const rendered = await render();
+    const { button, form, name, reason } = editForm(rendered);
+    enter(name, saved.name);
+    enter(reason, 'Correct organization name');
+    submitForm(form);
+    await vi.waitFor(() => expect(save).toHaveBeenCalledOnce());
+    const assertSaveStillPending = () => {
+      rendered.detectChanges();
+      expect(button.disabled).toBe(true);
+      submitForm(form);
+      expect(save).toHaveBeenCalledOnce();
+    };
+    assertSaveStillPending();
+
+    mutation.resolve();
+    await vi.waitFor(() => expect(invalidate).toHaveBeenCalledTimes(1));
+    expect(invalidate).toHaveBeenNthCalledWith(1, { queryKey: ['tenants'] });
+    assertSaveStillPending();
+    expect(navigate).not.toHaveBeenCalled();
+
+    listRefresh.resolve();
+    await vi.waitFor(() => expect(invalidate).toHaveBeenCalledTimes(2));
+    expect(invalidate).toHaveBeenNthCalledWith(2, { queryKey: ['tenant'] });
+    assertSaveStillPending();
+    expect(navigate).not.toHaveBeenCalled();
+
+    detailRefresh.resolve();
+    await vi.waitFor(() => expect(navigate).toHaveBeenCalledOnce());
+    expect(navigate).toHaveBeenCalledWith([
+      '/global-admin/tenants',
+      initialTenant.id,
+    ]);
+    assertSaveStillPending();
+
+    navigation.resolve();
+    await vi.waitFor(() => {
+      rendered.detectChanges();
+      expect(button.disabled).toBe(false);
+    });
+    enter(name, 'Second saved name');
+    enter(reason, 'Save another correction');
+    save.mockResolvedValueOnce({ ...saved, name: 'Second saved name' });
+    submitForm(form);
+    await vi.waitFor(() => expect(save).toHaveBeenCalledTimes(2));
+    expect(save.mock.calls[1]?.[0]).toMatchObject({
+      expectedSettings: platformTenantSettingsSnapshot(saved),
+      id: initialTenant.id,
+      reason: 'Save another correction',
+      tenant: { name: 'Second saved name' },
+    });
+    await vi.waitFor(() => {
+      rendered.detectChanges();
+      expect(button.disabled).toBe(false);
+    });
+    expect(showError).not.toHaveBeenCalled();
+  });
+
+  it.each(['mutation', 'refresh'] as const)(
+    'preserves edits made during %s and uses the saved snapshot for the next save',
+    async (stage) => {
+      const saved = { ...initialTenant, name: 'Submitted name' };
+      const mutation = hold(saved);
+      const refresh = hold(undefined);
+      save.mockReturnValueOnce(mutation.promise);
+      const invalidate = vi
+        .spyOn(queryClient, 'invalidateQueries')
+        .mockReturnValueOnce(refresh.promise)
+        .mockResolvedValue();
+      const navigate = vi.mocked(TestBed.inject(Router).navigate);
+      navigate.mockResolvedValue(false);
+      const rendered = await render();
+      const { button, form, name, reason } = editForm(rendered);
+      enter(name, saved.name);
+      enter(reason, 'Save submitted name');
+      submitForm(form);
+      await vi.waitFor(() => expect(save).toHaveBeenCalledOnce());
+      if (stage === 'refresh') {
+        mutation.resolve();
+        await vi.waitFor(() => expect(invalidate).toHaveBeenCalledOnce());
+      }
+      enter(name, 'Newer unsaved name');
+      enter(reason, 'Keep my newer explanation');
+      mutation.resolve();
+      await vi.waitFor(() => expect(invalidate).toHaveBeenCalledOnce());
+      refresh.resolve();
+      await vi.waitFor(() => {
+        rendered.detectChanges();
+        expect(button.disabled).toBe(false);
+      });
+      expect(name.value).toBe('Newer unsaved name');
+      expect(reason.value).toBe('Keep my newer explanation');
+      expect(navigate).not.toHaveBeenCalled();
+      expect(queryClient.getQueryData(['tenant', initialTenant.id])).toEqual(
+        saved,
+      );
+
+      save.mockResolvedValueOnce({ ...saved, name: 'Newer unsaved name' });
+      submitForm(form);
+      await vi.waitFor(() => expect(save).toHaveBeenCalledTimes(2));
+      expect(save.mock.calls[1]?.[0]).toMatchObject({
+        expectedSettings: platformTenantSettingsSnapshot(saved),
+        reason: 'Keep my newer explanation',
+        tenant: { name: 'Newer unsaved name' },
+      });
+      await vi.waitFor(() => {
+        rendered.detectChanges();
+        expect(button.disabled).toBe(false);
+      });
+      expect(form.querySelector('[role="alert"]')).toBeNull();
+    },
+  );
+
+  it.each(['mutation', 'refresh'] as const)(
+    'does not replace or navigate another tenant when the first save finishes during %s',
+    async (stage) => {
+      const saved = { ...initialTenant, name: 'Saved first organization' };
+      const mutation = hold(saved);
+      const refresh = hold(undefined);
+      save.mockReturnValueOnce(mutation.promise);
+      const invalidate = vi
+        .spyOn(queryClient, 'invalidateQueries')
+        .mockReturnValueOnce(refresh.promise)
+        .mockResolvedValue();
+      const navigate = vi.mocked(TestBed.inject(Router).navigate);
+      navigate.mockResolvedValue(false);
+      const rendered = await render();
+      const first = editForm(rendered);
+      enter(first.name, saved.name);
+      enter(first.reason, 'Save first organization');
+      submitForm(first.form);
+      await vi.waitFor(() => expect(save).toHaveBeenCalledOnce());
+      if (stage === 'refresh') {
+        mutation.resolve();
+        await vi.waitFor(() => expect(invalidate).toHaveBeenCalledOnce());
+      }
+
+      const nextTenant = {
+        ...initialTenant,
+        domain: 'second.example.test',
+        id: 'tenant-2',
+        name: 'Second organization',
+      };
+      loadTenant.mockResolvedValue(nextTenant);
+      rendered.componentRef.setInput('tenantId', nextTenant.id);
+      await vi.waitFor(() => {
+        rendered.detectChanges();
+        expect(editForm(rendered).name.value).toBe(nextTenant.name);
+      });
+      const second = editForm(rendered);
+      enter(second.name, 'Second organization draft');
+      enter(second.reason, 'Save second organization draft');
+      mutation.resolve();
+      await vi.waitFor(() => expect(invalidate).toHaveBeenCalledOnce());
+      refresh.resolve();
+      await vi.waitFor(() => {
+        rendered.detectChanges();
+        expect(second.button.disabled).toBe(false);
+      });
+      expect(second.name.value).toBe('Second organization draft');
+      expect(second.reason.value).toBe('Save second organization draft');
+      expect(second.form.querySelector('[role="alert"]')).toBeNull();
+      expect(navigate).not.toHaveBeenCalled();
+      expect(queryClient.getQueryData(['tenant', initialTenant.id])).toEqual(
+        saved,
+      );
+
+      save.mockResolvedValueOnce({
+        ...nextTenant,
+        name: 'Second organization draft',
+      });
+      submitForm(second.form);
+      await vi.waitFor(() => expect(save).toHaveBeenCalledTimes(2));
+      expect(save.mock.calls[1]?.[0]).toMatchObject({
+        expectedSettings: platformTenantSettingsSnapshot(nextTenant),
+        id: nextTenant.id,
+        tenant: { name: 'Second organization draft' },
+      });
+      await vi.waitFor(() => {
+        rendered.detectChanges();
+        expect(second.button.disabled).toBe(false);
+      });
+      expect(navigate).toHaveBeenCalledExactlyOnceWith([
+        '/global-admin/tenants',
+        nextTenant.id,
+      ]);
+    },
+  );
 
   it('sends the original snapshot after refetch, keeps rejected edits, and requires explicit reload before another save', async () => {
     const rendered = await render();
