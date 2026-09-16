@@ -27,22 +27,33 @@ import { MatChipsModule } from '@angular/material/chips';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faCircleXmark } from '@fortawesome/duotone-regular-svg-icons';
+import { RoleLookupNotFoundError } from '@shared/rpc-contracts/app-rpcs/roles.errors';
 import { injectQuery } from '@tanstack/angular-query-experimental';
+import { injectQueries } from '@tanstack/angular-query-experimental/inject-queries-experimental';
+import { Schema } from 'effect';
 
 import { AppRpc } from '../../../../core/effect-rpc-angular-client';
+import {
+  ROLE_SELECTION_VALIDATOR,
+  type RoleSelectionValidator,
+} from './role-selection.schema';
 
 interface SelectedRoleView {
   readonly id: string;
   readonly name: string;
-  readonly unavailable: boolean;
+  readonly status: 'available' | 'loading' | 'missing' | 'unknown';
 }
 
 @Injectable({ providedIn: 'root' })
 export class RoleSelectQueries {
   private readonly rpc = AppRpc.injectClient();
 
-  catalog() {
-    return this.rpc.roles.findMany.queryOptions({});
+  search(search: string) {
+    return this.rpc.roles.findMany.queryOptions({ search });
+  }
+
+  selected(id: string) {
+    return { ...this.rpc.roles.findOne.queryOptions({ id }), retry: false };
   }
 }
 
@@ -56,64 +67,80 @@ export class RoleSelectQueries {
     MatChipsModule,
     FormField,
   ],
+  providers: [
+    { provide: ROLE_SELECTION_VALIDATOR, useExisting: RoleSelectComponent },
+  ],
   selector: 'app-role-select',
   styles: ``,
   templateUrl: './role-select.component.html',
 })
-export class RoleSelectComponent implements FormValueControl<string[]> {
+export class RoleSelectComponent
+  implements FormValueControl<string[]>, RoleSelectionValidator
+{
   readonly disabled = input<boolean>(false);
   readonly hidden = input<boolean>(false);
   readonly readonly = input<boolean>(false);
-  private readonly queries = inject(RoleSelectQueries);
-  protected readonly rolesQuery = injectQuery(() => this.queries.catalog());
   readonly value = model<string[]>([]);
-
-  protected readonly selectedRoles = computed<readonly SelectedRoleView[]>(
-    () => {
-      if (!this.rolesQuery.isSuccess()) return [];
-      const catalog = new Map(
-        this.rolesQuery.data().map((role) => [role.id, role]),
-      );
-      return this.value().map((roleId) => {
-        const role = catalog.get(roleId);
-        return role
-          ? { id: role.id, name: role.name, unavailable: false }
-          : { id: roleId, name: 'Unavailable role', unavailable: true };
-      });
-    },
-  );
-  protected readonly unavailableSelectedRoleCount = computed(
-    () => this.selectedRoles().filter((role) => role.unavailable).length,
-  );
-  readonly selectionValid = computed(
-    () =>
-      this.rolesQuery.isSuccess() && this.unavailableSelectedRoleCount() === 0,
-  );
   readonly separatorKeysCodes: number[] = [ENTER, COMMA];
   readonly touched = model<boolean>(false);
+  private readonly queries = inject(RoleSelectQueries);
   protected readonly searchModel = signal({ query: '' });
   protected readonly searchForm = form(this.searchModel, (schema) => {
-    debounce(schema, 300);
-    disabled(
-      schema.query,
-      () => this.disabled() || this.readonly() || !this.rolesQuery.isSuccess(),
-    );
+    debounce(schema.query, 300);
+    disabled(schema.query, () => this.disabled() || this.readonly());
   });
-  protected readonly searchValue = computed(
-    () => this.searchForm().value().query,
+  protected readonly rolesQuery = injectQuery(() =>
+    this.queries.search(this.searchForm.query().value().trim()),
+  );
+  private readonly selectedRoleIds = computed(() => [...new Set(this.value())]);
+  private readonly selectedRoleQueries = injectQueries(() => ({
+    queries: this.selectedRoleIds().map((id) => this.queries.selected(id)),
+  }));
+  protected readonly selectedRoles = computed<readonly SelectedRoleView[]>(() =>
+    this.selectedRoleIds().map((id, index) => {
+      const query = this.selectedRoleQueries()[index];
+      if (query?.isSuccess() && query.data().id === id) {
+        return { id, name: query.data().name, status: 'available' };
+      }
+      const error = query?.error();
+      if (Schema.is(RoleLookupNotFoundError)(error) && error.id === id) {
+        return { id, name: `Unavailable role (${id})`, status: 'missing' };
+      }
+      return {
+        id,
+        name: `Role ${id}`,
+        status: query?.isError() ? 'unknown' : 'loading',
+      };
+    }),
+  );
+  protected readonly unavailableSelectedRoleCount = computed(
+    () =>
+      this.selectedRoles().filter((role) => role.status === 'missing').length,
+  );
+  protected readonly selectedRolesUnverified = computed(() =>
+    this.selectedRoles().some((role) => role.status === 'unknown'),
+  );
+  protected readonly selectedRolesLoading = computed(() =>
+    this.selectedRoles().some((role) => role.status === 'loading'),
+  );
+  protected readonly rolesFetching = computed(
+    () =>
+      this.rolesQuery.isFetching() ||
+      this.selectedRoleQueries().some((query) => query.isFetching()),
+  );
+  readonly selectionValid = computed(
+    () => this.validate(this.value()).length === 0,
   );
   protected readonly availableRoles = computed<readonly RoleLookupRecord[]>(
     () => {
-      if (!this.rolesQuery.isSuccess()) return [];
+      if (
+        this.searchForm.query().controlValue().trim() !==
+          this.searchForm.query().value().trim() ||
+        !this.rolesQuery.isSuccess()
+      )
+        return [];
       const selected = new Set(this.value());
-      const search = this.searchValue().trim().toLowerCase();
-      return this.rolesQuery
-        .data()
-        .filter(
-          (role) =>
-            !selected.has(role.id) &&
-            (search.length === 0 || role.name.toLowerCase().includes(search)),
-        );
+      return this.rolesQuery.data().filter((role) => !selected.has(role.id));
     },
   );
   protected faCircleXmark = faCircleXmark;
@@ -121,6 +148,38 @@ export class RoleSelectComponent implements FormValueControl<string[]> {
   protected readonly hasChipGridRole = computed(
     () => this.searchInputHasValue() || this.selectedRoles().length > 0,
   );
+
+  validate(roleIds: readonly string[]) {
+    const selected = new Map(
+      this.selectedRoles().map((role) => [role.id, role]),
+    );
+    if (roleIds.some((id) => selected.get(id)?.status === 'missing')) {
+      return [
+        {
+          kind: 'roleMissing',
+          message: 'Remove unavailable roles before saving.',
+        },
+      ];
+    }
+    return roleIds.some((id) => selected.get(id)?.status !== 'available')
+      ? [
+          {
+            kind: 'roleUnverified',
+            message:
+              'Wait for selected roles to be verified, or remove them before saving.',
+          },
+        ]
+      : [];
+  }
+
+  async retry() {
+    await Promise.all([
+      ...(this.rolesQuery.isError() ? [this.rolesQuery.refetch()] : []),
+      ...this.selectedRoleQueries()
+        .filter((query) => query.isError())
+        .map((query) => query.refetch()),
+    ]);
+  }
 
   add() {
     if (this.disabled() || this.readonly()) return;
@@ -147,10 +206,11 @@ export class RoleSelectComponent implements FormValueControl<string[]> {
 
   selected(event: MatAutocompleteSelectedEvent) {
     if (this.disabled() || this.readonly()) return;
-    this.value.set([
-      ...this.value().filter((roleId) => roleId !== event.option.value),
-      event.option.value,
-    ]);
+    const role = this.availableRoles().find(
+      (option) => option.id === event.option.value,
+    );
+    if (!role) return;
+    this.value.set([...this.value().filter((id) => id !== role.id), role.id]);
     this.touched.set(true);
     this.searchForm.query().value.set('');
     this.searchInputHasValue.set(false);

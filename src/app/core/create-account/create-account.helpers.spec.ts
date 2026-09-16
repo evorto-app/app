@@ -1,4 +1,7 @@
-import { TenantOnboardingRequirementsChangedError } from '@shared/rpc-contracts/app-rpcs/onboarding.errors';
+import {
+  TenantOnboardingRequirementsChangedError,
+  TenantOnboardingValidationError,
+} from '@shared/rpc-contracts/app-rpcs/onboarding.errors';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -253,13 +256,44 @@ describe('isAuthEmailVerifiedForAccountCreation', () => {
 });
 
 describe('createAccountErrorMessage', () => {
-  it('does not expose an unapproved domain error message', () => {
+  it.each([
+    new TenantOnboardingRequirementsChangedError({
+      message: 'Requirements changed; review and submit again',
+    }),
+    new TenantOnboardingValidationError({
+      field: 'communicationEmail',
+      message: 'Enter a valid notification email address.',
+    }),
+  ])('shows the recoverable onboarding outcome $_tag', (error) => {
+    expect(createAccountErrorMessage(error)).toBe(error.message);
+  });
+
+  it.each([
+    { _tag: 'RpcUnauthorizedError', message: 'Private authentication detail' },
+    {
+      _tag: 'RpcInternalServerError',
+      message: 'Private infrastructure detail',
+    },
+    {
+      _tag: 'EventRegistrationConflictError',
+      message: 'An unrelated product outcome',
+    },
+    Object.assign(new Error('Private infrastructure detail'), {
+      _tag: 'TenantOnboardingValidationError',
+    }),
+  ])('keeps unsafe or unrelated details hidden', (error) => {
+    expect(createAccountErrorMessage(error)).toBe(
+      'Failed to complete organization setup',
+    );
+  });
+
+  it('accepts a serialized onboarding outcome', () => {
     expect(
       createAccountErrorMessage({
         _tag: 'TenantOnboardingRequirementsChangedError',
         message: 'Requirements changed; review and submit again',
       }),
-    ).toBe('Failed to complete organization setup');
+    ).toBe('Requirements changed; review and submit again');
   });
 
   it('falls back to account creation copy for unknown failures', () => {

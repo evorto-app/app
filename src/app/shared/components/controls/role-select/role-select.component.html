@@ -9,8 +9,12 @@
       @for (role of selectedRoles(); track role.id) {
         <mat-chip-row (removed)="remove(role.id)">
           {{ role.name }}
-          @if (role.unavailable) {
+          @if (role.status === "missing") {
             <span class="text-error"> (no longer available)</span>
+          } @else if (role.status === "unknown") {
+            <span class="text-error"> (could not be verified)</span>
+          } @else if (role.status === "loading") {
+            <span> (checking…)</span>
           }
           <button
             type="button"
@@ -56,21 +60,31 @@
       saving.
     </p>
   }
-  @if (rolesQuery.isError()) {
+  @if (rolesQuery.isError() || selectedRolesUnverified()) {
     <div class="text-error grid gap-2 text-sm" role="alert">
-      <p>Roles could not be loaded. Existing selections were not changed.</p>
+      @if (rolesQuery.isError()) {
+        <p>
+          Role search could not be loaded. Existing selections were not changed.
+        </p>
+      }
+      @if (selectedRolesUnverified()) {
+        <p>
+          Selected roles could not be verified. Retry or remove unverified
+          selections before saving.
+        </p>
+      }
       <div>
         <button
           type="button"
           mat-stroked-button
-          [disabled]="rolesQuery.isFetching()"
-          (click)="rolesQuery.refetch()"
+          [disabled]="rolesFetching()"
+          (click)="retry()"
         >
-          {{ rolesQuery.isFetching() ? "Trying again…" : "Try again" }}
+          {{ rolesFetching() ? "Trying again…" : "Try again" }}
         </button>
       </div>
     </div>
-  } @else if (!rolesQuery.isSuccess()) {
+  } @else if (!rolesQuery.isSuccess() || selectedRolesLoading()) {
     <p class="text-on-surface-variant text-sm" role="status">Loading roles…</p>
   }
 }

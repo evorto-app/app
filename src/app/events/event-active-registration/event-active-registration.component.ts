@@ -663,7 +663,10 @@ export class EventActiveRegistrationComponent {
   }
 
   protected errorMessage(error: unknown): string {
-    return getErrorMessage(error, 'Cancellation failed');
+    return getErrorMessage(error, 'Cancellation failed', [
+      'EventRegistrationConflictError',
+      'EventRegistrationNotFoundError',
+    ]);
   }
 
   protected pendingCheckoutUrlInvalid(
@@ -746,7 +749,10 @@ export class EventActiveRegistrationComponent {
   }
 
   protected transferErrorMessage(error: unknown): string {
-    return getErrorMessage(error, 'Transfer failed');
+    return getErrorMessage(error, 'Transfer failed', [
+      'RegistrationTransferConflictError',
+      'RegistrationTransferNotFoundError',
+    ]);
   }
 
   protected updateAddonQuantity(
@@ -802,9 +808,13 @@ export class EventActiveRegistrationComponent {
     const refreshCopy = refreshed
       ? ''
       : 'The latest ticket status could not be refreshed. ';
+    const message = getErrorMessage(input.error, 'Add-on purchase failed', [
+      'EventRegistrationConflictError',
+      'EventRegistrationNotFoundError',
+    ]);
     this.setPurchaseNotice(input.key, {
       kind: 'error',
-      message: `${getErrorMessage(input.error, 'Add-on purchase failed')} ${refreshCopy}Trying again will not create a duplicate purchase. If the checkout has expired, reload this page and start the add-on purchase again.`,
+      message: `${message} ${refreshCopy}Trying again will not create a duplicate purchase. If the checkout has expired, reload this page and start the add-on purchase again.`,
     });
   }
 

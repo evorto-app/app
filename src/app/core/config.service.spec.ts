@@ -89,8 +89,19 @@ describe('ConfigService theme initialization', () => {
       TestBed.inject(DOCUMENT).documentElement.classList.contains(themeClass),
     );
 
+  const configuredThemeColors = () =>
+    Array.from(
+      TestBed.inject(DOCUMENT).querySelectorAll<HTMLMetaElement>(
+        'meta[name="theme-color"]',
+      ),
+      (tag) => ({ content: tag.content, media: tag.getAttribute('media') }),
+    );
+
   afterEach(() => {
     document.documentElement.classList.remove('theme-evorto', 'theme-esn');
+    for (const tag of document.querySelectorAll('meta[name="theme-color"]')) {
+      tag.remove();
+    }
     queryClient.clear();
     TestBed.resetTestingModule();
   });
@@ -100,16 +111,51 @@ describe('ConfigService theme initialization', () => {
 
     await config.initialize();
     expect(configuredThemeClasses()).toEqual(['theme-evorto']);
+    expect(configuredThemeColors()).toEqual([
+      { content: '#fcf9f2', media: '(prefers-color-scheme: light)' },
+      { content: '#131410', media: '(prefers-color-scheme: dark)' },
+    ]);
 
     await config.initialize();
     expect(configuredThemeClasses()).toEqual(['theme-esn']);
+    expect(configuredThemeColors()).toEqual([
+      { content: '#f5faff', media: '(prefers-color-scheme: light)' },
+      { content: '#0f1418', media: '(prefers-color-scheme: dark)' },
+    ]);
   });
 
-  it('applies the request tenant theme during server initialization', async () => {
-    const config = configure(createTenant('esn'));
+  it.each([
+    { dark: '#131410', light: '#fcf9f2', theme: 'evorto' },
+    { dark: '#0f1418', light: '#f5faff', theme: 'esn' },
+  ] as const)(
+    'applies the request $theme theme and browser chrome colors during server initialization',
+    async ({ dark, light, theme }) => {
+      const config = configure(createTenant(theme));
+
+      await config.initialize();
+
+      expect(configuredThemeClasses()).toEqual([`theme-${theme}`]);
+      expect(configuredThemeColors()).toEqual([
+        { content: light, media: '(prefers-color-scheme: light)' },
+        { content: dark, media: '(prefers-color-scheme: dark)' },
+      ]);
+    },
+  );
+
+  it('refreshes browser chrome colors when the tenant query changes', async () => {
+    const config = configure();
 
     await config.initialize();
+    TestBed.tick();
+    queryClient.setQueryData(['config', 'tenant'], createTenant('esn'));
 
-    expect(configuredThemeClasses()).toEqual(['theme-esn']);
+    await vi.waitFor(() => {
+      TestBed.tick();
+      expect(configuredThemeClasses()).toEqual(['theme-esn']);
+      expect(configuredThemeColors()).toEqual([
+        { content: '#f5faff', media: '(prefers-color-scheme: light)' },
+        { content: '#0f1418', media: '(prefers-color-scheme: dark)' },
+      ]);
+    });
   });
 });

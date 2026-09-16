@@ -21,6 +21,13 @@ describe('tenantTimezoneLabel', () => {
   it('surfaces invalid persisted values without displaying them', () => {
     expect(tenantTimezoneLabel('not-a-timezone')).toBe('Time zone unavailable');
   });
+
+  it.each(['constructor', 'toString', '__proto__', 'hasOwnProperty'])(
+    'rejects inherited object property %s as a time zone',
+    (timezone) => {
+      expect(tenantTimezoneLabel(timezone)).toBe('Time zone unavailable');
+    },
+  );
 });
 
 describe('countryLabel', () => {

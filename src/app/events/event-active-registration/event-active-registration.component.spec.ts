@@ -7,6 +7,16 @@ import type {
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MatDialog } from '@angular/material/dialog';
 import {
+  EventRegistrationConflictError,
+  EventRegistrationInternalError,
+  EventRegistrationNotFoundError,
+} from '@shared/rpc-contracts/app-rpcs/events.errors';
+import {
+  RegistrationTransferConflictError,
+  RegistrationTransferInternalError,
+  RegistrationTransferNotFoundError,
+} from '@shared/rpc-contracts/app-rpcs/registration-transfers.errors';
+import {
   provideTanStackQuery,
   QueryClient,
 } from '@tanstack/angular-query-experimental';
@@ -508,6 +518,27 @@ const cancelTransfer = vi.fn();
 const createTransfer = vi.fn();
 const dialogOpen = vi.fn();
 
+const registrationFailureCases = [
+  {
+    error: new EventRegistrationConflictError({
+      message: 'This registration changed. Reload and try again.',
+    }),
+    expectedMessage: 'This registration changed. Reload and try again.',
+  },
+  {
+    error: new EventRegistrationNotFoundError({
+      message: 'This registration is no longer available.',
+    }),
+    expectedMessage: 'This registration is no longer available.',
+  },
+  {
+    error: new EventRegistrationInternalError({
+      message: 'Private registration infrastructure detail',
+    }),
+    expectedMessage: null,
+  },
+];
+
 const normalizeText = (
   fixture: ComponentFixture<EventActiveRegistrationComponent>,
 ): string => fixture.nativeElement.textContent.replaceAll(/\s+/g, ' ').trim();
@@ -638,6 +669,84 @@ describe('EventActiveRegistrationComponent add-on purchase', () => {
       registrationId: 'registration-1',
     });
   });
+
+  it.each(registrationFailureCases)(
+    'shows only safe cancellation details for $error._tag',
+    async ({ error, expectedMessage }) => {
+      cancelRegistration.mockRejectedValue(error);
+      dialogOpen.mockReturnValue({ afterClosed: () => of(true) });
+      const fixture = render(registrationStatus());
+
+      findButton(fixture, 'Cancel registration')?.click();
+
+      await vi.waitFor(async () => {
+        await fixture.whenStable();
+        expect(cancelRegistration).toHaveBeenCalledOnce();
+        expect(normalizeText(fixture)).toContain(
+          expectedMessage ?? 'Cancellation failed',
+        );
+        expect(normalizeText(fixture)).not.toContain('Private registration');
+      });
+    },
+  );
+
+  it.each([
+    {
+      error: new RegistrationTransferConflictError({
+        message: 'This ticket already has an active transfer.',
+      }),
+      expectedMessage: 'This ticket already has an active transfer.',
+    },
+    {
+      error: new RegistrationTransferNotFoundError({
+        message: 'This transfer is no longer available.',
+      }),
+      expectedMessage: 'This transfer is no longer available.',
+    },
+    {
+      error: new RegistrationTransferInternalError({
+        message: 'Private transfer infrastructure detail',
+      }),
+      expectedMessage: 'Transfer failed',
+    },
+  ])(
+    'shows only safe transfer details for $error._tag',
+    async ({ error, expectedMessage }) => {
+      createTransfer.mockRejectedValue(error);
+      const fixture = render(registrationStatus());
+
+      findButton(fixture, 'Create transfer link')?.click();
+
+      await vi.waitFor(async () => {
+        await fixture.whenStable();
+        expect(createTransfer).toHaveBeenCalledOnce();
+        expect(normalizeText(fixture)).toContain(expectedMessage);
+        expect(normalizeText(fixture)).not.toContain('Private transfer');
+      });
+    },
+  );
+
+  it.each(registrationFailureCases)(
+    'shows only safe add-on purchase details for $error._tag',
+    async ({ error, expectedMessage }) => {
+      purchaseAddon.mockRejectedValue(error);
+      const fixture = render(registrationStatus());
+
+      findButton(fixture, 'Add to ticket')?.click();
+
+      await vi.waitFor(async () => {
+        await fixture.whenStable();
+        expect(purchaseAddon).toHaveBeenCalledOnce();
+        expect(normalizeText(fixture)).toContain(
+          expectedMessage ?? 'Add-on purchase failed',
+        );
+        expect(normalizeText(fixture)).not.toContain('Private registration');
+        expect(normalizeText(fixture)).toContain(
+          'Trying again will not create a duplicate purchase.',
+        );
+      });
+    },
+  );
 
   it('keeps independently granted organizer authority after organizer/helper cancellation', async () => {
     dialogOpen.mockReturnValue({ afterClosed: () => of(true) });

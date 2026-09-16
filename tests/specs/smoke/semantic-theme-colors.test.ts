@@ -1,6 +1,6 @@
 import { expect, type Page, test } from '@playwright/test';
 
-const themes = ['theme-evorto', 'theme-classic', 'theme-esn'] as const;
+const themes = ['theme-evorto', 'theme-esn'] as const;
 const colorSchemes = ['light', 'dark'] as const;
 const semanticPairs = [
   {
@@ -56,16 +56,6 @@ const expectedPrimaryChannels = {
     light: {
       increased: [1, 18, 146],
       standard: [69, 82, 196],
-    },
-  },
-  'theme-classic': {
-    dark: {
-      increased: [219, 244, 255],
-      standard: [108, 211, 247],
-    },
-    light: {
-      increased: [0, 49, 62],
-      standard: [0, 103, 128],
     },
   },
   'theme-esn': {
@@ -158,17 +148,11 @@ test('success and warning roles stay legible across all themes and contrast mode
   page,
 }) => {
   await page.goto('/events');
-  await expect(page.locator('html')).toHaveClass(
-    /theme-(?:classic|esn|evorto)/,
-  );
+  await expect(page.locator('html')).toHaveClass(/theme-(?:esn|evorto)/);
 
   for (const theme of themes) {
     await page.evaluate((selectedTheme) => {
-      document.documentElement.classList.remove(
-        'theme-evorto',
-        'theme-classic',
-        'theme-esn',
-      );
+      document.documentElement.classList.remove('theme-evorto', 'theme-esn');
       document.documentElement.classList.add(selectedTheme);
     }, theme);
 
@@ -223,6 +207,47 @@ test('success and warning roles stay legible across all themes and contrast mode
         colorChannels(increasedMaterialPairs[0].background).map(Math.round),
         `${theme} ${colorScheme} increased-contrast primary role`,
       ).toEqual(expectedPrimaryChannels[theme][colorScheme].increased);
+    }
+  }
+});
+
+test('browser chrome follows the tenant surface in light and dark color schemes', async ({
+  page,
+}) => {
+  await page.goto('/events');
+  await expect(page.locator('html')).toHaveClass(/theme-(?:esn|evorto)/);
+  await expect(page.locator('meta[name="theme-color"]')).toHaveCount(2);
+
+  for (const colorScheme of colorSchemes) {
+    for (const contrast of ['no-preference', 'more'] as const) {
+      await page.emulateMedia({ colorScheme, contrast });
+      const themeColor = await page.evaluate(() => {
+        const activeTags = Array.from(
+          document.querySelectorAll<HTMLMetaElement>(
+            'meta[name="theme-color"]',
+          ),
+        ).filter(
+          (tag) => window.matchMedia(tag.getAttribute('media') ?? '').matches,
+        );
+        if (activeTags.length !== 1) {
+          throw new Error('Expected exactly one active browser chrome color');
+        }
+        const probe = document.createElement('span');
+        probe.style.backgroundColor = activeTags[0].content;
+        return probe.style.backgroundColor;
+      });
+      const [surface] = await readRenderedPairs(page, [
+        {
+          background: '--mat-sys-surface',
+          foreground: '--mat-sys-on-surface',
+          label: 'surface',
+        },
+      ]);
+
+      expect(
+        colorChannels(themeColor).map(Math.round),
+        `${colorScheme} ${contrast} browser chrome matches the theme surface`,
+      ).toEqual(colorChannels(surface.background).map(Math.round));
     }
   }
 });

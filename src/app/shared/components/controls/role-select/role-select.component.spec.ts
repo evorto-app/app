@@ -1,17 +1,24 @@
+import type { RoleLookupRecord } from '@shared/rpc-contracts/app-rpcs/roles.rpcs';
+
 import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
+import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { apply, form, FormField, submit } from '@angular/forms/signals';
 import { MatChipGridHarness } from '@angular/material/chips/testing';
 import { MatFormFieldHarness } from '@angular/material/form-field/testing';
+import { RoleLookupNotFoundError } from '@shared/rpc-contracts/app-rpcs/roles.errors';
 import {
   provideTanStackQuery,
   QueryClient,
 } from '@tanstack/angular-query-experimental';
+import { firstValueFrom, Subject } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   RoleSelectComponent,
   RoleSelectQueries,
 } from './role-select.component';
+import { roleSelectionSchema } from './role-selection.schema';
 
 const role = {
   defaultOrganizerRole: true,
@@ -26,13 +33,47 @@ const financeRole = {
   name: 'Finance',
 };
 
+@Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [FormField, RoleSelectComponent],
+  template: `
+    <app-role-select [formField]="roleForm.roleIds" />
+    <button type="button" [disabled]="roleForm().invalid()">Save</button>
+  `,
+})
+class RoleSelectFormHost {
+  readonly model = signal({ roleIds: [role.id] });
+  readonly roleForm = form(this.model, (fields) => {
+    apply(fields.roleIds, roleSelectionSchema);
+  });
+}
+
+const resolveRole = async (id: string) => {
+  const selected = [role, financeRole].find((candidate) => candidate.id === id);
+  if (!selected)
+    throw new RoleLookupNotFoundError({ id, message: 'Role not found' });
+  return selected;
+};
+
 describe('RoleSelectComponent', () => {
   let fixture: ComponentFixture<RoleSelectComponent>;
-  const loadRoles = vi.fn(async () => [role, financeRole]);
+  const loadRoles = vi.fn(async (search: string) =>
+    [role, financeRole].filter((candidate) =>
+      candidate.name.toLowerCase().includes(search.toLowerCase()),
+    ),
+  );
+  const loadRole = vi.fn(resolveRole);
   let queryClient: QueryClient;
 
   beforeEach(async () => {
-    loadRoles.mockReset().mockResolvedValue([role, financeRole]);
+    loadRoles
+      .mockReset()
+      .mockImplementation(async (search: string) =>
+        [role, financeRole].filter((candidate) =>
+          candidate.name.toLowerCase().includes(search.toLowerCase()),
+        ),
+      );
+    loadRole.mockReset().mockImplementation(resolveRole);
     queryClient = new QueryClient({
       defaultOptions: {
         queries: {
@@ -43,15 +84,19 @@ describe('RoleSelectComponent', () => {
     });
 
     await TestBed.configureTestingModule({
-      imports: [RoleSelectComponent],
+      imports: [RoleSelectComponent, RoleSelectFormHost],
       providers: [
         provideTanStackQuery(queryClient),
         {
           provide: RoleSelectQueries,
           useValue: {
-            catalog: () => ({
-              queryFn: loadRoles,
-              queryKey: ['roles', 'catalog'],
+            search: (search: string) => ({
+              queryFn: () => loadRoles(search),
+              queryKey: ['roles', 'search', search],
+            }),
+            selected: (id: string) => ({
+              queryFn: () => loadRole(id),
+              queryKey: ['roles', 'selected', id],
             }),
           },
         },
@@ -226,7 +271,7 @@ describe('RoleSelectComponent', () => {
     const removeButton = (
       fixture.nativeElement as HTMLElement
     ).querySelector<HTMLButtonElement>(
-      'button[aria-label="Remove Unavailable role"]',
+      'button[aria-label="Remove Unavailable role (missing-role)"]',
     );
     if (!removeButton) throw new Error('Expected the unavailable-role action');
     removeButton.click();
@@ -236,27 +281,29 @@ describe('RoleSelectComponent', () => {
     expect(fixture.componentInstance.selectionValid()).toBe(true);
   });
 
-  it('keeps an unavailable catalog distinct from an empty catalog and retries', async () => {
+  it('preserves resolved selected chips when role search fails and retries the search', async () => {
     loadRoles
       .mockRejectedValueOnce(new Error('Role provider unavailable'))
       .mockResolvedValue([role, financeRole]);
 
-    await queryClient.resetQueries({ queryKey: ['roles', 'catalog'] });
+    await queryClient.resetQueries({ queryKey: ['roles', 'search'] });
 
     await vi.waitFor(async () => {
       await fixture.whenStable();
       expect(fixture.nativeElement.textContent).toContain(
-        'Roles could not be loaded.',
+        'Role search could not be loaded.',
       );
       expect(
         (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>(
           'input[placeholder="Add role…"]',
         )?.disabled,
-      ).toBe(true);
+      ).toBe(false);
     });
     expect(fixture.nativeElement.querySelectorAll('mat-chip-row')).toHaveLength(
-      0,
+      1,
     );
+    expect(fixture.componentInstance.value()).toEqual([role.id]);
+    expect(fixture.componentInstance.selectionValid()).toBe(true);
 
     const retry = [
       ...(
@@ -269,7 +316,7 @@ describe('RoleSelectComponent', () => {
     await vi.waitFor(async () => {
       await fixture.whenStable();
       expect(fixture.nativeElement.textContent).not.toContain(
-        'Roles could not be loaded.',
+        'Role search could not be loaded.',
       );
       expect(
         fixture.nativeElement.querySelector(
@@ -299,5 +346,221 @@ describe('RoleSelectComponent', () => {
 
     expect(fixture.componentInstance.value()).toEqual([]);
     expect(fixture.componentInstance.touched()).toBe(true);
+  });
+
+  it('preserves unverified IDs as removable chips and resolves them after retry', async () => {
+    loadRole.mockRejectedValueOnce(new Error('Lookup unavailable'));
+    await queryClient.resetQueries({ queryKey: ['roles', 'selected'] });
+
+    await vi.waitFor(async () => {
+      await fixture.whenStable();
+      expect(fixture.nativeElement.textContent).toContain(
+        'Selected roles could not be verified.',
+      );
+      expect(fixture.nativeElement.textContent).toContain(
+        'Role role-organizer',
+      );
+      expect(fixture.nativeElement.textContent).not.toContain(
+        'no longer exists',
+      );
+      expect(
+        fixture.nativeElement.querySelector(
+          'button[aria-label="Remove Role role-organizer"]',
+        ),
+      ).not.toBeNull();
+      expect(fixture.componentInstance.selectionValid()).toBe(false);
+    });
+    expect(fixture.componentInstance.value()).toEqual([role.id]);
+
+    await fixture.componentInstance.retry();
+    await vi.waitFor(async () => {
+      await fixture.whenStable();
+      expect(
+        fixture.nativeElement.querySelector(
+          'button[aria-label="Remove Organizer"]',
+        ),
+      ).not.toBeNull();
+      expect(fixture.componentInstance.selectionValid()).toBe(true);
+    });
+
+    loadRole.mockRejectedValueOnce(new Error('Lookup unavailable'));
+    await queryClient.resetQueries({ queryKey: ['roles', 'selected'] });
+    await vi.waitFor(async () => {
+      await fixture.whenStable();
+      expect(
+        fixture.nativeElement.querySelector(
+          'button[aria-label="Remove Role role-organizer"]',
+        ),
+      ).not.toBeNull();
+    });
+    const remove = (
+      fixture.nativeElement as HTMLElement
+    ).querySelector<HTMLButtonElement>(
+      'button[aria-label="Remove Role role-organizer"]',
+    );
+    if (!remove) throw new Error('Expected unverified selection removal');
+    remove.click();
+    await fixture.whenStable();
+    expect(fixture.componentInstance.value()).toEqual([]);
+    expect(fixture.componentInstance.selectionValid()).toBe(true);
+  });
+
+  it('sends debounced server search and resolves selections outside the bounded results', async () => {
+    loadRoles.mockResolvedValue([financeRole]);
+    await queryClient.resetQueries({ queryKey: ['roles', 'search'] });
+    await vi.waitFor(async () => {
+      await fixture.whenStable();
+      expect(
+        fixture.nativeElement.querySelector(
+          'button[aria-label="Remove Organizer"]',
+        ),
+      ).not.toBeNull();
+      expect(fixture.componentInstance.selectionValid()).toBe(true);
+    });
+    expect(loadRole).toHaveBeenCalledWith(role.id);
+    expect(loadRoles).toHaveBeenCalledWith('');
+    loadRoles.mockClear();
+    const input = (
+      fixture.nativeElement as HTMLElement
+    ).querySelector<HTMLInputElement>('input[placeholder="Add role…"]');
+    if (!input) throw new Error('Expected role search input');
+    input.value = 'fin';
+    input.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    expect(loadRoles).not.toHaveBeenCalled();
+    input.value = 'finance';
+    input.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(loadRoles).toHaveBeenCalledExactlyOnceWith('finance');
+    });
+    expect(fixture.componentInstance.value()).toEqual([role.id]);
+    expect(fixture.nativeElement.textContent).not.toContain('no longer exists');
+  });
+
+  it('does not add the previous sole result when Enter arrives before the next search commits', async () => {
+    await vi.waitFor(async () => {
+      await fixture.whenStable();
+      expect(fixture.componentInstance.selectionValid()).toBe(true);
+      expect(loadRoles).toHaveBeenCalledWith('');
+    });
+    const input = (
+      fixture.nativeElement as HTMLElement
+    ).querySelector<HTMLInputElement>('input[placeholder="Add role…"]');
+    if (!input) throw new Error('Expected role search input');
+    input.value = 'No matching role';
+    input.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    input.dispatchEvent(
+      new KeyboardEvent('keydown', {
+        bubbles: true,
+        key: 'Enter',
+        keyCode: 13,
+      }),
+    );
+    fixture.detectChanges();
+    expect(fixture.componentInstance.value()).toEqual([role.id]);
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(loadRoles).toHaveBeenCalledWith('No matching role');
+    });
+    expect(fixture.componentInstance.value()).toEqual([role.id]);
+  });
+
+  it('blocks parent submission while selected roles are pending and preserves validation on reset', async () => {
+    fixture.destroy();
+    queryClient.clear();
+    const resolution = new Subject<RoleLookupRecord>();
+    loadRole.mockReturnValueOnce(firstValueFrom(resolution));
+    const host = TestBed.createComponent(RoleSelectFormHost);
+    host.detectChanges();
+    await vi.waitFor(() => {
+      host.detectChanges();
+      expect(loadRole).toHaveBeenCalledWith(role.id);
+      expect(host.componentInstance.roleForm().invalid()).toBe(true);
+    });
+    const action = vi.fn(() => Promise.resolve());
+    await submit(host.componentInstance.roleForm, action);
+    expect(action).not.toHaveBeenCalled();
+    host.componentInstance.roleForm().reset();
+    expect(host.componentInstance.roleForm().invalid()).toBe(true);
+    resolution.next(role);
+    await vi.waitFor(() => {
+      host.detectChanges();
+      expect(host.componentInstance.roleForm().valid()).toBe(true);
+    });
+    await submit(host.componentInstance.roleForm, action);
+    expect(action).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    [
+      'missing',
+      new RoleLookupNotFoundError({
+        id: 'missing-role',
+        message: 'Role not found',
+      }),
+      'roleMissing',
+    ],
+    ['unverified', new Error('Lookup unavailable'), 'roleUnverified'],
+  ])(
+    'blocks parent submission for %s selections until removal',
+    async (_state, error, kind) => {
+      fixture.destroy();
+      queryClient.clear();
+      loadRole.mockRejectedValue(error);
+      const host = TestBed.createComponent(RoleSelectFormHost);
+      host.componentInstance.model.set({ roleIds: ['missing-role'] });
+      host.detectChanges();
+      await vi.waitFor(() => {
+        host.detectChanges();
+        expect(
+          host.componentInstance.roleForm
+            .roleIds()
+            .errors()
+            .map((error) => error.kind),
+        ).toContain(kind);
+      });
+      const action = vi.fn(() => Promise.resolve());
+      await submit(host.componentInstance.roleForm, action);
+      expect(action).not.toHaveBeenCalled();
+      const remove = (
+        host.nativeElement as HTMLElement
+      ).querySelector<HTMLButtonElement>('button[matChipRemove]');
+      if (!remove) throw new Error('Expected selected role removal');
+      remove.click();
+      await vi.waitFor(() => {
+        host.detectChanges();
+        expect(host.componentInstance.roleForm().valid()).toBe(true);
+      });
+      await submit(host.componentInstance.roleForm, action);
+      expect(action).toHaveBeenCalledOnce();
+    },
+  );
+
+  it('immediately invalidates an external ID replacement instead of trusting the previous selection', async () => {
+    fixture.destroy();
+    queryClient.clear();
+    const host = TestBed.createComponent(RoleSelectFormHost);
+    host.detectChanges();
+    await vi.waitFor(() => {
+      host.detectChanges();
+      expect(host.componentInstance.roleForm().valid()).toBe(true);
+    });
+    host.componentInstance.model.set({ roleIds: ['missing-role'] });
+    expect(host.componentInstance.roleForm().invalid()).toBe(true);
+    const action = vi.fn(() => Promise.resolve());
+    await submit(host.componentInstance.roleForm, action);
+    expect(action).not.toHaveBeenCalled();
+    await vi.waitFor(() => {
+      host.detectChanges();
+      expect(
+        host.componentInstance.roleForm
+          .roleIds()
+          .errors()
+          .map((error) => error.kind),
+      ).toContain('roleMissing');
+    });
   });
 });

@@ -1,4 +1,5 @@
 import {
+  apply,
   hidden,
   min,
   minLength,
@@ -8,10 +9,12 @@ import {
 } from '@angular/forms/signals';
 import { hasTemporaryRichTextImageSources } from '@shared/utils/rich-text-media';
 
+import { roleSelectionSchema } from '../../controls/role-select/role-selection.schema';
 import { TemplateGraphRegistrationOptionFormModel } from './template-graph-form.model';
 
 export const templateGraphRegistrationOptionFormSchema =
   schema<TemplateGraphRegistrationOptionFormModel>((registration) => {
+    apply(registration.roleIds, roleSelectionSchema);
     required(registration.title, {
       message: 'Enter a registration option name.',
     });

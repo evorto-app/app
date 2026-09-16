@@ -18,10 +18,11 @@ const codeLikeValue = /^[A-Z\d_-]{1,8}$/u;
 const countryCode = /^[a-z]{2}$/iu;
 
 export const tenantTimezoneLabel = (timezone: string): string => {
-  if (timezone in supportedTimezoneLabels) {
-    return supportedTimezoneLabels[
-      timezone as keyof typeof supportedTimezoneLabels
-    ];
+  const supportedTimezone = supportedTenantTimezones.find(
+    (value) => value === timezone,
+  );
+  if (supportedTimezone !== undefined) {
+    return supportedTimezoneLabels[supportedTimezone];
   }
   if (timezone === 'UTC') return 'Universal time';
   if (!isIanaTimezone(timezone)) return 'Time zone unavailable';
