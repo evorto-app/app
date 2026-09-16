@@ -4,6 +4,9 @@ import { type ChildProcess, spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { Client } from 'pg';
+
+import { resolveLocalDatabaseEnvironment } from '../local-database-preflight';
 
 import {
   resolveInvocationEnvironment,
@@ -194,6 +197,7 @@ const path = require('node:path');
 const capture = () => {
   return {
     databaseUrl: process.env.DATABASE_URL,
+    dockerDatabaseUrl: process.env.DOCKER_DATABASE_URL,
     integrationDatabaseUrl: process.env.POSTGRES_INTEGRATION_DATABASE_URL,
     databaseName: process.env.POSTGRES_DB,
     databaseUser: process.env.POSTGRES_USER,
@@ -312,16 +316,14 @@ describe('runtime environment invocation', () => {
     {
       databaseName: ' shared database ',
       encodedDatabaseName: '%20shared%20database%20',
-      guardAllowed: true,
     },
     {
-      databaseName: ' shared/db?name# ',
-      encodedDatabaseName: '%20shared%2Fdb%3Fname%23%20',
-      guardAllowed: false,
+      databaseName: ' shared % ü database ',
+      encodedDatabaseName: '%20shared%20%25%20%C3%BC%20database%20',
     },
   ])(
     'derives CLI URLs from shared inputs and validates the database target: $databaseName',
-    ({ databaseName, encodedDatabaseName, guardAllowed }) => {
+    ({ databaseName, encodedDatabaseName }) => {
       const fixture = createFixture();
       fs.writeFileSync(
         path.join(fixture.cwd, '.env'),
@@ -375,10 +377,7 @@ describe('runtime environment invocation', () => {
           timeout: 5000,
         },
       );
-      expect(guard.status, guard.stderr).toBe(guardAllowed ? 0 : 1);
-      if (!guardAllowed) {
-        expect(guard.stderr).toContain('configured local database');
-      }
+      expect(guard.status, guard.stderr).toBe(0);
       const snapshot = spawnSync(
         bunExecutable,
         ['--no-env-file', runtimeScript],
@@ -425,6 +424,81 @@ describe('runtime environment invocation', () => {
       integrationDatabaseUrl: `postgresql://synthetic-user:${encodeURIComponent(password)}@localhost:56309/evorto_postgres_integration?sslmode=disable`,
     });
   });
+
+  it('derives the container URL from literal credentials and ignores a supplied container URL', () => {
+    const fixture = createFixture();
+    const overrides = {
+      DOCKER_DATABASE_URL: 'postgresql://wrong:wrong@remote.invalid/wrong',
+      POSTGRES_DB: ' reports % ü ',
+      POSTGRES_PASSWORD: ' password $MISSING ${MISSING} \\ @:/?#% ',
+      POSTGRES_USER: ' user $MISSING ${MISSING} \\ @:/?#% ',
+    };
+    const resolved = resolveInvocationEnvironment(
+      fixture.cwd,
+      environmentFor(fixture, overrides),
+    );
+    const containerUrl = resolved['DOCKER_DATABASE_URL'];
+    if (!containerUrl) throw new Error('Expected the generated container URL');
+    // Construction parses the driver's final target without connecting.
+    const client = new Client({ connectionString: containerUrl });
+    expect(client.host).toBe('db');
+    expect(client.port).toBe(5432);
+    expect(client.user).toBe(overrides.POSTGRES_USER);
+    expect(client.password).toBe(overrides.POSTGRES_PASSWORD);
+    expect(client.database).toBe(overrides.POSTGRES_DB);
+    expect(
+      resolveLocalDatabaseEnvironment({
+        ...resolved,
+        DATABASE_URL: containerUrl,
+      }),
+    ).toEqual({ databaseUrl: containerUrl });
+    expect(captureInvocation(fixture, overrides)).toMatchObject({
+      dockerDatabaseUrl: containerUrl,
+    });
+  });
+
+  it.each(['reports#1', 'reports/1', 'reports?1', 'reports$1'])(
+    'rejects the unsupported literal database %s before publishing ownership',
+    (databaseName) => {
+      const fixture = createFixture();
+      const payloadFile = path.join(fixture.directory, 'payload-ran');
+      const environment = environmentFor(fixture, {
+        POSTGRES_DB: databaseName,
+        TEST_PAYLOAD_FILE: payloadFile,
+      });
+      for (const arguments_ of [
+        ['--no-env-file', runtimeScript],
+        invocationArguments(
+          'bash',
+          leaseScript,
+          'docker-start',
+          '--',
+          process.execPath,
+          '-e',
+          "require('node:fs').writeFileSync(process.env.TEST_PAYLOAD_FILE, 'unexpected')",
+        ),
+      ]) {
+        const result = spawnSync(bunExecutable, arguments_, {
+          cwd: fixture.cwd,
+          encoding: 'utf8',
+          env: environment,
+          timeout: 5000,
+        });
+        expect(result.status).not.toBe(0);
+        expect(result.stderr).toContain('configured local database');
+        expect(fs.existsSync(payloadFile)).toBe(false);
+        expect(fs.existsSync(path.join(fixture.cwd, '.env.dev'))).toBe(false);
+        expect(
+          fs.existsSync(
+            path.join(
+              fixture.temporaryDirectory,
+              'evorto-docker-project-leases',
+            ),
+          ),
+        ).toBe(false);
+      }
+    },
+  );
 
   it.each(['', ' \t '])(
     'treats blank caller ports %j as absent before shared values',

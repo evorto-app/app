@@ -89,6 +89,76 @@ afterEach(() => {
 });
 
 describe('ordinary Docker stack lifecycle', () => {
+  it.each(['e2e-baseline.yml', 'esncard-release-certification.yml'])(
+    'keeps the direct Compose container URL aligned with credentials in %s',
+    (workflowName) => {
+      const workflowPath = path.join(
+        process.cwd(),
+        '.github/workflows',
+        workflowName,
+      );
+      const result = spawnSync(
+        realBunPath,
+        [
+          '--no-env-file',
+          '-e',
+          `import assert from 'node:assert/strict';
+import { Client } from 'pg';
+const workflow = Bun.YAML.parse(await Bun.file(${JSON.stringify(workflowPath)}).text());
+const environments = Object.values(workflow.jobs).map((job) => job.env).filter((env) => env?.POSTGRES_DB);
+assert.equal(environments.length, 1);
+const environment = environments[0];
+assert.equal(typeof environment.DOCKER_DATABASE_URL, 'string');
+const client = new Client({ connectionString: environment.DOCKER_DATABASE_URL });
+assert.equal(client.host, 'db');
+assert.equal(client.port, 5432);
+assert.equal(client.user, environment.POSTGRES_USER);
+assert.equal(client.password, environment.POSTGRES_PASSWORD);
+assert.equal(client.database, environment.POSTGRES_DB);`,
+        ],
+        { encoding: 'utf8', timeout: 5000 },
+      );
+      expect(result.status, result.stderr).toBe(0);
+    },
+  );
+
+  it('uses one encoded container URL and literal database healthcheck arguments', () => {
+    const result = spawnSync(
+      realBunPath,
+      [
+        '--no-env-file',
+        '-e',
+        `const config = Bun.YAML.parse(${JSON.stringify(composeSource)});
+process.stdout.write(JSON.stringify({
+  urls: ['db-setup', 'evorto', 'worker'].map((service) => config.services[service].environment.DATABASE_URL),
+  healthcheck: config.services.db.healthcheck.test,
+}));`,
+      ],
+      { encoding: 'utf8', timeout: 5000 },
+    );
+    expect(result.status, result.stderr).toBe(0);
+    const config: unknown = JSON.parse(result.stdout);
+    expect(config).toEqual({
+      healthcheck: [
+        'CMD',
+        'pg_isready',
+        '-h',
+        '127.0.0.1',
+        '-p',
+        '5432',
+        '-U',
+        '${POSTGRES_USER:-evorto}',
+        '-d',
+        '${POSTGRES_DB:-appdb}',
+      ],
+      urls: Array.from(
+        { length: 3 },
+        () =>
+          '${DOCKER_DATABASE_URL:?Run Docker through a supported bun package command}',
+      ),
+    });
+  });
+
   it('builds the Stripe listener without a host file share', () => {
     expect(composeSource).toContain(
       'dockerfile: helpers/testing/stripe-listener.Dockerfile',

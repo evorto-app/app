@@ -110,6 +110,74 @@ describe('Docker project lifecycle lease', () => {
     expect(result.stderr).toContain('COMPOSE_PROJECT_NAME is required');
   });
 
+  it.each([
+    'Evorto',
+    'evortoTest',
+    'evorto.test',
+    '-evorto',
+    '_evorto',
+    'evorto test',
+  ])(
+    'rejects invalid project %s before ownership or command execution',
+    (projectName) => {
+      const environment = createEnvironment(projectName);
+      const payloadPath = path.join(environment.TMPDIR, 'payload');
+      const result = spawnSync(
+        'bash',
+        [
+          leaseScript,
+          'docker-start',
+          '--',
+          process.execPath,
+          '-e',
+          `require('node:fs').writeFileSync(${JSON.stringify(payloadPath)}, 'started');`,
+        ],
+        { encoding: 'utf8', env: environment, timeout: 3000 },
+      );
+
+      expect(result.status, result.stderr).toBe(2);
+      expect(result.stderr).toContain('Invalid COMPOSE_PROJECT_NAME');
+      expect(fs.existsSync(payloadPath)).toBe(false);
+      expect(
+        fs.existsSync(
+          path.join(environment.TMPDIR, 'evorto-docker-project-leases'),
+        ),
+      ).toBe(false);
+    },
+  );
+
+  it.each(['a', '0', 'evorto-lease_test', '0evorto-lease_test'])(
+    'runs the command under ownership for valid project %s',
+    (projectName) => {
+      const environment = createEnvironment(projectName);
+      const result = spawnSync(
+        'bash',
+        [
+          leaseScript,
+          'docker-start',
+          '--',
+          process.execPath,
+          '-e',
+          'process.stdout.write(process.env.EVORTO_DOCKER_PROJECT_LEASE_HELD);',
+        ],
+        { encoding: 'utf8', env: environment, timeout: 3000 },
+      );
+
+      expect(result.status, result.stderr).toBe(0);
+      expect(result.stdout).toBe('true');
+      expect(
+        fs.readFileSync(
+          path.join(
+            environment.TMPDIR,
+            'evorto-docker-project-leases',
+            `${projectName}.owner`,
+          ),
+          'utf8',
+        ),
+      ).toContain('operation=docker-start');
+    },
+  );
+
   it('fails fast for the same project without blocking another project', async () => {
     const environment = createEnvironment('evorto-lease-test');
     const readyPath = path.join(environment.TMPDIR, 'ready');

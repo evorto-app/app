@@ -17,7 +17,7 @@ if [[ -z "${compose_project_name}" ]]; then
     >&2
   exit 2
 fi
-if [[ ! "${compose_project_name}" =~ ^[a-zA-Z0-9][a-zA-Z0-9_.-]*$ ]]; then
+if [[ ! "${compose_project_name}" =~ ^[a-z0-9][a-z0-9_-]*$ ]]; then
   printf 'Invalid COMPOSE_PROJECT_NAME for Docker project lifecycle ownership: %s\n' \
     "${compose_project_name}" >&2
   exit 2

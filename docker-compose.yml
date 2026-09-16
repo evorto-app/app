@@ -13,8 +13,16 @@ services:
     healthcheck:
       test:
         [
-          "CMD-SHELL",
-          "pg_isready -h 127.0.0.1 -p 5432 -U ${POSTGRES_USER:-evorto} -d ${POSTGRES_DB:-appdb}",
+          "CMD",
+          "pg_isready",
+          "-h",
+          "127.0.0.1",
+          "-p",
+          "5432",
+          "-U",
+          "${POSTGRES_USER:-evorto}",
+          "-d",
+          "${POSTGRES_DB:-appdb}",
         ]
       interval: 5s
       timeout: 5s
@@ -31,7 +39,7 @@ services:
       db:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-evorto}:${POSTGRES_PASSWORD:-evorto-local}@db:5432/${POSTGRES_DB:-appdb}?sslmode=disable
+      DATABASE_URL: "${DOCKER_DATABASE_URL:?Run Docker through a supported bun package command}"
       E2E_NOW_ISO:
       E2E_SEED_KEY:
       LOCAL_DATABASE: "true"
@@ -119,7 +127,7 @@ services:
       CLIENT_ID:
       CLIENT_SECRET:
       DATABASE_POOL_MAX: "20"
-      DATABASE_URL: postgresql://${POSTGRES_USER:-evorto}:${POSTGRES_PASSWORD:-evorto-local}@db:5432/${POSTGRES_DB:-appdb}?sslmode=disable
+      DATABASE_URL: "${DOCKER_DATABASE_URL:?Run Docker through a supported bun package command}"
       E2E_GLOBAL_ADMIN_AUTH0_IDS:
       E2E_NOW_ISO:
       E2E_RUNTIME_MODE:
@@ -168,7 +176,7 @@ services:
       APP_ENVIRONMENT: local
       APP_ROLE: worker
       DATABASE_POOL_MAX: "5"
-      DATABASE_URL: postgresql://${POSTGRES_USER:-evorto}:${POSTGRES_PASSWORD:-evorto-local}@db:5432/${POSTGRES_DB:-appdb}?sslmode=disable
+      DATABASE_URL: "${DOCKER_DATABASE_URL:?Run Docker through a supported bun package command}"
       E2E_NOW_ISO:
       E2E_RUNTIME_MODE:
       EMAIL_DELIVERY_PROVIDER: mailpit

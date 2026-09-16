@@ -88,6 +88,17 @@ interactive confirmation. PostgreSQL data, Mailpit messages, and the Stripe
 signing secret use project-scoped named volumes; MinIO data is container-local
 for the disposable test stack. PostgreSQL startup has no host-file mount.
 
+The runtime resolver derives `DOCKER_DATABASE_URL` from the literal
+`POSTGRES_USER`, `POSTGRES_PASSWORD`, and `POSTGRES_DB` values. Compose uses this
+encoded URL for setup, web, and worker containers; the database healthcheck
+passes user and database names as literal arguments. Database names must
+round-trip through the PostgreSQL driver's URL parser: spaces, Unicode, and
+literal percent signs are supported, while URI-reserved characters such as
+`/`, `?`, `#`, and `$` are rejected before a child command acquires its project
+lease. Credentials remain literal and are percent-encoded without trimming.
+Direct CI Compose steps supply an explicit matching container URL in workflow
+environment variables.
+
 The generated `E2E_USE_DOCKER_STACK=true` environment makes Playwright use
 `bun run docker:webserver`. That wrapper refuses to take ownership when an
 existing project database container is present, builds and starts the full

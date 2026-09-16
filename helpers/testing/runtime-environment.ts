@@ -8,6 +8,8 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { resolveLocalDatabaseEnvironment } from '../local-database-preflight';
+
 // Generates worktree-local runtime ports and names so parallel Docker/test
 // runs do not collide with the main checkout or other Codex worktrees.
 const DEFAULT_APP_HOST_PORT = 4200;
@@ -25,6 +27,7 @@ const runtimePortNames = [
   'POSTGRES_HOST_PORT',
 ] as const;
 const runtimeDatabaseNames = [
+  'DOCKER_DATABASE_URL',
   'POSTGRES_DB',
   'POSTGRES_PASSWORD',
   'POSTGRES_USER',
@@ -153,12 +156,12 @@ const sanitizeProjectName = (value: string): string =>
     .toLowerCase()
     .replaceAll(/[^a-z0-9_-]+/g, '-')
     .replaceAll(/-+/g, '-')
-    .replaceAll(/^-|-$/g, '')
+    .replaceAll(/^[^a-z0-9]+|-$/g, '')
     .slice(0, 40);
 
 const defaultProjectName = (digest: string, cwd: string): string => {
   const basename = path.basename(cwd);
-  const safeBasename = sanitizeProjectName(basename || 'evorto');
+  const safeBasename = sanitizeProjectName(basename) || 'evorto';
   const suffix = digest.slice(0, 8);
   return `${safeBasename}-${suffix}`;
 };
@@ -187,6 +190,7 @@ export const createRuntimeEnvironment = (
     defaultProjectName(digest, cwd);
   const baseUrl = `http://localhost:${appHostPort}`;
   const databaseUrl = `postgresql://${encodeURIComponent(databaseUser)}:${encodeURIComponent(databasePassword)}@localhost:${postgresHostPort}/${encodeURIComponent(databaseName)}?sslmode=disable`;
+  const dockerDatabaseUrl = `postgresql://${encodeURIComponent(databaseUser)}:${encodeURIComponent(databasePassword)}@db:5432/${encodeURIComponent(databaseName)}?sslmode=disable`;
   const postgresIntegrationDatabaseUrl = `postgresql://${encodeURIComponent(databaseUser)}:${encodeURIComponent(databasePassword)}@localhost:${postgresHostPort}/evorto_postgres_integration?sslmode=disable`;
 
   return {
@@ -194,6 +198,7 @@ export const createRuntimeEnvironment = (
     BASE_URL: baseUrl,
     COMPOSE_PROJECT_NAME: composeProjectName,
     DATABASE_URL: databaseUrl,
+    DOCKER_DATABASE_URL: dockerDatabaseUrl,
     E2E_USE_DOCKER_STACK: 'true',
     E2E_NOW_ISO: e2eNowIso,
     E2E_SEED_KEY: e2eSeedKey,
@@ -268,6 +273,10 @@ const resolveRuntimeEnvironment = (
   });
   const inputs = expandEnvironment(defaults);
   const generated = createRuntimeEnvironment(cwd, inputs);
+  resolveLocalDatabaseEnvironment({
+    ...generated,
+    DATABASE_URL: generated.DOCKER_DATABASE_URL,
+  });
   // Expand file references again against the derived URLs, then retain the
   // canonical inputs used for those URLs rather than raw/empty override text.
   const resolved = {

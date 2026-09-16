@@ -136,6 +136,42 @@ describe('runtime environment ports', () => {
   });
 });
 
+describe('runtime Compose project names', () => {
+  it.each([
+    { basename: '_foo', prefix: 'foo' },
+    { basename: '_-foo', prefix: 'foo' },
+    { basename: '...', prefix: 'evorto' },
+    { basename: '___', prefix: 'evorto' },
+    { basename: 'evorto-test_2', prefix: 'evorto-test_2' },
+  ])('generates a valid project from $basename', ({ basename, prefix }) => {
+    const project = createRuntimeEnvironment(
+      `/synthetic/${basename}`,
+      {},
+    ).COMPOSE_PROJECT_NAME;
+
+    expect(project).toMatch(/^[a-z0-9][a-z0-9_-]*$/);
+    expect(project.startsWith(`${prefix}-`)).toBe(true);
+  });
+
+  it('keeps projects distinct when basenames need the same fallback', () => {
+    const first = createRuntimeEnvironment('/synthetic/...', {});
+    const second = createRuntimeEnvironment('/synthetic/___', {});
+
+    expect(first.COMPOSE_PROJECT_NAME).not.toBe(second.COMPOSE_PROJECT_NAME);
+  });
+
+  it.each(['_foo', 'Evorto.Test', 'evorto-test_2'])(
+    'preserves explicit project %s for lease validation',
+    (projectName) => {
+      expect(
+        createRuntimeEnvironment('/synthetic/default-project', {
+          COMPOSE_PROJECT_NAME: projectName,
+        }).COMPOSE_PROJECT_NAME,
+      ).toBe(projectName);
+    },
+  );
+});
+
 describe('runtime database environment', () => {
   it.each([
     {
