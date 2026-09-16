@@ -82,7 +82,7 @@ export const resolveLocalDatabaseEnvironment = (
 
   const databaseUrl = parseDatabaseUrl(
     requiredValue(environment, 'DATABASE_URL'),
-    environment['POSTGRES_DB']?.trim(),
+    environment['POSTGRES_DB'],
   );
   return { databaseUrl: databaseUrl.toString() };
 };

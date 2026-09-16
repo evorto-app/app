@@ -75,7 +75,10 @@ To start a local development server, run:
 bun run dev:start
 ```
 
-Once the server is running, open the generated `BASE_URL` from `.env.dev`. The application will automatically reload whenever you modify any of the source files.
+Once the server is running, open the local URL printed by the Angular dev
+server. To inspect the resolved origin separately with the same environment
+overrides, run `bun run env:run -- printenv BASE_URL`; `.env.dev` may be absent
+or stale. The application automatically reloads when source files change.
 
 ## Code scaffolding
 

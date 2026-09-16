@@ -2,13 +2,11 @@
 
 ## Provider and Environment Sources
 
-- Runtime config resolution uses provider precedence in this order: real environment variables, `.env.dev.local`, `.env.dev`, `.env`, then in-code defaults.
-- `.env.dev` is the generated local worktree override artifact written by `bun run env:runtime`. It may be absent; in that case, local runs should use `.env.dev.local`, `.env`, and real environment variables only.
-- `.env.dev.local` is the tracked shared default dev config file.
-- `.env` is the untracked developer-secrets file.
-- Package scripts that use `dotenv-cli` standardize on `dotenv -c dev`; npm-style scripts resolve that binary from `node_modules/.bin`.
-- Outside package scripts, use `node_modules/.bin/dotenv -c dev -- ...` instead of a bare shell `dotenv` command. Local shells may resolve another executable first.
-- Because `dotenv-cli` is first-wins, the effective dotenv precedence is `.env.dev.local`, `.env.dev`, then `.env` when only supported local env files exist.
+- Supported package commands resolve configuration in memory through `bun run env:run -- <command>`. The precedence is caller-provided environment variables, `.env.dev.local`, generated runtime defaults, then `.env`.
+- Use the package scripts or `env:run` for direct external commands. Do not chain `env:runtime` with `dotenv`: a concurrent command can replace the shared snapshot between generation and loading.
+- `env:runtime` atomically writes an owner-only `.env.dev` snapshot for standalone inspection. Normal package command bootstrapping does not read that snapshot.
+- `.env.dev.local` is the tracked shared default dev config file; `.env` is the untracked developer-secrets file.
+- The Effect provider consumes the resolved process environment first. When called directly, its local file fallback remains `.env.dev.local`, `.env.dev`, then `.env`, followed by schema defaults. That fallback is not a substitute for the invocation environment when launching local commands.
 - `.env.local`, `.env.runtime`, and `.env.ci` are unsupported in this repo and should not be created or referenced.
 - In CI and other cloud environments, do not rely on tracked or generated dotenv artifacts. Use explicit environment variables provided by GitHub Actions `env`, `vars`, and `secrets`.
 

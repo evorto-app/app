@@ -17,6 +17,18 @@ const DEFAULT_MINIO_CONSOLE_HOST_PORT = 9400;
 const MAILPIT_HOST_PORT_RANGE_START = 10_000;
 const MAILPIT_HOST_PORT_RANGE_SPAN = 40_000;
 const DEFAULT_PORT_SPAN = 400;
+const runtimePortNames = [
+  'APP_HOST_PORT',
+  'MAILPIT_HOST_PORT',
+  'MINIO_CONSOLE_HOST_PORT',
+  'MINIO_HOST_PORT',
+  'POSTGRES_HOST_PORT',
+] as const;
+const runtimeDatabaseNames = [
+  'POSTGRES_DB',
+  'POSTGRES_PASSWORD',
+  'POSTGRES_USER',
+] as const;
 const deriveSeed = (cwd: string, environment: NodeJS.ProcessEnv): string => {
   const runId = environment['GITHUB_RUN_ID']?.trim();
   const runAttempt = environment['GITHUB_RUN_ATTEMPT']?.trim();
@@ -30,10 +42,15 @@ const deriveSeed = (cwd: string, environment: NodeJS.ProcessEnv): string => {
 const digestSeed = (seed: string): string =>
   createHash('sha256').update(seed).digest('hex');
 
-const parsePort = (value: string | undefined): number | undefined => {
-  const parsed = Number.parseInt(value ?? '', 10);
+const parsePort = (
+  name: string,
+  value: string | undefined,
+): number | undefined => {
+  const input = value?.trim();
+  if (!input) return undefined;
+  const parsed = /^\d+$/.test(input) ? Number(input) : Number.NaN;
   if (!Number.isInteger(parsed) || parsed < 1024 || parsed > 65_535) {
-    return undefined;
+    throw new Error(`${name} must be a decimal port between 1024 and 65535`);
   }
   return parsed;
 };
@@ -54,7 +71,7 @@ const resolvePort = (
   fallback: number,
 ): number => {
   for (const name of names) {
-    const parsed = parsePort(environment[name]);
+    const parsed = parsePort(name, environment[name]);
     if (parsed !== undefined) {
       return parsed;
     }
@@ -159,10 +176,9 @@ export const createRuntimeEnvironment = (
     minioHostPort,
     postgresHostPort,
   } = resolveRuntimePorts(seed, environment);
-  const databaseName = environment['POSTGRES_DB']?.trim() || 'appdb';
-  const databaseUser = environment['POSTGRES_USER']?.trim() || 'evorto';
-  const databasePassword =
-    environment['POSTGRES_PASSWORD']?.trim() || 'evorto-local';
+  const databaseName = environment['POSTGRES_DB'] || 'appdb';
+  const databaseUser = environment['POSTGRES_USER'] || 'evorto';
+  const databasePassword = environment['POSTGRES_PASSWORD'] || 'evorto-local';
   const e2eNowIso = environment['E2E_NOW_ISO']?.trim() || DEFAULT_E2E_NOW_ISO;
   const e2eSeedKey =
     environment['E2E_SEED_KEY']?.trim() || DEFAULT_E2E_SEED_KEY;
@@ -170,7 +186,7 @@ export const createRuntimeEnvironment = (
     environment['COMPOSE_PROJECT_NAME']?.trim() ||
     defaultProjectName(digest, cwd);
   const baseUrl = `http://localhost:${appHostPort}`;
-  const databaseUrl = `postgresql://${encodeURIComponent(databaseUser)}:${encodeURIComponent(databasePassword)}@localhost:${postgresHostPort}/${databaseName}?sslmode=disable`;
+  const databaseUrl = `postgresql://${encodeURIComponent(databaseUser)}:${encodeURIComponent(databasePassword)}@localhost:${postgresHostPort}/${encodeURIComponent(databaseName)}?sslmode=disable`;
   const postgresIntegrationDatabaseUrl = `postgresql://${encodeURIComponent(databaseUser)}:${encodeURIComponent(databasePassword)}@localhost:${postgresHostPort}/evorto_postgres_integration?sslmode=disable`;
 
   return {
@@ -209,9 +225,8 @@ const serializeRuntimeEnvironment = (
     '',
   ].join('\n');
 
-export const resolveInvocationEnvironment = (
+const resolveRuntimeEnvironment = (
   cwd: string,
-  runtimeEnvironment: Record<string, string>,
   environment: NodeJS.ProcessEnv,
 ) => {
   const readEnvironment = (name: string): Record<string, string> => {
@@ -223,19 +238,53 @@ export const resolveInvocationEnvironment = (
       throw error;
     }
   };
-  const inherited = Object.fromEntries(
-    Object.entries(environment).filter(
-      (entry): entry is [string, string] => entry[1] !== undefined,
+  // Empty port overrides are absent at each priority, so an empty caller value
+  // can still use a shared setting before falling back to generated defaults.
+  const withoutBlankPorts = (source: Record<string, string>) =>
+    Object.fromEntries(
+      Object.entries(source).filter(
+        ([name, value]) =>
+          !runtimePortNames.some((port) => port === name) ||
+          value.trim() !== '',
+      ),
+    );
+  const inherited = withoutBlankPorts(
+    Object.fromEntries(
+      Object.entries(environment).filter(
+        (entry): entry is [string, string] => entry[1] !== undefined,
+      ),
     ),
   );
-  const parsed = {
-    ...readEnvironment('.env'),
-    ...runtimeEnvironment,
-    ...readEnvironment('.env.dev.local'),
+  const base = readEnvironment('.env');
+  const shared = withoutBlankPorts(readEnvironment('.env.dev.local'));
+  const expandEnvironment = (generated: Record<string, string>) => {
+    const parsed = { ...base, ...generated, ...shared };
+    expand({ parsed, processEnv: { ...parsed, ...inherited } });
+    return { ...parsed, ...inherited };
   };
-  expand({ parsed, processEnv: { ...inherited } });
-  return { ...parsed, ...inherited };
+  const defaults = createRuntimeEnvironment(cwd, {
+    GITHUB_RUN_ID: inherited['GITHUB_RUN_ID'],
+    GITHUB_RUN_ATTEMPT: inherited['GITHUB_RUN_ATTEMPT'],
+  });
+  const inputs = expandEnvironment(defaults);
+  const generated = createRuntimeEnvironment(cwd, inputs);
+  // Expand file references again against the derived URLs, then retain the
+  // canonical inputs used for those URLs rather than raw/empty override text.
+  const resolved = {
+    ...expandEnvironment(generated),
+    ...Object.fromEntries(
+      [...runtimePortNames, ...runtimeDatabaseNames].map(
+        (name) => [name, generated[name]] as const,
+      ),
+    ),
+  };
+  return { generated, resolved };
 };
+
+export const resolveInvocationEnvironment = (
+  cwd: string,
+  environment: NodeJS.ProcessEnv,
+) => resolveRuntimeEnvironment(cwd, environment).resolved;
 
 export const runRuntimeCommand = (
   command: readonly string[],
@@ -250,11 +299,7 @@ export const runRuntimeCommand = (
     );
   }
   const resolved: Record<string, string> = {
-    ...resolveInvocationEnvironment(
-      cwd,
-      createRuntimeEnvironment(cwd, environment),
-      environment,
-    ),
+    ...resolveInvocationEnvironment(cwd, environment),
     EVORTO_RUNTIME_ENV_READY: 'true',
   };
   const executable = Bun.which(program, { cwd, PATH: resolved['PATH'] });
@@ -277,7 +322,9 @@ export const writeRuntimeEnvironment = (
   try {
     fs.writeFileSync(
       temporary,
-      serializeRuntimeEnvironment(createRuntimeEnvironment(cwd, environment)),
+      serializeRuntimeEnvironment(
+        resolveRuntimeEnvironment(cwd, environment).generated,
+      ),
       { mode: 0o600 },
     );
     fs.renameSync(temporary, destination);
