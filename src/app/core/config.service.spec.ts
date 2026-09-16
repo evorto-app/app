@@ -224,7 +224,7 @@ describe('ConfigService theme initialization', () => {
     });
   });
   it('sanitizes the server request context before exposing tenant configuration', async () => {
-    const queryClient = new QueryClient({
+    queryClient = new QueryClient({
       defaultOptions: {
         queries: {
           retry: false,
