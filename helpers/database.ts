@@ -2,12 +2,18 @@ import * as BunRuntime from '@effect/platform-bun/BunRuntime';
 import { databaseConfig } from '@db/database-config';
 import { stripeConfig } from '@server/config/stripe-config';
 import consola from 'consola';
-import { Effect, Option, Redacted } from 'effect';
+import { Config, ConfigProvider, Effect, Option, Redacted } from 'effect';
 
 import { createDatabaseClient } from '../src/db/database-client';
-import { setupDatabase } from '../src/db/setup-database';
+import {
+  resolveDatabaseSeedInputs,
+  setupDatabase,
+} from '../src/db/setup-database';
 import { inspectStagingDatabaseInitialization } from '../src/db/staging-database-initialization';
-import { formatConfigError } from '../src/server/config/config-error';
+import {
+  formatConfigError,
+  missingFieldError,
+} from '../src/server/config/config-error';
 import { makeRuntimeConfigProvider } from '../src/server/config/provider';
 
 /**
@@ -53,6 +59,30 @@ const main = Effect.gen(function* () {
           ),
       ),
     );
+  const stripeTestAccountId = yield* Option.match(STRIPE_TEST_ACCOUNT_ID, {
+    onNone: () => Effect.fail(missingFieldError('STRIPE_TEST_ACCOUNT_ID')),
+    onSome: Effect.succeed,
+  });
+  const seedEnvironment = yield* Config.all({
+    E2E_NOW_ISO: Config.option(Config.string('E2E_NOW_ISO')),
+    E2E_SEED_KEY: Config.option(Config.string('E2E_SEED_KEY')),
+  }).parse(
+    ConfigProvider.orElse(
+      ConfigProvider.fromEnv({ preserveEmptyStrings: true }),
+      runtimeConfigProvider,
+    ),
+  );
+  // Nested seed helpers read these process values. Resolve their file fallback
+  // once at this CLI boundary while preserving explicit blank caller overrides.
+  for (const [name, value] of Object.entries(seedEnvironment)) {
+    if (Option.isSome(value)) process.env[name] = value.value;
+  }
+  const seedInputs = yield* Effect.try(() => resolveDatabaseSeedInputs());
+  const setupOptions = { ...seedInputs, stripeTestAccountId };
+  if (process.env['STAGING_SEED_PREFLIGHT_ONLY'] === 'true') {
+    return;
+  }
+
   const caCertificate = config.DATABASE_TLS_CA_CERTIFICATE.pipe(
     Option.map((certificate) => Redacted.value(certificate)),
     Option.getOrUndefined,
@@ -63,10 +93,6 @@ const main = Effect.gen(function* () {
     caCertificate,
     tlsServerName,
   );
-  const setupOptions = Option.match(STRIPE_TEST_ACCOUNT_ID, {
-    onNone: () => ({}),
-    onSome: (stripeTestAccountId) => ({ stripeTestAccountId }),
-  });
   const initializeEmptyStagingOnly =
     process.env['STAGING_INITIALIZE_ONLY'] === 'true';
 

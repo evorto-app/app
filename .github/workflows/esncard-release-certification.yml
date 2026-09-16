@@ -93,10 +93,12 @@ jobs:
       CI: true
       COMPOSE_PROJECT_NAME: evorto-esncard-release
       DATABASE_URL: postgresql://evorto:evorto-certification-local@localhost:55432/appdb?sslmode=disable
+      DOCKER_DATABASE_URL: postgresql://evorto:evorto-certification-local@db:5432/appdb?sslmode=disable
       E2E_NOW_ISO: "2026-09-15T12:00:00.000Z"
       E2E_RUNTIME_MODE: playwright
       E2E_SEED_KEY: evorto-e2e-default-v1
       ISSUER_BASE_URL: ${{ vars.ISSUER_BASE_URL }}
+      LOCAL_DATABASE: "true"
       POSTGRES_DB: appdb
       POSTGRES_HOST_PORT: 55432
       POSTGRES_PASSWORD: evorto-certification-local

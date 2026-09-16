@@ -42,7 +42,9 @@ test.describe('Tax Rates Tenant Isolation', () => {
     tenant,
   }) => {
     const secondaryTenant = await seedTenant(database, {
+      currency: tenant.currency,
       domain: `tax-iso-${getId().slice(0, 8)}`,
+      name: 'Tax isolation tenant',
       profile: 'test',
       seedDate,
       stripeAccountId: process.env['STRIPE_TEST_ACCOUNT_ID'],
@@ -104,7 +106,9 @@ test.describe('Tax Rates Tenant Isolation', () => {
     });
 
     const secondaryTenant = await seedTenant(database, {
+      currency: tenant.currency,
       domain: `tax-iso-db-${getId().slice(0, 8)}`,
+      name: 'Database tax isolation tenant',
       profile: 'test',
       seedDate,
       stripeAccountId: process.env['STRIPE_TEST_ACCOUNT_ID'],

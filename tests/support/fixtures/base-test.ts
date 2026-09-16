@@ -11,6 +11,7 @@ import { DateTime } from 'luxon';
 import path from 'node:path';
 import { Pool } from 'pg';
 
+import { resolveLocalHostDatabaseEnvironment } from '../../../helpers/local-database-preflight';
 import { getSeedDate } from '../../../helpers/seed-clock';
 import { seedFalsoForScope } from '../../../helpers/seed-falso';
 import { formatConfigError } from '../../../src/server/config/config-error';
@@ -52,7 +53,6 @@ const readAuth0ManagementEnvironment = () =>
   );
 process.env['E2E_NOW_ISO'] ??= environment.E2E_NOW_ISO;
 process.env['E2E_SEED_KEY'] ??= environment.E2E_SEED_KEY;
-const databaseUrl = environment.DATABASE_URL;
 
 interface BaseFixtures {
   database: NodePgDatabase<typeof relations>;
@@ -74,6 +74,10 @@ interface BaseFixtures {
 
 export const test = base.extend<BaseFixtures>({
   database: async ({}, use) => {
+    const { databaseUrl } = resolveLocalHostDatabaseEnvironment({
+      ...process.env,
+      DATABASE_URL: environment.DATABASE_URL,
+    });
     const pool = new Pool(createNodePgPoolConfig({ databaseUrl }));
     const database = drizzle({
       client: pool,

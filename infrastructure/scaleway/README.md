@@ -149,9 +149,14 @@ worker/STAGING_EMAIL_ALLOWLIST
 worker/STRIPE_API_KEY
 worker/TEM_API_TOKEN
 ops/COCKPIT_TRACES_TOKEN
+ops/STRIPE_TEST_ACCOUNT_ID
 ```
 
-Production omits `worker/STAGING_EMAIL_ALLOWLIST`. The deploy workflow derives
+Production omits `worker/STAGING_EMAIL_ALLOWLIST` and
+`ops/STRIPE_TEST_ACCOUNT_ID`. Staging ops requires the approved Stripe test
+connected account for its deterministic paid fixtures. Initialization and
+protected reset validate seed configuration before opening a database
+connection or starting the reset commands. The deploy workflow derives
 the three `DATABASE_URL` values and `DATABASE_TLS_CA_CERTIFICATE` values from
 Terraform's sensitive database output. The private-network IP in each URL is
 also the certificate identity issued by Scaleway, so clients verify both the CA

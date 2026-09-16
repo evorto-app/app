@@ -6,9 +6,14 @@ import {
   Layer,
   Option,
   Redacted,
+  Schema,
 } from 'effect';
 
 import { optionalTrimmedString } from './config-string';
+
+export const isDatabaseRuntimeRoleName = Schema.is(
+  Schema.String.check(Schema.isPattern(/^[a-z_][a-z0-9_]{0,62}$/u)),
+);
 
 export const applicationEnvironmentConfig = Config.literals(
   ['local', 'staging', 'production'],

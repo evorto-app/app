@@ -2,7 +2,10 @@ import { describe, expect, it } from '@effect/vitest';
 import { ConfigProvider, Effect, Option } from 'effect';
 
 import { formatConfigError } from './config-error';
-import { deploymentConfig } from './deployment-config';
+import {
+  deploymentConfig,
+  isDatabaseRuntimeRoleName,
+} from './deployment-config';
 
 const readDeploymentConfig = (entries: Record<string, string>) =>
   deploymentConfig
@@ -17,6 +20,22 @@ const readDeploymentConfig = (entries: Record<string, string>) =>
     );
 
 describe('deployment-config', () => {
+  it('accepts only exact safe runtime role identifiers', () => {
+    for (const [role, valid] of [
+      ['application_runtime', true],
+      ['_runtime_2', true],
+      ['r'.repeat(63), true],
+      [undefined, false],
+      ['', false],
+      [' application_runtime ', false],
+      ['Runtime', false],
+      ['runtime-role', false],
+      ['r'.repeat(64), false],
+    ] as const) {
+      expect(isDatabaseRuntimeRoleName(role)).toBe(valid);
+    }
+  });
+
   it.effect('leaves trace sampling unconfigured by default', () =>
     Effect.gen(function* () {
       const config = yield* readDeploymentConfig({});

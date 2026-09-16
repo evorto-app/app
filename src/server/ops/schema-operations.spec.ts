@@ -19,6 +19,47 @@ const result = (value: unknown) => ({
 
 describe('ops schema operations', () => {
   it.each([
+    { message: 'Missing STRIPE_TEST_ACCOUNT_ID', operation: 'initialize' },
+    { message: 'Missing STRIPE_TEST_ACCOUNT_ID', operation: 'reset' },
+    { message: 'Invalid E2E_NOW_ISO value', operation: 'initialize' },
+    { message: 'Invalid E2E_NOW_ISO value', operation: 'reset' },
+  ])(
+    'does not touch staging when $operation seed preflight fails: $message',
+    async ({ message, operation }) => {
+      const commands: {
+        command: readonly string[];
+        environment?: Readonly<Record<string, string>>;
+      }[] = [];
+      const runner: OpsCommandRunner = {
+        run: (command, options) => {
+          commands.push({ command, environment: options?.environment });
+          return Effect.succeed({
+            exitCode: 1,
+            stderr: message,
+            stdout: '',
+          });
+        },
+      };
+      const effect =
+        operation === 'initialize'
+          ? initializeEmptyStaging(runner).pipe(Effect.asVoid)
+          : seedStaging('reset-and-seed-staging', runner).pipe(Effect.asVoid);
+      const failure = await Effect.runPromise(Effect.flip(effect));
+
+      expect(failure.diagnostic).toBe('staging-seed-configuration-invalid');
+      expect(failure.message).toBe(
+        'Staging seed preflight failed (staging-seed-configuration-invalid; exit 1)',
+      );
+      expect(commands).toEqual([
+        {
+          command: ['bun', 'dist/evorto/ops/seed-staging.mjs'],
+          environment: { STAGING_SEED_PREFLIGHT_ONLY: 'true' },
+        },
+      ]);
+    },
+  );
+
+  it.each([
     [
       'TLS hostname mismatches',
       'hostname/IP does not match certificate altnames',
@@ -326,6 +367,10 @@ describe('ops schema operations', () => {
         expect(commands).toEqual([
           {
             command: ['bun', 'dist/evorto/ops/seed-staging.mjs'],
+            environment: { STAGING_SEED_PREFLIGHT_ONLY: 'true' },
+          },
+          {
+            command: ['bun', 'dist/evorto/ops/seed-staging.mjs'],
             environment: { STAGING_INITIALIZE_ONLY: 'true' },
           },
         ]);
@@ -355,6 +400,10 @@ describe('ops schema operations', () => {
 
         expect(response).toEqual({ reset: true, seeded: true });
         expect(commands).toEqual([
+          {
+            command: ['bun', 'dist/evorto/ops/seed-staging.mjs'],
+            environment: { STAGING_SEED_PREFLIGHT_ONLY: 'true' },
+          },
           {
             command: ['bun', 'dist/evorto/ops/reset-staging-database.mjs'],
             environment: {

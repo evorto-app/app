@@ -8,14 +8,21 @@ services:
       POSTGRES_USER: "${POSTGRES_USER:-evorto}"
     volumes:
       - postgres-data:/var/lib/postgresql/data
-      - ./ops/local-postgres-init.sql:/docker-entrypoint-initdb.d/10-integration-database.sql:ro
     ports:
       - "${POSTGRES_HOST_PORT:-55432}:5432"
     healthcheck:
       test:
         [
-          "CMD-SHELL",
-          "pg_isready -h 127.0.0.1 -p 5432 -U ${POSTGRES_USER:-evorto} -d ${POSTGRES_DB:-appdb}",
+          "CMD",
+          "pg_isready",
+          "-h",
+          "127.0.0.1",
+          "-p",
+          "5432",
+          "-U",
+          "${POSTGRES_USER:-evorto}",
+          "-d",
+          "${POSTGRES_DB:-appdb}",
         ]
       interval: 5s
       timeout: 5s
@@ -32,27 +39,28 @@ services:
       db:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-evorto}:${POSTGRES_PASSWORD:-evorto-local}@db:5432/${POSTGRES_DB:-appdb}?sslmode=disable
+      DATABASE_URL: "${DOCKER_DATABASE_URL:?Run Docker through a supported bun package command}"
       E2E_NOW_ISO:
       E2E_SEED_KEY:
       LOCAL_DATABASE: "true"
       LOCAL_DATABASE_CONFIRM_RESET: evorto-local-reset
+      POSTGRES_DB: "${POSTGRES_DB:-appdb}"
       STRIPE_TEST_ACCOUNT_ID:
     command:
       - /bin/sh
       - -lc
-      - bun helpers/reset-database-schema.ts && bun ./node_modules/drizzle-kit/bin.cjs push --force && bun helpers/database.ts
+      - STAGING_SEED_PREFLIGHT_ONLY=true bun helpers/database.ts && bun helpers/reset-database-schema.ts && bun ./node_modules/drizzle-kit/bin.cjs push --force && bun helpers/database.ts
     restart: "no"
 
   mailpit:
-    image: axllent/mailpit:v1.28.2@sha256:28a161f4a39c70671d0fb771a6e7a3abe6d2144c0e2a595ff72767ab63cd14f6
+    image: axllent/mailpit:v1.31.1@sha256:98b916bd3c8d61f7633a52d3ea2f58d00620cb01ca57ab59edde68c347a95365
     restart: unless-stopped
     environment:
       MP_DATABASE: /data/mailpit.db
       MP_MAX_MESSAGES: "500"
       MP_SEND_API_AUTH_ACCEPT_ANY: "true"
     ports:
-      - "${MAILPIT_HOST_PORT:-8025}:8025"
+      - "127.0.0.1:${MAILPIT_HOST_PORT:?MAILPIT_HOST_PORT is required}:8025"
     volumes:
       - mailpit-data:/data
 
@@ -119,7 +127,7 @@ services:
       CLIENT_ID:
       CLIENT_SECRET:
       DATABASE_POOL_MAX: "20"
-      DATABASE_URL: postgresql://${POSTGRES_USER:-evorto}:${POSTGRES_PASSWORD:-evorto-local}@db:5432/${POSTGRES_DB:-appdb}?sslmode=disable
+      DATABASE_URL: "${DOCKER_DATABASE_URL:?Run Docker through a supported bun package command}"
       E2E_GLOBAL_ADMIN_AUTH0_IDS:
       E2E_NOW_ISO:
       E2E_RUNTIME_MODE:
@@ -168,7 +176,7 @@ services:
       APP_ENVIRONMENT: local
       APP_ROLE: worker
       DATABASE_POOL_MAX: "5"
-      DATABASE_URL: postgresql://${POSTGRES_USER:-evorto}:${POSTGRES_PASSWORD:-evorto-local}@db:5432/${POSTGRES_DB:-appdb}?sslmode=disable
+      DATABASE_URL: "${DOCKER_DATABASE_URL:?Run Docker through a supported bun package command}"
       E2E_NOW_ISO:
       E2E_RUNTIME_MODE:
       EMAIL_DELIVERY_PROVIDER: mailpit
@@ -184,7 +192,9 @@ services:
       STRIPE_API_KEY:
       WORKER_TRIGGER_MODE: poll
   stripe:
-    image: stripe/stripe-cli:v1.41.1@sha256:f1e91acd11134c1589c13f35b315f648e274a19074d9bfd2c2a5e39552eef620
+    build:
+      context: .
+      dockerfile: helpers/testing/stripe-listener.Dockerfile
     restart: always
     environment:
       STRIPE_API_KEY:
@@ -198,7 +208,6 @@ services:
       retries: 30
       start_period: 5s
     volumes:
-      - ./helpers/testing/stripe-listen-docker.sh:/usr/local/bin/stripe-listen-docker:ro
       - stripe-webhook:/run/stripe-webhook
 
 secrets:

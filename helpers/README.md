@@ -71,20 +71,33 @@ bun run db:reset
 
 This will:
 
-1. Generate or refresh `.env.dev` through the package script's `bun run env:runtime` prelude, so Docker, database, and Playwright commands keep isolated ports/project naming
+1. Resolve an invocation-private environment through `env:run`, so concurrent Docker, database, Mailpit, and Playwright commands keep their own ports and project names
 2. Ensure schema exists and reset/seed the local database (`bun run db:reset`)
 
-`bun run db:reset` now uses the same generated `.env.dev` plus `dotenv -c dev` loading model as `db:push`. In this repo, the supported local files are `.env` for developer secrets, `.env.dev.local` for tracked shared defaults, and `.env.dev` for generated worktree overrides. `bun run db:push`, Docker's `db-setup` service, and `bun run db:studio` all consume the same local environment contract.
+`bun run db:reset` uses the same invocation-private environment as `db:push` and validates seed configuration before resetting the schema. In this repo, the supported local files are `.env` for developer secrets, `.env.dev.local` for tracked shared defaults, and `.env.dev` for generated worktree overrides. `bun run db:push`, Docker's `db-setup` service, and `bun run db:studio` all consume the same local environment contract. The local Drizzle config refuses to connect unless `LOCAL_DATABASE=true`, the PostgreSQL URL has explicit credentials and a database name matching the required `POSTGRES_DB` exactly, and its host is loopback or the Compose `db` service. An exported remote or mismatched `DATABASE_URL` therefore fails before schema inspection or mutation.
 
 Docker Compose runs a pinned PostgreSQL 17 container plus one-shot `db-setup`
 before `evorto` and the polling worker start. `bun run docker:start`,
 `bun run docker:start:foreground`, and `bun run docker:start:watch` run
 `docker compose down --timeout 60 --remove-orphans` first, then run the
 equivalent of `bun run db:reset` against the Docker database during stack
-startup. That path drops and recreates `public`, applies Drizzle, and seeds the
-local dataset without an interactive confirmation. PostgreSQL data, Mailpit
-messages, and the Stripe signing secret use project-scoped named volumes;
-MinIO data is container-local for the disposable test stack.
+startup. The one-shot setup ensures the fixed disposable integration database
+exists directly through PostgreSQL, then drops and recreates the application's
+`public` schema, applies Drizzle, and seeds the local dataset without an
+interactive confirmation. PostgreSQL data, Mailpit messages, and the Stripe
+signing secret use project-scoped named volumes; MinIO data is container-local
+for the disposable test stack. PostgreSQL startup has no host-file mount.
+
+The runtime resolver derives `DOCKER_DATABASE_URL` from the literal
+`POSTGRES_USER`, `POSTGRES_PASSWORD`, and `POSTGRES_DB` values. Compose uses this
+encoded URL for setup, web, and worker containers; the database healthcheck
+passes user and database names as literal arguments. Database names must
+round-trip through the PostgreSQL driver's URL parser: spaces, Unicode, and
+literal percent signs are supported, while URI-reserved characters such as
+`/`, `?`, `#`, and `$` are rejected before a child command acquires its project
+lease. Credentials remain literal and are percent-encoded without trimming.
+Direct CI Compose steps supply an explicit matching container URL in workflow
+environment variables.
 
 The generated `E2E_USE_DOCKER_STACK=true` environment makes Playwright use
 `bun run docker:webserver`. That wrapper refuses to take ownership when an
@@ -98,17 +111,18 @@ then runs the project-scoped
 containers, networks, and disposable named volumes do not linger. Each Compose
 teardown call has a 90-second wall-clock watchdog, and each container, network,
 or volume verification call has a 10-second watchdog.
-Playwright allows five minutes for both teardown attempts, watchdog termination
-grace, verification, removal, and an additional shutdown buffer. When it reuses
+Playwright allows five minutes for teardown, watchdog termination grace,
+verification, removal, and an additional shutdown buffer. When it reuses
 a stack that was already serving the app, it never starts that wrapper and the
 user-owned stack remains running. Resume an initialized stopped project with
 `bun run docker:resume`, or use `bun run docker:start` for an intentional reset.
 
 An explicitly supplied `E2E_USE_DOCKER_STACK=false` uses
 `helpers/testing/host-e2e-webserver.sh`. The caller owns its database. The host
-wrapper starts or temporarily
-resumes only the current worktree's MinIO container, initializes its bucket,
-and exports the same loopback S3 endpoint and credentials to the Angular server
+wrapper acquires the same project lease before inspecting or changing MinIO
+and retains it through host-app cleanup and MinIO restoration. It starts or
+temporarily resumes only the current worktree's MinIO container, initializes
+its bucket, and exports the same loopback S3 endpoint and credentials to the Angular server
 that receipt fixtures use. It restores a previously stopped MinIO container and
 removes a MinIO container it created after the host server stops; it never calls
 Compose teardown or mutates unrelated services or projects. Existing host app
@@ -124,9 +138,40 @@ is missing or a one-shot setup failed, use `bun run docker:start` for an
 intentional fresh reset instead.
 
 Use `bun run docker:ps` to inspect the generated worktree Compose project; bare
-`docker compose ps` can point at the wrong project because it does not preload
-`.env.dev`. The package scripts preload the needed environment with
-`dotenv -c dev` before invoking Docker.
+`docker compose ps` can point at the wrong project because it does not resolve
+the worktree runtime environment. Package scripts use `env:run` and never read
+the shared `.env.dev` snapshot. Set `MAILPIT_HOST_PORT` on the package command
+only when an explicit Mailpit inspection port is needed;
+otherwise the runtime helper derives one from the worktree identity.
+
+Commands that start, stop, resume, or own the Docker stack, plus local database
+push/reset, Studio, and the disposable PostgreSQL integration suite, acquire one
+fail-fast lease for the generated Compose project. The lease uses a stable,
+private per-user directory under `/tmp`, independent of caller `TMPDIR`, `TMP`,
+and `TEMP` overrides. A second command for that same worktree exits immediately
+and names the active operation instead of racing a reset or waiting on a changing
+stack. Other worktrees use different
+project names and remain independent. The operating system releases the lease
+when its command exits, including after a forced termination; stale owner
+details are replaced after the next successful acquisition and cannot hold the
+lease by themselves.
+
+Environment resolution runs before lease acquisition. Keep `env:run` outside
+leased commands because native process replacement closes additional file
+descriptors. The lease exports an internal marker so an accidental nested
+`env:run` fails before starting its command.
+
+`bun run db:studio` holds that lease for the entire Studio session. Stop the
+`bun run db:studio` process before resetting or stopping the same project;
+closing its browser tab leaves the lease active. Database operations in other
+worktrees remain independent.
+
+Ordinary Docker start, stop, and status commands have wall-clock limits around
+each Compose operation. A failed or timed-out operation stops immediately and
+prints the current project state plus recent logs; it does not retry or silently
+rebuild a partial stack. Foreground and watch sessions remain active until the
+operator stops them, after their reset and build steps finish within the same
+bounds.
 
 Inside Docker, keep `BASE_URL` browser-facing so Auth0 redirects point at the
 host-mapped app URL, and keep `SSR_RPC_ORIGIN` pointed at the app container's
@@ -196,9 +241,15 @@ after the Docker `db-setup` reset: default user and organizer roles, all
 template seed families, paid and free event options, paid tax-rate wiring,
 scenario handles for open/closed/draft/past registration states, confirmed
 registrations, and at least one checked-in aggregate for scanner review.
+The setup reset and every seeded tenant commit in one database transaction.
+Tenant domain, name, and currency are explicit seed inputs, and missing
+administrator, organizer, or regular-user roles fail the seed. Declared add-ons
+and registration questions also require their template and exact registration
+option; a missing lookup aborts the seed instead of silently omitting a fixture.
 
-The Docker Stripe CLI listener writes its generated webhook signing secret into
-a shared Docker volume. The app container reads that file through
+The local Stripe listener image includes its startup script and uses a pinned
+Stripe CLI release. It writes its generated webhook signing secret into a shared
+Docker volume. The app container reads that file through
 `STRIPE_WEBHOOK_SECRET_FILE`, so local paid checkout webhooks use the same
 runtime secret that Stripe CLI generated for the listener session. Compose
 waits for the secret file to become nonempty before starting the app container.
@@ -215,3 +266,25 @@ If you need to modify the seeding process:
 
 For Playwright tests, prefer consuming `seeded.scenario` in fixtures/specs rather
 than searching for events by title, date, or incidental seeded content.
+
+## Seed configuration preflight
+
+`STAGING_SEED_PREFLIGHT_ONLY=true bun helpers/database.ts` validates database
+configuration, the required Stripe test account, and the pinned seed date
+(`E2E_NOW_ISO`) without opening a database connection or changing the seed RNG.
+The ordinary seed uses the same resolved date. Direct helper invocation resolves
+both `E2E_NOW_ISO` and `E2E_SEED_KEY` from the process environment, then
+`.env.dev.local`, `.env.dev`, and `.env`, using the same provider as database and
+Stripe settings. Explicit blank caller values retain the unpinned clock or daily
+RNG default instead of falling through to a file. Command-mode flags such as
+`STAGING_SEED_PREFLIGHT_ONLY` remain explicit process controls. Local database reset, Compose
+`db-setup`, and staging ops run this configuration preflight before their
+destructive schema step. A failed Compose preflight stops setup before reset,
+Drizzle schema application, or seeding.
+
+Roles and imported VAT rates are fixed seed declarations, not external fixture
+configuration or provider lookups. Checks on inserted roles, tax-rate rows,
+template registration options, and scenario handles still run in the seed
+transaction, where those rows exist. Configuration preflight does not certify
+future database writes or make the separate staging drop/apply/seed commands
+atomic; database or runtime failures can still interrupt that workflow.

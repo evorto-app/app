@@ -7,6 +7,7 @@ import { createId } from '../src/db/create-id';
 import { relations } from '../src/db/relations';
 import * as schema from '../src/db/schema';
 import { getId } from './get-id';
+import { requireSeedUserId } from './seed-requirements';
 import { usersToAuthenticate } from './user-data';
 
 export const addFinanceReceipts = async (
@@ -17,15 +18,11 @@ export const addFinanceReceipts = async (
     tenantId: string;
   },
 ) => {
-  const regularUserId =
-    usersToAuthenticate.find((user) => user.roles === 'user')?.id ??
-    usersToAuthenticate[0].id;
-  const reviewerUserId =
-    usersToAuthenticate.find((user) => user.roles === 'admin')?.id ??
-    usersToAuthenticate[0].id;
   if (options.eventIds.length === 0) {
     return;
   }
+  const regularUserId = requireSeedUserId(usersToAuthenticate, 'user');
+  const reviewerUserId = requireSeedUserId(usersToAuthenticate, 'admin');
 
   const reimbursementUserId = createId();
   await database.insert(schema.users).values({

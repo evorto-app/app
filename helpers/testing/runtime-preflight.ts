@@ -374,9 +374,17 @@ export const evaluateRuntimePreflight = (
         ]
       : []),
     {
-      details: [path.join(cwd, '.env.dev')],
-      label: 'Generated worktree runtime env file',
-      severity: fileExists(path.join(cwd, '.env.dev')) ? 'ok' : 'failure',
+      details: [
+        env['EVORTO_RUNTIME_ENV_READY'] === 'true'
+          ? 'Invocation environment resolved by env:run'
+          : path.join(cwd, '.env.dev'),
+      ],
+      label: 'Generated worktree runtime environment',
+      severity:
+        env['EVORTO_RUNTIME_ENV_READY'] === 'true' ||
+        fileExists(path.join(cwd, '.env.dev'))
+          ? 'ok'
+          : 'failure',
     },
     commandCheck('Bun runtime', 'bun', ['--version'], 'failure', runCommand),
     commandCheck(

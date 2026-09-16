@@ -189,7 +189,7 @@ describe('CI quality source', () => {
       'docker compose logs --no-color db-setup mailpit minio minio-init worker evorto > test-results/docker-logs/docker-compose.log || true',
       'docker compose logs --no-color --tail=100 db-setup mailpit minio minio-init worker evorto',
       'docker compose logs --no-color --tail=100 db-setup mailpit minio minio-init worker evorto',
-      'node_modules/.bin/dotenv -c dev -- docker compose logs --no-color --tail=100 db-setup mailpit minio minio-init worker evorto || true',
+      'bun run env:run -- docker compose logs --no-color --tail=100 db-setup mailpit minio minio-init worker evorto || true',
     ]);
 
     for (const command of dockerLogCommands) {
@@ -221,6 +221,32 @@ describe('CI quality source', () => {
     );
     expect(copilotWorkflow).toContain('push:\n    branches: [main]');
     expect(baselineWorkflow).toContain('!test-results/docs/**');
+  });
+
+  it('keeps Copilot source review independent of credentials and application setup', () => {
+    const source = readSource('.github/workflows/copilot-code-review.yml');
+
+    expect(source).toContain('  copilot-setup-steps:');
+    expect(source).toContain('contents: read');
+    expect(source).not.toMatch(/\b(?:secrets|vars)\./u);
+    expect(source).not.toMatch(/\b(?:run|services|environment):/u);
+    expect(source).not.toMatch(/:\s*write\b/u);
+    expect(source).toContain('bun-version: "1.4.2"');
+    expect(source).toContain('node-version: "24.21.0"');
+    const actionSteps = actionStepBlocks(
+      source.slice(source.indexOf('\njobs:\n')),
+    );
+    expect(
+      actionSteps.find((step) => step.includes('uses: actions/checkout@')),
+    ).toMatch(/^\s+persist-credentials: false\s*$/mu);
+    const actions = actionSteps.map(
+      (step) => step.match(/uses:\s+(\S+?)@/u)?.[1],
+    );
+    expect(actions).toEqual([
+      'actions/checkout',
+      'oven-sh/setup-bun',
+      'actions/setup-node',
+    ]);
   });
 
   it('does not retain or upload authenticated Playwright traces', () => {

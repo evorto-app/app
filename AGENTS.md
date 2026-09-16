@@ -42,7 +42,7 @@ More specific guidance may exist deeper in some subtrees.
 
 ## Build, Test, and Development Commands
 
-- `bun run dev:start` - refresh worktree-local runtime env and run Angular dev server at the generated `BASE_URL`.
+- `bun run dev:start` - resolve local settings in memory and run the Angular dev server on the resolved `APP_HOST_PORT`.
 - `bun run build:app` - build client + server bundles.
 - `bun run test:unit` - run unit tests.
 - `bun run test:unit:server` - run server unit tests.
@@ -93,8 +93,12 @@ For runtime/test details, read:
 - `src/server/config/AGENTS.md`
 
 Local `test:e2e`, `test:e2e:ui`, `test:e2e:docs`, `db:*`, and `docker:*`
-package scripts refresh `.env.dev` before invoking `dotenv -c dev`; use those
-package scripts instead of bare `dotenv` shell commands.
+package scripts use `env:run` to resolve an invocation-private environment in memory.
+They never read the shared `.env.dev` snapshot. Use these scripts or
+`bun run env:run -- <command>` instead of chaining `env:runtime` and `dotenv`.
+`env:runtime` remains an atomic, owner-only `.env.dev` snapshot writer for
+standalone inspection. Child commands preserve process environment values over
+`.env.dev.local`, generated runtime defaults, and `.env`, in that order.
 
 ## Type Safety
 

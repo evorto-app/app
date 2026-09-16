@@ -98,7 +98,9 @@ export const test = base.extend<BaseFixtures & { seeded: SeedTenantResult }>({
     async ({ database, falsoSeed, seedDate }, use, testInfo) => {
       const runId = buildRunId(`${falsoSeed}:retry-${testInfo.retry}`);
       const result = await seedTenant(database, {
+        currency: 'EUR',
         domain: `e2e-${runId}`,
+        name: `E2E ${runId}`,
         profile: 'test',
         runId,
         seedDate,

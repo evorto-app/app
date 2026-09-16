@@ -26,11 +26,14 @@ locals {
       ]),
       var.environment == "staging" ? toset(["STAGING_EMAIL_ALLOWLIST"]) : toset([]),
     )
-    ops = toset([
-      "COCKPIT_TRACES_TOKEN",
-      "DATABASE_TLS_CA_CERTIFICATE",
-      "DATABASE_URL",
-    ])
+    ops = setunion(
+      toset([
+        "COCKPIT_TRACES_TOKEN",
+        "DATABASE_TLS_CA_CERTIFICATE",
+        "DATABASE_URL",
+      ]),
+      var.environment == "staging" ? toset(["STRIPE_TEST_ACCOUNT_ID"]) : toset([]),
+    )
   }
   role_secrets = merge([
     for role, names in local.role_secret_names : {

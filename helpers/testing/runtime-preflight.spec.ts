@@ -90,6 +90,39 @@ const serviceBlock = (composeFile: string, service: string): string => {
 };
 
 describe('evaluateRuntimePreflight', () => {
+  it('accepts the resolved invocation environment without a shared generated file', () => {
+    const result = evaluateRuntimePreflight('docker', {
+      cwd: '/repo',
+      env: {
+        ...requiredDockerEnvironment,
+        EVORTO_RUNTIME_ENV_READY: 'true',
+      },
+      fileExists: () => false,
+      runCommand: successfulCommand,
+    });
+    expect(result.checks).toContainEqual({
+      details: ['Invocation environment resolved by env:run'],
+      label: 'Generated worktree runtime environment',
+      severity: 'ok',
+    });
+  });
+
+  it('validates seed configuration inside the reset lease before resetting the database', () => {
+    const packageJson = JSON.parse(
+      fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8'),
+    ) as { scripts: Record<string, string> };
+    const reset = packageJson.scripts['db:reset'];
+    expect(reset).toContain('with-docker-project-lease.sh database-reset --');
+    const preflight =
+      reset?.indexOf(
+        'STAGING_SEED_PREFLIGHT_ONLY=true bun helpers/database.ts',
+      ) ?? -1;
+    const mutation =
+      reset?.indexOf('bun helpers/reset-database-schema.ts') ?? -1;
+    expect(preflight).toBeGreaterThan(0);
+    expect(mutation).toBeGreaterThan(preflight);
+  });
+
   it('requires every authenticated account before Playwright but not Docker startup', () => {
     expect(
       requiredByTarget.playwright
@@ -192,33 +225,32 @@ describe('evaluateRuntimePreflight', () => {
     ) as { scripts: Record<string, string> };
 
     expect(packageJson.scripts['docker:check']).toBe(
-      'bun run env:runtime && dotenv -c dev -- bun helpers/testing/runtime-preflight.ts docker',
+      'bun run env:run -- bun helpers/testing/runtime-preflight.ts docker',
     );
     expect(packageJson.scripts['docker:ps']).toBe(
-      'bun run env:runtime && dotenv -c dev -- docker compose ps',
+      'bun run env:run -- bash helpers/testing/docker-stack.sh status',
     );
     expect(packageJson.scripts['docker:stop']).toBe(
-      'bun run env:runtime && dotenv -c dev -- docker compose down --timeout 60 --remove-orphans',
+      'bun run env:run -- bash helpers/testing/with-docker-project-lease.sh docker-stop -- bash helpers/testing/docker-stack.sh stop',
     );
-
-    for (const scriptName of [
-      'docker:start',
-      'docker:start:watch',
-      'docker:start:foreground',
-    ]) {
-      expect(packageJson.scripts[scriptName]).toMatch(
-        /^bun run docker:check && dotenv -c dev -- docker compose down --timeout 60 --remove-orphans && /,
-      );
-    }
+    expect(packageJson.scripts['docker:start']).toBe(
+      "bun run env:run -- bash helpers/testing/with-docker-project-lease.sh docker-start -- sh -c 'bun helpers/testing/runtime-preflight.ts docker && exec bash helpers/testing/docker-stack.sh start'",
+    );
+    expect(packageJson.scripts['docker:start:watch']).toBe(
+      "bun run env:run -- bash helpers/testing/with-docker-project-lease.sh docker-start-watch -- sh -c 'bun helpers/testing/runtime-preflight.ts docker && exec bash helpers/testing/docker-stack.sh start-watch'",
+    );
+    expect(packageJson.scripts['docker:start:foreground']).toBe(
+      "bun run env:run -- bash helpers/testing/with-docker-project-lease.sh docker-start-foreground -- sh -c 'bun helpers/testing/runtime-preflight.ts docker && exec bash helpers/testing/docker-stack.sh start-foreground'",
+    );
 
     expect(packageJson.scripts['docker:resume']).toBe(
-      'bun run docker:check && dotenv -c dev -- bash helpers/testing/docker-resume.sh',
+      "bun run env:run -- bash helpers/testing/with-docker-project-lease.sh docker-resume -- sh -c 'bun helpers/testing/runtime-preflight.ts docker && exec bash helpers/testing/docker-resume.sh'",
     );
     expect(packageJson.scripts['docker:webserver']).toBe(
-      'bun run docker:check && dotenv -c dev -- bash helpers/testing/docker-webserver.sh',
+      "bun run env:run -- bash helpers/testing/with-docker-project-lease.sh docker-webserver -- sh -c 'bun helpers/testing/runtime-preflight.ts docker && exec bash helpers/testing/docker-webserver.sh'",
     );
     expect(packageJson.scripts['test:e2e:check']).toBe(
-      'bun run env:runtime && dotenv -c dev -- bun helpers/testing/runtime-preflight.ts playwright',
+      'bun run env:run -- bun helpers/testing/runtime-preflight.ts playwright',
     );
     for (const scriptName of [
       'test:e2e',
@@ -373,8 +405,8 @@ describe('evaluateRuntimePreflight', () => {
       'test:e2e:live-esncard:release',
       'test:e2e:docs:publish',
     ]) {
-      expect(packageJson.scripts[scriptName]).toContain('bun run env:runtime');
-      expect(packageJson.scripts[scriptName]).toContain('dotenv -c dev --');
+      expect(packageJson.scripts[scriptName]).toContain('bun run env:run --');
+      expect(packageJson.scripts[scriptName]).not.toContain('dotenv -c dev --');
     }
 
     for (const scriptName of [
@@ -386,7 +418,7 @@ describe('evaluateRuntimePreflight', () => {
       expect(packageJson.scripts[scriptName]).toContain(
         'bun run test:e2e:check',
       );
-      expect(packageJson.scripts[scriptName]).toContain('dotenv -c dev --');
+      expect(packageJson.scripts[scriptName]).not.toContain('dotenv -c dev --');
     }
 
     expect(packageJson.scripts['test:e2e:integration']).toContain(
@@ -508,8 +540,12 @@ describe('evaluateRuntimePreflight', () => {
     expect(evortoService).not.toContain('command:');
     expect(workerService).not.toContain('command:');
 
-    expect(mailpitService).toContain('axllent/mailpit:v1.28.2@sha256:');
+    expect(mailpitService).toContain('axllent/mailpit:v1.31.1@sha256:');
     expect(mailpitService).toContain('MAILPIT_HOST_PORT');
+    expect(mailpitService).toContain(
+      '"127.0.0.1:${MAILPIT_HOST_PORT:?MAILPIT_HOST_PORT is required}:8025"',
+    );
+    expect(mailpitService).not.toContain('MAILPIT_HOST_PORT:-');
     expect(mailpitService).toContain('mailpit-data:/data');
     expect(workerService).toContain('APP_ROLE: worker');
     expect(workerService).toContain('WORKER_TRIGGER_MODE: poll');
@@ -520,7 +556,7 @@ describe('evaluateRuntimePreflight', () => {
 
     expect(stripeService).toContain('STRIPE_API_KEY:');
     expect(stripeService).toContain(
-      './helpers/testing/stripe-listen-docker.sh',
+      'dockerfile: helpers/testing/stripe-listener.Dockerfile',
     );
     expect(stripeService).toContain(
       'test: ["CMD-SHELL", "test -s /run/stripe-webhook/signing-secret"]',
@@ -546,6 +582,9 @@ describe('evaluateRuntimePreflight', () => {
     expect(runtimeEnvironment).toContain('DEFAULT_E2E_SEED_KEY');
     expect(runtimeEnvironment).toContain('E2E_NOW_ISO: e2eNowIso');
     expect(runtimeEnvironment).toContain('E2E_SEED_KEY: e2eSeedKey');
+    expect(runtimeEnvironment).toContain(
+      'MAILPIT_HOST_PORT: String(mailpitHostPort)',
+    );
     expect(runtimeEnvironment).toContain("NODE_ENV: 'development'");
     expect(runtimeEnvironment).toContain('SSR_RPC_ORIGIN: baseUrl');
 
@@ -617,7 +656,7 @@ describe('evaluateRuntimePreflight', () => {
         }),
         expect.objectContaining({
           details: ['/repo/.env.dev'],
-          label: 'Generated worktree runtime env file',
+          label: 'Generated worktree runtime environment',
           severity: 'failure',
         }),
       ]),

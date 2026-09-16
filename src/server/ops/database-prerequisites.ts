@@ -1,6 +1,8 @@
 import { createNodePgPoolConfig } from '@db/pg-connection-config';
 import { Pool } from 'pg';
 
+import { isDatabaseRuntimeRoleName } from '../config/deployment-config';
+
 const databaseUrl = process.env['DATABASE_URL'];
 if (!databaseUrl) {
   throw new Error('DATABASE_URL must be configured for database prerequisites');
@@ -15,7 +17,7 @@ if (tlsRequired && !caCertificate) {
     'DATABASE_TLS_CA_CERTIFICATE is required when DATABASE_TLS_REQUIRED=true',
   );
 }
-if (!runtimeRole || !/^[a-z_][a-z0-9_]{0,62}$/u.test(runtimeRole)) {
+if (!isDatabaseRuntimeRoleName(runtimeRole)) {
   throw new Error('DATABASE_RUNTIME_ROLE must be a safe PostgreSQL role name');
 }
 

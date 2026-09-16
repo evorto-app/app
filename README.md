@@ -24,6 +24,13 @@ When Codex initializes a new linked worktree, it copies a missing `.env` from
 the primary checkout with owner-only permissions. It leaves an existing
 worktree `.env` unchanged, while `.env.dev` remains generated per worktree.
 
+Local package commands use `bun run env:run -- <command>` to resolve their own
+environment instead of reading `.env.dev`. Each command retains caller-provided
+values ahead of `.env.dev.local`, generated runtime defaults, and `.env`. The
+resolved environment stays in memory, and the command replaces the resolver
+process so signals and exit status remain native. `env:runtime` still atomically
+writes an owner-only `.env.dev` for standalone inspection.
+
 Use `.env.example` as the no-secret checklist for values that must be copied
 into `.env` or exported before Docker can start. `bun run docker:check` reports
 which required values are still missing before any Docker containers are
@@ -35,8 +42,8 @@ stopped containers back, use `bun run docker:resume` to avoid container
 recreation.
 
 Use `bun run docker:ps` to inspect the generated worktree Compose project.
-Bare `docker compose ps` does not load `.env.dev`, so it can show an empty
-project even while the isolated worktree stack is running.
+Bare `docker compose ps` does not resolve the worktree runtime environment, so
+it can show an empty project even while the isolated stack is running.
 
 `.env.local`, `.env.runtime`, and `.env.ci` are unsupported in this repo.
 
@@ -68,7 +75,10 @@ To start a local development server, run:
 bun run dev:start
 ```
 
-Once the server is running, open the generated `BASE_URL` from `.env.dev`. The application will automatically reload whenever you modify any of the source files.
+Once the server is running, open the local URL printed by the Angular dev
+server. To inspect the resolved origin separately with the same environment
+overrides, run `bun run env:run -- printenv BASE_URL`; `.env.dev` may be absent
+or stale. The application automatically reloads when source files change.
 
 ## Code scaffolding
 
