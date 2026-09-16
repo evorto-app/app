@@ -125,7 +125,16 @@ describe('RoleDetailsComponent effective permissions', () => {
   ])(
     'distinguishes a deleted role without exposing unsafe failures: $expected',
     async ({ error, expected }) => {
-      findRole.mockRejectedValueOnce(error);
+      findRole.mockRejectedValueOnce(error).mockResolvedValueOnce({
+        defaultOrganizerRole: false,
+        defaultUserRole: false,
+        description: null,
+        displayInHub: false,
+        id: 'role-1',
+        name: 'Restored role',
+        permissions: [],
+        sortOrder: 0,
+      });
       const fixture = TestBed.createComponent(RoleDetailsComponent);
       fixture.componentRef.setInput('roleId', 'role-1');
       fixture.detectChanges();
@@ -135,6 +144,22 @@ describe('RoleDetailsComponent effective permissions', () => {
           fixture.nativeElement.querySelector(':scope [role="alert"] p')
             ?.textContent,
         ).toBe(expected);
+      });
+      expect(findRole).toHaveBeenCalledTimes(1);
+      const root: HTMLElement = fixture.nativeElement;
+      const retry = root.querySelector<HTMLButtonElement>(
+        ':scope [role="alert"] button',
+      );
+      if (!retry) throw new Error('Role retry button was not rendered');
+      expect(retry.textContent?.trim()).toBe('Try again');
+      expect(retry.disabled).toBe(false);
+      retry.click();
+
+      await vi.waitFor(() => {
+        fixture.detectChanges();
+        expect(findRole).toHaveBeenCalledTimes(2);
+        expect(root.querySelector('[role="alert"]')).toBeNull();
+        expect(root.textContent).toContain('Restored role');
       });
     },
   );
