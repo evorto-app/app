@@ -26,6 +26,35 @@ const between = (contents: string, start: string, end?: string): string => {
   return contents.slice(startIndex, endIndex === -1 ? undefined : endIndex);
 };
 
+// Each import owns its environment for the lifetime of a bounded child. A
+// timed-out Vitest import must not restore process.env during the next test.
+const readManagedSchemaConfig = (environment: NodeJS.ProcessEnv) => {
+  const configUrl = pathToFileURL(
+    path.join(repositoryRoot, 'ops/drizzle.config.mjs'),
+  );
+  const result = spawnSync(
+    process.execPath,
+    [
+      '--input-type=module',
+      '--eval',
+      `const { default: config } = await import(${JSON.stringify(configUrl.href)});
+process.stdout.write(JSON.stringify({
+  config,
+  checkServerIdentityIsFunction: typeof config.dbCredentials.ssl?.checkServerIdentity === 'function',
+}));`,
+    ],
+    {
+      encoding: 'utf8',
+      env: environment,
+      killSignal: 'SIGKILL',
+      timeout: 4000,
+    },
+  );
+  expect(result.error).toBeUndefined();
+  expect(result.signal).toBeNull();
+  return result;
+};
+
 describe('Scaleway hosting source', () => {
   const revision = 'd'.repeat(40);
   const digestHash = 'a'.repeat(64);
@@ -583,59 +612,37 @@ fi
     expect(main).toContain('"IPAMReadOnly"');
   });
 
-  it('verifies managed Drizzle schema connections against the database identity', async () => {
-    const environmentKeys = [
-      'DATABASE_TLS_CA_CERTIFICATE',
-      'DATABASE_TLS_REQUIRED',
-      'DATABASE_URL',
-    ] as const;
-    const originalEnvironment = Object.fromEntries(
-      environmentKeys.map((key) => [key, process.env[key]]),
-    );
+  it('verifies managed Drizzle schema connections against the database identity', () => {
     const caCertificate = [
       '-----BEGIN CERTIFICATE-----',
       'managed-database-ca',
       '-----END CERTIFICATE-----',
     ].join('\n');
-    try {
-      process.env['DATABASE_TLS_CA_CERTIFICATE'] = caCertificate;
-      process.env['DATABASE_TLS_REQUIRED'] = 'true';
-      process.env['DATABASE_URL'] =
-        'postgresql://schema_owner:p%40ss%2Fword@10.0.0.8:6432/evorto%20staging';
-      const configUrl = pathToFileURL(
-        path.join(repositoryRoot, 'ops/drizzle.config.mjs'),
-      );
-      configUrl.searchParams.set('test', 'managed-database-tls');
-      const importedConfig: unknown = await import(
-        /* @vite-ignore */ configUrl.href
-      );
-
-      expect(importedConfig).toMatchObject({
-        default: {
-          dbCredentials: {
-            database: 'evorto staging',
-            host: '10.0.0.8',
-            password: 'p@ss/word',
-            port: 6432,
-            ssl: {
-              ca: caCertificate,
-              checkServerIdentity: expect.any(Function),
-              rejectUnauthorized: true,
-            },
-            user: 'schema_owner',
+    const result = readManagedSchemaConfig({
+      DATABASE_TLS_CA_CERTIFICATE: caCertificate,
+      DATABASE_TLS_REQUIRED: 'true',
+      DATABASE_URL:
+        'postgresql://schema_owner:p%40ss%2Fword@10.0.0.8:6432/evorto%20staging',
+    });
+    expect(result.status, result.stderr).toBe(0);
+    const importedConfig: unknown = JSON.parse(result.stdout);
+    expect(importedConfig).toMatchObject({
+      checkServerIdentityIsFunction: true,
+      config: {
+        dbCredentials: {
+          database: 'evorto staging',
+          host: '10.0.0.8',
+          password: 'p@ss/word',
+          port: 6432,
+          ssl: {
+            ca: caCertificate,
+            rejectUnauthorized: true,
           },
-          dialect: 'postgresql',
+          user: 'schema_owner',
         },
-      });
-    } finally {
-      for (const [key, value] of Object.entries(originalEnvironment)) {
-        if (value === undefined) {
-          Reflect.deleteProperty(process.env, key);
-        } else {
-          process.env[key] = value;
-        }
-      }
-    }
+        dialect: 'postgresql',
+      },
+    });
 
     const containers = source(
       'infrastructure/scaleway/modules/environment/containers.tf',
@@ -648,82 +655,35 @@ fi
     ['blank', ''],
   ] as const)(
     'rejects a %s managed schema TLS choice',
-    async (caseName, tlsChoice) => {
-      const environmentKeys = [
-        'DATABASE_TLS_CA_CERTIFICATE',
-        'DATABASE_TLS_REQUIRED',
-        'DATABASE_URL',
-      ] as const;
-      const originalEnvironment = Object.fromEntries(
-        environmentKeys.map((key) => [key, process.env[key]]),
+    (_caseName, tlsChoice) => {
+      const result = readManagedSchemaConfig({
+        DATABASE_TLS_REQUIRED: tlsChoice,
+        DATABASE_URL:
+          'postgresql://schema_owner:password@database.example/evorto',
+      });
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain(
+        'DATABASE_TLS_REQUIRED must be explicitly configured as true or false',
       );
-      try {
-        delete process.env['DATABASE_TLS_CA_CERTIFICATE'];
-        process.env['DATABASE_URL'] =
-          'postgresql://schema_owner:password@database.example/evorto';
-        if (tlsChoice === undefined) {
-          delete process.env['DATABASE_TLS_REQUIRED'];
-        } else {
-          process.env['DATABASE_TLS_REQUIRED'] = tlsChoice;
-        }
-        const configUrl = pathToFileURL(
-          path.join(repositoryRoot, 'ops/drizzle.config.mjs'),
-        );
-        configUrl.searchParams.set('test', `managed-database-tls-${caseName}`);
-
-        await expect(import(/* @vite-ignore */ configUrl.href)).rejects.toThrow(
-          'DATABASE_TLS_REQUIRED must be explicitly configured as true or false',
-        );
-      } finally {
-        for (const [key, value] of Object.entries(originalEnvironment)) {
-          if (value === undefined) {
-            Reflect.deleteProperty(process.env, key);
-          } else {
-            process.env[key] = value;
-          }
-        }
-      }
     },
   );
 
-  it('accepts an explicit disabled managed schema TLS choice', async () => {
-    const environmentKeys = [
-      'DATABASE_TLS_CA_CERTIFICATE',
-      'DATABASE_TLS_REQUIRED',
-      'DATABASE_URL',
-    ] as const;
-    const originalEnvironment = Object.fromEntries(
-      environmentKeys.map((key) => [key, process.env[key]]),
-    );
+  it('accepts an explicit disabled managed schema TLS choice', () => {
     const databaseUrl =
       'postgresql://schema_owner:password@database.example/evorto';
-    try {
-      delete process.env['DATABASE_TLS_CA_CERTIFICATE'];
-      process.env['DATABASE_TLS_REQUIRED'] = 'false';
-      process.env['DATABASE_URL'] = databaseUrl;
-      const configUrl = pathToFileURL(
-        path.join(repositoryRoot, 'ops/drizzle.config.mjs'),
-      );
-      configUrl.searchParams.set('test', 'managed-database-tls-disabled');
-
-      const importedConfig: unknown = await import(
-        /* @vite-ignore */ configUrl.href
-      );
-      expect(importedConfig).toMatchObject({
-        default: {
-          dbCredentials: { url: databaseUrl },
-          dialect: 'postgresql',
-        },
-      });
-    } finally {
-      for (const [key, value] of Object.entries(originalEnvironment)) {
-        if (value === undefined) {
-          Reflect.deleteProperty(process.env, key);
-        } else {
-          process.env[key] = value;
-        }
-      }
-    }
+    const result = readManagedSchemaConfig({
+      DATABASE_TLS_REQUIRED: 'false',
+      DATABASE_URL: databaseUrl,
+    });
+    expect(result.status, result.stderr).toBe(0);
+    const importedConfig: unknown = JSON.parse(result.stdout);
+    expect(importedConfig).toMatchObject({
+      checkServerIdentityIsFunction: false,
+      config: {
+        dbCredentials: { url: databaseUrl },
+        dialect: 'postgresql',
+      },
+    });
   });
 
   it('requires an explicit TLS choice in every packaged database operation', () => {
