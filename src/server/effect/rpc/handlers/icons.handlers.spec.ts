@@ -59,9 +59,8 @@ const tenant = {
 } satisfies RpcRequestContextShape['tenant'];
 
 const createUser = (permissions: readonly Permission[]) => ({
-  attributes: [],
   auth0Id: 'auth0|user-1',
-  communicationEmail: undefined,
+  communicationEmail: 'alice@example.com',
   email: 'alice@example.com',
   firstName: 'Alice',
   homeTenantId: undefined,

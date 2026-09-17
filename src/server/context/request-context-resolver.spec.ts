@@ -8,7 +8,13 @@ import { Cause, Effect, Exit, Layer, Stream } from 'effect';
 
 import { Database } from '../../db';
 import { relations } from '../../db/relations';
-import { tenantPrivacyPolicyVersions, tenants } from '../../db/schema';
+import {
+  roles,
+  tenantPrivacyPolicyVersions,
+  tenants,
+  users,
+} from '../../db/schema';
+import { createRegistrationDatabaseTestLayer } from '../testing/registration-database';
 import {
   resolveAuthenticationContext,
   resolveExplicitTenantDomain,
@@ -125,43 +131,100 @@ const createTenantDatabaseLayer = (
   );
 };
 
-const createPreparedDatabase = ({
-  attributesExecute = vi.fn(() => Effect.succeed([])),
-  tenantExecute = vi.fn(() => Effect.succeed(undefined)),
+type UserContextFixture = Pick<
+  typeof users.$inferSelect,
+  | 'auth0Id'
+  | 'communicationEmail'
+  | 'email'
+  | 'firstName'
+  | 'iban'
+  | 'id'
+  | 'lastName'
+  | 'paypalEmail'
+> & {
+  homeTenant?: Pick<typeof tenants.$inferSelect, 'name'>;
+  homeTenantId?: string;
+  tenantAssignments: {
+    roles: (Pick<typeof roles.$inferSelect, 'id'> & {
+      // The poisoned-role case deliberately returns malformed persisted JSON.
+      permissions: readonly string[];
+    })[];
+  }[];
+};
+type UserContextLookup = (
+  input: UserLookupInput,
+) => Effect.Effect<undefined | UserContextFixture>;
+interface UserLookupInput {
+  auth0Id: string;
+  tenantId: string;
+}
+
+const createUserDatabaseLayer = ({
+  onUserRead,
   userExecute,
 }: {
-  attributesExecute?: ReturnType<typeof vi.fn>;
-  tenantExecute?: ReturnType<typeof vi.fn>;
-  userExecute?: ReturnType<typeof vi.fn>;
-}) => ({
-  query: {
-    tenants: {
-      findFirst: () => ({
-        prepare: () => ({
-          execute: tenantExecute,
-        }),
+  onUserRead?: (input: UserLookupInput) => void;
+  userExecute: UserContextLookup;
+}) =>
+  createRegistrationDatabaseTestLayer({
+    executeValues: (statement, parameters) =>
+      Effect.gen(function* () {
+        expect(statement).toContain('from "users" as "d0"');
+        expect(statement).toContain('from "users_to_tenants" as "d1"');
+        expect(statement).toContain('"roles_to_tenant_users"');
+        expect(statement).toContain('"d1"."tenantId" = $2');
+        expect(statement).toContain('"d0"."auth0Id" = $3');
+        expect(parameters).toHaveLength(4);
+        const [homeTenantLimit, tenantId, auth0Id, userLimit] = parameters;
+        expect(homeTenantLimit).toBe(1);
+        expect(userLimit).toBe(1);
+        if (typeof tenantId !== 'string' || typeof auth0Id !== 'string') {
+          return yield* Effect.die(
+            new Error('Expected bound tenant and Auth0 user identifiers'),
+          );
+        }
+        const lookup = { auth0Id, tenantId };
+        onUserRead?.(lookup);
+        const user = yield* userExecute(lookup);
+        if (!user) return [];
+        expect(user.auth0Id).toBe(auth0Id);
+        const createdAt = new Date('2026-07-01T12:00:00.000Z');
+        const userFields: typeof users.$inferSelect = {
+          auth0Id: user.auth0Id,
+          communicationEmail: user.communicationEmail,
+          createdAt,
+          email: user.email,
+          firstName: user.firstName,
+          homeTenantId: user.homeTenantId ?? null,
+          iban: user.iban,
+          id: user.id,
+          lastName: user.lastName,
+          paypalEmail: user.paypalEmail,
+          searchableInfo: null,
+          updatedAt: createdAt,
+        };
+        expect(Object.keys(userFields)).toEqual(
+          Object.keys(getTableColumns(users)),
+        );
+        return [
+          [
+            ...Object.values(userFields).map((value) =>
+              value instanceof Date
+                ? value.toISOString().replace('Z', '')
+                : value,
+            ),
+            user.homeTenant ?? null,
+            user.tenantAssignments.map((assignment, index) => ({
+              createdAt: createdAt.toISOString().replace('Z', ''),
+              id: `membership-${index}`,
+              roles: assignment.roles.map((role) => ({ ...role })),
+              tenantId,
+              userId: user.id,
+            })),
+          ],
+        ];
       }),
-    },
-    users: {
-      findFirst: () => ({
-        prepare: () => ({
-          execute: userExecute ?? vi.fn(() => Effect.succeed(undefined)),
-        }),
-      }),
-    },
-  },
-  select: () => ({
-    from: () => ({
-      where: () => ({
-        limit: () => ({
-          prepare: () => ({
-            execute: attributesExecute,
-          }),
-        }),
-      }),
-    }),
-  }),
-});
+  });
 
 describe('request-context-resolver', () => {
   it.effect(
@@ -461,18 +524,17 @@ describe('request-context-resolver', () => {
     'fails an authenticated request context without a user subject',
     () =>
       Effect.gen(function* () {
-        const database = createPreparedDatabase({
-          userExecute: vi.fn(() => Effect.succeed(undefined)),
+        const database = createUserDatabaseLayer({
+          userExecute: vi.fn<UserContextLookup>(() =>
+            Effect.succeed(undefined),
+          ),
         });
 
         const exit = yield* resolveUserContext({
           isAuthenticated: true,
           oidcUser: {},
           tenantId: 'tenant-1',
-        }).pipe(
-          Effect.provide(Layer.succeed(Database, database as never)),
-          Effect.exit,
-        );
+        }).pipe(Effect.provide(database), Effect.exit);
 
         expect(Exit.isFailure(exit)).toBe(true);
         if (Exit.isFailure(exit)) {
@@ -485,13 +547,13 @@ describe('request-context-resolver', () => {
 
   it.effect('does not resolve a tenant user without a tenant assignment', () =>
     Effect.gen(function* () {
-      const attributesExecute = vi.fn(() => Effect.succeed([]));
-      const database = createPreparedDatabase({
-        attributesExecute,
-        userExecute: vi.fn(() =>
+      const onUserRead = vi.fn<(input: UserLookupInput) => void>();
+      const database = createUserDatabaseLayer({
+        onUserRead,
+        userExecute: vi.fn<UserContextLookup>(() =>
           Effect.succeed({
             auth0Id: 'auth0|global',
-            communicationEmail: null,
+            communicationEmail: 'global@example.com',
             email: 'global@example.com',
             firstName: 'Global',
             iban: null,
@@ -509,10 +571,13 @@ describe('request-context-resolver', () => {
           sub: 'auth0|global',
         },
         tenantId: 'tenant-1',
-      }).pipe(Effect.provide(Layer.succeed(Database, database as never)));
+      }).pipe(Effect.provide(database));
 
       expect(user).toBeUndefined();
-      expect(attributesExecute).not.toHaveBeenCalled();
+      expect(onUserRead).toHaveBeenCalledExactlyOnceWith({
+        auth0Id: 'auth0|global',
+        tenantId: 'tenant-1',
+      });
     }),
   );
 
@@ -520,11 +585,11 @@ describe('request-context-resolver', () => {
     'does not expose an assigned tenant user before current onboarding is complete',
     () =>
       Effect.gen(function* () {
-        const attributesExecute = vi.fn(() => Effect.succeed([]));
+        const onUserRead = vi.fn<(input: UserLookupInput) => void>();
         const resolveOnboardingComplete = vi.fn(() => Effect.succeed(false));
-        const database = createPreparedDatabase({
-          attributesExecute,
-          userExecute: vi.fn(() =>
+        const database = createUserDatabaseLayer({
+          onUserRead,
+          userExecute: vi.fn<UserContextLookup>(() =>
             Effect.succeed({
               auth0Id: 'auth0|member',
               communicationEmail: 'member@example.org',
@@ -548,14 +613,17 @@ describe('request-context-resolver', () => {
             tenantId: 'tenant-1',
           },
           resolveOnboardingComplete,
-        ).pipe(Effect.provide(Layer.succeed(Database, database as never)));
+        ).pipe(Effect.provide(database));
 
         expect(user).toBeUndefined();
         expect(resolveOnboardingComplete).toHaveBeenCalledWith({
           tenantId: 'tenant-1',
           userId: 'user-1',
         });
-        expect(attributesExecute).not.toHaveBeenCalled();
+        expect(onUserRead).toHaveBeenCalledExactlyOnceWith({
+          auth0Id: 'auth0|member',
+          tenantId: 'tenant-1',
+        });
       }),
   );
 
@@ -563,11 +631,11 @@ describe('request-context-resolver', () => {
     'discards poisoned platform permissions while preserving tenant role permissions',
     () =>
       Effect.gen(function* () {
-        const database = createPreparedDatabase({
-          userExecute: vi.fn(() =>
+        const database = createUserDatabaseLayer({
+          userExecute: vi.fn<UserContextLookup>(() =>
             Effect.succeed({
               auth0Id: 'auth0|tenant-user',
-              communicationEmail: null,
+              communicationEmail: 'member@example.com',
               email: 'member@example.com',
               firstName: 'Tenant',
               iban: null,
@@ -600,7 +668,7 @@ describe('request-context-resolver', () => {
             tenantId: 'tenant-1',
           },
           () => Effect.succeed(true),
-        ).pipe(Effect.provide(Layer.succeed(Database, database as never)));
+        ).pipe(Effect.provide(database));
 
         expect(user?.permissions).toEqual(['events:create', 'events:*']);
         expect(user?.roleIds).toEqual(['role-mixed']);

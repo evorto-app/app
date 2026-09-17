@@ -60,7 +60,7 @@ describe('CreateAccountOperations completion navigation', () => {
       ],
     });
 
-    TestBed.inject(CreateAccountOperations).navigateAfterCompletion();
+    TestBed.inject(CreateAccountOperations).navigateAfterCompletion('/profile');
 
     expect(assign).toHaveBeenCalledExactlyOnceWith('/profile');
   });
@@ -103,7 +103,7 @@ describe('CreateAccountComponent load recovery', () => {
         },
         {
           provide: Router,
-          useValue: { navigate: vi.fn() },
+          useValue: { navigateByUrl: vi.fn() },
         },
       ],
     }).compileComponents();
@@ -132,15 +132,19 @@ describe('CreateAccountComponent load recovery', () => {
     await vi.waitFor(() => {
       fixture.detectChanges();
       expect(normalizeText(fixture)).toContain(
-        'Organization setup could not be loaded',
+        "We couldn't load your account setup",
       );
     });
 
     const alert: HTMLElement | null =
       fixture.nativeElement.querySelector('[role="alert"]');
     expect(alert?.textContent).toContain(
-      "Your verified login details or this organization's current requirements are unavailable.",
+      "We couldn't load your sign-in details or what this organization asks from new members.",
     );
+    expect(alert?.textContent).toContain(
+      'contact Evorto support and say that account setup could not be loaded',
+    );
+    expect(alert?.textContent).not.toContain('sign out and sign in again');
 
     const retryButton: HTMLButtonElement | null =
       fixture.nativeElement.querySelector('button');
@@ -149,7 +153,7 @@ describe('CreateAccountComponent load recovery', () => {
 
     await vi.waitFor(() => {
       fixture.detectChanges();
-      expect(normalizeText(fixture)).toContain('Notification email');
+      expect(normalizeText(fixture)).toContain('Email for updates');
     });
     expect(loadAuthData).toHaveBeenCalledTimes(2);
     expect(fixture.nativeElement.querySelector('[role="alert"]')).toBeNull();
@@ -176,7 +180,7 @@ describe('CreateAccountComponent load recovery', () => {
 
     await vi.waitFor(() => {
       fixture.detectChanges();
-      expect(normalizeText(fixture)).toContain('Your email is not verified');
+      expect(normalizeText(fixture)).toContain('Verify your email');
     });
 
     const retryButton = [
@@ -187,7 +191,7 @@ describe('CreateAccountComponent load recovery', () => {
 
     await vi.waitFor(() => {
       fixture.detectChanges();
-      expect(normalizeText(fixture)).toContain('Notification email');
+      expect(normalizeText(fixture)).toContain('Email for updates');
     });
     expect(loadAuthData).toHaveBeenCalledTimes(2);
   });
@@ -301,7 +305,7 @@ describe('CreateAccountComponent load recovery', () => {
       fixture.detectChanges();
       expect(completeOnboarding).toHaveBeenCalledOnce();
       expect(normalizeText(fixture)).toContain(
-        'Failed to complete organization setup',
+        "We couldn't finish setting up your account. Try again.",
       );
     });
 
@@ -311,46 +315,76 @@ describe('CreateAccountComponent load recovery', () => {
     expect(loadRequirements).toHaveBeenCalledOnce();
   });
 
-  it('performs a full navigation after onboarding refreshes server-derived permissions', async () => {
-    loadRequirements.mockResolvedValue(onboardingRequirements());
+  it.each([
+    { expectedPath: '/profile', redirectUrl: undefined },
+    { expectedPath: '/admin/onboarding', redirectUrl: '/admin/onboarding' },
+    { expectedPath: '/profile', redirectUrl: 'https://example.org' },
+  ])(
+    'refreshes server-derived permissions and returns to $expectedPath after completion',
+    async ({ expectedPath, redirectUrl }) => {
+      loadRequirements.mockResolvedValue(onboardingRequirements());
+      loadAuthData.mockResolvedValue({
+        email: 'alex@example.org',
+        email_verified: true,
+        family_name: 'Morgan',
+        given_name: 'Alex',
+      });
+      completeOnboarding.mockResolvedValue(undefined);
+
+      const fixture = TestBed.createComponent(CreateAccountComponent);
+      fixture.componentRef.setInput('redirectUrl', redirectUrl);
+      fixture.detectChanges();
+
+      await vi.waitFor(() => {
+        fixture.detectChanges();
+        expect(
+          fixture.nativeElement.querySelector(
+            '[data-testid="communication-email"]',
+          ),
+        ).not.toBeNull();
+      });
+
+      const privacyCheckbox: HTMLInputElement | null =
+        fixture.nativeElement.querySelector('input[type="checkbox"]');
+      const form: HTMLFormElement | null =
+        fixture.nativeElement.querySelector('form');
+      expect(privacyCheckbox).not.toBeNull();
+      expect(form).not.toBeNull();
+
+      if (!privacyCheckbox || !form) return;
+      privacyCheckbox.click();
+      fixture.detectChanges();
+      form.dispatchEvent(
+        new Event('submit', { bubbles: true, cancelable: true }),
+      );
+
+      await vi.waitFor(() => {
+        expect(completeOnboarding).toHaveBeenCalledOnce();
+        expect(navigateAfterOnboarding).toHaveBeenCalledOnce();
+        expect(navigateAfterOnboarding).toHaveBeenCalledWith(expectedPath);
+      });
+    },
+  );
+
+  it('returns to the originating settings page when the member is already complete', async () => {
+    loadRequirements.mockResolvedValue({
+      ...onboardingRequirements(),
+      complete: true,
+    });
     loadAuthData.mockResolvedValue({
       email: 'alex@example.org',
       email_verified: true,
-      family_name: 'Morgan',
-      given_name: 'Alex',
     });
-    completeOnboarding.mockResolvedValue(undefined);
-
     const fixture = TestBed.createComponent(CreateAccountComponent);
+    fixture.componentRef.setInput('redirectUrl', '/admin/onboarding');
     fixture.detectChanges();
-
     await vi.waitFor(() => {
       fixture.detectChanges();
-      expect(
-        fixture.nativeElement.querySelector(
-          '[data-testid="communication-email"]',
-        ),
-      ).not.toBeNull();
+      expect(TestBed.inject(Router).navigateByUrl).toHaveBeenCalledWith(
+        '/admin/onboarding',
+      );
     });
-
-    const privacyCheckbox: HTMLInputElement | null =
-      fixture.nativeElement.querySelector('input[type="checkbox"]');
-    const form: HTMLFormElement | null =
-      fixture.nativeElement.querySelector('form');
-    expect(privacyCheckbox).not.toBeNull();
-    expect(form).not.toBeNull();
-
-    if (!privacyCheckbox || !form) return;
-    privacyCheckbox.click();
-    fixture.detectChanges();
-    form.dispatchEvent(
-      new Event('submit', { bubbles: true, cancelable: true }),
-    );
-
-    await vi.waitFor(() => {
-      expect(completeOnboarding).toHaveBeenCalledOnce();
-      expect(navigateAfterOnboarding).toHaveBeenCalledOnce();
-    });
+    expect(completeOnboarding).not.toHaveBeenCalled();
   });
 
   it('reloads changed requirements and merges matching answers by question id', async () => {
@@ -438,7 +472,7 @@ describe('CreateAccountComponent load recovery', () => {
     expect(retainedAnswer?.value).toBe('Keep this matched answer');
     expect(loadRequirements).toHaveBeenCalledTimes(2);
     expect(normalizeText(fixture)).toContain(
-      'The questions changed. Review them and submit again.',
+      'This organization changed its questions or privacy policy. Review the latest details and try again.',
     );
   });
 
@@ -537,7 +571,7 @@ describe('CreateAccountComponent load recovery', () => {
 
     await vi.waitFor(() => {
       fixture.detectChanges();
-      expect(normalizeText(fixture)).toContain('Privacy policy version 2');
+      expect(normalizeText(fixture)).toContain('Current privacy policy');
       expect(
         fixture.nativeElement.querySelector('[data-question-id="question-3"]'),
       ).not.toBeNull();

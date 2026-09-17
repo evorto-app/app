@@ -50,6 +50,7 @@ export interface EnqueueManualApprovalEmailInput {
 export interface EnqueueReceiptReviewedEmailInput {
   eventTitle: string;
   receiptId: string;
+  receiptUrl: string;
   rejectionReason: null | string;
   status: 'approved' | 'rejected';
   tenant: TenantEmailContext;
@@ -261,6 +262,7 @@ export const enqueueReceiptReviewedEmail = (
       input.status === 'approved' ? 'Receipt approved' : 'Receipt rejected',
     template: ReceiptReviewedEmail({
       eventTitle: input.eventTitle,
+      receiptUrl: input.receiptUrl,
       rejectionReason: input.rejectionReason,
       status: input.status,
       tenantName: input.tenant.name,

@@ -50,8 +50,8 @@ const trustedContext = {
     transferDeadlineHoursBeforeStart: 0,
   }),
   user: Schema.decodeUnknownSync(User)({
-    attributes: [],
     auth0Id: 'auth0|abc',
+    communicationEmail: 'alice@example.com',
     email: 'alice@example.com',
     firstName: 'Alice',
     iban: null,
@@ -86,8 +86,8 @@ const contextWithOmittedOptionalFields = {
     transferDeadlineHoursBeforeStart: 0,
   }),
   user: Schema.decodeUnknownSync(User)({
-    attributes: [],
     auth0Id: 'auth0|abc',
+    communicationEmail: 'alice@example.com',
     email: 'alice@example.com',
     firstName: 'Alice',
     id: 'user-1',

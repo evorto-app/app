@@ -1,66 +1,101 @@
 <h1 mat-dialog-title>Edit profile</h1>
 <form (submit)="onSubmit($event)">
-  <mat-dialog-content class="flex flex-col gap-4">
-    <mat-form-field>
-      <mat-label>First name</mat-label>
-      <input matInput [formField]="profileForm.firstName" />
-    </mat-form-field>
-    <mat-form-field>
-      <mat-label>Last name</mat-label>
-      <input matInput [formField]="profileForm.lastName" />
-    </mat-form-field>
-    <mat-form-field>
-      <mat-label>Notification email</mat-label>
-      <input
-        matInput
-        type="email"
-        autocomplete="email"
-        [formField]="profileForm.communicationEmail"
-      />
-      @if (
-        profileForm.communicationEmail().touched() &&
-        profileForm.communicationEmail().invalid()
-      ) {
-        <mat-error>
-          Enter the email address where event and finance notifications should
-          be sent.
-        </mat-error>
+  <mat-dialog-content>
+    <div class="flex w-full flex-col gap-4">
+      @if (saving()) {
+        <p role="status">
+          Saving your profile and loading the latest information…
+        </p>
       }
-    </mat-form-field>
-    <mat-form-field>
-      <mat-label>IBAN (for reimbursements)</mat-label>
-      <input matInput [formField]="profileForm.iban" />
-      @if (profileForm.iban().touched() && profileForm.iban().invalid()) {
-        <mat-error>
-          Enter a valid IBAN, including its country code and check digits.
-        </mat-error>
+      @if (saveMessage(); as message) {
+        <p role="alert">{{ message }}</p>
       }
-      <mat-hint
-        >Used for manual receipt reimbursements across organizations.</mat-hint
-      >
-    </mat-form-field>
-    <mat-form-field>
-      <mat-label>PayPal email (for reimbursements)</mat-label>
-      <input matInput [formField]="profileForm.paypalEmail" />
-      @if (
-        profileForm.paypalEmail().touched() &&
-        profileForm.paypalEmail().invalid()
-      ) {
-        <mat-error>Enter a valid PayPal email address.</mat-error>
-      }
-      <mat-hint
-        >Used for manual receipt reimbursements across organizations.</mat-hint
-      >
-    </mat-form-field>
+      <mat-form-field subscriptSizing="dynamic">
+        <mat-label>First name</mat-label>
+        <input matInput [formField]="profileForm.firstName" />
+      </mat-form-field>
+      <mat-form-field subscriptSizing="dynamic">
+        <mat-label>Last name</mat-label>
+        <input matInput [formField]="profileForm.lastName" />
+      </mat-form-field>
+      <mat-form-field subscriptSizing="dynamic">
+        <mat-label>Email for updates</mat-label>
+        <input
+          matInput
+          type="email"
+          autocomplete="email"
+          [formField]="profileForm.communicationEmail"
+        />
+        @if (
+          profileForm.communicationEmail().touched() &&
+          profileForm.communicationEmail().invalid()
+        ) {
+          <mat-error>
+            Enter the email address where you want to receive event and
+            reimbursement updates.
+          </mat-error>
+        }
+      </mat-form-field>
+      <mat-form-field subscriptSizing="dynamic">
+        <mat-label>IBAN (for reimbursements)</mat-label>
+        <input
+          matInput
+          autocomplete="off"
+          autocapitalize="characters"
+          [formField]="profileForm.iban"
+        />
+        @if (profileForm.iban().touched() && profileForm.iban().invalid()) {
+          <mat-error>
+            Enter a valid IBAN, including its country code and check digits.
+          </mat-error>
+        }
+        <mat-hint
+          >Organizations can use this to reimburse approved receipts.</mat-hint
+        >
+      </mat-form-field>
+      <mat-form-field subscriptSizing="dynamic">
+        <mat-label>PayPal email (for reimbursements)</mat-label>
+        <input
+          matInput
+          type="email"
+          autocomplete="email"
+          [formField]="profileForm.paypalEmail"
+        />
+        @if (
+          profileForm.paypalEmail().touched() &&
+          profileForm.paypalEmail().invalid()
+        ) {
+          <mat-error>Enter a valid PayPal email address.</mat-error>
+        }
+        <mat-hint
+          >Organizations can use this to reimburse approved receipts.</mat-hint
+        >
+      </mat-form-field>
+    </div>
   </mat-dialog-content>
   <mat-dialog-actions align="end" class="gap-2">
-    <button mat-button mat-dialog-close>Cancel</button>
-    <button
-      mat-button
-      type="submit"
-      [disabled]="profileForm().invalid() || profileForm().submitting()"
-    >
-      Save
-    </button>
+    @if (saveConfirmed()) {
+      <button mat-button mat-dialog-close type="button">Close</button>
+    } @else {
+      <button
+        mat-button
+        mat-dialog-close
+        type="button"
+        [disabled]="saving() || profileForm().submitting()"
+      >
+        Cancel
+      </button>
+    }
+    @if (!saveConfirmed()) {
+      <button
+        mat-button
+        type="submit"
+        [disabled]="
+          profileForm().invalid() || profileForm().submitting() || saving()
+        "
+      >
+        {{ saving() ? "Saving…" : "Save" }}
+      </button>
+    }
   </mat-dialog-actions>
 </form>

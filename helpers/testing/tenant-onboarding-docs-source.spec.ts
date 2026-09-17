@@ -26,7 +26,7 @@ describe('member-onboarding generated documentation source', () => {
     expect(source).toContain('storageState: userStateFile');
     expect(source).toContain("member.page.goto('/events')");
     expect(source).toContain("name: 'Join organization'");
-    expect(source).toContain("name: 'You are browsing another organization'");
+    expect(source).toContain("name: 'You are viewing another organization'");
     expect(source).toContain("name: 'Make this my home organization'");
     expect(source).toContain('await makeHomeTenantButton.click()');
     expect(source).toContain('database.query.usersToTenants.findFirst');

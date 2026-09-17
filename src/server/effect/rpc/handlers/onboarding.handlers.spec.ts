@@ -104,7 +104,7 @@ describe('tenant onboarding completion validation', () => {
     Effect.gen(function* () {
       expect(
         yield* normalizeOnboardingProfile({
-          communicationEmail: ' notify@example.org ',
+          communicationEmail: 'notify@example.org',
           firstName: ' Member ',
           lastName: ' Example ',
         }),
@@ -114,6 +114,21 @@ describe('tenant onboarding completion validation', () => {
         lastName: 'Example',
       });
     }),
+  );
+
+  it.effect(
+    'rejects a non-canonical communication email at the service boundary',
+    () =>
+      Effect.gen(function* () {
+        const error = yield* normalizeOnboardingProfile({
+          communicationEmail: ' Notify@Example.ORG ',
+          firstName: 'Member',
+          lastName: 'Example',
+        }).pipe(Effect.flip);
+
+        expect(error._tag).toBe('TenantOnboardingValidationError');
+        expect(error.field).toBe('communicationEmail');
+      }),
   );
 
   it.effect('rejects missing, duplicate, and unexpected answers', () =>

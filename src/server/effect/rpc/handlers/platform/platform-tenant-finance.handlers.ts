@@ -70,6 +70,7 @@ import {
   markRegistrationTransferRefundRequeued,
   type RegistrationTransferRefundRequeueStatus,
 } from '../../../../registrations/registration-transfer-refund-reconciliation';
+import { tenantOutboundUrl } from '../../../../tenant-outbound-url';
 import {
   ensureValidFinanceReceiptAmounts,
   ensureValidFinanceReceiptCalendarDate,
@@ -931,10 +932,15 @@ const reviewReceipt = Effect.fn('PlatformTenantFinance.reviewReceipt')(
                   reason: 'receiptReviewPreconditionFailed',
                 });
               }
+              const receiptUrl = yield* tenantOutboundUrl(
+                targetTenant,
+                '/profile/receipts',
+              ).pipe(Effect.orDie);
 
               yield* enqueueReceiptReviewedEmail(transaction, {
                 eventTitle: event.title,
                 receiptId: after.id,
+                receiptUrl,
                 rejectionReason: normalized.rejectionReason,
                 status: input.status,
                 tenant: targetTenant,

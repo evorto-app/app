@@ -314,7 +314,7 @@ describe('production provider certification source', () => {
     const providerErrorUiScript =
       packageJson.scripts['test:unit:esncard-provider-error'] ?? '';
     const providerErrorUiSource = readSource(
-      'src/app/profile/user-profile/user-profile.component.spec.ts',
+      'src/app/profile/profile-discounts/profile-discounts.esn-card.spec.ts',
     );
 
     expect(playwrightConfig).toContain("name: 'local-chrome-live-esncard'");
@@ -331,7 +331,7 @@ describe('production provider certification source', () => {
     expect(runtimeConfig).toContain("'local-chrome-live-esncard'");
     expect(runtimeConfig).toContain("'docs-live-esncard'");
     expect(providerErrorUiScript).toContain(
-      'src/app/profile/user-profile/user-profile.component.spec.ts',
+      'src/app/profile/profile-discounts/profile-discounts.esn-card.spec.ts',
     );
     expect(providerErrorUiScript).toContain('--watch=false');
     expect(providerErrorUiSource).toContain(

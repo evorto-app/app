@@ -146,7 +146,6 @@ const authenticatedContext = ({
     permissions,
     tenant: tenantContext,
     user: {
-      attributes: [],
       auth0Id: `auth0|${userId}`,
       communicationEmail: `${userId}@example.com`,
       email: `${userId}@example.com`,

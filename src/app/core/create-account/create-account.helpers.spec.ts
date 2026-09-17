@@ -238,6 +238,26 @@ describe('createAccountPayloadFromModel', () => {
       policyVersionId: 'policy-2',
     });
   });
+
+  it('canonicalizes account creation fields before submitting them', () => {
+    expect(
+      createAccountPayloadFromModel({
+        acceptedPrivacyPolicy: true,
+        answers: [{ questionId: 'question-1', value: ' Student ' }],
+        communicationEmail: ' Notify@Example.COM ',
+        firstName: ' Alice ',
+        lastName: ' Doe ',
+        policyVersionId: 'policy-2',
+      }),
+    ).toEqual({
+      acceptedPrivacyPolicy: true,
+      answers: [{ questionId: 'question-1', value: 'Student' }],
+      communicationEmail: 'notify@example.com',
+      firstName: 'Alice',
+      lastName: 'Doe',
+      policyVersionId: 'policy-2',
+    });
+  });
 });
 
 describe('isAuthEmailVerifiedForAccountCreation', () => {
@@ -265,7 +285,11 @@ describe('createAccountErrorMessage', () => {
       message: 'Enter a valid notification email address.',
     }),
   ])('shows the recoverable onboarding outcome $_tag', (error) => {
-    expect(createAccountErrorMessage(error)).toBe(error.message);
+    expect(createAccountErrorMessage(error)).toBe(
+      error._tag === 'TenantOnboardingRequirementsChangedError'
+        ? 'This organization changed its questions or privacy policy. Review the latest details and try again.'
+        : error.message,
+    );
   });
 
   it.each([
@@ -283,7 +307,7 @@ describe('createAccountErrorMessage', () => {
     }),
   ])('keeps unsafe or unrelated details hidden', (error) => {
     expect(createAccountErrorMessage(error)).toBe(
-      'Failed to complete organization setup',
+      "We couldn't finish setting up your account. Try again.",
     );
   });
 
@@ -298,7 +322,7 @@ describe('createAccountErrorMessage', () => {
 
   it('falls back to account creation copy for unknown failures', () => {
     expect(createAccountErrorMessage(null)).toBe(
-      'Failed to complete organization setup',
+      "We couldn't finish setting up your account. Try again.",
     );
   });
 });

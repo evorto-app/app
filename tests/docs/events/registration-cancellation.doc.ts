@@ -62,15 +62,17 @@ const openEventFromNormalNavigation = async (
 };
 
 const openProfileEventCard = async (page: Page, eventTitle: string) => {
-  const eventsSection = page.getByRole('button', {
-    exact: true,
-    name: 'Events',
-  });
+  const eventsSection = page
+    .getByRole('navigation', { name: 'Profile sections' })
+    .getByRole('link', {
+      exact: true,
+      name: 'Events',
+    });
   await expect(eventsSection).toBeVisible();
   await expect(page.locator('[ngh]')).toHaveCount(0, { timeout: 20_000 });
   await eventsSection.click();
   await expect(
-    page.getByRole('heading', { name: 'Your Event Registrations' }),
+    page.getByRole('heading', { name: 'Your events' }),
   ).toBeVisible();
   const card = page.locator('article').filter({ hasText: eventTitle });
   await expect(card).toBeVisible({ timeout: 20_000 });
@@ -1199,7 +1201,7 @@ If payment safety cannot be confirmed, an add-on Checkout is pending, or the reg
 
 The ticket is now **Cancelled** and cannot be used again. Evorto preserved both redeemed units, cancelled and restocked only the one remaining purchased unit, and started a Stripe refund of exactly **${refundAmountLabel}**.
 
-Open **Profile**, select **Events**, and find the cancelled event. Evorto started a Stripe refund. **Refund retrying** means it is still being processed; the money may not have arrived yet. Do not register or pay again to retry a refund.
+Open **Profile**, select **Events**, and find the cancelled event. Evorto started a Stripe refund. **Refund delayed** means it is still being processed; the money may not have arrived yet. Do not register or pay again to retry a refund.
 `,
     });
     await page.getByRole('link', { exact: true, name: 'Profile' }).click();
@@ -1207,12 +1209,10 @@ Open **Profile**, select **Events**, and find the cancelled event. Evorto starte
     await expect(
       profileCard.getByText('Cancelled', { exact: true }),
     ).toBeVisible();
-    await expect(profileCard).toContainText(
-      /Add-on payment:\s*Refund retrying/,
-    );
+    await expect(profileCard).toContainText(/Add-on payment:\s*Refund delayed/);
     await expect(profileCard).toContainText(refundAmountLabel);
     await expect(profileCard).toContainText(
-      'Money has not necessarily been returned yet',
+      'The money may not have reached your account yet',
     );
     await takeScreenshot(
       testInfo,
@@ -1331,23 +1331,23 @@ Switch to an organizer account with access to check-in and add-on fulfillment fo
     await page.reload();
     profileCard = await openProfileEventCard(page, scenario.title);
     await expect(profileCard).toContainText(
-      /Add-on payment:\s*Contact organizer for refund update/,
+      /Add-on payment:\s*Contact the organizer/,
     );
     await expect(profileCard).toContainText(refundAmountLabel);
     await expect(profileCard).toContainText(
-      'at least one refund needs organizer follow-up',
+      'at least one refund needs help from the organizer',
     );
     await expect(profileCard).toContainText(
       'Contact the organizer for an update',
     );
     await expect(profileCard).toContainText(
-      'Do not pay or register again to retry it',
+      'Do not pay or sign up again while you wait',
     );
     await testInfo.attach('markdown', {
       body: `
 ### Complete the required Stripe action and resume the same refund
 
-A Stripe **requires action** update keeps the registration cancelled and links the update to the same Stripe refund. The profile asks the participant to **Contact organizer for refund update**, while the organizer scanner shows **Refund needs review**. The participant should not register, pay, or cancel again. The organizer can explain that the connected Stripe account needs action before a platform administrator resumes status checks for this exact refund.
+A Stripe **requires action** update keeps the registration cancelled and links the update to the same Stripe refund. The profile asks the participant to **Contact the organizer**, while the organizer scanner shows **Refund needs review**. The participant should not register, pay, or cancel again. The organizer can explain that the connected Stripe account needs action before a platform administrator resumes status checks for this exact refund.
 
 When the safe automatic checks have stopped, open the organization's **Review finance** page. The **Payment history** tab shows **Payment action needed**. In **Refunds needing attention**, match the event and refund amount, then choose **Review refund**. The review shows the safe next step without exposing internal payment identifiers or raw Stripe errors. **Continue refund** continues checking the same Stripe refund; it does not issue another refund.
 `,
@@ -1519,11 +1519,11 @@ When the safe automatic checks have stopped, open the organization's **Review fi
     await page.reload();
     profileCard = await openProfileEventCard(page, scenario.title);
     await expect(profileCard).toContainText(
-      /Add-on payment:\s*Contact organizer for refund update/,
+      /Add-on payment:\s*Contact the organizer/,
     );
     await expect(profileCard).toContainText(refundAmountLabel);
     await expect(profileCard).toContainText(
-      'at least one refund needs organizer follow-up',
+      'at least one refund needs help from the organizer',
     );
     await expect(profileCard).toContainText(
       'Contact the organizer for an update',
@@ -1532,7 +1532,7 @@ When the safe automatic checks have stopped, open the organization's **Review fi
       body: `
 ### Retry a failed refund
 
-After status checks resume, a Stripe **failed** update for the same refund asks the participant to **Contact organizer for refund update** and changes the organizer result to **Refund needs attention**. It does not create a second refund.
+After status checks resume, a Stripe **failed** update for the same refund asks the participant to **Contact the organizer** and changes the organizer result to **Refund needs attention**. It does not create a second refund.
 
 Switch to a platform administrator account; an organization Admin role is not sufficient. Open the affected organization, select **Review finance**, open **Refunds needing attention**, and review the event, attendee, refund amount, failed state, and safe next step. Internal payment identifiers and raw Stripe errors remain hidden. Enter a specific **Reason for this action**, then choose **Try failed refund again**. Evorto keeps the failed Stripe refund in payment history, starts a new attempt for the same amount, and includes the reason in change history. It does not create a second refund.
 `,
@@ -1662,9 +1662,7 @@ Switch to a platform administrator account; an organization Admin role is not su
     ).toBeVisible();
     await page.reload();
     profileCard = await openProfileEventCard(page, scenario.title);
-    await expect(profileCard).toContainText(
-      /Add-on payment:\s*Refund retrying/,
-    );
+    await expect(profileCard).toContainText(/Add-on payment:\s*Refund delayed/);
     await expect(profileCard).toContainText(refundAmountLabel);
 
     await deliverRegistrationRefundWebhook({
@@ -1690,10 +1688,12 @@ Switch to a platform administrator account; an organization Admin role is not su
     await page.reload();
     profileCard = await openProfileEventCard(page, scenario.title);
     await expect(profileCard).toContainText(
-      /Add-on payment:\s*Refund completed/,
+      /Add-on payment:\s*Refund complete/,
     );
     await expect(profileCard).toContainText(refundAmountLabel);
-    await expect(profileCard).toContainText('every recorded refund completed');
+    await expect(profileCard).toContainText(
+      'Your sign-up is cancelled and all refunds are complete',
+    );
     const completedRefund = await database.query.transactions.findFirst({
       where: { id: refundClaim.id, tenantId: tenant.id },
     });
@@ -1752,7 +1752,7 @@ Switch to a platform administrator account; an organization Admin role is not su
       body: `
 ### Completion
 
-After Stripe confirms the retry, the organizer view shows **Refunded** and the participant view shows **Refund completed**. The registration stays cancelled, and the earlier failed attempt remains in payment history.
+After Stripe confirms the retry, the organizer view shows **Refunded** and the participant view shows **Refund complete**. The registration stays cancelled, and the earlier failed attempt remains in payment history.
 
 This local walkthrough verifies Evorto's refund workflow but not settlement by the card network or bank. Treat a refund as complete only after Stripe reports it succeeded.
 `,
