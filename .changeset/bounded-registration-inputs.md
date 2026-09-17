@@ -14,3 +14,5 @@ schema through the existing isolated reset/setup flow; no incremental migration
 is introduced.
 
 Reject oversized stored question sets and implicit included add-on selections before registration or transfer actions. Require tax references for paid add-on and transfer prices, preserving free and included quantities and zero-percent rates. Validate persisted Checkout snapshots, including their 100-line limit, before resuming provider requests. Explain unavailable registration settings to participants while preserving the authorized event edit route.
+
+Reject event creation from stored templates that exceed the add-on or sign-up question limits before copying any event data.
