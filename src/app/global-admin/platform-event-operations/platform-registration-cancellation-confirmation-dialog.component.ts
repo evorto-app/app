@@ -151,7 +151,7 @@ export const platformRegistrationCancellationConfirmationCopy = ({
         [mat-dialog-close]="false"
         cdkFocusInitial
       >
-        Keep ticket
+        Go back
       </button>
       <button
         mat-flat-button
@@ -159,7 +159,7 @@ export const platformRegistrationCancellationConfirmationCopy = ({
         [disabled]="!copy.canConfirm"
         [mat-dialog-close]="true"
       >
-        Confirm cancellation
+        Cancel ticket
       </button>
     </mat-dialog-actions>
   `,
