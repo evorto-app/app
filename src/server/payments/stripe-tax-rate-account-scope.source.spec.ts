@@ -51,28 +51,24 @@ describe('Stripe tax-rate account scope source guards', () => {
       transfer.indexOf('const lockedTaxRates ='),
       transfer.indexOf('const lockedTaxRateById ='),
     );
+    expect(transferTaxRead).toContain(
+      'tenantStripeTaxRates.tenantId, tenant.id',
+    );
+    expect(transferTaxRead).toContain(".for('update')");
     expect(transferTaxRead).toContain('tenantStripeTaxRates.active, true');
     expect(transferTaxRead).toContain('tenantStripeTaxRates.inclusive, true');
     expect(transfer).toContain(
       'lockedTaxRateById.get(taxRateId)?.percentage === null',
     );
+    expect(transfer).toContain('!lockedTaxRateById.has(taxRateId)');
   });
 
-  it('keeps direct transfer and event-query metadata on the current account', () => {
-    const directTransfer = readSource(
+  it('keeps registration-owner and event-query metadata on the current account', () => {
+    const registrationOwner = readSource(
       '../effect/rpc/handlers/events/events-registration.handlers.ts',
     );
     expectAccountScopedTaxRateRead(
-      directTransfer,
-      'const lockedTaxRates =',
-      'const taxRateById =',
-      'lockedPricing.stripeAccountId',
-    );
-    expect(directTransfer).toContain(
-      'taxRateById.get(id)?.percentage === null',
-    );
-    expectAccountScopedTaxRateRead(
-      directTransfer,
+      registrationOwner,
       'const registrationAddOnOptions =',
       'const visibleTransfers =',
       "tenant.stripeAccountId ?? ''",

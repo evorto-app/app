@@ -291,7 +291,7 @@ const capacityConflictMessage = (
 };
 
 const lockRegistration = Effect.fn('lockAddonPurchaseRegistration')(function* (
-  tx: Pick<DatabaseClient, 'select'>,
+  tx: Pick<DatabaseClient, 'insert' | 'select' | 'update'>,
   input: Pick<
     PurchaseRegistrationAddonInput,
     'registrationId' | 'tenantId' | 'userId'

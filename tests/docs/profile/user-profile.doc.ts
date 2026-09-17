@@ -123,7 +123,7 @@ From here you can open the edit dialog to update your profile details.
 
 ## Claiming a private registration transfer
 
-If another participant sends you a manual transfer code, select **Claim transfer** under **Account Actions**. Paste the complete code, including its hyphens, and review the event, current questions, current recipient price, and the complete fixed registration/add-on bundle before accepting it. The same claim flow also opens directly from a private transfer link.
+If another participant sends you a manual transfer code, select **Claim transfer** under **Account Actions**. Paste the complete code, including its hyphens, and review the event, current questions, current recipient price, and the complete fixed registration/add-on bundle before accepting it. The code is not included in the transfer page's web address.
 `,
     });
 

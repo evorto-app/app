@@ -1,5 +1,4 @@
 import { asRpcMutation, asRpcQuery } from '@heddendorp/effect-angular-query';
-import { notificationEmailPattern } from '@shared/notification-email';
 import {
   MAX_EVENT_ADDON_TYPES,
   MAX_REGISTRATION_ADDON_QUANTITY,
@@ -40,11 +39,6 @@ import {
   EventsUpdateListingRpcError,
   EventsUpdateRpcError,
 } from './events.errors';
-import { RegistrationTransferBundleRecord } from './registration-transfers.rpcs';
-
-const TransferTargetEmail = Schema.NonEmptyString.check(
-  Schema.isPattern(notificationEmailPattern),
-);
 
 const NullablePolicyHoursInput = Schema.NullOr(nonNegativeNumber).pipe(
   Schema.withDecodingDefaultTypeKey(Effect.succeed(null)),
@@ -176,30 +170,6 @@ export const EventsApproveRegistration = asRpcMutation(
       registrationId: Schema.NonEmptyString,
     }),
     success: EventsApproveRegistrationResult,
-  }),
-);
-
-export const EventsTransferEventRegistration = asRpcMutation(
-  Rpc.make('events.transferEventRegistration', {
-    error: EventsCheckInRegistrationError,
-    payload: Schema.Struct({
-      eventId: Schema.NonEmptyString,
-      previewVersion: Schema.NonEmptyString,
-      registrationId: Schema.NonEmptyString,
-      targetUserId: Schema.NonEmptyString,
-    }),
-    success: Schema.Void,
-  }),
-);
-
-export const EventsTransferMyRegistration = asRpcMutation(
-  Rpc.make('events.transferMyRegistration', {
-    error: EventsCheckInRegistrationError,
-    payload: Schema.Struct({
-      registrationId: Schema.NonEmptyString,
-      targetEmail: TransferTargetEmail,
-    }),
-    success: Schema.Void,
   }),
 );
 
@@ -473,7 +443,6 @@ export const EventsGetOrganizeOverviewUser = Schema.Struct({
 export const EventsGetOrganizeOverviewOption = Schema.Struct({
   canApproveRegistrations: Schema.Boolean,
   canCancelRegistrations: Schema.Boolean,
-  canTransferRegistrations: Schema.Boolean,
   organizingRegistration: Schema.Boolean,
   registrationOptionId: Schema.NonEmptyString,
   registrationOptionTitle: Schema.NonEmptyString,
@@ -495,64 +464,6 @@ export const EventsGetOrganizeOverview = asRpcQuery(
     success: Schema.Struct({
       registrationOptions: Schema.Array(EventsGetOrganizeOverviewOption),
       stats: EventsGetOrganizeOverviewStats,
-    }),
-  }),
-);
-
-export const EventsTransferTargetRecord = Schema.Struct({
-  email: Schema.String,
-  firstName: Schema.String,
-  id: Schema.NonEmptyString,
-  lastName: Schema.String,
-});
-
-export const EventsFindTransferTargets = asRpcQuery(
-  Rpc.make('events.findTransferTargets', {
-    error: EventsCheckInRegistrationError,
-    payload: Schema.Struct({
-      eventId: Schema.NonEmptyString,
-      registrationId: Schema.NonEmptyString,
-      search: Schema.optional(Schema.String),
-    }),
-    success: Schema.Array(EventsTransferTargetRecord),
-  }),
-);
-
-const EventsOrganizerDirectTransferPreviewParticipant = Schema.Struct({
-  email: Schema.NonEmptyString,
-  firstName: Schema.NonEmptyString,
-  id: Schema.NonEmptyString,
-  lastName: Schema.NonEmptyString,
-});
-
-export const EventsPreviewEventRegistrationTransfer = asRpcQuery(
-  Rpc.make('events.previewEventRegistrationTransfer', {
-    error: EventsCheckInRegistrationError,
-    payload: Schema.Struct({
-      eventId: Schema.NonEmptyString,
-      registrationId: Schema.NonEmptyString,
-      targetUserId: Schema.NonEmptyString,
-    }),
-    success: Schema.Struct({
-      bundle: RegistrationTransferBundleRecord,
-      completionMode: Schema.Literal('databaseOnly'),
-      currency: Schema.NonEmptyString,
-      previewVersion: Schema.NonEmptyString,
-      pricing: Schema.Struct({
-        appliedDiscountedPrice: Schema.NullOr(nonNegativeNumber),
-        appliedDiscountType: Schema.NullOr(Schema.Literal('esnCard')),
-        discountAmount: Schema.NullOr(nonNegativeNumber),
-        recipientBundlePrice: Schema.Literal(0),
-        recipientRegistrationPrice: nonNegativeNumber,
-        sourceRefundAmountDue: Schema.Literal(0),
-      }),
-      recipient: EventsOrganizerDirectTransferPreviewParticipant,
-      registrationOption: Schema.Struct({
-        currentPrice: nonNegativeNumber,
-        id: Schema.NonEmptyString,
-        title: Schema.NonEmptyString,
-      }),
-      source: EventsOrganizerDirectTransferPreviewParticipant,
     }),
   }),
 );
@@ -1204,8 +1115,6 @@ export class EventsRpcs extends RpcGroup.make(
   EventsCancelPendingRegistration,
   EventsCancelRegistration,
   EventsCancelEventRegistration,
-  EventsTransferEventRegistration,
-  EventsTransferMyRegistration,
   EventsCanOrganize,
   EventsCheckInRegistration,
   EventsCreate,
@@ -1213,8 +1122,6 @@ export class EventsRpcs extends RpcGroup.make(
   EventsFindOne,
   EventsFindOneForEdit,
   EventsFindGraphForEdit,
-  EventsFindTransferTargets,
-  EventsPreviewEventRegistrationTransfer,
   EventsGetRegistrationAddonFulfillment,
   EventsGetOrganizeOverview,
   EventsGetPendingReviews,

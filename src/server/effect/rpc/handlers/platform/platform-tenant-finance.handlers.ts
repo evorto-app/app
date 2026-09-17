@@ -162,7 +162,6 @@ interface RefundRecoveryCandidate {
   readonly stripeRefundStatus: typeof transactions.$inferSelect.stripeRefundStatus;
   readonly transferEventId: null | string;
   readonly transferId: null | string;
-  readonly transferRecipientRegistrationId: null | string;
   readonly transferSourceRegistrationId: null | string;
   readonly transferStatus:
     null | typeof registrationTransfers.$inferSelect.status;
@@ -449,7 +448,6 @@ export const toRefundRecoveryRecord = (claim: RefundRecoveryCandidate) => {
     transfer = PlatformFinanceRefundTransferRecord.make({
       eventId: claim.transferEventId,
       id: claim.transferId,
-      recipientRegistrationId: claim.transferRecipientRegistrationId,
       sourceRegistrationId: claim.transferSourceRegistrationId,
       status: claim.transferStatus,
     });
@@ -1613,8 +1611,6 @@ export const platformTenantFinanceHandlers = {
               stripeRefundStatus: transactions.stripeRefundStatus,
               transferEventId: registrationTransfers.eventId,
               transferId: registrationTransfers.id,
-              transferRecipientRegistrationId:
-                registrationTransfers.recipientRegistrationId,
               transferSourceRegistrationId:
                 registrationTransfers.sourceRegistrationId,
               transferStatus: registrationTransfers.status,

@@ -1,5 +1,8 @@
 import { Schema } from 'effect';
 
+export const registrationTransferClaimCodePattern =
+  /^(?:[0-9A-F]{4}-){7}[0-9A-F]{4}$/u;
+
 export const registrationTransferStatuses = [
   'open',
   'checkout_pending',

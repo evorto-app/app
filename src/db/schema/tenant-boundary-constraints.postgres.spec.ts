@@ -495,7 +495,6 @@ describe('tenant boundary constraints in PostgreSQL', () => {
     await expectForeignKeyViolation(
       database.insert(registrationTransfers).values({
         claimCodeHash: `code-owner-${suffix}`,
-        claimTokenHash: `token-owner-${suffix}`,
         eventId: fixture.eventIds[1],
         expiresAt: new Date(Date.now() + 60_000),
         registrationOptionId: fixture.optionIds[1],
@@ -526,7 +525,6 @@ describe('tenant boundary constraints in PostgreSQL', () => {
     });
     await database.insert(registrationTransfers).values({
       claimCodeHash: `code-answer-${suffix}`,
-      claimTokenHash: `token-answer-${suffix}`,
       eventId: fixture.eventIds[0],
       expiresAt: new Date(Date.now() + 60_000),
       id: transferId,

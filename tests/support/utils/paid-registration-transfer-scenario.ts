@@ -11,7 +11,7 @@ import {
   markRegistrationTransferRefundRequeued,
   reconcileRegistrationTransferRefund,
 } from '@server/registrations/registration-transfer-refund-reconciliation';
-import { createRegistrationTransferCredentials } from '@server/registrations/registration-transfer-credentials';
+import { createRegistrationTransferClaimCode } from '@server/registrations/registration-transfer-claim-code';
 import { StripeClient } from '@server/stripe-client';
 import {
   type RegistrationRefundRequeueState,
@@ -203,7 +203,7 @@ interface PaidRegistrationTransferScenarioInput {
 }
 
 export interface PaidRegistrationTransferScenario {
-  readonly claimPath: string;
+  readonly claimCode: string;
   readonly eventId: string;
   readonly optionId: string;
   readonly recipientRegistrationId: string;
@@ -240,21 +240,6 @@ export interface PaidRegistrationTransferScenario {
 const effectDatabaseLayer = databaseLayer.pipe(
   Layer.provide(ConfigProvider.layer(ConfigProvider.fromEnv())),
 );
-const paidTransferStripeHttpClient = new PaidTransferStripeHttpClient();
-const deterministicStripe = new Stripe('sk_test_paid_transfer_scenario', {
-  httpClient: paidTransferStripeHttpClient,
-  maxNetworkRetries: 0,
-  telemetry: false,
-});
-const scenarioLayer = Layer.merge(
-  effectDatabaseLayer,
-  Layer.succeed(StripeClient, deterministicStripe),
-);
-
-const runDatabaseEffect = <A, E>(
-  effect: Effect.Effect<A, E, Database | StripeClient>,
-) => Effect.runPromise(effect.pipe(Effect.provide(scenarioLayer)));
-
 const requireRefundRequeueStatus = (
   status: string,
 ): RegistrationTransferRefundRequeueStatus => {
@@ -300,9 +285,7 @@ export const seedPaidRegistrationTransferScenario = async (
   const freeRedemptionEventId = createId();
   const freeCancellationEventId = createId();
   const transferId = createId();
-  const credentials = createRegistrationTransferCredentials();
-  const stripeAccountId = `acct_transfer_${transferId}`;
-  const sourceStripeAccountId = `acct_transfer_source_${transferId}`;
+  const claimCredential = createRegistrationTransferClaimCode();
   const checkoutSessionId = `cs_test_transfer_${recipientTransactionId}`;
   const paymentIntentId = `pi_transfer_${recipientTransactionId}`;
   const chargeId = `ch_transfer_${recipientTransactionId}`;
@@ -321,9 +304,26 @@ export const seedPaidRegistrationTransferScenario = async (
     columns: { stripeAccountId: true },
     where: { id: input.tenant.id },
   });
-  if (!originalTenant) {
-    throw new Error('Expected paid transfer scenario tenant');
+  if (!originalTenant?.stripeAccountId) {
+    throw new Error('Expected paid transfer scenario payment account');
   }
+  const stripeAccountId = originalTenant.stripeAccountId;
+  const sourceStripeAccountId = stripeAccountId;
+
+  const paidTransferStripeHttpClient = new PaidTransferStripeHttpClient();
+  const deterministicStripe = new Stripe('sk_test_paid_transfer_scenario', {
+    httpClient: paidTransferStripeHttpClient,
+    maxNetworkRetries: 0,
+    telemetry: false,
+  });
+  const scenarioLayer = Layer.merge(
+    effectDatabaseLayer,
+    Layer.succeed(StripeClient, deterministicStripe),
+  );
+
+  const runDatabaseEffect = <A, E>(
+    effect: Effect.Effect<A, E, Database | StripeClient>,
+  ) => Effect.runPromise(effect.pipe(Effect.provide(scenarioLayer)));
 
   paidTransferStripeHttpClient.prepareCharge({
     applicationFeeAmount: recipientApplicationFee,
@@ -335,248 +335,243 @@ export const seedPaidRegistrationTransferScenario = async (
     stripeFeeAmount: recipientStripeFee,
   });
 
-  await input.database
-    .update(schema.tenants)
-    .set({ stripeAccountId })
-    .where(eq(schema.tenants.id, input.tenant.id));
-  await input.database.insert(schema.eventInstances).values({
-    creatorId: input.source.id,
-    description: 'Deterministic paid transfer lifecycle scenario',
-    end: eventWindow.end,
-    icon: { iconColor: 0x4f46e5, iconName: 'ticket' },
-    id: eventId,
-    start: startsAt,
-    reviewedAt: new Date(),
-    status: 'APPROVED',
-    templateId: input.templateId,
-    tenantId: input.tenant.id,
-    title: input.title,
-    unlisted: true,
-  });
-  await input.database.insert(schema.eventRegistrationOptions).values({
-    closeRegistrationTime: eventWindow.closeRegistrationTime,
-    confirmedSpots: 2,
-    eventId,
-    id: optionId,
-    isPaid: true,
-    openRegistrationTime: eventWindow.openRegistrationTime,
-    organizingRegistration: false,
-    price: recipientUnitPrice,
-    refundFeesOnCancellation: true,
-    registeredDescription: 'Your transferred registration is confirmed.',
-    registrationMode: 'fcfs',
-    roleIds: [],
-    spots: 10,
-    title: 'Paid participant',
-    transferDeadlineHoursBeforeStart: 0,
-  });
-  const checkInTime = new Date(latestServerOrWallNow().getTime() - 60_000);
-  await input.database.insert(schema.eventRegistrations).values({
-    appliedDiscountedPrice: sourceDiscountedUnitPrice,
-    appliedDiscountType: 'esnCard',
-    basePriceAtRegistration: sourceUnitPrice,
-    checkedInGuestCount: 1,
-    checkInTime,
-    discountAmount: sourceUnitPrice - sourceDiscountedUnitPrice,
-    eventId,
-    guestCount: 1,
-    id: sourceRegistrationId,
-    registrationOptionId: optionId,
-    status: 'CONFIRMED',
-    tenantId: input.tenant.id,
-    userId: input.source.id,
-  });
-  await input.database.insert(schema.eventAddons).values([
-    {
-      allowMultiple: true,
-      allowPurchaseBeforeEvent: false,
-      allowPurchaseDuringEvent: false,
-      allowPurchaseDuringRegistration: true,
-      description:
-        'Included and purchased units with settled fulfillment history.',
+  await input.database.transaction(async (transaction) => {
+    await transaction.insert(schema.eventInstances).values({
+      creatorId: input.source.id,
+      description: 'Deterministic paid transfer lifecycle scenario',
+      end: eventWindow.end,
+      icon: { iconColor: 0x4f46e5, iconName: 'ticket' },
+      id: eventId,
+      start: startsAt,
+      reviewedAt: new Date(),
+      status: 'APPROVED',
+      templateId: input.templateId,
+      tenantId: input.tenant.id,
+      title: input.title,
+      unlisted: true,
+    });
+    await transaction.insert(schema.eventRegistrationOptions).values({
+      closeRegistrationTime: eventWindow.closeRegistrationTime,
+      confirmedSpots: 2,
       eventId,
-      id: paidAddonId,
+      id: optionId,
       isPaid: true,
-      maxQuantityPerUser: 3,
-      price: recipientPaidAddonUnitPrice,
-      stripeTaxRateId: null,
-      title: 'Transfer workshop kit',
-      totalAvailableQuantity: 18,
-    },
-    {
-      allowMultiple: true,
-      allowPurchaseBeforeEvent: false,
-      allowPurchaseDuringEvent: false,
-      allowPurchaseDuringRegistration: true,
-      description: 'Free optional units with settled fulfillment history.',
+      openRegistrationTime: eventWindow.openRegistrationTime,
+      organizingRegistration: false,
+      price: recipientUnitPrice,
+      refundFeesOnCancellation: true,
+      registeredDescription: 'Your transferred registration is confirmed.',
+      registrationMode: 'fcfs',
+      roleIds: [],
+      spots: 10,
+      title: 'Paid participant',
+      transferDeadlineHoursBeforeStart: 0,
+    });
+    const checkInTime = new Date(latestServerOrWallNow().getTime() - 60_000);
+    await transaction.insert(schema.eventRegistrations).values({
+      appliedDiscountedPrice: sourceDiscountedUnitPrice,
+      appliedDiscountType: 'esnCard',
+      basePriceAtRegistration: sourceUnitPrice,
+      checkedInGuestCount: 1,
+      checkInTime,
+      discountAmount: sourceUnitPrice - sourceDiscountedUnitPrice,
       eventId,
-      id: freeAddonId,
-      isPaid: false,
-      maxQuantityPerUser: 2,
-      price: 0,
-      stripeTaxRateId: null,
-      title: 'Transfer checklist item',
-      totalAvailableQuantity: 8,
-    },
-  ]);
-  await input.database.insert(schema.addonToEventRegistrationOptions).values([
-    {
-      addonId: paidAddonId,
-      eventId,
-      includedQuantity: 1,
-      optionalPurchaseQuantity: 2,
+      guestCount: 1,
+      id: sourceRegistrationId,
       registrationOptionId: optionId,
-    },
-    {
-      addonId: freeAddonId,
-      eventId,
-      includedQuantity: 0,
-      optionalPurchaseQuantity: 2,
-      registrationOptionId: optionId,
-    },
-  ]);
-  await input.database.insert(schema.transactions).values([
-    {
-      amount: sourceRegistrationAmount,
-      appFee: sourceRegistrationApplicationFee,
-      currency: 'EUR',
-      eventId,
-      eventRegistrationId: sourceRegistrationId,
-      id: sourceTransactionId,
-      method: 'stripe',
-      status: 'successful',
-      stripeAccountId: sourceStripeAccountId,
-      stripeChargeId: sourceChargeId,
-      stripeFee: sourceRegistrationStripeFee,
-      stripeNetAmount: sourceRegistrationNetAmount,
-      stripePaymentIntentId: sourcePaymentIntentId,
-      targetUserId: input.source.id,
+      status: 'CONFIRMED',
       tenantId: input.tenant.id,
-      type: 'registration',
-    },
-    {
-      amount: sourceAddonAmount,
-      appFee: 40,
-      currency: 'EUR',
-      eventId,
-      eventRegistrationId: sourceRegistrationId,
-      id: sourceAddonTransactionId,
-      method: 'stripe',
-      status: 'successful',
-      stripeAccountId: sourceStripeAccountId,
-      stripeChargeId: sourceAddonChargeId,
-      stripeFee: 30,
-      stripeNetAmount: 930,
-      stripePaymentIntentId: sourceAddonPaymentIntentId,
-      targetUserId: input.source.id,
-      tenantId: input.tenant.id,
-      type: 'addon',
-    },
-    {
-      amount: -priorAddonRefundAmount,
-      currency: 'EUR',
-      eventId,
-      eventRegistrationId: sourceRegistrationId,
-      id: priorAddonRefundTransactionId,
-      method: 'stripe',
-      refundOperationKey: `registration-addon-cancellation:${paidCancellationEventId}:${sourceAddonTransactionId}`,
-      sourceTransactionId: sourceAddonTransactionId,
-      status: 'successful',
-      stripeAccountId: sourceStripeAccountId,
-      stripeRefundApplicationFee: true,
-      stripeRefundId: priorAddonRefundId,
-      stripeRefundStatus: 'succeeded',
-      targetUserId: input.source.id,
-      tenantId: input.tenant.id,
-      type: 'refund',
-    },
-    {
-      amount: recipientAmount,
-      appFee: recipientApplicationFee,
-      currency: 'EUR',
-      eventId,
-      eventRegistrationId: sourceRegistrationId,
-      id: recipientTransactionId,
-      method: 'stripe',
-      status: 'pending',
-      stripeAccountId,
-      stripeCheckoutReconcileNextAt: checkoutExpiresAt,
-      stripeCheckoutRequest: {
-        customerEmail: input.recipient.email,
-        eventTitle: input.title,
-        eventUrl: new URL(
-          `/events/${encodeURIComponent(eventId)}`,
-          deriveTenantPublicOrigin(input.tenant.domain),
-        ).toString(),
-        expiresAt: Math.floor(checkoutExpiresAt.getTime() / 1000),
-        lineItems: [
-          {
-            name: `Registration fee for ${input.title}`,
-            quantity: 1,
-            unitAmount: recipientUnitPrice,
-          },
-          {
-            name: `Guest registration fee for ${input.title}`,
-            quantity: 1,
-            unitAmount: recipientUnitPrice,
-          },
-          {
-            addonId: paidAddonId,
-            allocationKey: registrationTransferAddonAllocationKey(
-              transferId,
-              paidPurchaseId,
-            ),
-            kind: 'addon',
-            name: `Transfer workshop kit add-on for ${input.title}`,
-            quantity: 2,
-            unitAmount: recipientPaidAddonUnitPrice,
-          },
-        ],
-        notificationEmail:
-          input.recipient.communicationEmail?.trim() || input.recipient.email,
+      userId: input.source.id,
+    });
+    await transaction.insert(schema.eventAddons).values([
+      {
+        allowMultiple: true,
+        allowPurchaseBeforeEvent: false,
+        allowPurchaseDuringEvent: false,
+        allowPurchaseDuringRegistration: true,
+        description:
+          'Included and purchased units with settled fulfillment history.',
+        eventId,
+        id: paidAddonId,
+        isPaid: true,
+        maxQuantityPerUser: 3,
+        price: recipientPaidAddonUnitPrice,
+        stripeTaxRateId: null,
+        title: 'Transfer workshop kit',
+        totalAvailableQuantity: 18,
       },
-      stripeCheckoutSessionId: checkoutSessionId,
-      stripeCheckoutUrl: `https://checkout.stripe.com/c/pay/${checkoutSessionId}`,
-      targetUserId: input.recipient.id,
-      tenantId: input.tenant.id,
-      type: 'registration',
-    },
-  ]);
-  await input.database.insert(schema.eventRegistrationAddonPurchases).values([
-    {
-      addonId: paidAddonId,
-      cancelledQuantity: 1,
-      eventId,
-      id: paidPurchaseId,
-      includedQuantity: 1,
-      purchasedQuantity: 2,
-      quantity: 3,
-      redeemedQuantity: 1,
-      refundAllocatedPurchasedQuantity: 1,
-      registrationId: sourceRegistrationId,
-      registrationOptionId: optionId,
-      tenantId: input.tenant.id,
-      unitPrice: 500,
-    },
-    {
-      addonId: freeAddonId,
-      cancelledQuantity: 1,
-      eventId,
-      id: freePurchaseId,
-      includedQuantity: 0,
-      purchasedQuantity: 2,
-      quantity: 2,
-      redeemedQuantity: 1,
-      refundAllocatedPurchasedQuantity: 0,
-      registrationId: sourceRegistrationId,
-      registrationOptionId: optionId,
-      tenantId: input.tenant.id,
-      unitPrice: 0,
-    },
-  ]);
-  await input.database
-    .insert(schema.eventRegistrationAddonPurchaseLots)
-    .values([
+      {
+        allowMultiple: true,
+        allowPurchaseBeforeEvent: false,
+        allowPurchaseDuringEvent: false,
+        allowPurchaseDuringRegistration: true,
+        description: 'Free optional units with settled fulfillment history.',
+        eventId,
+        id: freeAddonId,
+        isPaid: false,
+        maxQuantityPerUser: 2,
+        price: 0,
+        stripeTaxRateId: null,
+        title: 'Transfer checklist item',
+        totalAvailableQuantity: 8,
+      },
+    ]);
+    await transaction.insert(schema.addonToEventRegistrationOptions).values([
+      {
+        addonId: paidAddonId,
+        eventId,
+        includedQuantity: 1,
+        optionalPurchaseQuantity: 2,
+        registrationOptionId: optionId,
+      },
+      {
+        addonId: freeAddonId,
+        eventId,
+        includedQuantity: 0,
+        optionalPurchaseQuantity: 2,
+        registrationOptionId: optionId,
+      },
+    ]);
+    await transaction.insert(schema.transactions).values([
+      {
+        amount: sourceRegistrationAmount,
+        appFee: sourceRegistrationApplicationFee,
+        currency: 'EUR',
+        eventId,
+        eventRegistrationId: sourceRegistrationId,
+        id: sourceTransactionId,
+        method: 'stripe',
+        status: 'successful',
+        stripeAccountId: sourceStripeAccountId,
+        stripeChargeId: sourceChargeId,
+        stripeFee: sourceRegistrationStripeFee,
+        stripeNetAmount: sourceRegistrationNetAmount,
+        stripePaymentIntentId: sourcePaymentIntentId,
+        targetUserId: input.source.id,
+        tenantId: input.tenant.id,
+        type: 'registration',
+      },
+      {
+        amount: sourceAddonAmount,
+        appFee: 40,
+        currency: 'EUR',
+        eventId,
+        eventRegistrationId: sourceRegistrationId,
+        id: sourceAddonTransactionId,
+        method: 'stripe',
+        status: 'successful',
+        stripeAccountId: sourceStripeAccountId,
+        stripeChargeId: sourceAddonChargeId,
+        stripeFee: 30,
+        stripeNetAmount: 930,
+        stripePaymentIntentId: sourceAddonPaymentIntentId,
+        targetUserId: input.source.id,
+        tenantId: input.tenant.id,
+        type: 'addon',
+      },
+      {
+        amount: -priorAddonRefundAmount,
+        currency: 'EUR',
+        eventId,
+        eventRegistrationId: sourceRegistrationId,
+        id: priorAddonRefundTransactionId,
+        method: 'stripe',
+        refundOperationKey: `registration-addon-cancellation:${paidCancellationEventId}:${sourceAddonTransactionId}`,
+        sourceTransactionId: sourceAddonTransactionId,
+        status: 'successful',
+        stripeAccountId: sourceStripeAccountId,
+        stripeRefundApplicationFee: true,
+        stripeRefundId: priorAddonRefundId,
+        stripeRefundStatus: 'succeeded',
+        targetUserId: input.source.id,
+        tenantId: input.tenant.id,
+        type: 'refund',
+      },
+      {
+        amount: recipientAmount,
+        appFee: recipientApplicationFee,
+        currency: 'EUR',
+        eventId,
+        eventRegistrationId: sourceRegistrationId,
+        id: recipientTransactionId,
+        method: 'stripe',
+        status: 'pending',
+        stripeAccountId,
+        stripeCheckoutReconcileNextAt: checkoutExpiresAt,
+        stripeCheckoutRequest: {
+          customerEmail: input.recipient.email,
+          eventTitle: input.title,
+          eventUrl: new URL(
+            `/events/${encodeURIComponent(eventId)}`,
+            deriveTenantPublicOrigin(input.tenant.domain),
+          ).toString(),
+          expiresAt: Math.floor(checkoutExpiresAt.getTime() / 1000),
+          lineItems: [
+            {
+              name: `Registration fee for ${input.title}`,
+              quantity: 1,
+              unitAmount: recipientUnitPrice,
+            },
+            {
+              name: `Guest registration fee for ${input.title}`,
+              quantity: 1,
+              unitAmount: recipientUnitPrice,
+            },
+            {
+              addonId: paidAddonId,
+              allocationKey: registrationTransferAddonAllocationKey(
+                transferId,
+                paidPurchaseId,
+              ),
+              kind: 'addon',
+              name: `Transfer workshop kit add-on for ${input.title}`,
+              quantity: 2,
+              unitAmount: recipientPaidAddonUnitPrice,
+            },
+          ],
+          notificationEmail:
+            input.recipient.communicationEmail?.trim() || input.recipient.email,
+        },
+        stripeCheckoutSessionId: checkoutSessionId,
+        stripeCheckoutUrl: `https://checkout.stripe.com/c/pay/${checkoutSessionId}`,
+        targetUserId: input.recipient.id,
+        tenantId: input.tenant.id,
+        type: 'registration',
+      },
+    ]);
+    await transaction.insert(schema.eventRegistrationAddonPurchases).values([
+      {
+        addonId: paidAddonId,
+        cancelledQuantity: 1,
+        eventId,
+        id: paidPurchaseId,
+        includedQuantity: 1,
+        purchasedQuantity: 2,
+        quantity: 3,
+        redeemedQuantity: 1,
+        refundAllocatedPurchasedQuantity: 1,
+        registrationId: sourceRegistrationId,
+        registrationOptionId: optionId,
+        tenantId: input.tenant.id,
+        unitPrice: 500,
+      },
+      {
+        addonId: freeAddonId,
+        cancelledQuantity: 1,
+        eventId,
+        id: freePurchaseId,
+        includedQuantity: 0,
+        purchasedQuantity: 2,
+        quantity: 2,
+        redeemedQuantity: 1,
+        refundAllocatedPurchasedQuantity: 0,
+        registrationId: sourceRegistrationId,
+        registrationOptionId: optionId,
+        tenantId: input.tenant.id,
+        unitPrice: 0,
+      },
+    ]);
+    await transaction.insert(schema.eventRegistrationAddonPurchaseLots).values([
       {
         applicationFeeAmount: 40,
         baseAmount: sourceAddonAmount,
@@ -629,365 +624,362 @@ export const seedPaidRegistrationTransferScenario = async (
         unitPrice: 0,
       },
     ]);
-  await input.database.insert(schema.registrationAcquisitions).values({
-    acquiredAt: checkInTime,
-    eventId,
-    id: sourceAcquisitionId,
-    kind: 'initial',
-    operationKey: `registration-initial:${sourceRegistrationId}`,
-    ordinal: 0,
-    ownerUserId: input.source.id,
-    registrationId: sourceRegistrationId,
-    spotCount: 2,
-    tenantId: input.tenant.id,
-  });
-  await input.database.insert(schema.registrationAcquisitionPayments).values([
-    {
-      acquisitionId: sourceAcquisitionId,
-      attachedAt: checkInTime,
-      eventId,
-      id: sourceRegistrationAcquisitionPaymentId,
-      registrationId: sourceRegistrationId,
-      tenantId: input.tenant.id,
-      transactionId: sourceTransactionId,
-    },
-    {
-      acquisitionId: sourceAcquisitionId,
-      attachedAt: checkInTime,
-      eventId,
-      id: sourceAddonAcquisitionPaymentId,
-      registrationId: sourceRegistrationId,
-      tenantId: input.tenant.id,
-      transactionId: sourceAddonTransactionId,
-    },
-  ]);
-  await input.database.insert(schema.registrationAcquisitionComponents).values([
-    {
+    await transaction.insert(schema.registrationAcquisitions).values({
       acquiredAt: checkInTime,
-      acquisitionId: sourceAcquisitionId,
-      acquisitionPaymentId: sourceRegistrationAcquisitionPaymentId,
-      allocationKey: `registration-initial:${sourceRegistrationId}`,
-      applicationFeeAmount: sourceRegistrationApplicationFee,
-      baseAmount: sourceRegistrationAmount,
-      currency: 'EUR',
       eventId,
-      grossAmount: sourceRegistrationAmount,
-      id: sourceRegistrationComponentId,
-      kind: 'registration',
-      netAmount: sourceRegistrationNetAmount,
-      quantity: 2,
+      id: sourceAcquisitionId,
+      kind: 'initial',
+      operationKey: `registration-initial:${sourceRegistrationId}`,
+      ordinal: 0,
+      ownerUserId: input.source.id,
       registrationId: sourceRegistrationId,
-      stripeFeeAmount: sourceRegistrationStripeFee,
-      taxAmount: 0,
-      tenantId: input.tenant.id,
-    },
-    {
-      acquiredAt: checkInTime,
-      acquisitionId: sourceAcquisitionId,
-      acquisitionPaymentId: sourceAddonAcquisitionPaymentId,
-      allocationKey: `addon-lot:${paidPurchaseLotId}`,
-      applicationFeeAmount: 40,
-      baseAmount: sourceAddonAmount,
-      currency: 'EUR',
-      eventId,
-      grossAmount: sourceAddonAmount,
-      id: sourcePaidAddonComponentId,
-      kind: 'addon_lot',
-      netAmount: 930,
-      purchaseId: paidPurchaseId,
-      purchaseLotId: paidPurchaseLotId,
-      quantity: 2,
-      registrationId: sourceRegistrationId,
-      stripeFeeAmount: 30,
-      taxAmount: 0,
-      tenantId: input.tenant.id,
-    },
-    {
-      acquiredAt: checkInTime,
-      acquisitionId: sourceAcquisitionId,
-      allocationKey: `addon-lot:${freePurchaseLotId}`,
-      applicationFeeAmount: 0,
-      baseAmount: 0,
-      currency: 'EUR',
-      eventId,
-      grossAmount: 0,
-      id: sourceFreeAddonComponentId,
-      kind: 'addon_lot',
-      netAmount: 0,
-      purchaseId: freePurchaseId,
-      purchaseLotId: freePurchaseLotId,
-      quantity: 2,
-      registrationId: sourceRegistrationId,
-      stripeFeeAmount: 0,
-      taxAmount: 0,
-      tenantId: input.tenant.id,
-    },
-  ]);
-  await input.database
-    .insert(schema.eventRegistrationAddonFulfillmentEvents)
-    .values([
-      {
-        actorKind: 'user',
-        actorUserId: input.source.id,
-        eventId,
-        id: paidRedemptionEventId,
-        operationKey: `transfer-paid-redeemed:${paidPurchaseId}`,
-        purchaseId: paidPurchaseId,
-        quantity: 1,
-        registrationId: sourceRegistrationId,
-        tenantId: input.tenant.id,
-        type: 'redeemed',
-      },
-      {
-        actorKind: 'user',
-        actorUserId: input.source.id,
-        eventId,
-        id: paidCancellationEventId,
-        operationKey: `transfer-paid-cancelled:${paidPurchaseId}`,
-        purchaseId: paidPurchaseId,
-        quantity: 1,
-        reason: 'Preserved paid cancellation history.',
-        refundDisposition: 'claims_created',
-        refundRequested: true,
-        registrationId: sourceRegistrationId,
-        tenantId: input.tenant.id,
-        type: 'cancelled',
-      },
-      {
-        actorKind: 'user',
-        actorUserId: input.source.id,
-        eventId,
-        id: freeRedemptionEventId,
-        operationKey: `transfer-free-redeemed:${freePurchaseId}`,
-        purchaseId: freePurchaseId,
-        quantity: 1,
-        registrationId: sourceRegistrationId,
-        tenantId: input.tenant.id,
-        type: 'redeemed',
-      },
-      {
-        actorKind: 'user',
-        actorUserId: input.source.id,
-        eventId,
-        id: freeCancellationEventId,
-        operationKey: `transfer-free-cancelled:${freePurchaseId}`,
-        purchaseId: freePurchaseId,
-        quantity: 1,
-        reason: 'Preserved free cancellation history.',
-        refundDisposition: 'no_monetary_refund_required',
-        refundRequested: true,
-        registrationId: sourceRegistrationId,
-        tenantId: input.tenant.id,
-        type: 'cancelled',
-      },
-    ]);
-  await input.database
-    .insert(schema.eventRegistrationAddonRefundAllocations)
-    .values({
-      applicationFeeAmount: 20,
-      applicationFeeRefunded: true,
-      currency: 'EUR',
-      eventId,
-      fulfillmentEventId: paidCancellationEventId,
-      grossEntitlementAmount: priorAddonRefundAmount,
-      netEntitlementAmount: 465,
-      purchaseId: paidPurchaseId,
-      purchaseLotId: paidPurchaseLotId,
-      quantity: 1,
-      refundAmount: priorAddonRefundAmount,
-      refundTransactionId: priorAddonRefundTransactionId,
-      registrationId: sourceRegistrationId,
+      spotCount: 2,
       tenantId: input.tenant.id,
     });
-  await input.database
-    .insert(schema.registrationAcquisitionRefundAllocations)
-    .values({
-      acquisitionId: sourceAcquisitionId,
-      acquisitionPaymentId: sourceAddonAcquisitionPaymentId,
-      applicationFeeAmount: 20,
-      applicationFeeRefunded: true,
-      componentId: sourcePaidAddonComponentId,
+    await transaction.insert(schema.registrationAcquisitionPayments).values([
+      {
+        acquisitionId: sourceAcquisitionId,
+        attachedAt: checkInTime,
+        eventId,
+        id: sourceRegistrationAcquisitionPaymentId,
+        registrationId: sourceRegistrationId,
+        tenantId: input.tenant.id,
+        transactionId: sourceTransactionId,
+      },
+      {
+        acquisitionId: sourceAcquisitionId,
+        attachedAt: checkInTime,
+        eventId,
+        id: sourceAddonAcquisitionPaymentId,
+        registrationId: sourceRegistrationId,
+        tenantId: input.tenant.id,
+        transactionId: sourceAddonTransactionId,
+      },
+    ]);
+    await transaction.insert(schema.registrationAcquisitionComponents).values([
+      {
+        acquiredAt: checkInTime,
+        acquisitionId: sourceAcquisitionId,
+        acquisitionPaymentId: sourceRegistrationAcquisitionPaymentId,
+        allocationKey: `registration-initial:${sourceRegistrationId}`,
+        applicationFeeAmount: sourceRegistrationApplicationFee,
+        baseAmount: sourceRegistrationAmount,
+        currency: 'EUR',
+        eventId,
+        grossAmount: sourceRegistrationAmount,
+        id: sourceRegistrationComponentId,
+        kind: 'registration',
+        netAmount: sourceRegistrationNetAmount,
+        quantity: 2,
+        registrationId: sourceRegistrationId,
+        stripeFeeAmount: sourceRegistrationStripeFee,
+        taxAmount: 0,
+        tenantId: input.tenant.id,
+      },
+      {
+        acquiredAt: checkInTime,
+        acquisitionId: sourceAcquisitionId,
+        acquisitionPaymentId: sourceAddonAcquisitionPaymentId,
+        allocationKey: `addon-lot:${paidPurchaseLotId}`,
+        applicationFeeAmount: 40,
+        baseAmount: sourceAddonAmount,
+        currency: 'EUR',
+        eventId,
+        grossAmount: sourceAddonAmount,
+        id: sourcePaidAddonComponentId,
+        kind: 'addon_lot',
+        netAmount: 930,
+        purchaseId: paidPurchaseId,
+        purchaseLotId: paidPurchaseLotId,
+        quantity: 2,
+        registrationId: sourceRegistrationId,
+        stripeFeeAmount: 30,
+        taxAmount: 0,
+        tenantId: input.tenant.id,
+      },
+      {
+        acquiredAt: checkInTime,
+        acquisitionId: sourceAcquisitionId,
+        allocationKey: `addon-lot:${freePurchaseLotId}`,
+        applicationFeeAmount: 0,
+        baseAmount: 0,
+        currency: 'EUR',
+        eventId,
+        grossAmount: 0,
+        id: sourceFreeAddonComponentId,
+        kind: 'addon_lot',
+        netAmount: 0,
+        purchaseId: freePurchaseId,
+        purchaseLotId: freePurchaseLotId,
+        quantity: 2,
+        registrationId: sourceRegistrationId,
+        stripeFeeAmount: 0,
+        taxAmount: 0,
+        tenantId: input.tenant.id,
+      },
+    ]);
+    await transaction
+      .insert(schema.eventRegistrationAddonFulfillmentEvents)
+      .values([
+        {
+          actorKind: 'user',
+          actorUserId: input.source.id,
+          eventId,
+          id: paidRedemptionEventId,
+          operationKey: `transfer-paid-redeemed:${paidPurchaseId}`,
+          purchaseId: paidPurchaseId,
+          quantity: 1,
+          registrationId: sourceRegistrationId,
+          tenantId: input.tenant.id,
+          type: 'redeemed',
+        },
+        {
+          actorKind: 'user',
+          actorUserId: input.source.id,
+          eventId,
+          id: paidCancellationEventId,
+          operationKey: `transfer-paid-cancelled:${paidPurchaseId}`,
+          purchaseId: paidPurchaseId,
+          quantity: 1,
+          reason: 'Preserved paid cancellation history.',
+          refundDisposition: 'claims_created',
+          refundRequested: true,
+          registrationId: sourceRegistrationId,
+          tenantId: input.tenant.id,
+          type: 'cancelled',
+        },
+        {
+          actorKind: 'user',
+          actorUserId: input.source.id,
+          eventId,
+          id: freeRedemptionEventId,
+          operationKey: `transfer-free-redeemed:${freePurchaseId}`,
+          purchaseId: freePurchaseId,
+          quantity: 1,
+          registrationId: sourceRegistrationId,
+          tenantId: input.tenant.id,
+          type: 'redeemed',
+        },
+        {
+          actorKind: 'user',
+          actorUserId: input.source.id,
+          eventId,
+          id: freeCancellationEventId,
+          operationKey: `transfer-free-cancelled:${freePurchaseId}`,
+          purchaseId: freePurchaseId,
+          quantity: 1,
+          reason: 'Preserved free cancellation history.',
+          refundDisposition: 'no_monetary_refund_required',
+          refundRequested: true,
+          registrationId: sourceRegistrationId,
+          tenantId: input.tenant.id,
+          type: 'cancelled',
+        },
+      ]);
+    await transaction
+      .insert(schema.eventRegistrationAddonRefundAllocations)
+      .values({
+        applicationFeeAmount: 20,
+        applicationFeeRefunded: true,
+        currency: 'EUR',
+        eventId,
+        fulfillmentEventId: paidCancellationEventId,
+        grossEntitlementAmount: priorAddonRefundAmount,
+        netEntitlementAmount: 465,
+        purchaseId: paidPurchaseId,
+        purchaseLotId: paidPurchaseLotId,
+        quantity: 1,
+        refundAmount: priorAddonRefundAmount,
+        refundTransactionId: priorAddonRefundTransactionId,
+        registrationId: sourceRegistrationId,
+        tenantId: input.tenant.id,
+      });
+    await transaction
+      .insert(schema.registrationAcquisitionRefundAllocations)
+      .values({
+        acquisitionId: sourceAcquisitionId,
+        acquisitionPaymentId: sourceAddonAcquisitionPaymentId,
+        applicationFeeAmount: 20,
+        applicationFeeRefunded: true,
+        componentId: sourcePaidAddonComponentId,
+        eventId,
+        fulfillmentEventId: paidCancellationEventId,
+        grossEntitlementAmount: priorAddonRefundAmount,
+        netEntitlementAmount: 465,
+        operationKey: `addon-cancel:${paidCancellationEventId}:${sourcePaidAddonComponentId}`,
+        operationKind: 'addon_cancellation',
+        purchaseId: paidPurchaseId,
+        quantity: 1,
+        refundAmount: priorAddonRefundAmount,
+        refundTransactionId: priorAddonRefundTransactionId,
+        registrationId: sourceRegistrationId,
+        stripeFeeAmount: 15,
+        tenantId: input.tenant.id,
+      });
+    await transaction.insert(schema.registrationTransfers).values({
+      claimCodeHash: claimCredential.claimCodeHash,
       eventId,
-      fulfillmentEventId: paidCancellationEventId,
-      grossEntitlementAmount: priorAddonRefundAmount,
-      netEntitlementAmount: 465,
-      operationKey: `addon-cancel:${paidCancellationEventId}:${sourcePaidAddonComponentId}`,
-      operationKind: 'addon_cancellation',
-      purchaseId: paidPurchaseId,
-      quantity: 1,
-      refundAmount: priorAddonRefundAmount,
-      refundTransactionId: priorAddonRefundTransactionId,
-      registrationId: sourceRegistrationId,
-      stripeFeeAmount: 15,
+      expiresAt: checkoutExpiresAt,
+      id: transferId,
+      recipientCheckoutTransactionId: recipientTransactionId,
+      recipientBasePrice: recipientUnitPrice,
+      recipientDiscountAmount: 0,
+      recipientUserId: input.recipient.id,
+      registrationOptionId: optionId,
+      sourceRegistrationId,
+      sourceSpotCount: 2,
+      sourceUserId: input.source.id,
+      status: 'checkout_pending',
       tenantId: input.tenant.id,
     });
-  await input.database.insert(schema.registrationTransfers).values({
-    claimCodeHash: credentials.claimCodeHash,
-    claimTokenHash: credentials.claimTokenHash,
-    eventId,
-    expiresAt: checkoutExpiresAt,
-    id: transferId,
-    recipientCheckoutTransactionId: recipientTransactionId,
-    recipientBasePrice: recipientUnitPrice,
-    recipientDiscountAmount: 0,
-    recipientRegistrationId: sourceRegistrationId,
-    recipientSpotCount: 2,
-    recipientUserId: input.recipient.id,
-    registrationOptionId: optionId,
-    reservedAdditionalSpots: 0,
-    sourceRegistrationId,
-    sourceSpotCount: 2,
-    sourceUserId: input.source.id,
-    status: 'checkout_pending',
-    tenantId: input.tenant.id,
+    await transaction
+      .insert(schema.registrationTransferBundleAddonPurchases)
+      .values([
+        {
+          addonId: freeAddonId,
+          cancelledQuantity: 1,
+          eventId,
+          includedQuantity: 0,
+          purchasedQuantity: 2,
+          quantity: 2,
+          redeemedQuantity: 1,
+          refundAllocatedPurchasedQuantity: 0,
+          registrationOptionId: optionId,
+          sourcePurchaseId: freePurchaseId,
+          tenantId: input.tenant.id,
+          transferId,
+          unitPrice: 0,
+          recipientStripeTaxRateId: null,
+          recipientTaxRateDisplayName: null,
+          recipientTaxRateInclusive: null,
+          recipientTaxRatePercentage: null,
+          recipientUnitPrice: 0,
+        },
+        {
+          addonId: paidAddonId,
+          cancelledQuantity: 1,
+          eventId,
+          includedQuantity: 1,
+          purchasedQuantity: 2,
+          quantity: 3,
+          redeemedQuantity: 1,
+          refundAllocatedPurchasedQuantity: 1,
+          registrationOptionId: optionId,
+          sourcePurchaseId: paidPurchaseId,
+          tenantId: input.tenant.id,
+          transferId,
+          unitPrice: 500,
+          recipientStripeTaxRateId: null,
+          recipientTaxRateDisplayName: null,
+          recipientTaxRateInclusive: null,
+          recipientTaxRatePercentage: null,
+          recipientUnitPrice: recipientPaidAddonUnitPrice,
+        },
+      ]);
+    await transaction
+      .insert(schema.registrationTransferBundleAddonPurchaseLots)
+      .values([
+        {
+          cancelledQuantity: 1,
+          quantity: 2,
+          redeemedQuantity: 1,
+          refundAllocatedQuantity: 0,
+          sourcePurchaseId: freePurchaseId,
+          sourcePurchaseLotId: freePurchaseLotId,
+          sourceTransactionId: null,
+          tenantId: input.tenant.id,
+          transferId,
+        },
+        {
+          cancelledQuantity: 1,
+          quantity: 2,
+          redeemedQuantity: 0,
+          refundAllocatedQuantity: 1,
+          sourcePurchaseId: paidPurchaseId,
+          sourcePurchaseLotId: paidPurchaseLotId,
+          sourceTransactionId: sourceAddonTransactionId,
+          tenantId: input.tenant.id,
+          transferId,
+        },
+      ]);
+    await transaction
+      .insert(schema.registrationTransferRefundPlanItems)
+      .values([
+        {
+          applicationFeeRefunded: true,
+          currency: 'EUR',
+          id: sourceRegistrationPlanItemId,
+          operationKey: `registration-transfer-source:${transferId}:${sourceTransactionId}`,
+          originalAmount: sourceRegistrationAmount,
+          priorRefundedAmount: 0,
+          refundAmountDue: sourceRegistrationAmount,
+          sourceRegistrationId,
+          sourceTransactionId,
+          sourceTransactionType: 'registration',
+          stripeAccountId: sourceStripeAccountId,
+          tenantId: input.tenant.id,
+          transferId,
+        },
+        {
+          applicationFeeRefunded: true,
+          currency: 'EUR',
+          id: sourceAddonPlanItemId,
+          operationKey: `registration-transfer-source:${transferId}:${sourceAddonTransactionId}`,
+          originalAmount: sourceAddonAmount,
+          priorRefundedAmount: priorAddonRefundAmount,
+          refundAmountDue: sourceAddonAmount - priorAddonRefundAmount,
+          sourceRegistrationId,
+          sourceTransactionId: sourceAddonTransactionId,
+          sourceTransactionType: 'addon',
+          stripeAccountId: sourceStripeAccountId,
+          tenantId: input.tenant.id,
+          transferId,
+        },
+      ]);
+    await transaction
+      .insert(schema.registrationTransferRefundPlanAcquisitionLinks)
+      .values([
+        {
+          planItemId: sourceRegistrationPlanItemId,
+          sourceAcquisitionId,
+          sourceAcquisitionPaymentId: sourceRegistrationAcquisitionPaymentId,
+          sourceTransactionId,
+          tenantId: input.tenant.id,
+        },
+        {
+          planItemId: sourceAddonPlanItemId,
+          sourceAcquisitionId,
+          sourceAcquisitionPaymentId: sourceAddonAcquisitionPaymentId,
+          sourceTransactionId: sourceAddonTransactionId,
+          tenantId: input.tenant.id,
+        },
+      ]);
+    await transaction.insert(schema.registrationTransferEvents).values([
+      {
+        actorUserId: input.source.id,
+        eventType: 'created',
+        tenantId: input.tenant.id,
+        toStatus: 'open',
+        transferId,
+      },
+      {
+        actorUserId: input.recipient.id,
+        eventType: 'claimed',
+        fromStatus: 'open',
+        tenantId: input.tenant.id,
+        toStatus: 'checkout_pending',
+        transferId,
+      },
+      {
+        actorUserId: input.recipient.id,
+        eventType: 'checkout_started',
+        fromStatus: 'open',
+        tenantId: input.tenant.id,
+        toStatus: 'checkout_pending',
+        transferId,
+      },
+    ]);
   });
-  await input.database
-    .insert(schema.registrationTransferBundleAddonPurchases)
-    .values([
-      {
-        addonId: freeAddonId,
-        cancelledQuantity: 1,
-        eventId,
-        includedQuantity: 0,
-        purchasedQuantity: 2,
-        quantity: 2,
-        redeemedQuantity: 1,
-        refundAllocatedPurchasedQuantity: 0,
-        registrationOptionId: optionId,
-        sourcePurchaseId: freePurchaseId,
-        tenantId: input.tenant.id,
-        transferId,
-        unitPrice: 0,
-        recipientStripeTaxRateId: null,
-        recipientTaxRateDisplayName: null,
-        recipientTaxRateInclusive: null,
-        recipientTaxRatePercentage: null,
-        recipientUnitPrice: 0,
-      },
-      {
-        addonId: paidAddonId,
-        cancelledQuantity: 1,
-        eventId,
-        includedQuantity: 1,
-        purchasedQuantity: 2,
-        quantity: 3,
-        redeemedQuantity: 1,
-        refundAllocatedPurchasedQuantity: 1,
-        registrationOptionId: optionId,
-        sourcePurchaseId: paidPurchaseId,
-        tenantId: input.tenant.id,
-        transferId,
-        unitPrice: 500,
-        recipientStripeTaxRateId: null,
-        recipientTaxRateDisplayName: null,
-        recipientTaxRateInclusive: null,
-        recipientTaxRatePercentage: null,
-        recipientUnitPrice: recipientPaidAddonUnitPrice,
-      },
-    ]);
-  await input.database
-    .insert(schema.registrationTransferBundleAddonPurchaseLots)
-    .values([
-      {
-        cancelledQuantity: 1,
-        quantity: 2,
-        redeemedQuantity: 1,
-        refundAllocatedQuantity: 0,
-        sourcePurchaseId: freePurchaseId,
-        sourcePurchaseLotId: freePurchaseLotId,
-        sourceTransactionId: null,
-        tenantId: input.tenant.id,
-        transferId,
-      },
-      {
-        cancelledQuantity: 1,
-        quantity: 2,
-        redeemedQuantity: 0,
-        refundAllocatedQuantity: 1,
-        sourcePurchaseId: paidPurchaseId,
-        sourcePurchaseLotId: paidPurchaseLotId,
-        sourceTransactionId: sourceAddonTransactionId,
-        tenantId: input.tenant.id,
-        transferId,
-      },
-    ]);
-  await input.database
-    .insert(schema.registrationTransferRefundPlanItems)
-    .values([
-      {
-        applicationFeeRefunded: true,
-        currency: 'EUR',
-        id: sourceRegistrationPlanItemId,
-        operationKey: `registration-transfer-source:${transferId}:${sourceTransactionId}`,
-        originalAmount: sourceRegistrationAmount,
-        priorRefundedAmount: 0,
-        refundAmountDue: sourceRegistrationAmount,
-        sourceRegistrationId,
-        sourceTransactionId,
-        sourceTransactionType: 'registration',
-        stripeAccountId: sourceStripeAccountId,
-        tenantId: input.tenant.id,
-        transferId,
-      },
-      {
-        applicationFeeRefunded: true,
-        currency: 'EUR',
-        id: sourceAddonPlanItemId,
-        operationKey: `registration-transfer-source:${transferId}:${sourceAddonTransactionId}`,
-        originalAmount: sourceAddonAmount,
-        priorRefundedAmount: priorAddonRefundAmount,
-        refundAmountDue: sourceAddonAmount - priorAddonRefundAmount,
-        sourceRegistrationId,
-        sourceTransactionId: sourceAddonTransactionId,
-        sourceTransactionType: 'addon',
-        stripeAccountId: sourceStripeAccountId,
-        tenantId: input.tenant.id,
-        transferId,
-      },
-    ]);
-  await input.database
-    .insert(schema.registrationTransferRefundPlanAcquisitionLinks)
-    .values([
-      {
-        planItemId: sourceRegistrationPlanItemId,
-        sourceAcquisitionId,
-        sourceAcquisitionPaymentId: sourceRegistrationAcquisitionPaymentId,
-        sourceTransactionId,
-        tenantId: input.tenant.id,
-      },
-      {
-        planItemId: sourceAddonPlanItemId,
-        sourceAcquisitionId,
-        sourceAcquisitionPaymentId: sourceAddonAcquisitionPaymentId,
-        sourceTransactionId: sourceAddonTransactionId,
-        tenantId: input.tenant.id,
-      },
-    ]);
-  await input.database.insert(schema.registrationTransferEvents).values([
-    {
-      actorUserId: input.source.id,
-      eventType: 'created',
-      tenantId: input.tenant.id,
-      toStatus: 'open',
-      transferId,
-    },
-    {
-      actorUserId: input.recipient.id,
-      eventType: 'claimed',
-      fromStatus: 'open',
-      tenantId: input.tenant.id,
-      toStatus: 'checkout_pending',
-      transferId,
-    },
-    {
-      actorUserId: input.recipient.id,
-      eventType: 'checkout_started',
-      fromStatus: 'open',
-      tenantId: input.tenant.id,
-      toStatus: 'checkout_pending',
-      transferId,
-    },
-  ]);
 
   const completeCheckout = () => {
     const webhookSecret = 'whsec_paid_transfer_scenario';
@@ -1356,15 +1348,11 @@ export const seedPaidRegistrationTransferScenario = async (
     await input.database
       .delete(schema.eventInstances)
       .where(eq(schema.eventInstances.id, eventId));
-    await input.database
-      .update(schema.tenants)
-      .set({ stripeAccountId: originalTenant.stripeAccountId })
-      .where(eq(schema.tenants.id, input.tenant.id));
   };
 
   return {
     cancelInheritedAddon,
-    claimPath: `/registration-transfers/${credentials.claimToken}`,
+    claimCode: claimCredential.claimCode,
     cleanup,
     completeCheckout,
     completeSourceRefunds,

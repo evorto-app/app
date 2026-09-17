@@ -330,7 +330,6 @@ const seedFixture = async (
       });
       await transaction.insert(registrationTransfers).values({
         claimCodeHash: fixture.transferId.padEnd(64, 'a'),
-        claimTokenHash: fixture.transferId.padEnd(64, 'b'),
         eventId: fixture.eventIds[0],
         expiresAt: new Date(now + 60_000),
         id: fixture.transferId,
@@ -985,7 +984,6 @@ describe('question answer history concurrency in PostgreSQL', () => {
           if (history === 'transfer') {
             await database.insert(registrationTransfers).values({
               claimCodeHash: randomUUID(),
-              claimTokenHash: randomUUID(),
               eventId: fixture.eventIds[0],
               expiresAt: new Date(Date.now() + 60_000),
               id: transferId,
@@ -1348,7 +1346,7 @@ describe('question answer history concurrency in PostgreSQL', () => {
         error: {
           _tag: 'RegistrationTransferConflictError',
           message:
-            'Registration payment ownership is not initialized for the current owner.',
+            'The payment history for this ticket is incomplete, so it cannot be transferred. No ticket transfer or refund was started. Ask an organizer for help.',
         },
       });
     } catch (error) {

@@ -1,11 +1,14 @@
 import type { DatabaseClient } from '@db/index';
 
-import { registrationTransfers } from '@db/schema';
+import { registrationTransferEvents, registrationTransfers } from '@db/schema';
 import { activeRegistrationTransferStatuses } from '@shared/registration-transfer';
-import { and, eq, inArray } from 'drizzle-orm';
-import { Effect, Schema } from 'effect';
+import { and, eq, inArray, sql } from 'drizzle-orm';
+import { DateTime, Effect, Schema } from 'effect';
 
-type RegistrationTransferGuardTransaction = Pick<DatabaseClient, 'select'>;
+type RegistrationTransferGuardTransaction = Pick<
+  DatabaseClient,
+  'insert' | 'select' | 'update'
+>;
 
 export const registrationTransferMutationBlockingStatuses = [
   'open',
@@ -22,6 +25,11 @@ export class RegistrationTransferMutationConflict extends Schema.TaggedErrorClas
   },
 ) {}
 
+export const registrationTransferOpenDeadlinePredicate = (
+  table: Pick<typeof registrationTransfers, 'expiresAt' | 'status'>,
+) =>
+  sql`(${table.status} <> 'open' OR ${table.expiresAt} > statement_timestamp())`;
+
 export const activeRegistrationTransferMutationPredicate = (input: {
   readonly registrationId: string;
   readonly tenantId: string;
@@ -33,6 +41,7 @@ export const activeRegistrationTransferMutationPredicate = (input: {
       registrationTransfers.status,
       registrationTransferMutationBlockingStatuses,
     ),
+    registrationTransferOpenDeadlinePredicate(registrationTransfers),
   );
 
 export const ensureRegistrationMutationHasNoActiveTransfer = Effect.fn(
@@ -46,17 +55,55 @@ export const ensureRegistrationMutationHasNoActiveTransfer = Effect.fn(
 ) {
   const transferRows = yield* tx
     .select({
+      expiresAt: registrationTransfers.expiresAt,
       id: registrationTransfers.id,
       status: registrationTransfers.status,
     })
     .from(registrationTransfers)
-    .where(activeRegistrationTransferMutationPredicate(input))
+    .where(
+      and(
+        eq(registrationTransfers.tenantId, input.tenantId),
+        eq(registrationTransfers.sourceRegistrationId, input.registrationId),
+        inArray(
+          registrationTransfers.status,
+          registrationTransferMutationBlockingStatuses,
+        ),
+      ),
+    )
     .for('update');
   const transfer = transferRows[0];
   if (
     !transfer ||
     (transfer.status !== 'open' && transfer.status !== 'checkout_pending')
   ) {
+    return;
+  }
+
+  const now = yield* DateTime.nowAsDate;
+  if (transfer.status === 'open' && transfer.expiresAt <= now) {
+    const expired = yield* tx
+      .update(registrationTransfers)
+      .set({ expiredAt: now, status: 'expired' })
+      .where(
+        and(
+          eq(registrationTransfers.id, transfer.id),
+          eq(registrationTransfers.status, 'open'),
+          eq(registrationTransfers.tenantId, input.tenantId),
+        ),
+      )
+      .returning({ id: registrationTransfers.id });
+    if (expired.length !== 1) {
+      return yield* Effect.die(
+        new Error('Locked transfer offer could not be expired'),
+      );
+    }
+    yield* tx.insert(registrationTransferEvents).values({
+      eventType: 'expired',
+      fromStatus: 'open',
+      tenantId: input.tenantId,
+      toStatus: 'expired',
+      transferId: transfer.id,
+    });
     return;
   }
 
