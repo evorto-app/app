@@ -52,6 +52,7 @@ import {
 } from '../../../../../db/schema';
 import { maximumPersistedPaymentAmount } from '../../../../payments/payment-amount';
 import { checkoutSessionIncidentLastError } from '../../../../registrations/checkout-session-incident';
+import { validateRegistrationQuestionAnswers } from '../../../../registrations/event-question-answer-guard';
 import { isUserEligibleForRegistrationOption } from '../../../../registrations/registration-eligibility';
 import { StripeClient } from '../../../../stripe-client';
 import { createRegistrationDatabaseTestLayer } from '../../../../testing/registration-database';
@@ -65,7 +66,6 @@ import {
   orderRegistrationAddonPurchases,
   registrationCheckoutPriceBreakdown,
   validateRegistrationAddons,
-  validateRegistrationQuestionAnswers,
 } from './event-registration.service';
 import {
   EventRegistrationConflictError,

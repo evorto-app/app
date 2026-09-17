@@ -64,7 +64,6 @@ import type { Tenant } from '../../types/custom/tenant';
 import type { User } from '../../types/custom/user';
 
 import { getServerNow } from '../clock';
-import { validateRegistrationQuestionAnswers } from '../effect/rpc/handlers/events/event-registration.service';
 import { EventRegistrationConflictError } from '../effect/rpc/handlers/events/events.errors';
 import {
   buildCheckoutSessionExpiresAt,
@@ -81,6 +80,7 @@ import {
   processRegistrationRefundClaim,
 } from '../payments/registration-refund';
 import { tenantOutboundUrl } from '../tenant-outbound-url';
+import { validateRegistrationQuestionAnswers } from './event-question-answer-guard';
 import { lockEventRegistrationQuestionSet } from './event-question-answer-guard';
 import {
   establishRegistrationAcquisition,

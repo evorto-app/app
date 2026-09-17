@@ -7,12 +7,14 @@ import {
   eventRegistrationAddonPurchaseLots,
   eventRegistrationAddonPurchases,
   eventRegistrationOptions,
+  eventRegistrationQuestionAnswers,
   eventRegistrations,
   registrationTransfers,
   transactions,
   users,
 } from '@db/schema';
 import { registrationSpotCount } from '@shared/registration-spots';
+import { EventRegistrationConflictError } from '@shared/rpc-contracts/app-rpcs/events.errors';
 import { and, asc, eq, gte, sql } from 'drizzle-orm';
 import { Effect, Schema } from 'effect';
 
@@ -24,6 +26,7 @@ import {
 import { createRegistrationRefundClaim } from '../payments/registration-refund';
 import { StripeClient } from '../stripe-client';
 import { tenantOutboundUrl } from '../tenant-outbound-url';
+import { validateRegistrationQuestionAnswers } from './event-question-answer-guard';
 import {
   type AcquisitionPaymentSettlement,
   establishRegistrationAcquisition,
@@ -896,7 +899,44 @@ export const completePaidRegistrationCheckout = Effect.fn(
             userId: lockedRegistration.userId,
           },
         );
+        let answersAreCurrentlyValid = false;
+        if (currentEligibility._tag === 'Current') {
+          const storedAnswers = yield* tx
+            .select({
+              answer: eventRegistrationQuestionAnswers.answer,
+              questionId: eventRegistrationQuestionAnswers.questionId,
+            })
+            .from(eventRegistrationQuestionAnswers)
+            .where(
+              and(
+                eq(eventRegistrationQuestionAnswers.tenantId, input.tenantId),
+                eq(
+                  eventRegistrationQuestionAnswers.registrationId,
+                  input.registrationId,
+                ),
+              ),
+            )
+            .for('share');
+          // Payment has already been captured. A known policy mismatch follows
+          // the durable compensation path, never a stranded validation rejection.
+          answersAreCurrentlyValid = yield* Effect.try({
+            catch: (error) => error,
+            try: () =>
+              validateRegistrationQuestionAnswers({
+                answers: storedAnswers,
+                questions: currentEligibility.questions,
+              }),
+          }).pipe(
+            Effect.as(true),
+            Effect.catch((error) =>
+              error instanceof EventRegistrationConflictError
+                ? Effect.succeed(false)
+                : Effect.die(error),
+            ),
+          );
+        }
         const isCurrentlyEligible =
+          answersAreCurrentlyValid &&
           currentEligibility._tag === 'Current' &&
           currentEligibility.eventStatus === 'APPROVED' &&
           isUserEligibleForRegistrationOption({

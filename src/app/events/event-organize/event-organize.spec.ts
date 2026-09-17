@@ -212,7 +212,7 @@ describe('event organizer error notifications', () => {
     {
       conflict: 'Registration option has no available spots',
       fallback:
-        'Payment setup needs review. Keep the existing sign-up and contact Evorto support before starting another payment.',
+        'The approval result could not be confirmed. Check the current sign-up status before trying again.',
       label: 'Approve application',
       mutation: approveRegistration,
     },
@@ -258,6 +258,14 @@ describe('event organizer error notifications', () => {
         error: new Error('Private transport detail'),
         expectedMessage: action.fallback,
         name: 'untyped failure',
+      },
+      {
+        error: {
+          _tag: 'EventRegistrationConflictError',
+          message: { detail: 'Private malformed error detail' },
+        },
+        expectedMessage: action.fallback,
+        name: 'malformed domain failure',
       },
     ])(
       `${action.label} shows safe feedback for $name`,

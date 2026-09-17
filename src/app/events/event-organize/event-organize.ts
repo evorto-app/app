@@ -328,7 +328,7 @@ export class EventOrganize {
           this.notifications.showError(
             getErrorMessage(
               error,
-              'Payment setup needs review. Keep the existing sign-up and contact Evorto support before starting another payment.',
+              'The approval result could not be confirmed. Check the current sign-up status before trying again.',
               [
                 'EventRegistrationConflictError',
                 'EventRegistrationNotFoundError',

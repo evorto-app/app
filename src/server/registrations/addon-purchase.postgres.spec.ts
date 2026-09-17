@@ -1291,7 +1291,8 @@ describe('post-registration add-on purchase concurrency', () => {
     const outcomes = await Effect.runPromise(
       Effect.gen(function* () {
         const registrationHasMembership = yield* Deferred.make<undefined>();
-        const assignmentNeedsMembership = yield* Deferred.make<undefined>();
+        // The corrected assignment blocks at tenant, before it can attempt membership.
+        const assignmentNeedsTenant = yield* Deferred.make<undefined>();
         const registration = withQueryBarriers(
           EventRegistrationService.registerForEvent({
             eventId: fixture.eventId,
@@ -1313,11 +1314,16 @@ describe('post-registration add-on purchase concurrency', () => {
           (statement) =>
             isTableLock(statement, getTableName(usersToTenants))
               ? Deferred.succeed(registrationHasMembership, undefined).pipe(
-                  Effect.andThen(Deferred.await(assignmentNeedsMembership)),
+                  Effect.andThen(Deferred.await(assignmentNeedsTenant)),
                 )
               : Effect.void,
         ).pipe(
           Effect.provide(makeBarrierLayer(databaseUrl, stripe)),
+          Effect.ensuring(
+            Deferred.succeed(registrationHasMembership, undefined).pipe(
+              Effect.asVoid,
+            ),
+          ),
           Effect.exit,
         );
         const assignment = Deferred.await(registrationHasMembership).pipe(
@@ -1345,14 +1351,19 @@ describe('post-registration add-on purchase concurrency', () => {
                 }),
               ),
               (statement) =>
-                isTableLock(statement, getTableName(usersToTenants))
-                  ? Deferred.succeed(assignmentNeedsMembership, undefined).pipe(
+                isTableLock(statement, getTableName(tenants))
+                  ? Deferred.succeed(assignmentNeedsTenant, undefined).pipe(
                       Effect.asVoid,
                     )
                   : Effect.void,
               () => Effect.void,
             ).pipe(
               Effect.provide(makeBarrierLayer(databaseUrl, stripe)),
+              Effect.ensuring(
+                Deferred.succeed(assignmentNeedsTenant, undefined).pipe(
+                  Effect.asVoid,
+                ),
+              ),
               Effect.exit,
             ),
           ),
@@ -1363,6 +1374,193 @@ describe('post-registration add-on purchase concurrency', () => {
       }).pipe(Effect.timeout('15 seconds')),
     );
     expect(outcomes).toMatchObject([{ _tag: 'Success' }, { _tag: 'Success' }]);
+    expect(
+      await database.query.eventRegistrations.findFirst({
+        where: { eventId: fixture.eventId, userId: participantId },
+      }),
+    ).toMatchObject({ status: 'CONFIRMED' });
+    expect(
+      await database.query.eventRegistrationOptions.findFirst({
+        where: { id: fixture.optionId },
+      }),
+    ).toMatchObject({ confirmedSpots: 2, reservedSpots: 0 });
+    expect(
+      await database.query.rolesToTenantUsers.findMany({
+        where: { tenantId: fixture.tenantId, userTenantId: membership.id },
+      }),
+    ).toEqual([]);
+    expect(
+      await database.query.platformAuditEntries.findMany({
+        where: { targetTenantId: fixture.tenantId },
+      }),
+    ).toMatchObject([
+      {
+        action: 'user.assignRoles',
+        actorEmail: authority.actorEmail,
+        actorId: authority.actorId,
+        after: {
+          resourceId: participantId,
+          resourceType: 'userRoleAssignment',
+          state: { roleIds: [], userId: participantId },
+        },
+        before: {
+          resourceId: participantId,
+          resourceType: 'userRoleAssignment',
+          state: { roleIds: [roleId], userId: participantId },
+        },
+        targetTenantId: fixture.tenantId,
+      },
+    ]);
+    expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
+  }, 20_000);
+
+  it('serializes an assignment-started-first overlap at tenant and membership without deadlock', async () => {
+    const fixture = await seedFixture(database, { paid: false, stock: 1 });
+    const participantId = createId();
+    fixtures.push({ ...fixture, userIds: [...fixture.userIds, participantId] });
+    await database.insert(users).values({
+      auth0Id: `auth0|${participantId}`,
+      communicationEmail: `${participantId}@example.com`,
+      email: `${participantId}@example.com`,
+      firstName: 'Eligible',
+      id: participantId,
+      lastName: 'Participant',
+    });
+    const insertedMemberships = await database
+      .insert(usersToTenants)
+      .values({ tenantId: fixture.tenantId, userId: participantId })
+      .returning({ id: usersToTenants.id });
+    const membership = requireValue(insertedMemberships[0], 'membership');
+    const roleId = createId();
+    await database
+      .insert(roles)
+      .values({ id: roleId, name: 'Eligible', tenantId: fixture.tenantId });
+    await database.insert(rolesToTenantUsers).values({
+      roleId,
+      tenantId: fixture.tenantId,
+      userTenantId: membership.id,
+    });
+    await database
+      .update(eventRegistrationOptions)
+      .set({ confirmedSpots: 1, roleIds: [roleId] })
+      .where(eq(eventRegistrationOptions.id, fixture.optionId));
+    const tenant = requireValue(
+      await database.query.tenants.findFirst({
+        where: { id: fixture.tenantId },
+      }),
+      'tenant',
+    );
+    const authority = PlatformAdministratorAuthority.make({
+      actorEmail: 'platform@example.com',
+      actorId: 'auth0|platform-lock-order-assignment-first',
+      kind: 'platformAdministrator',
+    });
+    const stripe = createAddonStripeTestClient();
+    const outcomes = await Effect.runPromise(
+      Effect.gen(function* () {
+        const assignmentNeedsTenant = yield* Deferred.make<undefined>();
+        const registrationNeedsMembership = yield* Deferred.make<undefined>();
+        // Start assignment first and pause BEFORE its tenant lock. In the faulty
+        // order it already owns membership; in the fixed order it does not.
+        // Registration can reach its membership ATTEMPT in either version.
+        const assignment = withQueryBarriers(
+          platformTenantAdminHandlers['platform.tenantUsers.assignRoles'](
+            {
+              reason:
+                'Remove expired eligibility after overlapping registration',
+              roleIds: [],
+              targetTenantId: fixture.tenantId,
+              userId: participantId,
+            },
+            undefined,
+          ).pipe(
+            Effect.provide(RpcAccess.Default),
+            Effect.provideService(RpcRequestContext, {
+              authData: { sub: authority.actorId },
+              authenticated: true,
+              permissions: [],
+              platformAuthority: authority,
+              tenant: Schema.decodeUnknownSync(Tenant)(tenant),
+              user: null,
+              userAssigned: false,
+            }),
+          ),
+          (statement) =>
+            isTableLock(statement, getTableName(tenants))
+              ? Deferred.succeed(assignmentNeedsTenant, undefined).pipe(
+                  Effect.andThen(Deferred.await(registrationNeedsMembership)),
+                )
+              : Effect.void,
+          () => Effect.void,
+        ).pipe(
+          Effect.provide(makeBarrierLayer(databaseUrl, stripe)),
+          // Release the peer even if assignment fails before reaching the barrier.
+          Effect.ensuring(
+            Deferred.succeed(assignmentNeedsTenant, undefined).pipe(
+              Effect.asVoid,
+            ),
+          ),
+          Effect.exit,
+        );
+        const registration = Deferred.await(assignmentNeedsTenant).pipe(
+          Effect.andThen(
+            withQueryBarriers(
+              EventRegistrationService.registerForEvent({
+                eventId: fixture.eventId,
+                guestCount: 0,
+                registrationOptionId: fixture.optionId,
+                tenant: {
+                  ...tenant,
+                  emailSenderEmail: undefined,
+                  emailSenderName: undefined,
+                  stripeAccountId: tenant.stripeAccountId ?? undefined,
+                },
+                user: {
+                  email: `${participantId}@example.com`,
+                  id: participantId,
+                  roleIds: [roleId],
+                },
+              }).pipe(Effect.provide(EventRegistrationService.Default)),
+              (statement) =>
+                isTableLock(statement, getTableName(usersToTenants))
+                  ? Deferred.succeed(
+                      registrationNeedsMembership,
+                      undefined,
+                    ).pipe(Effect.asVoid)
+                  : Effect.void,
+              () => Effect.void,
+            ).pipe(Effect.provide(makeBarrierLayer(databaseUrl, stripe))),
+          ),
+          // Release assignment on an earlier validation failure as well; the
+          // resulting failure Exit remains visible instead of hanging a gate.
+          Effect.ensuring(
+            Deferred.succeed(registrationNeedsMembership, undefined).pipe(
+              Effect.asVoid,
+            ),
+          ),
+          Effect.exit,
+        );
+        // Await both transaction outcomes; no detached query/fiber survives the test.
+        return yield* Effect.all([assignment, registration], {
+          concurrency: 'unbounded',
+        });
+      }).pipe(Effect.timeout('15 seconds')),
+    );
+    const assignmentOutcome = requireValue(outcomes[0], 'assignment outcome');
+    const registrationOutcome = requireValue(
+      outcomes[1],
+      'registration outcome',
+    );
+    expect(
+      Exit.isFailure(assignmentOutcome)
+        ? Cause.pretty(assignmentOutcome.cause)
+        : 'success',
+    ).toBe('success');
+    expect(
+      Exit.isFailure(registrationOutcome)
+        ? Cause.pretty(registrationOutcome.cause)
+        : 'success',
+    ).toBe('success');
     expect(
       await database.query.eventRegistrations.findFirst({
         where: { eventId: fixture.eventId, userId: participantId },

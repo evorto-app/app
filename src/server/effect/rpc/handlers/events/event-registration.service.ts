@@ -3,10 +3,6 @@ import {
   MAX_REGISTRATION_ADDON_QUANTITY,
   MAX_REGISTRATION_GUESTS,
 } from '@shared/registration-quantity-limits';
-import {
-  MAX_REGISTRATION_ANSWER_LENGTH,
-  MAX_REGISTRATION_QUESTIONS,
-} from '@shared/registration-question-limits';
 import { registrationSpotCount } from '@shared/registration-spots';
 import { stripeCheckoutUrlMatchesSession } from '@shared/stripe-checkout-url';
 import {
@@ -68,6 +64,7 @@ import {
 } from '../../../../payments/payment-amount';
 import { lockTenantStripeAccount } from '../../../../payments/pending-stripe-obligations';
 import { recordCheckoutSessionIncident } from '../../../../registrations/checkout-session-incident';
+import { validateRegistrationQuestionAnswers } from '../../../../registrations/event-question-answer-guard';
 import {
   establishRegistrationAcquisition,
   settleAcquisitionComponentTerms,
@@ -1863,11 +1860,6 @@ interface RegistrationQuestionAnswerInput {
   questionId: string;
 }
 
-interface RegistrationQuestionRecord {
-  id: string;
-  required: boolean;
-}
-
 const compareCodeUnitStrings = (left: string, right: string): number =>
   left < right ? -1 : left > right ? 1 : 0;
 
@@ -1879,65 +1871,6 @@ export const orderRegistrationAddonPurchases = <
   purchases.toSorted((left, right) =>
     compareCodeUnitStrings(left.addonId, right.addonId),
   );
-
-export const validateRegistrationQuestionAnswers = ({
-  answers,
-  questions,
-}: {
-  answers: readonly RegistrationQuestionAnswerInput[] | undefined;
-  questions: readonly RegistrationQuestionRecord[];
-}): readonly { answer: string; questionId: string }[] => {
-  if (questions.length > MAX_REGISTRATION_QUESTIONS) {
-    throw new EventRegistrationConflictError({
-      message:
-        'Registration is unavailable because its sign-up questions need to be corrected. Contact the organizer.',
-    });
-  }
-  if ((answers?.length ?? 0) > MAX_REGISTRATION_QUESTIONS) {
-    throw new EventRegistrationConflictError({
-      message: `You can answer up to ${MAX_REGISTRATION_QUESTIONS} sign-up questions`,
-    });
-  }
-
-  const normalizedAnswers = new Map<string, string>();
-  for (const answer of answers ?? []) {
-    if (normalizedAnswers.has(answer.questionId)) {
-      throw new EventRegistrationConflictError({
-        message: 'Answer each sign-up question only once',
-      });
-    }
-    if (answer.answer.length > MAX_REGISTRATION_ANSWER_LENGTH) {
-      throw new EventRegistrationConflictError({
-        message: `Each answer must be ${MAX_REGISTRATION_ANSWER_LENGTH} characters or fewer`,
-      });
-    }
-    normalizedAnswers.set(answer.questionId, answer.answer.trim());
-  }
-
-  const questionIds = new Set(questions.map((question) => question.id));
-  for (const questionId of normalizedAnswers.keys()) {
-    if (!questionIds.has(questionId)) {
-      throw new EventRegistrationConflictError({
-        message: 'Registration question does not belong to this option',
-      });
-    }
-  }
-
-  for (const question of questions) {
-    if (question.required && !normalizedAnswers.get(question.id)) {
-      throw new EventRegistrationConflictError({
-        message: 'Required registration question is missing',
-      });
-    }
-  }
-
-  return [...normalizedAnswers]
-    .filter(([, answer]) => answer.length > 0)
-    .map(([questionId, answer]) => ({
-      answer,
-      questionId,
-    }));
-};
 
 export const validateRegistrationAddons = ({
   addOns,
