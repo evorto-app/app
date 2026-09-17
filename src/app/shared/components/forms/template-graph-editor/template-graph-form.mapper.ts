@@ -228,7 +228,6 @@ export const templateGraphRecordToFormModel = (
       ),
       simpleModeEnabled: template.simpleModeEnabled,
       title: template.title,
-      unlisted: template.unlisted,
     },
   };
 };
@@ -368,5 +367,4 @@ export const templateGraphFormToPayload = (
   ),
   simpleModeEnabled: model.simpleModeEnabled,
   title: model.title.trim(),
-  unlisted: model.unlisted,
 });

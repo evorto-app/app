@@ -14,10 +14,10 @@ import {
   TemplateFindOneRecord,
   TemplateGraphInput,
   TemplateGraphRecord,
-  TemplateSimpleInput,
 } from '../../../../../shared/rpc-contracts/app-rpcs/templates.rpcs';
 
-const validSimpleTemplateInput = {
+const validTemplateGraphInput = {
+  addOns: [],
   categoryId: 'category-1',
   description: '<p>Useful event template description</p>',
   icon: {
@@ -25,53 +25,73 @@ const validSimpleTemplateInput = {
     iconName: 'calendar:fas',
   },
   location: null,
-  organizerRegistration: {
-    cancellationDeadlineHoursBeforeStart: null,
-    closeRegistrationOffset: 24,
-    isPaid: false,
-    openRegistrationOffset: 168,
-    price: 0,
-    refundFeesOnCancellation: null,
-    registrationMode: 'fcfs' as const,
-    roleIds: [],
-    spots: 10,
-    stripeTaxRateId: null,
-    title: 'Organizer registration',
-    transferDeadlineHoursBeforeStart: null,
-  },
-  participantRegistration: {
-    cancellationDeadlineHoursBeforeStart: 96,
-    closeRegistrationOffset: 24,
-    isPaid: false,
-    openRegistrationOffset: 168,
-    price: 0,
-    refundFeesOnCancellation: false,
-    registrationMode: 'fcfs' as const,
-    roleIds: [],
-    spots: 10,
-    stripeTaxRateId: null,
-    title: 'Participant registration',
-    transferDeadlineHoursBeforeStart: 12,
-  },
+  planningTips: null,
+  questions: [],
+  registrationOptions: [
+    {
+      cancellationDeadlineHoursBeforeStart: null,
+      closeRegistrationOffset: 24,
+      description: null,
+      esnCardDiscountedPrice: null,
+      isPaid: false,
+      key: 'organizer',
+      openRegistrationOffset: 168,
+      organizingRegistration: true,
+      price: 0,
+      refundFeesOnCancellation: null,
+      registeredDescription: null,
+      registrationMode: 'fcfs',
+      roleIds: [],
+      spots: 10,
+      stripeTaxRateId: null,
+      title: 'Organizer registration',
+      transferDeadlineHoursBeforeStart: null,
+    },
+    {
+      cancellationDeadlineHoursBeforeStart: 96,
+      closeRegistrationOffset: 24,
+      description: null,
+      esnCardDiscountedPrice: null,
+      isPaid: false,
+      key: 'participant',
+      openRegistrationOffset: 168,
+      organizingRegistration: false,
+      price: 0,
+      refundFeesOnCancellation: false,
+      registeredDescription: null,
+      registrationMode: 'fcfs',
+      roleIds: [],
+      spots: 10,
+      stripeTaxRateId: null,
+      title: 'Participant registration',
+      transferDeadlineHoursBeforeStart: 12,
+    },
+  ],
+  simpleModeEnabled: true,
   title: 'Template',
-};
+} satisfies TemplateGraphInput;
 
-const validSimpleTemplateAddonInput = {
+const validTemplateGraphAddonInput = {
   allowMultiple: true,
   allowPurchaseBeforeEvent: true,
   allowPurchaseDuringEvent: false,
   allowPurchaseDuringRegistration: true,
   description: 'Optional dinner ticket',
-  includedQuantity: 1,
   isPaid: true,
+  key: 'dinner',
   maxQuantityPerUser: 2,
-  optionalPurchaseQuantity: 1,
   price: 1200,
-  registrationOptionKind: 'participant' as const,
+  registrationOptions: [
+    {
+      includedQuantity: 1,
+      optionalPurchaseQuantity: 1,
+      registrationOptionKey: 'participant',
+    },
+  ],
   stripeTaxRateId: 'txr-1',
   title: 'Dinner',
   totalAvailableQuantity: 40,
-};
+} satisfies TemplateGraphInput['addOns'][number];
 
 const validTemplateFindOneRecord = {
   addOns: [],
@@ -89,12 +109,14 @@ const validTemplateFindOneRecord = {
   title: 'Template',
 };
 
-const validSimpleTemplateQuestionInput = {
+const validTemplateGraphQuestionInput = {
   description: 'Tell organizers about accessibility needs.',
-  registrationOptionKind: 'participant' as const,
+  key: 'accessibility',
+  registrationOptionKey: 'participant',
   required: false,
+  sortOrder: 0,
   title: 'Accessibility needs',
-};
+} satisfies TemplateGraphInput['questions'][number];
 
 const validGoogleLocation = {
   address: 'Example Street 1',
@@ -110,8 +132,8 @@ const validGoogleLocation = {
 describe('templates RPC location schema', () => {
   it('accepts organizer planning tips in template input and find-one responses', () => {
     expect(() =>
-      Schema.decodeUnknownSync(TemplateSimpleInput)({
-        ...validSimpleTemplateInput,
+      Schema.decodeUnknownSync(TemplateGraphInput)({
+        ...validTemplateGraphInput,
         planningTips: 'Bring printed waiver forms.',
       }),
     ).not.toThrow();
@@ -125,8 +147,8 @@ describe('templates RPC location schema', () => {
 
   it('accepts structured template input locations', () => {
     expect(() =>
-      Schema.decodeUnknownSync(TemplateSimpleInput)({
-        ...validSimpleTemplateInput,
+      Schema.decodeUnknownSync(TemplateGraphInput)({
+        ...validTemplateGraphInput,
         location: validGoogleLocation,
       }),
     ).not.toThrow();
@@ -163,20 +185,20 @@ describe('templates RPC location schema', () => {
     ).not.toThrow();
   });
 
-  it('accepts optional reusable add-ons in simple template writes', () => {
+  it('accepts reusable add-ons in template graph writes', () => {
     expect(() =>
-      Schema.decodeUnknownSync(TemplateSimpleInput)({
-        ...validSimpleTemplateInput,
-        addOns: [validSimpleTemplateAddonInput],
+      Schema.decodeUnknownSync(TemplateGraphInput)({
+        ...validTemplateGraphInput,
+        addOns: [validTemplateGraphAddonInput],
       }),
     ).not.toThrow();
   });
 
-  it('accepts optional registration questions in simple template writes and find-one responses', () => {
+  it('accepts registration questions in template graph writes and find-one responses', () => {
     expect(() =>
-      Schema.decodeUnknownSync(TemplateSimpleInput)({
-        ...validSimpleTemplateInput,
-        questions: [validSimpleTemplateQuestionInput],
+      Schema.decodeUnknownSync(TemplateGraphInput)({
+        ...validTemplateGraphInput,
+        questions: [validTemplateGraphQuestionInput],
       }),
     ).not.toThrow();
     expect(() =>
@@ -196,38 +218,10 @@ describe('templates RPC location schema', () => {
     ).not.toThrow();
   });
 
-  it('rejects registration questions without a simple registration option target', () => {
-    expect(() =>
-      Schema.decodeUnknownSync(TemplateSimpleInput)({
-        ...validSimpleTemplateInput,
-        questions: [
-          {
-            ...validSimpleTemplateQuestionInput,
-            registrationOptionKind: 'vip',
-          },
-        ],
-      }),
-    ).toThrow();
-  });
-
-  it('rejects reusable add-ons without a simple registration option target', () => {
-    expect(() =>
-      Schema.decodeUnknownSync(TemplateSimpleInput)({
-        ...validSimpleTemplateInput,
-        addOns: [
-          {
-            ...validSimpleTemplateAddonInput,
-            registrationOptionKind: 'vip',
-          },
-        ],
-      }),
-    ).toThrow();
-  });
-
   it('rejects malformed template input locations', () => {
     expect(() =>
-      Schema.decodeUnknownSync(TemplateSimpleInput)({
-        ...validSimpleTemplateInput,
+      Schema.decodeUnknownSync(TemplateGraphInput)({
+        ...validTemplateGraphInput,
         location: {
           name: 'Broken Place',
           placeId: 'place-1',
@@ -253,16 +247,16 @@ describe('templates RPC location schema', () => {
 
 describe('templates RPC registration policy overrides', () => {
   it('accepts nullable or nonnegative template option overrides', () => {
-    const decoded = Schema.decodeUnknownSync(TemplateSimpleInput)(
-      validSimpleTemplateInput,
+    const decoded = Schema.decodeUnknownSync(TemplateGraphInput)(
+      validTemplateGraphInput,
     );
 
-    expect(decoded.organizerRegistration).toMatchObject({
+    expect(decoded.registrationOptions[0]).toMatchObject({
       cancellationDeadlineHoursBeforeStart: null,
       refundFeesOnCancellation: null,
       transferDeadlineHoursBeforeStart: null,
     });
-    expect(decoded.participantRegistration).toMatchObject({
+    expect(decoded.registrationOptions[1]).toMatchObject({
       cancellationDeadlineHoursBeforeStart: 96,
       refundFeesOnCancellation: false,
       transferDeadlineHoursBeforeStart: 12,
@@ -271,12 +265,14 @@ describe('templates RPC registration policy overrides', () => {
 
   it('rejects negative template option deadline overrides', () => {
     expect(() =>
-      Schema.decodeUnknownSync(TemplateSimpleInput)({
-        ...validSimpleTemplateInput,
-        participantRegistration: {
-          ...validSimpleTemplateInput.participantRegistration,
-          transferDeadlineHoursBeforeStart: -1,
-        },
+      Schema.decodeUnknownSync(TemplateGraphInput)({
+        ...validTemplateGraphInput,
+        registrationOptions: validTemplateGraphInput.registrationOptions.map(
+          (option, index) =>
+            index === 1
+              ? { ...option, transferDeadlineHoursBeforeStart: -1 }
+              : option,
+        ),
       }),
     ).toThrow();
   });
@@ -336,7 +332,6 @@ describe('templates RPC full graph schemas', () => {
     ],
     simpleModeEnabled: true,
     title: 'Template',
-    unlisted: false,
   } as const;
 
   it('accepts a writable ordinary tenant template graph', () => {
@@ -371,7 +366,6 @@ describe('templates RPC full graph schemas', () => {
         },
       ],
       simpleModeEnabled: false,
-      unlisted: false,
     };
 
     expect(() =>
@@ -443,71 +437,87 @@ describe('templates RPC full graph schemas', () => {
   });
 });
 
-describe('retained simple template input bounds', () => {
-  it('accepts exact collection and question text caps while retaining optional arrays', () => {
+describe('template graph input bounds', () => {
+  it('accepts exact graph collection and raw question text caps and rejects cap plus one', () => {
     const question = {
-      ...validSimpleTemplateQuestionInput,
+      ...validTemplateGraphQuestionInput,
       description: 'd'.repeat(MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH),
       title: 't'.repeat(MAX_REGISTRATION_QUESTION_TITLE_LENGTH),
     };
-    const decode = Schema.decodeUnknownSync(TemplateSimpleInput);
-    expect(() => decode(validSimpleTemplateInput)).not.toThrow();
+    const decode = Schema.decodeUnknownSync(TemplateGraphInput);
+    expect(() => decode(validTemplateGraphInput)).not.toThrow();
     expect(() =>
       decode({
-        ...validSimpleTemplateInput,
-        addOns: Array.from(
-          { length: MAX_EVENT_ADDON_TYPES },
-          () => validSimpleTemplateAddonInput,
-        ),
+        ...validTemplateGraphInput,
+        addOns: Array.from({ length: MAX_EVENT_ADDON_TYPES }, (_, index) => ({
+          ...validTemplateGraphAddonInput,
+          key: `addon-${index}`,
+        })),
         questions: Array.from(
           { length: MAX_REGISTRATION_QUESTIONS },
-          () => question,
+          (_, index) => ({
+            ...question,
+            key: `question-${index}`,
+            sortOrder: index,
+          }),
         ),
       }),
     ).not.toThrow();
     expect(() =>
       decode({
-        ...validSimpleTemplateInput,
+        ...validTemplateGraphInput,
         addOns: Array.from(
           { length: MAX_EVENT_ADDON_TYPES + 1 },
-          () => validSimpleTemplateAddonInput,
+          (_, index) => ({
+            ...validTemplateGraphAddonInput,
+            key: `addon-${index}`,
+          }),
         ),
       }),
     ).toThrow();
     expect(() =>
       decode({
-        ...validSimpleTemplateInput,
+        ...validTemplateGraphInput,
         questions: Array.from(
           { length: MAX_REGISTRATION_QUESTIONS + 1 },
-          () => question,
+          (_, index) => ({
+            ...question,
+            key: `question-${index}`,
+            sortOrder: index,
+          }),
         ),
       }),
     ).toThrow();
     expect(() =>
       decode({
-        ...validSimpleTemplateInput,
+        ...validTemplateGraphInput,
         questions: [{ ...question, title: ` ${question.title}` }],
       }),
     ).toThrow();
     expect(() =>
       decode({
-        ...validSimpleTemplateInput,
+        ...validTemplateGraphInput,
         questions: [{ ...question, description: `${question.description} ` }],
       }),
     ).toThrow();
   });
 
-  it('accepts zero optional quantities and rejects fractional, negative, and oversized quantities', () => {
-    const decode = Schema.decodeUnknownSync(TemplateSimpleInput);
+  it('accepts zero mapped quantities and rejects invalid graph add-on quantities', () => {
+    const decode = Schema.decodeUnknownSync(TemplateGraphInput);
     expect(() =>
       decode({
-        ...validSimpleTemplateInput,
+        ...validTemplateGraphInput,
         addOns: [
           {
-            ...validSimpleTemplateAddonInput,
-            includedQuantity: 0,
+            ...validTemplateGraphAddonInput,
             maxQuantityPerUser: MAX_REGISTRATION_ADDON_QUANTITY,
-            optionalPurchaseQuantity: 0,
+            registrationOptions: [
+              {
+                includedQuantity: 0,
+                optionalPurchaseQuantity: 0,
+                registrationOptionKey: 'participant',
+              },
+            ],
           },
         ],
       }),
@@ -521,28 +531,40 @@ describe('retained simple template input bounds', () => {
     ]) {
       expect(() =>
         decode({
-          ...validSimpleTemplateInput,
-          addOns: [
-            { ...validSimpleTemplateAddonInput, includedQuantity: quantity },
-          ],
-        }),
-      ).toThrow();
-      expect(() =>
-        decode({
-          ...validSimpleTemplateInput,
+          ...validTemplateGraphInput,
           addOns: [
             {
-              ...validSimpleTemplateAddonInput,
-              optionalPurchaseQuantity: quantity,
+              ...validTemplateGraphAddonInput,
+              registrationOptions:
+                validTemplateGraphAddonInput.registrationOptions.map(
+                  (option) => ({ ...option, includedQuantity: quantity }),
+                ),
             },
           ],
         }),
       ).toThrow();
       expect(() =>
         decode({
-          ...validSimpleTemplateInput,
+          ...validTemplateGraphInput,
           addOns: [
-            { ...validSimpleTemplateAddonInput, maxQuantityPerUser: quantity },
+            {
+              ...validTemplateGraphAddonInput,
+              registrationOptions:
+                validTemplateGraphAddonInput.registrationOptions.map(
+                  (option) => ({
+                    ...option,
+                    optionalPurchaseQuantity: quantity,
+                  }),
+                ),
+            },
+          ],
+        }),
+      ).toThrow();
+      expect(() =>
+        decode({
+          ...validTemplateGraphInput,
+          addOns: [
+            { ...validTemplateGraphAddonInput, maxQuantityPerUser: quantity },
           ],
         }),
       ).toThrow();

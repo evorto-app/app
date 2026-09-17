@@ -162,7 +162,6 @@ const templateRecord = {
   ],
   simpleModeEnabled: false,
   title: 'Template',
-  unlisted: false,
 };
 
 const authority = PlatformAdministratorAuthority.make({

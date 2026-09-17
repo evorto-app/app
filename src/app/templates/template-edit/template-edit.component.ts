@@ -8,9 +8,8 @@ import {
   signal,
   untracked,
 } from '@angular/core';
-import { form, FormField, submit } from '@angular/forms/signals';
+import { form, submit } from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
-import { MatCheckboxModule } from '@angular/material/checkbox';
 import { Router, RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
@@ -37,6 +36,11 @@ import { TemplateGeneralFormComponent } from '../shared/template-form/template-g
 
 const logger = consola.withTag('app/templates/edit');
 
+export const templateEditLoadErrorMessage = (error: unknown): string =>
+  getErrorMessage(error, 'This template could not be loaded. Try again.', [
+    'RpcBadRequestError',
+  ]);
+
 export const templateEditSaveErrorMessage = (error: unknown): string =>
   getErrorMessage(
     error,
@@ -48,9 +52,7 @@ export const templateEditSaveErrorMessage = (error: unknown): string =>
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     FontAwesomeModule,
-    FormField,
     MatButtonModule,
-    MatCheckboxModule,
     RouterLink,
     TemplateGeneralFormComponent,
     TemplateGraphEditorComponent,
@@ -113,6 +115,9 @@ export class TemplateEditComponent {
       this.paidControlsUnavailable() &&
       graphHasPaidConfiguration(this.templateModel()),
   );
+  protected readonly rolesQuery = injectQuery(() =>
+    this.rpc.roles.findMany.queryOptions({}),
+  );
   protected readonly templateForm = form(
     this.templateModel,
     ordinaryTemplateGraphFormSchemaWithPaymentAvailability(() =>
@@ -125,9 +130,6 @@ export class TemplateEditComponent {
   );
   protected readonly updateTemplateMutation = injectMutation(() =>
     this.rpc.templates.update.mutationOptions(),
-  );
-  protected readonly rolesQuery = injectQuery(() =>
-    this.rpc.roles.findMany.queryOptions({}),
   );
   protected readonly canSubmit = computed(
     () =>
@@ -163,10 +165,13 @@ export class TemplateEditComponent {
         ? ('loading' as const)
         : ('ready' as const),
   );
+  protected readonly templateQueryErrorMessage = computed(() =>
+    templateEditLoadErrorMessage(this.templateQuery.error()),
+  );
+
   protected readonly updateErrorMessage = computed(() =>
     templateEditSaveErrorMessage(this.updateTemplateMutation.error()),
   );
-
   private readonly initializedTemplateId = signal<null | string>(null);
   private readonly queryClient = inject(QueryClient);
   private readonly router = inject(Router);

@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import {
   classifyTemplateGraphRecord,
   legacyRandomTemplateEditMessage,
+  templateGraphFormToPayload,
   templateGraphLocationFormModelToValue,
   templateGraphLocationValueToFormModel,
   templateGraphRecordToFormModel,
@@ -89,7 +90,6 @@ const simpleTemplate = (): TemplateGraphRecord => ({
   ],
   simpleModeEnabled: true,
   title: 'Simple template',
-  unlisted: false,
 });
 
 describe('template graph edit classification', () => {
@@ -150,6 +150,10 @@ describe('template graph edit classification', () => {
     const formResult = templateGraphRecordToFormModel(multiMapped);
     expect('model' in formResult).toBe(true);
     if (!('model' in formResult)) return;
+    expect(formResult.model).not.toHaveProperty('unlisted');
+    expect(
+      templateGraphFormToPayload(formResult.model, true),
+    ).not.toHaveProperty('unlisted');
     expect(formResult.model.addOns[0]?.registrationOptions).toEqual([
       {
         includedQuantity: 1,

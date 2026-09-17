@@ -1022,33 +1022,38 @@ describe('generated docs source current behavior', () => {
     const source = readSource('tests/docs/templates/templates.doc.ts');
 
     expect(source).toContain(
-      'Simple mode intentionally keeps exactly one organizer registration block and one participant registration block.',
+      'New events use the standard listing setting, while event review and access rules still apply.',
+    );
+
+    expect(source).toContain(
+      'Simple setup starts with one choice for attendees and one for organizers or helpers.',
     );
     expect(source).toContain(
-      'Advanced configuration supports any number of named options and lets you choose which registration options can use each reusable add-on.',
+      'Advanced setup supports any number of named choices and lets you choose which choices can use each reusable add-on.',
     );
     expect(source).toContain(
-      'Move any questions and add-on assignments before removing extra options, then confirm the mode change and save the option changes and simple mode together',
+      'To return to simple setup, keep exactly one organizer choice and one attendee choice.',
     );
     expect(source).toContain(
-      '**Description** and **Description after sign-up**: Optional reusable',
+      'Move any questions and add-on assignments before removing extra choices, then select **Use simple setup**, confirm the change, and save the choice changes and simple setup together.',
     );
     expect(source).toContain(
-      '**ESNcard price**: Optional discounted pricing for organizations with ESNcard discounts enabled.',
+      '**Description** and **Description after sign-up**',
+    );
+    expect(source).toContain(
+      '**ESNcard price**: An optional lower price for organizations that offer an ESNcard discount.',
     );
     expect(source).toContain(
       '**Selected roles**: The roles that are selected for this registration.',
     );
     expect(source).toContain(
-      '**Manual approval** saves a pending application for an organizer to review',
+      '**Manual approval** lets an organizer review it first.',
     );
     expect(source).toContain("name: 'Manual approval'");
     expect(source).toContain(
       "expect(organizerRegistrationOption.registrationMode).toBe('application')",
     );
-    expect(source).toContain(
-      'Role selection also avoids duplicate entries by hiding already selected roles from the autocomplete list.',
-    );
+    expect(source).toContain('Already selected roles are not offered again.');
     expect(source).toContain(
       "throw new Error('Expected template docs autocomplete option to have text')",
     );
@@ -1056,19 +1061,41 @@ describe('generated docs source current behavior', () => {
       'Organizer planning tips**: Optional private organizer notes',
     );
     expect(source).toContain(
-      'When **Enable Payment** is on, the price and tax-rate fields appear for that registration block.',
+      'When **Enable payment** is on, the price and tax-rate fields appear for that sign-up choice.',
     );
     expect(source).toContain(
-      'Add-ons can be free or paid, mapped to one or more registration options',
+      'Add-ons can be free or paid and available with one or more sign-up choices.',
     );
     expect(source).toContain(
-      'shown on matching registration cards for registration-time purchase',
+      'shown with the matching sign-up choices for purchase during sign-up.',
     );
     expect(source).toContain(
       'Questions can include help text and can be marked as required.',
     );
     expect(source).toContain(
-      'Event-side answer collection is handled separately from this template setup flow.',
+      'Answers are collected when someone signs up for an event, separately from setting up the template.',
+    );
+    expect(source).toContain('### General settings');
+    expect(source).toContain('### Sign-up setup');
+    expect(source).toContain('### Reusable add-ons');
+    expect(source).toContain('### Sign-up questions');
+    expect(source).not.toContain('#### General settings');
+    expect(source).not.toContain('#### Sign-up setup');
+    expect(source).not.toContain('#### Reusable add-ons');
+    expect(source).not.toContain('#### Sign-up questions');
+    expect(source).toContain(
+      'Choose the sign-up choice that should show each question',
+    );
+    expect(source).toContain("questionEditor.getByLabel('Question order')");
+    expect(source).toContain('Legacy random templates stay read-only.');
+    expect(source).toContain(
+      'A restarted form does not retain unsaved event entries.',
+    );
+    expect(source).toContain(
+      'the place is confirmed only after successful payment',
+    );
+    expect(source).toContain(
+      'There is no cash or manually settled paid-event alternative.',
     );
     expect(source).toContain('fillTemplateBasics');
     expect(source).toContain('Switch to advanced setup?');
@@ -1093,7 +1120,7 @@ describe('generated docs source current behavior', () => {
       'If **Review event creation** appears, your entries remain in the form.',
     );
     expect(source).toContain(
-      'If the reason says a registration option no longer belongs to the selected template',
+      'If the reason says a sign-up choice no longer belongs to the selected template',
     );
     expect(source).toContain(
       'If it mentions random allocation, use **Back to template**, then choose or create a new template using **First come, first served** or **Manual approval**',
@@ -1130,7 +1157,10 @@ describe('generated docs source current behavior', () => {
       'tests/docs/template-categories/categories.doc.ts',
     );
 
-    expect(source).toContain('Category docs ${seedDate.getTime()}');
+    expect(source).toContain("const categoryTitle = 'Outdoor activities'");
+    expect(source).toContain(
+      "const updatedCategoryTitle = 'Outdoor adventures'",
+    );
     expect(source).toContain(
       'Expected generated category docs to persist the category',
     );

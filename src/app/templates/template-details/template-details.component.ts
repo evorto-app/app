@@ -23,7 +23,6 @@ import { registrationModeLabel } from '@shared/registration-modes';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
-import { getErrorMessage } from '../../core/error-message';
 import { IconComponent } from '../../shared/components/icon/icon.component';
 import { PriceWithTaxComponent } from '../../shared/components/inclusive-price-label/price-with-tax.component';
 import { IfPermissionDirective } from '../../shared/directives/if-permission.directive';
@@ -43,7 +42,19 @@ export const templateRegistrationOptionTitle = (
 ): string =>
   template.registrationOptions.find(
     (option) => option.id === registrationOptionId,
-  )?.title ?? 'Broken registration option configuration';
+  )?.title ?? 'Sign-up choice unavailable';
+
+export const templateDetailsErrorMessage = (error: unknown): string => {
+  if (
+    typeof error === 'object' &&
+    error !== null &&
+    Reflect.get(error, '_tag') === 'RpcBadRequestError' &&
+    Reflect.get(error, 'reason') === 'templateNotFound'
+  ) {
+    return 'This template could not be found.';
+  }
+  return 'The template could not be loaded. Try again.';
+};
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -92,9 +103,7 @@ export class TemplateDetailsComponent {
   );
 
   protected errorMessage(error: unknown): string {
-    return getErrorMessage(error, 'Unknown error', [
-      'TemplateSimpleNotFoundError',
-    ]);
+    return templateDetailsErrorMessage(error);
   }
 
   protected findRateByStripeId(id: null | string | undefined) {

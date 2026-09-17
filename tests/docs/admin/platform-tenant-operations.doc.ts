@@ -383,7 +383,7 @@ Choose **Manage events**, find the draft, and select **Review event**. The edito
     body: `
 ## Edit an event template
 
-Return to the organization, choose **Manage templates**, find the reusable template, and select **Edit template**. Change the template title, add an **Operational reason**, and select **Save template**. This changes the template only; events already created from it stay unchanged.
+Return to the organization, choose **Manage templates**, find the reusable template, and select **Edit template**. Change the template title, add a **Reason for this change**, and select **Save template**. This changes the template only; events already created from it stay unchanged.
 `,
   });
   const templateEditor = page.locator(
@@ -393,7 +393,9 @@ Return to the organization, choose **Manage templates**, find the reusable templ
     .getByRole('textbox', { exact: true, name: 'Title' })
     .first()
     .fill(editedTemplateTitle);
-  await templateEditor.getByLabel('Operational reason').fill(templateReason);
+  await templateEditor
+    .getByLabel('Reason for this change')
+    .fill(templateReason);
   await takeScreenshot(
     testInfo,
     templateEditor,

@@ -439,7 +439,6 @@ export const createEventGraph = (input: EventCreateInput) =>
       database
         .select({
           simpleModeEnabled: eventTemplates.simpleModeEnabled,
-          unlisted: eventTemplates.unlisted,
         })
         .from(eventTemplates)
         .where(
@@ -653,7 +652,6 @@ export const createEventGraph = (input: EventCreateInput) =>
           templateId: input.templateId,
           tenantId: tenant.id,
           title: input.title,
-          unlisted: templateDefaults.unlisted,
         })
         .returning({
           id: eventInstances.id,

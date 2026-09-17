@@ -323,7 +323,7 @@ describe('PlatformTemplateEditorComponent recovery', () => {
     const reasonField = [...root.querySelectorAll('mat-form-field')].find(
       (field) =>
         field.querySelector('mat-label')?.textContent?.trim() ===
-        'Operational reason',
+        'Reason for this change',
     );
     const reason = reasonField?.querySelector('textarea');
     if (!reason) throw new Error('Expected the operational reason input');
@@ -704,7 +704,7 @@ describe('PlatformTemplateEditorComponent recovery', () => {
     const reasonField = [...root.querySelectorAll('mat-form-field')].find(
       (field) =>
         field.querySelector('mat-label')?.textContent?.trim() ===
-        'Operational reason',
+        'Reason for this change',
     );
     const reason = reasonField?.querySelector('textarea');
     const form = root.querySelector('form');
@@ -1259,7 +1259,7 @@ describe('PlatformTemplateEditorComponent recovery', () => {
     const reasonField = [...root.querySelectorAll('mat-form-field')].find(
       (field) =>
         field.querySelector('mat-label')?.textContent?.trim() ===
-        'Operational reason',
+        'Reason for this change',
     );
     const reason = reasonField?.querySelector('textarea');
     if (!(reason instanceof HTMLTextAreaElement))
@@ -1309,7 +1309,7 @@ describe('PlatformTemplateEditorComponent recovery', () => {
     await vi.waitFor(async () => {
       await fixture.whenStable();
       expect(root.textContent?.replaceAll(/\s+/g, ' ')).toContain(
-        'Existing paid registration options and add-ons are preserved.',
+        'Existing paid sign-ups and add-ons are preserved.',
       );
       expect(prices()).toEqual(['10', '4.5']);
       expect(
@@ -1584,7 +1584,6 @@ const completeTemplate = (): TemplateGraphRecord => ({
   ],
   simpleModeEnabled: false,
   title: 'Weekend trip',
-  unlisted: true,
 });
 
 describe('platform template editor graph mapping', () => {
@@ -1610,6 +1609,8 @@ describe('platform template editor graph mapping', () => {
     ]);
 
     const payload = platformTemplateFormToPayload(loadResult.model, true);
+    expect(loadResult.model).not.toHaveProperty('unlisted');
+    expect(payload).not.toHaveProperty('unlisted');
 
     expect(payload.registrationOptions).toEqual([
       {
@@ -1696,7 +1697,6 @@ describe('platform template editor graph mapping', () => {
       planningTips: payload.planningTips,
       simpleModeEnabled: payload.simpleModeEnabled,
       title: payload.title,
-      unlisted: payload.unlisted,
     }).toEqual({
       categoryId: 'category-1',
       description: '<p>Template description</p>',
@@ -1704,7 +1704,6 @@ describe('platform template editor graph mapping', () => {
       planningTips: 'Bring the banner',
       simpleModeEnabled: false,
       title: 'Weekend trip',
-      unlisted: true,
     });
   });
 
@@ -1756,7 +1755,7 @@ describe('platform template editor graph mapping', () => {
         organizerOption,
         { ...participantOption, organizingRegistration: true },
       ]),
-    ).toContain('exactly one organizing and one non-organizing option');
+    ).toContain('exactly one organizer choice and one attendee choice');
   });
 
   it('reuses the shared graph validation and confirms mode changes', () => {
@@ -1797,7 +1796,10 @@ describe('platform template editor graph mapping', () => {
     expect(source).toContain('taxRatesReady');
     expect(template).toContain("requestMode('simple')");
     expect(template).toContain("requestMode('advanced')");
-    expect(template).toContain('status could not be loaded');
+    expect(template).toContain('payment settings');
+    expect(template).toContain('Existing payment details are preserved');
+    expect(template).toContain('Organizer choice');
+    expect(template).toContain('Attendee choice');
     expect(template.match(/<app-currency-amount-input/g)?.length).toBe(3);
     expect(template.match(/\[minimumMinorUnits\]="1"/g)?.length).toBe(2);
     expect(template).toContain('[currencyCode]="targetTenantCurrency()"');

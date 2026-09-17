@@ -40,8 +40,6 @@ export const eventTemplates = pgTable(
       .notNull()
       .references(() => tenants.id),
     title: text().notNull(),
-    // Unlisted templates do not show in lists unless user has permission
-    unlisted: boolean().notNull().default(false),
     untouchedSinceMigration: boolean().notNull().default(false),
     updatedAt: timestamp()
       .notNull()

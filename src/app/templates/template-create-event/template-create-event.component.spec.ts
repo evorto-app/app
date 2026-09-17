@@ -148,12 +148,12 @@ describe('templateAddOnCopyNotice', () => {
 
   it('keeps the create-event add-on boundary explicit', () => {
     expect(templateAddOnCopyNotice(1)).toContain(
-      'This template has 1 reusable add-on.',
+      'This template includes 1 add-on.',
     );
     expect(templateAddOnCopyNotice(2)).toContain(
-      'Event creation copies them to event registration cards',
+      'They will be available when people sign up for the new event.',
     );
-    expect(templateAddOnCopyNotice(2)).toContain('registration-time purchase');
+    expect(templateAddOnCopyNotice(2)).toContain('sign up for the new event');
   });
 });
 
@@ -784,7 +784,7 @@ describe('TemplateCreateEventComponent load recovery', () => {
         expect(paymentAlert).toBeNull();
       }
       expect(normalizeText(fixture)).toContain(
-        'This template has 1 reusable add-on.',
+        'This template includes 1 add-on.',
       );
 
       await fixture.componentInstance.onSubmit(

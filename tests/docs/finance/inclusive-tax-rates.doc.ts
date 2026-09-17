@@ -433,8 +433,9 @@ Navigate to **Templates** and open an existing paid template. If the selector sa
       .locator('section')
       .filter({
         has: page.getByRole('heading', {
+          exact: true,
           level: 2,
-          name: 'Registration Options',
+          name: 'Sign-up choices',
         }),
       })
       .first();

@@ -20,7 +20,6 @@ import { EventRegistrationService } from './handlers/events/event-registration.s
 import { ReceiptMediaService } from './handlers/finance/receipt-media.service';
 import { rpcRequestContextMiddlewareLive } from './handlers/middleware/rpc-request-context.middleware.live';
 import { RpcAccess } from './handlers/shared/rpc-access.service';
-import { SimpleTemplateService } from './handlers/templates/simple-template.service';
 
 class AppRpcHttpApp extends Context.Service<
   AppRpcHttpApp,
@@ -45,7 +44,6 @@ const appRpcDependenciesLayer = Layer.mergeAll(
   RpcAccess.Default,
   objectStorageLayer,
   receiptMediaLayer,
-  SimpleTemplateService.Default,
   RuntimeConfig.Default,
   stripeClientLayer,
 );
