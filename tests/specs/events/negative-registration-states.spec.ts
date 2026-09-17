@@ -18,6 +18,8 @@ test.describe('Negative registration states', () => {
       page,
       seeded,
       tenant,
+
+      registerDatabaseCleanup,
     }) => {
       if (!regularUser) {
         throw new Error('Expected regular user fixture');
@@ -35,7 +37,25 @@ test.describe('Negative registration states', () => {
           ),
         );
 
-      try {
+      registerDatabaseCleanup(async () => {
+        if (originalRegistrations.length) {
+          await database
+            .insert(schema.eventRegistrations)
+            .values(originalRegistrations);
+        }
+      });
+      registerDatabaseCleanup(async () => {
+        await database
+          .delete(schema.eventRegistrations)
+          .where(
+            and(
+              eq(schema.eventRegistrations.eventId, targetEventId),
+              eq(schema.eventRegistrations.tenantId, tenant.id),
+              eq(schema.eventRegistrations.userId, regularUser.id),
+            ),
+          );
+      });
+      {
         await database
           .delete(schema.eventRegistrations)
           .where(
@@ -50,25 +70,10 @@ test.describe('Negative registration states', () => {
         await expect(page).toHaveURL(`/events/${targetEventId}`);
         await waitForRegistrationStatus(page);
 
-        await expect(page.getByText('Registration is closed')).toBeVisible();
+        await expect(page.getByText('Sign-up closed')).toBeVisible();
         await expect(
-          page.getByRole('button', { name: /^Register$/ }),
+          page.getByRole('button', { name: /^Sign up$/ }),
         ).toHaveCount(0);
-      } finally {
-        await database
-          .delete(schema.eventRegistrations)
-          .where(
-            and(
-              eq(schema.eventRegistrations.eventId, targetEventId),
-              eq(schema.eventRegistrations.tenantId, tenant.id),
-              eq(schema.eventRegistrations.userId, regularUser.id),
-            ),
-          );
-        if (originalRegistrations.length) {
-          await database
-            .insert(schema.eventRegistrations)
-            .values(originalRegistrations);
-        }
       }
     });
 
@@ -77,6 +82,8 @@ test.describe('Negative registration states', () => {
       page,
       seeded,
       tenant,
+
+      registerDatabaseCleanup,
     }) => {
       if (!regularUser) {
         throw new Error('Expected regular user fixture');
@@ -121,7 +128,58 @@ test.describe('Negative registration states', () => {
         title: 'Anything organizers should know?',
       });
 
-      try {
+      registerDatabaseCleanup(async () => {
+        await database
+          .update(schema.eventInstances)
+          .set({
+            end: targetEvent.end,
+            start: targetEvent.start,
+          })
+          .where(eq(schema.eventInstances.id, targetEventId));
+      });
+      registerDatabaseCleanup(async () => {
+        await database
+          .update(schema.eventRegistrationOptions)
+          .set({
+            checkedInSpots: targetOption.checkedInSpots,
+            closeRegistrationTime: targetOption.closeRegistrationTime,
+            confirmedSpots: targetOption.confirmedSpots,
+            openRegistrationTime: targetOption.openRegistrationTime,
+            registrationMode: targetOption.registrationMode,
+            reservedSpots: targetOption.reservedSpots,
+            waitlistSpots: targetOption.waitlistSpots,
+          })
+          .where(eq(schema.eventRegistrationOptions.id, targetOptionId));
+      });
+      registerDatabaseCleanup(async () => {
+        await database
+          .delete(schema.eventRegistrationQuestions)
+          .where(
+            eq(
+              schema.eventRegistrationQuestions.id,
+              registrationQuestion.questionId,
+            ),
+          );
+      });
+      registerDatabaseCleanup(async () => {
+        if (originalRegistrations.length) {
+          await database
+            .insert(schema.eventRegistrations)
+            .values(originalRegistrations);
+        }
+      });
+      registerDatabaseCleanup(async () => {
+        await database
+          .delete(schema.eventRegistrations)
+          .where(
+            and(
+              eq(schema.eventRegistrations.eventId, targetEventId),
+              eq(schema.eventRegistrations.tenantId, tenant.id),
+              eq(schema.eventRegistrations.userId, regularUser.id),
+            ),
+          );
+      });
+      {
         await database
           .delete(schema.eventRegistrations)
           .where(
@@ -153,7 +211,9 @@ test.describe('Negative registration states', () => {
         await page.goto(`/events/${targetEventId}`);
         await waitForRegistrationStatus(page);
 
-        await expect(page.getByText('This option is full.')).toBeVisible();
+        await expect(
+          page.getByText('This sign-up choice is full.'),
+        ).toBeVisible();
         const waitlistButton = page.getByRole('button', {
           name: 'Join waitlist',
         });
@@ -176,7 +236,7 @@ test.describe('Negative registration states', () => {
         );
         await expect(waitlistButton).toBeEnabled();
         await expect(
-          page.getByRole('button', { name: /^Register$/ }),
+          page.getByRole('button', { name: /^Sign up$/ }),
         ).toHaveCount(0);
 
         await waitlistButton.click();
@@ -233,7 +293,9 @@ test.describe('Negative registration states', () => {
           .getByRole('dialog')
           .getByRole('button', { name: 'Leave waitlist' })
           .click();
-        await expect(page.getByText('This option is full.')).toBeVisible();
+        await expect(
+          page.getByText('This sign-up choice is full.'),
+        ).toBeVisible();
         await expect(
           page.getByRole('button', { name: 'Join waitlist' }),
         ).toBeVisible();
@@ -265,48 +327,6 @@ test.describe('Negative registration states', () => {
           );
         }
         expect(optionAfterLeaving.waitlistSpots).toBe(0);
-      } finally {
-        await database
-          .delete(schema.eventRegistrations)
-          .where(
-            and(
-              eq(schema.eventRegistrations.eventId, targetEventId),
-              eq(schema.eventRegistrations.tenantId, tenant.id),
-              eq(schema.eventRegistrations.userId, regularUser.id),
-            ),
-          );
-        if (originalRegistrations.length) {
-          await database
-            .insert(schema.eventRegistrations)
-            .values(originalRegistrations);
-        }
-        await database
-          .delete(schema.eventRegistrationQuestions)
-          .where(
-            eq(
-              schema.eventRegistrationQuestions.id,
-              registrationQuestion.questionId,
-            ),
-          );
-        await database
-          .update(schema.eventRegistrationOptions)
-          .set({
-            checkedInSpots: targetOption.checkedInSpots,
-            closeRegistrationTime: targetOption.closeRegistrationTime,
-            confirmedSpots: targetOption.confirmedSpots,
-            openRegistrationTime: targetOption.openRegistrationTime,
-            registrationMode: targetOption.registrationMode,
-            reservedSpots: targetOption.reservedSpots,
-            waitlistSpots: targetOption.waitlistSpots,
-          })
-          .where(eq(schema.eventRegistrationOptions.id, targetOptionId));
-        await database
-          .update(schema.eventInstances)
-          .set({
-            end: targetEvent.end,
-            start: targetEvent.start,
-          })
-          .where(eq(schema.eventInstances.id, targetEventId));
       }
     });
 
@@ -315,6 +335,7 @@ test.describe('Negative registration states', () => {
       page,
       seeded,
       tenant,
+      registerDatabaseCleanup,
     }) => {
       if (!regularUser) {
         throw new Error('Expected regular user fixture');
@@ -340,56 +361,7 @@ test.describe('Negative registration states', () => {
           ),
         );
 
-      try {
-        await database
-          .delete(schema.eventRegistrations)
-          .where(
-            and(
-              eq(schema.eventRegistrations.eventId, targetEventId),
-              eq(schema.eventRegistrations.tenantId, tenant.id),
-              eq(schema.eventRegistrations.userId, regularUser.id),
-            ),
-          );
-        await database
-          .update(schema.eventRegistrationOptions)
-          .set({
-            confirmedSpots: targetOption.spots,
-            registrationMode: 'random',
-            reservedSpots: 0,
-            waitlistSpots: 0,
-          })
-          .where(eq(schema.eventRegistrationOptions.id, targetOptionId));
-
-        await page.goto(`/events/${targetEventId}`);
-        await waitForRegistrationStatus(page);
-
-        const optionCard = page
-          .locator('app-event-registration-option')
-          .filter({ hasText: targetOption.title });
-        await expect(optionCard.getByRole('alert')).toHaveText(
-          'This option uses a registration mode that is no longer supported. Ask an organizer to update the event before trying again.',
-        );
-        await expect(
-          optionCard.getByRole('button', { name: 'Join waitlist' }),
-        ).toHaveCount(0);
-        await expect(
-          optionCard.getByRole('button', { name: /^Register$/ }),
-        ).toHaveCount(0);
-      } finally {
-        await database
-          .delete(schema.eventRegistrations)
-          .where(
-            and(
-              eq(schema.eventRegistrations.eventId, targetEventId),
-              eq(schema.eventRegistrations.tenantId, tenant.id),
-              eq(schema.eventRegistrations.userId, regularUser.id),
-            ),
-          );
-        if (originalRegistrations.length) {
-          await database
-            .insert(schema.eventRegistrations)
-            .values(originalRegistrations);
-        }
+      registerDatabaseCleanup(async () => {
         await database
           .update(schema.eventRegistrationOptions)
           .set({
@@ -399,7 +371,59 @@ test.describe('Negative registration states', () => {
             waitlistSpots: targetOption.waitlistSpots,
           })
           .where(eq(schema.eventRegistrationOptions.id, targetOptionId));
-      }
+      });
+      registerDatabaseCleanup(async () => {
+        if (originalRegistrations.length) {
+          await database
+            .insert(schema.eventRegistrations)
+            .values(originalRegistrations);
+        }
+      });
+      registerDatabaseCleanup(async () => {
+        await database
+          .delete(schema.eventRegistrations)
+          .where(
+            and(
+              eq(schema.eventRegistrations.eventId, targetEventId),
+              eq(schema.eventRegistrations.tenantId, tenant.id),
+              eq(schema.eventRegistrations.userId, regularUser.id),
+            ),
+          );
+      });
+      await database
+        .delete(schema.eventRegistrations)
+        .where(
+          and(
+            eq(schema.eventRegistrations.eventId, targetEventId),
+            eq(schema.eventRegistrations.tenantId, tenant.id),
+            eq(schema.eventRegistrations.userId, regularUser.id),
+          ),
+        );
+      await database
+        .update(schema.eventRegistrationOptions)
+        .set({
+          confirmedSpots: targetOption.spots,
+          registrationMode: 'random',
+          reservedSpots: 0,
+          waitlistSpots: 0,
+        })
+        .where(eq(schema.eventRegistrationOptions.id, targetOptionId));
+
+      await page.goto(`/events/${targetEventId}`);
+      await waitForRegistrationStatus(page);
+
+      const optionCard = page
+        .locator('app-event-registration-option')
+        .filter({ hasText: targetOption.title });
+      await expect(optionCard.getByRole('alert')).toHaveText(
+        'This option uses a registration mode that is no longer supported. Ask an organizer to update the event before trying again.',
+      );
+      await expect(
+        optionCard.getByRole('button', { name: 'Join waitlist' }),
+      ).toHaveCount(0);
+      await expect(
+        optionCard.getByRole('button', { name: /^Sign up$/ }),
+      ).toHaveCount(0);
     });
     test('keeps a direct event link visible with explicit ineligible copy', async ({
       database,
@@ -407,6 +431,8 @@ test.describe('Negative registration states', () => {
       roles,
       seeded,
       tenant,
+
+      registerDatabaseCleanup,
     }) => {
       if (!regularUser) {
         throw new Error('Expected regular user fixture');
@@ -439,7 +465,31 @@ test.describe('Negative registration states', () => {
           ),
         );
 
-      try {
+      registerDatabaseCleanup(async () => {
+        await database
+          .update(schema.eventRegistrationOptions)
+          .set({ roleIds: targetOption.roleIds })
+          .where(eq(schema.eventRegistrationOptions.id, targetOptionId));
+      });
+      registerDatabaseCleanup(async () => {
+        if (originalRegistrations.length) {
+          await database
+            .insert(schema.eventRegistrations)
+            .values(originalRegistrations);
+        }
+      });
+      registerDatabaseCleanup(async () => {
+        await database
+          .delete(schema.eventRegistrations)
+          .where(
+            and(
+              eq(schema.eventRegistrations.eventId, targetEventId),
+              eq(schema.eventRegistrations.tenantId, tenant.id),
+              eq(schema.eventRegistrations.userId, regularUser.id),
+            ),
+          );
+      });
+      {
         await database
           .delete(schema.eventRegistrations)
           .where(
@@ -459,35 +509,16 @@ test.describe('Negative registration states', () => {
         await waitForRegistrationStatus(page);
 
         await expect(
-          page.getByRole('heading', { name: 'Registration unavailable' }),
+          page.getByRole('heading', { name: 'Sign-up unavailable' }),
         ).toBeVisible();
         await expect(
           page.getByText(
-            'This event is visible from the direct link, but your account is not eligible for the available registration options.',
+            "Your access in this organization does not include any of this event's sign-up choices. You can still view the event, but you cannot sign up.",
           ),
         ).toBeVisible();
         await expect(
-          page.getByRole('button', { name: /^Register$/ }),
+          page.getByRole('button', { name: /^Sign up$/ }),
         ).toHaveCount(0);
-      } finally {
-        await database
-          .delete(schema.eventRegistrations)
-          .where(
-            and(
-              eq(schema.eventRegistrations.eventId, targetEventId),
-              eq(schema.eventRegistrations.tenantId, tenant.id),
-              eq(schema.eventRegistrations.userId, regularUser.id),
-            ),
-          );
-        if (originalRegistrations.length) {
-          await database
-            .insert(schema.eventRegistrations)
-            .values(originalRegistrations);
-        }
-        await database
-          .update(schema.eventRegistrationOptions)
-          .set({ roleIds: targetOption.roleIds })
-          .where(eq(schema.eventRegistrationOptions.id, targetOptionId));
       }
     });
   });

@@ -1,11 +1,12 @@
 import type Stripe from 'stripe';
 
-import { describe, expect, it } from '@effect/vitest';
+import { assert, describe, expect, it } from '@effect/vitest';
 import { PgDialect } from 'drizzle-orm/pg-core';
 import { Effect, Layer, Ref } from 'effect';
 
 import { Database } from '../../db';
 import { StripeClient } from '../stripe-client';
+import { stripeRefundResponse } from '../testing/stripe-test-fixtures';
 import {
   launchRegistrationRefundWorker,
   normalizeRegistrationRefundBatchSize,
@@ -72,6 +73,7 @@ describe('registration refund claims', () => {
           currency: 'EUR',
           eventId: 'event-1',
           eventRegistrationId: 'registration-1',
+          operationKey: 'platform-refund:refund-1',
           sourceTransactionId: 'source-1',
           stripeAccountId: 'acct_1',
           targetUserId: 'attendee-1',
@@ -118,7 +120,7 @@ describe('registration refund claims', () => {
     ).toEqual(
       expect.objectContaining({
         amount: -400,
-        comment: 'Refund recorded by Stripe',
+        comment: 'Ticket refund',
         eventRegistrationId: 'registration-1',
         manuallyCreated: false,
         refundOperationKey: operationKey,
@@ -845,7 +847,7 @@ describe('registration refund claims', () => {
 
         expect(
           yield* reconcileRegistrationRefundWebhook(
-            {
+            stripeRefundResponse({
               amount: 400,
               charge: 'ch_source',
               currency: 'eur',
@@ -854,7 +856,7 @@ describe('registration refund claims', () => {
               object: 'refund',
               payment_intent: 'pi_source',
               status: 'succeeded',
-            } as Stripe.Refund,
+            }),
             'acct_1',
           ).pipe(Effect.provide(layer)),
         ).toEqual({ status: 'notClaim' });
@@ -1014,7 +1016,7 @@ describe('registration refund claims', () => {
   });
 
   it('accepts refund reconciliation only for exact claim metadata and source ownership', () => {
-    const refund = {
+    const refund = stripeRefundResponse({
       amount: 1000,
       charge: null,
       currency: 'eur',
@@ -1026,7 +1028,7 @@ describe('registration refund claims', () => {
         tenantId: 'tenant-1',
       },
       payment_intent: 'pi_1',
-    } as Stripe.Refund;
+    });
     const expected = {
       amount: 1000,
       currency: 'EUR',
@@ -1043,13 +1045,13 @@ describe('registration refund claims', () => {
     );
     expect(
       registrationRefundMatchesPersistedClaim(
-        { ...refund, amount: 999 } as Stripe.Refund,
+        { ...refund, amount: 999 },
         expected,
       ),
     ).toBe(false);
     expect(
       registrationRefundMatchesPersistedClaim(
-        { ...refund, payment_intent: 'pi_other' } as Stripe.Refund,
+        { ...refund, payment_intent: 'pi_other' },
         expected,
       ),
     ).toBe(false);
@@ -1062,14 +1064,14 @@ describe('registration refund claims', () => {
   });
 
   it('accepts exact registration or add-on Stripe sources without weakening ownership', () => {
-    const query = dialect.sqlToQuery(
-      registrationRefundSourcePaymentPredicate({
-        eventRegistrationId: 'registration-1',
-        sourceTransactionId: 'source-1',
-        stripeAccountId: 'acct_1',
-        tenantId: 'tenant-1',
-      }),
-    );
+    const predicate = registrationRefundSourcePaymentPredicate({
+      eventRegistrationId: 'registration-1',
+      sourceTransactionId: 'source-1',
+      stripeAccountId: 'acct_1',
+      tenantId: 'tenant-1',
+    });
+    assert.isDefined(predicate);
+    const query = dialect.sqlToQuery(predicate);
     const statement = normalizeSql(query.sql);
 
     expect(statement).toContain('"transactions"."eventRegistrationId" =');
@@ -1089,9 +1091,9 @@ describe('registration refund claims', () => {
 
   it('only retries recent id-less refund requests while known refunds remain retrievable', () => {
     const now = new Date('2026-07-10T12:00:00.000Z');
-    const claimable = dialect.sqlToQuery(
-      registrationRefundClaimablePredicate(now),
-    );
+    const claimablePredicate = registrationRefundClaimablePredicate(now);
+    assert.isDefined(claimablePredicate);
+    const claimable = dialect.sqlToQuery(claimablePredicate);
     const statement = normalizeSql(claimable.sql);
 
     expect(statement).toContain(
@@ -1120,9 +1122,10 @@ describe('registration refund claims', () => {
     expect(statement).toContain('"transactions"."stripe_refund_attempts" >');
     expect(claimable.params).toContain('2026-07-09T14:00:00.000Z');
 
-    const ambiguous = dialect.sqlToQuery(
-      registrationRefundAmbiguousRecoveryPredicate(now),
-    );
+    const ambiguousPredicate =
+      registrationRefundAmbiguousRecoveryPredicate(now);
+    assert.isDefined(ambiguousPredicate);
+    const ambiguous = dialect.sqlToQuery(ambiguousPredicate);
     const ambiguousStatement = normalizeSql(ambiguous.sql);
     expect(ambiguousStatement).toContain(
       '"transactions"."stripe_refund_id" is null',

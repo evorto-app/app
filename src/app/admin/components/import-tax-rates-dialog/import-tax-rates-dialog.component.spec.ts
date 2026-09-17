@@ -1,3 +1,7 @@
+import {
+  RpcBadRequestError,
+  RpcInternalServerError,
+} from '@shared/errors/rpc-errors';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -72,11 +76,31 @@ describe('tax-rate error copy', () => {
 
   it('shows the expected action from a safe import error', () => {
     expect(
-      taxRateImportErrorMessage({
-        _tag: 'RpcBadRequestError',
-        message:
-          'A selected tax rate is no longer available. No tax rates were added. Select the tax rates again, then choose Add selected.',
-      }),
+      taxRateImportErrorMessage(
+        new RpcBadRequestError({
+          message:
+            'A selected tax rate is no longer available. No tax rates were added. Select the tax rates again, then choose Add selected.',
+        }),
+      ),
     ).toContain('Select the tax rates again');
+  });
+});
+
+describe('unconfirmed tax-rate import feedback', () => {
+  it.each([
+    { error: new Error('Response connection closed'), name: 'a lost response' },
+    {
+      error: new RpcInternalServerError({
+        message: 'Private persistence failure details',
+      }),
+      name: 'an internal failure',
+    },
+  ])('keeps the persisted outcome uncertain for $name', ({ error }) => {
+    const message = taxRateImportErrorMessage(error);
+    expect(message).toBe(
+      'The import outcome could not be confirmed. Load the page again to check the current tax rates before trying again.',
+    );
+    expect(message).not.toContain('Nothing changed');
+    expect(message).not.toContain(error.message);
   });
 });

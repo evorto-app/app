@@ -307,7 +307,7 @@ const createProviderRefundFixture = (input: {
           id,
           'tenant-1',
           -900,
-          'Refund recorded by Stripe',
+          'Ticket refund',
           'EUR',
           'event-1',
           'registration-1',

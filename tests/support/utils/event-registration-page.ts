@@ -10,13 +10,17 @@ export const waitForRegistrationPage = async (
     .locator(`${eventDetailsSelector}:not([aria-busy="true"])`)
     .waitFor({ state: 'attached', timeout: 20_000 });
   await eventDetails
-    .getByText('Loading event ...', { exact: true })
+    .getByText('Loading event…', { exact: true })
     .first()
     .waitFor({ state: 'detached', timeout: 20_000 });
 
   if (
     await eventDetails
-      .getByText('Failed to load event.', { exact: true })
+      .getByRole('heading', {
+        exact: true,
+        level: 2,
+        name: 'Event could not be loaded',
+      })
       .isVisible()
       .catch(() => false)
   ) {
@@ -27,17 +31,21 @@ export const waitForRegistrationPage = async (
     .getByRole('heading', {
       exact: true,
       level: 2,
-      name: 'Registration',
+      name: 'Your sign-up',
     })
     .waitFor({ state: 'visible', timeout: 20_000 });
   await eventDetails
-    .getByText('Loading registration status')
+    .getByText('Loading your sign-up')
     .first()
     .waitFor({ state: 'detached', timeout: 20_000 });
 
   if (
     await eventDetails
-      .getByText('Failed to load registration status.')
+      .getByRole('heading', {
+        exact: true,
+        level: 3,
+        name: 'Sign-up details could not be loaded',
+      })
       .isVisible()
       .catch(() => false)
   ) {

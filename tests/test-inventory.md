@@ -2,7 +2,7 @@
 
 Scope: Current Playwright tests and documentation journeys.
 
-Updated: 2026-07-13
+Updated: 2026-09-17
 
 ## How to Use This Inventory
 
@@ -75,6 +75,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - specs/events/negative-registration-states.spec.ts
   - specs/events/organizer-signup.spec.ts
   - specs/events/registration-addons.test.ts
+  - specs/events/registration-page-readiness.test.ts [offline helper]
   - specs/events/registration-transfer.spec.ts
   - specs/events/unlisted-visibility.test.ts
   - specs/events/price-labels-inclusive.spec.ts [finance]
@@ -112,6 +113,10 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
 - Events and registrations:
   - `docs/events/**`
   - `specs/events/**`
+  - `specs/events/registration-page-readiness.test.ts` exercises the real
+    readiness helper in offline Chromium against current template headings,
+    covering event/sign-up read failures and a ready page with hidden errors;
+    it does not replace authenticated application journeys
   - the dedicated registration-transfer spec and generated guide cover the
     free private-link create/claim flow, paid offer/self-claim boundaries,
     current-price review, in-place paid Checkout finalization, source-refund

@@ -281,7 +281,7 @@ describe('eventAddonPurchaseTiming', () => {
         allowPurchaseDuringEvent: true,
         allowPurchaseDuringRegistration: true,
       }),
-    ).toBe('During registration, Before event, During event');
+    ).toBe('During sign-up, Before event, During event');
   });
 
   it('marks add-ons without purchase windows as unavailable', () => {
@@ -320,7 +320,7 @@ describe('eventRegistrationOptionTitle', () => {
         },
         'option-1',
       ),
-    ).toBe('Broken registration option configuration');
+    ).toBe('Sign-up choice is missing from this event');
   });
 });
 
@@ -673,9 +673,7 @@ describe('EventDetailsComponent load recovery', () => {
       const text = normalizeText(fixture);
       expect(text).toContain('Recovery workshop');
       expect(text).toContain('Bring a notebook.');
-      expect(text).toContain(
-        'Registration actions are temporarily unavailable',
-      );
+      expect(text).toContain('Sign-up details could not be loaded');
     });
     const alert: HTMLElement | null =
       fixture.nativeElement.querySelector('[role="alert"]');
@@ -691,10 +689,8 @@ describe('EventDetailsComponent load recovery', () => {
     await vi.waitFor(() => {
       fixture.detectChanges();
       const text = normalizeText(fixture);
-      expect(text).toContain('No registration options');
-      expect(text).not.toContain(
-        'Registration actions are temporarily unavailable',
-      );
+      expect(text).toContain('Information only');
+      expect(text).not.toContain('Sign-up details could not be loaded');
     });
     expect(findEvent).toHaveBeenCalledOnce();
     expect(findRegistrationStatus).toHaveBeenCalledTimes(2);
@@ -845,7 +841,7 @@ describe('EventDetails template', () => {
 
     expect(template).toContain('aria-label="Organizer/helper opportunities"');
     expect(template).toContain('Organizer/helper opportunities');
-    expect(template).toContain('aria-label="Participant registration options"');
-    expect(template).toContain('Participant registration options');
+    expect(template).toContain('aria-label="Sign-up choices for attendees"');
+    expect(template).toContain('Sign-up choices for attendees');
   });
 });

@@ -74,10 +74,10 @@ An organizer can hide an approved event from event lists without disabling its d
     ).toBeVisible({ timeout: 15_000 });
     await waitForRegistrationPage(page);
     await expect(
-      page.getByRole('heading', { level: 2, name: 'Registration' }),
+      page.getByRole('heading', { level: 2, name: 'Your sign-up' }),
     ).toBeVisible();
     await expect(
-      page.getByRole('button', { exact: true, name: 'Register' }),
+      page.getByRole('button', { exact: true, name: 'Sign up' }),
     ).toBeVisible();
     expect(
       await database.query.eventInstances.findFirst({
@@ -93,7 +93,7 @@ The shared link opens the normal event page and registration area. If the link f
     });
     await takeScreenshot(
       testInfo,
-      page.locator('section').filter({ hasText: 'Registration' }),
+      page.locator('section').filter({ hasText: 'Your sign-up' }),
       page,
       'Unlisted event opened from its direct link',
     );
@@ -105,11 +105,11 @@ The shared link opens the normal event page and registration area. If the link f
     ).toBeVisible({ timeout: 15_000 });
     await waitForRegistrationPage(page);
     await expect(
-      page.getByRole('link', { exact: true, name: 'Log in now' }),
+      page.getByRole('link', { exact: true, name: 'Sign in now' }),
     ).toBeVisible();
     await testInfo.attach('markdown', {
       body: `
-The direct link also opens the approved event while signed out. Select **Log in now** before registering; after login, Evorto still checks the account's roles and every normal registration rule.
+The direct link also opens the approved event while signed out. Select **Sign in now** before registering; after login, Evorto still checks the account's roles and every normal registration rule.
 `,
     });
   } finally {

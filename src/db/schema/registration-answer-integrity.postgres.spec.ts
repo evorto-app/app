@@ -767,7 +767,7 @@ describe('registration answer integrity in PostgreSQL', () => {
       seedFreeAddonRegistrationEvent({
         database,
         registerDatabaseCleanup: (cleanup) => {
-          cleanups.push(cleanup);
+          cleanups.push(() => cleanup(database));
         },
         sourceEventId: fixture.eventIds[0],
         sourceOptionId: fixture.optionIds[0],
@@ -788,19 +788,21 @@ describe('registration answer integrity in PostgreSQL', () => {
     ).toEqual(beforeEvents);
   });
 
-  it('cleans only the owned registration graph after successful setup', async () => {
+  it('cleans only the owned registration graph with the supplied database after the setup pool closes', async () => {
     const before = await originalState();
     const cleanups: (() => Promise<void>)[] = [];
+    const setupPool = new Pool(createNodePgPoolConfig({ databaseUrl }));
+    const setupDatabase = drizzle({ client: setupPool, relations });
     const scenario = await seedFreeAddonRegistrationEvent({
-      database,
+      database: setupDatabase,
       registerDatabaseCleanup: (cleanup) => {
-        cleanups.push(cleanup);
+        cleanups.push(() => cleanup(database));
       },
       sourceEventId: fixture.eventIds[0],
       sourceOptionId: fixture.optionIds[0],
       tenantId: fixture.tenantIds[0],
       window: fixtureWindow(),
-    });
+    }).finally(() => setupPool.end());
     try {
       const [registration] = await database
         .insert(eventRegistrations)
