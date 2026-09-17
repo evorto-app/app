@@ -1485,7 +1485,7 @@ const getClaim = Effect.fn('RegistrationTransferService.getClaim')(function* ({
   ) {
     return yield* new RegistrationTransferNotFoundError({
       message:
-        'This ticket transfer link is invalid or no longer available. This request did not start a payment. Ask the sender for a new link.',
+        'This transfer code is invalid or no longer available. This request did not start a payment. Ask the sender for the current code.',
     });
   }
 
@@ -2163,14 +2163,14 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
   if (!transfer) {
     return yield* new RegistrationTransferNotFoundError({
       message:
-        'This ticket transfer link is invalid or no longer available. This request did not start a payment. Ask the sender for a new link.',
+        'This transfer code is invalid or no longer available. This request did not start a payment. Ask the sender for the current code.',
     });
   }
   const registrationId = transfer.registrationId;
   if (transfer.recipientUserId && transfer.recipientUserId !== user.id) {
     return yield* new RegistrationTransferNotFoundError({
       message:
-        'This ticket transfer link is invalid or no longer available. This request did not start a payment. Ask the sender for a new link.',
+        'This transfer code is invalid or no longer available. This request did not start a payment. Ask the sender for the current code.',
     });
   }
   if (transfer.sourceUserId === user.id) {
@@ -2269,7 +2269,7 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
     });
     return yield* new RegistrationTransferConflictError({
       message:
-        'This ticket transfer link has expired. No payment or refund was started. Ask the sender for a new offer.',
+        'This transfer code has expired. No payment or refund was started. Ask the sender for a new code.',
     });
   }
   if (
