@@ -1465,7 +1465,8 @@ const getClaim = Effect.fn('RegistrationTransferService.getClaim')(function* ({
               ),
               eq(registrationTransferBundleAddonPurchases.tenantId, tenant.id),
             ),
-          ),
+          )
+          .limit(MAX_EVENT_ADDON_TYPES + 1),
       ),
       useSealedRecipientPricing && transfer.recipientBasePrice !== null
         ? Effect.succeed(
@@ -1573,6 +1574,13 @@ const getClaim = Effect.fn('RegistrationTransferService.getClaim')(function* ({
     return yield* new RegistrationTransferConflictError({
       message:
         'This registration option has too many sign-up questions. Ask an organizer to update it before claiming.',
+    });
+  }
+
+  if (bundleAddOns.length > MAX_EVENT_ADDON_TYPES) {
+    return yield* new RegistrationTransferConflictError({
+      message:
+        'This ticket includes too many different add-ons to transfer. Ask an organizer for help.',
     });
   }
 
@@ -2299,7 +2307,14 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
               ),
             )
             .orderBy(registrationTransferBundleAddonPurchases.sourcePurchaseId)
+            .limit(MAX_EVENT_ADDON_TYPES + 1)
             .for('update');
+          if (bundleSnapshots.length > MAX_EVENT_ADDON_TYPES) {
+            return yield* new RegistrationTransferConflictError({
+              message:
+                'This ticket includes too many different add-ons to transfer. No payment or refund was started. Ask an organizer for help.',
+            });
+          }
           if (
             bundleSnapshots.some(
               (snapshot) =>
@@ -2816,12 +2831,6 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
             return yield* new RegistrationTransferConflictError({
               message:
                 'This ticket has too many separately priced items to complete one payment. No payment or refund was started. Ask an organizer for help.',
-            });
-          }
-          if (bundleAddOns.length > MAX_EVENT_ADDON_TYPES) {
-            return yield* new RegistrationTransferConflictError({
-              message:
-                'This ticket includes too many different add-ons to transfer. No payment or refund was started. Ask an organizer for help.',
             });
           }
           let paymentClaim: RegistrationTransferPaymentClaim | undefined;

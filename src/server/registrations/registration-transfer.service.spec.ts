@@ -13,6 +13,7 @@ import {
 import Stripe from 'stripe';
 
 import { Database } from '../../db';
+import { MAX_EVENT_ADDON_TYPES } from '../../shared/registration-quantity-limits';
 import {
   RegistrationTransferConflictError,
   RegistrationTransferInternalError,
@@ -31,6 +32,7 @@ import {
 describe('RegistrationTransferService.getClaim tenant settings', () => {
   const createClaimDatabase = (
     tenantRecord: undefined | { discountProviders: null | object },
+    bundleTypeCount = 0,
   ) => {
     const executeValues = vi.fn(
       (statement: string, parameters: readonly unknown[]) =>
@@ -70,9 +72,26 @@ describe('RegistrationTransferService.getClaim tenant settings', () => {
             expect(parameters).toContain('tenant-1');
             return tenantRecord ? [[tenantRecord.discountProviders]] : [];
           }
+          if (
+            statement.includes(
+              'from "registration_transfer_bundle_addon_purchases"',
+            )
+          ) {
+            return Array.from({ length: bundleTypeCount }, (_, index) => [
+              0,
+              0,
+              'Included add-on',
+              `addon-${index + 1}`,
+              1,
+              0,
+              1,
+              null,
+              0,
+              `Add-on ${index + 1}`,
+            ]);
+          }
           const emptyReadTables = [
             'event_registration_questions',
-            'registration_transfer_bundle_addon_purchases',
             'registration_transfer_refund_plan_items',
             'user_discount_cards',
             'event_registration_option_discounts',
@@ -118,6 +137,45 @@ describe('RegistrationTransferService.getClaim tenant settings', () => {
       },
     });
   }).pipe(Effect.provide(RegistrationTransferService.Default));
+
+  it.effect.each([MAX_EVENT_ADDON_TYPES, MAX_EVENT_ADDON_TYPES + 1])(
+    'bounds the stored claim view at %i add-on types without truncating valid bundles',
+    (count) =>
+      Effect.gen(function* () {
+        const database = createClaimDatabase(
+          {
+            discountProviders: createDefaultTenantDiscountProviders(),
+          },
+          count,
+        );
+        const result = yield* getClaim.pipe(
+          Effect.provide(database.layer),
+          Effect.result,
+        );
+        if (count > MAX_EVENT_ADDON_TYPES) {
+          expect(Result.isFailure(result)).toBe(true);
+          if (Result.isSuccess(result))
+            throw new Error('Oversized bundle was exposed');
+          expect(result.failure).toBeInstanceOf(
+            RegistrationTransferConflictError,
+          );
+          expect(result.failure.message).toContain(
+            'too many different add-ons',
+          );
+        } else {
+          expect(Result.isSuccess(result)).toBe(true);
+          if (Result.isFailure(result)) throw result.failure;
+          expect(result.success.bundle.addOns.map(({ id }) => id)).toEqual(
+            Array.from({ length: count }, (_, index) => `addon-${index + 1}`),
+          );
+        }
+        expect(
+          database.executeValues.mock.calls.every(([statement]) =>
+            statement.startsWith('select '),
+          ),
+        ).toBe(true);
+      }),
+  );
 
   it.effect('returns not found when the pricing tenant no longer exists', () =>
     Effect.gen(function* () {
@@ -480,6 +538,7 @@ describe('persisted transfer claim questions', () => {
 });
 
 const createTransferTaxFixture = ({
+  addonCount = 1,
   addonPrice = 0,
   addonTaxId = null,
   includedQuantity = 0,
@@ -489,6 +548,7 @@ const createTransferTaxFixture = ({
   purchasedQuantity = 0,
   taxRowExists = true,
 }: {
+  addonCount?: number;
   addonPrice?: number;
   addonTaxId?: null | string;
   includedQuantity?: number;
@@ -499,28 +559,28 @@ const createTransferTaxFixture = ({
   taxRowExists?: boolean;
 }) => {
   const writes: string[] = [];
+  const expansionReads: string[] = [];
+  const pricedAddonIds: string[] = [];
   const questionLocks: string[] = [];
   const { checkout, stripe } = checkoutFixture();
   const quantity = includedQuantity + purchasedQuantity;
   const optionPrice = optionIsPaid ? 1000 : 0;
   const bundleRows =
     quantity > 0
-      ? [
-          [
-            'addon-1',
-            0,
-            'purchase-1',
-            includedQuantity,
-            purchasedQuantity,
-            quantity,
-            0,
-            0,
-            null,
-            null,
-            null,
-            addonPrice,
-          ],
-        ]
+      ? Array.from({ length: addonCount }, (_, index) => [
+          `addon-${index + 1}`,
+          0,
+          `purchase-${index + 1}`,
+          includedQuantity,
+          purchasedQuantity,
+          quantity,
+          0,
+          0,
+          null,
+          null,
+          null,
+          addonPrice,
+        ])
       : [];
   const executeValues: SqlConnection.Connection['executeValues'] = (
     statement,
@@ -530,6 +590,18 @@ const createTransferTaxFixture = ({
       if (!statement.startsWith('select ')) {
         writes.push(statement);
         throw new Error(`Unexpected transfer tax fixture write: ${statement}`);
+      }
+      if (
+        [
+          'event_registration_addon_purchases',
+          'event_registration_addon_purchase_lots',
+          'registration_transfer_bundle_addon_purchase_lots',
+          'event_addons',
+          'user_discount_cards',
+          'event_registration_option_discounts',
+        ].some((table) => statement.includes(` from "${table}"`))
+      ) {
+        expansionReads.push(statement);
       }
       if (
         statement ===
@@ -647,8 +719,20 @@ const createTransferTaxFixture = ({
             optionTaxId,
           ],
         ];
-      if (statement.includes(' from "event_addons"'))
-        return [['addon-1', addonPrice, addonTaxId, 'Add-on']];
+      if (statement.includes(' from "event_addons"')) {
+        pricedAddonIds.push(
+          ...parameters.filter(
+            (value): value is string =>
+              typeof value === 'string' && value.startsWith('addon-'),
+          ),
+        );
+        return Array.from({ length: addonCount }, (_, index) => [
+          `addon-${index + 1}`,
+          addonPrice,
+          addonTaxId,
+          'Add-on',
+        ]);
+      }
       if (statement.includes(' from "tenant_stripe_tax_rates"')) {
         expect(statement).toContain(' for update');
         return taxRowExists
@@ -663,6 +747,7 @@ const createTransferTaxFixture = ({
     });
   return {
     checkout,
+    expansionReads,
     layer: Layer.mergeAll(
       createRegistrationDatabaseTestLayer({ executeValues }),
       ConfigProvider.layer(
@@ -670,9 +755,42 @@ const createTransferTaxFixture = ({
       ),
       Layer.succeed(StripeClient, stripe),
     ),
+    pricedAddonIds,
     writes,
   };
 };
+
+describe('persisted transfer bundle type bounds', () => {
+  it.effect.each([MAX_EVENT_ADDON_TYPES, MAX_EVENT_ADDON_TYPES + 1])(
+    'checks %i stored add-on types before fulfillment and recipient price expansion',
+    (count) =>
+      Effect.gen(function* () {
+        const fixture = createTransferTaxFixture({
+          addonCount: count,
+          includedQuantity: 1,
+        });
+        const service = yield* RegistrationTransferService.make;
+        const error = yield* service
+          .claim(transferInput)
+          .pipe(Effect.provide(fixture.layer), Effect.flip);
+        expect(error).toBeInstanceOf(RegistrationTransferConflictError);
+        if (count > MAX_EVENT_ADDON_TYPES) {
+          expect(error.message).toContain('too many different add-ons');
+          expect(fixture.expansionReads).toEqual([]);
+          expect(fixture.pricedAddonIds).toEqual([]);
+        } else {
+          expect(error.message).toBe(
+            'You already have an active registration for this event',
+          );
+          expect(fixture.pricedAddonIds).toEqual(
+            Array.from({ length: count }, (_, index) => `addon-${index + 1}`),
+          );
+        }
+        expect(fixture.writes).toEqual([]);
+        expect(fixture.checkout).not.toHaveBeenCalled();
+      }),
+  );
+});
 
 describe('persisted transfer tax configuration', () => {
   it.effect.each([
