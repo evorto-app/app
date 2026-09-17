@@ -11,7 +11,10 @@ import {
 import { tenantOutboundUrl } from '../tenant-outbound-url';
 
 const responseText = (body: string, status = 200): Response =>
-  new Response(body, { status });
+  new Response(body, {
+    headers: { 'Cache-Control': 'private, no-store' },
+    status,
+  });
 
 const databaseEffect = <A, E>(
   operation: (database: DatabaseClient) => Effect.Effect<A, E, never>,
@@ -125,7 +128,7 @@ export const handleQrRegistrationCodeWebRequest = (
     );
 
     if (!registration) {
-      return responseText('Registration not found', 404);
+      return responseText('Ticket not found.', 404);
     }
 
     const canReadQr = yield* canReadRegistrationQr({
@@ -135,8 +138,8 @@ export const handleQrRegistrationCodeWebRequest = (
     if (!canReadQr) {
       return responseText(
         requestContext.authentication.isAuthenticated
-          ? 'Registration not found'
-          : 'Authentication required',
+          ? 'Ticket not found.'
+          : 'Sign in to open this ticket.',
         requestContext.authentication.isAuthenticated ? 404 : 401,
       );
     }
@@ -151,7 +154,18 @@ export const handleQrRegistrationCodeWebRequest = (
     );
 
     if (!tenant) {
-      return responseText('Tenant not found', 404);
+      yield* Effect.logError(
+        'Registration QR code references a missing tenant',
+      ).pipe(
+        Effect.annotateLogs({
+          registrationId,
+          tenantId: registration.tenantId,
+        }),
+      );
+      return responseText(
+        'This ticket is unavailable. Ask the event organizer for help.',
+        404,
+      );
     }
 
     const scanTargetUrl = yield* tenantOutboundUrl(
@@ -190,6 +204,7 @@ export const handleQrRegistrationCodeWebRequest = (
     const imageBytes = new Uint8Array(imageBuffer);
     return new Response(imageBytes, {
       headers: {
+        'Cache-Control': 'private, no-store',
         'Content-Type': 'image/png',
       },
       status: 200,

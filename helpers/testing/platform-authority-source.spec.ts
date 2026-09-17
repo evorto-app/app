@@ -185,7 +185,31 @@ describe('platform authority source', () => {
 
     expect(contracts).toContain("Rpc.make('platform.registrations.approve'");
     expect(contracts).toContain("Rpc.make('platform.registrations.cancel'");
-    expect(contracts).toContain('Schema.isLessThanOrEqualTo(100)');
+    expect(contracts).not.toContain('PlatformRegistrationsListInput');
+    expect(contracts).not.toContain("Rpc.make('platform.registrations.list'");
+    expect(registrationHandlers).not.toContain("'platform.registrations.list'");
+    const registrationLookup = contracts.slice(
+      contracts.indexOf('export const PlatformRegistrationsFindOne'),
+      contracts.indexOf('export const PlatformRegistrationsCheckInInput'),
+    );
+    expect(registrationLookup).toContain(
+      "Rpc.make('platform.registrations.findOne'",
+    );
+    expect(registrationLookup).toContain('...PlatformTenantTarget.fields');
+    expect(registrationLookup).toContain(
+      'registrationId: Schema.NonEmptyString',
+    );
+    expect(scanner).toContain('enabled: Boolean(this.registrationId())');
+    expect(scanner).not.toContain('this.rpc.platform.registrations.list');
+    expect(registrationHandlers).toContain(
+      'eq(eventRegistrations.id, registrationId)',
+    );
+    expect(registrationHandlers).toContain(
+      'eq(eventRegistrations.tenantId, targetTenantId)',
+    );
+    expect(registrationHandlers).toContain(
+      'eq(eventInstances.tenantId, targetTenantId)',
+    );
     expect(contracts).toContain('addOns: Schema.Array(');
     expect(contracts).toContain('questions: Schema.Array(');
     expect(contracts).toContain('registrationOptions: Schema.Array(');

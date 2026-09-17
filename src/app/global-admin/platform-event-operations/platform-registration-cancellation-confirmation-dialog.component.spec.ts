@@ -24,7 +24,7 @@ const registration = (
   },
   checkedInGuestCount: 0,
   checkInTime: null,
-  checkInTimingIssue: false,
+  checkInTimingIssue: null,
   currency: 'EUR',
   event: {
     id: 'event-1',

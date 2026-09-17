@@ -1,20 +1,32 @@
+import type * as SqlConnection from 'effect/unstable/sql/SqlConnection';
+
+import * as PgClient from '@effect/sql-pg/PgClient';
 import { describe, expect, it } from '@effect/vitest';
 import { createDatabaseTestLayer } from '@server/testing/database-test-layer';
-import { EventRegistrationInternalError } from '@shared/rpc-contracts/app-rpcs/events.errors';
 import {
-  PlatformEventsUpdateInput,
-  PlatformRegistrationPageLimit,
-  PlatformRegistrationsListInput,
-} from '@shared/rpc-contracts/app-rpcs/platform-events.rpcs';
+  EventCheckInUnavailableError,
+  EventRegistrationInternalError,
+} from '@shared/rpc-contracts/app-rpcs/events.errors';
+import { PlatformEventsUpdateInput } from '@shared/rpc-contracts/app-rpcs/platform-events.rpcs';
 import { PlatformOperationRpcError } from '@shared/rpc-contracts/app-rpcs/platform-operations.shared';
 import { RpcRequestContext } from '@shared/rpc-contracts/app-rpcs/rpc-request-context.middleware';
 import { getTableColumns } from 'drizzle-orm';
-import { Cause, ConfigProvider, Effect, Exit, Layer, Schema } from 'effect';
+import * as PgDrizzle from 'drizzle-orm/effect-postgres';
+import {
+  Cause,
+  ConfigProvider,
+  Effect,
+  Exit,
+  Layer,
+  Schema,
+  Stream,
+} from 'effect';
 import { readFileSync } from 'node:fs';
 import Stripe from 'stripe';
 import { vi } from 'vitest';
 
 import { Database, type DatabaseClient } from '../../../../../db';
+import { relations } from '../../../../../db/relations';
 import { tenants } from '../../../../../db/schema';
 import { PlatformAdministratorAuthority } from '../../../../../types/custom/platform-authority';
 import { Tenant } from '../../../../../types/custom/tenant';
@@ -115,7 +127,7 @@ const registrationRecord = {
   },
   checkedInGuestCount: 0,
   checkInTime: null,
-  checkInTimingIssue: false,
+  checkInTimingIssue: null,
   currency: 'EUR' as const,
   event: {
     id: 'event-1',
@@ -266,6 +278,116 @@ const targetTenantDatabaseLayer = createDatabaseTestLayer(
     }),
 );
 
+const checkInTimingDatabaseFixture = () => {
+  const operations: string[] = [];
+  const unexpectedQueries: string[] = [];
+  const rejectUnexpectedQuery = (statement: string): never => {
+    unexpectedQueries.push(statement);
+    throw new Error(`Unexpected SQL in check-in timing fixture: ${statement}`);
+  };
+  const executeValues: SqlConnection.Connection['executeValues'] = (
+    statement,
+    parameters,
+  ) =>
+    Effect.sync(() => {
+      if (
+        statement.startsWith('select ') &&
+        statement.includes('from "tenants"')
+      ) {
+        expect(parameters).toContain(targetTenant.id);
+        expect(Object.keys(targetTenantRecord)).toEqual(
+          Object.keys(getTableColumns(tenants)),
+        );
+        operations.push('tenant');
+        return [
+          Object.values(targetTenantRecord).map((value) =>
+            value instanceof Date
+              ? value.toISOString().replace('Z', '')
+              : value,
+          ),
+        ];
+      }
+      if (
+        statement.startsWith('select ') &&
+        statement.includes('from "registration_transfers"')
+      ) {
+        expect(statement).toContain('for update');
+        expect(parameters).toContain(targetTenant.id);
+        expect(parameters).toContain(registrationRecord.id);
+        operations.push('transfer');
+        return [];
+      }
+      if (
+        statement.startsWith('select ') &&
+        statement.includes('from "event_registrations"')
+      ) {
+        expect(statement).toContain('for update');
+        expect(parameters).toEqual([registrationRecord.id, targetTenant.id]);
+        operations.push('registration');
+        return [
+          [
+            0,
+            null,
+            eventRecord.id,
+            2,
+            registrationRecord.id,
+            'option-1',
+            'CONFIRMED',
+          ],
+        ];
+      }
+      if (
+        statement.startsWith('select ') &&
+        statement.includes('from "event_instances"')
+      ) {
+        expect(statement).toContain('for share');
+        expect(parameters).toEqual([eventRecord.id, targetTenant.id]);
+        operations.push('event');
+        return [
+          [
+            eventRecord.end.replace('Z', ''),
+            eventRecord.start.replace('Z', ''),
+          ],
+        ];
+      }
+      return rejectUnexpectedQuery(statement);
+    });
+  const connection = {
+    execute: (statement) => Effect.sync(() => rejectUnexpectedQuery(statement)),
+    executeRaw: (statement) =>
+      Effect.sync(() => rejectUnexpectedQuery(statement)),
+    executeStream: (statement) =>
+      Stream.fromEffect(Effect.sync(() => rejectUnexpectedQuery(statement))),
+    executeUnprepared: (statement, parameters) =>
+      Effect.sync(() => {
+        expect(parameters).toEqual([]);
+        if (!['BEGIN', 'COMMIT', 'ROLLBACK'].includes(statement))
+          return rejectUnexpectedQuery(statement);
+        operations.push(statement);
+        return [];
+      }),
+    executeValues,
+    executeValuesUnprepared: (statement) =>
+      Effect.sync(() => rejectUnexpectedQuery(statement)),
+  } satisfies SqlConnection.Connection;
+  const databaseLayer = Layer.effect(
+    Database,
+    PgDrizzle.makeWithDefaults({ relations }),
+  ).pipe(
+    Layer.provide(
+      PgClient.layerFrom(
+        PgClient.makeWith({
+          acquirer: Effect.succeed(connection),
+          config: {},
+          listenAcquirer: Effect.die(new Error('Unexpected database listen')),
+          transactionAcquirer: Effect.succeed(connection),
+        }),
+      ),
+    ),
+  );
+  return { databaseLayer, operations, unexpectedQueries };
+};
+
 const platformRegistrationInternalFailureLayer = Layer.mergeAll(
   ConfigProvider.layer(
     ConfigProvider.fromEnv({
@@ -294,7 +416,6 @@ describe('platform event, template, and registration handlers', () => {
       'platform.registrations.cancel',
       'platform.registrations.checkIn',
       'platform.registrations.findOne',
-      'platform.registrations.list',
       'platform.templates.create',
       'platform.templates.findOne',
       'platform.templates.formOptions',
@@ -780,20 +901,22 @@ describe('platform event, template, and registration handlers', () => {
         status: 'PENDING',
       }).pipe(Effect.flip);
       expect(statusError.reason).toBe('registrationStateConflict');
-    }),
-  );
+      expect(statusError).toMatchObject({
+        message: 'Only confirmed tickets can be checked in.',
+        reason: 'registrationStateConflict',
+      });
 
-  it.effect('defaults and bounds platform registration result pages', () =>
-    Effect.gen(function* () {
-      const defaults = yield* Schema.decodeUnknownEffect(
-        PlatformRegistrationsListInput,
-      )({ targetTenantId: 'tenant-1' });
-      expect(defaults.limit).toBe(100);
-      expect(defaults.offset).toBe(0);
-      const oversized = yield* Schema.decodeUnknownEffect(
-        PlatformRegistrationPageLimit,
-      )(101).pipe(Effect.flip);
-      expect(oversized['_tag']).toBe('SchemaError');
+      const guestError = yield* platformRegistrationCheckInPlan({
+        checkedInGuestCount: 0,
+        checkInTime: null,
+        guestCheckInCount: 2,
+        guestCount: 1,
+        status: 'CONFIRMED',
+      }).pipe(Effect.flip);
+      expect(guestError).toMatchObject({
+        message: 'You selected more guests than remain to be checked in.',
+        reason: 'guestCheckInCountExceeded',
+      });
     }),
   );
 
@@ -863,7 +986,7 @@ describe('platform event, template, and registration handlers', () => {
     );
 
     expect(error.reason).toBe('registrationTransferActive');
-    expect(error.message).toContain('this registration');
+    expect(error.message).toContain('this ticket');
     expect(error.message).toContain('Finish or cancel');
   });
 
@@ -922,6 +1045,66 @@ describe('platform event, template, and registration handlers', () => {
         }
       }),
   );
+
+  for (const timing of [
+    {
+      message: 'Check-in opens one hour before this event starts',
+      now: '2026-07-10T10:00:00.000Z',
+      reason: 'notOpen',
+    },
+    {
+      message: 'Check-in closed two hours after this event ended',
+      now: '2026-07-10T17:00:00.000Z',
+      reason: 'ended',
+    },
+  ] as const) {
+    it.effect(
+      `rejects platform check-in while ${timing.reason} without writes`,
+      () =>
+        Effect.gen(function* () {
+          const database = checkInTimingDatabaseFixture();
+          const error = yield* platformHandlers[
+            'platform.registrations.checkIn'
+          ](
+            {
+              guestCheckInCount: 1,
+              reason: 'Confirm the current event check-in window',
+              registrationId: registrationRecord.id,
+              targetTenantId: targetTenant.id,
+            },
+            undefined,
+          ).pipe(
+            Effect.provide(
+              Layer.mergeAll(
+                database.databaseLayer,
+                RpcAccess.Default,
+                Layer.succeed(RpcRequestContext, operation.requestContext),
+                ConfigProvider.layer(
+                  ConfigProvider.fromEnv({ env: { E2E_NOW_ISO: timing.now } }),
+                ),
+              ),
+            ),
+            Effect.flip,
+          );
+          expect(error).toBeInstanceOf(EventCheckInUnavailableError);
+          expect(error).toMatchObject({
+            _tag: 'EventCheckInUnavailableError',
+            message: timing.message,
+            reason: timing.reason,
+          });
+          expect(database.operations).toEqual([
+            'tenant',
+            'transfer',
+            'BEGIN',
+            'registration',
+            'transfer',
+            'event',
+            'ROLLBACK',
+          ]);
+          expect(database.unexpectedQueries).toEqual([]);
+        }),
+    );
+  }
 
   it('keeps application audit snapshots PII-free and resource typed', () => {
     const eventSnapshot = platformEventAuditSnapshot(eventRecord);
@@ -1042,6 +1225,17 @@ describe('platform event, template, and registration handlers', () => {
     );
     expect(secondGuardIndex).toBeGreaterThan(lockedRegistrationIndex);
     expect(secondGuardIndex).toBeLessThan(
+      checkInHandler.indexOf('const before'),
+    );
+
+    const lockedEventIndex = checkInHandler.indexOf('const lockedEvents');
+    const timingIssueIndex = checkInHandler.indexOf(
+      'const timingIssue = eventCheckInTimingIssue',
+    );
+    expect(lockedEventIndex).toBeGreaterThan(lockedRegistrationIndex);
+    expect(checkInHandler).toContain(".for('share')");
+    expect(timingIssueIndex).toBeGreaterThan(lockedEventIndex);
+    expect(timingIssueIndex).toBeLessThan(
       checkInHandler.indexOf('const before'),
     );
 

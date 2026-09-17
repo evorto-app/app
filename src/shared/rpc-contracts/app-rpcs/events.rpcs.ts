@@ -1,4 +1,5 @@
 import { asRpcMutation, asRpcQuery } from '@heddendorp/effect-angular-query';
+import { EventCheckInTimingIssue } from '@shared/event-check-in';
 import {
   MAX_EVENT_ADDON_TYPES,
   MAX_REGISTRATION_ADDON_QUANTITY,
@@ -25,6 +26,7 @@ import { iconSchema } from '../../types/icon';
 import {
   EventsCancelPendingRegistrationError,
   EventsCheckInRegistrationError,
+  EventsCheckInRegistrationMutationError,
   EventsCreateRpcError,
   EventsEventListRpcError,
   EventsFindOneForEditRpcError,
@@ -175,7 +177,7 @@ export const EventsApproveRegistration = asRpcMutation(
 
 export const EventsCheckInRegistration = asRpcMutation(
   Rpc.make('events.checkInRegistration', {
-    error: EventsCheckInRegistrationError,
+    error: EventsCheckInRegistrationMutationError,
     payload: Schema.Struct({
       guestCheckInCount: nonNegativeNumber,
       registrationId: Schema.NonEmptyString,
@@ -758,7 +760,7 @@ export const EventsRegistrationScanned = asRpcQuery(
       appliedDiscountType: Schema.NullOr(Schema.Literal('esnCard')),
       attendeeCheckedIn: Schema.Boolean,
       checkedInGuestCount: Schema.Number,
-      checkInTimingIssue: Schema.Boolean,
+      checkInTimingIssue: Schema.NullOr(EventCheckInTimingIssue),
       event: Schema.Struct({
         start: Schema.NonEmptyString,
         title: Schema.NonEmptyString,

@@ -61,6 +61,8 @@ test('Create and manage events', async ({
   page,
   roles,
   seeded,
+  testClock,
+  registerDatabaseCleanup,
 }, testInfo) => {
   const target = events.find(
     (event) => event.id === seeded.scenario.events.freeOpen.eventId,
@@ -672,11 +674,11 @@ The organizer view currently includes:
 - Registration-time add-ons purchased by each participant
 - Event receipt submission and receipt list
 
-Organizers check in attendees from the dedicated QR scanner. Attendees open their ticket QR code from the event registration page after a confirmed registration, and organizers scan it from **Scan**. The scanned-registration page shows the attendee, event, registration option, ESNcard discount marker when applicable, guest check-in progress when guests are attached to the registration, and warnings for self-scan, future events, non-confirmed registrations, and already checked-in tickets.
+Organizers check in attendees from the dedicated QR scanner. Attendees open their ticket QR code from the event registration page after a confirmed registration, and organizers scan it from **Scanner**. The **Ticket scanned** page shows the attendee, event, registration option, ESNcard discount marker when applicable, guest check-in progress when guests are attached to the registration, and warnings for self-scan, future events, non-confirmed registrations, and already checked-in tickets.
 
-Check-in is available to event organizers and users with event-wide organize access during the current check-in window. The scanner shows a future-event warning before that window opens. Confirming check-in records the registration check-in time and updates the checked-in count shown on the organizer overview. When a registration includes guests, the organizer chooses how many guests arrived with the attendee, and the checked-in count increases by the attendee plus the selected guests.
+Check-in is available to event organizers and users with event-wide organize access during the current check-in window. The scanner shows **Check-in not open** before that window opens and **Check-in closed** more than two hours after the event ends. Check-in opens one hour before the event starts and closes two hours after it ends. Confirming check-in records the registration check-in time and updates the checked-in count shown on the organizer overview. When a registration includes guests, the organizer chooses how many guests arrived with the attendee, and the checked-in count increases by the attendee plus the selected guests.
 Organizers can also cancel a participant's confirmed registration from the organizer overview before check-in, which releases the confirmed spot and submits the appropriate Stripe refunds for paid event and add-on payments. Event registration and add-on payments are Stripe-only; without a connected Stripe account for the organization, registration options and add-ons must remain free.
-Organizers can transfer a participant registration directly to another eligible organization member only when the entire fixed bundle is free, requires no refund, and has no participant questions. When participant questions exist, the organizer creates a private transfer offer instead so the recipient can confirm current eligibility and provide their own current answers before ownership changes. Paid registrations also use the private transfer flow so the recipient can review the fixed bundle and pay the current base prices with only their own current discounts. Guest quantity, all included/free/purchased add-on quantities, and check-in/fulfillment history move unchanged. Existing check-in or add-on redemption does not erase that history or let the recipient omit fulfilled items. The previous owner receives exact refunds for every original Stripe payment; the organizer overview intentionally does not directly reassign a paid ticket.
+Tickets move through a private transfer started by the current ticket owner, for both free and paid bundles. Organizers cannot directly move someone else's ticket or create that owner's private offer. The intended recipient signs in, opens the private offer with its transfer code, confirms current sign-up requirements, and provides their own current answers before ownership changes. For paid tickets, the recipient reviews the fixed bundle and pays the current base prices with only their own current discounts. Guest quantity, all included/free/purchased add-on quantities, and check-in/fulfillment history move unchanged. Existing check-in or add-on redemption does not erase that history or let the recipient omit fulfilled items. The previous owner receives exact refunds for every original online payment; the organizer overview intentionally does not directly transfer a paid ticket.
 
 It does not currently include attendee export, attendee messaging, or manual check-in controls outside QR scanning. Participant cancellation and private free or paid transfer are covered in the dedicated Registration Cancellation and Registration Transfer guides.
 `,
@@ -787,6 +789,7 @@ Receipt history has its own warning and **Try again** action. A receipt-loading 
     .where(
       and(
         eq(eventRegistrationOptions.eventId, scannerEventId),
+        eq(eventRegistrationOptions.isPaid, false),
         eq(eventRegistrationOptions.organizingRegistration, false),
       ),
     )
@@ -795,6 +798,27 @@ Receipt history has its own warning and **Try again** action. A receipt-loading 
     throw new Error(
       'Expected seeded participant option for scanner documentation',
     );
+  }
+  if (scannerRegistrationOption.stripeTaxRateId !== null) {
+    throw new Error(
+      'Expected seeded free scanner registration option without a Stripe tax rate',
+    );
+  }
+  const [scannerEventTiming] = await database
+    .select({
+      end: eventInstances.end,
+      start: eventInstances.start,
+    })
+    .from(eventInstances)
+    .where(
+      and(
+        eq(eventInstances.id, scannerEventId),
+        eq(eventInstances.tenantId, seeded.tenant.id),
+      ),
+    )
+    .limit(1);
+  if (!scannerEventTiming) {
+    throw new Error('Expected seeded event timing for scanner documentation');
   }
   const initialCheckedInSpots = scannerRegistrationOption.checkedInSpots;
   const initialConfirmedSpots = scannerRegistrationOption.confirmedSpots;
@@ -816,12 +840,73 @@ Receipt history has its own warning and **Try again** action. A receipt-loading 
     throw new Error('Expected regular user fixture for scanner documentation');
   }
   const scannerRegistrationId = getId();
+  const scannerNow = testClock.toJSDate();
 
-  try {
+  registerDatabaseCleanup(async () => {
+    await database
+      .update(eventInstances)
+      .set(scannerEventTiming)
+      .where(
+        and(
+          eq(eventInstances.id, scannerEventId),
+          eq(eventInstances.tenantId, seeded.tenant.id),
+        ),
+      );
+  });
+  registerDatabaseCleanup(async () => {
+    await database
+      .update(eventRegistrationOptions)
+      .set({ confirmedSpots: initialConfirmedSpots })
+      .where(
+        and(
+          eq(eventRegistrationOptions.eventId, scannerEventId),
+          eq(eventRegistrationOptions.id, scannerRegistrationOption.id),
+        ),
+      );
+  });
+  registerDatabaseCleanup(async () => {
+    await database
+      .update(eventRegistrationOptions)
+      .set({ checkedInSpots: initialCheckedInSpots })
+      .where(
+        and(
+          eq(eventRegistrationOptions.eventId, scannerEventId),
+          eq(eventRegistrationOptions.id, scannerRegistrationOption.id),
+        ),
+      );
+  });
+  registerDatabaseCleanup(async () => {
+    await database
+      .delete(eventRegistrations)
+      .where(eq(eventRegistrations.id, scannerRegistrationId));
+  });
+  {
+    const openedScannerEvents = await database
+      .update(eventInstances)
+      .set({
+        end: new Date(scannerNow.getTime() + 30 * 60 * 1000),
+        start: new Date(scannerNow.getTime() - 30 * 60 * 1000),
+      })
+      .where(
+        and(
+          eq(eventInstances.id, scannerEventId),
+          eq(eventInstances.tenantId, seeded.tenant.id),
+        ),
+      )
+      .returning({ id: eventInstances.id });
+    if (openedScannerEvents.length !== 1) {
+      throw new Error(
+        'Expected to open the seeded event check-in window for scanner documentation',
+      );
+    }
+
     await database.transaction(async (transaction) => {
       const updatedOptions = await transaction
         .update(eventRegistrationOptions)
-        .set({ confirmedSpots: scannerConfirmedSpots })
+        .set({
+          checkedInSpots: initialCheckedInSpots,
+          confirmedSpots: scannerConfirmedSpots,
+        })
         .where(
           and(
             eq(eventRegistrationOptions.eventId, scannerEventId),
@@ -838,14 +923,20 @@ Receipt history has its own warning and **Try again** action. A receipt-loading 
       }
 
       await transaction.insert(eventRegistrations).values({
-        basePriceAtRegistration: 0,
-        discountAmount: 0,
+        appliedDiscountedPrice: null,
+        appliedDiscountType: null,
+        basePriceAtRegistration: scannerRegistrationOption.price,
         checkedInGuestCount: 0,
+        discountAmount: 0,
         eventId: scannerEventId,
         guestCount: 2,
         id: scannerRegistrationId,
         registrationOptionId: scannerRegistrationOption.id,
         status: 'CONFIRMED',
+        stripeTaxRateId: null,
+        taxRateDisplayName: null,
+        taxRateInclusive: null,
+        taxRatePercentage: null,
         tenantId: seeded.tenant.id,
         userId: scannerUser.id,
       });
@@ -853,10 +944,16 @@ Receipt history has its own warning and **Try again** action. A receipt-loading 
 
     await page.goto(`/scan/registration/${scannerRegistrationId}`);
     await expect(
-      page.getByRole('heading', { name: 'Registration scanned' }),
+      page.getByRole('heading', { name: 'Ticket scanned' }),
     ).toBeVisible();
     await expect(page.getByText('Includes 2 guests.')).toBeVisible();
     await expect(page.getByText('0 checked in, 2 remaining.')).toBeVisible();
+    await expect(
+      page.getByText('Check-in closed', { exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByText('Check-in not open', { exact: true }),
+    ).toHaveCount(0);
     const confirmScannerCheckIn = await fillScannerGuestCheckInCount(page, {
       guestCount: 2,
       includeAttendee: true,
@@ -865,10 +962,10 @@ Receipt history has its own warning and **Try again** action. A receipt-loading 
       testInfo,
       page.locator('app-handle-registration'),
       page,
-      'Scanned registration with guest check-in',
+      'Scanned ticket with guest check-in',
     );
     await confirmScannerCheckIn.click();
-    await expect(page.getByText('Check-in recorded')).toBeVisible();
+    await expect(page.getByText('Check-in complete')).toBeVisible();
     await expect
       .poll(async () => {
         const registration = await database.query.eventRegistrations.findFirst({
@@ -881,6 +978,7 @@ Receipt history has its own warning and **Try again** action. A receipt-loading 
         const option = await database.query.eventRegistrationOptions.findFirst({
           columns: {
             checkedInSpots: true,
+            confirmedSpots: true,
           },
           where: { id: scannerRegistrationOption.id },
         });
@@ -889,34 +987,20 @@ Receipt history has its own warning and **Try again** action. A receipt-loading 
           checkedIn: registration?.checkInTime !== null,
           checkedInGuestCount: registration?.checkedInGuestCount,
           checkedInSpots: option?.checkedInSpots,
+          confirmedSpots: option?.confirmedSpots,
         };
       })
       .toEqual({
         checkedIn: true,
         checkedInGuestCount: 2,
         checkedInSpots: initialCheckedInSpots + 3,
+        confirmedSpots: scannerConfirmedSpots,
       });
     await page.goto(`/events/${scannerEventId}/organize`);
     await expect(page.getByTestId('event-organize-checked-in-stat')).toHaveText(
       String(initialCheckedInSpots + 3),
       { timeout: 15_000 },
     );
-  } finally {
-    await database
-      .delete(eventRegistrations)
-      .where(eq(eventRegistrations.id, scannerRegistrationId));
-    await database
-      .update(eventRegistrationOptions)
-      .set({
-        checkedInSpots: initialCheckedInSpots,
-        confirmedSpots: initialConfirmedSpots,
-      })
-      .where(
-        and(
-          eq(eventRegistrationOptions.eventId, scannerEventId),
-          eq(eventRegistrationOptions.id, scannerRegistrationOption.id),
-        ),
-      );
   }
 
   await testInfo.attach('markdown', {
