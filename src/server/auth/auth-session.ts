@@ -13,6 +13,7 @@ import * as HttpServerRequest from 'effect/unstable/http/HttpServerRequest';
 import * as HttpServerResponse from 'effect/unstable/http/HttpServerResponse';
 
 import { sanitizeRelativeRedirectPath } from '../../shared/auth-redirect';
+import { UsersAuthData } from '../../shared/rpc-contracts/app-rpcs/users.rpcs';
 import { RuntimeConfig } from '../config/runtime-config';
 
 export const AUTH_SESSION_COOKIE_IDENTIFIER = 'appSession';
@@ -333,6 +334,16 @@ const isPrimaryTokenSet = Schema.is(
   }),
 );
 
+export const decodeAuthSessionProfile = (authData: Record<string, unknown>) =>
+  Schema.decodeUnknownEffect(UsersAuthData)(authData).pipe(
+    Effect.mapError(() =>
+      invalidAuthSession(
+        'unusable-session-cookie',
+        'Auth0 session profile claims do not match the application contract',
+      ),
+    ),
+  );
+
 export const toAuthSession = (
   sessionData: unknown,
 ): Effect.Effect<AuthSession | undefined, InvalidAuthSessionError> => {
@@ -374,7 +385,9 @@ export const toAuthSession = (
     );
   }
 
-  return Effect.succeed({ authData });
+  // Validate before SSR or RPC handling, while retaining custom claims for
+  // server-side authority resolution rather than serializing them to clients.
+  return decodeAuthSessionProfile(authData).pipe(Effect.as({ authData }));
 };
 
 export const resolveRequestOrigin = (

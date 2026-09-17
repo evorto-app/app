@@ -22,3 +22,8 @@ for EOF, and reject unrecognized Playwright storage-state documents.
 Normalize the accepted internal SSR RPC path to the registered `/rpc` endpoint
 before forwarding privileged headers, and validate separately supplied query
 parameters before granting that forwarding.
+
+Validate sign-in profile claims before server rendering so invalid sessions
+receive the same non-cacheable sign-in recovery and cookie cleanup as RPC calls.
+Keep local test routing owned and abort-only until browser context closure is
+confirmed, including when context cleanup fails.

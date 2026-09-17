@@ -475,6 +475,91 @@ const unrelatedCookies = {
 describe('real Auth0 session-cookie loading and recovery', () => {
   afterEach(() => vi.restoreAllMocks());
 
+  for (const style of ['raw', 'chunked'] as const) {
+    it.effect.each([
+      { claim: 'email', value: 123 },
+      { claim: 'email_verified', value: 'true' },
+      { claim: 'given_name', value: false },
+      { claim: 'family_name', value: ['private-profile-value'] },
+    ])(
+      `recovers a malformed $claim in ${style} cookies before HTML request handling`,
+      ({ claim, value }) =>
+        Effect.gen(function* () {
+          const fetch = vi
+            .spyOn(globalThis, 'fetch')
+            .mockRejectedValue(new Error('Network is forbidden in this test'));
+          const runtime = yield* callbackRuntimeConfig;
+          const options = clientOptions(true);
+          const stateStore = options.stateStore;
+          if (!stateStore) throw new Error('Expected an Auth0 state store');
+          const state = storedStateData();
+          if (!state.user) throw new Error('Expected a fixture user');
+          // The encrypted cookie can be authentic while its profile violates
+          // the application's stricter claim contract.
+          Reflect.set(state.user, claim, value);
+          state.user['syntheticPadding'] = 'x'.repeat(7000);
+          const storeOptions = createAuthStoreOptions({}, true);
+          yield* Effect.promise(() =>
+            stateStore.set(
+              AUTH_SESSION_COOKIE_IDENTIFIER,
+              state,
+              false,
+              storeOptions,
+            ),
+          );
+          const chunks = Object.entries(storeOptions.cookies).filter(([name]) =>
+            /^appSession\.\d+$/u.test(name),
+          );
+          expect(chunks.length).toBeGreaterThan(1);
+          const cookies =
+            style === 'raw'
+              ? { appSession: chunks.map(([, contents]) => contents).join('') }
+              : Object.fromEntries(chunks);
+          const sdk = new ServerClient(options);
+          const loaded = yield* Effect.promise(() =>
+            sdk.getSession(createAuthStoreOptions(cookies, true)),
+          );
+          expect(loaded?.user?.[claim]).toEqual(value);
+
+          const request = sessionRequest({ ...unrelatedCookies, ...cookies });
+          let requestHandlingReached = false;
+          const response = yield* makeServerResponseMiddleware(
+            loadAuthSession(request).pipe(
+              Effect.map(() => {
+                requestHandlingReached = true;
+                return HttpServerResponse.empty();
+              }),
+            ),
+            { applicationEnvironment: 'production' },
+          ).pipe(
+            Effect.provideService(RuntimeConfig, runtime),
+            Effect.provideService(HttpServerRequest.HttpServerRequest, request),
+          );
+          const web = HttpServerResponse.toWeb(response);
+          expect(requestHandlingReached).toBe(false);
+          expect(web.status).toBe(401);
+          expect(web.headers.get('cache-control')).toBe('no-store');
+          expect(web.headers.get('location')).toBeNull();
+          const cleared = web.headers.getSetCookie();
+          expect(
+            cleared.map((cookie) => cookie.split('=', 1)[0]).toSorted(),
+          ).toEqual(Object.keys(cookies).toSorted());
+          for (const cookie of cleared) {
+            expect(cookie).toContain('Max-Age=0');
+            expect(cookie).toContain('HttpOnly');
+            expect(cookie).toContain('Secure');
+            expect(cookie).toContain('SameSite=Lax');
+          }
+          const html = yield* Effect.promise(() => web.text());
+          expect(html).toContain('Sign in again');
+          expect(html).toContain('href="/login"');
+          expect(html).not.toContain('private-profile-value');
+          expect(html).not.toContain('test-access-token');
+          expect(fetch).not.toHaveBeenCalled();
+        }),
+    );
+  }
+
   for (const cookies of [
     { appSession: 'not-encrypted' },
     { appSession: '' },
@@ -605,6 +690,28 @@ describe('real Auth0 session-cookie loading and recovery', () => {
         }),
     );
   }
+
+  it.effect(
+    'preserves an unexpected profile access defect before request handling',
+    () =>
+      Effect.gen(function* () {
+        const failure = new Error('unexpected profile access defect');
+        const exit = yield* toAuthSession({
+          ...sessionData(0),
+          user: {
+            get email() {
+              throw failure;
+            },
+            sub: 'auth0|test-user',
+          },
+        }).pipe(Effect.exit);
+        expect(Exit.isFailure(exit)).toBe(true);
+        if (Exit.isFailure(exit)) {
+          expect(Cause.hasDies(exit.cause)).toBe(true);
+          expect(Cause.squash(exit.cause)).toBe(failure);
+        }
+      }),
+  );
 
   it.effect(
     'preserves an unexpected SDK rejection as a defect even when a session cookie is present',

@@ -107,17 +107,10 @@ describe('RPC request context', () => {
     { claim: 'family_name', value: ['private-profile-value'] },
   ])('rejects malformed optional profile claims: $claim', ({ claim, value }) =>
     Effect.gen(function* () {
-      const authSession = yield* toAuthSession({
-        tokenSets: [
-          { accessToken: 'fixture-token', audience: 'default', expiresAt: 0 },
-        ],
-        user: { [claim]: value, sub: 'auth0|platform-admin' },
-      });
-      if (!authSession) throw new Error('Expected the decoded session fixture');
-      const error = yield* toRpcRequestContext(
-        platformContext,
-        authSession.authData,
-      ).pipe(Effect.flip);
+      const error = yield* toRpcRequestContext(platformContext, {
+        [claim]: value,
+        sub: 'auth0|platform-admin',
+      }).pipe(Effect.flip);
       expect(error).toBeInstanceOf(InvalidAuthSessionError);
       expect(error).toMatchObject({ reason: 'unusable-session-cookie' });
       expect(error.message).not.toContain('private-profile-value');
@@ -132,7 +125,18 @@ describe('RPC request context', () => {
     (profile) =>
       Effect.gen(function* () {
         const claims = { ...profile, sub: 'auth0|platform-admin' };
-        const context = yield* toRpcRequestContext(platformContext, claims);
+        const session = yield* toAuthSession({
+          tokenSets: [
+            { accessToken: 'fixture-token', audience: 'default', expiresAt: 0 },
+          ],
+          user: claims,
+        });
+        if (!session) throw new Error('Expected the decoded session fixture');
+        expect(session.authData).toBe(claims);
+        const context = yield* toRpcRequestContext(
+          platformContext,
+          session.authData,
+        );
         expect(context.authData).toEqual(claims);
       }),
   );

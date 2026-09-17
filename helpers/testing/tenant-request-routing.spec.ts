@@ -16,6 +16,33 @@ const registerRoute = async () => ({
   [Symbol.asyncDispose]: async () => {},
 });
 
+const unusedRequestOperation = (): never => {
+  throw new Error('Unexpected request operation during routing teardown');
+};
+
+const createTeardownRequest = (): Request => ({
+  allHeaders: async () => ({}),
+  existingResponse: unusedRequestOperation,
+  failure: unusedRequestOperation,
+  frame: unusedRequestOperation,
+  headers: unusedRequestOperation,
+  headersArray: unusedRequestOperation,
+  headerValue: unusedRequestOperation,
+  isNavigationRequest: unusedRequestOperation,
+  method: unusedRequestOperation,
+  postData: unusedRequestOperation,
+  postDataBuffer: unusedRequestOperation,
+  postDataJSON: unusedRequestOperation,
+  redirectedFrom: unusedRequestOperation,
+  redirectedTo: unusedRequestOperation,
+  resourceType: unusedRequestOperation,
+  response: unusedRequestOperation,
+  serviceWorker: unusedRequestOperation,
+  sizes: unusedRequestOperation,
+  timing: unusedRequestOperation,
+  url: unusedRequestOperation,
+});
+
 describe('local tenant request routing', () => {
   it('matches only the application origin', () => {
     expect(
@@ -179,6 +206,7 @@ describe('local tenant request routing', () => {
       context,
       tenantDomain: 'north-river.evorto.app',
     });
+    await expect(stopTenantRequestRouting(context)).rejects.toBe(failure);
     await expect(closeTenantRequestContext(context)).rejects.toBe(failure);
     expect(context.close).toHaveBeenCalledOnce();
   });
@@ -203,8 +231,9 @@ describe('local tenant request routing', () => {
       context,
       tenantDomain: 'north-river.evorto.app',
     });
+    await expect(stopTenantRequestRouting(context)).rejects.toBe(routeFailure);
     await expect(closeTenantRequestContext(context)).rejects.toMatchObject({
-      errors: [routeFailure, closeFailure],
+      errors: [closeFailure, routeFailure],
     });
   });
 
@@ -240,6 +269,58 @@ describe('local tenant request routing', () => {
     await expect(stopTenantRequestRouting(context)).rejects.toBe(failure);
     await expect(stopTenantRequestRouting(context)).resolves.toBeUndefined();
     expect(context.unroute).toHaveBeenCalledOnce();
+  });
+
+  it('does not release a callback admitted during an ordinary stop', async () => {
+    const installed: { handler?: Parameters<BrowserContext['route']>[1] } = {};
+    const releaseAbort = Promise.withResolvers<void>();
+    const context = {
+      close: vi.fn(async () => {}),
+      grantPermissions: async () => {},
+      isClosed: () => false,
+      route: async (
+        _pattern: string,
+        handler: Parameters<BrowserContext['route']>[1],
+      ) => {
+        installed.handler = handler;
+        return registerRoute();
+      },
+      unroute: vi.fn(async () => {
+        Reflect.deleteProperty(installed, 'handler');
+      }),
+    };
+    await routeLocalTenantRequests({
+      baseUrl: 'http://localhost:4200',
+      context,
+      tenantDomain: 'north-river.evorto.app',
+    });
+    const request = createTeardownRequest();
+    const route: Route = {
+      abort: async () => releaseAbort.promise,
+      continue: unusedRequestOperation,
+      fallback: unusedRequestOperation,
+      fetch: unusedRequestOperation,
+      fulfill: unusedRequestOperation,
+      request: () => request,
+    };
+    let stopped = false;
+    const stopping = stopTenantRequestRouting(context).then(() => {
+      stopped = true;
+    });
+    // A browser can dispatch only while the registered handler remains installed.
+    const admitted = installed.handler !== undefined;
+    const callback = installed.handler?.(route, request);
+    try {
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(stopped).toBe(!admitted);
+      expect(context.unroute).toHaveBeenCalledTimes(admitted ? 0 : 1);
+    } finally {
+      releaseAbort.resolve();
+      await callback;
+      await stopping;
+    }
+    expect(context.unroute).toHaveBeenCalledOnce();
+    expect(context.close).not.toHaveBeenCalled();
   });
 
   it('closes a context whose routing setup never ran', async () => {
@@ -449,16 +530,20 @@ describe('tenant request page lifetime', () => {
 });
 
 describe('owned tenant context lifetime', () => {
-  it('keeps the context alive until page closure and route draining finish', async () => {
+  it('keeps the context alive when a pending stop precedes owned teardown', async () => {
     const events: string[] = [];
-    const draining = Promise.withResolvers<void>();
+    const fetched = Promise.withResolvers<void>();
+    const pageClosing = Promise.withResolvers<void>();
     const release = Promise.withResolvers<void>();
+    const routeFailure = new Error('Admitted request finishes with a failure');
+    const installed: { handler?: Parameters<BrowserContext['route']>[1] } = {};
     let pageClosed = false;
     let contextClosed = false;
     const page = {
       close: async () => {
         events.push('page close');
         pageClosed = true;
+        pageClosing.resolve();
       },
       isClosed: () => pageClosed,
     };
@@ -470,34 +555,69 @@ describe('owned tenant context lifetime', () => {
       grantPermissions: async () => {},
       isClosed: () => contextClosed,
       pages: () => (pageClosed ? [] : [page]),
-      route: registerRoute,
-      unroute: async () => {
-        events.push('drain');
-        draining.resolve();
-        await release.promise;
+      route: async (
+        _pattern: string,
+        handler: Parameters<BrowserContext['route']>[1],
+      ) => {
+        installed.handler = handler;
+        return registerRoute();
       },
+      unroute: vi.fn(async () => {}),
     };
     await routeLocalTenantRequests({
       baseUrl: 'http://localhost:4200',
       context,
       tenantDomain: 'north-river.evorto.app',
     });
-    const closed = closeTenantRequestContext(context);
-    await draining.promise;
+    const request = createTeardownRequest();
+    const route: Route = {
+      abort: async () => {
+        events.push('route settled');
+      },
+      continue: unusedRequestOperation,
+      fallback: unusedRequestOperation,
+      fetch: async () => {
+        events.push('fetch');
+        fetched.resolve();
+        await release.promise;
+        throw routeFailure;
+      },
+      fulfill: unusedRequestOperation,
+      request: () => request,
+    };
+    const handler = installed.handler;
+    if (!handler) throw new Error('Tenant route handler was not installed');
+    const callback = handler(route, request);
+    await fetched.promise;
+    const stopping = stopTenantRequestRouting(context).catch(
+      (error: unknown) => error,
+    );
+    const closed = closeTenantRequestContext(context).catch(
+      (error: unknown) => error,
+    );
+    await pageClosing.promise;
     const beforeRelease = { events: [...events], contextClosed };
     release.resolve();
-    await closed;
+    expect(await stopping).toBe(routeFailure);
+    expect(await closed).toBe(routeFailure);
+    await callback;
     expect(beforeRelease).toEqual({
-      events: ['page close', 'drain'],
+      events: ['fetch', 'page close'],
       contextClosed: false,
     });
-    expect(events).toEqual(['page close', 'drain', 'context close']);
+    expect(events).toEqual([
+      'fetch',
+      'page close',
+      'route settled',
+      'context close',
+    ]);
     expect(contextClosed).toBe(true);
+    expect(context.unroute).not.toHaveBeenCalled();
     await closeTenantRequestContext(context);
     expect(context.close).toHaveBeenCalledOnce();
   });
 
-  it('preserves page, drain and context failures without repeating an attempted drain', async () => {
+  it('preserves page, prior route-removal and context failures without retrying', async () => {
     const pageFailure = new Error('page close reported failure');
     const drainFailure = new Error('route drain failed');
     const contextFailure = new Error('context close failed');
@@ -526,70 +646,120 @@ describe('owned tenant context lifetime', () => {
       context,
       tenantDomain: 'north-river.evorto.app',
     });
+    await expect(stopTenantRequestRouting(context)).rejects.toBe(drainFailure);
     const failure = await closeTenantRequestContext(context).catch(
       (error: unknown) => error,
     );
     if (!(failure instanceof AggregateError)) throw failure;
-    expect(failure.errors).toEqual([pageFailure, drainFailure, contextFailure]);
+    expect(failure.errors).toEqual([pageFailure, contextFailure, drainFailure]);
     expect(failure.errors[0]).toBe(pageFailure);
-    expect(failure.errors[1]).toBe(drainFailure);
-    expect(failure.errors[2]).toBe(contextFailure);
+    expect(failure.errors[1]).toBe(contextFailure);
+    expect(failure.errors[2]).toBe(drainFailure);
     expect(context.unroute).toHaveBeenCalledOnce();
     expect(context.close).toHaveBeenCalledOnce();
   });
 
-  it.each([false, true])(
-    'retains routing without retry when context closure is unproven (close rejects: %s)',
-    async (rejectClose) => {
+  it.each([
+    { pagesClose: false, rejectClose: false },
+    { pagesClose: false, rejectClose: true },
+    { pagesClose: true, rejectClose: false },
+    { pagesClose: true, rejectClose: true },
+  ])(
+    'retains interception while closure is pending or unproven (pages close: $pagesClose; close rejects: $rejectClose)',
+    async ({ pagesClose, rejectClose }) => {
       const pageFailure = new Error('page remains open');
       const contextFailure = new Error('context close rejected');
+      const closeStarted = Promise.withResolvers<void>();
+      const releaseClose = Promise.withResolvers<void>();
+      const installed: { handler?: Parameters<BrowserContext['route']>[1] } =
+        {};
+      let pageClosed = false;
       const page = {
         close: async () => {
-          throw pageFailure;
+          if (!pagesClose) throw pageFailure;
+          pageClosed = true;
         },
-        isClosed: () => false,
+        isClosed: () => pageClosed,
       };
       const context = {
         close: vi.fn(async () => {
+          closeStarted.resolve();
+          await releaseClose.promise;
           if (rejectClose) throw contextFailure;
         }),
         grantPermissions: async () => {},
         isClosed: () => false,
-        pages: () => [page],
-        route: registerRoute,
+        pages: () => (pageClosed ? [] : [page]),
+        route: async (
+          _pattern: string,
+          handler: Parameters<BrowserContext['route']>[1],
+        ) => {
+          installed.handler = handler;
+          return registerRoute();
+        },
         unroute: vi.fn(async () => {}),
       };
-      await routeLocalTenantRequests({
-        baseUrl: 'http://localhost:4200',
-        context,
-        tenantDomain: 'north-river.evorto.app',
-      });
-      const failure = await closeTenantRequestContext(context).catch(
-        (error: unknown) => error,
-      );
-      if (!(failure instanceof AggregateError)) throw failure;
-      expect(failure.errors[0]).toBe(pageFailure);
-      expect(failure.errors[1]).toMatchObject({
-        message: 'Tenant request pages remain open; routing remains installed',
-      });
-      if (rejectClose) expect(failure.errors[2]).toBe(contextFailure);
-      else
-        expect(failure.errors[2]).toMatchObject({
-          message: 'Tenant request context closure is unproven',
-        });
-      expect(failure.errors).toHaveLength(3);
-      await expect(closeTenantRequestContext(context)).rejects.toBeInstanceOf(
-        AggregateError,
-      );
-      expect(context.close).toHaveBeenCalledOnce();
-      expect(context.unroute).not.toHaveBeenCalled();
-      await expect(
+      const install = () =>
         routeLocalTenantRequests({
           baseUrl: 'http://localhost:4200',
           context,
-          tenantDomain: 'replacement.example.org',
-        }),
-      ).rejects.toThrow('Tenant request routing is already installed');
+          tenantDomain: 'north-river.evorto.app',
+        });
+      await install();
+      const closing = closeTenantRequestContext(context).catch(
+        (error: unknown) => error,
+      );
+      await closeStarted.promise;
+      try {
+        await stopTenantRequestRouting(context);
+        expect(context.unroute).not.toHaveBeenCalled();
+        await expect(install()).rejects.toThrow(
+          'Tenant request routing is already installed',
+        );
+      } finally {
+        releaseClose.resolve();
+      }
+      const failure = await closing;
+      const errors =
+        failure instanceof AggregateError ? failure.errors : [failure];
+      if (!pagesClose) {
+        expect(errors[0]).toBe(pageFailure);
+        expect(errors[1]).toMatchObject({
+          message:
+            'Tenant request pages remain open; routing remains installed',
+        });
+      }
+      const closeErrorIndex = pagesClose ? 0 : 2;
+      if (rejectClose) expect(errors[closeErrorIndex]).toBe(contextFailure);
+      else
+        expect(errors[closeErrorIndex]).toMatchObject({
+          message: 'Tenant request context closure is unproven',
+        });
+      expect(errors).toHaveLength(pagesClose ? 1 : 3);
+      const request = createTeardownRequest();
+      const abort = vi.fn(async () => {});
+      const fetch = vi.fn(unusedRequestOperation);
+      const route: Route = {
+        abort,
+        continue: unusedRequestOperation,
+        fallback: unusedRequestOperation,
+        fetch,
+        fulfill: unusedRequestOperation,
+        request: () => request,
+      };
+      const handler = installed.handler;
+      if (!handler) throw new Error('Tenant route handler was not installed');
+      await handler(route, request);
+      expect(abort).toHaveBeenCalledExactlyOnceWith('aborted');
+      expect(fetch).not.toHaveBeenCalled();
+      await expect(closeTenantRequestContext(context)).rejects.toBeInstanceOf(
+        Error,
+      );
+      expect(context.close).toHaveBeenCalledOnce();
+      expect(context.unroute).not.toHaveBeenCalled();
+      await expect(install()).rejects.toThrow(
+        'Tenant request routing is already installed',
+      );
     },
   );
 
@@ -727,7 +897,7 @@ describe('owned tenant context lifetime', () => {
       expect(contextClosed).toBe(true);
       expect(context.close).toHaveBeenCalledOnce();
       expect(abort).toHaveBeenCalledExactlyOnceWith('failed');
-      expect(context.unroute).toHaveBeenCalledOnce();
+      expect(context.unroute).not.toHaveBeenCalled();
     },
   );
 });

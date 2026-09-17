@@ -12,6 +12,7 @@ type TenantRoute = {
   errors: unknown[];
   handler: (route: Route) => Promise<void>;
   isContextClosed: () => boolean;
+  ownedContextClosing: boolean;
   pattern: string;
   routeRemovalFailed: boolean;
 };
@@ -112,6 +113,7 @@ export const routeLocalTenantRequests = async ({
       return operation;
     },
     isContextClosed: () => context.isClosed(),
+    ownedContextClosing: false,
     pattern: localTenantRequestPattern(baseUrl),
     routeRemovalFailed: false,
   };
@@ -119,11 +121,42 @@ export const routeLocalTenantRequests = async ({
   await context.route(state.pattern, state.handler);
 };
 
+const drainTenantRoute = async (state: TenantRoute): Promise<void> => {
+  state.closing = true;
+  while (state.active.size > 0) {
+    await Promise.allSettled([...state.active]);
+  }
+};
+
+const throwTenantRouteErrors = (
+  state: TenantRoute,
+  contextRemainsOpen: boolean,
+): void => {
+  if (state.errors.length === 1) throw state.errors[0];
+  if (state.errors.length > 1) {
+    throw new AggregateError(
+      state.errors,
+      contextRemainsOpen
+        ? 'Tenant request routing cleanup failed; context remains open and routing remains installed'
+        : 'Tenant request routing cleanup failed',
+    );
+  }
+};
+
 export const stopTenantRequestRouting = async (
   context: RoutingContext,
 ): Promise<void> => {
   const state = tenantRoutes.get(context);
   if (!state) return;
+  if (state.ownedContextClosing) {
+    // The context owner releases interception through confirmed disposal.
+    // A concurrent stop may drain callbacks, but cannot release a live context.
+    await drainTenantRoute(state);
+    const contextRemainsOpen = !state.isContextClosed();
+    if (!contextRemainsOpen) tenantRoutes.delete(context);
+    throwTenantRouteErrors(state, contextRemainsOpen);
+    return;
+  }
   if (
     (state.emergencyClose || state.routeRemovalFailed) &&
     state.isContextClosed()
@@ -139,7 +172,7 @@ export const stopTenantRequestRouting = async (
       while (state.active.size > 0) {
         await Promise.allSettled([...state.active]);
       }
-      if (!state.emergencyClose) {
+      if (!state.emergencyClose && !state.ownedContextClosing) {
         try {
           await context.unroute(state.pattern, state.handler);
         } catch (error) {
@@ -148,18 +181,12 @@ export const stopTenantRequestRouting = async (
         }
       }
       const contextRemainsOpen =
-        (state.emergencyClose !== undefined || state.routeRemovalFailed) &&
+        (state.ownedContextClosing ||
+          state.emergencyClose !== undefined ||
+          state.routeRemovalFailed) &&
         !state.isContextClosed();
       if (!contextRemainsOpen) tenantRoutes.delete(context);
-      if (state.errors.length === 1) throw state.errors[0];
-      if (state.errors.length > 1) {
-        throw new AggregateError(
-          state.errors,
-          contextRemainsOpen
-            ? 'Tenant request routing cleanup failed; context remains open and routing remains installed'
-            : 'Tenant request routing cleanup failed',
-        );
-      }
+      throwTenantRouteErrors(state, contextRemainsOpen);
     })();
   }
   await state.draining;
@@ -169,6 +196,7 @@ const closeTenantRequestPagePhase = async (
   context: RoutingContext & {
     pages: () => readonly Pick<Page, 'close' | 'isClosed'>[];
   },
+  retainRouting = false,
 ) => {
   const errors: unknown[] = [];
   let drainAttempted = false;
@@ -203,7 +231,9 @@ const closeTenantRequestPagePhase = async (
   } else {
     drainAttempted = true;
     try {
-      await stopTenantRequestRouting(context);
+      const state = tenantRoutes.get(context);
+      if (retainRouting && state) await drainTenantRoute(state);
+      else await stopTenantRequestRouting(context);
     } catch (error) {
       errors.push(error);
     }
@@ -225,7 +255,13 @@ export const closeTenantRequestContext = async (
   context: Parameters<typeof closeTenantRequestPages>[0] &
     Pick<BrowserContext, 'close' | 'isClosed'>,
 ): Promise<void> => {
-  const { errors, drainAttempted } = await closeTenantRequestPagePhase(context);
+  const state = tenantRoutes.get(context);
+  if (state) state.ownedContextClosing = true;
+  const { errors, drainAttempted } = await closeTenantRequestPagePhase(
+    context,
+    true,
+  );
+  if (state) state.closing = true;
   let closeSucceeded = false;
   if (!contextCloseAttempts.has(context)) {
     // Share the attempt with route callbacks before context disposal can fail
@@ -259,20 +295,18 @@ export const closeTenantRequestContext = async (
   } catch (error) {
     errors.push(error);
   }
-  if (!drainAttempted) {
-    if (contextClosed) {
-      // Page cleanup could not safely drain live pages. The confirmed closed
-      // context now permits joining callbacks without releasing a live request.
-      try {
-        await stopTenantRequestRouting(context);
-      } catch (error) {
-        errors.push(error);
-      }
-    } else {
-      // Keep interception and its callback ownership when closure is unproven.
-      // Report errors already observed; do not start or repeat a cached drain.
-      errors.push(...(tenantRoutes.get(context)?.errors ?? []));
+  if (contextClosed) {
+    // Confirmed disposal removes interception. Join callbacks admitted during
+    // closure before releasing their ownership or reporting their failures.
+    try {
+      await stopTenantRequestRouting(context);
+    } catch (error) {
+      errors.push(error);
     }
+  } else {
+    // Keep interception and its callback ownership when closure is unproven.
+    // Report errors already observed; do not wait on requests needing disposal.
+    errors.push(...(tenantRoutes.get(context)?.errors ?? []));
   }
   if (!contextClosed && errors.length === 0) {
     errors.push(new Error('Tenant request context closure is unproven'));
