@@ -1,10 +1,7 @@
 import type { Browser, Page } from '@playwright/test';
 import type { DateTime } from 'luxon';
 
-import { and, eq } from 'drizzle-orm';
-
 import { adminStateFile, userStateFile } from '../../../helpers/user-data';
-import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { openAuthenticatedTestPage } from '../../support/utils/authenticated-test-page';
 import {
@@ -33,11 +30,13 @@ const openEventFromList = async (
 const openOrganizerView = async ({
   browser,
   participantPage,
+  registerDatabaseCleanup,
   scenario,
   testClock,
 }: {
   browser: Browser;
   participantPage: Page;
+  registerDatabaseCleanup: (cleanup: () => Promise<void>) => void;
   scenario: ManualApprovalScenario;
   testClock: DateTime;
 }) => {
@@ -48,6 +47,7 @@ const openOrganizerView = async ({
     tenantDomain: scenario.tenant.domain,
     testClock,
   });
+  registerDatabaseCleanup(organizer.close);
 
   await openEventFromList(organizer.page, scenario);
   await organizer.page
@@ -134,6 +134,7 @@ test.describe('Manual approval registrations', () => {
   test.describe.configure({ mode: 'default' });
 
   test('confirms a free application exactly once', async ({
+    registerDatabaseCleanup,
     browser,
     database,
     page,
@@ -146,114 +147,106 @@ test.describe('Manual approval registrations', () => {
       kind: 'free',
       seeded,
     });
-    let organizer:
-      Awaited<ReturnType<typeof openAuthenticatedTestPage>> | undefined;
+    registerDatabaseCleanup(scenario.cleanup);
 
-    try {
-      await openEventFromList(page, scenario);
-      await applyForApproval(page, scenario);
-      const registration = await findParticipantRegistration(
-        database,
-        scenario,
-      );
+    await openEventFromList(page, scenario);
+    await applyForApproval(page, scenario);
+    const registration = await findParticipantRegistration(database, scenario);
 
-      expect(registration.status).toBe('PENDING');
-      expect(
-        await database.query.transactions.findMany({
-          where: { eventRegistrationId: registration.id },
-        }),
-      ).toHaveLength(0);
-      expect(
-        await approvalOutboxRows(database, registration.id, scenario.tenant.id),
-      ).toHaveLength(0);
-      expect(
-        await database.query.eventRegistrationOptions.findFirst({
+    expect(registration.status).toBe('PENDING');
+    expect(
+      await database.query.transactions.findMany({
+        where: { eventRegistrationId: registration.id },
+      }),
+    ).toHaveLength(0);
+    expect(
+      await approvalOutboxRows(database, registration.id, scenario.tenant.id),
+    ).toHaveLength(0);
+    expect(
+      await database.query.eventRegistrationOptions.findFirst({
+        columns: { confirmedSpots: true, reservedSpots: true },
+        where: { id: scenario.optionId },
+      }),
+    ).toEqual({ confirmedSpots: 0, reservedSpots: 0 });
+
+    const organizer = await openOrganizerView({
+      registerDatabaseCleanup,
+      browser,
+      participantPage: page,
+      scenario,
+      testClock,
+    });
+    await expect(
+      organizer.page.getByText(
+        `${scenario.participant.firstName} ${scenario.participant.lastName}`,
+        { exact: true },
+      ),
+    ).toBeVisible();
+    await expect(organizer.page.getByText('Awaiting approval')).toBeVisible();
+    const approveButton = organizer.page.getByRole('button', {
+      name: 'Approve application',
+    });
+    await expect(approveButton).toBeEnabled();
+    await expect(approveButton).not.toHaveAttribute('jsaction', /click/, {
+      timeout: 20_000,
+    });
+    await approveButton.click();
+    await expect(
+      organizer.page.getByText('Registration confirmed'),
+    ).toBeVisible({ timeout: 20_000 });
+    await expect(approveButton).toHaveCount(0);
+
+    await expect
+      .poll(async () => {
+        const persisted = await database.query.eventRegistrations.findFirst({
+          where: { id: registration.id },
+        });
+        const option = await database.query.eventRegistrationOptions.findFirst({
           columns: { confirmedSpots: true, reservedSpots: true },
           where: { id: scenario.optionId },
-        }),
-      ).toEqual({ confirmedSpots: 0, reservedSpots: 0 });
-
-      organizer = await openOrganizerView({
-        browser,
-        participantPage: page,
-        scenario,
-        testClock,
-      });
-      await expect(
-        organizer.page.getByText(
-          `${scenario.participant.firstName} ${scenario.participant.lastName}`,
-          { exact: true },
-        ),
-      ).toBeVisible();
-      await expect(organizer.page.getByText('Awaiting approval')).toBeVisible();
-      const approveButton = organizer.page.getByRole('button', {
-        name: 'Approve application',
-      });
-      await expect(approveButton).toBeEnabled();
-      await expect(approveButton).not.toHaveAttribute('jsaction', /click/, {
-        timeout: 20_000,
-      });
-      await approveButton.click();
-      await expect(
-        organizer.page.getByText('Registration confirmed'),
-      ).toBeVisible({ timeout: 20_000 });
-      await expect(approveButton).toHaveCount(0);
-
-      await expect
-        .poll(async () => {
-          const persisted = await database.query.eventRegistrations.findFirst({
-            where: { id: registration.id },
-          });
-          const option =
-            await database.query.eventRegistrationOptions.findFirst({
-              columns: { confirmedSpots: true, reservedSpots: true },
-              where: { id: scenario.optionId },
-            });
-          const outbox = await approvalOutboxRows(
-            database,
-            registration.id,
-            scenario.tenant.id,
-          );
-          return {
-            confirmedSpots: option?.confirmedSpots,
-            outboxCount: outbox.length,
-            reservedSpots: option?.reservedSpots,
-            status: persisted?.status,
-            subject: outbox[0]?.subject,
-          };
-        })
-        .toEqual({
-          confirmedSpots: 1,
-          outboxCount: 1,
-          reservedSpots: 0,
-          status: 'CONFIRMED',
-          subject: 'Registration approved',
         });
+        const outbox = await approvalOutboxRows(
+          database,
+          registration.id,
+          scenario.tenant.id,
+        );
+        return {
+          confirmedSpots: option?.confirmedSpots,
+          outboxCount: outbox.length,
+          reservedSpots: option?.reservedSpots,
+          status: persisted?.status,
+          subject: outbox[0]?.subject,
+        };
+      })
+      .toEqual({
+        confirmedSpots: 1,
+        outboxCount: 1,
+        reservedSpots: 0,
+        status: 'CONFIRMED',
+        subject: 'Sign-up approved',
+      });
 
-      await page.reload();
-      await waitForRegistrationStatus(page);
-      await expect(page.getByText('You are registered')).toBeVisible();
-      await expect(
-        page.getByRole('img', { name: 'QR code for the registration' }),
-      ).toBeVisible();
-      await expect(
-        page.getByRole('button', { name: 'Apply for approval' }),
-      ).toHaveCount(0);
-      expect(
-        await database.query.transactions.findMany({
-          where: { eventRegistrationId: registration.id },
-        }),
-      ).toHaveLength(0);
-      expect(
-        await approvalOutboxRows(database, registration.id, scenario.tenant.id),
-      ).toHaveLength(1);
-    } finally {
-      await organizer?.close();
-      await scenario.cleanup();
-    }
+    await page.reload();
+    await waitForRegistrationStatus(page);
+    await expect(page.getByText('You are registered')).toBeVisible();
+    await expect(
+      page.getByRole('img', { name: 'QR code for the registration' }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Apply for approval' }),
+    ).toHaveCount(0);
+    expect(
+      await database.query.transactions.findMany({
+        where: { eventRegistrationId: registration.id },
+      }),
+    ).toHaveLength(0);
+    expect(
+      await approvalOutboxRows(database, registration.id, scenario.tenant.id),
+    ).toHaveLength(1);
   });
 
   test('creates one Checkout and confirms a paid application after payment', async ({
+    registerDatabaseCleanup,
     browser,
     database,
     page,
@@ -267,179 +260,172 @@ test.describe('Manual approval registrations', () => {
       kind: 'paid',
       seeded,
     });
-    let organizer:
-      Awaited<ReturnType<typeof openAuthenticatedTestPage>> | undefined;
+    registerDatabaseCleanup(scenario.cleanup);
 
-    try {
-      await openEventFromList(page, scenario);
-      await applyForApproval(page, scenario);
-      const registration = await findParticipantRegistration(
-        database,
-        scenario,
-      );
-      expect(
-        await database.query.transactions.findMany({
-          where: { eventRegistrationId: registration.id },
-        }),
-      ).toHaveLength(0);
+    await openEventFromList(page, scenario);
+    await applyForApproval(page, scenario);
+    const registration = await findParticipantRegistration(database, scenario);
+    expect(
+      await database.query.transactions.findMany({
+        where: { eventRegistrationId: registration.id },
+      }),
+    ).toHaveLength(0);
 
-      organizer = await openOrganizerView({
-        browser,
-        participantPage: page,
-        scenario,
-        testClock,
-      });
-      await expect(organizer.page.getByText('Awaiting approval')).toBeVisible();
-      const approveButton = organizer.page.getByRole('button', {
-        name: 'Approve application',
-      });
-      await expect(approveButton).not.toHaveAttribute('jsaction', /click/, {
-        timeout: 20_000,
-      });
-      await approveButton.click();
-      await expect(
-        organizer.page.getByText(
-          'Application approved. Payment is required before confirmation.',
-        ),
-      ).toBeVisible({ timeout: 20_000 });
-      await expect(organizer.page.getByText('Payment pending')).toBeVisible({
-        timeout: 20_000,
-      });
-      await expect(
-        organizer.page.getByRole('button', { name: 'Approve application' }),
-      ).toHaveCount(0);
+    const organizer = await openOrganizerView({
+      registerDatabaseCleanup,
+      browser,
+      participantPage: page,
+      scenario,
+      testClock,
+    });
+    await expect(organizer.page.getByText('Awaiting approval')).toBeVisible();
+    const approveButton = organizer.page.getByRole('button', {
+      name: 'Approve application',
+    });
+    await expect(approveButton).not.toHaveAttribute('jsaction', /click/, {
+      timeout: 20_000,
+    });
+    await approveButton.click();
+    await expect(
+      organizer.page.getByText(
+        'Application approved. Payment is required before confirmation.',
+      ),
+    ).toBeVisible({ timeout: 20_000 });
+    await expect(organizer.page.getByText('Payment pending')).toBeVisible({
+      timeout: 20_000,
+    });
+    await expect(
+      organizer.page.getByRole('button', { name: 'Approve application' }),
+    ).toHaveCount(0);
 
-      await expect(async () => {
-        const transactions = await database.query.transactions.findMany({
-          where: {
-            eventRegistrationId: registration.id,
-            status: 'pending',
-            type: 'registration',
-          },
-        });
-        expect({
-          count: transactions.length,
-          hasSession: Boolean(transactions[0]?.stripeCheckoutSessionId),
-          hasUrl: Boolean(transactions[0]?.stripeCheckoutUrl),
-        }).toEqual({ count: 1, hasSession: true, hasUrl: true });
-      }).toPass({
-        intervals: [250, 500, 1_000],
-        timeout: 15_000,
-      });
-
-      const [pendingTransaction] = await database.query.transactions.findMany({
+    await expect(async () => {
+      const transactions = await database.query.transactions.findMany({
         where: {
           eventRegistrationId: registration.id,
           status: 'pending',
           type: 'registration',
         },
       });
-      if (
-        !pendingTransaction?.stripeAccountId ||
-        !pendingTransaction.stripeCheckoutSessionId ||
-        !pendingTransaction.stripeCheckoutUrl
-      ) {
-        throw new Error('Expected paid approval Checkout ownership details');
-      }
-      expect(pendingTransaction.stripeAccountId).toBe(
-        scenario.tenant.stripeAccountId,
-      );
-      expect(
-        await database.query.eventRegistrationOptions.findFirst({
-          columns: { confirmedSpots: true, reservedSpots: true },
-          where: { id: scenario.optionId },
-        }),
-      ).toEqual({ confirmedSpots: 0, reservedSpots: 1 });
-      const approvalEmails = await approvalOutboxRows(
-        database,
-        registration.id,
-        scenario.tenant.id,
-      );
-      expect(approvalEmails).toHaveLength(1);
-      expect(approvalEmails[0]?.subject).toBe(
-        'Registration approved: payment required',
-      );
+      expect({
+        count: transactions.length,
+        hasSession: Boolean(transactions[0]?.stripeCheckoutSessionId),
+        hasUrl: Boolean(transactions[0]?.stripeCheckoutUrl),
+      }).toEqual({ count: 1, hasSession: true, hasUrl: true });
+    }).toPass({
+      intervals: [250, 500, 1_000],
+      timeout: 15_000,
+    });
 
-      await page.reload();
-      await waitForRegistrationStatus(page);
-      await expect(
-        page.getByText('Complete payment to confirm your registration.'),
-      ).toBeVisible();
-      const payNow = page.getByRole('link', { name: 'Pay now' });
-      await expect(payNow).toHaveAttribute(
-        'href',
-        pendingTransaction.stripeCheckoutUrl,
-      );
-      await expect(
-        page.getByRole('img', { name: 'QR code for the registration' }),
-      ).toHaveCount(0);
-
-      await deliverCompletedRegistrationCheckoutWebhook({
-        amount: pendingTransaction.amount,
-        applicationFeeAmount: pendingTransaction.appFee,
-        currency: pendingTransaction.currency,
-        paymentIntentId: pendingTransaction.stripePaymentIntentId,
-        registrationId: registration.id,
-        request,
-        sessionId: pendingTransaction.stripeCheckoutSessionId,
-        stripeAccountId: pendingTransaction.stripeAccountId,
-        tenantId: scenario.tenant.id,
-        transactionId: pendingTransaction.id,
-      });
-
-      await expect
-        .poll(
-          async () => {
-            const persistedTransaction =
-              await database.query.transactions.findFirst({
-                where: { id: pendingTransaction.id },
-              });
-            const persistedRegistration =
-              await database.query.eventRegistrations.findFirst({
-                where: { id: registration.id },
-              });
-            return `${persistedTransaction?.status}:${persistedRegistration?.status}`;
-          },
-          {
-            intervals: [1_000, 2_000, 4_000],
-            timeout: 90_000,
-          },
-        )
-        .toBe('successful:CONFIRMED');
-
-      await page.reload();
-      await waitForRegistrationStatus(page);
-      await expect(page.getByText('You are registered')).toBeVisible();
-      await expect(
-        page.getByRole('img', { name: 'QR code for the registration' }),
-      ).toBeVisible();
-      expect(
-        await database.query.eventRegistrationOptions.findFirst({
-          columns: { confirmedSpots: true, reservedSpots: true },
-          where: { id: scenario.optionId },
-        }),
-      ).toEqual({ confirmedSpots: 1, reservedSpots: 0 });
-      expect(
-        await database.query.transactions.findMany({
-          where: {
-            eventRegistrationId: registration.id,
-            type: 'registration',
-          },
-        }),
-      ).toHaveLength(1);
-      expect(
-        await approvalOutboxRows(database, registration.id, scenario.tenant.id),
-      ).toHaveLength(1);
-    } finally {
-      await organizer?.close();
-      await scenario.cleanup();
+    const [pendingTransaction] = await database.query.transactions.findMany({
+      where: {
+        eventRegistrationId: registration.id,
+        status: 'pending',
+        type: 'registration',
+      },
+    });
+    if (
+      !pendingTransaction?.stripeAccountId ||
+      !pendingTransaction.stripeCheckoutSessionId ||
+      !pendingTransaction.stripeCheckoutUrl
+    ) {
+      throw new Error('Expected paid approval Checkout ownership details');
     }
+    expect(pendingTransaction.stripeAccountId).toBe(
+      scenario.tenant.stripeAccountId,
+    );
+    expect(
+      await database.query.eventRegistrationOptions.findFirst({
+        columns: { confirmedSpots: true, reservedSpots: true },
+        where: { id: scenario.optionId },
+      }),
+    ).toEqual({ confirmedSpots: 0, reservedSpots: 1 });
+    const approvalEmails = await approvalOutboxRows(
+      database,
+      registration.id,
+      scenario.tenant.id,
+    );
+    expect(approvalEmails).toHaveLength(1);
+    expect(approvalEmails[0]?.subject).toBe(
+      'Sign-up approved: payment required',
+    );
+
+    await page.reload();
+    await waitForRegistrationStatus(page);
+    await expect(
+      page.getByText('Complete payment to confirm your registration.'),
+    ).toBeVisible();
+    const payNow = page.getByRole('link', { name: 'Pay now' });
+    await expect(payNow).toHaveAttribute(
+      'href',
+      pendingTransaction.stripeCheckoutUrl,
+    );
+    await expect(
+      page.getByRole('img', { name: 'QR code for the registration' }),
+    ).toHaveCount(0);
+
+    await deliverCompletedRegistrationCheckoutWebhook({
+      amount: pendingTransaction.amount,
+      applicationFeeAmount: pendingTransaction.appFee,
+      currency: pendingTransaction.currency,
+      paymentIntentId: pendingTransaction.stripePaymentIntentId,
+      registrationId: registration.id,
+      request,
+      sessionId: pendingTransaction.stripeCheckoutSessionId,
+      stripeAccountId: pendingTransaction.stripeAccountId,
+      tenantId: scenario.tenant.id,
+      transactionId: pendingTransaction.id,
+    });
+
+    await expect
+      .poll(
+        async () => {
+          const persistedTransaction =
+            await database.query.transactions.findFirst({
+              where: { id: pendingTransaction.id },
+            });
+          const persistedRegistration =
+            await database.query.eventRegistrations.findFirst({
+              where: { id: registration.id },
+            });
+          return `${persistedTransaction?.status}:${persistedRegistration?.status}`;
+        },
+        {
+          intervals: [1_000, 2_000, 4_000],
+          timeout: 90_000,
+        },
+      )
+      .toBe('successful:CONFIRMED');
+
+    await page.reload();
+    await waitForRegistrationStatus(page);
+    await expect(page.getByText('You are registered')).toBeVisible();
+    await expect(
+      page.getByRole('img', { name: 'QR code for the registration' }),
+    ).toBeVisible();
+    expect(
+      await database.query.eventRegistrationOptions.findFirst({
+        columns: { confirmedSpots: true, reservedSpots: true },
+        where: { id: scenario.optionId },
+      }),
+    ).toEqual({ confirmedSpots: 1, reservedSpots: 0 });
+    expect(
+      await database.query.transactions.findMany({
+        where: {
+          eventRegistrationId: registration.id,
+          type: 'registration',
+        },
+      }),
+    ).toHaveLength(1);
+    expect(
+      await approvalOutboxRows(database, registration.id, scenario.tenant.id),
+    ).toHaveLength(1);
   });
 
-  test('recovers an interrupted payment setup and allows participant cancellation', async ({
+  test('cancels a manually approved application after its Checkout is ready', async ({
     browser,
     database,
     page,
+    registerDatabaseCleanup,
     seeded,
     testClock,
   }) => {
@@ -449,182 +435,193 @@ test.describe('Manual approval registrations', () => {
       kind: 'paid',
       seeded,
     });
-    let organizer:
-      Awaited<ReturnType<typeof openAuthenticatedTestPage>> | undefined;
+    registerDatabaseCleanup(scenario.cleanup);
+    await openEventFromList(page, scenario);
+    await applyForApproval(page, scenario);
+    const registration = await findParticipantRegistration(database, scenario);
+    const organizer = await openOrganizerView({
+      browser,
+      participantPage: page,
+      registerDatabaseCleanup,
+      scenario,
+      testClock,
+    });
+    const approve = organizer.page.getByRole('button', {
+      name: 'Approve application',
+    });
+    await expect(approve).not.toHaveAttribute('jsaction', /click/);
+    await approve.click();
+    await expect(organizer.page.getByText('Payment pending')).toBeVisible({
+      timeout: 20_000,
+    });
+    const claims = await database.query.transactions.findMany({
+      where: { eventRegistrationId: registration.id, type: 'registration' },
+    });
+    expect(claims).toHaveLength(1);
+    const claim = claims[0];
+    if (!claim?.stripeCheckoutSessionId || !claim.stripeCheckoutUrl) {
+      throw new Error('Expected a ready Checkout from normal manual approval');
+    }
+    expect(claim.stripeAccountId).toBe(scenario.tenant.stripeAccountId);
+    expect(
+      await approvalOutboxRows(database, registration.id, scenario.tenant.id),
+    ).toHaveLength(1);
+    await page.reload();
+    await waitForRegistrationStatus(page);
+    await expect(page.getByRole('link', { name: 'Pay now' })).toHaveAttribute(
+      'href',
+      claim.stripeCheckoutUrl,
+    );
+    const cancel = page.getByRole('button', { name: 'Cancel registration' });
+    await expect(cancel).not.toHaveAttribute('jsaction', /click/);
+    await cancel.click();
+    await page
+      .getByRole('dialog')
+      .getByRole('button', { name: 'Confirm cancellation' })
+      .click();
+    await expect(
+      page.getByRole('button', { name: 'Apply for approval' }),
+    ).toBeVisible({ timeout: 20_000 });
+    expect(
+      await database.query.transactions.findMany({
+        where: { eventRegistrationId: registration.id, type: 'registration' },
+      }),
+    ).toEqual([
+      expect.objectContaining({
+        id: claim.id,
+        status: 'cancelled',
+        stripeAccountId: scenario.tenant.stripeAccountId,
+      }),
+    ]);
+    expect(
+      await database.query.eventRegistrations.findFirst({
+        columns: { status: true },
+        where: { id: registration.id },
+      }),
+    ).toEqual({ status: 'CANCELLED' });
+    expect(
+      await database.query.eventRegistrationOptions.findFirst({
+        columns: { confirmedSpots: true, reservedSpots: true },
+        where: { id: scenario.optionId },
+      }),
+    ).toEqual({ confirmedSpots: 0, reservedSpots: 0 });
+  });
 
-    try {
-      await openEventFromList(page, scenario);
-      await applyForApproval(page, scenario);
-      const registration = await findParticipantRegistration(
-        database,
-        scenario,
-      );
-      organizer = await openOrganizerView({
-        browser,
-        participantPage: page,
-        scenario,
-        testClock,
-      });
-      await expect(organizer.page.getByText('Awaiting approval')).toBeVisible();
-      await expect(
-        organizer.page.getByRole('button', { name: 'Approve application' }),
-      ).toBeVisible();
-
-      const transactionId = await scenario.preparePaymentSetupRetry({
-        baseUrl: new URL(page.url()).origin,
-        registrationId: registration.id,
-      });
-      expect(
-        await database.query.transactions.findFirst({
-          columns: { stripeAccountId: true },
-          where: { id: transactionId },
-        }),
-      ).toEqual({ stripeAccountId: scenario.tenant.stripeAccountId });
-      await organizer.page.reload();
-      await expect(
-        organizer.page.getByText('Payment setup needs retry'),
-      ).toBeVisible({ timeout: 20_000 });
-      const retryButton = organizer.page.getByRole('button', {
-        name: 'Retry payment setup',
-      });
-      await expect(retryButton).toBeEnabled();
-      await expect(retryButton).not.toHaveAttribute('jsaction', /click/, {
-        timeout: 20_000,
-      });
-
-      await page.reload();
-      await waitForRegistrationStatus(page);
-      await expect(
-        page.getByRole('status').filter({
-          hasText: 'Your payment link is being prepared.',
-        }),
-      ).toBeVisible();
-      await expect(page.getByRole('link', { name: 'Pay now' })).toHaveCount(0);
-
-      await retryButton.click();
-      await expect(
-        organizer.page.getByText(
-          'Application approved. Payment is required before confirmation.',
-        ),
-      ).toBeVisible({ timeout: 20_000 });
-      await expect(organizer.page.getByText('Payment pending')).toBeVisible({
-        timeout: 20_000,
-      });
-      await expect(retryButton).toHaveCount(0);
-
-      await expect
-        .poll(async () => {
-          const transaction = await database.query.transactions.findFirst({
-            where: { id: transactionId },
-          });
-          return {
-            hasSession: Boolean(transaction?.stripeCheckoutSessionId),
-            hasUrl: Boolean(transaction?.stripeCheckoutUrl),
-            status: transaction?.status,
-          };
-        })
-        .toEqual({ hasSession: true, hasUrl: true, status: 'pending' });
-
-      await page.reload();
-      await waitForRegistrationStatus(page);
-      const payNow = page.getByRole('link', { name: 'Pay now' });
-      const cancelRegistration = page.getByRole('button', {
-        name: 'Cancel registration',
-      });
-      const cancellationSucceeded = page.getByRole('button', {
-        name: 'Apply for approval',
-      });
-      const recoverableCancellationFailure = page
+  test('explains uncertain payment setup and preserves the original claim when cancellation is blocked', async ({
+    browser,
+    database,
+    page,
+    registerDatabaseCleanup,
+    seeded,
+    testClock,
+  }) => {
+    const scenario = await seedManualApprovalScenario({
+      database,
+      kind: 'paid',
+      seeded,
+    });
+    registerDatabaseCleanup(scenario.cleanup);
+    await openEventFromList(page, scenario);
+    await applyForApproval(page, scenario);
+    const registration = await findParticipantRegistration(database, scenario);
+    const organizer = await openOrganizerView({
+      browser,
+      participantPage: page,
+      registerDatabaseCleanup,
+      scenario,
+      testClock,
+    });
+    const transactionId = await scenario.preparePaymentSetupRetry({
+      baseUrl: new URL(page.url()).origin,
+      registrationId: registration.id,
+    });
+    const originalClaim = await database.query.transactions.findFirst({
+      where: { id: transactionId },
+    });
+    expect(originalClaim).toMatchObject({
+      status: 'pending',
+      stripeAccountId: scenario.tenant.stripeAccountId,
+      stripeCheckoutIncidentSessionId: null,
+      stripeCheckoutSessionId: null,
+      stripeCheckoutUrl: null,
+    });
+    await organizer.page.reload();
+    await expect(
+      organizer.page.getByText('Payment needs attention'),
+    ).toBeVisible();
+    await expect(
+      organizer.page
+        .getByRole('status')
+        .filter({ hasText: 'Payment setup needs review.' }),
+    ).toBeVisible();
+    await expect(
+      organizer.page.getByRole('button', { name: 'Try payment again' }),
+    ).toHaveCount(0);
+    await expect(
+      organizer.page.getByRole('button', { name: 'Approve application' }),
+    ).toHaveCount(0);
+    await page.reload();
+    await waitForRegistrationStatus(page);
+    await expect(
+      page
+        .getByRole('status')
+        .filter({ hasText: 'Contact an organizer to review this payment.' }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Try payment again' }),
+    ).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'Pay now' })).toHaveCount(0);
+    const cancel = page.getByRole('button', { name: 'Cancel registration' });
+    await expect(cancel).not.toHaveAttribute('jsaction', /click/);
+    await cancel.click();
+    await page
+      .getByRole('dialog')
+      .getByRole('button', { name: 'Confirm cancellation' })
+      .click();
+    await expect(
+      page
         .getByRole('alert')
         .getByText(
-          /^(?:Checkout cancellation could not be confirmed|Stripe did not confirm Checkout cancellation), so this request did not cancel the registration or release its reserved spots\. Refresh before retrying\.$/,
-        );
-      const readCancellationState = async () => {
-        const persistedRegistration =
-          await database.query.eventRegistrations.findFirst({
-            where: { id: registration.id },
-          });
-        const persistedTransaction =
-          await database.query.transactions.findFirst({
-            where: { id: transactionId },
-          });
-        const option = await database.query.eventRegistrationOptions.findFirst({
-          columns: { reservedSpots: true },
-          where: { id: scenario.optionId },
-        });
-        return {
-          registrationStatus: persistedRegistration?.status,
-          reservedSpots: option?.reservedSpots,
-          transactionStatus: persistedTransaction?.status,
-        };
-      };
-      const pendingCancellationState = {
-        registrationStatus: 'PENDING',
-        reservedSpots: 1,
-        transactionStatus: 'pending',
-      };
-
-      await expect(payNow).toBeVisible();
-      await expect
-        .poll(readCancellationState)
-        .toEqual(pendingCancellationState);
-      // SSR exposes the cancellation action before Angular attaches its live
-      // click listener. Event replay removes `jsaction` after hydration.
-      await expect(cancelRegistration).not.toHaveAttribute('jsaction', /click/);
-      await cancelRegistration.click();
-      await page
-        .getByRole('dialog')
-        .getByRole('button', { name: 'Confirm cancellation' })
-        .click();
-      await expect(
-        cancellationSucceeded.or(recoverableCancellationFailure).first(),
-      ).toBeVisible({ timeout: 15_000 });
-
-      if (await recoverableCancellationFailure.isVisible()) {
-        expect(await readCancellationState()).toEqual(pendingCancellationState);
-        await page.reload();
-        await waitForRegistrationStatus(page);
-        await expect(payNow).toBeVisible();
-        await expect(cancelRegistration).toBeEnabled();
-        await expect(cancelRegistration).not.toHaveAttribute(
-          'jsaction',
-          /click/,
-        );
-        await expect(recoverableCancellationFailure).toHaveCount(0);
-        await cancelRegistration.click();
-        await page
-          .getByRole('dialog')
-          .getByRole('button', { name: 'Confirm cancellation' })
-          .click();
-        await expect(
-          cancellationSucceeded.or(recoverableCancellationFailure).first(),
-        ).toBeVisible({ timeout: 15_000 });
-        expect(
-          await recoverableCancellationFailure.isVisible(),
-          'Expected refreshed Checkout cancellation retry to succeed',
-        ).toBe(false);
-      }
-
-      await expect(cancellationSucceeded).toBeVisible();
-      await expect.poll(readCancellationState).toEqual({
-        registrationStatus: 'CANCELLED',
-        reservedSpots: 0,
-        transactionStatus: 'cancelled',
-      });
-      expect(
-        await database
-          .select({ id: schema.transactions.id })
-          .from(schema.transactions)
-          .where(
-            and(
-              eq(schema.transactions.eventRegistrationId, registration.id),
-              eq(schema.transactions.type, 'registration'),
-            ),
-          ),
-      ).toHaveLength(1);
-    } finally {
-      await organizer?.close();
-      await scenario.cleanup();
-    }
+          'Payment setup needs review, so this request did not cancel the registration or release its reserved place. Keep this sign-up and contact the event organizer or Evorto support before starting another payment.',
+        ),
+    ).toBeVisible();
+    expect(
+      await database.query.transactions.findFirst({
+        where: { id: transactionId },
+      }),
+    ).toEqual(originalClaim);
+    expect(
+      await database.query.transactions.findMany({
+        where: {
+          eventRegistrationId: registration.id,
+          type: 'registration',
+        },
+      }),
+    ).toHaveLength(1);
+    expect(
+      await database.query.eventRegistrations.findFirst({
+        columns: { status: true },
+        where: { id: registration.id },
+      }),
+    ).toEqual({ status: 'PENDING' });
+    expect(
+      await database.query.eventRegistrationOptions.findFirst({
+        columns: { confirmedSpots: true, reservedSpots: true },
+        where: { id: scenario.optionId },
+      }),
+    ).toEqual({ confirmedSpots: 0, reservedSpots: 1 });
+    expect(
+      await approvalOutboxRows(database, registration.id, scenario.tenant.id),
+    ).toHaveLength(0);
+    await page.reload();
+    await waitForRegistrationStatus(page);
+    await expect(
+      page
+        .getByRole('status')
+        .filter({ hasText: 'Contact an organizer to review this payment.' }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Apply for approval' }),
+    ).toHaveCount(0);
   });
 });

@@ -1,4 +1,9 @@
 import { RpcBadRequestError } from '@shared/errors/rpc-errors';
+import {
+  MAX_REGISTRATION_ANSWER_LENGTH,
+  MAX_REGISTRATION_QUESTIONS,
+} from '@shared/registration-question-limits';
+import { EventRegistrationConflictError } from '@shared/rpc-contracts/app-rpcs/events.errors';
 import { and, eq, inArray } from 'drizzle-orm';
 import { Effect } from 'effect';
 
@@ -126,6 +131,7 @@ export const lockEventRegistrationQuestionSet = Effect.fn(
   database: Pick<DatabaseClient, 'select'>,
   input: {
     readonly eventId: string;
+    readonly eventLockMode?: 'share' | 'update';
     readonly registrationOptionId: string;
     readonly tenantId: string;
   },
@@ -150,7 +156,7 @@ export const lockEventRegistrationQuestionSet = Effect.fn(
         eq(eventInstances.tenantId, input.tenantId),
       ),
     )
-    .for('share');
+    .for(input.eventLockMode ?? 'share');
   if (events.length !== 1) return;
 
   return yield* database
@@ -171,3 +177,70 @@ export const lockEventRegistrationQuestionSet = Effect.fn(
     .orderBy(eventRegistrationQuestions.id)
     .for('share');
 });
+
+export const validateRegistrationQuestionAnswers = ({
+  answers,
+  questions,
+}: {
+  answers:
+    | readonly Pick<
+        typeof eventRegistrationQuestionAnswers.$inferSelect,
+        'answer' | 'questionId'
+      >[]
+    | undefined;
+  questions: readonly Pick<
+    typeof eventRegistrationQuestions.$inferSelect,
+    'id' | 'required'
+  >[];
+}): readonly { answer: string; questionId: string }[] => {
+  if (questions.length > MAX_REGISTRATION_QUESTIONS) {
+    throw new EventRegistrationConflictError({
+      message:
+        'Registration is unavailable because its sign-up questions need to be corrected. Contact the organizer.',
+    });
+  }
+  if ((answers?.length ?? 0) > MAX_REGISTRATION_QUESTIONS) {
+    throw new EventRegistrationConflictError({
+      message: `You can answer up to ${MAX_REGISTRATION_QUESTIONS} sign-up questions`,
+    });
+  }
+
+  const normalizedAnswers = new Map<string, string>();
+  for (const answer of answers ?? []) {
+    if (normalizedAnswers.has(answer.questionId)) {
+      throw new EventRegistrationConflictError({
+        message: 'Answer each sign-up question only once',
+      });
+    }
+    if (answer.answer.length > MAX_REGISTRATION_ANSWER_LENGTH) {
+      throw new EventRegistrationConflictError({
+        message: `Each answer must be ${MAX_REGISTRATION_ANSWER_LENGTH} characters or fewer`,
+      });
+    }
+    normalizedAnswers.set(answer.questionId, answer.answer.trim());
+  }
+
+  const questionIds = new Set(questions.map((question) => question.id));
+  for (const questionId of normalizedAnswers.keys()) {
+    if (!questionIds.has(questionId)) {
+      throw new EventRegistrationConflictError({
+        message: 'Registration question does not belong to this option',
+      });
+    }
+  }
+
+  for (const question of questions) {
+    if (question.required && !normalizedAnswers.get(question.id)) {
+      throw new EventRegistrationConflictError({
+        message: 'Required registration question is missing',
+      });
+    }
+  }
+
+  return [...normalizedAnswers]
+    .filter(([, answer]) => answer.length > 0)
+    .map(([questionId, answer]) => ({
+      answer,
+      questionId,
+    }));
+};

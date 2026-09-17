@@ -6,11 +6,11 @@ const readSource = (relativePath: string) =>
   readFileSync(fileURLToPath(new URL(relativePath, import.meta.url)), 'utf8');
 
 describe('post-registration add-on mutation guards', () => {
-  it('keeps caller-controlled clock overrides out of the public purchase service', () => {
+  it('pins Checkout expiry to the server-owned purchase time', () => {
     const source = readSource('addon-purchase.service.ts');
 
-    expect(source).not.toContain('pinnedNowIso');
     expect(source).toContain('getServerNow(undefined)');
+    expect(source).toContain('pinnedNowIso: input.now.toISOString()');
   });
 
   it('derives purchase ownership in the RPC handler and forwards only participant intent', () => {
@@ -37,7 +37,7 @@ describe('post-registration add-on mutation guards', () => {
     expect(handler).not.toContain('stripeAccountId');
   });
 
-  it('uses the deterministic registration handler clock for owner add-on availability', () => {
+  it('keeps event availability and payment deadlines on their owning clocks', () => {
     const source = readSource(
       '../effect/rpc/handlers/events/events-registration.handlers.ts',
     );
@@ -49,6 +49,12 @@ describe('post-registration add-on mutation guards', () => {
     expect(handlerEnd).toBeGreaterThan(handlerStart);
     expect(handler).toContain(
       'const now = yield* registrationHandlerNow.pipe(Effect.orDie)',
+    );
+    expect(handler).toContain(
+      'const paymentDeadlineNow = yield* registrationPaymentDeadlineNow',
+    );
+    expect(handler).toContain(
+      'matchingPendingOrder?.expiresAt,\n                  paymentDeadlineNow,',
     );
     expect(handler).not.toContain('getServerNow(undefined)');
   });

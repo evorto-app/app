@@ -226,6 +226,7 @@ describe('events RPC registration status schema', () => {
       nextPurchaseUnitPrice: 500,
       nextPurchaseUnitTaxAmount: 95,
       optionalPurchaseQuantity: 3,
+      pendingCheckoutExpired: false,
       pendingCheckoutExpiresAt: '2026-08-01T17:00:00.000Z',
       pendingCheckoutUrl: null,
       pendingOperationKey: 'purchase-addon-1',

@@ -514,7 +514,7 @@ test('keeps a paid add-on pending across reload and settles through the producti
     ).toHaveCount(0);
     await expect(
       activeRegistration.getByText(
-        'Finish or let the pending add-on checkout expire before transferring this ticket.',
+        'Finish an available add-on payment, or wait for that payment page to expire, before transferring this ticket. If no payment link is available, contact an organizer to review it.',
         { exact: true },
       ),
     ).toBeVisible();
