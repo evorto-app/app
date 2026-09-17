@@ -1558,6 +1558,7 @@ const reservationFreeConfirmationSteps: readonly ReservationDatabaseStep[] = [
 const createReservationDatabaseFixture = ({
   addon,
   communicationEmail = 'alice.contact@example.com',
+  currentTenantLimit = 0,
   emailSenderEmail = null,
   emailSenderName = null,
   guestCount = 0,
@@ -1567,6 +1568,7 @@ const createReservationDatabaseFixture = ({
 }: {
   addon?: ReservationAvailableAddon;
   communicationEmail?: string;
+  currentTenantLimit?: null | number;
   emailSenderEmail?: null | string;
   emailSenderName?: null | string;
   guestCount?: number;
@@ -1593,6 +1595,7 @@ const createReservationDatabaseFixture = ({
     const operations: ReservationDatabaseStep[] = [];
     const transactionCommands: ('BEGIN' | 'COMMIT' | 'ROLLBACK')[] = [];
     let transactionOpen = false;
+    let currentTenantLimitReads = 0;
     let emailInsertedWhileTransactionOpen = false;
     const capacityUpdates: ReservationCapacityUpdate[] = [];
     const addonStockUpdates: ReservationAddonStockUpdate[] = [];
@@ -1634,6 +1637,18 @@ const createReservationDatabaseFixture = ({
       parameters,
     ) =>
       Effect.gen(function* () {
+        if (
+          statement ===
+          `select "max_active_registrations_per_user" from "${getTableName(tenants)}" where "${getTableName(tenants)}"."id" = $1`
+        ) {
+          expect(transactionOpen).toBe(true);
+          expect(operations).toContain('lockTenant');
+          expect(operations).toContain('lockMembership');
+          expect(currentTenantLimitReads).toBe(0);
+          expect(parameters).toEqual(['tenant-1']);
+          currentTenantLimitReads++;
+          return currentTenantLimit === null ? [] : [[currentTenantLimit]];
+        }
         const step = steps[operations.length];
         if (
           !step ||
@@ -1976,6 +1991,9 @@ const createReservationDatabaseFixture = ({
       addonStockUpdates,
       answerInserts,
       capacityUpdates,
+      get currentTenantLimitReads() {
+        return currentTenantLimitReads;
+      },
       database: Context.get(databaseContext, Database),
       get emailInsertedWhileTransactionOpen() {
         return emailInsertedWhileTransactionOpen;
@@ -3586,6 +3604,14 @@ const createDirectCheckoutDatabase = ({
     parameters,
   ) =>
     Effect.gen(function* () {
+      if (
+        statement ===
+        `select "max_active_registrations_per_user" from "${getTableName(tenants)}" where "${getTableName(tenants)}"."id" = $1`
+      ) {
+        expect(transactionSnapshot).toBeDefined();
+        expect(parameters).toEqual(['tenant-1']);
+        return [[0]];
+      }
       const questionSetRows = readQuestionSetLockFixture({
         parameters,
         statement,
@@ -7978,10 +8004,11 @@ describe('EventRegistrationService', () => {
   );
 
   it.effect(
-    'rejects new registrations when the tenant active registration limit is reached',
+    'rejects registration under the current lower limit despite an unlimited request snapshot',
     () =>
       Effect.gen(function* () {
         const fixture = yield* createReservationDatabaseFixture({
+          currentTenantLimit: 1,
           steps: [
             ...reservationInitialReadSteps,
             'readActiveRegistration',
@@ -7998,7 +8025,7 @@ describe('EventRegistrationService', () => {
             ...tenantPublicOrigin,
             currency: 'EUR',
             id: 'tenant-1',
-            maxActiveRegistrationsPerUser: 1,
+            maxActiveRegistrationsPerUser: 0,
             stripeAccountId: undefined,
           },
           user: {
@@ -8020,6 +8047,7 @@ describe('EventRegistrationService', () => {
         expect(error.message).toBe(
           'This organization has reached its limit for current sign-ups. Contact an administrator.',
         );
+        expect(fixture.currentTenantLimitReads).toBe(1);
         expect(fixture.operations).toContain('readActiveFutureRegistration');
         expect(
           fixture.operations.filter(
@@ -8027,6 +8055,104 @@ describe('EventRegistrationService', () => {
           ),
         ).toHaveLength(1);
         expect(fixture.capacityUpdates).toHaveLength(0);
+        fixture.expectComplete();
+      }),
+  );
+
+  it.effect(
+    'admits registration after the current limit becomes unlimited despite the old request limit',
+    () =>
+      Effect.gen(function* () {
+        const fixture = yield* createReservationDatabaseFixture({
+          currentTenantLimit: 0,
+          steps: [
+            ...reservationInitialReadSteps,
+            'readActiveRegistration',
+            'reserveCapacity',
+            'insertRegistration',
+            ...reservationFreeConfirmationSteps,
+          ],
+        });
+        const stripe = createStripeTestClient();
+        yield* EventRegistrationService.registerForEvent({
+          eventId: 'event-1',
+          guestCount: 0,
+          registrationOptionId: 'option-1',
+          tenant: {
+            ...tenantPublicOrigin,
+            currency: 'EUR',
+            emailSenderEmail: null,
+            emailSenderName: null,
+            id: 'tenant-1',
+            maxActiveRegistrationsPerUser: 1,
+            name: 'Tenant',
+            stripeAccountId: undefined,
+          },
+          user: {
+            communicationEmail: 'alice.contact@example.com',
+            email: 'alice.contact@example.com',
+            id: 'user-1',
+            roleIds: ['role-1'],
+          },
+        }).pipe(
+          Effect.provide(EventRegistrationService.Default),
+          Effect.provide(Layer.succeed(Database, fixture.database)),
+          Effect.provideService(StripeClient, stripe),
+          Effect.provide(configProviderLayer),
+        );
+        expect(fixture.currentTenantLimitReads).toBe(1);
+        expect(fixture.capacityUpdates).toHaveLength(1);
+        expect(fixture.registrationInserts).toHaveLength(1);
+        expect(fixture.operations).not.toContain(
+          'readActiveFutureRegistration',
+        );
+        expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
+        fixture.expectComplete();
+      }),
+  );
+
+  it.effect(
+    'rejects admission when current organization settings are missing without using the request limit',
+    () =>
+      Effect.gen(function* () {
+        const fixture = yield* createReservationDatabaseFixture({
+          currentTenantLimit: null,
+          steps: [...reservationInitialReadSteps, 'ROLLBACK'],
+        });
+        const stripe = createStripeTestClient();
+        const error = yield* EventRegistrationService.registerForEvent({
+          eventId: 'event-1',
+          guestCount: 0,
+          registrationOptionId: 'option-1',
+          tenant: {
+            ...tenantPublicOrigin,
+            currency: 'EUR',
+            id: 'tenant-1',
+            maxActiveRegistrationsPerUser: 0,
+            stripeAccountId: undefined,
+          },
+          user: {
+            communicationEmail: 'alice.contact@example.com',
+            email: 'alice.contact@example.com',
+            id: 'user-1',
+            roleIds: ['role-1'],
+          },
+        }).pipe(
+          Effect.flip,
+          Effect.provide(EventRegistrationService.Default),
+          Effect.provide(Layer.succeed(Database, fixture.database)),
+          Effect.provideService(StripeClient, stripe),
+          Effect.provide(configProviderLayer),
+        );
+        expect(error).toBeInstanceOf(EventRegistrationNotFoundError);
+        expect(error.message).toBe(
+          'This organization is no longer available. No sign-up was completed.',
+        );
+        expect(fixture.currentTenantLimitReads).toBe(1);
+        expect(fixture.capacityUpdates).toHaveLength(0);
+        expect(fixture.registrationInserts).toHaveLength(0);
+        expect(fixture.operations).not.toContain('readActiveRegistration');
+        expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
         fixture.expectComplete();
       }),
   );

@@ -39,6 +39,7 @@ import {
   type RegistrationCheckoutSnapshot,
   RegistrationCheckoutSnapshotSchema,
   registrationTransfers,
+  tenants,
   tenantStripeTaxRates,
   transactions,
   userDiscountCards,
@@ -3740,8 +3741,25 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                 const lockedSelectedTaxRate = selectedTaxRateId
                   ? lockedTaxRateById.get(selectedTaxRateId)
                   : undefined;
+                // Canonical eligibility already holds the tenant lock. Settings
+                // writers take UPDATE, so this read stays current until commit.
+                const [currentTenantSettings] = yield* tx
+                  .select({
+                    maxActiveRegistrationsPerUser:
+                      tenants.maxActiveRegistrationsPerUser,
+                  })
+                  .from(tenants)
+                  .where(eq(tenants.id, tenant.id));
+                if (!currentTenantSettings) {
+                  return yield* Effect.fail(
+                    new EventRegistrationNotFoundError({
+                      message:
+                        'This organization is no longer available. No sign-up was completed.',
+                    }),
+                  );
+                }
                 const activeRegistrationLimit =
-                  tenant.maxActiveRegistrationsPerUser;
+                  currentTenantSettings.maxActiveRegistrationsPerUser;
 
                 const activeRegistrations =
                   yield* tx.query.eventRegistrations.findMany({
