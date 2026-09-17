@@ -123,7 +123,7 @@ export const decodeLocationSuggestions = (
     }
 
     const place: unknown = toPlace.call(prediction);
-    if (!isGooglePlaceReference(place)) {
+    if (!isGooglePlaceReference(place) || place.id !== placeId) {
       throw new TypeError(
         `Google Maps location suggestion ${index + 1} has invalid details`,
       );

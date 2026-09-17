@@ -7,7 +7,7 @@ Require complete Google Maps suggestions and ESNcard validity windows before sav
 Discard a saved-card validation if its original identity changed during the
 provider request. Clear prior metadata and validity dates when an authoritative
 result omits them, while preserving the saved card on transport failure. Reject
-blank returned Google place IDs and bound diagnostic reason scanning and queued
+blank or mismatched returned Google place IDs and bound diagnostic reason scanning and queued
 objects before traversing provider failures.
 Reload the current saved card after a discarded save or refresh, preserving the
 identifier draft and leaving provider-failure state unchanged.

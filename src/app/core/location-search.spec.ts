@@ -80,8 +80,8 @@ describe('LocationSearch', () => {
     }),
   );
 
-  it.each(['', ' \t '])(
-    'rejects a suggestion whose returned place has a blank ID: %j',
+  it.each(['', ' \t ', 'place-2', ' place-1 '])(
+    'rejects a returned place ID that differs from its normalized prediction: %j',
     (id) => {
       const place: GooglePlaceReference = {
         displayName: undefined,
