@@ -185,7 +185,7 @@ export const resolveExplicitTenantDomain = (input: {
     ? input.localTestTenantDomain
     : undefined);
 
-export const resolveTenantContext = (input: {
+const resolveTenantContextEffect = (input: {
   protocol: string;
   requestHost: readonly string[] | string | undefined;
   routedTenantDomain?: string | undefined;
@@ -204,20 +204,29 @@ export const resolveTenantContext = (input: {
 
     const tenantRecord = yield* findTenantByDomain(domain);
 
+    const tenant = tenantRecord
+      ? Schema.decodeUnknownSync(Tenant)(tenantContextRecord(tenantRecord))
+      : undefined;
+    yield* Effect.annotateCurrentSpan({
+      'evorto.tenant_resolved': tenant !== undefined,
+    });
+
     return {
       cause: { domain },
-      tenant: tenantRecord
-        ? Schema.decodeUnknownSync(Tenant)(tenantContextRecord(tenantRecord))
-        : undefined,
+      tenant,
     };
   });
+
+export const resolveTenantContext = Effect.fn('Server.resolveTenantContext')(
+  resolveTenantContextEffect,
+);
 
 const resolveCurrentTenantOnboarding = (input: {
   tenantId: string;
   userId: string;
 }) => databaseEffect((database) => hasCurrentTenantOnboarding(database, input));
 
-export const resolveUserContext = (
+const resolveUserContextEffect = (
   input: {
     isAuthenticated: boolean;
     oidcUser: unknown;
@@ -226,6 +235,10 @@ export const resolveUserContext = (
   resolveOnboardingComplete = resolveCurrentTenantOnboarding,
 ) =>
   Effect.gen(function* () {
+    yield* Effect.annotateCurrentSpan({
+      'evorto.authenticated': input.isAuthenticated,
+      'evorto.user_context_resolved': false,
+    });
     if (!input.isAuthenticated) {
       return;
     }
@@ -255,7 +268,14 @@ export const resolveUserContext = (
     const onboardingComplete = yield* resolveOnboardingComplete({
       tenantId: input.tenantId,
       userId: user.id,
-    });
+    }).pipe(
+      Effect.tap((complete) =>
+        Effect.annotateCurrentSpan({
+          'evorto.onboarding_complete': complete,
+        }),
+      ),
+      Effect.withSpan('Server.resolveUserOnboarding'),
+    );
     if (!onboardingComplete) {
       return;
     }
@@ -271,6 +291,9 @@ export const resolveUserContext = (
 
     const roleIds = assignedRoles.map((role) => role.id);
 
+    yield* Effect.annotateCurrentSpan({
+      'evorto.user_context_resolved': true,
+    });
     return {
       ...user,
       homeTenantName: user.homeTenant?.name,
@@ -278,6 +301,10 @@ export const resolveUserContext = (
       roleIds,
     };
   });
+
+export const resolveUserContext = Effect.fn('Server.resolveUserContext')(
+  resolveUserContextEffect,
+);
 
 export interface TenantContextResolution {
   cause: {

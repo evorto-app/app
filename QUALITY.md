@@ -2,6 +2,10 @@
 
 Evorto quality means the app preserves core product behavior, remains understandable to future agents, and can be verified without relying on chat history or human memory.
 
+For warm-path performance defects, use
+[LATENCY_IMPROVEMENT.md](LATENCY_IMPROVEMENT.md) and the
+[Scaleway latency monitoring runbook](infrastructure/scaleway/LATENCY_MONITORING.md).
+
 Avoid a heavy requirements/test matrix for now. Use a lightweight behavior and verification model:
 
 1. Describe important workflows.
@@ -114,7 +118,7 @@ Use Playwright for important user journeys and integration behavior.
 
 High-value Playwright flows include:
 
-- browsing listed events
+- discovering role-eligible published events
 - creating an event from a template
 - configuring participant and organizer signup settings
 - switching simple/advanced registration configuration without mutating existing
@@ -200,8 +204,17 @@ Use this compact queue when a Codex in-app Browser walkthrough is requested and
 the Browser control transport is healthy. It complements, but does not replace,
 the durable Playwright and generated-documentation coverage.
 
-1. **Anonymous event discovery:** browse the event list and a public event,
-   then open an unlisted event from its direct link.
+1. **Anonymous event discovery and member access:** verify that a signed-in member sees an ordinary
+   published event through any sign-up choice available to them and gets a clear
+   ineligible result from a direct link when none match. Verify that a person
+   who is not signed in sees ordinary events only through choices available to
+   roles assigned by default to new members, sees only public event information,
+   and must sign in before registering. Follow a direct link to an event absent
+   from that public list and verify a clear sign-in state without restricted
+   choices or a false information-only message. Separately verify that an
+   information-only announcement appears only to signed-in members holding a
+   selected role, that selecting roles neither grants access nor sends a
+   message, and that choosing no roles keeps it link-only.
 2. **Participant registration and profile:** inspect free, paid, waitlist,
    cancellation, ticket, and receipt states.
 3. **Organizer authoring and check-in:** create or edit a template/event,
@@ -258,11 +271,13 @@ every collected test passing and zero incomplete outcomes before CI is
 attempted. Cloudflare Images is being removed and is not a release gate.
 
 Stripe tax-rate metadata has non-null account ownership in the fresh target
-schema. Event, template, tax-rate import, and account-rotation writers must take
-the same tenant-row lock before changing paid or tax-rate configuration. Legacy
-data transfer must fail closed unless provider verification can assign exact
-account ownership; nullable staging rows and production backfills are not a
-supported release path.
+schema. Event, template, tax-rate import, and first-account attachment writers
+must take the same tenant-row lock before changing paid or tax-rate
+configuration. Changing or disconnecting an attached payment account is not a
+supported product flow; do not add account rotation, remapping, or nullable
+compatibility paths. The separate old-to-new data transfer must fail closed
+unless provider verification can assign exact account ownership; nullable
+staging rows and production backfills are not a supported release path.
 
 Repository-owned workflows pin every external action to a reviewed full commit
 SHA and retain a readable release/tag comment. Workflow- and job-level
@@ -329,7 +344,7 @@ Use extra caution when touching:
 - tenant isolation in queries and caches
 - roles and capabilities
 - event review/publishing lifecycle
-- event listing/visibility
+- ordinary event and announcement discovery
 - registration options
 - registration exclusivity
 - capacity limits
