@@ -5,6 +5,8 @@ import {
   DEFAULT_TENANT_RECEIPT_ALLOW_OTHER,
   DEFAULT_TENANT_RECEIPT_COUNTRIES,
 } from '@shared/tenant-config';
+import { type SQL } from 'drizzle-orm';
+import { PgDialect } from 'drizzle-orm/pg-core';
 import { Effect, Layer, Result } from 'effect';
 import * as Headers from 'effect/unstable/http/Headers';
 import { Rpc, RpcMessage } from 'effect/unstable/rpc';
@@ -17,6 +19,7 @@ import {
   eventRegistrationOptions,
   eventRegistrationQuestions,
   eventRegistrations,
+  tenantStripeTaxRates,
 } from '../../../../../db/schema';
 import { type Permission } from '../../../../../shared/permissions/permissions';
 import {
@@ -153,6 +156,7 @@ describe('event discount tenant isolation', () => {
     mappingCount,
     questionCount,
     status,
+    taxScenario,
   } of [
     {
       addonCount: 0,
@@ -160,6 +164,7 @@ describe('event discount tenant isolation', () => {
       mappingCount: 0,
       questionCount: 0,
       status: 'APPROVED',
+      taxScenario: 'valid',
     },
     {
       addonCount: 0,
@@ -167,6 +172,7 @@ describe('event discount tenant isolation', () => {
       mappingCount: 0,
       questionCount: 25,
       status: 'APPROVED',
+      taxScenario: 'valid',
     },
     {
       addonCount: 0,
@@ -174,6 +180,7 @@ describe('event discount tenant isolation', () => {
       mappingCount: 0,
       questionCount: 26,
       status: 'APPROVED',
+      taxScenario: 'valid',
     },
     {
       addonCount: 20,
@@ -181,6 +188,7 @@ describe('event discount tenant isolation', () => {
       mappingCount: 40,
       questionCount: 0,
       status: 'APPROVED',
+      taxScenario: 'valid',
     },
     {
       addonCount: 21,
@@ -188,6 +196,7 @@ describe('event discount tenant isolation', () => {
       mappingCount: 0,
       questionCount: 0,
       status: 'APPROVED',
+      taxScenario: 'valid',
     },
     {
       addonCount: 21,
@@ -195,6 +204,7 @@ describe('event discount tenant isolation', () => {
       mappingCount: 0,
       questionCount: 0,
       status: 'APPROVED',
+      taxScenario: 'valid',
     },
     {
       addonCount: 21,
@@ -202,12 +212,60 @@ describe('event discount tenant isolation', () => {
       mappingCount: 0,
       questionCount: 0,
       status: 'DRAFT',
+      taxScenario: 'valid',
     },
+    ...[
+      'missingId',
+      'missingRow',
+      'nullPercentage',
+      'zeroPercentage',
+      'nullDisplayName',
+      'free',
+      'hiddenInvalid',
+      'optionalAddonWithoutTax',
+    ].map((taxScenario) => ({
+      addonCount: taxScenario === 'optionalAddonWithoutTax' ? 1 : 0,
+      hiddenOptions: taxScenario === 'hiddenInvalid',
+      mappingCount: taxScenario === 'optionalAddonWithoutTax' ? 1 : 0,
+      questionCount: 0,
+      status: 'APPROVED',
+      taxScenario,
+    })),
   ]) {
     it.effect(
-      `bounds visible events before registration: questions=${questionCount}, add-ons=${addonCount}, mappings=${mappingCount}, hidden=${hiddenOptions}, status=${status}`,
+      `bounds visible events before registration: questions=${questionCount}, add-ons=${addonCount}, mappings=${mappingCount}, hidden=${hiddenOptions}, status=${status}, tax=${taxScenario}`,
       () =>
         Effect.gen(function* () {
+          const freeOption =
+            taxScenario === 'free' || taxScenario === 'optionalAddonWithoutTax';
+          const optionTaxRateId =
+            freeOption || taxScenario === 'missingId' ? null : 'txr_option';
+          const taxPercentage = taxScenario === 'zeroPercentage' ? '0' : '19';
+          const readTaxRates = vi.fn((condition: SQL) => {
+            const query = new PgDialect().sqlToQuery(condition);
+            expect(query.sql).toContain('"tenant_stripe_tax_rates"."tenantId"');
+            expect(query.sql).toContain(
+              '"tenant_stripe_tax_rates"."stripeAccountId"',
+            );
+            expect(query.params).toEqual([
+              tenant.id,
+              'acct_tenant',
+              'txr_option',
+            ]);
+            return Effect.succeed(
+              taxScenario === 'missingRow'
+                ? []
+                : [
+                    {
+                      displayName:
+                        taxScenario === 'nullDisplayName' ? null : 'VAT',
+                      percentage:
+                        taxScenario === 'nullPercentage' ? null : taxPercentage,
+                      stripeTaxRateId: 'txr_option',
+                    },
+                  ],
+            );
+          });
           const findCards = vi.fn((query: { where: { tenantId?: string } }) =>
             Effect.succeed(
               query.where.tenantId === tenant.id
@@ -236,11 +294,13 @@ describe('event discount tenant isolation', () => {
               allowPurchaseDuringRegistration: true,
               description: null,
               id: `addon-${index % 20}`,
-              includedQuantity: 1,
-              isPaid: false,
+              includedQuantity:
+                taxScenario === 'optionalAddonWithoutTax' ? 0 : 1,
+              isPaid: taxScenario === 'optionalAddonWithoutTax',
               maxQuantityPerUser: 1,
-              optionalPurchaseQuantity: 0,
-              price: 0,
+              optionalPurchaseQuantity:
+                taxScenario === 'optionalAddonWithoutTax' ? 1 : 0,
+              price: taxScenario === 'optionalAddonWithoutTax' ? 500 : 0,
               registrationOptionId: `option-${1 + Math.floor(index / 20)}`,
               stripeTaxRateId: null,
               title: 'Included item',
@@ -285,6 +345,9 @@ describe('event discount tenant isolation', () => {
                     ]),
                 };
               }
+              if (table === tenantStripeTaxRates) {
+                return { where: readTaxRates };
+              }
               throw new Error('Unexpected event detail table');
             },
           }));
@@ -312,18 +375,18 @@ describe('event discount tenant isolation', () => {
                             description: null,
                             eventId: 'event-1',
                             id: 'option-1',
-                            isPaid: true,
+                            isPaid: !freeOption,
                             openRegistrationTime: new Date(
                               '2098-01-01T00:00:00.000Z',
                             ),
                             organizingRegistration: false,
-                            price: 2000,
+                            price: freeOption ? 0 : 2000,
                             registeredDescription: null,
                             registrationMode: 'fcfs' as const,
                             reservedSpots: 0,
                             roleIds: [],
                             spots: 20,
-                            stripeTaxRateId: null,
+                            stripeTaxRateId: optionTaxRateId,
                             title: 'Participant',
                           },
                         ],
@@ -360,6 +423,7 @@ describe('event discount tenant isolation', () => {
                   discountProviders: {
                     esnCard: { config: {}, status: 'enabled' },
                   },
+                  stripeAccountId: 'acct_tenant',
                 },
               }),
             ),
@@ -400,9 +464,33 @@ describe('event discount tenant isolation', () => {
             expect(findCards).not.toHaveBeenCalled();
             return;
           }
+          if (!hiddenOptions && optionTaxRateId) {
+            expect(readTaxRates).toHaveBeenCalledTimes(1);
+          } else {
+            expect(readTaxRates).not.toHaveBeenCalled();
+          }
+          if (
+            ['missingId', 'missingRow', 'nullPercentage'].includes(taxScenario)
+          ) {
+            expect(Result.isFailure(result)).toBe(true);
+            if (Result.isFailure(result)) {
+              expect(result.failure).toMatchObject({
+                _tag: 'EventConflictError',
+                message:
+                  'Registration is unavailable because its tax settings need to be corrected. Contact the organizer.',
+              });
+            }
+            expect(findCards).not.toHaveBeenCalled();
+            return;
+          }
           expect(Result.isSuccess(result)).toBe(true);
           if (!Result.isSuccess(result)) return;
           const event = result.success;
+          if (hiddenOptions) {
+            expect(event.registrationOptions).toEqual([]);
+            expect(event.registrationOptionsHiddenByEligibility).toBe(true);
+            return;
+          }
           expect(event.addOns).toHaveLength(Math.min(mappingCount, 20));
           expect(event.registrationOptions[0]?.questions).toHaveLength(
             questionCount,
@@ -410,9 +498,20 @@ describe('event discount tenant isolation', () => {
           expect(event.registrationOptions[0]).toMatchObject({
             appliedDiscountType: null,
             discountApplied: false,
-            effectivePrice: 2000,
+            effectivePrice: freeOption ? 0 : 2000,
             esnCardDiscountedPrice: null,
+            taxRateDisplayName:
+              freeOption || taxScenario === 'nullDisplayName' ? null : 'VAT',
+            taxRatePercentage: freeOption ? null : taxPercentage,
           });
+          if (taxScenario === 'optionalAddonWithoutTax') {
+            expect(event.addOns[0]).toMatchObject({
+              isPaid: true,
+              price: 500,
+              stripeTaxRateId: null,
+              taxRatePercentage: null,
+            });
+          }
           expect(findCards).toHaveBeenCalledWith(
             expect.objectContaining({
               where: {

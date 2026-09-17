@@ -702,6 +702,20 @@ export const eventQueryHandlers = {
       const taxRateByStripeId = new Map(
         taxRates.map((taxRate) => [taxRate.stripeTaxRateId, taxRate]),
       );
+      if (
+        event.registrationOptions.some((registrationOption) => {
+          if (!registrationOption.isPaid) return false;
+          const taxRate = registrationOption.stripeTaxRateId
+            ? taxRateByStripeId.get(registrationOption.stripeTaxRateId)
+            : undefined;
+          return !taxRate || taxRate.percentage === null;
+        })
+      ) {
+        return yield* new EventConflictError({
+          message:
+            'Registration is unavailable because its tax settings need to be corrected. Contact the organizer.',
+        });
+      }
       const esnCardDiscountedPriceByOptionId =
         getEsnCardDiscountedPriceByOptionId(optionDiscounts);
       const addOnsById = new Map<
