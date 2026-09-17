@@ -95,7 +95,6 @@ const targetTenant = Tenant.make({
   id: 'tenant-1',
   legalNoticeText: undefined,
   legalNoticeUrl: undefined,
-  locale: 'de-DE',
   logoUrl: undefined,
   maxActiveRegistrationsPerUser: 0,
   name: 'Target tenant',
@@ -381,9 +380,11 @@ describe('platform tenant finance handlers', () => {
               Layer.succeed(Database, database as never),
               Layer.succeed(ReceiptMediaService, {
                 createUploadPolicy: () =>
-                  Effect.dieMessage('Unexpected receipt upload'),
+                  Effect.die(new Error('Unexpected receipt upload')),
                 discardPromotedUpload: () =>
-                  Effect.dieMessage('Unexpected promoted upload discard'),
+                  Effect.die(new Error('Unexpected promoted upload discard')),
+                inspectUpload: () =>
+                  Effect.die(new Error('Unexpected receipt inspection')),
                 objectExists: () => Effect.succeed(true),
                 signedPreviewUrl: () =>
                   Effect.fail(
@@ -397,7 +398,7 @@ describe('platform tenant finance handlers', () => {
         );
 
         expect(error['_tag']).toBe('RpcBadRequestError');
-        expect(error.reason).toBe('receiptEvidenceUnavailable');
+        expect(error).toMatchObject({ reason: 'receiptEvidenceUnavailable' });
         expect(transaction).not.toHaveBeenCalled();
       }),
   );
@@ -529,7 +530,7 @@ describe('platform tenant finance handlers', () => {
         { currency: 'AUD' },
       ]).pipe(Effect.flip);
       expect(error['_tag']).toBe('RpcBadRequestError');
-      expect(error.reason).toBe('mismatchedReceiptCurrency');
+      expect(error).toMatchObject({ reason: 'mismatchedReceiptCurrency' });
     }),
   );
 

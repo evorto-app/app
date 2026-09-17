@@ -1,16 +1,19 @@
 import { describe, expect, it } from '@effect/vitest';
+import { createDatabaseTestLayer } from '@server/testing/database-test-layer';
 import { EventRegistrationInternalError } from '@shared/rpc-contracts/app-rpcs/events.errors';
 import {
   PlatformRegistrationPageLimit,
   PlatformRegistrationsListInput,
 } from '@shared/rpc-contracts/app-rpcs/platform-events.rpcs';
 import { RpcRequestContext } from '@shared/rpc-contracts/app-rpcs/rpc-request-context.middleware';
+import { getTableColumns } from 'drizzle-orm';
 import { Cause, ConfigProvider, Effect, Exit, Layer, Schema } from 'effect';
 import { readFileSync } from 'node:fs';
 import Stripe from 'stripe';
 import { vi } from 'vitest';
 
 import { Database, type DatabaseClient } from '../../../../../db';
+import { tenants } from '../../../../../db/schema';
 import { PlatformAdministratorAuthority } from '../../../../../types/custom/platform-authority';
 import { Tenant } from '../../../../../types/custom/tenant';
 import { RegistrationTransferMutationConflict } from '../../../../registrations/registration-transfer-mutation-guard';
@@ -182,7 +185,6 @@ const targetTenant = Tenant.make({
   id: 'tenant-target',
   legalNoticeText: undefined,
   legalNoticeUrl: undefined,
-  locale: 'de-DE',
   logoUrl: undefined,
   maxActiveRegistrationsPerUser: 0,
   name: 'Target tenant',
@@ -215,6 +217,53 @@ const operation: ResolvedPlatformOperation = {
   targetTenant,
 };
 
+const targetTenantRecord = {
+  cancellationDeadlineHoursBeforeStart:
+    targetTenant.cancellationDeadlineHoursBeforeStart,
+  createdAt: new Date('2026-07-01T12:00:00.000Z'),
+  currency: targetTenant.currency,
+  defaultLocation: null,
+  discountProviders: targetTenant.discountProviders,
+  domain: targetTenant.domain,
+  emailSenderEmail: null,
+  emailSenderName: null,
+  faviconUrl: null,
+  id: targetTenant.id,
+  legalNoticeText: null,
+  legalNoticeUrl: null,
+  logoUrl: null,
+  maxActiveRegistrationsPerUser: targetTenant.maxActiveRegistrationsPerUser,
+  name: targetTenant.name,
+  receiptSettings: targetTenant.receiptSettings,
+  refundFeesOnCancellation: targetTenant.refundFeesOnCancellation,
+  seoDescription: null,
+  seoTitle: null,
+  stripeAccountId: null,
+  termsText: null,
+  termsUrl: null,
+  theme: targetTenant.theme,
+  timezone: targetTenant.timezone,
+  transferDeadlineHoursBeforeStart:
+    targetTenant.transferDeadlineHoursBeforeStart,
+  updatedAt: new Date('2026-07-01T12:00:00.000Z'),
+} satisfies typeof tenants.$inferSelect;
+
+const targetTenantDatabaseLayer = createDatabaseTestLayer(
+  (statement, parameters) =>
+    Effect.sync(() => {
+      expect(statement).toContain('from "tenants"');
+      expect(parameters).toContain(targetTenant.id);
+      expect(Object.keys(targetTenantRecord)).toEqual(
+        Object.keys(getTableColumns(tenants)),
+      );
+      return [
+        Object.values(targetTenantRecord).map((value) =>
+          value instanceof Date ? value.toISOString().replace('Z', '') : value,
+        ),
+      ];
+    }),
+);
+
 const platformRegistrationInternalFailureLayer = Layer.mergeAll(
   ConfigProvider.layer(
     ConfigProvider.fromEnv({
@@ -222,13 +271,7 @@ const platformRegistrationInternalFailureLayer = Layer.mergeAll(
     }),
   ),
   EventRegistrationService.Default,
-  Layer.mock(Database)({
-    query: {
-      tenants: {
-        findFirst: () => Effect.succeed(targetTenant),
-      },
-    },
-  }),
+  targetTenantDatabaseLayer,
   Layer.succeed(RpcRequestContext, operation.requestContext),
   Layer.succeed(StripeClient, new Stripe('sk_test_platform_registration')),
   RpcAccess.Default,
@@ -576,7 +619,16 @@ describe('platform event, template, and registration handlers', () => {
             title: eventRecord.title,
           } as never,
           undefined,
-        ).pipe(Effect.flip);
+        ).pipe(
+          Effect.flip,
+          Effect.provide(
+            Layer.mergeAll(
+              createDatabaseTestLayer(),
+              RpcAccess.Default,
+              Layer.succeed(RpcRequestContext, operation.requestContext),
+            ),
+          ),
+        );
 
         expect(error).toMatchObject({
           _tag: 'RpcBadRequestError',

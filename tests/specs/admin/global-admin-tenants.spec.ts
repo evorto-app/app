@@ -26,12 +26,10 @@ const fillTenantSearch = async (page: Page, value: string) => {
 const expectTenantRows = async (page: Page) => {
   await expect(page.getByText('Primary domain').first()).toBeVisible();
   await expect(page.getByText('Theme').first()).toBeVisible();
-  await expect(page.getByText('Locale').first()).toBeVisible();
   await expect(page.getByText('Currency').first()).toBeVisible();
   await expect(page.getByText('Timezone').first()).toBeVisible();
   await expect(page.getByText('Stripe account').first()).toBeVisible();
   await expect(page.getByText('evorto').first()).toBeVisible();
-  await expect(page.getByText('de-DE').first()).toBeVisible();
   await expect(page.getByText('EUR').first()).toBeVisible();
   await expect(page.getByText('Europe/Berlin').first()).toBeVisible();
 };
@@ -129,7 +127,6 @@ test('platform administrator reviews tenant list, detail, and forms @admin @glob
       .set({
         currency: originalTenant.currency,
         domain: originalTenant.domain,
-        locale: originalTenant.locale,
         name: originalTenant.name,
         stripeAccountId: originalTenant.stripeAccountId,
         theme: originalTenant.theme,
@@ -214,7 +211,6 @@ test('platform administrator reviews tenant list, detail, and forms @admin @glob
     expect.objectContaining({
       currency: 'EUR',
       domain: createdTenantDomain,
-      locale: 'de-DE',
       name: createdTenantName,
       stripeAccountId: null,
       theme: 'evorto',

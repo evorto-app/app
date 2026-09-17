@@ -12,6 +12,7 @@ import {
 import {
   form,
   FormField,
+  max,
   min,
   required,
   schema,
@@ -29,13 +30,21 @@ import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faArrowLeft, faUpload } from '@fortawesome/duotone-regular-svg-icons';
 import {
   DEFAULT_RECEIPT_COUNTRIES,
+  isCanonicalReceiptCountryCode,
   RECEIPT_COUNTRY_OPTIONS,
   resolveReceiptCountrySettings,
 } from '@shared/finance/receipt-countries';
+import { maximumPostgresInteger } from '@shared/schema-utilities';
+import {
+  type AdminTenantSettingsSnapshot,
+  adminTenantSettingsSnapshot,
+  TenantSettingsConflictError,
+} from '@shared/tenant-settings-snapshot';
 import {
   injectMutation,
   QueryClient,
 } from '@tanstack/angular-query-experimental';
+import { Schema } from 'effect';
 
 import {
   isIanaTimezone,
@@ -52,6 +61,13 @@ import {
   generalSettingsPayloadFromModel,
   requiresRuntimeSettingsReload,
 } from './general-settings.payload';
+
+export const generalSettingsUpdateErrorMessage = (error: unknown): string =>
+  getErrorMessage(error, 'Failed to update organization settings', [
+    'AdminTenantNotFoundError',
+    'RpcBadRequestError',
+    'TenantSettingsConflictError',
+  ]);
 
 export const generalSettingsSaveDisabled = ({
   formInvalid,
@@ -92,6 +108,38 @@ export const generalSettingsFormSchema = schema<GeneralSettingsModel>(
     });
     min(settings.transferDeadlineHoursBeforeStart, 0, {
       message: 'Enter zero or more hours.',
+    });
+    required(settings.maxActiveRegistrationsPerUser, {
+      message: 'Enter an active registration limit.',
+    });
+    min(settings.maxActiveRegistrationsPerUser, 0, {
+      message: 'Enter zero or a positive whole number.',
+    });
+    for (const field of [
+      settings.cancellationDeadlineHoursBeforeStart,
+      settings.maxActiveRegistrationsPerUser,
+      settings.transferDeadlineHoursBeforeStart,
+    ]) {
+      max(field, maximumPostgresInteger, {
+        message: 'Enter a value no greater than 2,147,483,647.',
+      });
+      validate(field, ({ value }) =>
+        Number.isInteger(value())
+          ? undefined
+          : { kind: 'wholeNumber', message: 'Enter a whole number.' },
+      );
+    }
+    validate(settings.receiptCountries, ({ value }) => {
+      const countries = value();
+      return countries.length > 0 &&
+        countries.every(isCanonicalReceiptCountryCode) &&
+        new Set(countries).size === countries.length
+        ? undefined
+        : {
+            kind: 'receiptCountries',
+            message:
+              'Select at least one supported receipt country without duplicates.',
+          };
     });
     validate(settings.timezone, ({ value }) =>
       tenantTimezoneValidationError(value()),
@@ -180,6 +228,10 @@ export class GeneralSettingsComponent {
   protected readonly generalSettingsSaveDisabled = generalSettingsSaveDisabled;
   protected readonly receiptCountryOptions = RECEIPT_COUNTRY_OPTIONS;
   protected readonly settingsModel = signal(createGeneralSettingsFormModel());
+  protected readonly expectedSettings =
+    signal<AdminTenantSettingsSnapshot | null>(null);
+  protected readonly settingsConflict = signal(false);
+  private initializedTenantId: null | string = null;
   protected readonly settingsForm = form(
     this.settingsModel,
     generalSettingsFormSchema,
@@ -200,7 +252,10 @@ export class GeneralSettingsComponent {
   constructor() {
     effect(() => {
       const currentTenant = this.currentTenant();
-      if (currentTenant) {
+      if (currentTenant && currentTenant.id !== this.initializedTenantId) {
+        this.initializedTenantId = currentTenant.id;
+        this.expectedSettings.set(adminTenantSettingsSnapshot(currentTenant));
+        this.settingsConflict.set(false);
         const receiptCountrySettings = resolveReceiptCountrySettings(
           currentTenant.receiptSettings,
         );
@@ -241,7 +296,10 @@ export class GeneralSettingsComponent {
 
   async saveSettings(event: Event) {
     event.preventDefault();
+    const expectedSettings = this.expectedSettings();
     if (
+      !expectedSettings ||
+      this.settingsConflict() ||
       generalSettingsSaveDisabled({
         formInvalid: this.settingsForm().invalid(),
         formSubmitting: this.settingsForm().submitting(),
@@ -258,8 +316,8 @@ export class GeneralSettingsComponent {
         settings,
       );
       try {
-        await this.updateSettingsMutation.mutateAsync(
-          generalSettingsPayloadFromModel(settings),
+        const updatedTenant = await this.updateSettingsMutation.mutateAsync(
+          { ...generalSettingsPayloadFromModel(settings), expectedSettings },
           {
             onSuccess: async () => {
               await this.queryClient.invalidateQueries({
@@ -271,6 +329,9 @@ export class GeneralSettingsComponent {
             },
           },
         );
+        if (updatedTenant.id === this.initializedTenantId) {
+          this.expectedSettings.set(adminTenantSettingsSnapshot(updatedTenant));
+        }
         this.notifications.showSuccess(
           reloadRequired
             ? 'Organization settings updated. Reloading to apply currency and timezone settings.'
@@ -280,14 +341,19 @@ export class GeneralSettingsComponent {
           this.document.defaultView?.location.reload();
         }
       } catch (error) {
-        this.notifications.showError(
-          getErrorMessage(error, 'Failed to update organization settings', [
-            'AdminTenantNotFoundError',
-            'RpcBadRequestError',
-          ]),
-        );
+        if (
+          Schema.is(TenantSettingsConflictError)(error) &&
+          this.expectedSettings() === expectedSettings
+        ) {
+          this.settingsConflict.set(true);
+        }
+        this.notifications.showError(generalSettingsUpdateErrorMessage(error));
       }
     });
+  }
+
+  reloadSettings(): void {
+    this.document.defaultView?.location.reload();
   }
 
   protected async uploadBrandAsset(

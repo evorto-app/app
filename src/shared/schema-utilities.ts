@@ -10,6 +10,13 @@ export const nonNegativeNumber = Schema.Number.check(
   Schema.isGreaterThanOrEqualTo(0),
 );
 
+export const maximumPostgresInteger = 2_147_483_647;
+
+export const nonNegativePostgresInteger = Schema.Int.check(
+  Schema.isGreaterThanOrEqualTo(0),
+  Schema.isLessThanOrEqualTo(maximumPostgresInteger),
+);
+
 export const positiveNumber = Schema.Number.check(Schema.isGreaterThan(0));
 
 export const optionalNullable = <S extends Schema.Top>(schema: S) =>

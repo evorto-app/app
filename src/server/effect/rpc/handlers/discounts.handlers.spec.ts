@@ -1,6 +1,12 @@
+import type { DiscountsCardMutationError } from '@shared/rpc-contracts/app-rpcs/discounts.errors';
+
 import { expect, layer, vi } from '@effect/vitest';
-import { RpcBadRequestError } from '@shared/errors/rpc-errors';
-import { Effect, Layer, Schema } from 'effect';
+import { createDatabaseTestLayer } from '@server/testing/database-test-layer';
+import {
+  RpcBadRequestError,
+  RpcUnauthorizedError,
+} from '@shared/errors/rpc-errors';
+import { Cause, Effect, Exit, Layer, Schema } from 'effect';
 import * as Headers from 'effect/unstable/http/Headers';
 import { Rpc, RpcMessage } from 'effect/unstable/rpc';
 
@@ -23,6 +29,7 @@ import { RpcAccess } from './shared/rpc-access.service';
 
 const createTenant = (id = 'tenant-1') =>
   Schema.decodeUnknownSync(Tenant)({
+    cancellationDeadlineHoursBeforeStart: 120,
     currency: 'EUR' as const,
     defaultLocation: null,
     discountProviders: {
@@ -33,15 +40,17 @@ const createTenant = (id = 'tenant-1') =>
     },
     domain: `${id}.example.com`,
     id,
-    locale: 'en',
+    maxActiveRegistrationsPerUser: 0,
     name: id,
     receiptSettings: {
       allowOther: false,
       receiptCountries: ['NL'],
     },
+    refundFeesOnCancellation: true,
     stripeAccountId: null,
     theme: 'evorto' as const,
     timezone: 'Europe/Amsterdam',
+    transferDeadlineHoursBeforeStart: 0,
   });
 
 const createUser = () =>
@@ -81,6 +90,116 @@ const discountHandlerLayer = Layer.mergeAll(
 );
 
 layer(discountHandlerLayer)('discountHandlers', (it) => {
+  const tenantProviderOperations: {
+    name: string;
+    run: () => Effect.Effect<
+      void,
+      DiscountsCardMutationError,
+      Database | RpcAccess
+    >;
+  }[] = [
+    {
+      name: 'getTenantProviders',
+      run: () =>
+        discountHandlers['discounts.getTenantProviders'](
+          undefined,
+          createRpcOptions(
+            DiscountRpcs.DiscountsGetTenantProviders.middleware(
+              RpcRequestContextMiddleware,
+            ),
+          ),
+        ).pipe(Effect.asVoid),
+    },
+    {
+      name: 'refreshMyCard',
+      run: () =>
+        discountHandlers['discounts.refreshMyCard'](
+          { type: 'esnCard' },
+          createRpcOptions(
+            DiscountRpcs.DiscountsRefreshMyCard.middleware(
+              RpcRequestContextMiddleware,
+            ),
+          ),
+        ).pipe(Effect.asVoid),
+    },
+    {
+      name: 'upsertMyCard',
+      run: () =>
+        discountHandlers['discounts.upsertMyCard'](
+          { identifier: 'ESN-123', type: 'esnCard' },
+          createRpcOptions(
+            DiscountRpcs.DiscountsUpsertMyCard.middleware(
+              RpcRequestContextMiddleware,
+            ),
+          ),
+        ).pipe(Effect.asVoid),
+    },
+  ];
+
+  for (const operation of tenantProviderOperations) {
+    it.effect(
+      `${operation.name} rejects a missing tenant before reading cards or invoking a provider`,
+      () =>
+        Effect.gen(function* () {
+          const executeValues = vi.fn(
+            (statement: string, parameters: readonly unknown[]) =>
+              Effect.sync(() => {
+                expect(statement).toContain('from "tenants"');
+                expect(parameters).toContain('tenant-2');
+                return [];
+              }),
+          );
+          const error = yield* operation
+            .run()
+            .pipe(
+              Effect.provide(createDatabaseTestLayer(executeValues)),
+              Effect.flip,
+            );
+          expect(error).toBeInstanceOf(RpcUnauthorizedError);
+          expect(error.message).toBe(
+            'Organization context is no longer available',
+          );
+          expect(executeValues).toHaveBeenCalledTimes(1);
+        }),
+    );
+
+    for (const discountProviders of [
+      null,
+      {},
+      { esnCard: { config: {}, status: 'invalid' } },
+    ]) {
+      it.effect(
+        `${operation.name} preserves invalid persisted provider settings as a schema defect: ${JSON.stringify(discountProviders)}`,
+        () =>
+          Effect.gen(function* () {
+            const executeValues = vi.fn((statement: string) =>
+              Effect.sync(() => {
+                expect(statement).toContain('from "tenants"');
+                return [[discountProviders]];
+              }),
+            );
+            const exit = yield* operation
+              .run()
+              .pipe(
+                Effect.provide(createDatabaseTestLayer(executeValues)),
+                Effect.exit,
+              );
+            expect(Exit.isFailure(exit)).toBe(true);
+            if (Exit.isSuccess(exit))
+              throw new Error('Expected persisted settings to fail validation');
+            expect(Cause.hasDies(exit.cause)).toBe(true);
+            const defect = exit.cause.reasons.find((reason) =>
+              Cause.isDieReason(reason),
+            );
+            expect(defect).toBeDefined();
+            if (!defect) throw new Error('Expected a schema defect');
+            expect(Schema.isSchemaError(defect.defect)).toBe(true);
+            expect(executeValues).toHaveBeenCalledTimes(1);
+          }),
+      );
+    }
+  }
+
   it.effect('getMyCards reads discount cards for the current tenant', () =>
     Effect.gen(function* () {
       const findMany = vi.fn(() =>

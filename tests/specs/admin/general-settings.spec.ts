@@ -26,6 +26,14 @@ test('tenant admin updates general settings @admin', async ({
     throw new Error(`Expected tenant row for ${seededTenant.id}`);
   }
   expect(tenant.domain).toBe(seededTenant.domain);
+  const readPrivacyPolicies = () =>
+    database.query.tenantPrivacyPolicyVersions.findMany({
+      orderBy: { version: 'asc' },
+      where: { tenantId: tenant.id },
+    });
+  const originalPrivacyPolicies = await readPrivacyPolicies();
+  expect(originalPrivacyPolicies.length).toBeGreaterThan(0);
+
   const suffix = seedDate.getTime();
   const emailSenderEmail = `operations+${suffix}@example.org`;
   const emailSenderName = `Operations ${suffix}`;
@@ -198,7 +206,7 @@ test('tenant admin updates general settings @admin', async ({
     expect(updatedTenant.seoTitle).toBe(seoTitle);
     expect(updatedTenant.seoDescription).toBe(seoDescription);
     expect(updatedTenant.legalNoticeText).toBe(legalNoticeText);
-    expect(updatedTenant.privacyPolicyUrl).toBe(tenant.privacyPolicyUrl);
+    expect(await readPrivacyPolicies()).toEqual(originalPrivacyPolicies);
     expect(updatedTenant.termsText).toBe(termsText);
     expect(updatedTenant.discountProviders.esnCard).toEqual({
       config: { buyEsnCardUrl },

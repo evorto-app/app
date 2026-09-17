@@ -44,6 +44,7 @@ const missingSubjectContextLayer = Layer.mergeAll(
     authenticated: true,
     permissions: [],
     tenant: Schema.decodeUnknownSync(Tenant)({
+      cancellationDeadlineHoursBeforeStart: 120,
       currency: 'EUR',
       defaultLocation: null,
       discountProviders: {
@@ -54,15 +55,17 @@ const missingSubjectContextLayer = Layer.mergeAll(
       },
       domain: 'tenant.example.com',
       id: 'tenant-1',
-      locale: 'de-DE',
+      maxActiveRegistrationsPerUser: 0,
       name: 'Tenant',
       receiptSettings: {
         allowOther: false,
         receiptCountries: ['NL'],
       },
+      refundFeesOnCancellation: true,
       stripeAccountId: null,
       theme: 'evorto',
       timezone: 'Europe/Berlin',
+      transferDeadlineHoursBeforeStart: 0,
     }),
     user: null,
     userAssigned: false,

@@ -9,7 +9,7 @@ import {
 const settingsModel: GeneralSettingsModel = {
   allowOther: true,
   buyEsnCardUrl: ' https://esncard.org/ ',
-  cancellationDeadlineHoursBeforeStart: 72.8,
+  cancellationDeadlineHoursBeforeStart: 72,
   currency: 'CZK',
   defaultLocation: {
     address: 'Amsterdam, Netherlands',
@@ -28,7 +28,7 @@ const settingsModel: GeneralSettingsModel = {
   legalNoticeText: ' Tenant imprint text ',
   legalNoticeUrl: ' https://section.example.org/imprint ',
   logoUrl: ' https://cdn.example.org/logo.svg ',
-  maxActiveRegistrationsPerUser: 4.8,
+  maxActiveRegistrationsPerUser: 4,
   receiptCountries: ['DE', 'NL'],
   refundFeesOnCancellation: false,
   seoDescription: ' Public tenant description ',
@@ -38,10 +38,26 @@ const settingsModel: GeneralSettingsModel = {
   termsUrl: ' https://section.example.org/terms ',
   theme: 'esn',
   timezone: 'Europe/Prague',
-  transferDeadlineHoursBeforeStart: 12.9,
+  transferDeadlineHoursBeforeStart: 12,
 };
 
 describe('generalSettingsPayloadFromModel', () => {
+  it('preserves policy values for validation without truncating or clamping them', () => {
+    const input = {
+      ...settingsModel,
+      cancellationDeadlineHoursBeforeStart: 1.5,
+      maxActiveRegistrationsPerUser: -1,
+      theme: 'classic' as const,
+      transferDeadlineHoursBeforeStart: 2_147_483_648,
+    };
+    expect(generalSettingsPayloadFromModel(input)).toMatchObject({
+      cancellationDeadlineHoursBeforeStart: 1.5,
+      maxActiveRegistrationsPerUser: -1,
+      theme: 'classic',
+      transferDeadlineHoursBeforeStart: 2_147_483_648,
+    });
+  });
+
   it('trims editable tenant settings before sending the RPC payload', () => {
     expect(generalSettingsPayloadFromModel(settingsModel)).toEqual({
       allowOther: true,
@@ -75,7 +91,7 @@ describe('generalSettingsPayloadFromModel', () => {
       generalSettingsPayloadFromModel({
         ...settingsModel,
         buyEsnCardUrl: ' ',
-        cancellationDeadlineHoursBeforeStart: -72,
+        cancellationDeadlineHoursBeforeStart: 72,
         defaultLocation: null,
         emailSenderEmail: '',
         emailSenderName: '',
@@ -83,18 +99,18 @@ describe('generalSettingsPayloadFromModel', () => {
         legalNoticeText: '',
         legalNoticeUrl: '',
         logoUrl: '',
-        maxActiveRegistrationsPerUser: -3,
+        maxActiveRegistrationsPerUser: 3,
         seoDescription: '',
         seoTitle: '',
         stripeAccountId: '',
         termsText: '',
         termsUrl: '',
-        transferDeadlineHoursBeforeStart: -12,
+        transferDeadlineHoursBeforeStart: 12,
       }),
     ).toEqual({
       allowOther: true,
       buyEsnCardUrl: undefined,
-      cancellationDeadlineHoursBeforeStart: 0,
+      cancellationDeadlineHoursBeforeStart: 72,
       currency: 'CZK',
       defaultLocation: null,
       emailSenderEmail: undefined,
@@ -104,7 +120,7 @@ describe('generalSettingsPayloadFromModel', () => {
       legalNoticeText: undefined,
       legalNoticeUrl: undefined,
       logoUrl: undefined,
-      maxActiveRegistrationsPerUser: 0,
+      maxActiveRegistrationsPerUser: 3,
       receiptCountries: ['DE', 'NL'],
       refundFeesOnCancellation: false,
       seoDescription: undefined,
@@ -114,7 +130,7 @@ describe('generalSettingsPayloadFromModel', () => {
       termsUrl: undefined,
       theme: 'esn',
       timezone: 'Europe/Prague',
-      transferDeadlineHoursBeforeStart: 0,
+      transferDeadlineHoursBeforeStart: 12,
     });
   });
 });

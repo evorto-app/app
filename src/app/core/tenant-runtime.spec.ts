@@ -7,16 +7,25 @@ import {
   tenantCurrencyCode,
   tenantDatePipeTimezone,
   tenantNow,
+  TenantRuntimeConfigurationUnavailableError,
   toTenantDateTime,
 } from './tenant-runtime';
 
 describe('tenant runtime time configuration', () => {
-  it('uses Europe/Berlin until tenant context is available', () => {
-    expect(resolveTenantRuntimeTimezone(undefined)).toBe('Europe/Berlin');
-    expect(tenantDatePipeTimezone({ tenantSignal: signal(null) })).toBe(
-      'Europe/Berlin',
+  it('surfaces missing tenant runtime configuration', () => {
+    expect(() => resolveTenantRuntimeTimezone(undefined)).toThrowError(
+      TenantRuntimeConfigurationUnavailableError,
     );
-    expect(tenantCurrencyCode({ tenantSignal: signal(null) })).toBe('EUR');
+    expect(() =>
+      tenantDatePipeTimezone({ tenantSignal: signal(null) }),
+    ).toThrowError(
+      'The organization timezone is unavailable because the organization settings did not load.',
+    );
+    expect(() =>
+      tenantCurrencyCode({ tenantSignal: signal(null) }),
+    ).toThrowError(
+      'The organization currency is unavailable because the organization settings did not load.',
+    );
   });
 
   it('provides the tenant IANA timezone to tenant date formatting', () => {

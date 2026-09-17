@@ -24,10 +24,37 @@ interface ReceiptCountryConfigTenant {
     | null
     | undefined
     | {
-        allowOther?: boolean | undefined;
+        allowOther?: unknown;
         receiptCountries?: readonly string[] | undefined;
       };
 }
+
+const requireReceiptCountrySettings = (tenant: ReceiptCountryConfigTenant) => {
+  const settings = tenant.receiptSettings;
+  if (
+    !settings ||
+    typeof settings.allowOther !== 'boolean' ||
+    settings.receiptCountries === undefined ||
+    settings.receiptCountries.length === 0
+  ) {
+    throw new Error('Tenant receipt settings are unavailable');
+  }
+
+  const receiptCountries = [...settings.receiptCountries];
+  if (
+    receiptCountries.some(
+      (country) => normalizeReceiptCountryCode(country) !== country,
+    ) ||
+    new Set(receiptCountries).size !== receiptCountries.length
+  ) {
+    throw new Error('Tenant receipt settings are invalid');
+  }
+
+  return {
+    allowOther: settings.allowOther,
+    receiptCountries,
+  };
+};
 
 export const databaseEffect = <A>(
   operation: (database: DatabaseClient) => Effect.Effect<A, unknown, never>,
@@ -44,7 +71,7 @@ export const resolveTenantSelectableReceiptCountries = (
   tenant: ReceiptCountryConfigTenant,
 ): string[] =>
   buildSelectableReceiptCountries(
-    resolveReceiptCountrySettings(tenant.receiptSettings ?? undefined),
+    resolveReceiptCountrySettings(requireReceiptCountrySettings(tenant)),
   );
 
 export const validateReceiptCountryForTenant = (
@@ -53,7 +80,7 @@ export const validateReceiptCountryForTenant = (
 ): null | string => {
   if (purchaseCountry === OTHER_RECEIPT_COUNTRY_CODE) {
     const receiptCountrySettings = resolveReceiptCountrySettings(
-      tenant.receiptSettings ?? undefined,
+      requireReceiptCountrySettings(tenant),
     );
     return receiptCountrySettings.allowOther
       ? OTHER_RECEIPT_COUNTRY_CODE

@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ConfigService } from '../../core/config.service';
 import { PermissionsService } from '../../core/permissions.service';
+import { TENANT_DATE_PIPE_TIMEZONE } from '../../core/tenant-date.pipe';
 import { EventListService } from '../event-list.service';
 import { EventListComponent } from './event-list.component';
 
@@ -43,6 +44,7 @@ describe('EventListComponent load recovery', () => {
       imports: [EventListComponent],
       providers: [
         provideRouter([]),
+        { provide: TENANT_DATE_PIPE_TIMEZONE, useValue: 'Europe/Berlin' },
         {
           provide: ConfigService,
           useValue: { updateTitle: vi.fn() },

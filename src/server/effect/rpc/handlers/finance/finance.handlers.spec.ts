@@ -19,8 +19,9 @@ import { financeHandlers } from './finance.handlers';
 import { ReceiptMediaService } from './receipt-media.service';
 
 const tenant = {
+  cancellationDeadlineHoursBeforeStart: 120,
   currency: 'EUR' as const,
-  defaultLocation: null,
+  defaultLocation: undefined,
   discountProviders: {
     esnCard: {
       config: {},
@@ -29,26 +30,31 @@ const tenant = {
   },
   domain: 'tenant.example.com',
   id: 'tenant-1',
-  locale: 'en',
+  maxActiveRegistrationsPerUser: 0,
   name: 'Tenant',
   receiptSettings: {
     allowOther: false,
     receiptCountries: ['NL'],
   },
+  refundFeesOnCancellation: true,
   stripeAccountId: null,
   theme: 'evorto' as const,
   timezone: 'Europe/Amsterdam',
+  transferDeadlineHoursBeforeStart: 0,
 };
 
 const createUser = (permissions: readonly Permission[]) => ({
   attributes: [],
   auth0Id: 'auth0|user-1',
+  communicationEmail: undefined,
   email: 'alice@example.com',
   firstName: 'Alice',
-  iban: null,
+  homeTenantId: undefined,
+  homeTenantName: undefined,
+  iban: undefined,
   id: 'user-1',
   lastName: 'Doe',
-  paypalEmail: null,
+  paypalEmail: undefined,
   permissions,
   roleIds: [],
 });
@@ -750,7 +756,7 @@ const databaseWithReceiptReviewLifecycle = ({
     database: {
       select: () => preflightQuery,
       transaction: (
-        run: (transaction: typeof transaction) => Effect.Effect<unknown>,
+        run: (transactionClient: typeof transaction) => Effect.Effect<unknown>,
       ) => {
         operations.push('transaction:start');
         return run(transaction);
@@ -934,7 +940,9 @@ describe('finance receipt media permissions', () => {
       );
 
       expect(error['_tag']).toBe('RpcForbiddenError');
-      expect(error.permission).toBe('finance:submitReceipts:event-1');
+      expect(error).toMatchObject({
+        permission: 'finance:submitReceipts:event-1',
+      });
       expect(isUploadCalled).toBe(false);
     }),
   );
@@ -1105,7 +1113,7 @@ describe('finance transaction permissions', () => {
         ).pipe(Effect.flip, Effect.provide(createContextLayer([])));
 
         expect(error['_tag']).toBe('RpcForbiddenError');
-        expect(error.permission).toBe('finance:viewTransactions');
+        expect(error).toMatchObject({ permission: 'finance:viewTransactions' });
       }),
   );
 });
@@ -1187,7 +1195,7 @@ describe('finance receipt reimbursement', () => {
         );
 
         expect(error['_tag']).toBe('RpcBadRequestError');
-        expect(error.reason).toBe('mismatchedSubmitter');
+        expect(error).toMatchObject({ reason: 'mismatchedSubmitter' });
       }),
   );
 
@@ -1227,7 +1235,7 @@ describe('finance receipt reimbursement', () => {
         );
 
         expect(error['_tag']).toBe('RpcBadRequestError');
-        expect(error.reason).toBe('mismatchedReceiptCurrency');
+        expect(error).toMatchObject({ reason: 'mismatchedReceiptCurrency' });
       }),
   );
 
@@ -1260,7 +1268,7 @@ describe('finance receipt reimbursement', () => {
         );
 
         expect(error['_tag']).toBe('RpcBadRequestError');
-        expect(error.reason).toBe('invalidReimbursementTotal');
+        expect(error).toMatchObject({ reason: 'invalidReimbursementTotal' });
       }),
   );
 
@@ -1289,7 +1297,7 @@ describe('finance receipt reimbursement', () => {
         );
 
         expect(error['_tag']).toBe('RpcBadRequestError');
-        expect(error.reason).toBe('missingIban');
+        expect(error).toMatchObject({ reason: 'missingIban' });
       }),
   );
 
@@ -1318,7 +1326,7 @@ describe('finance receipt reimbursement', () => {
         );
 
         expect(error['_tag']).toBe('RpcBadRequestError');
-        expect(error.reason).toBe('missingPaypal');
+        expect(error).toMatchObject({ reason: 'missingPaypal' });
       }),
   );
 
@@ -1347,7 +1355,7 @@ describe('finance receipt reimbursement', () => {
         );
 
         expect(error['_tag']).toBe('RpcBadRequestError');
-        expect(error.reason).toBe('payoutReferenceMismatch');
+        expect(error).toMatchObject({ reason: 'payoutReferenceMismatch' });
       }),
   );
 
@@ -1372,7 +1380,9 @@ describe('finance receipt reimbursement', () => {
         );
 
         expect(error['_tag']).toBe('RpcBadRequestError');
-        expect(error.reason).toBe('receiptRefundPreconditionFailed');
+        expect(error).toMatchObject({
+          reason: 'receiptRefundPreconditionFailed',
+        });
       }),
   );
 });
@@ -1396,7 +1406,7 @@ describe('finance receipt approval evidence', () => {
               database: fixture.database,
               receiptMediaService: {
                 createUploadPolicy: () =>
-                  Effect.dieMessage('Unexpected receipt upload'),
+                  Effect.die(new Error('Unexpected receipt upload')),
                 objectExists: ({ storageKey }: { storageKey: string }) =>
                   Effect.sync(() => {
                     expect(storageKey).toBe(
@@ -1442,7 +1452,7 @@ describe('finance receipt approval evidence', () => {
             database: fixture.database,
             receiptMediaService: {
               createUploadPolicy: () =>
-                Effect.dieMessage('Unexpected receipt upload'),
+                Effect.die(new Error('Unexpected receipt upload')),
               objectExists: () => Effect.succeed(false),
               signedPreviewUrl: () =>
                 Effect.succeed('https://signed.example.test/receipt'),
@@ -1452,7 +1462,7 @@ describe('finance receipt approval evidence', () => {
       );
 
       expect(error['_tag']).toBe('RpcBadRequestError');
-      expect(error.reason).toBe('receiptEvidenceUnavailable');
+      expect(error).toMatchObject({ reason: 'receiptEvidenceUnavailable' });
       expect(fixture.operations).toEqual(['preflight']);
     }),
   );
@@ -1474,7 +1484,7 @@ describe('finance receipt approval evidence', () => {
             database: fixture.database,
             receiptMediaService: {
               createUploadPolicy: () =>
-                Effect.dieMessage('Unexpected receipt upload'),
+                Effect.die(new Error('Unexpected receipt upload')),
               objectExists: () => Effect.succeed(true),
               signedPreviewUrl: () =>
                 Effect.fail(
@@ -1488,7 +1498,7 @@ describe('finance receipt approval evidence', () => {
       );
 
       expect(error['_tag']).toBe('RpcBadRequestError');
-      expect(error.reason).toBe('receiptEvidenceUnavailable');
+      expect(error).toMatchObject({ reason: 'receiptEvidenceUnavailable' });
       expect(fixture.operations).toEqual(['preflight']);
     }),
   );
@@ -1513,7 +1523,7 @@ describe('finance receipt approval evidence', () => {
             database: fixture.database,
             receiptMediaService: {
               createUploadPolicy: () =>
-                Effect.dieMessage('Unexpected receipt upload'),
+                Effect.die(new Error('Unexpected receipt upload')),
               objectExists,
               signedPreviewUrl: () =>
                 Effect.succeed('https://signed.example.test/receipt'),
@@ -1523,7 +1533,7 @@ describe('finance receipt approval evidence', () => {
       );
 
       expect(error['_tag']).toBe('RpcBadRequestError');
-      expect(error.reason).toBe('receiptEvidenceUnavailable');
+      expect(error).toMatchObject({ reason: 'receiptEvidenceUnavailable' });
       expect(objectExists).not.toHaveBeenCalled();
       expect(fixture.operations).toEqual(['preflight']);
     }),
@@ -1557,7 +1567,7 @@ describe('finance receipt approval evidence', () => {
               database: fixture.database,
               receiptMediaService: {
                 createUploadPolicy: () =>
-                  Effect.dieMessage('Unexpected receipt upload'),
+                  Effect.die(new Error('Unexpected receipt upload')),
                 objectExists,
                 signedPreviewUrl: () =>
                   Effect.succeed('https://signed.example.test/receipt'),
@@ -1567,7 +1577,7 @@ describe('finance receipt approval evidence', () => {
         );
 
         expect(error['_tag']).toBe('RpcBadRequestError');
-        expect(error.reason).toBe('receiptEvidenceUnavailable');
+        expect(error).toMatchObject({ reason: 'receiptEvidenceUnavailable' });
         expect(objectExists).not.toHaveBeenCalled();
         expect(fixture.operations).toEqual(['preflight']);
       }),
@@ -1598,7 +1608,7 @@ describe('finance receipt approval evidence', () => {
             database: fixture.database,
             receiptMediaService: {
               createUploadPolicy: () =>
-                Effect.dieMessage('Unexpected receipt upload'),
+                Effect.die(new Error('Unexpected receipt upload')),
               objectExists: () => Effect.succeed(true),
               signedPreviewUrl: () =>
                 Effect.succeed('https://signed.example.test/receipt'),
@@ -1608,7 +1618,7 @@ describe('finance receipt approval evidence', () => {
       );
 
       expect(error['_tag']).toBe('RpcBadRequestError');
-      expect(error.reason).toBe('receiptEvidenceUnavailable');
+      expect(error).toMatchObject({ reason: 'receiptEvidenceUnavailable' });
       expect(fixture.operations).toEqual([
         'preflight',
         'transaction:start',
@@ -1636,7 +1646,7 @@ describe('finance receipt approval evidence', () => {
             database: fixture.database,
             receiptMediaService: {
               createUploadPolicy: () =>
-                Effect.dieMessage('Unexpected receipt upload'),
+                Effect.die(new Error('Unexpected receipt upload')),
               objectExists,
               signedPreviewUrl: () =>
                 Effect.succeed('https://signed.example.test/receipt'),
@@ -1715,7 +1725,7 @@ describe('finance receipt amount validation', () => {
         );
 
         expect(error['_tag']).toBe('RpcBadRequestError');
-        expect(error.reason).toBe('receipt_upload_unavailable');
+        expect(error).toMatchObject({ reason: 'receipt_upload_unavailable' });
         expect(receiptDatabase.insertedValues()).toBeUndefined();
       }),
   );
@@ -1740,7 +1750,7 @@ describe('finance receipt amount validation', () => {
       );
 
       expect(error['_tag']).toBe('RpcBadRequestError');
-      expect(error.reason).toBe('receipt_upload_unavailable');
+      expect(error).toMatchObject({ reason: 'receipt_upload_unavailable' });
       expect(receiptDatabase.insertedValues()).toBeUndefined();
     }),
   );
@@ -1767,7 +1777,7 @@ describe('finance receipt amount validation', () => {
       );
 
       expect(error['_tag']).toBe('RpcBadRequestError');
-      expect(error.reason).toBe('tax_amount_exceeds_total');
+      expect(error).toMatchObject({ reason: 'tax_amount_exceeds_total' });
     }),
   );
 
@@ -1792,7 +1802,7 @@ describe('finance receipt amount validation', () => {
       );
 
       expect(error['_tag']).toBe('RpcBadRequestError');
-      expect(error.reason).toBe('taxAmountExceedsTotal');
+      expect(error).toMatchObject({ reason: 'taxAmountExceedsTotal' });
     }),
   );
 
@@ -1815,7 +1825,7 @@ describe('finance receipt amount validation', () => {
       );
 
       expect(error['_tag']).toBe('RpcBadRequestError');
-      expect(error.reason).toBe('refundedReceipt');
+      expect(error).toMatchObject({ reason: 'refundedReceipt' });
     }),
   );
 
@@ -1840,7 +1850,7 @@ describe('finance receipt amount validation', () => {
         );
 
         expect(error['_tag']).toBe('RpcBadRequestError');
-        expect(error.reason).toBe('receiptAlreadyReviewed');
+        expect(error).toMatchObject({ reason: 'receiptAlreadyReviewed' });
       }),
   );
 
@@ -1864,7 +1874,7 @@ describe('finance receipt amount validation', () => {
       );
 
       expect(error['_tag']).toBe('RpcBadRequestError');
-      expect(error.reason).toBe('missingRejectionReason');
+      expect(error).toMatchObject({ reason: 'missingRejectionReason' });
     }),
   );
 
@@ -1888,7 +1898,7 @@ describe('finance receipt amount validation', () => {
       );
 
       expect(error['_tag']).toBe('RpcBadRequestError');
-      expect(error.reason).toBe('invalidReceiptDate');
+      expect(error).toMatchObject({ reason: 'invalidReceiptDate' });
     }),
   );
 });

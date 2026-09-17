@@ -19,6 +19,7 @@ import { RpcAccess } from './shared/rpc-access.service';
 import { taxRateHandlers } from './tax-rates.handlers';
 
 const tenant = Schema.decodeUnknownSync(Tenant)({
+  cancellationDeadlineHoursBeforeStart: 120,
   currency: 'EUR' as const,
   defaultLocation: null,
   discountProviders: {
@@ -29,15 +30,17 @@ const tenant = Schema.decodeUnknownSync(Tenant)({
   },
   domain: 'tenant.example.com',
   id: 'tenant-1',
-  locale: 'en',
+  maxActiveRegistrationsPerUser: 0,
   name: 'Tenant',
   receiptSettings: {
     allowOther: false,
     receiptCountries: ['NL'],
   },
+  refundFeesOnCancellation: true,
   stripeAccountId: 'acct_current',
   theme: 'evorto' as const,
   timezone: 'Europe/Amsterdam',
+  transferDeadlineHoursBeforeStart: 0,
 });
 
 const createRequestContext = (

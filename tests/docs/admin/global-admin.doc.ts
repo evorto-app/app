@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 
 import { getId } from '../../../helpers/get-id';
 import { gaStateFile } from '../../../helpers/user-data';
@@ -28,7 +28,6 @@ type GlobalAdminTenantDocRow = Pick<
   | 'currency'
   | 'domain'
   | 'id'
-  | 'locale'
   | 'name'
   | 'stripeAccountId'
   | 'theme'
@@ -41,13 +40,11 @@ const expectGlobalAdminTenantRows = async (
 ) => {
   await expect(page.getByText('Primary domain').first()).toBeVisible();
   await expect(page.getByText('Theme').first()).toBeVisible();
-  await expect(page.getByText('Locale').first()).toBeVisible();
   await expect(page.getByText('Currency').first()).toBeVisible();
   await expect(page.getByText('Timezone').first()).toBeVisible();
   await expect(page.getByText('Stripe account').first()).toBeVisible();
   await expect(page.getByText(tenant.domain).first()).toBeVisible();
   await expect(page.getByText(tenant.theme).first()).toBeVisible();
-  await expect(page.getByText(tenant.locale).first()).toBeVisible();
   await expect(page.getByText(tenant.currency).first()).toBeVisible();
   await expect(page.getByText(tenant.timezone).first()).toBeVisible();
   if (tenant.stripeAccountId) {
@@ -108,6 +105,7 @@ const expectGlobalAdminTenantFormSurface = async (
 test('Review platform organization administration @admin @globalAdmin', async ({
   database,
   page,
+  registerDatabaseCleanup,
 }, testInfo) => {
   const documentedTenant = await database.query.tenants.findFirst({
     where: { domain: 'localhost' },
@@ -119,13 +117,51 @@ test('Review platform organization administration @admin @globalAdmin', async ({
   const createdTenantName = 'Documentation Section';
   const createAuditReason = `Documentation tenant creation for ${createdTenantDomain}`;
   const updateAuditReason = `Documentation tenant update for ${createdTenantDomain}`;
-  let createdTenantId: string | undefined;
 
-  try {
-    await page.goto('/global-admin/tenants');
+  // The database fixture runs registered cleanups before closing its pool,
+  // including when Playwright interrupts the test body.
+  registerDatabaseCleanup(async (cleanupDatabase) => {
+    await cleanupDatabase
+      .delete(schema.tenants)
+      .where(eq(schema.tenants.domain, createdTenantDomain));
+  });
+  registerDatabaseCleanup(async (cleanupDatabase) => {
+    await cleanupDatabase
+      .delete(schema.tenantPrivacyPolicyVersions)
+      .where(
+        inArray(
+          schema.tenantPrivacyPolicyVersions.tenantId,
+          cleanupDatabase
+            .select({ id: schema.tenants.id })
+            .from(schema.tenants)
+            .where(eq(schema.tenants.domain, createdTenantDomain)),
+        ),
+      );
+  });
+  registerDatabaseCleanup(async (cleanupDatabase) => {
+    await cleanupDatabase
+      .delete(schema.platformAuditEntries)
+      .where(
+        and(
+          inArray(schema.platformAuditEntries.reason, [
+            createAuditReason,
+            updateAuditReason,
+          ]),
+          inArray(
+            schema.platformAuditEntries.targetTenantId,
+            cleanupDatabase
+              .select({ id: schema.tenants.id })
+              .from(schema.tenants)
+              .where(eq(schema.tenants.domain, createdTenantDomain)),
+          ),
+        ),
+      );
+  });
 
-    await testInfo.attach('markdown', {
-      body: `
+  await page.goto('/global-admin/tenants');
+
+  await testInfo.attach('markdown', {
+    body: `
 {% callout type="note" title="Platform authority" %}
 For this guide, we assume you are signed in as a platform administrator. An organization role does not grant this access.
 {% /callout %}
@@ -134,215 +170,209 @@ For this guide, we assume you are signed in as a platform administrator. An orga
 
 Platform administrators can review, create, and edit organizations from **Platform administration** without becoming an organization member. Every change requires a reason and appears in the platform audit log.
 `,
-    });
+  });
 
+  await expect(
+    page.getByRole('heading', { name: 'Platform administration' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('heading', { level: 1, name: 'Organizations' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('link', { name: 'Create organization' }),
+  ).toHaveAttribute('href', '/global-admin/tenants/create');
+  const primaryDomain = documentedTenant.domain;
+  await fillTenantSearch(page, primaryDomain);
+  await expectGlobalAdminTenantRows(page, documentedTenant);
+  await expect(firstTenantPrimaryDomain(page)).toHaveText(primaryDomain);
+  await fillTenantSearch(page, 'no-such-tenant');
+  await expect(
+    page.getByRole('heading', { name: 'No organizations match this search' }),
+  ).toBeVisible();
+  await fillTenantSearch(page, primaryDomain);
+  await expect(page.getByText(primaryDomain).first()).toBeVisible();
+  if (documentedTenant.stripeAccountId) {
+    await fillTenantSearch(page, documentedTenant.stripeAccountId);
     await expect(
-      page.getByRole('heading', { name: 'Platform administration' }),
+      page.getByText(documentedTenant.stripeAccountId).first(),
     ).toBeVisible();
-    await expect(
-      page.getByRole('heading', { level: 1, name: 'Organizations' }),
-    ).toBeVisible();
-    await expect(
-      page.getByRole('link', { name: 'Create organization' }),
-    ).toHaveAttribute('href', '/global-admin/tenants/create');
-    const primaryDomain = documentedTenant.domain;
-    await fillTenantSearch(page, primaryDomain);
-    await expectGlobalAdminTenantRows(page, documentedTenant);
-    await expect(firstTenantPrimaryDomain(page)).toHaveText(primaryDomain);
-    await fillTenantSearch(page, 'no-such-tenant');
-    await expect(
-      page.getByRole('heading', { name: 'No organizations match this search' }),
-    ).toBeVisible();
-    await fillTenantSearch(page, primaryDomain);
-    await expect(page.getByText(primaryDomain).first()).toBeVisible();
-    if (documentedTenant.stripeAccountId) {
-      await fillTenantSearch(page, documentedTenant.stripeAccountId);
-      await expect(
-        page.getByText(documentedTenant.stripeAccountId).first(),
-      ).toBeVisible();
-    }
-    await takeScreenshot(
-      testInfo,
-      page.locator('app-tenant-list'),
-      page,
-      'Platform organization list',
-    );
-    await page.getByRole('link', { name: 'Create organization' }).click();
-    await expect(
-      page.getByRole('heading', { name: 'Create organization' }),
-    ).toBeVisible();
-    await expectGlobalAdminTenantFormSurface(page, { create: true });
-    await expect(
-      page.getByRole('button', { name: 'Create organization' }),
-    ).toBeDisabled();
-    await tenantNameInput(page).fill(createdTenantName);
-    await tenantPrimaryDomainInput(page).fill('section.example.org/path');
-    await page
-      .getByLabel('Privacy policy text')
-      .fill('Privacy policy for the documentation section.');
-    await page.getByLabel('Reason for platform change').fill(createAuditReason);
-    await takeScreenshot(
-      testInfo,
-      page.locator('app-tenant-create'),
-      page,
-      'Create an organization with an initial privacy policy and change reason',
-    );
-    await expect(
-      page.getByRole('button', { name: 'Create organization' }),
-    ).toBeEnabled();
-    await page.getByRole('button', { name: 'Create organization' }).click();
-    await expect(
-      page.getByText(
-        'Enter the main website address only, for example section.example.org.',
-      ),
-    ).toBeVisible();
-    await expect(page).toHaveURL(/\/global-admin\/tenants\/create$/);
-    await tenantPrimaryDomainInput(page).fill(documentedTenant.domain);
-    await page.getByRole('button', { name: 'Create organization' }).click();
-    await expect(
-      page.getByText('Organization domain already exists'),
-    ).toBeVisible();
-    await expect(page).toHaveURL(/\/global-admin\/tenants\/create$/);
-    await tenantPrimaryDomainInput(page).fill(createdTenantDomain);
-    await expect(
-      page.getByRole('button', { name: 'Create organization' }),
-    ).toBeEnabled();
-    await page.getByRole('button', { name: 'Create organization' }).click();
-    await expect(page).toHaveURL(/\/global-admin\/tenants\/[^/]+$/);
-    await expect(
-      page.getByRole('heading', { level: 1, name: createdTenantName }),
-    ).toBeVisible();
+  }
+  await takeScreenshot(
+    testInfo,
+    page.locator('app-tenant-list'),
+    page,
+    'Platform organization list',
+  );
+  await page.getByRole('link', { name: 'Create organization' }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Create organization' }),
+  ).toBeVisible();
+  await expectGlobalAdminTenantFormSurface(page, { create: true });
+  await expect(
+    page.getByRole('button', { name: 'Create organization' }),
+  ).toBeDisabled();
+  await tenantNameInput(page).fill(createdTenantName);
+  await tenantPrimaryDomainInput(page).fill('section.example.org/path');
+  await page
+    .getByLabel('Privacy policy text')
+    .fill('Privacy policy for the documentation section.');
+  await page.getByLabel('Reason for platform change').fill(createAuditReason);
+  await takeScreenshot(
+    testInfo,
+    page.locator('app-tenant-create'),
+    page,
+    'Create an organization with an initial privacy policy and change reason',
+  );
+  await expect(
+    page.getByRole('button', { name: 'Create organization' }),
+  ).toBeEnabled();
+  await page.getByRole('button', { name: 'Create organization' }).click();
+  await expect(
+    page.getByText(
+      'Enter the main website address only, for example section.example.org.',
+    ),
+  ).toBeVisible();
+  await expect(page).toHaveURL(/\/global-admin\/tenants\/create$/);
+  await tenantPrimaryDomainInput(page).fill(documentedTenant.domain);
+  await page.getByRole('button', { name: 'Create organization' }).click();
+  await expect(
+    page.getByText('Organization domain already exists'),
+  ).toBeVisible();
+  await expect(page).toHaveURL(/\/global-admin\/tenants\/create$/);
+  await tenantPrimaryDomainInput(page).fill(createdTenantDomain);
+  await expect(
+    page.getByRole('button', { name: 'Create organization' }),
+  ).toBeEnabled();
+  await page.getByRole('button', { name: 'Create organization' }).click();
+  await expect(page).toHaveURL(/\/global-admin\/tenants\/[^/]+$/);
+  await expect(
+    page.getByRole('heading', { level: 1, name: createdTenantName }),
+  ).toBeVisible();
 
-    const createdTenant = await database.query.tenants.findFirst({
-      where: { domain: createdTenantDomain },
-    });
-    if (!createdTenant) {
-      throw new Error(
-        'Expected global-admin docs create flow to persist tenant',
-      );
-    }
-    createdTenantId = createdTenant.id;
-    expect(createdTenant).toEqual(
-      expect.objectContaining({
-        currency: 'EUR',
-        domain: createdTenantDomain,
-        locale: 'de-DE',
-        name: createdTenantName,
-        stripeAccountId: null,
-        theme: 'evorto',
-        timezone: 'Europe/Berlin',
-      }),
-    );
-    await expect(
-      database.query.tenantPrivacyPolicyVersions.findFirst({
-        where: { tenantId: createdTenant.id },
-      }),
-    ).resolves.toEqual(
-      expect.objectContaining({
-        privacyPolicyText: 'Privacy policy for the documentation section.',
-        tenantId: createdTenant.id,
-        version: 1,
-      }),
-    );
+  const createdTenant = await database.query.tenants.findFirst({
+    where: { domain: createdTenantDomain },
+  });
+  if (!createdTenant) {
+    throw new Error('Expected global-admin docs create flow to persist tenant');
+  }
+  expect(createdTenant).toEqual(
+    expect.objectContaining({
+      currency: 'EUR',
+      domain: createdTenantDomain,
+      name: createdTenantName,
+      stripeAccountId: null,
+      theme: 'evorto',
+      timezone: 'Europe/Berlin',
+    }),
+  );
+  await expect(
+    database.query.tenantPrivacyPolicyVersions.findFirst({
+      where: { tenantId: createdTenant.id },
+    }),
+  ).resolves.toEqual(
+    expect.objectContaining({
+      privacyPolicyText: 'Privacy policy for the documentation section.',
+      tenantId: createdTenant.id,
+      version: 1,
+    }),
+  );
 
-    await page.goto('/global-admin/tenants');
-    await expect(
-      page.getByRole('heading', { level: 1, name: 'Organizations' }),
-    ).toBeVisible();
-    await expect(page).toHaveURL(/\/global-admin\/tenants$/);
-    await fillTenantSearch(page, createdTenantDomain);
-    await expect(page.getByText(createdTenantDomain).first()).toBeVisible();
-    const reviewTenantLink = page
-      .locator('app-tenant-list > div')
-      .filter({ hasText: createdTenantDomain })
-      .getByRole('link', { name: 'Review organization' });
-    const reviewTenantHref = await reviewTenantLink.getAttribute('href');
-    if (!reviewTenantHref) {
-      throw new Error('Expected documented tenant review link href');
-    }
-    expect(reviewTenantHref).toMatch(/^\/global-admin\/tenants\/[^/]+$/);
-    await reviewTenantLink.click();
-    await expect(page).toHaveURL(/\/global-admin\/tenants\/[^/]+$/);
-    await expect(
-      page.getByText("Review this organization's settings and platform tools."),
-    ).toBeVisible();
-    await expectGlobalAdminTenantRows(page, createdTenant);
-    await expect(
-      page.getByRole('link', { name: 'Open organization' }),
-    ).toHaveAttribute('href', `https://${createdTenantDomain}`);
-    await expect(
-      page.getByRole('link', { name: 'Edit organization' }),
-    ).toHaveAttribute('href', `${reviewTenantHref}/edit`);
-    await takeScreenshot(
-      testInfo,
-      page.locator('app-tenant-detail'),
-      page,
-      'Organization detail and platform tools',
-    );
-    await page.getByRole('link', { name: 'Edit organization' }).click();
-    await expect(page).toHaveURL(/\/global-admin\/tenants\/[^/]+\/edit$/);
-    await expect(
-      page.getByRole('heading', { name: 'Edit organization' }),
-    ).toBeVisible();
-    await expectGlobalAdminTenantFormSurface(page, {
-      publicUrlMigrationGuidance: true,
-    });
-    await expect(tenantNameInput(page)).toHaveValue(createdTenant.name);
-    await expect(tenantPrimaryDomainInput(page)).toHaveValue(
-      createdTenantDomain,
-    );
-    await expect(tenantStripeAccountInput(page)).toHaveValue(
-      createdTenant.stripeAccountId ?? '',
-    );
-    await expect(
-      page.getByRole('button', { name: 'Save organization' }),
-    ).toBeDisabled();
+  await page.goto('/global-admin/tenants');
+  await expect(
+    page.getByRole('heading', { level: 1, name: 'Organizations' }),
+  ).toBeVisible();
+  await expect(page).toHaveURL(/\/global-admin\/tenants$/);
+  await fillTenantSearch(page, createdTenantDomain);
+  await expect(page.getByText(createdTenantDomain).first()).toBeVisible();
+  const reviewTenantLink = page
+    .locator('app-tenant-list > div')
+    .filter({ hasText: createdTenantDomain })
+    .getByRole('link', { name: 'Review organization' });
+  const reviewTenantHref = await reviewTenantLink.getAttribute('href');
+  if (!reviewTenantHref) {
+    throw new Error('Expected documented tenant review link href');
+  }
+  expect(reviewTenantHref).toMatch(/^\/global-admin\/tenants\/[^/]+$/);
+  await reviewTenantLink.click();
+  await expect(page).toHaveURL(/\/global-admin\/tenants\/[^/]+$/);
+  await expect(
+    page.getByText("Review this organization's settings and platform tools."),
+  ).toBeVisible();
+  await expectGlobalAdminTenantRows(page, createdTenant);
+  await expect(
+    page.getByRole('link', { name: 'Open organization' }),
+  ).toHaveAttribute('href', `https://${createdTenantDomain}`);
+  await expect(
+    page.getByRole('link', { name: 'Edit organization' }),
+  ).toHaveAttribute('href', `${reviewTenantHref}/edit`);
+  await takeScreenshot(
+    testInfo,
+    page.locator('app-tenant-detail'),
+    page,
+    'Organization detail and platform tools',
+  );
+  await page.getByRole('link', { name: 'Edit organization' }).click();
+  await expect(page).toHaveURL(/\/global-admin\/tenants\/[^/]+\/edit$/);
+  await expect(
+    page.getByRole('heading', { name: 'Edit organization' }),
+  ).toBeVisible();
+  await expectGlobalAdminTenantFormSurface(page, {
+    publicUrlMigrationGuidance: true,
+  });
+  await expect(tenantNameInput(page)).toHaveValue(createdTenant.name);
+  await expect(tenantPrimaryDomainInput(page)).toHaveValue(createdTenantDomain);
+  await expect(tenantStripeAccountInput(page)).toHaveValue(
+    createdTenant.stripeAccountId ?? '',
+  );
+  await expect(
+    page.getByRole('button', { name: 'Save organization' }),
+  ).toBeDisabled();
 
-    const updatedTenantName = `${createdTenant.name} documentation review`;
-    await tenantNameInput(page).fill(updatedTenantName);
-    await page.getByLabel('Reason for platform change').fill(updateAuditReason);
-    await takeScreenshot(
-      testInfo,
-      page.locator('app-tenant-edit'),
-      page,
-      'Edit organization settings with a change reason',
-    );
-    await expect(
-      page.getByRole('button', { name: 'Save organization' }),
-    ).toBeEnabled();
-    await page.getByRole('button', { name: 'Save organization' }).click();
-    await expect(page).toHaveURL(reviewTenantHref);
-    await expect(
-      page.getByRole('heading', { level: 1, name: updatedTenantName }),
-    ).toBeVisible();
+  const updatedTenantName = `${createdTenant.name} documentation review`;
+  await tenantNameInput(page).fill(updatedTenantName);
+  await page.getByLabel('Reason for platform change').fill(updateAuditReason);
+  await takeScreenshot(
+    testInfo,
+    page.locator('app-tenant-edit'),
+    page,
+    'Edit organization settings with a change reason',
+  );
+  await expect(
+    page.getByRole('button', { name: 'Save organization' }),
+  ).toBeEnabled();
+  await page.getByRole('button', { name: 'Save organization' }).click();
+  await expect(page).toHaveURL(reviewTenantHref);
+  await expect(
+    page.getByRole('heading', { level: 1, name: updatedTenantName }),
+  ).toBeVisible();
 
-    const updatedTenant = await database.query.tenants.findFirst({
-      where: { id: createdTenant.id },
-    });
-    expect(updatedTenant).toEqual(
-      expect.objectContaining({
-        domain: createdTenant.domain,
-        id: createdTenant.id,
-        name: updatedTenantName,
-      }),
-    );
-    await page.goto('/global-admin');
-    await page.getByRole('link', { name: 'Platform audit log' }).click();
-    await expect(page).toHaveURL(/\/global-admin\/audit$/);
-    await expect(page.getByText(createAuditReason)).toBeVisible();
-    await expect(page.getByText(updateAuditReason)).toBeVisible();
-    await takeScreenshot(
-      testInfo,
-      page.locator('app-platform-audit'),
-      page,
-      'Platform change history',
-    );
+  const updatedTenant = await database.query.tenants.findFirst({
+    where: { id: createdTenant.id },
+  });
+  expect(updatedTenant).toEqual(
+    expect.objectContaining({
+      domain: createdTenant.domain,
+      id: createdTenant.id,
+      name: updatedTenantName,
+    }),
+  );
+  await page.goto('/global-admin');
+  await page.getByRole('link', { name: 'Platform audit log' }).click();
+  await expect(page).toHaveURL(/\/global-admin\/audit$/);
+  await expect(page.getByText(createAuditReason)).toBeVisible();
+  await expect(page.getByText(updateAuditReason)).toBeVisible();
+  await takeScreenshot(
+    testInfo,
+    page.locator('app-platform-audit'),
+    page,
+    'Platform change history',
+  );
 
-    await testInfo.attach('markdown', {
-      body: `
+  await testInfo.attach('markdown', {
+    body: `
 ## Organization settings and safeguards
 
-The platform administration page lists organizations and supports creating, reviewing, and editing them. Each entry shows the organization name, primary domain, theme, locale, currency, timezone, and Stripe connection. The detail page repeats these settings, links to the edit form, and can open the organization's public site.
+The platform administration page lists organizations and supports creating, reviewing, and editing them. Each entry shows the organization name, primary domain, theme, currency, timezone, and Stripe connection. The detail page repeats these settings, links to the edit form, and can open the organization's public site.
 
 Create and edit manage the primary domain, name, theme, currency, timezone, and connected Stripe account. Paid event registrations and add-ons are Stripe-only, so a connected Stripe account cannot be removed while a paid template, event option, or add-on still exists. Convert those configurations to free first. Domains must be unique host names without paths, queries, fragments, credentials, or custom ports.
 
@@ -352,25 +382,5 @@ Each platform change requires an operator reason. The audit log shows who made t
 
 The create journey also checks domain safeguards before saving: domains with paths are rejected, and duplicate primary domains return a visible error while keeping the form intact.
 `,
-    });
-  } finally {
-    await database
-      .delete(schema.platformAuditEntries)
-      .where(
-        inArray(schema.platformAuditEntries.reason, [
-          createAuditReason,
-          updateAuditReason,
-        ]),
-      );
-    if (createdTenantId) {
-      await database
-        .delete(schema.tenantPrivacyPolicyVersions)
-        .where(
-          eq(schema.tenantPrivacyPolicyVersions.tenantId, createdTenantId),
-        );
-    }
-    await database
-      .delete(schema.tenants)
-      .where(eq(schema.tenants.domain, createdTenantDomain));
-  }
+  });
 });

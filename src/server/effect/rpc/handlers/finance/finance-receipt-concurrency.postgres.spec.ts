@@ -24,7 +24,10 @@ import {
 } from '../../../../../shared/rpc-contracts/app-rpcs';
 import { RpcAccess } from '../shared/rpc-access.service';
 import { financeHandlers } from './finance.handlers';
-import { buildReceiptStorageKey } from './receipt-media.service';
+import {
+  buildReceiptStorageKey,
+  ReceiptMediaService,
+} from './receipt-media.service';
 
 const databaseUrl = process.env['DATABASE_URL'];
 if (!databaseUrl) {
@@ -234,19 +237,22 @@ describe('receipt review and reimbursement serialization', () => {
     });
 
     const tenant = {
+      cancellationDeadlineHoursBeforeStart: 120,
       currency: 'CZK' as const,
-      defaultLocation: null,
+      defaultLocation: undefined,
       discountProviders: {
         esnCard: { config: {}, status: 'disabled' as const },
       },
       domain: `${suffix}.receipt-lock.example`,
       id: tenantId,
-      locale: 'de-DE',
+      maxActiveRegistrationsPerUser: 0,
       name: `Receipt lock ${suffix}`,
       receiptSettings: { allowOther: false, receiptCountries: ['NL'] },
+      refundFeesOnCancellation: true,
       stripeAccountId: null,
       theme: 'evorto' as const,
       timezone: 'Europe/Berlin',
+      transferDeadlineHoursBeforeStart: 0,
     };
     const user = {
       attributes: [],
@@ -254,10 +260,12 @@ describe('receipt review and reimbursement serialization', () => {
       communicationEmail: `receipt-lock-${suffix}@example.com`,
       email: `receipt-lock-${suffix}@example.com`,
       firstName: 'Receipt',
+      homeTenantId: undefined,
+      homeTenantName: undefined,
       iban: 'NL91ABNA0417164300',
       id: userId,
       lastName: 'Lock',
-      paypalEmail: null,
+      paypalEmail: undefined,
       permissions: [
         'finance:approveReceipts',
         'finance:refundReceipts',
@@ -274,6 +282,17 @@ describe('receipt review and reimbursement serialization', () => {
     } satisfies RpcRequestContextShape;
     const handlerLayer = Layer.mergeAll(
       RpcAccess.Default,
+      Layer.succeed(ReceiptMediaService, {
+        createUploadPolicy: () =>
+          Effect.die(new Error('Unexpected receipt upload')),
+        discardPromotedUpload: () =>
+          Effect.die(new Error('Unexpected receipt discard')),
+        inspectUpload: () =>
+          Effect.die(new Error('Unexpected receipt inspection')),
+        objectExists: () => Effect.die(new Error('Unexpected receipt lookup')),
+        signedPreviewUrl: () =>
+          Effect.die(new Error('Unexpected receipt preview')),
+      }),
       Layer.succeed(RpcRequestContext, requestContext),
       makeDatabaseServiceLayer(databaseUrl),
     );

@@ -8,19 +8,13 @@ import {
 } from '@angular/core';
 import { DateTime, FixedOffsetZone } from 'luxon';
 
-import {
-  DEFAULT_TENANT_TIMEZONE,
-  type SupportedTenantTimezone,
-} from '../../types/custom/tenant';
+import { type SupportedTenantTimezone } from '../../types/custom/tenant';
 
 const fixedOffsetTimezonePattern = /^([+-])(\d{2}):?(\d{2})$/;
 const numericDatePattern = /^-?\d+(?:\.\d+)?$/;
 
 export const TENANT_DATE_PIPE_TIMEZONE =
-  new InjectionToken<SupportedTenantTimezone>('TENANT_DATE_PIPE_TIMEZONE', {
-    factory: () => DEFAULT_TENANT_TIMEZONE,
-    providedIn: 'root',
-  });
+  new InjectionToken<SupportedTenantTimezone>('TENANT_DATE_PIPE_TIMEZONE');
 
 const resolveLuxonZone = (timezone: string) => {
   const fixedOffsetMatch = fixedOffsetTimezonePattern.exec(timezone);

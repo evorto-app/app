@@ -1,4 +1,9 @@
 import { describe, expect, layer } from '@effect/vitest';
+import {
+  createDefaultTenantDiscountProviders,
+  DEFAULT_TENANT_RECEIPT_ALLOW_OTHER,
+  DEFAULT_TENANT_RECEIPT_COUNTRIES,
+} from '@shared/tenant-config';
 import { Effect, Layer, Schema } from 'effect';
 import * as Headers from 'effect/unstable/http/Headers';
 import { Rpc, RpcMessage } from 'effect/unstable/rpc';
@@ -26,17 +31,23 @@ const trustedContext = {
     kind: 'platformAdministrator',
   }),
   tenant: Schema.decodeUnknownSync(Tenant)({
+    cancellationDeadlineHoursBeforeStart: 120,
     currency: 'EUR',
     defaultLocation: null,
-    discountProviders: null,
+    discountProviders: createDefaultTenantDiscountProviders(),
     domain: 'example.org',
     id: 'tenant-1',
-    locale: 'en',
+    maxActiveRegistrationsPerUser: 0,
     name: 'Example Tenant',
-    receiptSettings: null,
+    receiptSettings: {
+      allowOther: DEFAULT_TENANT_RECEIPT_ALLOW_OTHER,
+      receiptCountries: [...DEFAULT_TENANT_RECEIPT_COUNTRIES],
+    },
+    refundFeesOnCancellation: true,
     stripeAccountId: null,
     theme: 'evorto',
     timezone: 'Europe/Prague',
+    transferDeadlineHoursBeforeStart: 0,
   }),
   user: Schema.decodeUnknownSync(User)({
     attributes: [],
@@ -57,14 +68,22 @@ const contextWithOmittedOptionalFields = {
   ...trustedContext,
   platformAuthority: null,
   tenant: Schema.decodeUnknownSync(Tenant)({
+    cancellationDeadlineHoursBeforeStart: 120,
     currency: 'EUR',
+    discountProviders: createDefaultTenantDiscountProviders(),
     domain: 'example.org',
     id: 'tenant-1',
-    locale: 'en',
+    maxActiveRegistrationsPerUser: 0,
     name: 'Example Tenant',
+    receiptSettings: {
+      allowOther: DEFAULT_TENANT_RECEIPT_ALLOW_OTHER,
+      receiptCountries: [...DEFAULT_TENANT_RECEIPT_COUNTRIES],
+    },
+    refundFeesOnCancellation: true,
     stripeAccountId: null,
     theme: 'evorto',
     timezone: 'Europe/Prague',
+    transferDeadlineHoursBeforeStart: 0,
   }),
   user: Schema.decodeUnknownSync(User)({
     attributes: [],
