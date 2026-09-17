@@ -1,4 +1,8 @@
+import type { FinanceTransactionRecord } from '@shared/rpc-contracts/app-rpcs/finance.rpcs';
+
+import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { MatPaginatorHarness } from '@angular/material/paginator/testing';
 import {
   provideTanStackQuery,
   QueryClient,
@@ -40,8 +44,15 @@ describe('TransactionListComponent template', () => {
 
   it('labels the paginator for transactions rather than users', () => {
     expect(transactionListTemplate()).toContain(
-      'aria-label="Select page of transactions"',
+      'aria-label="Select page of payments and refunds"',
     );
+  });
+
+  it('keeps database terminology out of visible payment history copy', () => {
+    const template = transactionListTemplate();
+
+    expect(template).not.toMatch(/>\s*[^<{]*transactions?[^<{]*</iu);
+    expect(template).toContain('Payment history');
   });
 });
 
@@ -50,7 +61,7 @@ describe('transaction labels', () => {
     expect(transactionMethodLabel).toEqual({
       cash: 'Cash',
       paypal: 'PayPal',
-      stripe: 'Stripe',
+      stripe: 'Online payment',
       transfer: 'Bank transfer',
     });
     expect(transactionStatusLabel).toEqual({
@@ -68,8 +79,10 @@ const normalizeText = (fixture: ComponentFixture<TransactionListComponent>) =>
 
 describe('TransactionListComponent load recovery', () => {
   let queryClient: QueryClient;
+  let cleanupClient: QueryClient | undefined;
 
   beforeEach(async () => {
+    cleanupClient = undefined;
     queryClient = new QueryClient({
       defaultOptions: {
         queries: {
@@ -79,6 +92,7 @@ describe('TransactionListComponent load recovery', () => {
       },
     });
 
+    cleanupClient = queryClient;
     await TestBed.configureTestingModule({
       imports: [TransactionListComponent],
       providers: [
@@ -101,9 +115,24 @@ describe('TransactionListComponent load recovery', () => {
   });
 
   afterEach(() => {
-    queryClient.clear();
-    vi.clearAllMocks();
-    TestBed.resetTestingModule();
+    const ownedClient = cleanupClient;
+    cleanupClient = undefined;
+    const failures: unknown[] = [];
+    for (const cleanup of [
+      () => ownedClient?.clear(),
+      () => vi.clearAllMocks(),
+      () => TestBed.resetTestingModule(),
+    ]) {
+      try {
+        cleanup();
+      } catch (error) {
+        failures.push(error);
+      }
+    }
+    if (failures.length > 0)
+      throw new AggregateError(failures, 'Transaction fixture cleanup failed', {
+        cause: failures[0],
+      });
   });
 
   it('announces a failed first load and retries the transaction query', async () => {
@@ -132,14 +161,14 @@ describe('TransactionListComponent load recovery', () => {
     await vi.waitFor(() => {
       fixture.detectChanges();
       expect(normalizeText(fixture)).toContain(
-        'Transactions could not be loaded',
+        'Payment history could not be loaded',
       );
     });
 
     const alert: HTMLElement | null =
       fixture.nativeElement.querySelector('[role="alert"]');
     expect(alert?.textContent).toContain(
-      'The transaction history is unavailable. Check your connection and try again.',
+      'No payments or refunds are shown. Select Try again.',
     );
 
     const retryButton: HTMLButtonElement | null =
@@ -179,11 +208,12 @@ describe('TransactionListComponent load recovery', () => {
     await vi.waitFor(() => {
       fixture.detectChanges();
       const text = normalizeText(fixture);
-      expect(text).toContain('Stripe');
       expect(text).toContain('Completed');
+      expect(text).toContain('Online payment');
+      expect(text).not.toContain('Stripe');
       expect(text).toContain('Fees:');
-      expect(text).toContain('Platform fee:');
-      expect(text).toContain('Stripe fee:');
+      expect(text).toContain('Evorto fee:');
+      expect(text).toContain('Payment fee:');
     });
   });
 
@@ -195,9 +225,107 @@ describe('TransactionListComponent load recovery', () => {
 
     await vi.waitFor(() => {
       fixture.detectChanges();
-      expect(normalizeText(fixture)).toContain('No transactions recorded yet');
+      expect(normalizeText(fixture)).toContain(
+        'No payments or refunds recorded yet',
+      );
     });
     expect(fixture.nativeElement.querySelector('table')).toBeNull();
     expect(fixture.nativeElement.querySelector('mat-paginator')).toBeNull();
+  });
+
+  it('preserves page size and position after an uncached page loads', async () => {
+    const pageResult = {
+      data: [
+        {
+          amount: 100,
+          appFee: 0,
+          comment: 'Paged payment',
+          createdAt: '2026-07-10T10:00:00.000Z',
+          currency: 'EUR',
+          id: 'payment-1',
+          method: 'transfer',
+          status: 'successful',
+          stripeFee: 0,
+        },
+      ],
+      total: 300,
+    } satisfies { data: FinanceTransactionRecord[]; total: number };
+    findTransactions.mockResolvedValue(pageResult);
+    const fixture = TestBed.createComponent(TransactionListComponent);
+    const failures: unknown[] = [];
+    let resolvePage: ((value: typeof pageResult) => void) | undefined;
+    try {
+      fixture.detectChanges();
+      await vi.waitFor(() => {
+        fixture.detectChanges();
+        expect(normalizeText(fixture)).toContain('Paged payment');
+      });
+      const loader = TestbedHarnessEnvironment.loader(fixture);
+      const initialPaginator = await loader.getHarness(MatPaginatorHarness);
+      await initialPaginator.setPageSize(25);
+      await vi.waitFor(() => {
+        fixture.detectChanges();
+        expect(findTransactions).toHaveBeenLastCalledWith(
+          expect.objectContaining({
+            queryKey: ['transactions', { limit: 25, offset: 0 }],
+          }),
+        );
+        expect(normalizeText(fixture)).toContain('Paged payment');
+      });
+
+      // Angular's browser library target does not expose Promise.withResolvers.
+      // eslint-disable-next-line unicorn/prefer-promise-with-resolvers
+      const nextPage = new Promise<typeof pageResult>((resolve) => {
+        resolvePage = resolve;
+      });
+      findTransactions.mockReturnValueOnce(nextPage);
+      const root: HTMLElement = fixture.nativeElement;
+      const nextButton = root.querySelector<HTMLButtonElement>(
+        '.mat-mdc-paginator-navigation-next',
+      );
+      if (!nextButton)
+        throw new Error('Expected the next transaction page control');
+      nextButton.click();
+      await vi.waitFor(() => {
+        fixture.detectChanges();
+        expect(normalizeText(fixture)).toContain('Loading payment history');
+        expect(root.querySelector('mat-paginator')).toBeNull();
+      });
+      resolvePage?.(pageResult);
+      await vi.waitFor(() => {
+        fixture.detectChanges();
+        expect(normalizeText(fixture)).toContain('Paged payment');
+      });
+      const paginator = await loader.getHarness(MatPaginatorHarness);
+      expect(await paginator.getPageSize()).toBe(25);
+      expect(await paginator.getRangeLabel()).toMatch(/26\s*[–-]\s*50/u);
+      await paginator.goToNextPage();
+      expect(findTransactions).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          queryKey: ['transactions', { limit: 25, offset: 50 }],
+        }),
+      );
+    } catch (error) {
+      failures.push(error);
+    }
+    for (const cleanup of [
+      () => resolvePage?.(pageResult),
+      async () => {
+        await queryClient.cancelQueries({ queryKey: ['transactions'] });
+      },
+      () => fixture.destroy(),
+    ]) {
+      try {
+        await cleanup();
+      } catch (error) {
+        failures.push(error);
+      }
+    }
+    if (failures.length > 0)
+      throw new AggregateError(
+        failures,
+        'Paged transaction assertion or cleanup failed',
+        { cause: failures[0] },
+      );
   });
 });

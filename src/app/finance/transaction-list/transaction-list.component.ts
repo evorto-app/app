@@ -24,7 +24,7 @@ interface TransactionListFilter {
 export const transactionMethodLabel = {
   cash: 'Cash',
   paypal: 'PayPal',
-  stripe: 'Stripe',
+  stripe: 'Online payment',
   transfer: 'Bank transfer',
 } as const satisfies Record<FinanceTransactionRecord['method'], string>;
 
@@ -63,7 +63,7 @@ export class TransactionListComponent {
     'method',
     'comment',
   ];
-  private readonly filterInput = signal<TransactionListFilter>({
+  protected readonly filterInput = signal<TransactionListFilter>({
     limit: 100,
     offset: 0,
   });

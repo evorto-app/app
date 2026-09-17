@@ -76,10 +76,10 @@ test('platform administrator opens target operations, refund recovery, and a det
   await expect(
     page.getByRole('heading', { level: 1, name: 'Organization finance' }),
   ).toBeVisible();
-  await page.getByRole('tab', { name: 'Refund recovery' }).click();
+  await page.getByRole('tab', { name: 'Refunds needing attention' }).click();
   await expect(
     page.getByText(
-      'Refunds appear here only when Evorto can safely retry them or resume checking their Stripe status.',
+      'Refunds appear here when they did not finish and there is a clear next action. Refunds that are waiting, in progress, or completed do not appear here.',
       { exact: false },
     ),
   ).toBeVisible();

@@ -7,24 +7,50 @@
   {{ receiptReimbursementManualNotice }}
 </p>
 
+@if (refundMessage(); as message) {
+  <p
+    role="alert"
+    class="bg-error-container text-on-error-container mb-3 rounded-xl p-3 text-sm"
+  >
+    {{ message }}
+  </p>
+}
+
+@if (
+  refundPhase() === "confirming" ||
+  refundPhase() === "saving" ||
+  refundPhase() === "refreshing"
+) {
+  <p role="status" class="mb-3 text-sm">
+    @switch (refundPhase()) {
+      @case ("confirming") {
+        Complete or cancel the open reimbursement confirmation.
+      }
+      @case ("saving") {
+        Recording the reimbursement…
+      }
+      @case ("refreshing") {
+        Reimbursement recorded. Loading the latest receipts and transactions…
+      }
+    }
+  </p>
+}
+
 @if (refundableReceiptsQuery.isPending()) {
   <div class="bg-surface text-on-surface rounded-2xl p-4">
-    Loading refundable receipts...
+    Loading refundable receipts…
   </div>
-} @else if (refundableReceiptsQuery.isError()) {
+} @else if (refundableReceiptsQuery.isError() && refundGroups().length === 0) {
   <div class="bg-error-container text-on-error-container rounded-2xl p-4">
-    Failed to load refundable receipts.
+    The refundable receipts could not be loaded. Try again.
   </div>
-} @else if ((refundableReceiptsQuery.data()?.length ?? 0) === 0) {
+} @else if (refundGroups().length === 0) {
   <div class="bg-surface text-on-surface rounded-2xl p-4">
     No approved receipts are waiting for reimbursement.
   </div>
 } @else {
   <div class="grid gap-4">
-    @for (
-      group of refundableReceiptsQuery.data();
-      track reimbursementGroupKey(group)
-    ) {
+    @for (group of refundGroups(); track reimbursementGroupKey(group)) {
       @let groupReceiptIds = receiptIds(group.receipts);
       @let groupKey = reimbursementGroupKey(group);
       <section class="bg-surface text-on-surface rounded-2xl p-4">
@@ -51,7 +77,10 @@
             <mat-label>Payout method</mat-label>
             <mat-select
               [value]="getPayoutType(groupKey, group.payout)"
-              [disabled]="!receiptReimbursementHasPayoutDetails(group.payout)"
+              [disabled]="
+                refundLocked() ||
+                !receiptReimbursementHasPayoutDetails(group.payout)
+              "
               (selectionChange)="setPayoutType(groupKey, $event.value)"
             >
               @if (group.payout.iban) {
@@ -86,6 +115,16 @@
             {{ receiptReimbursementMissingPayoutNotice }}
           </p>
         }
+        @if (group.receipts.length > maximumFinanceReimbursementReceiptCount) {
+          <p
+            role="status"
+            class="bg-surface-container mt-3 rounded-xl p-3 text-sm"
+          >
+            Record up to {{ maximumFinanceReimbursementReceiptCount }} receipts
+            at a time. Additional receipts remain available for the next
+            reimbursement.
+          </p>
+        }
 
         <div
           class="mt-3 overflow-x-auto rounded-xl border border-outline-variant"
@@ -99,6 +138,7 @@
               <th mat-header-cell *matHeaderCellDef>
                 <mat-checkbox
                   [aria-label]="receiptReimbursementSelectAllLabel(group)"
+                  [disabled]="refundLocked()"
                   [checked]="areAllSelected(groupKey, groupReceiptIds)"
                   [indeterminate]="
                     isPartiallySelected(groupKey, groupReceiptIds)
@@ -113,6 +153,7 @@
                   [aria-label]="
                     receiptReimbursementReceiptSelectionLabel(receipt)
                   "
+                  [disabled]="refundLocked()"
                   [checked]="isReceiptSelected(groupKey, receipt.id)"
                   (change)="toggleReceipt(groupKey, receipt.id, $event.checked)"
                 />
@@ -183,7 +224,7 @@
             [disabled]="
               receiptReimbursementRecordDisabled({
                 canRecord: canRefund(groupKey, group.payout),
-                mutationPending: refundMutation.isPending(),
+                mutationPending: refundLocked() || refundMutation.isPending(),
               })
             "
             (click)="refundRecipient(group)"

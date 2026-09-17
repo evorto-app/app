@@ -10,6 +10,7 @@ import {
   pattern,
   required,
   submit,
+  validate,
 } from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
 import {
@@ -22,7 +23,12 @@ import {
 } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
-import { notificationEmailPattern } from '@shared/notification-email';
+import { isValidIbanInput, normalizeIban } from '@shared/iban';
+import {
+  isValidEmailAddressInput,
+  normalizeEmailAddress,
+  notificationEmailPattern,
+} from '@shared/notification-email';
 
 export interface EditProfileDialogData {
   communicationEmail: string;
@@ -49,9 +55,9 @@ export const editProfileDialogResultFromFormValue = (formValue: {
 }): EditProfileDialogResult => ({
   communicationEmail: formValue.communicationEmail.trim(),
   firstName: formValue.firstName.trim(),
-  iban: formValue.iban.trim() || null,
+  iban: normalizeIban(formValue.iban) || null,
   lastName: formValue.lastName.trim(),
-  paypalEmail: formValue.paypalEmail.trim() || null,
+  paypalEmail: normalizeEmailAddress(formValue.paypalEmail) || null,
 });
 
 @Component({
@@ -83,7 +89,24 @@ export class EditProfileDialogComponent {
     required(schemaPath.communicationEmail);
     pattern(schemaPath.communicationEmail, notificationEmailPattern);
     required(schemaPath.firstName);
+    validate(schemaPath.iban, ({ value }) =>
+      normalizeIban(value()).length === 0 || isValidIbanInput(value())
+        ? undefined
+        : {
+            kind: 'iban',
+            message: 'Enter a valid IBAN.',
+          },
+    );
     required(schemaPath.lastName);
+    validate(schemaPath.paypalEmail, ({ value }) =>
+      normalizeEmailAddress(value()).length === 0 ||
+      isValidEmailAddressInput(value())
+        ? undefined
+        : {
+            kind: 'email',
+            message: 'Enter a valid PayPal email address.',
+          },
+    );
   });
   private readonly dialogRef = inject(MatDialogRef<EditProfileDialogComponent>);
 

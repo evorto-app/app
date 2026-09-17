@@ -1,4 +1,9 @@
-import { RpcUnauthorizedError } from '@shared/errors/rpc-errors';
+import {
+  RpcBadRequestError,
+  RpcUnauthorizedError,
+} from '@shared/errors/rpc-errors';
+import { isCanonicalIban } from '@shared/iban';
+import { isCanonicalEmailAddress } from '@shared/notification-email';
 import {
   UserRoleAssignmentNotFoundError,
   UserSelfRoleRemovalError,
@@ -692,6 +697,27 @@ export const userHandlers = {
     Effect.gen(function* () {
       yield* RpcAccess.ensureAuthenticated();
       const user = yield* RpcAccess.requireUser();
+
+      if (
+        input.iban !== null &&
+        input.iban !== undefined &&
+        !isCanonicalIban(input.iban)
+      ) {
+        return yield* new RpcBadRequestError({
+          message: 'Enter a valid IBAN.',
+          reason: 'invalidIban',
+        });
+      }
+      if (
+        input.paypalEmail !== null &&
+        input.paypalEmail !== undefined &&
+        !isCanonicalEmailAddress(input.paypalEmail)
+      ) {
+        return yield* new RpcBadRequestError({
+          message: 'Enter a valid PayPal email address.',
+          reason: 'invalidPaypalEmail',
+        });
+      }
 
       yield* databaseEffect((database) =>
         database

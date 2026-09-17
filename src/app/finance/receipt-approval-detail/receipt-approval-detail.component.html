@@ -1,15 +1,48 @@
 <div class="mb-2 flex items-center justify-between gap-2">
   <h1 class="title-large">Review receipt</h1>
-  <a mat-button [routerLink]="['/finance/receipts-approval']">Back</a>
+  <a
+    mat-button
+    [disabled]="reviewPending()"
+    [routerLink]="['/finance/receipts-approval']"
+    >Back</a
+  >
 </div>
 
+@if (reviewMessage(); as message) {
+  <p
+    role="alert"
+    class="bg-error-container text-on-error-container mb-3 rounded-xl p-3 text-sm"
+  >
+    {{ message }}
+  </p>
+}
+
+@if (reviewPending()) {
+  <p role="status" class="mb-3 text-sm">
+    @switch (reviewPhase()) {
+      @case ("saving") {
+        Saving the receipt review…
+      }
+      @case ("refreshing") {
+        Review saved. Loading the latest receipt lists…
+      }
+      @case ("navigating") {
+        Review saved. Opening Receipt approvals…
+      }
+    }
+  </p>
+}
+@if (reviewPhase() === "idle" && reviewMutation.isPending()) {
+  <p role="status" class="mb-3 text-sm">
+    The previous receipt review is still finishing.
+  </p>
+}
+
 @if (receiptQuery.isPending()) {
-  <div class="bg-surface text-on-surface rounded-2xl p-4">
-    Loading receipt...
-  </div>
-} @else if (receiptQuery.isError()) {
+  <div class="bg-surface text-on-surface rounded-2xl p-4">Loading receipt…</div>
+} @else if (receiptQuery.isError() && !receiptQuery.data()) {
   <div class="bg-error-container text-on-error-container rounded-2xl p-4">
-    Failed to load receipt details.
+    The receipt details could not be loaded. Try again.
   </div>
 } @else {
   @let receipt = receiptQuery.data();
@@ -47,7 +80,7 @@
             {{
               receipt.receiptEvidenceAvailable
                 ? "No preview available"
-                : "Receipt evidence unavailable"
+                : "Uploaded receipt file unavailable"
             }}
           </div>
         }
@@ -57,7 +90,7 @@
       </section>
 
       <section class="bg-surface text-on-surface rounded-2xl p-3">
-        <h2 class="title-medium mb-3">Receipt data</h2>
+        <h2 class="title-medium mb-3">Receipt details</h2>
         <p
           class="bg-secondary-container text-on-secondary-container mb-4 rounded-xl p-3 text-sm"
         >
@@ -74,7 +107,7 @@
         <app-receipt-form-fields
           [currencyCode]="receipt.currency"
           [form]="form"
-          [selectableCountries]="selectableCountries"
+          [selectableCountries]="selectableCountries()"
         />
 
         <mat-form-field class="mt-4 w-full">
@@ -82,6 +115,7 @@
           <textarea
             #reasonInput
             matInput
+            [disabled]="reviewLocked()"
             rows="3"
             [value]="rejectionReason()"
             (input)="updateRejectionReason(reasonInput.value)"
@@ -97,7 +131,7 @@
             [disabled]="
               receiptRejectionDisabled({
                 formInvalid: form.invalid,
-                mutationPending: reviewMutation.isPending(),
+                mutationPending: reviewLocked() || reviewMutation.isPending(),
                 rejectionReason: rejectionReason(),
                 receiptPending: receiptQuery.isPending(),
               })
@@ -114,7 +148,7 @@
               receiptApprovalDisabled({
                 evidenceAvailable: receipt.receiptEvidenceAvailable,
                 formInvalid: form.invalid,
-                mutationPending: reviewMutation.isPending(),
+                mutationPending: reviewLocked() || reviewMutation.isPending(),
                 receiptPending: receiptQuery.isPending(),
               })
             "

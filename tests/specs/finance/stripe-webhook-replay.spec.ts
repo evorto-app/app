@@ -21,6 +21,107 @@ const regularUserId =
 let webhookSecret = '';
 const stripeAccountId = process.env['STRIPE_TEST_ACCOUNT_ID'] ?? '';
 
+type RegistrationPriceSnapshot = Pick<
+  typeof schema.eventRegistrations.$inferInsert,
+  | 'basePriceAtRegistration'
+  | 'discountAmount'
+  | 'stripeTaxRateId'
+  | 'taxRateDisplayName'
+  | 'taxRateInclusive'
+  | 'taxRatePercentage'
+>;
+
+const loadRegistrationPriceSnapshot = async (input: {
+  database: NodePgDatabase<typeof relations>;
+  eventId: string;
+  registrationOptionId: string;
+  tenantId: string;
+}): Promise<RegistrationPriceSnapshot> => {
+  const option = await input.database.query.eventRegistrationOptions.findFirst({
+    columns: {
+      isPaid: true,
+      price: true,
+      stripeTaxRateId: true,
+    },
+    where: {
+      event: { tenantId: input.tenantId },
+      eventId: input.eventId,
+      id: input.registrationOptionId,
+    },
+  });
+  if (!option) {
+    throw new Error(
+      `Expected registration option "${input.registrationOptionId}" for webhook fixture`,
+    );
+  }
+  if (option.isPaid && !option.stripeTaxRateId) {
+    throw new Error(
+      `Paid registration option "${input.registrationOptionId}" is missing its Stripe tax rate`,
+    );
+  }
+  if (!option.isPaid && option.stripeTaxRateId) {
+    throw new Error(
+      `Free registration option "${input.registrationOptionId}" unexpectedly has a Stripe tax rate`,
+    );
+  }
+
+  const taxRate = option.stripeTaxRateId
+    ? await input.database.query.tenantStripeTaxRates.findFirst({
+        columns: {
+          active: true,
+          displayName: true,
+          inclusive: true,
+          percentage: true,
+          stripeAccountId: true,
+        },
+        where: {
+          stripeTaxRateId: option.stripeTaxRateId,
+          tenantId: input.tenantId,
+        },
+      })
+    : undefined;
+  if (
+    option.stripeTaxRateId &&
+    (!taxRate ||
+      !taxRate.active ||
+      taxRate.percentage === null ||
+      taxRate.stripeAccountId !== stripeAccountId)
+  ) {
+    throw new Error(
+      `Registration option "${input.registrationOptionId}" does not reference an active, complete tax rate for its tenant Stripe account`,
+    );
+  }
+
+  return {
+    basePriceAtRegistration: option.price,
+    discountAmount: 0,
+    stripeTaxRateId: option.stripeTaxRateId,
+    taxRateDisplayName: taxRate?.displayName ?? null,
+    taxRateInclusive: taxRate?.inclusive ?? null,
+    taxRatePercentage: taxRate?.percentage ?? null,
+  };
+};
+
+const insertRegistrationFixture = async (input: {
+  database: NodePgDatabase<typeof relations>;
+  eventId: string;
+  id: string;
+  registrationOptionId: string;
+  status: 'CANCELLED' | 'CONFIRMED' | 'PENDING' | 'WAITLIST';
+  tenantId: string;
+}) => {
+  const priceSnapshot = await loadRegistrationPriceSnapshot(input);
+  await input.database.insert(schema.eventRegistrations).values({
+    ...priceSnapshot,
+    eventId: input.eventId,
+    id: input.id,
+    registrationOptionId: input.registrationOptionId,
+    status: input.status,
+    tenantId: input.tenantId,
+    userId: regularUserId,
+  });
+};
+
 const registerCheckoutFixtureCleanup = async ({
   database,
   eventId,
@@ -209,22 +310,22 @@ const assertCheckoutOwnershipRejected = async (input: {
   const paymentIntentId = `pi_test_${getId()}`;
   const stripeEventId = `evt_test_${getId()}`;
 
-  await input.database.insert(schema.eventRegistrations).values({
+  await insertRegistrationFixture({
+    database: input.database,
     eventId: input.appEventId,
     id: metadataRegistrationId,
     registrationOptionId: input.optionId,
     status: input.scenario.metadataRegistrationStatus,
     tenantId: input.tenantId,
-    userId: regularUserId,
   });
   if (localRegistrationId !== metadataRegistrationId) {
-    await input.database.insert(schema.eventRegistrations).values({
+    await insertRegistrationFixture({
+      database: input.database,
       eventId: input.appEventId,
       id: localRegistrationId,
       registrationOptionId: input.optionId,
       status: 'PENDING',
       tenantId: input.tenantId,
-      userId: regularUserId,
     });
   }
 
@@ -387,15 +488,13 @@ test('an exact pending transaction and checkout session match completes once und
       ),
     );
 
-  await database.insert(schema.eventRegistrations).values({
-    discountAmount: 0,
-    basePriceAtRegistration: 2500,
+  await insertRegistrationFixture({
+    database,
     eventId: seeded.scenario.events.paidOpen.eventId,
     id: registrationId,
     registrationOptionId: seeded.scenario.events.paidOpen.optionId,
     status: 'PENDING',
     tenantId: tenant.id,
-    userId: regularUserId,
   });
 
   await database.insert(schema.transactions).values({
@@ -645,15 +744,13 @@ test('competing completion and expiry webhooks leave one coherent registration o
         seeded.scenario.events.paidOpen.optionId,
       ),
     );
-  await database.insert(schema.eventRegistrations).values({
-    discountAmount: 0,
-    basePriceAtRegistration: 2500,
+  await insertRegistrationFixture({
+    database,
     eventId: seeded.scenario.events.paidOpen.eventId,
     id: registrationId,
     registrationOptionId: seeded.scenario.events.paidOpen.optionId,
     status: 'PENDING',
     tenantId: tenant.id,
-    userId: regularUserId,
   });
   await database.insert(schema.transactions).values({
     amount: 2500,
@@ -773,13 +870,13 @@ test('checkout completion rejects a mismatched connected account without mutatin
   const paymentIntentId = 'pi_test_' + getId();
   const stripeEventId = 'evt_test_' + getId();
 
-  await database.insert(schema.eventRegistrations).values({
+  await insertRegistrationFixture({
+    database,
     eventId: seeded.scenario.events.paidOpen.eventId,
     id: registrationId,
     registrationOptionId: seeded.scenario.events.paidOpen.optionId,
     status: 'PENDING',
     tenantId: tenant.id,
-    userId: regularUserId,
   });
 
   await database.insert(schema.transactions).values({
@@ -903,15 +1000,13 @@ test('invalid checkout bindings and stale state leave registrations, payments, a
       });
     expect(optionBefore).toBeTruthy();
 
-    await database.insert(schema.eventRegistrations).values({
-      discountAmount: 0,
-      basePriceAtRegistration: 2500,
+    await insertRegistrationFixture({
+      database,
       eventId: seeded.scenario.events.paidOpen.eventId,
       id: registrationId,
       registrationOptionId: seeded.scenario.events.paidOpen.optionId,
       status: isRegistrationRace ? 'CONFIRMED' : 'PENDING',
       tenantId: tenant.id,
-      userId: regularUserId,
     });
     await database.insert(schema.transactions).values({
       amount: 2500,
@@ -1081,15 +1176,13 @@ test('expired checkout webhook resolves the persisted session and releases reser
       ),
     );
 
-  await database.insert(schema.eventRegistrations).values({
-    discountAmount: 0,
-    basePriceAtRegistration: 2500,
+  await insertRegistrationFixture({
+    database,
     eventId: seeded.scenario.events.paidOpen.eventId,
     id: registrationId,
     registrationOptionId: seeded.scenario.events.paidOpen.optionId,
     status: 'PENDING',
     tenantId: tenant.id,
-    userId: regularUserId,
   });
 
   await database.insert(schema.transactions).values({
@@ -1284,17 +1377,14 @@ test('stale webhook claims are reclaimed so Stripe retries can finish processing
     transactionId,
   });
 
-  await database.insert(schema.eventRegistrations).values({
-    discountAmount: 0,
-    basePriceAtRegistration: 2500,
+  await insertRegistrationFixture({
+    database,
     eventId: seeded.scenario.events.paidOpen.eventId,
     id: registrationId,
     registrationOptionId: seeded.scenario.events.paidOpen.optionId,
     status: 'PENDING',
     tenantId: tenant.id,
-    userId: regularUserId,
   });
-
   const reservedOptions = await database
     .update(schema.eventRegistrationOptions)
     .set({
@@ -1337,7 +1427,7 @@ test('stale webhook claims are reclaimed so Stripe retries can finish processing
 
   await database.insert(schema.stripeWebhookEvents).values({
     eventType: 'checkout.session.completed',
-    processedAt: new Date(Date.now() - 10 * 60 * 1000),
+    processedAt: sql`CURRENT_TIMESTAMP - INTERVAL '10 minutes'`,
     status: 'processing',
     stripeEventId,
     tenantId: tenant.id,
@@ -1392,7 +1482,7 @@ test('stale webhook claims are reclaimed so Stripe retries can finish processing
     method: 'POST',
   });
 
-  expect(delivery.status()).toBe(200);
+  expect(delivery.status(), await delivery.text()).toBe(200);
 
   await expect
     .poll(async () => {
@@ -1435,17 +1525,14 @@ test('checkout webhook rejects missing ownership metadata even when the payment 
     transactionId,
   });
 
-  await database.insert(schema.eventRegistrations).values({
-    discountAmount: 0,
-    basePriceAtRegistration: 2500,
+  await insertRegistrationFixture({
+    database,
     eventId: seeded.scenario.events.paidOpen.eventId,
     id: registrationId,
     registrationOptionId: seeded.scenario.events.paidOpen.optionId,
     status: 'PENDING',
     tenantId: tenant.id,
-    userId: regularUserId,
   });
-
   const reservedOptions = await database
     .update(schema.eventRegistrationOptions)
     .set({
@@ -1603,13 +1690,13 @@ test('checkout webhook does not confirm unpaid completed sessions @finance @stri
   const paymentIntentId = `pi_test_${getId()}`;
   const stripeEventId = `evt_test_${getId()}`;
 
-  await database.insert(schema.eventRegistrations).values({
+  await insertRegistrationFixture({
+    database,
     eventId: seeded.scenario.events.paidOpen.eventId,
     id: registrationId,
     registrationOptionId: seeded.scenario.events.paidOpen.optionId,
     status: 'PENDING',
     tenantId: tenant.id,
-    userId: regularUserId,
   });
 
   await database.insert(schema.transactions).values({

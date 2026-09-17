@@ -1,5 +1,3 @@
-import type { PlatformFinanceReimbursementGroup } from '@shared/rpc-contracts/app-rpcs/platform-tenant-finance.rpcs';
-
 import { CurrencyPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
@@ -11,8 +9,8 @@ import {
   MatDialogTitle,
 } from '@angular/material/dialog';
 
-export interface PlatformReimbursementConfirmationData {
-  readonly currency: PlatformFinanceReimbursementGroup['currency'];
+export interface ReimbursementConfirmationData {
+  readonly currency: 'AUD' | 'CZK' | 'EUR';
   readonly payoutDestination: string;
   readonly payoutMethod: 'Bank transfer' | 'PayPal';
   readonly receiptCount: number;
@@ -30,7 +28,7 @@ export interface PlatformReimbursementConfirmationData {
     MatDialogContent,
     MatDialogTitle,
   ],
-  selector: 'app-platform-reimbursement-confirmation-dialog',
+  selector: 'app-reimbursement-confirmation-dialog',
   template: `
     <h2 mat-dialog-title>Record reimbursement?</h2>
     <mat-dialog-content class="grid gap-5">
@@ -89,7 +87,7 @@ export interface PlatformReimbursementConfirmationData {
     </mat-dialog-actions>
   `,
 })
-export class PlatformReimbursementConfirmationDialogComponent {
+export class ReimbursementConfirmationDialogComponent {
   protected readonly data =
-    inject<PlatformReimbursementConfirmationData>(MAT_DIALOG_DATA);
+    inject<ReimbursementConfirmationData>(MAT_DIALOG_DATA);
 }

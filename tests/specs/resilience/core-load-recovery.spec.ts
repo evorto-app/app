@@ -63,13 +63,15 @@ test('transaction history explains a first-load failure and recovers on retry @f
   await page.goto('/finance', { waitUntil: 'networkidle' });
   const failureCount = await failRpcOnce(page, 'finance.transactions.findMany');
 
-  await page.getByRole('link', { exact: true, name: 'Transactions' }).click();
+  await page
+    .getByRole('link', { exact: true, name: 'Payment history' })
+    .click();
   await expect.poll(failureCount).toBe(1);
 
   const alert = page.getByRole('alert');
-  await expect(alert).toContainText('Transactions could not be loaded');
+  await expect(alert).toContainText('Payment history could not be loaded');
   await expect(alert).toContainText(
-    'The transaction history is unavailable. Check your connection and try again.',
+    'No payments or refunds are shown. Select Try again.',
   );
   await alert.getByRole('button', { name: 'Try again' }).click();
 
@@ -77,7 +79,11 @@ test('transaction history explains a first-load failure and recovers on retry @f
   await expect(
     page
       .getByRole('table')
-      .or(page.getByRole('heading', { name: 'No transactions recorded yet' }))
+      .or(
+        page.getByRole('heading', {
+          name: 'No payments or refunds recorded yet',
+        }),
+      )
       .first(),
   ).toBeVisible();
 });

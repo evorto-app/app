@@ -33,22 +33,42 @@ export const expectReceiptPdfPreviewAvailable = async ({
   }
 
   await iframe.evaluate((element) => {
-    (element as HTMLIFrameElement).src = 'about:blank';
+    if (!(element instanceof HTMLIFrameElement)) {
+      throw new Error('Expected the receipt preview iframe');
+    }
+    element.src = 'about:blank';
   });
   await expect
     .poll(async () => (await iframe.contentFrame())?.url())
     .toBe('about:blank');
 
-  const browserResponsePromise = page.waitForResponse(
-    (response) =>
-      response.url() === previewUrl &&
-      response.request().resourceType() === 'document',
-  );
-  await iframe.evaluate((element, source) => {
-    (element as HTMLIFrameElement).src = source;
-  }, previewUrl);
-
-  const browserResponse = await browserResponsePromise;
+  const [responseResult, navigationResult] = await Promise.allSettled([
+    page.waitForResponse(
+      (candidate) =>
+        candidate.url() === previewUrl &&
+        candidate.request().resourceType() === 'document',
+    ),
+    iframe.evaluate((element, source) => {
+      if (!(element instanceof HTMLIFrameElement)) {
+        throw new Error('Expected the receipt preview iframe');
+      }
+      element.src = source;
+    }, previewUrl),
+  ]);
+  if (
+    responseResult.status === 'rejected' ||
+    navigationResult.status === 'rejected'
+  ) {
+    const errors: unknown[] = [];
+    if (responseResult.status === 'rejected') {
+      errors.push(responseResult.reason);
+    }
+    if (navigationResult.status === 'rejected') {
+      errors.push(navigationResult.reason);
+    }
+    throw new AggregateError(errors, 'Receipt preview could not be loaded');
+  }
+  const browserResponse = responseResult.value;
   expect(browserResponse.status()).toBe(200);
   expect(browserResponse.headers()['content-type']).toContain(
     'application/pdf',
@@ -111,9 +131,9 @@ export const openOrganizerReceiptsFromNavigation = async ({
     has: page.getByRole('heading', { level: 2, name: 'Receipts' }),
   });
   await expect(receiptSection).toBeVisible({ timeout: 20_000 });
-  await expect(receiptSection.getByText('Loading receipts...')).not.toBeVisible(
-    { timeout: 20_000 },
-  );
+  await expect(receiptSection.getByText('Loading receipts…')).not.toBeVisible({
+    timeout: 20_000,
+  });
   await expect(
     receiptSection.getByText(
       'Receipts can be added after the event has loaded.',
@@ -185,9 +205,7 @@ export const completeReceiptSubmissionForm = async ({
   await dialog.getByLabel(`Tax amount (${currency})`).fill(taxAmount);
   await dialog.getByLabel('Purchase country').click();
   await page.getByRole('option', { name: countryOption }).click();
-  await dialog
-    .locator('input[type="file"][accept="image/*,application/pdf"]')
-    .setInputFiles(receiptFile);
+  await dialog.locator('input[type="file"]').setInputFiles(receiptFile);
   await expect(
     dialog.getByText(path.basename(receiptFile), { exact: true }),
   ).toBeVisible();

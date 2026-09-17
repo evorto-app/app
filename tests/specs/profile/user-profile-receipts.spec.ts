@@ -10,6 +10,7 @@ test.use({ storageState: userStateFile });
 
 test('profile receipts show submitted receipt status and event context', async ({
   database,
+  registerDatabaseCleanup,
   page,
   seedDate,
   seeded,
@@ -29,10 +30,21 @@ test('profile receipts show submitted receipt status and event context', async (
 
   const receiptId = getId();
   const receiptFileName = `profile-receipt-${seedDate.getTime()}.pdf`;
-  let receiptUploadId: string | undefined;
+  const receiptUploadId = getId();
 
-  try {
-    receiptUploadId = await addConsumedFinanceReceiptUpload(database, {
+  registerDatabaseCleanup(async (cleanupDatabase) => {
+    await cleanupDatabase
+      .delete(schema.financeReceiptUploads)
+      .where(eq(schema.financeReceiptUploads.id, receiptUploadId));
+  });
+  registerDatabaseCleanup(async (cleanupDatabase) => {
+    await cleanupDatabase
+      .delete(schema.financeReceipts)
+      .where(eq(schema.financeReceipts.id, receiptId));
+  });
+  {
+    await addConsumedFinanceReceiptUpload(database, {
+      uploadId: receiptUploadId,
       eventId,
       fileName: receiptFileName,
       mimeType: 'application/pdf',
@@ -41,15 +53,17 @@ test('profile receipts show submitted receipt status and event context', async (
       uploadedByUserId: regularUser.id,
     });
     await database.insert(schema.financeReceipts).values({
+      alcoholAmount: 0,
       attachmentFileName: receiptFileName,
-      attachmentMimeType: 'application/pdf',
-      attachmentSizeBytes: 2048,
       attachmentUploadId: receiptUploadId,
       currency: seeded.tenant.currency,
+      depositAmount: 0,
       eventId,
+      hasAlcohol: false,
+      hasDeposit: false,
       id: receiptId,
       purchaseCountry: 'DE',
-      receiptDate: seedDate,
+      receiptDate: seedDate.toISOString().slice(0, 10),
       status: 'submitted',
       submittedByUserId: regularUser.id,
       taxAmount: 300,
@@ -90,14 +104,5 @@ test('profile receipts show submitted receipt status and event context', async (
         totalAmount: 1875,
       }),
     );
-  } finally {
-    await database
-      .delete(schema.financeReceipts)
-      .where(eq(schema.financeReceipts.id, receiptId));
-    if (receiptUploadId) {
-      await database
-        .delete(schema.financeReceiptUploads)
-        .where(eq(schema.financeReceiptUploads.id, receiptUploadId));
-    }
   }
 });

@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from '@effect/vitest';
 import { TransactionRollbackError } from 'drizzle-orm';
-import { Effect, Layer } from 'effect';
+import { Context, Effect, Exit, Layer } from 'effect';
+import { Headers } from 'effect/unstable/http';
+import { Rpc, RpcMessage } from 'effect/unstable/rpc';
 
 import { Database } from '../../../../../db';
 import {
@@ -9,7 +11,9 @@ import {
 } from '../../../../../db/schema';
 import { type Permission } from '../../../../../shared/permissions/permissions';
 import {
+  AppRpcs,
   RpcRequestContext,
+  RpcRequestContextMiddleware,
   type RpcRequestContextShape,
 } from '../../../../../shared/rpc-contracts/app-rpcs';
 import { ReceiptMediaServiceUnavailableError } from '../../../../../shared/rpc-contracts/app-rpcs/finance.errors';
@@ -17,6 +21,99 @@ import { RpcAccess } from '../shared/rpc-access.service';
 import { financeReceiptSubmitterEmail } from './finance-receipts.handlers';
 import { financeHandlers } from './finance.handlers';
 import { ReceiptMediaService } from './receipt-media.service';
+
+const receiptUploadRpc = [...AppRpcs.requests.values()].find(
+  (rpc) => rpc._tag === 'finance.receiptMedia.finalizeUpload',
+);
+if (!receiptUploadRpc) throw new Error('Receipt finalization RPC is missing');
+const receiptUploadOptions = {
+  client: new Rpc.ServerClient(1),
+  headers: Headers.empty,
+  requestId: RpcMessage.RequestId(1),
+  rpc: receiptUploadRpc.middleware(RpcRequestContextMiddleware),
+};
+
+const receiptReviewRpc = [...AppRpcs.requests.values()].find(
+  (rpc) => rpc._tag === 'finance.receipts.review',
+);
+if (!receiptReviewRpc) throw new Error('Receipt review RPC is missing');
+const receiptReviewOptions = {
+  client: new Rpc.ServerClient(1),
+  headers: Headers.empty,
+  requestId: RpcMessage.RequestId(1),
+  rpc: receiptReviewRpc.middleware(RpcRequestContextMiddleware),
+};
+
+const receiptCreateUploadRpc = [...AppRpcs.requests.values()].find(
+  (rpc) => rpc._tag === 'finance.receiptMedia.createUpload',
+);
+if (!receiptCreateUploadRpc)
+  throw new Error('finance.receiptMedia.createUpload RPC is missing');
+const receiptCreateUploadOptions = {
+  client: new Rpc.ServerClient(1),
+  headers: Headers.empty,
+  requestId: RpcMessage.RequestId(1),
+  rpc: receiptCreateUploadRpc.middleware(RpcRequestContextMiddleware),
+};
+
+const receiptRefundRpc = [...AppRpcs.requests.values()].find(
+  (rpc) => rpc._tag === 'finance.receipts.createRefund',
+);
+if (!receiptRefundRpc)
+  throw new Error('finance.receipts.createRefund RPC is missing');
+const receiptRefundOptions = {
+  client: new Rpc.ServerClient(1),
+  headers: Headers.empty,
+  requestId: RpcMessage.RequestId(1),
+  rpc: receiptRefundRpc.middleware(RpcRequestContextMiddleware),
+};
+
+const receiptMyRpc = [...AppRpcs.requests.values()].find(
+  (rpc) => rpc._tag === 'finance.receipts.my',
+);
+if (!receiptMyRpc) throw new Error('finance.receipts.my RPC is missing');
+const receiptMyOptions = {
+  client: new Rpc.ServerClient(1),
+  headers: Headers.empty,
+  requestId: RpcMessage.RequestId(1),
+  rpc: receiptMyRpc.middleware(RpcRequestContextMiddleware),
+};
+
+const receiptApprovalQueueRpc = [...AppRpcs.requests.values()].find(
+  (rpc) => rpc._tag === 'finance.receipts.pendingApprovalGrouped',
+);
+if (!receiptApprovalQueueRpc)
+  throw new Error('finance.receipts.pendingApprovalGrouped RPC is missing');
+const receiptApprovalQueueOptions = {
+  client: new Rpc.ServerClient(1),
+  headers: Headers.empty,
+  requestId: RpcMessage.RequestId(1),
+  rpc: receiptApprovalQueueRpc.middleware(RpcRequestContextMiddleware),
+};
+
+const receiptSubmitRpc = [...AppRpcs.requests.values()].find(
+  (rpc) => rpc._tag === 'finance.receipts.submit',
+);
+if (!receiptSubmitRpc)
+  throw new Error('finance.receipts.submit RPC is missing');
+const receiptSubmitOptions = {
+  client: new Rpc.ServerClient(1),
+  headers: Headers.empty,
+  requestId: RpcMessage.RequestId(1),
+  rpc: receiptSubmitRpc.middleware(RpcRequestContextMiddleware),
+};
+
+const financeTransactionsRpc = [...AppRpcs.requests.values()].find(
+  (rpc) => rpc._tag === 'finance.transactions.findMany',
+);
+if (!financeTransactionsRpc)
+  throw new Error('finance.transactions.findMany RPC is missing');
+const financeTransactionsOptions = {
+  client: new Rpc.ServerClient(1),
+  headers: Headers.empty,
+  requestId: RpcMessage.RequestId(1),
+  rpc: financeTransactionsRpc.middleware(RpcRequestContextMiddleware),
+};
 
 const tenant = {
   cancellationDeadlineHoursBeforeStart: 120,
@@ -63,7 +160,9 @@ const createContextLayer = (
   permissions: readonly Permission[],
   options: {
     database?: unknown;
-    receiptMediaService?: unknown;
+    receiptMediaService?: Partial<
+      Context.Service.Shape<typeof ReceiptMediaService>
+    >;
   } = {},
 ) => {
   const requestContext = {
@@ -79,28 +178,27 @@ const createContextLayer = (
     RpcAccess.Default,
     Layer.succeed(RpcRequestContext, requestContext),
     Layer.succeed(Database, (options.database ?? {}) as never),
-    Layer.succeed(
-      ReceiptMediaService,
-      (options.receiptMediaService ?? {
-        createUploadPolicy: () =>
-          Effect.succeed({
-            fields: { key: 'receipts/example.png' },
-            storageKey: 'receipts/example.png',
-            url: 'https://storage.example.test/bucket',
-          }),
-        discardPromotedUpload: () => Effect.void,
-        inspectUpload: () =>
-          Effect.succeed({
-            mimeType: 'image/png',
-            sizeBytes: 7,
-            storageKey: 'receipts/example.png',
-            storageUrl: 's3://bucket/receipts/example.png',
-          }),
-        objectExists: () => Effect.succeed(false),
-        signedPreviewUrl: () =>
-          Effect.succeed('https://signed.example.test/receipt'),
-      }) as never,
-    ),
+    Layer.succeed(ReceiptMediaService, {
+      createUploadPolicy: () =>
+        Effect.succeed({
+          fields: { key: 'receipts/example.png' },
+          storageKey: 'receipts/example.png',
+          url: 'https://storage.example.test/bucket',
+        }),
+      discardPromotedUpload: () => Effect.void,
+      inspectUpload: () =>
+        Effect.succeed({
+          body: new Uint8Array(7),
+          mimeType: 'image/png',
+          sizeBytes: 7,
+          storageKey: 'receipts/example.png',
+        }),
+      objectExists: () => Effect.succeed(false),
+      promoteUpload: () => Effect.void,
+      signedPreviewUrl: () =>
+        Effect.succeed('https://signed.example.test/receipt'),
+      ...options.receiptMediaService,
+    }),
   );
 };
 
@@ -256,19 +354,47 @@ const databaseWithReceiptUploadLifecycle = (steps: string[]) => {
   };
 };
 
-const databaseWithPendingReceiptUpload = () => {
-  let updatedValues: unknown;
+const databaseWithPendingReceiptUpload = (failure?: {
+  afterCommit: boolean;
+  step: 'destination' | 'ready';
+}) => {
+  const upload: Pick<
+    typeof financeReceiptUploads.$inferSelect,
+    | 'eventId'
+    | 'expiresAt'
+    | 'fileName'
+    | 'id'
+    | 'mimeType'
+    | 'sizeBytes'
+    | 'status'
+    | 'storageKey'
+  > = {
+    eventId: 'event-1',
+    expiresAt: new Date('2099-01-01T00:00:00.000Z'),
+    fileName: 'receipt.png',
+    id: 'upload-1',
+    mimeType: 'image/png',
+    sizeBytes: 7,
+    status: 'pending',
+    storageKey: 'receipt-uploads/tenant-1/event-1/user-1/upload-1-receipt.png',
+  };
+  let updatedValues: Partial<typeof financeReceiptUploads.$inferInsert> = {};
   const updateQuery = {
     returning: () =>
-      Effect.succeed([
-        {
-          fileName: 'receipt.png',
-          id: 'upload-1',
-          mimeType: 'image/png',
-          sizeBytes: 7,
-        },
-      ]),
-    set: (values: unknown) => {
+      Effect.gen(function* () {
+        const fails =
+          (failure?.step === 'destination' &&
+            updatedValues.storageKey !== undefined) ||
+          (failure?.step === 'ready' && updatedValues.status === 'ready');
+        if (!fails || failure?.afterCommit) {
+          Object.assign(upload, updatedValues);
+        }
+        if (fails) {
+          return yield* Effect.fail(new Error('Database response failed'));
+        }
+        return [{ ...upload }];
+      }),
+    set: (values: Partial<typeof financeReceiptUploads.$inferInsert>) => {
       updatedValues = values;
       return updateQuery;
     },
@@ -279,18 +405,7 @@ const databaseWithPendingReceiptUpload = () => {
     database: {
       query: {
         financeReceiptUploads: {
-          findFirst: () =>
-            Effect.succeed({
-              eventId: 'event-1',
-              expiresAt: new Date('2099-01-01T00:00:00.000Z'),
-              fileName: 'receipt.png',
-              id: 'upload-1',
-              mimeType: 'image/png',
-              sizeBytes: 7,
-              status: 'pending' as const,
-              storageKey:
-                'receipt-uploads/tenant-1/event-1/user-1/upload-1-receipt.png',
-            }),
+          findFirst: () => Effect.sync(() => ({ ...upload })),
         },
       },
       update: (table: unknown) => {
@@ -298,7 +413,7 @@ const databaseWithPendingReceiptUpload = () => {
         return updateQuery;
       },
     },
-    updatedValues: () => updatedValues,
+    upload,
   };
 };
 
@@ -598,7 +713,6 @@ const submittedReceiptRow = {
   attachmentFileName: 'receipt.png',
   attachmentMimeType: 'image/png',
   attachmentStorageKey: 'receipts/tenant-2/event-1/user-1/upload-1-receipt.png',
-  attachmentStorageUrl: 'https://storage.example/foreign-receipt.png',
   attachmentUploadConsumedAt: new Date('2026-05-19T09:59:00.000Z'),
   attachmentUploadedAt: new Date('2026-05-19T09:58:00.000Z'),
   attachmentUploadedByUserId: 'user-1',
@@ -615,9 +729,8 @@ const submittedReceiptRow = {
   hasAlcohol: false,
   hasDeposit: false,
   id: 'receipt-1',
-  previewImageUrl: 'https://attacker.example/preview.png',
   purchaseCountry: 'NL',
-  receiptDate: new Date('2026-05-18T00:00:00.000Z'),
+  receiptDate: '2026-05-18',
   refundedAt: null,
   refundTransactionId: null,
   rejectionReason: null,
@@ -674,17 +787,17 @@ const databaseWithReceiptReviewLifecycle = ({
     ...submittedReceiptRow,
     attachmentStorageKey:
       'receipts/tenant-1/event-1/user-1/upload-1-receipt.png',
-    attachmentStorageUrl: 'https://storage.example.test/receipt.png',
   },
   preflightEvidence = {
     ...submittedReceiptRow,
     attachmentStorageKey:
       'receipts/tenant-1/event-1/user-1/upload-1-receipt.png',
-    attachmentStorageUrl: 'https://storage.example.test/receipt.png',
   },
+  recordedCountry = 'NL',
 }: {
   lockedEvidence?: typeof submittedReceiptRow;
   preflightEvidence?: typeof submittedReceiptRow;
+  recordedCountry?: string;
 } = {}) => {
   const operations: string[] = [];
   const preflightQuery = {
@@ -704,6 +817,7 @@ const databaseWithReceiptReviewLifecycle = ({
           attachmentUploadId: 'upload-1',
           eventTitle: 'City tour',
           id: 'receipt-1',
+          purchaseCountry: recordedCountry,
           status: 'submitted' as const,
           submittedByCommunicationEmail: null,
           submittedByEmail: 'alice@example.com',
@@ -726,23 +840,32 @@ const databaseWithReceiptReviewLifecycle = ({
     where: () => lockedEvidenceQuery,
   };
   let updatedStatus: 'approved' | 'rejected' = 'approved';
+  let updatedCountry: string | undefined;
   const updateQuery = {
     returning: () => {
       operations.push('receipt:update');
       return Effect.succeed([{ id: 'receipt-1', status: updatedStatus }]);
     },
-    set: (values: { status: 'approved' | 'rejected' }) => {
+    set: (values: {
+      purchaseCountry: string;
+      status: 'approved' | 'rejected';
+    }) => {
       updatedStatus = values.status;
+      updatedCountry = values.purchaseCountry;
       return updateQuery;
     },
     where: () => updateQuery,
   };
+  let queuedEmail: Record<string, unknown> | undefined;
   const emailQuery = {
     onConflictDoNothing: () => {
       operations.push('email:enqueue');
       return Effect.succeed([]);
     },
-    values: () => emailQuery,
+    values: (values: Record<string, unknown>) => {
+      queuedEmail = values;
+      return emailQuery;
+    },
   };
   let selectCount = 0;
   const transaction = {
@@ -763,6 +886,8 @@ const databaseWithReceiptReviewLifecycle = ({
       },
     },
     operations,
+    queuedEmail: () => queuedEmail,
+    updatedCountry: () => updatedCountry,
   };
 };
 
@@ -812,9 +937,15 @@ describe('finance profile receipt reads', () => {
       Effect.gen(function* () {
         const attachmentStorageKey =
           'receipts/tenant-1/event-1/user-1/upload-1-receipt.png';
+        const objectExists = vi.fn(() =>
+          Effect.die(new Error('Receipt list must not check object storage')),
+        );
+        const signedPreviewUrl = vi.fn(() =>
+          Effect.die(new Error('Receipt list must not sign previews')),
+        );
         const result = yield* financeHandlers['finance.receipts.my'](
           undefined,
-          { headers: {} } as never,
+          receiptMyOptions,
         ).pipe(
           Effect.provide(
             createContextLayer([], {
@@ -822,9 +953,12 @@ describe('finance profile receipt reads', () => {
                 {
                   ...submittedReceiptRow,
                   attachmentStorageKey,
-                  attachmentStorageUrl: 'local-unavailable://receipt',
                 },
               ]),
+              receiptMediaService: {
+                objectExists,
+                signedPreviewUrl,
+              },
             }),
           ),
         );
@@ -837,6 +971,8 @@ describe('finance profile receipt reads', () => {
             previewImageUrl: null,
           }),
         ]);
+        expect(objectExists).not.toHaveBeenCalled();
+        expect(signedPreviewUrl).not.toHaveBeenCalled();
       }),
   );
 
@@ -846,7 +982,7 @@ describe('finance profile receipt reads', () => {
       Effect.gen(function* () {
         const result = yield* financeHandlers['finance.receipts.my'](
           undefined,
-          { headers: {} } as never,
+          receiptMyOptions,
         ).pipe(
           Effect.provide(
             createContextLayer([], {
@@ -872,7 +1008,7 @@ describe('finance profile receipt reads', () => {
             id: 'receipt-1',
             previewImageUrl: null,
             purchaseCountry: 'NL',
-            receiptDate: '2026-05-18T00:00:00.000Z',
+            receiptDate: '2026-05-18',
             refundedAt: null,
             refundTransactionId: null,
             rejectionReason: null,
@@ -891,12 +1027,22 @@ describe('finance profile receipt reads', () => {
     'fails closed for invalid upload bindings in pending approval groups',
     () =>
       Effect.gen(function* () {
+        const objectExists = vi.fn(() =>
+          Effect.die(new Error('Approval queue must not check object storage')),
+        );
+        const signedPreviewUrl = vi.fn(() =>
+          Effect.die(new Error('Approval queue must not sign previews')),
+        );
         const result = yield* financeHandlers[
           'finance.receipts.pendingApprovalGrouped'
-        ](undefined, { headers: {} } as never).pipe(
+        ](undefined, receiptApprovalQueueOptions).pipe(
           Effect.provide(
             createContextLayer(['finance:approveReceipts'], {
               database: databaseWithPendingReceipts(),
+              receiptMediaService: {
+                objectExists,
+                signedPreviewUrl,
+              },
             }),
           ),
         );
@@ -909,6 +1055,8 @@ describe('finance profile receipt reads', () => {
             previewImageUrl: null,
           }),
         );
+        expect(objectExists).not.toHaveBeenCalled();
+        expect(signedPreviewUrl).not.toHaveBeenCalled();
       }),
   );
 });
@@ -919,7 +1067,7 @@ describe('finance receipt media permissions', () => {
       let isUploadCalled = false;
       const error = yield* financeHandlers['finance.receiptMedia.createUpload'](
         uploadInput,
-        { headers: {} } as never,
+        receiptCreateUploadOptions,
       ).pipe(
         Effect.flip,
         Effect.provide(
@@ -953,7 +1101,7 @@ describe('finance receipt media permissions', () => {
       const lifecycleSteps: string[] = [];
       const result = yield* financeHandlers[
         'finance.receiptMedia.createUpload'
-      ](uploadInput, { headers: {} } as never).pipe(
+      ](uploadInput, receiptCreateUploadOptions).pipe(
         Effect.provide(
           createContextLayer(['events:organizeAll'], {
             database: databaseWithReceiptUploadLifecycle(lifecycleSteps),
@@ -991,13 +1139,69 @@ describe('finance receipt media permissions', () => {
   );
 
   it.effect(
+    'explains when the event is no longer available for a receipt',
+    () =>
+      Effect.gen(function* () {
+        const error = yield* financeHandlers[
+          'finance.receiptMedia.createUpload'
+        ](uploadInput, receiptCreateUploadOptions).pipe(
+          Effect.flip,
+          Effect.provide(
+            createContextLayer(['events:organizeAll'], {
+              database: {
+                query: {
+                  eventInstances: {
+                    findFirst: () => Effect.succeed(undefined),
+                  },
+                },
+              },
+            }),
+          ),
+        );
+
+        expect(error['_tag']).toBe('FinanceResourceNotFoundError');
+        expect(error.message).toBe(
+          'This event is no longer available, so no receipt was added. Go back and choose an available event before adding a receipt.',
+        );
+      }),
+  );
+
+  it.effect(
+    'asks for the file again when an upload is no longer available',
+    () =>
+      Effect.gen(function* () {
+        const error = yield* financeHandlers[
+          'finance.receiptMedia.finalizeUpload'
+        ]({ uploadId: 'missing-upload' }, receiptUploadOptions).pipe(
+          Effect.flip,
+          Effect.provide(
+            createContextLayer(['events:organizeAll'], {
+              database: {
+                query: {
+                  financeReceiptUploads: {
+                    findFirst: () => Effect.succeed(undefined),
+                  },
+                },
+              },
+            }),
+          ),
+        );
+
+        expect(error['_tag']).toBe('RpcBadRequestError');
+        expect(error.message).toBe(
+          'This receipt file is no longer available. Add the file again.',
+        );
+      }),
+  );
+
+  it.effect(
     'does not finalize an upload when receipt storage is unavailable',
     () =>
       Effect.gen(function* () {
         const lifecycleSteps: string[] = [];
         const error = yield* financeHandlers[
           'finance.receiptMedia.createUpload'
-        ](uploadInput, { headers: {} } as never).pipe(
+        ](uploadInput, receiptCreateUploadOptions).pipe(
           Effect.flip,
           Effect.provide(
             createContextLayer(['events:organizeAll'], {
@@ -1006,7 +1210,8 @@ describe('finance receipt media permissions', () => {
                 createUploadPolicy: () =>
                   Effect.fail(
                     new ReceiptMediaServiceUnavailableError({
-                      message: 'Receipt storage is unavailable',
+                      message:
+                        'Receipt files could not be opened or saved. No receipt was added or changed. Try opening or saving the receipt once more; if it fails again, contact Evorto support.',
                     }),
                   ),
                 objectExists: () => Effect.succeed(false),
@@ -1028,21 +1233,30 @@ describe('finance receipt media permissions', () => {
       Effect.gen(function* () {
         const fixture = databaseWithPendingReceiptUpload();
         const finalStorageKey = `receipts/tenant-1/event-1/user-1/upload-1-${'a'.repeat(64)}-receipt.png`;
+        const promoteUpload = vi.fn(() =>
+          Effect.sync(() => {
+            expect(fixture.upload).toMatchObject({
+              status: 'finalizing',
+              storageKey: finalStorageKey,
+            });
+          }),
+        );
 
         const result = yield* financeHandlers[
           'finance.receiptMedia.finalizeUpload'
-        ]({ uploadId: 'upload-1' }, { headers: {} } as never).pipe(
+        ]({ uploadId: 'upload-1' }, receiptUploadOptions).pipe(
           Effect.provide(
             createContextLayer(['events:organizeAll'], {
               database: fixture.database,
               receiptMediaService: {
                 inspectUpload: () =>
                   Effect.succeed({
+                    body: new Uint8Array(7),
                     mimeType: 'image/png',
                     sizeBytes: 7,
                     storageKey: finalStorageKey,
-                    storageUrl: `s3://bucket/${finalStorageKey}`,
                   }),
+                promoteUpload,
               },
             }),
           ),
@@ -1054,23 +1268,130 @@ describe('finance receipt media permissions', () => {
           sizeBytes: 7,
           uploadId: 'upload-1',
         });
-        expect(fixture.updatedValues()).toEqual(
-          expect.objectContaining({ storageKey: finalStorageKey }),
-        );
+        expect(fixture.upload).toMatchObject({
+          status: 'ready',
+          storageKey: finalStorageKey,
+        });
+        expect(promoteUpload).toHaveBeenCalledOnce();
       }),
   );
 
+  for (const step of ['destination', 'ready'] as const) {
+    for (const afterCommit of [false, true]) {
+      it.effect(
+        `retains upload ownership when ${step} persistence fails ${afterCommit ? 'after' : 'before'} commit`,
+        () =>
+          Effect.gen(function* () {
+            const fixture = databaseWithPendingReceiptUpload({
+              afterCommit,
+              step,
+            });
+            const finalStorageKey = `receipts/tenant-1/event-1/user-1/upload-1-${'a'.repeat(64)}-receipt.png`;
+            const promoteUpload = vi.fn(() => Effect.void);
+            const discardPromotedUpload = vi.fn(() => Effect.void);
+            const inspectUpload = vi.fn<
+              Context.Service.Shape<typeof ReceiptMediaService>['inspectUpload']
+            >(() =>
+              Effect.succeed({
+                body: new Uint8Array(7),
+                mimeType: 'image/png',
+                sizeBytes: 7,
+                storageKey: finalStorageKey,
+              }),
+            );
+            const layer = createContextLayer(['events:organizeAll'], {
+              database: fixture.database,
+              receiptMediaService: {
+                discardPromotedUpload,
+                inspectUpload,
+                promoteUpload,
+              },
+            });
+            const error = yield* financeHandlers[
+              'finance.receiptMedia.finalizeUpload'
+            ]({ uploadId: 'upload-1' }, receiptUploadOptions).pipe(
+              Effect.flip,
+              Effect.provide(layer),
+            );
+
+            expect(error._tag).toBe('ReceiptMediaInternalError');
+            expect(promoteUpload).toHaveBeenCalledTimes(
+              step === 'ready' ? 1 : 0,
+            );
+            expect(discardPromotedUpload).not.toHaveBeenCalled();
+            expect(fixture.upload.storageKey).toBe(
+              step === 'ready' || afterCommit
+                ? finalStorageKey
+                : 'receipt-uploads/tenant-1/event-1/user-1/upload-1-receipt.png',
+            );
+            expect(fixture.upload.status).toBe(
+              step === 'ready' && afterCommit ? 'ready' : 'finalizing',
+            );
+            if (step === 'ready' && afterCommit) {
+              const retried = yield* financeHandlers[
+                'finance.receiptMedia.finalizeUpload'
+              ]({ uploadId: 'upload-1' }, receiptUploadOptions).pipe(
+                Effect.provide(layer),
+              );
+              expect(retried.uploadId).toBe('upload-1');
+              expect(inspectUpload).toHaveBeenCalledOnce();
+              expect(promoteUpload).toHaveBeenCalledOnce();
+            }
+          }),
+      );
+    }
+  }
+
+  it.effect('keeps interrupted storage promotion owned by orphan cleanup', () =>
+    Effect.gen(function* () {
+      const fixture = databaseWithPendingReceiptUpload();
+      const finalStorageKey = `receipts/tenant-1/event-1/user-1/upload-1-${'a'.repeat(64)}-receipt.png`;
+      const discardPromotedUpload = vi.fn(() => Effect.void);
+      const exit = yield* financeHandlers[
+        'finance.receiptMedia.finalizeUpload'
+      ]({ uploadId: 'upload-1' }, receiptUploadOptions).pipe(
+        Effect.exit,
+        Effect.provide(
+          createContextLayer(['events:organizeAll'], {
+            database: fixture.database,
+            receiptMediaService: {
+              discardPromotedUpload,
+              inspectUpload: () =>
+                Effect.succeed({
+                  body: new Uint8Array(7),
+                  mimeType: 'image/png',
+                  sizeBytes: 7,
+                  storageKey: finalStorageKey,
+                }),
+              promoteUpload: () => Effect.interrupt,
+            },
+          }),
+        ),
+      );
+      expect(Exit.hasInterrupts(exit)).toBe(true);
+      expect(fixture.upload).toMatchObject({
+        status: 'finalizing',
+        storageKey: finalStorageKey,
+      });
+      expect(discardPromotedUpload).not.toHaveBeenCalled();
+    }),
+  );
+
   it.effect(
-    'discards a losing promoted object after a concurrent finalization wins',
+    'does not repeat storage inspection after a concurrent finalization wins',
     () =>
       Effect.gen(function* () {
         const winnerStorageKey = `receipts/tenant-1/event-1/user-1/upload-1-${'a'.repeat(64)}-receipt.png`;
-        const losingStorageKey = `receipts/tenant-1/event-1/user-1/upload-1-${'b'.repeat(64)}-receipt.png`;
         const discarded: string[] = [];
+        const inspectUpload = vi.fn<
+          Context.Service.Shape<typeof ReceiptMediaService>['inspectUpload']
+        >(() =>
+          Effect.die(new Error('Concurrent callers must not inspect storage')),
+        );
 
         const result = yield* financeHandlers[
           'finance.receiptMedia.finalizeUpload'
-        ]({ uploadId: 'upload-1' }, { headers: {} } as never).pipe(
+        ]({ uploadId: 'upload-1' }, receiptUploadOptions).pipe(
           Effect.provide(
             createContextLayer(['events:organizeAll'], {
               database: databaseWithConcurrentReceiptUpload(winnerStorageKey),
@@ -1079,13 +1400,7 @@ describe('finance receipt media permissions', () => {
                   Effect.sync(() => {
                     discarded.push(storageKey);
                   }),
-                inspectUpload: () =>
-                  Effect.succeed({
-                    mimeType: 'image/png',
-                    sizeBytes: 7,
-                    storageKey: losingStorageKey,
-                    storageUrl: `s3://bucket/${losingStorageKey}`,
-                  }),
+                inspectUpload,
               },
             }),
           ),
@@ -1097,7 +1412,8 @@ describe('finance receipt media permissions', () => {
           sizeBytes: 7,
           uploadId: 'upload-1',
         });
-        expect(discarded).toEqual([losingStorageKey]);
+        expect(inspectUpload).not.toHaveBeenCalled();
+        expect(discarded).toEqual([]);
       }),
   );
 });
@@ -1109,7 +1425,7 @@ describe('finance transaction permissions', () => {
       Effect.gen(function* () {
         const error = yield* financeHandlers['finance.transactions.findMany'](
           { limit: 10, offset: 0 },
-          { headers: {} } as never,
+          financeTransactionsOptions,
         ).pipe(Effect.flip, Effect.provide(createContextLayer([])));
 
         expect(error['_tag']).toBe('RpcForbiddenError');
@@ -1131,7 +1447,7 @@ describe('finance receipt reimbursement', () => {
             payoutType: 'iban',
             receiptIds: ['receipt-1'],
           },
-          { headers: {} } as never,
+          receiptRefundOptions,
         ).pipe(
           Effect.provide(
             createContextLayer(['finance:refundReceipts'], {
@@ -1147,6 +1463,8 @@ describe('finance receipt reimbursement', () => {
         });
         expect(fixture.insertedTransaction()).toMatchObject({
           amount: -125,
+          comment:
+            'Receipt reimbursement via bank transfer for 1 receipt across 1 event',
           currency: 'CZK',
           targetUserId: 'user-1',
         });
@@ -1169,7 +1487,7 @@ describe('finance receipt reimbursement', () => {
             payoutType: 'iban',
             receiptIds: ['receipt-1', 'receipt-2'],
           },
-          { headers: {} } as never,
+          receiptRefundOptions,
         ).pipe(
           Effect.flip,
           Effect.provide(
@@ -1209,7 +1527,7 @@ describe('finance receipt reimbursement', () => {
             payoutType: 'iban',
             receiptIds: ['receipt-eur', 'receipt-czk'],
           },
-          { headers: {} } as never,
+          receiptRefundOptions,
         ).pipe(
           Effect.flip,
           Effect.provide(
@@ -1249,7 +1567,7 @@ describe('finance receipt reimbursement', () => {
             payoutType: 'iban',
             receiptIds: ['receipt-1'],
           },
-          { headers: {} } as never,
+          receiptRefundOptions,
         ).pipe(
           Effect.flip,
           Effect.provide(
@@ -1282,7 +1600,7 @@ describe('finance receipt reimbursement', () => {
             payoutType: 'iban',
             receiptIds: ['receipt-1'],
           },
-          { headers: {} } as never,
+          receiptRefundOptions,
         ).pipe(
           Effect.flip,
           Effect.provide(
@@ -1311,7 +1629,7 @@ describe('finance receipt reimbursement', () => {
             payoutType: 'paypal',
             receiptIds: ['receipt-1'],
           },
-          { headers: {} } as never,
+          receiptRefundOptions,
         ).pipe(
           Effect.flip,
           Effect.provide(
@@ -1340,7 +1658,7 @@ describe('finance receipt reimbursement', () => {
             payoutType: 'paypal',
             receiptIds: ['receipt-1'],
           },
-          { headers: {} } as never,
+          receiptRefundOptions,
         ).pipe(
           Effect.flip,
           Effect.provide(
@@ -1360,6 +1678,64 @@ describe('finance receipt reimbursement', () => {
   );
 
   it.effect(
+    'surfaces a non-canonical persisted iban instead of recording a reimbursement',
+    () =>
+      Effect.gen(function* () {
+        const error = yield* financeHandlers['finance.receipts.createRefund'](
+          {
+            payoutReference: 'DE89370400440532013000',
+            payoutType: 'iban',
+            receiptIds: ['receipt-1'],
+          },
+          receiptRefundOptions,
+        ).pipe(
+          Effect.flip,
+          Effect.provide(
+            createContextLayer(['finance:refundReceipts'], {
+              database: databaseWithRefundableReceiptForPayout({
+                iban: 'DE89 3704 0044 0532 0130 00',
+                id: 'user-1',
+                paypalEmail: 'alice@example.com',
+              }),
+            }),
+          ),
+        );
+
+        expect(error['_tag']).toBe('RpcBadRequestError');
+        expect(error).toMatchObject({ reason: 'invalidIban' });
+      }),
+  );
+
+  it.effect(
+    'surfaces a non-canonical persisted paypal address instead of recording a reimbursement',
+    () =>
+      Effect.gen(function* () {
+        const error = yield* financeHandlers['finance.receipts.createRefund'](
+          {
+            payoutReference: 'alice@example.com',
+            payoutType: 'paypal',
+            receiptIds: ['receipt-1'],
+          },
+          receiptRefundOptions,
+        ).pipe(
+          Effect.flip,
+          Effect.provide(
+            createContextLayer(['finance:refundReceipts'], {
+              database: databaseWithRefundableReceiptForPayout({
+                iban: 'NL91ABNA0417164300',
+                id: 'user-1',
+                paypalEmail: 'Alice@Example.Com',
+              }),
+            }),
+          ),
+        );
+
+        expect(error['_tag']).toBe('RpcBadRequestError');
+        expect(error).toMatchObject({ reason: 'invalidPaypal' });
+      }),
+  );
+
+  it.effect(
     'rejects reimbursement records when receipt preconditions change before update',
     () =>
       Effect.gen(function* () {
@@ -1369,7 +1745,7 @@ describe('finance receipt reimbursement', () => {
             payoutType: 'iban',
             receiptIds: ['receipt-1'],
           },
-          { headers: {} } as never,
+          receiptRefundOptions,
         ).pipe(
           Effect.flip,
           Effect.provide(
@@ -1380,6 +1756,9 @@ describe('finance receipt reimbursement', () => {
         );
 
         expect(error['_tag']).toBe('RpcBadRequestError');
+        expect(error.message).toBe(
+          'The selected receipts changed while this page was open. No reimbursement was recorded. Return to the reimbursement list and review the current selection.',
+        );
         expect(error).toMatchObject({
           reason: 'receiptRefundPreconditionFailed',
         });
@@ -1393,13 +1772,16 @@ describe('finance receipt approval evidence', () => {
     () =>
       Effect.gen(function* () {
         const fixture = databaseWithReceiptReviewLifecycle();
+        const signedPreviewUrl = vi.fn(() =>
+          Effect.die(new Error('Approval must not sign a preview URL')),
+        );
         const result = yield* financeHandlers['finance.receipts.review'](
           {
             ...receiptFieldsInput,
             id: 'receipt-1',
             status: 'approved',
           },
-          { headers: {} } as never,
+          receiptReviewOptions,
         ).pipe(
           Effect.provide(
             createContextLayer(['finance:approveReceipts'], {
@@ -1415,8 +1797,7 @@ describe('finance receipt approval evidence', () => {
                     fixture.operations.push('storage:head');
                     return true;
                   }),
-                signedPreviewUrl: () =>
-                  Effect.succeed('https://signed.example.test/receipt'),
+                signedPreviewUrl,
               },
             }),
           ),
@@ -1432,19 +1813,23 @@ describe('finance receipt approval evidence', () => {
           'receipt:update',
           'email:enqueue',
         ]);
+        expect(signedPreviewUrl).not.toHaveBeenCalled();
       }),
   );
 
   it.effect('blocks approval when the exact object is missing', () =>
     Effect.gen(function* () {
       const fixture = databaseWithReceiptReviewLifecycle();
+      const signedPreviewUrl = vi.fn(() =>
+        Effect.die(new Error('Approval must not sign a preview URL')),
+      );
       const error = yield* financeHandlers['finance.receipts.review'](
         {
           ...receiptFieldsInput,
           id: 'receipt-1',
           status: 'approved',
         },
-        { headers: {} } as never,
+        receiptReviewOptions,
       ).pipe(
         Effect.flip,
         Effect.provide(
@@ -1454,8 +1839,7 @@ describe('finance receipt approval evidence', () => {
               createUploadPolicy: () =>
                 Effect.die(new Error('Unexpected receipt upload')),
               objectExists: () => Effect.succeed(false),
-              signedPreviewUrl: () =>
-                Effect.succeed('https://signed.example.test/receipt'),
+              signedPreviewUrl,
             },
           }),
         ),
@@ -1464,19 +1848,23 @@ describe('finance receipt approval evidence', () => {
       expect(error['_tag']).toBe('RpcBadRequestError');
       expect(error).toMatchObject({ reason: 'receiptEvidenceUnavailable' });
       expect(fixture.operations).toEqual(['preflight']);
+      expect(signedPreviewUrl).not.toHaveBeenCalled();
     }),
   );
 
-  it.effect('blocks approval when the exact object cannot be signed', () =>
+  it.effect('propagates an approval evidence verification outage', () =>
     Effect.gen(function* () {
       const fixture = databaseWithReceiptReviewLifecycle();
+      const signedPreviewUrl = vi.fn(() =>
+        Effect.die(new Error('Approval must not sign a preview URL')),
+      );
       const error = yield* financeHandlers['finance.receipts.review'](
         {
           ...receiptFieldsInput,
           id: 'receipt-1',
           status: 'approved',
         },
-        { headers: {} } as never,
+        receiptReviewOptions,
       ).pipe(
         Effect.flip,
         Effect.provide(
@@ -1485,21 +1873,25 @@ describe('finance receipt approval evidence', () => {
             receiptMediaService: {
               createUploadPolicy: () =>
                 Effect.die(new Error('Unexpected receipt upload')),
-              objectExists: () => Effect.succeed(true),
-              signedPreviewUrl: () =>
+              objectExists: () =>
                 Effect.fail(
                   new ReceiptMediaServiceUnavailableError({
-                    message: 'Receipt storage is unavailable',
+                    message:
+                      'Receipt files could not be opened or saved. No receipt was added or changed. Try opening or saving the receipt once more; if it fails again, contact Evorto support.',
                   }),
                 ),
+              signedPreviewUrl,
             },
           }),
         ),
       );
 
-      expect(error['_tag']).toBe('RpcBadRequestError');
-      expect(error).toMatchObject({ reason: 'receiptEvidenceUnavailable' });
+      expect(error['_tag']).toBe('ReceiptMediaServiceUnavailableError');
+      expect(error.message).toBe(
+        'Receipt files could not be opened or saved. No receipt was added or changed. Try opening or saving the receipt once more; if it fails again, contact Evorto support.',
+      );
       expect(fixture.operations).toEqual(['preflight']);
+      expect(signedPreviewUrl).not.toHaveBeenCalled();
     }),
   );
 
@@ -1515,7 +1907,7 @@ describe('finance receipt approval evidence', () => {
           id: 'receipt-1',
           status: 'approved',
         },
-        { headers: {} } as never,
+        receiptReviewOptions,
       ).pipe(
         Effect.flip,
         Effect.provide(
@@ -1548,8 +1940,6 @@ describe('finance receipt approval evidence', () => {
             ...submittedReceiptRow,
             attachmentStorageKey:
               'receipts/tenant-1/event-1/user-1/upload-2-receipt.png',
-            attachmentStorageUrl:
-              'https://storage.example.test/upload-2-receipt.png',
           },
         });
         const objectExists = vi.fn(() => Effect.succeed(true));
@@ -1559,7 +1949,7 @@ describe('finance receipt approval evidence', () => {
             id: 'receipt-1',
             status: 'approved',
           },
-          { headers: {} } as never,
+          receiptReviewOptions,
         ).pipe(
           Effect.flip,
           Effect.provide(
@@ -1590,8 +1980,6 @@ describe('finance receipt approval evidence', () => {
           ...submittedReceiptRow,
           attachmentStorageKey:
             'receipts/tenant-1/event-1/user-1/upload-1-replaced.png',
-          attachmentStorageUrl:
-            'https://storage.example.test/upload-1-replaced.png',
         },
       });
       const error = yield* financeHandlers['finance.receipts.review'](
@@ -1600,7 +1988,7 @@ describe('finance receipt approval evidence', () => {
           id: 'receipt-1',
           status: 'approved',
         },
-        { headers: {} } as never,
+        receiptReviewOptions,
       ).pipe(
         Effect.flip,
         Effect.provide(
@@ -1639,7 +2027,7 @@ describe('finance receipt approval evidence', () => {
           rejectionReason: 'The attachment cannot be reviewed',
           status: 'rejected',
         },
-        { headers: {} } as never,
+        receiptReviewOptions,
       ).pipe(
         Effect.provide(
           createContextLayer(['finance:approveReceipts'], {
@@ -1667,7 +2055,138 @@ describe('finance receipt approval evidence', () => {
   );
 });
 
+describe('finance receipt review countries', () => {
+  it.effect.each([
+    { country: 'DE', status: 'approved' },
+    { country: 'DE', status: 'rejected' },
+    { country: 'OTHER', status: 'approved' },
+    { country: 'OTHER', status: 'rejected' },
+  ] as const)(
+    'preserves recorded $country during $status review',
+    ({ country, status }) =>
+      Effect.gen(function* () {
+        const fixture = databaseWithReceiptReviewLifecycle({
+          recordedCountry: country,
+        });
+        const result = yield* financeHandlers['finance.receipts.review'](
+          {
+            ...receiptFieldsInput,
+            id: 'receipt-1',
+            purchaseCountry: country,
+            rejectionReason:
+              status === 'rejected' ? 'Receipt could not be verified' : null,
+            status,
+          },
+          receiptReviewOptions,
+        ).pipe(
+          Effect.provide(
+            createContextLayer(['finance:approveReceipts'], {
+              database: fixture.database,
+              receiptMediaService: { objectExists: () => Effect.succeed(true) },
+            }),
+          ),
+        );
+        expect(result).toEqual({ id: 'receipt-1', status });
+        expect(fixture.updatedCountry()).toBe(country);
+        expect(fixture.operations).toContain('receipt:lock');
+        expect(fixture.operations).toContain('email:enqueue');
+      }),
+  );
+
+  it.effect(
+    'allows replacing a removed country with a currently allowed one',
+    () =>
+      Effect.gen(function* () {
+        const fixture = databaseWithReceiptReviewLifecycle({
+          recordedCountry: 'DE',
+        });
+        yield* financeHandlers['finance.receipts.review'](
+          {
+            ...receiptFieldsInput,
+            id: 'receipt-1',
+            rejectionReason: 'Receipt could not be verified',
+            status: 'rejected',
+          },
+          receiptReviewOptions,
+        ).pipe(
+          Effect.provide(
+            createContextLayer(['finance:approveReceipts'], {
+              database: fixture.database,
+            }),
+          ),
+        );
+        expect(fixture.updatedCountry()).toBe('NL');
+      }),
+  );
+
+  it.effect(
+    'rejects an unrelated unlisted replacement after locking the stored receipt',
+    () =>
+      Effect.gen(function* () {
+        const fixture = databaseWithReceiptReviewLifecycle({
+          recordedCountry: 'DE',
+        });
+        const error = yield* financeHandlers['finance.receipts.review'](
+          {
+            ...receiptFieldsInput,
+            id: 'receipt-1',
+            purchaseCountry: 'AT',
+            rejectionReason: 'Receipt could not be verified',
+            status: 'rejected',
+          },
+          receiptReviewOptions,
+        ).pipe(
+          Effect.flip,
+          Effect.provide(
+            createContextLayer(['finance:approveReceipts'], {
+              database: fixture.database,
+            }),
+          ),
+        );
+        expect(error).toMatchObject({
+          _tag: 'RpcBadRequestError',
+          reason: 'invalidPurchaseCountry',
+        });
+        expect(fixture.operations).toEqual([
+          'transaction:start',
+          'receipt:lock',
+        ]);
+        expect(fixture.updatedCountry()).toBeUndefined();
+        expect(fixture.queuedEmail()).toBeUndefined();
+      }),
+  );
+});
+
 describe('finance receipt amount validation', () => {
+  it.effect(
+    'explains when an unavailable event prevents receipt submission',
+    () =>
+      Effect.gen(function* () {
+        const error = yield* financeHandlers['finance.receipts.submit'](
+          receiptSubmitInput,
+          receiptSubmitOptions,
+        ).pipe(
+          Effect.flip,
+          Effect.provide(
+            createContextLayer(['events:organizeAll'], {
+              database: {
+                query: {
+                  eventInstances: {
+                    findFirst: () => Effect.succeed(undefined),
+                  },
+                },
+              },
+            }),
+          ),
+        );
+
+        expect(error['_tag']).toBe('FinanceResourceNotFoundError');
+        expect(error.message).toBe(
+          'This event is no longer available, so the receipt was not submitted. Go back and choose an available event before submitting a receipt.',
+        );
+      }),
+  );
+
   it.effect('allows receipt submissions before the event has ended', () =>
     Effect.gen(function* () {
       const receiptDatabase = databaseWithReceiptInsert({
@@ -1676,7 +2195,7 @@ describe('finance receipt amount validation', () => {
 
       const result = yield* financeHandlers['finance.receipts.submit'](
         receiptSubmitInput,
-        { headers: {} } as never,
+        receiptSubmitOptions,
       ).pipe(
         Effect.provide(
           createContextLayer(['events:organizeAll'], {
@@ -1714,7 +2233,7 @@ describe('finance receipt amount validation', () => {
 
         const error = yield* financeHandlers['finance.receipts.submit'](
           receiptSubmitInput,
-          { headers: {} } as never,
+          receiptSubmitOptions,
         ).pipe(
           Effect.flip,
           Effect.provide(
@@ -1726,6 +2245,9 @@ describe('finance receipt amount validation', () => {
 
         expect(error['_tag']).toBe('RpcBadRequestError');
         expect(error).toMatchObject({ reason: 'receipt_upload_unavailable' });
+        expect(error.message).toBe(
+          'This receipt file is no longer available. Add the file again.',
+        );
         expect(receiptDatabase.insertedValues()).toBeUndefined();
       }),
   );
@@ -1739,7 +2261,7 @@ describe('finance receipt amount validation', () => {
 
       const error = yield* financeHandlers['finance.receipts.submit'](
         receiptSubmitInput,
-        { headers: {} } as never,
+        receiptSubmitOptions,
       ).pipe(
         Effect.flip,
         Effect.provide(
@@ -1751,6 +2273,9 @@ describe('finance receipt amount validation', () => {
 
       expect(error['_tag']).toBe('RpcBadRequestError');
       expect(error).toMatchObject({ reason: 'receipt_upload_unavailable' });
+      expect(error.message).toBe(
+        'This receipt file has already been submitted.',
+      );
       expect(receiptDatabase.insertedValues()).toBeUndefined();
     }),
   );
@@ -1766,7 +2291,7 @@ describe('finance receipt amount validation', () => {
             totalAmount: 100,
           },
         },
-        { headers: {} } as never,
+        receiptSubmitOptions,
       ).pipe(
         Effect.flip,
         Effect.provide(
@@ -1777,7 +2302,7 @@ describe('finance receipt amount validation', () => {
       );
 
       expect(error['_tag']).toBe('RpcBadRequestError');
-      expect(error).toMatchObject({ reason: 'tax_amount_exceeds_total' });
+      expect(error).toMatchObject({ reason: 'taxAmountExceedsTotal' });
     }),
   );
 
@@ -1791,7 +2316,7 @@ describe('finance receipt amount validation', () => {
           taxAmount: 101,
           totalAmount: 100,
         },
-        { headers: {} } as never,
+        receiptReviewOptions,
       ).pipe(
         Effect.flip,
         Effect.provide(
@@ -1814,7 +2339,7 @@ describe('finance receipt amount validation', () => {
           id: 'receipt-1',
           status: 'approved',
         },
-        { headers: {} } as never,
+        receiptReviewOptions,
       ).pipe(
         Effect.flip,
         Effect.provide(
@@ -1839,7 +2364,7 @@ describe('finance receipt amount validation', () => {
             id: 'receipt-1',
             status: 'approved',
           },
-          { headers: {} } as never,
+          receiptReviewOptions,
         ).pipe(
           Effect.flip,
           Effect.provide(
@@ -1863,7 +2388,7 @@ describe('finance receipt amount validation', () => {
           rejectionReason: null,
           status: 'rejected',
         },
-        { headers: {} } as never,
+        receiptReviewOptions,
       ).pipe(
         Effect.flip,
         Effect.provide(
@@ -1887,7 +2412,7 @@ describe('finance receipt amount validation', () => {
           receiptDate: 'not-a-date',
           status: 'approved',
         },
-        { headers: {} } as never,
+        receiptReviewOptions,
       ).pipe(
         Effect.flip,
         Effect.provide(
@@ -1900,5 +2425,74 @@ describe('finance receipt amount validation', () => {
       expect(error['_tag']).toBe('RpcBadRequestError');
       expect(error).toMatchObject({ reason: 'invalidReceiptDate' });
     }),
+  );
+
+  it.effect.each([
+    {
+      expectedReason: 'invalidTotalAmount',
+      override: { totalAmount: 0 },
+    },
+    {
+      expectedReason: 'invalidTotalAmount',
+      override: { totalAmount: 100.5 },
+    },
+    {
+      expectedReason: 'depositAmountContradiction',
+      override: { depositAmount: 10, hasDeposit: false },
+    },
+    {
+      expectedReason: 'depositAmountContradiction',
+      override: { depositAmount: 0, hasDeposit: true },
+    },
+    {
+      expectedReason: 'alcoholAmountContradiction',
+      override: { alcoholAmount: 10, hasAlcohol: false },
+    },
+  ] as const)(
+    'rejects invalid receipt amount state %#',
+    ({ expectedReason, override }) =>
+      Effect.gen(function* () {
+        const error = yield* financeHandlers['finance.receipts.review'](
+          {
+            ...receiptFieldsInput,
+            ...override,
+            id: 'receipt-1',
+            status: 'approved',
+          },
+          receiptReviewOptions,
+        ).pipe(
+          Effect.flip,
+          Effect.provide(
+            createContextLayer(['finance:approveReceipts'], { database: {} }),
+          ),
+        );
+
+        expect(error['_tag']).toBe('RpcBadRequestError');
+        expect(error).toMatchObject({ reason: expectedReason });
+      }),
+  );
+
+  it.effect.each(['2026-02-30', '2026-5-19', '2026-05-19T00:00:00.000Z'])(
+    'rejects non-calendar receipt date %s',
+    (receiptDate) =>
+      Effect.gen(function* () {
+        const error = yield* financeHandlers['finance.receipts.review'](
+          {
+            ...receiptFieldsInput,
+            id: 'receipt-1',
+            receiptDate,
+            status: 'approved',
+          },
+          receiptReviewOptions,
+        ).pipe(
+          Effect.flip,
+          Effect.provide(
+            createContextLayer(['finance:approveReceipts'], { database: {} }),
+          ),
+        );
+
+        expect(error['_tag']).toBe('RpcBadRequestError');
+        expect(error).toMatchObject({ reason: 'invalidReceiptDate' });
+      }),
   );
 });

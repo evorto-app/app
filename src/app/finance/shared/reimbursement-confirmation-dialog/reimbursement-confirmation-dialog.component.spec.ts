@@ -4,13 +4,13 @@ import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
-  type PlatformReimbursementConfirmationData,
-  PlatformReimbursementConfirmationDialogComponent,
-} from './platform-reimbursement-confirmation-dialog.component';
+  type ReimbursementConfirmationData,
+  ReimbursementConfirmationDialogComponent,
+} from './reimbursement-confirmation-dialog.component';
 
-describe('PlatformReimbursementConfirmationDialogComponent', () => {
+describe('ReimbursementConfirmationDialogComponent', () => {
   it('shows the complete payout batch before it can be recorded', async () => {
-    const data: PlatformReimbursementConfirmationData = {
+    const data: ReimbursementConfirmationData = {
       currency: 'EUR',
       payoutDestination: 'DE89370400440532013000',
       payoutMethod: 'Bank transfer',
@@ -19,7 +19,7 @@ describe('PlatformReimbursementConfirmationDialogComponent', () => {
       totalAmount: 2900,
     };
     await TestBed.configureTestingModule({
-      imports: [PlatformReimbursementConfirmationDialogComponent],
+      imports: [ReimbursementConfirmationDialogComponent],
       providers: [
         { provide: LOCALE_ID, useValue: 'en-US' },
         { provide: MAT_DIALOG_DATA, useValue: data },
@@ -28,7 +28,7 @@ describe('PlatformReimbursementConfirmationDialogComponent', () => {
     }).compileComponents();
 
     const fixture = TestBed.createComponent(
-      PlatformReimbursementConfirmationDialogComponent,
+      ReimbursementConfirmationDialogComponent,
     );
     await fixture.whenStable();
 
