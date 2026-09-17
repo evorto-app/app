@@ -69,6 +69,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - specs/admin/user-role-assignment.spec.ts [admin, permissions]
   - specs/auth/storage-state-refresh.test.ts
   - specs/discounts/esn-discounts.test.ts [finance]
+  - specs/events/event-discovery-eligibility.test.ts
   - specs/events/events.test.ts
   - specs/events/free-registration.test.ts
   - specs/events/manual-approval.spec.ts [stripe]
