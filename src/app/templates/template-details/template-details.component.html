@@ -47,6 +47,7 @@
 
 @if (templateQuery.isError()) {
   <p>Error: {{ errorMessage(templateQuery.error()) }}</p>
+  <a mat-button routerLink="/templates">Return to Templates</a>
 } @else if (templateQuery.isSuccess()) {
   @let template = templateQuery.data();
   <a

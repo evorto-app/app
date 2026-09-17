@@ -51,7 +51,7 @@ export const templateDetailsErrorMessage = (error: unknown): string => {
     Reflect.get(error, '_tag') === 'RpcBadRequestError' &&
     Reflect.get(error, 'reason') === 'templateNotFound'
   ) {
-    return 'This template could not be found.';
+    return 'This template could not be found. Return to Templates and choose an existing template.';
   }
   return 'The template could not be loaded. Try again.';
 };

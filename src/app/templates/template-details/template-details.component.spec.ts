@@ -133,7 +133,9 @@ describe('template detail add-on helpers', () => {
         message: 'Template not found for the target tenant',
         reason: 'templateNotFound',
       }),
-    ).toBe('This template could not be found.');
+    ).toBe(
+      'This template could not be found. Return to Templates and choose an existing template.',
+    );
   });
 
   it.each([
@@ -212,7 +214,8 @@ describe('template detail error state', () => {
           'This template no longer exists in this organization. No changes were made. Return to Templates and choose an existing template.',
         reason: 'templateNotFound',
       }),
-      expected: 'This template could not be found.',
+      expected:
+        'This template could not be found. Return to Templates and choose an existing template.',
     },
     {
       error: new RpcBadRequestError({
@@ -249,6 +252,15 @@ describe('template detail error state', () => {
         expect(
           fixture.nativeElement.querySelector('p')?.textContent?.trim(),
         ).toBe(`Error: ${expected}`);
+        const root: unknown = fixture.nativeElement;
+        if (!(root instanceof HTMLElement))
+          throw new Error('Expected the template detail root');
+        const recovery = [...root.querySelectorAll('a')].find(
+          (link) => link.textContent?.trim() === 'Return to Templates',
+        );
+        expect(recovery?.getAttribute('href')).toBe('/templates');
+        expect(root.textContent).not.toContain('private');
+        expect(root.textContent).not.toContain('Private');
       });
     },
   );

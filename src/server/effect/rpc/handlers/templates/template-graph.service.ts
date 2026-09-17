@@ -79,6 +79,9 @@ const databaseEffect = <A>(
 const invalidGraph = (message: string, reason: string) =>
   new RpcBadRequestError({ message, reason });
 
+const duplicateTemplateEntryMessage =
+  'This template contains duplicate entries. Nothing was saved. Remove repeated sign-up choices, add-ons, or questions, then try again.';
+
 const templateChangedMessage =
   'Some template details changed while this page was open. Nothing was saved. Reopen the template and review the current details before making your changes again.';
 
@@ -104,7 +107,10 @@ const validateSubmittedIds = (
     (id): id is string => id !== undefined,
   );
   if (hasDuplicates(presentIds)) {
-    return invalidGraph(templateChangedMessage, 'duplicateTemplateGraphId');
+    return invalidGraph(
+      duplicateTemplateEntryMessage,
+      'duplicateTemplateGraphId',
+    );
   }
   if (!existingIds && presentIds.length > 0) {
     return invalidGraph(templateChangedMessage, 'unexpectedTemplateGraphId');
@@ -280,7 +286,10 @@ export const validateTemplateGraphStructure = ({
     hasDuplicates(addOnKeys) ||
     hasDuplicates(questionKeys)
   ) {
-    return invalidGraph(templateChangedMessage, 'duplicateTemplateGraphKey');
+    return invalidGraph(
+      duplicateTemplateEntryMessage,
+      'duplicateTemplateGraphKey',
+    );
   }
 
   const idError =

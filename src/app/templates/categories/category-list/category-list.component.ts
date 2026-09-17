@@ -22,6 +22,7 @@ import {
   injectQuery,
   QueryClient,
 } from '@tanstack/angular-query-experimental';
+import consola from 'consola/browser';
 import { firstValueFrom } from 'rxjs';
 
 import { AppRpc } from '../../../core/effect-rpc-angular-client';
@@ -34,6 +35,8 @@ import {
   CreateEditCategoryDialogComponent,
   type CreateEditCategoryDialogData,
 } from '../create-edit-category-dialog/create-edit-category-dialog.component';
+
+const logger = consola.withTag('app/templates/categories');
 
 const fallbackIcon: IconValue = { iconColor: 0, iconName: 'city' };
 
@@ -66,10 +69,17 @@ export const templateCategoryMutationErrorMessage = (
     return 'You can no longer manage template categories. No change was saved. Ask an administrator if you need this access.';
   }
 
+  if (
+    error &&
+    typeof error === 'object' &&
+    Reflect.get(error, '_tag') === 'TemplateCategoryNotFoundError'
+  ) {
+    return 'This category could not be found. Your entries are still here. Copy anything you need, then cancel and reload the category list.';
+  }
+
   return getErrorMessage(
     error,
     'The save outcome could not be confirmed. Check the category list before trying again. Your entries are still here.',
-    ['TemplateCategoryNotFoundError'],
   );
 };
 
@@ -196,7 +206,7 @@ export class CategoryListComponent {
         });
       }
     } catch (error) {
-      console.error(error);
+      logger.error(error);
       return {
         message: templateCategoryMutationErrorMessage(error),
         saved: false,
@@ -221,7 +231,7 @@ export class CategoryListComponent {
       read.status === 'rejected' ? [read.reason] : [],
     );
     if (failures.length > 0) {
-      console.error(
+      logger.error(
         new AggregateError(failures, 'Category list updates failed'),
       );
       return {

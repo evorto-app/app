@@ -95,13 +95,15 @@ describe('template category permission presentation', () => {
     );
   });
 
-  it('preserves actionable non-permission mutation messages', () => {
+  it('gives recovery steps for a missing category', () => {
     expect(
       templateCategoryMutationErrorMessage({
         _tag: 'TemplateCategoryNotFoundError',
         message: 'Category not found',
       }),
-    ).toBe('Category not found');
+    ).toBe(
+      'This category could not be found. Your entries are still here. Copy anything you need, then cancel and reload the category list.',
+    );
   });
   it('uses focused fallback copy for other mutation failures', () => {
     expect(
@@ -119,7 +121,9 @@ describe('template category permission presentation', () => {
         _tag: 'TemplateCategoryNotFoundError',
         message: 'This template category could not be found.',
       }),
-    ).toBe('This template category could not be found.');
+    ).toBe(
+      'This category could not be found. Your entries are still here. Copy anything you need, then cancel and reload the category list.',
+    );
     expect(
       templateCategoryMutationErrorMessage({
         _tag: 'RpcInternalServerError',
@@ -493,7 +497,12 @@ describe('CategoryListComponent save outcomes', () => {
       else update.mockRejectedValueOnce(error);
       const editor = await openEditor(mode);
       await editor.submitForm();
-      await editor.expectMessage('This template category could not be found.');
+      await editor.expectMessage(
+        'This category could not be found. Your entries are still here. Copy anything you need, then cancel and reload the category list.',
+      );
+      expect(button(editor.element, 'Cancel').disabled).toBe(false);
+      button(editor.element, 'Cancel').click();
+      await vi.waitFor(() => expect(dialog.openDialogs).toHaveLength(0));
       expect(findGroups).toHaveBeenCalledOnce();
     });
 

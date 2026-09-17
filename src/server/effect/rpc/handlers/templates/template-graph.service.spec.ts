@@ -368,7 +368,88 @@ describe('TemplateGraphService structural validation', () => {
     });
   });
 
-  it('rejects dangling and duplicate graph references', () => {
+  it.each(['registrationOptions', 'addOns', 'questions'] as const)(
+    'identifies repeated %s IDs without claiming a concurrent change',
+    (collection) => {
+      const input = validGraph();
+      if (collection === 'registrationOptions') {
+        const [entry] = input.registrationOptions;
+        if (!entry) throw new Error('Expected a sign-up choice');
+        input.registrationOptions = [
+          { ...entry, id: 'duplicate-id' },
+          { ...entry, id: 'duplicate-id', key: 'second-key' },
+        ];
+      } else if (collection === 'addOns') {
+        const [entry] = input.addOns;
+        if (!entry) throw new Error('Expected an add-on');
+        input.addOns = [
+          { ...entry, id: 'duplicate-id' },
+          { ...entry, id: 'duplicate-id', key: 'second-key' },
+        ];
+      } else {
+        const [entry] = input.questions;
+        if (!entry) throw new Error('Expected a question');
+        input.questions = [
+          { ...entry, id: 'duplicate-id' },
+          { ...entry, id: 'duplicate-id', key: 'second-key' },
+        ];
+      }
+      expect(
+        validateTemplateGraphStructure({ esnCardEnabled: false, input }),
+      ).toMatchObject({
+        _tag: 'RpcBadRequestError',
+        message:
+          'This template contains duplicate entries. Nothing was saved. Remove repeated sign-up choices, add-ons, or questions, then try again.',
+        reason: 'duplicateTemplateGraphId',
+      });
+    },
+  );
+
+  it.each(['registrationOptions', 'addOns', 'questions'] as const)(
+    'identifies repeated %s keys without claiming a concurrent change',
+    (collection) => {
+      const input = validGraph();
+      if (collection === 'registrationOptions') {
+        const [entry] = input.registrationOptions;
+        if (!entry) throw new Error('Expected a sign-up choice');
+        input.registrationOptions.push({ ...entry });
+      } else if (collection === 'addOns') {
+        const [entry] = input.addOns;
+        if (!entry) throw new Error('Expected an add-on');
+        input.addOns.push({ ...entry });
+      } else {
+        const [entry] = input.questions;
+        if (!entry) throw new Error('Expected a question');
+        input.questions.push({ ...entry });
+      }
+      expect(
+        validateTemplateGraphStructure({ esnCardEnabled: false, input }),
+      ).toMatchObject({
+        _tag: 'RpcBadRequestError',
+        message:
+          'This template contains duplicate entries. Nothing was saved. Remove repeated sign-up choices, add-ons, or questions, then try again.',
+        reason: 'duplicateTemplateGraphKey',
+      });
+    },
+  );
+
+  it('retains stale-template recovery for an ID absent from the persisted graph', () => {
+    const before = persistedGraph(false);
+    const input = updateInputFrom(before);
+    const [entry] = input.registrationOptions;
+    if (!entry) throw new Error('Expected a sign-up choice');
+    entry.id = 'missing-option';
+    expect(
+      validateTemplateGraphStructure({ before, esnCardEnabled: false, input }),
+    ).toMatchObject({
+      _tag: 'RpcBadRequestError',
+      message:
+        'Some template details changed while this page was open. Nothing was saved. Reopen the template and review the current details before making your changes again.',
+      reason: 'templateGraphIdMismatch',
+    });
+  });
+
+  it('rejects dangling graph references', () => {
     const source = validGraph();
     const input: TemplateGraphInput = {
       ...source,
