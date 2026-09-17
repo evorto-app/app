@@ -7,7 +7,7 @@ import {
 } from '@db/schema';
 import { PlatformOperationReason } from '@shared/rpc-contracts/app-rpcs/platform-operations.shared';
 import { normalizeTenantDomain } from '@shared/tenant-origin';
-import { and, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { Effect, Schema } from 'effect';
 
 import { StripeClient } from '../stripe-client';
@@ -166,12 +166,7 @@ export const attachTenantPaymentAccount = Effect.fn(
           const paymentHistory = yield* transaction
             .select({ id: transactions.id })
             .from(transactions)
-            .where(
-              and(
-                eq(transactions.tenantId, input.organizationId),
-                eq(transactions.method, 'stripe'),
-              ),
-            )
+            .where(eq(transactions.tenantId, input.organizationId))
             .limit(1);
           if (paymentHistory.length > 0) {
             return failed('payment-history-exists');
