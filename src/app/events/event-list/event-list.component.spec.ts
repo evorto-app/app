@@ -199,7 +199,7 @@ describe('EventListComponent load recovery', () => {
 
   it.each([
     { label: 'anonymous', permissions: [] },
-    { label: 'member', permissions: ['events:viewPublic'] },
+    { label: 'member', permissions: ['internal:viewInternalPages'] },
     { label: 'reviewer', permissions: ['events:review'] },
   ] satisfies { label: string; permissions: Permission[] }[])(
     'keeps public event links without an empty actions menu for $label',
