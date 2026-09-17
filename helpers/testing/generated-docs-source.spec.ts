@@ -1156,6 +1156,9 @@ describe('generated docs source current behavior', () => {
     const registrationPageSource = readSource(
       'tests/support/utils/event-registration-page.ts',
     );
+    const eventDetailsTemplate = readSource(
+      'src/app/events/event-details/event-details.component.html',
+    );
 
     expect(source).toContain(
       'When an attendee choice is full, **Join waitlist** replaces **Sign up**.',
@@ -1562,7 +1565,13 @@ describe('generated docs source current behavior', () => {
       ".getByText('Loading event…', { exact: true })",
     );
     expect(registrationPageSource).toContain(
-      ".getByText('Failed to load event.', { exact: true })",
+      "name: 'Event could not be loaded'",
+    );
+    expect(eventDetailsTemplate).toContain(
+      '<h2 class="title-medium">Event could not be loaded</h2>',
+    );
+    expect(eventDetailsTemplate).toContain(
+      '<h3 class="title-small">Sign-up details could not be loaded</h3>',
     );
     expect(registrationPageSource).toContain('level: 2');
     expect(registrationPageSource).toContain("name: 'Your sign-up'");
@@ -1570,7 +1579,7 @@ describe('generated docs source current behavior', () => {
       ".getByText('Loading your sign-up')",
     );
     expect(registrationPageSource).toContain(
-      ".getByText('Failed to load registration status.')",
+      "name: 'Sign-up details could not be loaded'",
     );
     expect(registrationPageSource.indexOf("name: 'Your sign-up'")).toBeLessThan(
       registrationPageSource.indexOf(".getByText('Loading your sign-up')"),
@@ -1583,9 +1592,7 @@ describe('generated docs source current behavior', () => {
       ),
     );
     expect(
-      registrationPageSource.indexOf(
-        ".getByText('Failed to load event.', { exact: true })",
-      ),
+      registrationPageSource.indexOf("name: 'Event could not be loaded'"),
     ).toBeLessThan(registrationPageSource.indexOf("name: 'Your sign-up'"));
     expect(source).not.toContain(
       'Paid registration transfer and resale are not automatic yet.',

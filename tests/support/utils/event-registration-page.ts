@@ -16,7 +16,11 @@ export const waitForRegistrationPage = async (
 
   if (
     await eventDetails
-      .getByText('Failed to load event.', { exact: true })
+      .getByRole('heading', {
+        exact: true,
+        level: 2,
+        name: 'Event could not be loaded',
+      })
       .isVisible()
       .catch(() => false)
   ) {
@@ -37,7 +41,11 @@ export const waitForRegistrationPage = async (
 
   if (
     await eventDetails
-      .getByText('Failed to load registration status.')
+      .getByRole('heading', {
+        exact: true,
+        level: 3,
+        name: 'Sign-up details could not be loaded',
+      })
       .isVisible()
       .catch(() => false)
   ) {
