@@ -620,6 +620,128 @@ const checkoutFixture = () => {
   return { checkout, providerCause, stripe };
 };
 
+describe('private transfer code recovery', () => {
+  for (const operation of ['getClaim', 'claim'] as const) {
+    it.effect(
+      `${operation} explains an unavailable code without starting payment`,
+      () =>
+        Effect.gen(function* () {
+          const { checkout, stripe } = checkoutFixture();
+          const statements: string[] = [];
+          const layer = Layer.mergeAll(
+            Layer.succeed(StripeClient, stripe),
+            createRegistrationDatabaseTestLayer({
+              executeValues: (statement, parameters) =>
+                Effect.sync(() => {
+                  statements.push(statement);
+                  expect(statement).toContain('from "registration_transfers"');
+                  expect(statement.startsWith('select ')).toBe(true);
+                  expect(parameters).toEqual([
+                    transferInput.tenant.id,
+                    hashRegistrationTransferClaimCode(transferInput.claimCode),
+                    1,
+                  ]);
+                  return [];
+                }),
+            }),
+          );
+          const service = yield* RegistrationTransferService.make;
+          const attempt =
+            operation === 'getClaim'
+              ? service.getClaim(transferInput).pipe(Effect.asVoid)
+              : service.claim(transferInput).pipe(Effect.asVoid);
+          const error = yield* attempt.pipe(Effect.provide(layer), Effect.flip);
+          expect(error).toBeInstanceOf(RegistrationTransferNotFoundError);
+          expect(error.message).toBe(
+            'This transfer code is invalid or no longer available. This request did not start a payment. Ask the sender for the current code.',
+          );
+          expect(error.message).not.toContain(transferInput.claimCode);
+          expect(statements).toHaveLength(1);
+          expect(checkout).not.toHaveBeenCalled();
+        }),
+    );
+  }
+
+  it.effect(
+    'explains an expired code after recording expiry without starting payment',
+    () =>
+      Effect.gen(function* () {
+        const { checkout, stripe } = checkoutFixture();
+        const writes: string[] = [];
+        const layer = Layer.mergeAll(
+          Layer.succeed(StripeClient, stripe),
+          createRegistrationDatabaseTestLayer({
+            executeValues: (statement, parameters) =>
+              Effect.sync(() => {
+                if (
+                  statement.startsWith('select ') &&
+                  statement.includes('from "registration_transfers"')
+                ) {
+                  expect(parameters).toEqual([
+                    transferInput.tenant.id,
+                    hashRegistrationTransferClaimCode(transferInput.claimCode),
+                    1,
+                  ]);
+                  return [
+                    [
+                      eventEnd,
+                      'event-1',
+                      eventStart,
+                      'APPROVED',
+                      'Event',
+                      '1960-01-01 00:00:00',
+                      'event-1',
+                      'option-1',
+                      0,
+                      [],
+                      null,
+                      null,
+                      null,
+                      'registration-1',
+                      1,
+                      'CONFIRMED',
+                      'source-1',
+                      'open',
+                      'transfer-1',
+                    ],
+                  ];
+                }
+                if (statement.startsWith('update "registration_transfers"')) {
+                  writes.push(statement);
+                  expect(parameters).toContain(transferInput.tenant.id);
+                  expect(parameters).toContain('transfer-1');
+                  return [['transfer-1']];
+                }
+                if (
+                  statement.startsWith(
+                    'insert into "registration_transfer_events"',
+                  )
+                ) {
+                  writes.push(statement);
+                  expect(parameters).toContain('expired');
+                  return [];
+                }
+                throw new Error(
+                  `Unexpected expired-code statement: ${statement}`,
+                );
+              }),
+          }),
+        );
+        const service = yield* RegistrationTransferService.make;
+        const error = yield* service
+          .claim(transferInput)
+          .pipe(Effect.provide(layer), Effect.flip);
+        expect(error).toBeInstanceOf(RegistrationTransferConflictError);
+        expect(error.message).toBe(
+          'This transfer code has expired. No payment or refund was started. Ask the sender for a new code.',
+        );
+        expect(error.message).not.toContain(transferInput.claimCode);
+        expect(writes).toHaveLength(2);
+        expect(checkout).not.toHaveBeenCalled();
+      }),
+  );
+});
+
 describe('persisted transfer claim questions', () => {
   it.effect.each([25, 26])(
     'validates %i stored questions without truncation',
