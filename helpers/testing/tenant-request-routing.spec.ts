@@ -271,6 +271,81 @@ describe('local tenant request routing', () => {
     expect(context.unroute).toHaveBeenCalledOnce();
   });
 
+  it.each([false, true])(
+    'retains a settled drain failure without losing later route errors (late error: %s)',
+    async (lateError) => {
+      const installed: { handler?: Parameters<BrowserContext['route']>[1] } =
+        {};
+      const fetchFailure = new Error('request failed');
+      const abortFailure = new Error('request abort failed');
+      const closeFailure = new Error('context refused closure');
+      const lateFailure = new Error('later request abort failed');
+      const context = {
+        close: vi.fn(async () => {
+          throw closeFailure;
+        }),
+        grantPermissions: async () => {},
+        isClosed: () => false,
+        pages: () => [],
+        route: async (
+          _pattern: string,
+          handler: Parameters<BrowserContext['route']>[1],
+        ) => {
+          installed.handler = handler;
+          return registerRoute();
+        },
+        unroute: vi.fn(async () => {}),
+      };
+      await routeLocalTenantRequests({
+        baseUrl: 'http://localhost:4200',
+        context,
+        tenantDomain: 'north-river.evorto.app',
+      });
+      const request = createTeardownRequest();
+      const route: Route = {
+        abort: async () => {
+          throw abortFailure;
+        },
+        continue: unusedRequestOperation,
+        fallback: unusedRequestOperation,
+        fetch: async () => {
+          throw fetchFailure;
+        },
+        fulfill: unusedRequestOperation,
+        request: () => request,
+      };
+      const handler = installed.handler;
+      if (!handler) throw new Error('Tenant route handler was not installed');
+      await handler(route, request);
+      const retained = await stopTenantRequestRouting(context).catch(
+        (error: unknown) => error,
+      );
+      expect(retained).toMatchObject({
+        errors: [fetchFailure, abortFailure, closeFailure],
+        message:
+          'Tenant request routing cleanup failed; context remains open and routing remains installed',
+      });
+      if (lateError) {
+        await handler(
+          {
+            ...route,
+            abort: async () => {
+              throw lateFailure;
+            },
+          },
+          request,
+        );
+        await expect(closeTenantRequestContext(context)).rejects.toMatchObject({
+          errors: [retained, lateFailure],
+        });
+      } else {
+        await expect(closeTenantRequestContext(context)).rejects.toBe(retained);
+      }
+      expect(context.close).toHaveBeenCalledOnce();
+      expect(context.unroute).not.toHaveBeenCalled();
+    },
+  );
+
   it('does not release a callback admitted during an ordinary stop', async () => {
     const installed: { handler?: Parameters<BrowserContext['route']>[1] } = {};
     const releaseAbort = Promise.withResolvers<void>();

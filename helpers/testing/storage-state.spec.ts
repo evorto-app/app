@@ -440,6 +440,13 @@ describe('optional Playwright storage structures', () => {
         records: [{ key: null, value: '' }],
       }),
     },
+    {
+      name: 'null encoded key',
+      input: indexedDbStore({
+        keyPath: undefined,
+        records: [{ keyEncoded: null, value: '' }],
+      }),
+    },
     ...[
       '',
       '/',
@@ -492,6 +499,7 @@ describe('optional Playwright storage structures', () => {
         { value: false },
         { value: 0 },
         { valueEncoded: { v: 'null' } },
+        { valueEncoded: null },
         { valueEncoded: { v: 'undefined' } },
       ],
     }),

@@ -114,7 +114,12 @@ const isIndexedDbRecord = (
 ): boolean => {
   if (!isRecord(value)) return false;
   // Restore chooses the raw value with ??, so null/undefined must be encoded.
-  if (value['value'] === null || value['key'] === null) return false;
+  if (
+    value['value'] === null ||
+    value['key'] === null ||
+    value['keyEncoded'] === null
+  )
+    return false;
   const hasValue = value['value'] !== undefined;
   const hasEncodedValue = value['valueEncoded'] !== undefined;
   if (hasValue === hasEncodedValue) return false;

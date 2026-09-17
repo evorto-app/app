@@ -7,6 +7,7 @@ type RoutingContext = Pick<BrowserContext, 'unroute'>;
 type TenantRoute = {
   active: Set<Promise<void>>;
   closing: boolean;
+  drainFailure: { error: unknown; observedErrorCount: number } | undefined;
   draining: Promise<void> | undefined;
   emergencyClose: Promise<void> | undefined;
   errors: unknown[];
@@ -63,6 +64,7 @@ export const routeLocalTenantRequests = async ({
   const state: TenantRoute = {
     active: new Set(),
     closing: false,
+    drainFailure: undefined,
     draining: undefined,
     emergencyClose: undefined,
     errors: [],
@@ -186,7 +188,12 @@ export const stopTenantRequestRouting = async (
           state.routeRemovalFailed) &&
         !state.isContextClosed();
       if (!contextRemainsOpen) tenantRoutes.delete(context);
-      throwTenantRouteErrors(state, contextRemainsOpen);
+      try {
+        throwTenantRouteErrors(state, contextRemainsOpen);
+      } catch (error) {
+        state.drainFailure = { error, observedErrorCount: state.errors.length };
+        throw error;
+      }
     })();
   }
   await state.draining;
@@ -306,7 +313,13 @@ export const closeTenantRequestContext = async (
   } else {
     // Keep interception and its callback ownership when closure is unproven.
     // Report errors already observed; do not wait on requests needing disposal.
-    errors.push(...(tenantRoutes.get(context)?.errors ?? []));
+    const retained = state?.drainFailure;
+    if (state && retained) {
+      errors.push(retained.error);
+      errors.push(...state.errors.slice(retained.observedErrorCount));
+    } else {
+      errors.push(...(state?.errors ?? []));
+    }
   }
   if (!contextClosed && errors.length === 0) {
     errors.push(new Error('Tenant request context closure is unproven'));
