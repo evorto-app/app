@@ -61,8 +61,8 @@ describe('platformAuditActionLabel', () => {
     expect(platformAuditActionLabel('refundClaim.requeue')).toBe(
       'Registration refund requeued',
     );
-    expect(platformAuditActionLabel('event.updateListing')).toBe(
-      'Event listing changed',
+    expect(platformAuditActionLabel('event.updateAnnouncementDiscovery')).toBe(
+      'Who can find the announcement changed',
     );
     expect(platformAuditActionLabel('taxRates.import')).toBe(
       'Tax rates imported',
@@ -182,13 +182,13 @@ describe('platformAuditChangedRows', () => {
     ]);
   });
 
-  it('describes the current event listing state', () => {
+  it('describes the current announcement role count', () => {
     expect(
       platformAuditChangedRows({
-        after: { resourceType: 'event', state: { unlisted: true } },
-        before: { resourceType: 'event', state: { unlisted: false } },
+        after: { resourceType: 'event', state: { announcementRoleCount: 2 } },
+        before: { resourceType: 'event', state: { announcementRoleCount: 0 } },
       }),
-    ).toEqual([{ after: 'Yes', before: 'No', label: 'Unlisted' }]);
+    ).toEqual([{ after: '2', before: '0', label: 'Announcement roles' }]);
   });
 
   it('describes a stored legacy tax grant with its current permission label', () => {

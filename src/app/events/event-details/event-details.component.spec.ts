@@ -1,8 +1,12 @@
 import '@angular/compiler';
+import type { RoleLookupRecord } from '@shared/rpc-contracts/app-rpcs/roles.rpcs';
+
+import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
 import { registerLocaleData } from '@angular/common';
 import localeDe from '@angular/common/locales/de';
 import { Component, computed, input, LOCALE_ID, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { MatAutocompleteHarness } from '@angular/material/autocomplete/testing';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { provideRouter } from '@angular/router';
 import { createRpcQueryFilter } from '@heddendorp/effect-angular-query';
@@ -12,6 +16,7 @@ import {
   EventConflictError,
   EventNotFoundError,
 } from '@shared/rpc-contracts/app-rpcs/events.errors';
+import { RoleLookupNotFoundError } from '@shared/rpc-contracts/app-rpcs/roles.errors';
 import {
   onlineManager,
   provideTanStackQuery,
@@ -20,6 +25,7 @@ import {
 } from '@tanstack/angular-query-experimental';
 import { readFileSync } from 'node:fs';
 import nodePath from 'node:path';
+import { firstValueFrom, of, timeout } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { AppRpc } from '../../core/effect-rpc-angular-client';
@@ -28,6 +34,7 @@ import { ConfigService } from '../../core/config.service';
 import { NotificationService } from '../../core/notification.service';
 import { PermissionsService } from '../../core/permissions.service';
 import { TENANT_DATE_PIPE_TIMEZONE } from '../../core/tenant-date.pipe';
+import { RoleSelectQueries } from '../../shared/components/controls/role-select/role-select.component';
 import { EventActiveRegistrationComponent } from '../event-active-registration/event-active-registration.component';
 import { EventReviewDialogComponent } from '../event-review-dialog/event-review-dialog.component';
 import {
@@ -52,6 +59,7 @@ describe('registrationOptionsState', () => {
   it('shows available registration options when at least one option is visible', () => {
     expect(
       registrationOptionsState({
+        hasRegistrationOptions: true,
         registrationOptions: [{}],
         registrationOptionsHiddenByEligibility: false,
       }),
@@ -61,19 +69,41 @@ describe('registrationOptionsState', () => {
   it('shows an explicit ineligible state when every option is hidden by role eligibility', () => {
     expect(
       registrationOptionsState({
+        hasRegistrationOptions: true,
         registrationOptions: [],
         registrationOptionsHiddenByEligibility: true,
       }),
     ).toBe('hiddenByEligibility');
   });
 
+  it('explains the direct-link outcome when organization access does not include a sign-up choice', () => {
+    const template = readSource(
+      'src/app/events/event-details/event-details.component.html',
+    );
+
+    expect(template).toContain('Your access in this organization');
+    expect(template).toContain("this event's sign-up choices");
+    expect(template).toContain('event, but you cannot sign up.');
+  });
+
   it('keeps optionless events distinct from role-ineligible events', () => {
     expect(
       registrationOptionsState({
+        hasRegistrationOptions: false,
         registrationOptions: [],
         registrationOptionsHiddenByEligibility: false,
       }),
     ).toBe('none');
+  });
+
+  it('requires sign-in when a guest opens an event with role-restricted options', () => {
+    expect(
+      registrationOptionsState({
+        hasRegistrationOptions: true,
+        registrationOptions: [],
+        registrationOptionsHiddenByEligibility: false,
+      }),
+    ).toBe('requiresSignIn');
   });
 });
 
@@ -381,36 +411,40 @@ describe('eventAddonsForRegistrationOption', () => {
   });
 });
 
-type ScheduleViewer = Awaited<
+const findEvent = vi.fn();
+type Authentication = Awaited<
   ReturnType<
-    ReturnType<typeof AppRpc.injectClient>['users']['maybeSelf']['call']
+    ReturnType<typeof AppRpc.injectClient>['config']['isAuthenticated']['call']
   >
 >;
-const findScheduleViewer = vi.fn<() => Promise<ScheduleViewer>>();
-const signedInScheduleViewer = {
-  attributes: [],
-  auth0Id: 'auth0|schedule-viewer',
-  communicationEmail: undefined,
-  email: 'schedule-viewer@example.test',
-  firstName: 'Schedule',
-  homeTenantId: undefined,
-  homeTenantName: undefined,
-  iban: undefined,
-  id: 'schedule-viewer',
-  lastName: 'Viewer',
-  paypalEmail: undefined,
-  permissions: [],
-  roleIds: [],
-} satisfies NonNullable<ScheduleViewer>;
-
-const findEvent = vi.fn();
+const findAuthentication = vi.fn<() => Promise<Authentication>>();
+const findMyCards = vi.fn();
 const findRegistrationStatus = vi.fn();
+const announcementPermission = signal(false);
+const openDialog = vi.fn();
+const showError = vi.fn();
+const showSuccess = vi.fn();
+const updateAnnouncementDiscovery = vi.fn(
+  async (_input: { announcementRoleIds: string[]; eventId: string }) => true,
+);
+const tenantConfig: {
+  discountProviders: ClientTenantConfig['discountProviders'] | null;
+} = {
+  discountProviders: {
+    esnCard: {
+      config: {},
+      status: 'enabled',
+    },
+  },
+};
 
 const eventDetails = {
   addOns: [],
+  announcementRoleIds: null,
   creatorId: 'user-2',
   description: '<p>Bring a notebook.</p>',
   end: '2030-01-02T12:00:00.000Z',
+  hasRegistrationOptions: false,
   icon: { iconColor: 0xff_67_50_a4, iconName: 'calendar:fas' },
   id: 'event-1',
   location: null,
@@ -421,7 +455,7 @@ const eventDetails = {
   status: 'APPROVED' as const,
   statusComment: null,
   title: 'Recovery workshop',
-  unlisted: false,
+  userIsCreator: false,
 };
 
 const normalizeText = (fixture: ComponentFixture<EventDetailsComponent>) =>
@@ -455,9 +489,18 @@ describe('EventDetailsComponent load recovery', () => {
 
   beforeEach(async () => {
     findEvent.mockReset();
-    findScheduleViewer.mockReset().mockResolvedValue(null);
+    findAuthentication.mockReset().mockResolvedValue(true);
+    findMyCards.mockReset().mockResolvedValue([]);
     findRegistrationStatus.mockReset();
     reviewEvent.mockReset().mockResolvedValue(undefined);
+    tenantConfig.discountProviders = {
+      esnCard: { config: {}, status: 'enabled' },
+    };
+    announcementPermission.set(false);
+    openDialog.mockReset();
+    showError.mockReset();
+    showSuccess.mockReset();
+    updateAnnouncementDiscovery.mockReset().mockResolvedValue(true);
     queryClient = new QueryClient({
       defaultOptions: {
         queries: { gcTime: 0, retry: false },
@@ -481,7 +524,7 @@ describe('EventDetailsComponent load recovery', () => {
         {
           provide: ConfigService,
           useValue: {
-            tenant: { discountProviders: null },
+            tenant: tenantConfig,
             updateDescription: vi.fn(),
             updateTitle: vi.fn(),
           },
@@ -489,6 +532,10 @@ describe('EventDetailsComponent load recovery', () => {
         {
           provide: EventDetailsOperations,
           useValue: {
+            authentication: () => ({
+              queryFn: findAuthentication,
+              queryKey: ['event-authentication'],
+            }),
             canOrganize: () => ({
               queryFn: async () => false,
               queryKey: ['event-can-organize', 'event-1'],
@@ -500,7 +547,7 @@ describe('EventDetailsComponent load recovery', () => {
               queryKey: ['event', id],
             }),
             myCards: () => ({
-              queryFn: async () => [],
+              queryFn: findMyCards,
               queryKey: ['my-cards'],
             }),
             pendingReviewsFilter: () => ({
@@ -514,37 +561,34 @@ describe('EventDetailsComponent load recovery', () => {
               mutationFn: reviewEvent,
               mutationKey: ['review-event'],
             }),
-            self: () => ({
-              queryFn: findScheduleViewer,
-              queryKey: ['maybe-self'],
-            }),
             submitForReview: () => ({
               mutationFn: async () => true,
               mutationKey: ['submit-event-for-review'],
             }),
-            updateListing: () => ({
-              mutationFn: async () => true,
-              mutationKey: ['update-event-listing'],
+            updateAnnouncementDiscovery: () => ({
+              mutationFn: updateAnnouncementDiscovery,
+              mutationKey: ['update-announcement-visibility'],
             }),
           },
         },
         {
           provide: MatDialog,
-          useValue: { open: vi.fn() },
+          useValue: { open: openDialog },
         },
         {
           provide: NotificationService,
           useValue: {
-            showError: vi.fn(),
+            showError,
             showEventReviewed: vi.fn(),
             showEventSubmitted: vi.fn(),
+            showSuccess,
           },
         },
         {
           provide: PermissionsService,
           useValue: {
-            hasPermission: () => signal(false).asReadonly(),
-            hasPermissionSync: () => false,
+            hasPermission: () => announcementPermission.asReadonly(),
+            hasPermissionSync: () => announcementPermission(),
           },
         },
       ],
@@ -569,9 +613,7 @@ describe('EventDetailsComponent load recovery', () => {
     async (signedIn) => {
       registerLocaleData(localeDe);
       TestBed.overrideProvider(LOCALE_ID, { useValue: 'de-DE' });
-      findScheduleViewer.mockResolvedValue(
-        signedIn ? signedInScheduleViewer : null,
-      );
+      findAuthentication.mockResolvedValue(signedIn);
       findEvent.mockResolvedValue({
         ...eventDetails,
         end: '2030-01-03T02:00:00.000Z',
@@ -593,8 +635,8 @@ describe('EventDetailsComponent load recovery', () => {
       const fixture = render();
       await vi.waitFor(() => {
         fixture.detectChanges();
-        expect(queryClient.getQueryData(['maybe-self'])).toEqual(
-          signedIn ? signedInScheduleViewer : null,
+        expect(queryClient.getQueryData(['event-authentication'])).toEqual(
+          signedIn,
         );
         expect(normalizeText(fixture)).toContain(
           'Starts 03.01.2030 · 00:30 Ends 03.01.2030 · 03:00',
@@ -621,7 +663,7 @@ describe('EventDetailsComponent load recovery', () => {
   );
 
   it('identifies an online location without inventing a physical address', async () => {
-    findScheduleViewer.mockResolvedValue(null);
+    findAuthentication.mockResolvedValue(false);
     findEvent.mockResolvedValue({
       ...eventDetails,
       location: {
@@ -652,6 +694,277 @@ describe('EventDetailsComponent load recovery', () => {
       ].map((paragraph) => paragraph.textContent?.trim()),
     ).toEqual(['Online workshop', 'Online']);
     expect(normalizeText(fixture)).not.toContain('Not specified');
+  });
+
+  it('keeps announcement targeting out of the public event view', async () => {
+    findEvent.mockResolvedValue(eventDetails);
+    findRegistrationStatus.mockResolvedValue({
+      isRegistered: false,
+      outgoingTransfers: [],
+      registrations: [],
+    });
+
+    const fixture = render();
+    await vi.waitFor(async () => {
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(normalizeText(fixture)).toContain('Recovery workshop');
+    });
+
+    expect(normalizeText(fixture)).not.toContain(
+      'Who can find this announcement',
+    );
+    const root: HTMLElement = fixture.nativeElement;
+    expect(
+      root.querySelector(
+        '[aria-label="Choose who can find this announcement"]',
+      ),
+    ).toBeNull();
+  });
+
+  it('does not load discount cards for a signed-out visitor', async () => {
+    findAuthentication.mockResolvedValue(false);
+    findEvent.mockResolvedValue(eventDetails);
+    findRegistrationStatus.mockResolvedValue({
+      isRegistered: false,
+      outgoingTransfers: [],
+      registrations: [],
+    });
+
+    const fixture = render();
+
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(normalizeText(fixture)).toContain('Recovery workshop');
+      expect(findAuthentication).toHaveBeenCalledOnce();
+    });
+    expect(findMyCards).not.toHaveBeenCalled();
+    expect(normalizeText(fixture)).not.toContain(
+      'Your discount card could not be checked',
+    );
+  });
+
+  it('does not load authentication or discount cards when the provider is disabled', async () => {
+    tenantConfig.discountProviders = {
+      esnCard: { config: {}, status: 'disabled' },
+    };
+    findEvent.mockResolvedValue(eventDetails);
+    findRegistrationStatus.mockResolvedValue({
+      isRegistered: false,
+      outgoingTransfers: [],
+      registrations: [],
+    });
+
+    const fixture = render();
+
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(normalizeText(fixture)).toContain('Recovery workshop');
+    });
+    expect(findAuthentication).not.toHaveBeenCalled();
+    expect(findMyCards).not.toHaveBeenCalled();
+  });
+
+  it('shows and retries a failed discount card check', async () => {
+    findEvent.mockResolvedValue(eventDetails);
+    findRegistrationStatus.mockResolvedValue({
+      isRegistered: false,
+      outgoingTransfers: [],
+      registrations: [],
+    });
+    findMyCards
+      .mockRejectedValueOnce(new Error('Provider unavailable'))
+      .mockResolvedValue([]);
+
+    const fixture = render();
+
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(normalizeText(fixture)).toContain(
+        'Your discount card could not be checked',
+      );
+    });
+    const root: HTMLElement = fixture.nativeElement;
+    const alert = [
+      ...root.querySelectorAll<HTMLElement>('[role="alert"]'),
+    ].find((element) => element.textContent?.includes('Your discount card'));
+    expect(alert?.textContent).not.toContain('Provider unavailable');
+    alert?.querySelector<HTMLButtonElement>('button')?.click();
+
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(findMyCards).toHaveBeenCalledTimes(2);
+      expect(normalizeText(fixture)).not.toContain(
+        'Your discount card could not be checked',
+      );
+    });
+  });
+
+  it('shows and retries a failed sign-in check before loading discount cards', async () => {
+    findEvent.mockResolvedValue(eventDetails);
+    findRegistrationStatus.mockResolvedValue({
+      isRegistered: false,
+      outgoingTransfers: [],
+      registrations: [],
+    });
+    findAuthentication
+      .mockRejectedValueOnce(new Error('Session lookup unavailable'))
+      .mockResolvedValue(true);
+
+    const fixture = render();
+
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(normalizeText(fixture)).toContain(
+        'Discount card guidance could not be checked',
+      );
+    });
+    expect(findMyCards).not.toHaveBeenCalled();
+    const root: HTMLElement = fixture.nativeElement;
+    const alert = [
+      ...root.querySelectorAll<HTMLElement>('[role="alert"]'),
+    ].find((element) =>
+      element.textContent?.includes('Discount card guidance'),
+    );
+    expect(alert?.textContent).not.toContain('Session lookup unavailable');
+    alert?.querySelector<HTMLButtonElement>('button')?.click();
+
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(findAuthentication).toHaveBeenCalledTimes(2);
+      expect(findMyCards).toHaveBeenCalledOnce();
+      expect(normalizeText(fixture)).not.toContain(
+        'Discount card guidance could not be checked',
+      );
+    });
+  });
+
+  it('saves selected announcement roles once while the action is pending', async () => {
+    announcementPermission.set(true);
+    findEvent.mockResolvedValue({
+      ...eventDetails,
+      announcementRoleIds: [],
+    });
+    findRegistrationStatus.mockResolvedValue({
+      isRegistered: false,
+      outgoingTransfers: [],
+      registrations: [],
+    });
+    openDialog.mockReturnValue({
+      afterClosed: () => of({ announcementRoleIds: ['role-organizer'] }),
+    });
+    let resolveSave: ((value: true) => void) | undefined;
+    updateAnnouncementDiscovery.mockImplementation(() => {
+      // Angular's browser target does not expose Promise.withResolvers.
+      // eslint-disable-next-line unicorn/prefer-promise-with-resolvers
+      return new Promise<true>((resolve) => {
+        resolveSave = resolve;
+      });
+    });
+
+    const fixture = render();
+    const root: HTMLElement = fixture.nativeElement;
+    const failures: unknown[] = [];
+    let settledOperation: Promise<void> | undefined;
+    const originalAction = fixture.componentInstance[
+      'updateAnnouncementDiscovery'
+    ].bind(fixture.componentInstance);
+    fixture.componentInstance['updateAnnouncementDiscovery'] = vi.fn<
+      EventDetailsComponent['updateAnnouncementDiscovery']
+    >(() => {
+      const operation = originalAction();
+      settledOperation = operation.catch((error: unknown) => {
+        failures.push(error);
+      });
+      return operation;
+    });
+    try {
+      await vi.waitFor(async () => {
+        await fixture.whenStable();
+        fixture.detectChanges();
+        expect(root.getAttribute('aria-busy')).toBeNull();
+        expect(normalizeText(fixture)).toContain(
+          'Who can find this announcement',
+        );
+      });
+      const button = root.querySelector<HTMLButtonElement>(
+        '[aria-label="Choose who can find this announcement"]',
+      );
+      if (!button) throw new Error('Expected announcement targeting action');
+
+      button.click();
+      await vi.waitFor(() => {
+        fixture.detectChanges();
+        expect(updateAnnouncementDiscovery).toHaveBeenCalledOnce();
+        expect(button.disabled).toBe(true);
+      });
+      button.click();
+      expect(updateAnnouncementDiscovery).toHaveBeenCalledOnce();
+      expect(updateAnnouncementDiscovery.mock.calls[0]?.[0]).toEqual({
+        announcementRoleIds: ['role-organizer'],
+        eventId: 'event-1',
+      });
+
+      resolveSave?.(true);
+      await vi.waitFor(() => {
+        expect(showSuccess).toHaveBeenCalledWith(
+          'Who can find the announcement was updated',
+        );
+      });
+    } catch (error) {
+      failures.push(error);
+    } finally {
+      try {
+        resolveSave?.(true);
+      } catch (error) {
+        failures.push(error);
+      }
+      try {
+        await settledOperation;
+      } catch (error) {
+        failures.push(error);
+      }
+      try {
+        await fixture.whenStable();
+      } catch (error) {
+        failures.push(error);
+      }
+    }
+    if (failures.length > 0) {
+      throw new AggregateError(
+        failures,
+        'Announcement action scenario or cleanup failed.',
+        { cause: failures[0] },
+      );
+    }
+  });
+
+  it('explains when announcement visibility could not be loaded', async () => {
+    announcementPermission.set(true);
+    findEvent.mockResolvedValue(eventDetails);
+    findRegistrationStatus.mockResolvedValue({
+      isRegistered: false,
+      outgoingTransfers: [],
+      registrations: [],
+    });
+
+    const fixture = render();
+    const root: HTMLElement = fixture.nativeElement;
+    await vi.waitFor(async () => {
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(normalizeText(fixture)).toContain('Recovery workshop');
+    });
+
+    const button = root.querySelector<HTMLButtonElement>(
+      '[aria-label="Choose who can find this announcement"]',
+    );
+    if (!button) throw new Error('Expected announcement targeting action');
+    button.click();
+
+    expect(showError).toHaveBeenCalledWith(
+      'Who can find this announcement could not be loaded. No change can be made right now.',
+    );
   });
 
   it('explains a stored registration-settings conflict without offering a registration form', async () => {
@@ -983,10 +1296,12 @@ describe('EventDetailsComponent review action outcomes', () => {
   type SubmitMutation = NonNullable<
     ReturnType<EventDetailsOperations['submitForReview']>['mutationFn']
   >;
-  type ListingMutation = NonNullable<
-    ReturnType<EventDetailsOperations['updateListing']>['mutationFn']
+  type DiscoveryMutation = NonNullable<
+    ReturnType<
+      EventDetailsOperations['updateAnnouncementDiscovery']
+    >['mutationFn']
   >;
-  type Action = 'approve' | 'returnToDraft' | 'submit';
+  type Action = 'approve' | 'discovery' | 'returnToDraft' | 'submit';
   type ReviewList = Awaited<
     ReturnType<OutcomeRpc['events']['getPendingReviews']['call']>
   >;
@@ -995,13 +1310,28 @@ describe('EventDetailsComponent review action outcomes', () => {
   >;
   const review = vi.fn<ReviewMutation>();
   const submitReview = vi.fn<SubmitMutation>();
-  const changeListing = vi.fn<ListingMutation>();
+  const changeDiscovery = vi.fn<DiscoveryMutation>();
   const loadEvent = vi.fn<(id: string) => Promise<EventRecord>>();
   const reviewedNotice = vi.fn<NotificationService['showEventReviewed']>();
   const submittedNotice = vi.fn<NotificationService['showEventSubmitted']>();
   const successNotice = vi.fn<NotificationService['showSuccess']>();
   const errorNotice = vi.fn<NotificationService['showError']>();
   const comment = 'Retained feedback: confirm the accessible entrance.';
+  const roles: readonly RoleLookupRecord[] = [
+    {
+      defaultOrganizerRole: false,
+      defaultUserRole: true,
+      id: 'role-attendee',
+      name: 'Attendee',
+    },
+    {
+      defaultOrganizerRole: true,
+      defaultUserRole: false,
+      id: 'role-organizer',
+      name: 'Organizer',
+    },
+  ];
+  const selectedRoleIds = ['role-attendee', 'role-organizer'];
   const tenant = new ClientTenantConfig({
     cancellationDeadlineHoursBeforeStart: 24,
     currency: 'EUR',
@@ -1020,9 +1350,12 @@ describe('EventDetailsComponent review action outcomes', () => {
   });
   const record = (status: EventRecord['status']): EventRecord => ({
     addOns: [],
+    announcementRoleCount: 1,
+    announcementRoleIds: ['role-attendee'],
     creatorId: 'user-1',
     description: '<p>Retained event description.</p>',
     end: '2030-01-02T12:00:00.000Z',
+    hasRegistrationOptions: false,
     icon: { iconColor: 2, iconName: 'calendar:fas' },
     id: 'event-1',
     location: null,
@@ -1033,14 +1366,19 @@ describe('EventDetailsComponent review action outcomes', () => {
     status,
     statusComment: null,
     title: 'Outcome workshop',
-    unlisted: false,
+    userIsCreator: true,
   });
   const unknownReview =
     'The outcome could not be confirmed. Load this event again to check its status before making another change.';
+  const unknownDiscovery =
+    'The outcome could not be confirmed. Load this event again to check who can find the announcement before making another change.';
   const confirmedReadFailure = (action: Action) => {
     switch (action) {
       case 'approve': {
         return 'The event was approved, but the latest event details could not be loaded. Load this event again before making another change.';
+      }
+      case 'discovery': {
+        return 'Who can find the announcement was updated, but the latest event details could not be loaded. Load this event again before making another change.';
       }
       case 'returnToDraft': {
         return 'The event was returned to draft, but the latest event details could not be loaded. Load this event again before making another change.';
@@ -1051,11 +1389,18 @@ describe('EventDetailsComponent review action outcomes', () => {
     }
   };
   const mutationFor = (action: Action) =>
-    action === 'submit' ? submitReview : review;
+    action === 'discovery'
+      ? changeDiscovery
+      : action === 'submit'
+        ? submitReview
+        : review;
   const expectedPayload = (action: Action) => {
     switch (action) {
       case 'approve': {
         return { approved: true, eventId: 'event-1' };
+      }
+      case 'discovery': {
+        return { announcementRoleIds: selectedRoleIds, eventId: 'event-1' };
       }
       case 'returnToDraft': {
         return { approved: false, comment, eventId: 'event-1' };
@@ -1094,15 +1439,24 @@ describe('EventDetailsComponent review action outcomes', () => {
     if (!dialog) throw new Error('Expected the actual Material dialog.');
     return dialog;
   };
-  const pageButton = (action: Action) =>
-    buttonNamed(
-      rootElement(),
-      action === 'approve'
-        ? 'Approve'
-        : action === 'returnToDraft'
-          ? 'Return to draft'
-          : 'Submit for Review',
+  const discoveryButton = () => {
+    const button = rootElement().querySelector<HTMLButtonElement>(
+      ':scope [aria-label="Choose who can find this announcement"]',
     );
+    if (!button) throw new Error('Expected the discovery action.');
+    return button;
+  };
+  const pageButton = (action: Action) =>
+    action === 'discovery'
+      ? discoveryButton()
+      : buttonNamed(
+          rootElement(),
+          action === 'approve'
+            ? 'Approve'
+            : action === 'returnToDraft'
+              ? 'Return to draft'
+              : 'Submit for Review',
+        );
   const expectNoSuccess = () => {
     expect(reviewedNotice).not.toHaveBeenCalled();
     expect(submittedNotice).not.toHaveBeenCalled();
@@ -1116,7 +1470,7 @@ describe('EventDetailsComponent review action outcomes', () => {
     expect(
       review.mock.calls.length +
         submitReview.mock.calls.length +
-        changeListing.mock.calls.length,
+        changeDiscovery.mock.calls.length,
     ).toBe(1);
   };
   const expectFeedback = async (message: string) => {
@@ -1143,7 +1497,7 @@ describe('EventDetailsComponent review action outcomes', () => {
     fixture = undefined;
     review.mockReset().mockResolvedValue(undefined);
     submitReview.mockReset().mockResolvedValue(undefined);
-    changeListing.mockReset().mockResolvedValue(undefined);
+    changeDiscovery.mockReset().mockResolvedValue(undefined);
     loadEvent.mockReset();
     reviewedNotice.mockReset();
     submittedNotice.mockReset();
@@ -1157,6 +1511,10 @@ describe('EventDetailsComponent review action outcomes', () => {
     });
     cleanupQueryClient = queryClient;
     const operations = {
+      authentication: () => ({
+        queryFn: async () => false,
+        queryKey: [['config', 'isAuthenticated'], { type: 'query' }],
+      }),
       canOrganize: (eventId: string) => ({
         queryFn: async () => false,
         queryKey: [
@@ -1188,16 +1546,16 @@ describe('EventDetailsComponent review action outcomes', () => {
         ],
       }),
       reviewEvent: () => ({ mutationFn: review }),
-      self: () => ({
-        queryFn: async () => null,
-        queryKey: [['users', 'maybeSelf'], { type: 'query' }],
-      }),
       submitForReview: () => ({ mutationFn: submitReview }),
-      updateListing: () => ({ mutationFn: changeListing }),
+      updateAnnouncementDiscovery: () => ({ mutationFn: changeDiscovery }),
     } satisfies Pick<EventDetailsOperations, keyof EventDetailsOperations>;
     const allowed = new Set<
       Parameters<PermissionsService['hasPermission']>[number]
-    >(['events:editAll', 'events:review']);
+    >([
+      'events:changeAnnouncementDiscovery',
+      'events:editAll',
+      'events:review',
+    ]);
     await TestBed.configureTestingModule({
       imports: [EventDetailsComponent, MatDialogModule],
       providers: [
@@ -1250,6 +1608,44 @@ describe('EventDetailsComponent review action outcomes', () => {
             | 'showSuccess'
           >,
         },
+        {
+          provide: RoleSelectQueries,
+          useValue: {
+            search: (
+              search: string,
+            ): ReturnType<RoleSelectQueries['search']> => ({
+              queryFn: async () =>
+                roles
+                  .filter((role) =>
+                    role.name.toLowerCase().includes(search.toLowerCase()),
+                  )
+                  .slice(0, 15),
+              queryKey: [
+                ['roles', 'findMany'],
+                { input: { search }, type: 'query' },
+              ],
+            }),
+            selected: (
+              id: string,
+            ): ReturnType<RoleSelectQueries['selected']> => ({
+              queryFn: async () => {
+                const role = roles.find((role) => role.id === id);
+                if (!role)
+                  throw new RoleLookupNotFoundError({
+                    id,
+                    message: 'Role not found',
+                  });
+                return role;
+              },
+              queryKey: [
+                ['roles', 'findOne'],
+                { input: { id }, type: 'query' },
+              ],
+              retry: false,
+              staleTime: 30_000,
+            }),
+          } satisfies Pick<RoleSelectQueries, 'search' | 'selected'>,
+        },
       ],
     }).compileComponents();
     cleanupDialog = TestBed.inject(MatDialog);
@@ -1294,7 +1690,9 @@ describe('EventDetailsComponent review action outcomes', () => {
     action: Action,
     status: EventRecord['status'] = action === 'submit'
       ? 'DRAFT'
-      : 'PENDING_REVIEW',
+      : action === 'discovery'
+        ? 'APPROVED'
+        : 'PENDING_REVIEW',
   ) => {
     loadEvent.mockResolvedValue(record(status));
     fixture = TestBed.createComponent(EventDetailsComponent);
@@ -1313,7 +1711,9 @@ describe('EventDetailsComponent review action outcomes', () => {
       expect(dialogElement().textContent).toContain(
         action === 'returnToDraft'
           ? 'Return event to draft'
-          : 'Submit Event for Review',
+          : action === 'submit'
+            ? 'Submit Event for Review'
+            : 'Choose who can find Outcome workshop',
       );
     });
     return dialogElement();
@@ -1345,10 +1745,54 @@ describe('EventDetailsComponent review action outcomes', () => {
       );
     } else if (action === 'submit') {
       buttonNamed(dialog, 'Submit for Review').click();
+    } else {
+      if (!fixture) throw new Error('Expected the event fixture.');
+      const dialogReference = TestBed.inject(MatDialog).getDialogById(
+        dialog.id,
+      );
+      if (!dialogReference)
+        throw new Error('Expected the open discovery dialog.');
+      await firstValueFrom(
+        dialogReference.afterOpened().pipe(timeout({ first: 2000 })),
+      );
+      await vi.waitFor(() => {
+        detectChanges();
+        expect(dialog.contains(document.activeElement)).toBe(true);
+      });
+      const autocomplete = await TestbedHarnessEnvironment.documentRootLoader(
+        fixture,
+      ).getHarness(
+        MatAutocompleteHarness.with({
+          ancestor: 'app-update-announcement-discovery-dialog app-role-select',
+        }),
+      );
+      await vi.waitFor(async () => {
+        detectChanges();
+        expect(await autocomplete.isDisabled()).toBe(false);
+        const selectedRoles = [
+          ...dialog.querySelectorAll(':scope mat-chip-row'),
+        ].map((chip) => chip.textContent?.replaceAll(/\s+/g, ' ').trim());
+        expect(selectedRoles).toEqual(['Attendee']);
+      });
+      await autocomplete.enterText('Organizer');
+      await vi.waitFor(async () => {
+        detectChanges();
+        expect(await autocomplete.isOpen()).toBe(true);
+        expect(
+          await autocomplete.getOptions({ text: 'Organizer' }),
+        ).toHaveLength(1);
+      });
+      await autocomplete.selectOption({ text: 'Organizer' });
+      await vi.waitFor(() => {
+        detectChanges();
+        expect(buttonNamed(dialog, 'Save').disabled).toBe(false);
+        expect(dialog.textContent).toContain('Organizer');
+      });
+      buttonNamed(dialog, 'Save').click();
     }
   };
 
-  it.each(['approve', 'returnToDraft', 'submit'] as const)(
+  it.each(['approve', 'returnToDraft', 'submit', 'discovery'] as const)(
     'keeps the confirmed %s outcome visible when the real event read fails',
     async (action) => {
       await renderAction(action);
@@ -1387,7 +1831,7 @@ describe('EventDetailsComponent review action outcomes', () => {
     },
   );
 
-  it.each(['approve', 'returnToDraft', 'submit'] as const)(
+  it.each(['approve', 'returnToDraft', 'submit', 'discovery'] as const)(
     'keeps a lost %s response uncertain after a test-local simulated commit',
     async (action) => {
       await renderAction(action);
@@ -1397,7 +1841,9 @@ describe('EventDetailsComponent review action outcomes', () => {
         throw new Error('Response lost after the simulated commit.');
       });
       await confirmAction(action);
-      await expectFeedback(unknownReview);
+      await expectFeedback(
+        action === 'discovery' ? unknownDiscovery : unknownReview,
+      );
       expect(simulatedCommit).toBe(true);
       expectSingleMutation(action);
       expect(queryClient.getMutationCache().getAll()[0]?.state.status).toBe(
@@ -1438,16 +1884,23 @@ describe('EventDetailsComponent review action outcomes', () => {
         );
       });
       await fixture?.whenStable();
-      await expectFeedback(unknownReview);
+      await expectFeedback(
+        action === 'discovery' ? unknownDiscovery : unknownReview,
+      );
       expectSingleMutation(action);
       expectNoSuccess();
     },
   );
 
-  it.each(['approve', 'submit'] as const)(
+  it.each(['approve', 'submit', 'discovery'] as const)(
     'keeps all actions locked after %s succeeds until both a failed and a held read under the same list filter settle',
     async (action) => {
-      const currentFixture = await renderAction(action);
+      const currentFixture = await renderAction(
+        action,
+        action === 'submit' || action === 'discovery'
+          ? 'DRAFT'
+          : 'PENDING_REVIEW',
+      );
       if (action === 'submit')
         loadEvent.mockResolvedValueOnce(record('PENDING_REVIEW'));
       const listRead = vi.fn<() => Promise<EventList>>().mockResolvedValue([]);
@@ -1549,10 +2002,13 @@ describe('EventDetailsComponent review action outcomes', () => {
         expect(rootElement().getAttribute('aria-busy')).toBe('true');
         const buttons = [
           ...rootElement().querySelectorAll<HTMLButtonElement>(':scope button'),
-        ].filter((button) =>
-          ['Approve', 'Return to draft', 'Submit for Review'].includes(
-            button.textContent?.trim() ?? '',
-          ),
+        ].filter(
+          (button) =>
+            ['Approve', 'Return to draft', 'Submit for Review'].includes(
+              button.textContent?.trim() ?? '',
+            ) ||
+            button.getAttribute('aria-label') ===
+              'Choose who can find this announcement',
         );
         expect(buttons.length).toBeGreaterThanOrEqual(2);
         for (const button of buttons) {
@@ -1611,7 +2067,9 @@ describe('EventDetailsComponent review action outcomes', () => {
       expectNoSuccess();
       await vi.waitFor(() => {
         detectChanges();
-        expect(pageButton('approve').disabled).toBe(false);
+        expect(
+          pageButton(action === 'discovery' ? 'discovery' : 'approve').disabled,
+        ).toBe(false);
         expect(rootElement().getAttribute('aria-busy')).toBeNull();
       });
     },
@@ -1637,7 +2095,33 @@ describe('EventDetailsComponent review action outcomes', () => {
     expectNoSuccess();
   });
 
-  it.each(['returnToDraft', 'submit'] as const)(
+  it('restores submitted announcement roles on explicit reopen after an uncertain response', async () => {
+    await renderAction('discovery');
+    changeDiscovery.mockRejectedValueOnce(
+      new Error('Discovery response lost.'),
+    );
+    await confirmAction('discovery');
+    await expectFeedback(unknownDiscovery);
+    await vi.waitFor(() => {
+      detectChanges();
+      expect(discoveryButton().disabled).toBe(false);
+    });
+    const dialog = await openAction('discovery');
+    await vi.waitFor(() => {
+      detectChanges();
+      const chips = [...dialog.querySelectorAll(':scope mat-chip-row')].map(
+        (chip) => chip.textContent?.replaceAll(/\s+/g, ' ').trim(),
+      );
+      expect(chips).toEqual(['Attendee', 'Organizer']);
+    });
+    expectSingleMutation('discovery');
+    buttonNamed(dialog, 'Cancel').click();
+    await fixture?.whenStable();
+    expectSingleMutation('discovery');
+    expectNoSuccess();
+  });
+
+  it.each(['returnToDraft', 'submit', 'discovery'] as const)(
     'cancels the %s confirmation without a mutation and releases the action lock',
     async (action) => {
       await renderAction(action);
@@ -1650,7 +2134,7 @@ describe('EventDetailsComponent review action outcomes', () => {
       });
       expect(review).not.toHaveBeenCalled();
       expect(submitReview).not.toHaveBeenCalled();
-      expect(changeListing).not.toHaveBeenCalled();
+      expect(changeDiscovery).not.toHaveBeenCalled();
       expectNoSuccess();
     },
   );
@@ -1931,7 +2415,7 @@ describe('EventDetailsComponent review action outcomes', () => {
     expectNoSuccess();
   });
 
-  it.each(['returnToDraft', 'submit'] as const)(
+  it.each(['returnToDraft', 'submit', 'discovery'] as const)(
     'does not submit the old %s dialog against another event after input reuse',
     async (action) => {
       const currentFixture = await renderAction(action);
@@ -1959,7 +2443,7 @@ describe('EventDetailsComponent review action outcomes', () => {
       });
       expect(review).not.toHaveBeenCalled();
       expect(submitReview).not.toHaveBeenCalled();
-      expect(changeListing).not.toHaveBeenCalled();
+      expect(changeDiscovery).not.toHaveBeenCalled();
       expectNoSuccess();
       expect(errorNotice).not.toHaveBeenCalled();
       expect(

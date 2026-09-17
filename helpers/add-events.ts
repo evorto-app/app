@@ -302,7 +302,6 @@ const createEvents = (
       const eventClock = computeEventClock(template.id, index);
       let eventStart: Date;
       let status: 'APPROVED' | 'DRAFT' | 'PENDING_REVIEW';
-      let unlisted: boolean;
       let creatorId: string;
 
       switch (index) {
@@ -317,7 +316,6 @@ const createEvents = (
             })
             .toJSDate();
           status = 'APPROVED';
-          unlisted = false;
           creatorId = organizerUser;
 
           break;
@@ -333,7 +331,6 @@ const createEvents = (
             })
             .toJSDate();
           status = 'APPROVED';
-          unlisted = false;
           creatorId = organizerUser;
 
           break;
@@ -349,7 +346,6 @@ const createEvents = (
             })
             .toJSDate();
           status = 'DRAFT';
-          unlisted = true;
           creatorId = organizerUser;
 
           break;
@@ -365,7 +361,6 @@ const createEvents = (
             })
             .toJSDate();
           status = 'PENDING_REVIEW';
-          unlisted = false;
           creatorId = adminUser;
         }
       }
@@ -384,7 +379,6 @@ const createEvents = (
         templateId: template.id,
         tenantId: template.tenantId,
         title: `${template.title} ${index + 1}`,
-        unlisted,
       };
       events.push(event);
 

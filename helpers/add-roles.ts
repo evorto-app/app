@@ -29,7 +29,6 @@ export const addRoles = (
         name: 'Section member',
         permissions: [
           'events:create',
-          'events:viewPublic',
           'templates:create',
           'templates:view',
           'internal:viewInternalPages',
@@ -43,7 +42,6 @@ export const addRoles = (
         name: 'Trial member',
         permissions: [
           'events:create',
-          'events:viewPublic',
           'templates:create',
           'templates:view',
           'internal:viewInternalPages',
@@ -54,11 +52,7 @@ export const addRoles = (
         description: 'Helpers of the section',
         id: getId(),
         name: 'Helper',
-        permissions: [
-          'events:viewPublic',
-          'templates:view',
-          'internal:viewInternalPages',
-        ],
+        permissions: ['templates:view', 'internal:viewInternalPages'],
         tenantId: tenant.id,
       },
       {
@@ -66,7 +60,7 @@ export const addRoles = (
         description: 'Default role for all users',
         id: getId(),
         name: 'Regular user',
-        permissions: ['events:viewPublic'],
+        permissions: [],
         tenantId: tenant.id,
       },
     ])

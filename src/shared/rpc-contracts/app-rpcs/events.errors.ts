@@ -188,8 +188,14 @@ export type EventsSubmitForReviewRpcError = Schema.Schema.Type<
   typeof EventsSubmitForReviewRpcError
 >;
 
-export const EventsUpdateListingRpcError = ForbiddenOrUnauthorizedRpcError;
-export type EventsUpdateListingRpcError = ForbiddenOrUnauthorizedRpcError;
+export const EventsUpdateAnnouncementDiscoveryRpcError = Schema.Union([
+  EventNotFoundError,
+  RpcBadRequestError,
+  ForbiddenOrUnauthorizedRpcError,
+]);
+export type EventsUpdateAnnouncementDiscoveryRpcError = Schema.Schema.Type<
+  typeof EventsUpdateAnnouncementDiscoveryRpcError
+>;
 
 export const EventsUpdateRpcError = Schema.Union([
   RpcBadRequestError,

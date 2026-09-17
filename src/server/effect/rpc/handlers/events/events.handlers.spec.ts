@@ -150,8 +150,8 @@ const createEventQueryDatabase = ({
 };
 
 const eventDetailSql = [
-  'select "d0"."creatorId" as "creatorId", "d0"."description" as "description", "d0"."end"::text as "end", "d0"."icon" as "icon", "d0"."id" as "id", "d0"."location" as "location", "d0"."start"::text as "start", "d0"."status" as "status", "d0"."statusComment" as "statusComment", "d0"."title" as "title", "d0"."unlisted" as "unlisted", "registrationOptions"."r" as "registrationOptions", "reviewer"."r" as "reviewer" from "event_instances" as "d0"',
-  `left join lateral(select coalesce(json_agg(row_to_json("t".*)), '[]') as "r" from (select "d1"."checkedInSpots" as "checkedInSpots", "d1"."closeRegistrationTime"::text as "closeRegistrationTime", "d1"."confirmedSpots" as "confirmedSpots", "d1"."description" as "description", "d1"."eventId" as "eventId", "d1"."id" as "id", "d1"."isPaid" as "isPaid", "d1"."openRegistrationTime"::text as "openRegistrationTime", "d1"."organizingRegistration" as "organizingRegistration", "d1"."price" as "price", "d1"."registeredDescription" as "registeredDescription", "d1"."registrationMode" as "registrationMode", "d1"."reservedSpots" as "reservedSpots", "d1"."roleIds" as "roleIds", "d1"."spots" as "spots", "d1"."stripeTaxRateId" as "stripeTaxRateId", "d1"."title" as "title" from "event_registration_options" as "d1" where ((cardinality("d1"."roleIds") = 0) and ("d0"."id" = "d1"."eventId"))) as "t") as "registrationOptions" on true`,
+  'select "d0"."announcementRoleIds" as "announcementRoleIds", "d0"."creatorId" as "creatorId", "d0"."description" as "description", "d0"."end"::text as "end", "d0"."icon" as "icon", "d0"."id" as "id", "d0"."location" as "location", "d0"."start"::text as "start", "d0"."status" as "status", "d0"."statusComment" as "statusComment", "d0"."title" as "title", "registrationOptions"."r" as "registrationOptions", "reviewer"."r" as "reviewer" from "event_instances" as "d0"',
+  `left join lateral(select coalesce(json_agg(row_to_json("t".*)), '[]') as "r" from (select "d1"."closeRegistrationTime"::text as "closeRegistrationTime", "d1"."confirmedSpots" as "confirmedSpots", "d1"."description" as "description", "d1"."eventId" as "eventId", "d1"."id" as "id", "d1"."isPaid" as "isPaid", "d1"."openRegistrationTime"::text as "openRegistrationTime", "d1"."organizingRegistration" as "organizingRegistration", "d1"."price" as "price", "d1"."registrationMode" as "registrationMode", "d1"."reservedSpots" as "reservedSpots", "d1"."roleIds" as "roleIds", "d1"."spots" as "spots", "d1"."stripeTaxRateId" as "stripeTaxRateId", "d1"."title" as "title" from "event_registration_options" as "d1" where "d0"."id" = "d1"."eventId") as "t") as "registrationOptions" on true`,
   'left join lateral(select row_to_json("t".*) "r" from (select "d1"."firstName" as "firstName", "d1"."lastName" as "lastName" from "users" as "d1" where "d0"."reviewedBy" = "d1"."id" limit $1) as "t") as "reviewer" on true',
   'where (("d0"."id" = $2) and ("d0"."tenantId" = $3)) limit $4',
 ].join(' ');
@@ -170,7 +170,6 @@ const databaseTimestamp = (value: Date) =>
 const createEventDiscountDatabase = (questionCount = 0) => {
   const findCards = vi.fn<(query: EventSqlQuery) => void>();
   const option = {
-    checkedInSpots: 0,
     closeRegistrationTime: new Date('2099-01-01T00:00:00.000Z'),
     confirmedSpots: 0,
     description: null,
@@ -180,7 +179,6 @@ const createEventDiscountDatabase = (questionCount = 0) => {
     openRegistrationTime: new Date('2098-01-01T00:00:00.000Z'),
     organizingRegistration: false,
     price: 2000,
-    registeredDescription: null,
     registrationMode: 'fcfs',
     reservedSpots: 0,
     roleIds: [],
@@ -189,7 +187,6 @@ const createEventDiscountDatabase = (questionCount = 0) => {
     title: 'Participant',
   } satisfies Pick<
     typeof eventRegistrationOptions.$inferSelect,
-    | 'checkedInSpots'
     | 'closeRegistrationTime'
     | 'confirmedSpots'
     | 'description'
@@ -199,7 +196,6 @@ const createEventDiscountDatabase = (questionCount = 0) => {
     | 'openRegistrationTime'
     | 'organizingRegistration'
     | 'price'
-    | 'registeredDescription'
     | 'registrationMode'
     | 'reservedSpots'
     | 'roleIds'
@@ -208,6 +204,7 @@ const createEventDiscountDatabase = (questionCount = 0) => {
     | 'title'
   >;
   const event = {
+    announcementRoleIds: [],
     creatorId: 'organizer-1',
     description: 'Tenant-scoped event',
     end: new Date('2099-01-02T00:00:00.000Z'),
@@ -218,9 +215,9 @@ const createEventDiscountDatabase = (questionCount = 0) => {
     status: 'APPROVED',
     statusComment: null,
     title: 'Tenant-scoped event',
-    unlisted: false,
   } satisfies Pick<
     typeof eventInstances.$inferSelect,
+    | 'announcementRoleIds'
     | 'creatorId'
     | 'description'
     | 'end'
@@ -231,7 +228,6 @@ const createEventDiscountDatabase = (questionCount = 0) => {
     | 'status'
     | 'statusComment'
     | 'title'
-    | 'unlisted'
   >;
   const foreignTenantCards = [
     {
@@ -253,6 +249,7 @@ const createEventDiscountDatabase = (questionCount = 0) => {
           expect(parameters).toEqual([1, event.id, tenant.id, 1]);
           return [
             [
+              event.announcementRoleIds,
               event.creatorId,
               event.description,
               databaseTimestamp(event.end),
@@ -263,7 +260,6 @@ const createEventDiscountDatabase = (questionCount = 0) => {
               event.status,
               event.statusComment,
               event.title,
-              event.unlisted,
               [
                 {
                   ...option,
@@ -400,6 +396,16 @@ describe('event discount tenant isolation', () => {
             effectivePrice: 2000,
             esnCardDiscountedPrice: null,
           });
+          expect(event.registrationOptions[0]).not.toHaveProperty(
+            'checkedInSpots',
+          );
+          expect(event.registrationOptions[0]).not.toHaveProperty(
+            'registeredDescription',
+          );
+          expect(event.registrationOptions[0]).not.toHaveProperty('roleIds');
+          expect(event.registrationOptions[0]).not.toHaveProperty(
+            'stripeTaxRateId',
+          );
           expect(findCards).toHaveBeenCalledWith({
             parameters: ['verified', tenant.id, 'esnCard', 'user-1'],
             statement: discountCardsSql,
@@ -437,9 +443,8 @@ describe('eventHandlers composition', () => {
       'events.reviewEvent',
       'events.submitForReview',
       'events.undoRegistrationAddonRedemption',
-      'events.update',
+      'events.updateAnnouncementDiscovery',
       'events.updateGraph',
-      'events.updateListing',
     ]);
   });
 });

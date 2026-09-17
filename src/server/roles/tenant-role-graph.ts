@@ -98,6 +98,24 @@ export const ensureTenantRoleIsUnreferenced = Effect.fn(
     });
   }
 
+  const eventAnnouncements = yield* database
+    .select({ id: eventInstances.id })
+    .from(eventInstances)
+    .where(
+      and(
+        eq(eventInstances.tenantId, tenantId),
+        arrayContains(eventInstances.announcementRoleIds, [roleId]),
+      ),
+    )
+    .limit(1);
+  if (eventAnnouncements.length > 0) {
+    return yield* new RpcBadRequestError({
+      message:
+        'This role is still used to show an information-only event. Remove it from that event before deleting the role.',
+      reason: 'roleInUseByEventAnnouncement',
+    });
+  }
+
   const eventOptions = yield* database
     .select({ id: eventRegistrationOptions.id })
     .from(eventRegistrationOptions)

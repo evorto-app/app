@@ -73,7 +73,6 @@ export interface SeedTenantResult {
     status: 'APPROVED' | 'DRAFT' | 'PENDING_REVIEW';
     tenantId: string;
     title: string;
-    unlisted: boolean;
   }[];
   registrations: {
     eventId: string;
@@ -303,7 +302,6 @@ export async function seedTenant(
       status: event.status,
       tenantId: event.tenantId,
       title: event.title,
-      unlisted: event.unlisted,
     })),
     registrations,
     roles,

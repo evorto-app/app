@@ -27,6 +27,7 @@ import {
   MatSelectModule,
 } from '@angular/material/select';
 import { RouterLink } from '@angular/router';
+import { eventDiscoveryLabel } from '@shared/event-discovery';
 import {
   MAX_EVENT_ADDON_TYPES,
   MAX_REGISTRATION_ADDON_QUANTITY,
@@ -381,6 +382,30 @@ export const platformEventMutationErrorMessage = (
   return getErrorMessage(error, fallback, ['RpcBadRequestError']);
 };
 
+export const platformAnnouncementVisibilityErrorMessage = (
+  error: unknown,
+): string => {
+  const reason =
+    typeof error === 'object' && error !== null && 'reason' in error
+      ? error.reason
+      : null;
+  const expectedDenial =
+    typeof error === 'object' &&
+    error !== null &&
+    '_tag' in error &&
+    error._tag === 'RpcBadRequestError';
+  if (expectedDenial && reason === 'invalidAnnouncementRole') {
+    return 'One of the selected roles is no longer available. Review the current role choices and try again.';
+  }
+  if (expectedDenial && reason === 'announcementRolesRequireOptionlessEvent') {
+    return 'This event now has sign-up choices, so who can find it is set by those choices.';
+  }
+  return platformEventMutationErrorMessage(
+    error,
+    'The change to who can find this event could not be confirmed. Load this page again and check the current setting before trying again.',
+  );
+};
+
 const textInputValue = (event: Event): string | undefined =>
   event.target instanceof HTMLInputElement ||
   event.target instanceof HTMLTextAreaElement
@@ -439,8 +464,8 @@ export class PlatformEventDetailOperations {
     return this.rpc.platform.events.update.mutationOptions();
   }
 
-  updateListing() {
-    return this.rpc.platform.events.updateListing.mutationOptions();
+  updateAnnouncementDiscovery() {
+    return this.rpc.platform.events.updateAnnouncementDiscovery.mutationOptions();
   }
 }
 
@@ -506,10 +531,14 @@ export class PlatformEventDetailComponent {
     platformEventAddOnQuantityLimitIssue;
   protected readonly addOnStockIssue = platformEventAddOnStockIssue;
   protected readonly addOnTypeLimitIssue = platformEventAddonTypeLimitIssue;
+  private readonly operations = inject(PlatformEventDetailOperations);
+  protected readonly announcementDiscoveryMutation = injectMutation(() =>
+    this.operations.updateAnnouncementDiscovery(),
+  );
+  protected readonly announcementRoleIds = signal<readonly string[]>([]);
   protected readonly currencyAmountErrors = signal<ReadonlyMap<string, string>>(
     new Map(),
   );
-  private readonly operations = inject(PlatformEventDetailOperations);
   protected readonly formOptionsQuery = injectQuery(() =>
     this.operations.formOptions(this.tenantId()),
   );
@@ -520,6 +549,7 @@ export class PlatformEventDetailComponent {
     start: '',
     title: '',
   });
+
   protected readonly editForm = form(this.editModel, (event) => {
     validate(event.title, ({ value }) =>
       value().trim()
@@ -555,7 +585,7 @@ export class PlatformEventDetailComponent {
       message: 'Reason must be 500 characters or fewer.',
     });
   });
-
+  protected readonly eventDiscoveryLabel = eventDiscoveryLabel;
   protected readonly eventEditorIsReadOnly = platformEventEditorIsReadOnly;
   protected readonly eventQuery = injectQuery(() =>
     this.operations.findOne(this.tenantId(), this.eventId()),
@@ -585,8 +615,6 @@ export class PlatformEventDetailComponent {
         taxRateIds: this.availableTaxRateIds(),
       }),
   );
-  protected readonly graphSaveMessage = signal('');
-  protected readonly graphSavePending = signal(false);
   protected readonly hasInvalidRegistrationWindowOrder = computed(() =>
     this.graphModel().registrationOptions.some(
       (option) => !platformEventRegistrationWindowHasValidOrder(option),
@@ -596,9 +624,7 @@ export class PlatformEventDetailComponent {
   protected readonly invalidRegistrationWindowFields = signal<
     ReadonlySet<string>
   >(new Set());
-  protected readonly listingMutation = injectMutation(() =>
-    this.operations.updateListing(),
-  );
+
   protected readonly maxEventAddonTypes = MAX_EVENT_ADDON_TYPES;
   protected readonly maxRegistrationAddonQuantity =
     MAX_REGISTRATION_ADDON_QUANTITY;
@@ -609,6 +635,8 @@ export class PlatformEventDetailComponent {
     MAX_REGISTRATION_QUESTION_TITLE_LENGTH;
   protected readonly minorUnitsToMajorCurrencyInput =
     minorUnitsToMajorCurrencyInput;
+  protected readonly operationMessage = signal('');
+  protected readonly operationPending = signal(false);
   protected readonly targetTenantQuery = injectQuery(() =>
     this.operations.tenant(this.tenantId()),
   );
@@ -642,6 +670,7 @@ export class PlatformEventDetailComponent {
   protected readonly submitMutation = injectMutation(() =>
     this.operations.submitForReview(),
   );
+
   protected readonly targetTenantCurrency = computed(() =>
     this.targetTenantQuery.isSuccess()
       ? (this.targetTenantQuery.data()?.currency ?? '')
@@ -651,7 +680,9 @@ export class PlatformEventDetailComponent {
   protected readonly updateMutation = injectMutation(() =>
     this.operations.update(),
   );
+
   private readonly initializedEventKey = signal<null | string>(null);
+
   private readonly notifications = inject(NotificationService);
 
   private readonly queryClient = inject(QueryClient);
@@ -669,6 +700,7 @@ export class PlatformEventDetailComponent {
       const timezone = formOptions.timezone;
       untracked(() => {
         this.actionReason.set('');
+        this.announcementRoleIds.set([...event.announcementRoleIds]);
         this.reviewFeedback.set('');
         this.editModel.set({
           description: event.description,
@@ -794,28 +826,6 @@ export class PlatformEventDetailComponent {
     this.review(true);
   }
 
-  protected changeListing(unlisted: boolean): void {
-    const reason = this.actionReason().trim();
-    if (!reason || this.mutationPending()) return;
-    void (async () => {
-      try {
-        await this.listingMutation.mutateAsync({
-          eventId: this.eventId(),
-          reason,
-          targetTenantId: this.tenantId(),
-          unlisted,
-        });
-        await this.refresh();
-        this.actionReason.set('');
-        this.notifications.showSuccess('Event listing updated');
-      } catch {
-        this.notifications.showError(
-          'The event listing could not be updated. Try again.',
-        );
-      }
-    })();
-  }
-
   protected displayDateTime(value: string): string {
     return this.formOptionsQuery.isSuccess()
       ? platformEventInstantToDisplayDateTime(
@@ -836,9 +846,9 @@ export class PlatformEventDetailComponent {
 
   protected mutationPending(): boolean {
     return (
-      this.graphSavePending() ||
+      this.operationPending() ||
       this.editForm().submitting() ||
-      this.listingMutation.isPending() ||
+      this.announcementDiscoveryMutation.isPending() ||
       this.reviewMutation.isPending() ||
       this.submitMutation.isPending() ||
       this.updateMutation.isPending()
@@ -950,8 +960,8 @@ export class PlatformEventDetailComponent {
       const graph = this.stripeDisconnected()
         ? resetPlatformEventGraphPayments(this.graphModel())
         : this.graphModel();
-      this.graphSavePending.set(true);
-      this.graphSaveMessage.set('');
+      this.operationPending.set(true);
+      this.operationMessage.set('');
       let changeConfirmed = false;
       try {
         await this.updateMutation.mutateAsync({
@@ -969,7 +979,7 @@ export class PlatformEventDetailComponent {
           title: value.title,
         });
         changeConfirmed = true;
-        await this.refreshSavedGraph();
+        await this.refresh();
         this.notifications.showSuccess('Event updated');
       } catch (error) {
         const message = changeConfirmed
@@ -978,12 +988,57 @@ export class PlatformEventDetailComponent {
               error,
               'The event update could not be confirmed. Load this page again and check the current event before trying again.',
             );
-        this.graphSaveMessage.set(message);
+        this.operationMessage.set(message);
         this.notifications.showError(message);
       } finally {
-        this.graphSavePending.set(false);
+        this.operationPending.set(false);
       }
     });
+  }
+
+  protected saveAnnouncementVisibility(): void {
+    const actionReason = this.actionReason();
+    const reason = actionReason.trim();
+    if (!reason || this.mutationPending()) return;
+    const announcementRoleIds = [...this.announcementRoleIds()];
+    this.operationPending.set(true);
+    this.operationMessage.set('');
+    void (async () => {
+      let changeConfirmed = false;
+      try {
+        await this.announcementDiscoveryMutation.mutateAsync({
+          announcementRoleIds,
+          eventId: this.eventId(),
+          reason,
+          targetTenantId: this.tenantId(),
+        });
+        changeConfirmed = true;
+        await this.refresh();
+        if (this.actionReason() === actionReason) this.actionReason.set('');
+        this.notifications.showSuccess(
+          'Who can find the announcement was updated',
+        );
+      } catch (error) {
+        const mutationMessage =
+          platformAnnouncementVisibilityErrorMessage(error);
+        this.showOperationError(
+          changeConfirmed
+            ? 'Who can find the announcement was updated, but the latest event information could not be loaded. Load this page again to check the saved setting.'
+            : mutationMessage,
+        );
+        if (!changeConfirmed) {
+          try {
+            await this.refresh();
+          } catch {
+            this.showOperationError(
+              `${mutationMessage} The latest event information could not be loaded. Load this page again before making another change.`,
+            );
+          }
+        }
+      } finally {
+        this.operationPending.set(false);
+      }
+    })();
   }
 
   protected setActionReason(event: Event): void {
@@ -1116,6 +1171,14 @@ export class PlatformEventDetailComponent {
       }
       return { ...addOn, title: value };
     });
+  }
+
+  protected setAnnouncementRole(roleId: string, enabled: boolean): void {
+    this.announcementRoleIds.update((roleIds) =>
+      enabled
+        ? [...new Set([...roleIds, roleId])]
+        : roleIds.filter((candidate) => candidate !== roleId),
+    );
   }
 
   protected setOptionBoolean(
@@ -1313,22 +1376,34 @@ export class PlatformEventDetailComponent {
   }
 
   protected submitForReview(): void {
-    const reason = this.actionReason().trim();
+    const actionReason = this.actionReason();
+    const reason = actionReason.trim();
     if (!reason || this.mutationPending()) return;
+    this.operationPending.set(true);
+    this.operationMessage.set('');
     void (async () => {
+      let changeConfirmed = false;
       try {
         await this.submitMutation.mutateAsync({
           eventId: this.eventId(),
           reason,
           targetTenantId: this.tenantId(),
         });
+        changeConfirmed = true;
         await this.refresh();
-        this.actionReason.set('');
+        if (this.actionReason() === actionReason) this.actionReason.set('');
         this.notifications.showSuccess('Event submitted for review');
-      } catch {
-        this.notifications.showError(
-          'The event could not be submitted for review. Try again.',
+      } catch (error) {
+        this.showOperationError(
+          changeConfirmed
+            ? 'The event was submitted for review, but the latest event information could not be loaded. Load this page again to check its current status.'
+            : platformEventMutationErrorMessage(
+                error,
+                'Submission for review could not be confirmed. Load this page again and check the event status before trying again.',
+              ),
         );
+      } finally {
+        this.operationPending.set(false);
       }
     })();
   }
@@ -1369,22 +1444,20 @@ export class PlatformEventDetailComponent {
   }
 
   private async refresh(): Promise<void> {
-    await this.queryClient.invalidateQueries(this.operations.eventFilter());
-    await this.eventQuery.refetch();
-  }
-
-  private async refreshSavedGraph(): Promise<void> {
     const filter = this.operations.eventFilter();
-    const activeQueries = this.queryClient
-      .getQueryCache()
-      .findAll({ ...filter, type: 'active' })
-      .filter((query) => !query.isDisabled() && !query.isStatic());
     const invalidation = this.queryClient.invalidateQueries(filter, {
       throwOnError: true,
     });
     // Invalidation may reject before another matching active query settles.
-    const siblingReads = activeQueries
-      .filter((query) => query.state.fetchStatus === 'fetching')
+    const siblingReads = this.queryClient
+      .getQueryCache()
+      .findAll({ ...filter, type: 'active' })
+      .filter(
+        (query) =>
+          !query.isDisabled() &&
+          !query.isStatic() &&
+          query.state.fetchStatus === 'fetching',
+      )
       .map((query) => query.promise);
     const invalidationResults = await Promise.allSettled([
       invalidation,
@@ -1406,10 +1479,15 @@ export class PlatformEventDetailComponent {
   }
 
   private review(approved: boolean): void {
-    const reason = this.actionReason().trim();
-    const comment = this.reviewFeedback().trim();
+    const actionReason = this.actionReason();
+    const reviewFeedback = this.reviewFeedback();
+    const reason = actionReason.trim();
+    const comment = reviewFeedback.trim();
     if (!reason || (!approved && !comment) || this.mutationPending()) return;
+    this.operationPending.set(true);
+    this.operationMessage.set('');
     void (async () => {
+      let changeConfirmed = false;
       try {
         await this.reviewMutation.mutateAsync({
           approved,
@@ -1418,18 +1496,34 @@ export class PlatformEventDetailComponent {
           reason,
           targetTenantId: this.tenantId(),
         });
+        changeConfirmed = true;
         await this.refresh();
-        this.actionReason.set('');
-        this.reviewFeedback.set('');
+        if (this.actionReason() === actionReason) this.actionReason.set('');
+        if (this.reviewFeedback() === reviewFeedback)
+          this.reviewFeedback.set('');
         this.notifications.showSuccess(
           approved ? 'Event approved' : 'Event returned to draft',
         );
-      } catch {
-        this.notifications.showError(
-          'The event review could not be saved. Try again.',
+      } catch (error) {
+        this.showOperationError(
+          changeConfirmed
+            ? approved
+              ? 'The event was approved, but the latest event information could not be loaded. Load this page again to check its current status.'
+              : 'The event was returned to draft, but the latest event information could not be loaded. Load this page again to check its current status.'
+            : platformEventMutationErrorMessage(
+                error,
+                'The event review could not be confirmed. Load this page again and check the event status before trying again.',
+              ),
         );
+      } finally {
+        this.operationPending.set(false);
       }
     })();
+  }
+
+  private showOperationError(message: string): void {
+    this.operationMessage.set(message);
+    this.notifications.showError(message);
   }
 
   private updateAddOn(

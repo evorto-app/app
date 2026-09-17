@@ -16,15 +16,11 @@ import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatDialog } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
-import { MatMenuModule } from '@angular/material/menu';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTimepickerModule } from '@angular/material/timepicker';
 import { Router, RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
-import {
-  faArrowLeft,
-  faEllipsisVertical,
-} from '@fortawesome/duotone-regular-svg-icons';
+import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
 import { MAX_EVENT_ADDON_TYPES } from '@shared/registration-quantity-limits';
 import {
   MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH,
@@ -50,7 +46,6 @@ import { EditorComponent } from '../../shared/components/controls/editor/editor.
 import { IconSelectorFieldComponent } from '../../shared/components/controls/icon-selector/icon-selector-field/icon-selector-field.component';
 import { LocationSelectorField } from '../../shared/components/controls/location-selector/location-selector-field/location-selector-field';
 import { graphHasPaidConfiguration } from '../../shared/components/forms/payment-configuration';
-import { IfAnyPermissionDirective } from '../../shared/directives/if-any-permission.directive';
 import { EventAddonEditor } from './event-addon-editor';
 import {
   advancedEventGraphWarnings,
@@ -140,14 +135,12 @@ export const eventEditSaveErrorMessage = (error: unknown): string =>
     FontAwesomeModule,
     FormField,
     IconSelectorFieldComponent,
-    IfAnyPermissionDirective,
     LocationSelectorField,
     MatButtonModule,
     MatCheckboxModule,
     MatDatepickerModule,
     MatFormFieldModule,
     MatInputModule,
-    MatMenuModule,
     MatSelectModule,
     MatTimepickerModule,
     RouterLink,
@@ -214,7 +207,6 @@ export class EventEdit {
     this.rpc.events.findGraphForEdit.queryOptions({ id: this.eventId() }),
   );
   protected readonly faArrowLeft = faArrowLeft;
-  protected readonly faEllipsisVertical = faEllipsisVertical;
   protected readonly graphActionMessage = signal<null | string>(null);
   protected readonly iconUsage = computed(() =>
     EventEditIconUsage.make({ eventId: this.eventId() }),

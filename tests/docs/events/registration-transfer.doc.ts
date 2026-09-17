@@ -133,7 +133,6 @@ test('Transfer a registration with a private offer', async ({
     templateId: template.id,
     tenantId: tenant.id,
     title: 'Registration transfer guide',
-    unlisted: true,
   });
   await database.insert(schema.eventRegistrationOptions).values({
     closeRegistrationTime: eventWindow.closeRegistrationTime,

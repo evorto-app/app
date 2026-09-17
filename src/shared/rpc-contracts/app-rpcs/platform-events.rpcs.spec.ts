@@ -17,8 +17,10 @@ import {
 import {
   PlatformEventDetailRecord,
   PlatformEventFormOptionsRecord,
+  PlatformEventListRecord,
   PlatformEventsCreateInput,
   PlatformEventsReviewInput,
+  PlatformEventsUpdateAnnouncementDiscoveryInput,
   PlatformEventsUpdateInput,
   PlatformRegistrationsCheckInInput,
   PlatformTemplateFormOptionsRecord,
@@ -26,6 +28,48 @@ import {
   PlatformTemplatesUpdateInput,
 } from './platform-events.rpcs';
 import { TemplateGraphRecord } from './templates.rpcs';
+
+describe('platform event discovery RPC schemas', () => {
+  it('accepts explicit announcement roles, including link-only selection', () => {
+    const target = {
+      eventId: 'event-1',
+      reason: 'Choose who can find this announcement',
+      targetTenantId: 'tenant-1',
+    };
+    const decode = Schema.decodeUnknownSync(
+      PlatformEventsUpdateAnnouncementDiscoveryInput,
+    );
+
+    expect(decode({ ...target, announcementRoleIds: [] })).toEqual({
+      ...target,
+      announcementRoleIds: [],
+    });
+    expect(
+      decode({ ...target, announcementRoleIds: ['role-1', 'role-2'] })
+        .announcementRoleIds,
+    ).toEqual(['role-1', 'role-2']);
+    expect(() => decode({ ...target, unlisted: false })).toThrow();
+    expect(() => decode({ ...target, announcementRoleIds: [''] })).toThrow();
+  });
+
+  it('reports discovery inputs without an ordinary event listing flag', () => {
+    const event = {
+      announcementRoleCount: 0,
+      end: '2026-07-10T14:00:00.000Z',
+      hasRegistrationOptions: true,
+      id: 'event-1',
+      start: '2026-07-10T12:00:00.000Z',
+      status: 'APPROVED',
+      title: 'Event',
+    };
+    expect(Schema.decodeUnknownSync(PlatformEventListRecord)(event)).toEqual(
+      event,
+    );
+    expect(PlatformEventListRecord.fields).not.toHaveProperty('unlisted');
+    expect(PlatformEventDetailRecord.fields).not.toHaveProperty('unlisted');
+    expect(TemplateGraphRecord.fields).not.toHaveProperty('unlisted');
+  });
+});
 
 describe('platform event administration RPC schemas', () => {
   it.effect('requires a valid target-tenant timezone in form options', () =>
@@ -153,6 +197,8 @@ describe('platform event administration RPC schemas', () => {
 
       const detail = {
         addOns: [],
+        announcementRoleIds: [],
+        announcementRoleNames: [],
         creator: {
           email: 'owner@example.org',
           firstName: 'Event',
@@ -173,7 +219,6 @@ describe('platform event administration RPC schemas', () => {
         status: 'DRAFT' as const,
         statusComment: null,
         title: update.title,
-        unlisted: false,
       };
       expect(
         (yield* Schema.decodeUnknownEffect(PlatformEventDetailRecord)(detail))

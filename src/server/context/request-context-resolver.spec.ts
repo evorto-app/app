@@ -580,7 +580,7 @@ describe('request-context-resolver', () => {
                     {
                       id: 'role-mixed',
                       permissions: [
-                        'events:viewPublic',
+                        'events:create',
                         'events:*',
                         'globalAdmin:*',
                         'globalAdmin:manageTenants',
@@ -602,7 +602,7 @@ describe('request-context-resolver', () => {
           () => Effect.succeed(true),
         ).pipe(Effect.provide(Layer.succeed(Database, database as never)));
 
-        expect(user?.permissions).toEqual(['events:viewPublic', 'events:*']);
+        expect(user?.permissions).toEqual(['events:create', 'events:*']);
         expect(user?.roleIds).toEqual(['role-mixed']);
         expect(
           resolveRequestPermissions({

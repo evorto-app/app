@@ -33,6 +33,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - docs/admin/general-settings.doc.ts [admin]
   - docs/admin/google-maps-location.doc.ts [admin, @needs-google-maps]
   - docs/admin/platform-tenant-operations.doc.ts [admin, globalAdmin]
+  - docs/events/announcement-discovery.doc.ts
   - docs/events/event-approval.doc.ts
   - docs/events/event-discovery.doc.ts
   - docs/events/manual-approval.doc.ts [stripe]
@@ -41,8 +42,6 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - docs/events/register.doc.ts [stripe]
   - docs/events/registration-cancellation.doc.ts [stripe]
   - docs/events/registration-transfer.doc.ts
-  - docs/events/unlisted-admin.doc.ts
-  - docs/events/unlisted-user.doc.ts
   - docs/finance/finance-overview.doc.ts [finance]
   - docs/finance/inclusive-tax-rates.doc.ts [finance]
   - docs/finance/receipt-review-reimbursement.doc.ts [finance]
@@ -77,7 +76,6 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - specs/events/organizer-signup.spec.ts
   - specs/events/registration-addons.test.ts
   - specs/events/registration-transfer.spec.ts
-  - specs/events/unlisted-visibility.test.ts
   - specs/events/price-labels-inclusive.spec.ts [finance]
   - specs/finance/finance-overview-permissions.spec.ts [finance, permissions]
   - specs/finance/receipts-flows.spec.ts [finance]
@@ -824,19 +822,23 @@ ESNcard provider credential path.
     same Checkout link after reload, and settled entitlement readback. The
     dedicated
     `docs/events/registration-transfer.doc.ts` owns transfer guidance.
-  - `docs/events/unlisted-user.doc.ts` now changes one approved event to
-    unlisted in an isolated tenant, proves it is absent from the participant
-    list, opens its direct link while signed in, then keeps scoped tenant
-    routing while proving the same detail page remains readable when
-    signed out with **Log in now**. Cleanup restores the original visibility.
+  - `docs/events/announcement-discovery.doc.ts` replaces the retired unlisted
+    guides. It selects organization roles for a published announcement, verifies
+    persisted roles and list inclusion, clears the selection, and proves that
+    a shared link still opens the announcement. Cleanup owns restoration before writes.
   - `docs/events/event-discovery.doc.ts` is the first source in the published
-    **Find an event** guide. It uses two disposable approved/listed events to
-    explain main navigation, tenant-timezone date groups, start times, and the
-    signed-in registration outline. It opens event details in the desktop
-    list/detail layout and the compact full-width layout with **Back to events**,
-    then executes and screenshots the distinct **No events found** and RPC error
-    states. Cleanup deletes its registration, options, and events and restores
-    every isolated-tenant event time even after a failed journey.
+    **Find an event** guide. It uses three disposable approved events to
+    explain role eligibility, main navigation, tenant-timezone date groups,
+    account sign-up state, desktop and compact navigation, empty results, and
+    failed-read recovery. Signed-out checks preserve direct-link access while
+    requiring sign-in for choices. Cleanup deletes its registration, options,
+    and events and restores every isolated-tenant event time.
+  - `specs/events/event-discovery-eligibility.test.ts` covers role eligibility
+    across attendee and organizer choices, unrestricted choices, signed-out
+    default-role discovery, announcement role targeting, and shared-link
+    access without bypassing sign-in. Its route-scroll case is inherited from
+    the separate 17A browsing layer; schedule assertions use that layer's
+    public event-detail presentation.
   - `specs/resilience/core-load-recovery.spec.ts` aborts one `events.create`
     request, proves the create-from-template form retains the title and renders
     an accessible retry state, scans that state with Axe, then retries through
@@ -884,7 +886,7 @@ ESNcard provider credential path.
   documenting the transaction list, so the generated guide proves cancelled
   transactions stay omitted from that surface.
 - Finance-tagged specs remain the main candidates for selective CI filtering when needed.
-- Event, registration, template, finance receipt, scanner, and unlisted-event specs should fail loudly when deterministic fixture state is missing instead of silently passing through skips.
+- Event, registration, template, finance receipt, scanner, and event-discovery specs should fail loudly when deterministic fixture state is missing instead of silently passing through skips.
 - Playwright skip/fixme inventory must remain empty. Credential-dependent
   projects fail their selected-run preflight when credentials are unavailable;
   they are not represented as skipped tests.

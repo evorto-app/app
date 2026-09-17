@@ -11,6 +11,52 @@ import {
   TenantRolePermissionSchema,
 } from './permissions';
 
+describe('event discovery permissions', () => {
+  it('rejects retired listing permissions at both permission boundaries', () => {
+    for (const permission of [
+      'events:changeListing',
+      'events:seeUnlisted',
+      'events:viewPublic',
+    ]) {
+      expect(() =>
+        Schema.decodeUnknownSync(PermissionSchema)(permission),
+      ).toThrow();
+      expect(() =>
+        Schema.decodeUnknownSync(TenantRolePermissionSchema)(permission),
+      ).toThrow();
+    }
+  });
+
+  it('exposes announcement discovery as an explicit tenant capability', () => {
+    const permission = 'events:changeAnnouncementDiscovery';
+    expect(Schema.decodeUnknownSync(PermissionSchema)(permission)).toBe(
+      permission,
+    );
+    expect(
+      Schema.decodeUnknownSync(TenantRolePermissionSchema)(permission),
+    ).toBe(permission);
+    expect(permissionLabel(permission)).toBe(
+      'Change who can find announcements',
+    );
+  });
+
+  it('keeps announcement discovery separate from review and editing', () => {
+    expect(
+      includesPermission('events:changeAnnouncementDiscovery', [
+        'events:changeAnnouncementDiscovery',
+      ]),
+    ).toBe(true);
+    for (const permission of ['events:review', 'events:editAll'] as const) {
+      expect(
+        includesPermission(permission, ['events:changeAnnouncementDiscovery']),
+      ).toBe(false);
+    }
+    expect(includesPermission('events:seeDrafts', ['events:review'])).toBe(
+      true,
+    );
+  });
+});
+
 describe('PermissionSchema', () => {
   it('encodes permissions as their string literal values', () => {
     const encoded = Schema.encodeSync(Schema.Array(PermissionSchema))([
@@ -29,7 +75,7 @@ describe('PermissionSchema', () => {
         'globalAdmin:*',
         'globalAdmin:manageTenants',
       ]),
-    ).toContain('events:viewPublic');
+    ).toContain('events:create');
   });
 });
 
@@ -37,11 +83,11 @@ describe('TenantRolePermissionSchema', () => {
   it('accepts concrete tenant permissions, tenant wildcards, and legacy tax aliases', () => {
     expect(
       Schema.decodeUnknownSync(Schema.Array(TenantRolePermissionSchema))([
-        'events:viewPublic',
+        'events:create',
         'events:*',
         'admin:manageTaxes',
       ]),
-    ).toEqual(['events:viewPublic', 'events:*', 'admin:manageTaxes']);
+    ).toEqual(['events:create', 'events:*', 'admin:manageTaxes']);
   });
 
   it('rejects both platform-global permissions', () => {
@@ -55,13 +101,13 @@ describe('TenantRolePermissionSchema', () => {
   it('partitions only platform-global permissions from stored tenant roles', () => {
     expect(
       partitionTenantRolePermissions([
-        'events:viewPublic',
+        'events:create',
         'events:*',
         'globalAdmin:*',
         'globalAdmin:manageTenants',
       ]),
     ).toEqual({
-      accepted: ['events:viewPublic', 'events:*'],
+      accepted: ['events:create', 'events:*'],
       rejected: ['globalAdmin:*', 'globalAdmin:manageTenants'],
     });
   });

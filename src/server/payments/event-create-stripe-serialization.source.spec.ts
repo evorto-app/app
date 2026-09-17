@@ -23,7 +23,7 @@ describe('paid configuration Stripe serialization source guards', () => {
       '../effect/rpc/handlers/events/events-lifecycle.handlers.ts',
     );
     const handlerStart = source.indexOf("'events.create':");
-    const handlerEnd = source.indexOf("'events.update':", handlerStart);
+    const handlerEnd = source.indexOf("'events.updateGraph':", handlerStart);
     const handler = source.slice(handlerStart, handlerEnd);
 
     expect(handlerStart).toBeGreaterThanOrEqual(0);

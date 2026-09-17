@@ -41,7 +41,7 @@ import {
   EventsReviewEventRpcError,
   EventsReviewRpcError,
   EventsSubmitForReviewRpcError,
-  EventsUpdateListingRpcError,
+  EventsUpdateAnnouncementDiscoveryRpcError,
   EventsUpdateRpcError,
 } from './events.errors';
 
@@ -229,7 +229,6 @@ export const EventsCreate = asRpcMutation(
 );
 
 export const EventsEventListInput = Schema.Struct({
-  includeUnlisted: Schema.optional(Schema.Boolean),
   limit: PageLimit.pipe(Schema.withDecodingDefaultTypeKey(Effect.succeed(100))),
   offset: PageOffset.pipe(Schema.withDecodingDefaultTypeKey(Effect.succeed(0))),
   startAfter: CanonicalUtcTimestamp.pipe(
@@ -240,22 +239,32 @@ export const EventsEventListInput = Schema.Struct({
   status: Schema.Array(EventReviewStatus).pipe(
     Schema.withDecodingDefaultTypeKey(Effect.succeed([])),
   ),
-  userId: Schema.optional(Schema.NonEmptyString),
 });
 
 export type EventsEventListInput = Schema.Schema.Type<
   typeof EventsEventListInput
 >;
 
+export const EventsEventListUserSignUpState = literalUnion(
+  'approvalPending',
+  'confirmed',
+  'paymentRequired',
+  'waitlisted',
+);
+
+export type EventsEventListUserSignUpState = Schema.Schema.Type<
+  typeof EventsEventListUserSignUpState
+>;
+
 export const EventsEventListRecord = Schema.Struct({
+  announcementRoleCount: nonNegativeNumber,
+  hasRegistrationOptions: Schema.Boolean,
   icon: iconSchema,
   id: Schema.NonEmptyString,
   start: Schema.NonEmptyString,
   status: EventReviewStatus,
   title: Schema.NonEmptyString,
-  unlisted: Schema.Boolean,
-  userIsCreator: Schema.Boolean,
-  userRegistered: Schema.Boolean,
+  userSignUpState: Schema.NullOr(EventsEventListUserSignUpState),
 });
 
 export type EventsEventListRecord = Schema.Schema.Type<
@@ -320,7 +329,6 @@ export const EventsFindOneForEdit = asRpcQuery(
 
 export const EventsFindOneRegistrationOption = Schema.Struct({
   appliedDiscountType: Schema.NullOr(Schema.Literal('esnCard')),
-  checkedInSpots: Schema.Number,
   closeRegistrationTime: Schema.NonEmptyString,
   confirmedSpots: Schema.Number,
   description: Schema.NullOr(Schema.String),
@@ -342,12 +350,9 @@ export const EventsFindOneRegistrationOption = Schema.Struct({
       title: Schema.NonEmptyString,
     }),
   ),
-  registeredDescription: Schema.NullOr(Schema.String),
   registrationMode: EventsRegistrationMode,
   reservedSpots: Schema.Number,
-  roleIds: Schema.Array(Schema.NonEmptyString),
   spots: Schema.Number,
-  stripeTaxRateId: Schema.NullOr(Schema.String),
   taxRateDisplayName: Schema.NullOr(Schema.String),
   taxRatePercentage: Schema.NullOr(Schema.String),
   title: Schema.NonEmptyString,
@@ -385,9 +390,12 @@ export const EventsFindOne = asRpcQuery(
     }),
     success: Schema.Struct({
       addOns: Schema.Array(EventsFindOneAddon),
+      announcementRoleCount: nonNegativeNumber,
+      announcementRoleIds: Schema.NullOr(Schema.Array(Schema.NonEmptyString)),
       creatorId: Schema.NonEmptyString,
       description: Schema.NonEmptyString,
       end: Schema.NonEmptyString,
+      hasRegistrationOptions: Schema.Boolean,
       icon: iconSchema,
       id: Schema.NonEmptyString,
       location: Schema.NullOr(EventLocation),
@@ -403,7 +411,7 @@ export const EventsFindOne = asRpcQuery(
       status: EventReviewStatus,
       statusComment: Schema.NullOr(Schema.String),
       title: Schema.NonEmptyString,
-      unlisted: Schema.Boolean,
+      userIsCreator: Schema.Boolean,
     }),
   }),
 );
@@ -904,36 +912,16 @@ export const EventsSubmitForReview = asRpcMutation(
   }),
 );
 
-export const EventsUpdateListing = asRpcMutation(
-  Rpc.make('events.updateListing', {
-    error: EventsUpdateListingRpcError,
+export const EventsUpdateAnnouncementDiscovery = asRpcMutation(
+  Rpc.make('events.updateAnnouncementDiscovery', {
+    error: EventsUpdateAnnouncementDiscoveryRpcError,
     payload: Schema.Struct({
+      announcementRoleIds: Schema.Array(Schema.NonEmptyString),
       eventId: Schema.NonEmptyString,
-      unlisted: Schema.Boolean,
     }),
     success: Schema.Void,
   }),
 );
-
-export const EventsUpdateRegistrationOptionInput = Schema.Struct({
-  cancellationDeadlineHoursBeforeStart: NullablePolicyHoursInput,
-  closeRegistrationTime: Schema.NonEmptyString,
-  description: Schema.NullOr(Schema.NonEmptyString),
-  esnCardDiscountedPrice: Schema.optional(Schema.NullOr(nonNegativeNumber)),
-  id: Schema.NonEmptyString,
-  isPaid: Schema.Boolean,
-  openRegistrationTime: Schema.NonEmptyString,
-  organizingRegistration: Schema.Boolean,
-  price: nonNegativeNumber,
-  refundFeesOnCancellation: NullableRefundFeesInput,
-  registeredDescription: Schema.NullOr(Schema.NonEmptyString),
-  registrationMode: EventsRegistrationMode,
-  roleIds: Schema.Array(Schema.NonEmptyString),
-  spots: nonNegativeNumber,
-  stripeTaxRateId: Schema.optional(Schema.NullOr(Schema.NonEmptyString)),
-  title: Schema.NonEmptyString,
-  transferDeadlineHoursBeforeStart: NullablePolicyHoursInput,
-});
 
 export const EventGraphRegistrationOptionInput = Schema.Struct({
   cancellationDeadlineHoursBeforeStart: NullablePolicyHoursInput,
@@ -1084,25 +1072,6 @@ export const EventsUpdateGraph = asRpcMutation(
   }),
 );
 
-export const EventsUpdate = asRpcMutation(
-  Rpc.make('events.update', {
-    error: EventsUpdateRpcError,
-    payload: Schema.Struct({
-      description: Schema.NonEmptyString,
-      end: Schema.NonEmptyString,
-      eventId: Schema.NonEmptyString,
-      icon: iconSchema,
-      location: Schema.NullOr(EventLocation),
-      registrationOptions: Schema.Array(EventsUpdateRegistrationOptionInput),
-      start: Schema.NonEmptyString,
-      title: Schema.NonEmptyString,
-    }),
-    success: Schema.Struct({
-      id: Schema.NonEmptyString,
-    }),
-  }),
-);
-
 export class EventsRpcs extends RpcGroup.make(
   EventsApproveRegistration,
   EventsCancelPendingRegistration,
@@ -1127,9 +1096,8 @@ export class EventsRpcs extends RpcGroup.make(
   EventsRegistrationScanned,
   EventsReviewEvent,
   EventsSubmitForReview,
-  EventsUpdate,
   EventsUpdateGraph,
-  EventsUpdateListing,
+  EventsUpdateAnnouncementDiscovery,
   EventsUndoRegistrationAddonRedemption,
   EventsCancelRegistrationAddon,
 ) {}

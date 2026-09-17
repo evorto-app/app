@@ -7,6 +7,7 @@ import {
 } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { RouterLink } from '@angular/router';
+import { eventDiscoveryLabel } from '@shared/event-discovery';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
@@ -43,6 +44,7 @@ export class PlatformEventsOperations {
 export class PlatformEventsComponent {
   readonly tenantId = input.required<string>();
 
+  protected readonly eventDiscoveryLabel = eventDiscoveryLabel;
   private readonly operations = inject(PlatformEventsOperations);
   protected readonly eventsQuery = injectQuery(() =>
     this.operations.list(this.tenantId()),
