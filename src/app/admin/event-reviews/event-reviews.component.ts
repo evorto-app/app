@@ -19,25 +19,34 @@ import {
   injectQuery,
   QueryClient,
 } from '@tanstack/angular-query-experimental';
+import consola from 'consola/browser';
 import { firstValueFrom, interval } from 'rxjs';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
 import { TenantDatePipe } from '../../core/tenant-date.pipe';
-import { EventReviewDialogComponent } from '../../events/event-review-dialog/event-review-dialog.component';
+import {
+  EventReviewDialogComponent,
+  type EventReviewDialogData,
+} from '../../events/event-review-dialog/event-review-dialog.component';
 import { eventReviewActionErrorRequiresRefresh } from '../../events/event-rpc-error';
+
+const logger = consola.withTag('app/admin/event-reviews');
 
 export const eventReviewQueueActionDisabled = ({
   actionPending,
   mutationPending,
+  recoveryRequired,
 }: {
   actionPending: boolean;
   mutationPending: boolean;
-}): boolean => actionPending || mutationPending;
+  recoveryRequired: boolean;
+}): boolean => actionPending || mutationPending || recoveryRequired;
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { '[attr.aria-busy]': 'reviewActionPending() || null' },
   imports: [MatButtonModule, RouterLink, FontAwesomeModule, TenantDatePipe],
   selector: 'app-event-reviews',
   standalone: true,
@@ -55,12 +64,37 @@ export const eventReviewQueueActionDisabled = ({
       <div class="grow"></div>
       <button
         mat-icon-button
-        (click)="pendingReviewsQuery.refetch()"
+        (click)="refreshReviews()"
+        [disabled]="reviewActionPending()"
         aria-label="Check pending reviews again"
       >
         <fa-duotone-icon [icon]="faRotateRight" />
       </button>
     </div>
+
+    @if (reviewActionFeedback(); as feedback) {
+      <div class="mb-4" role="status" data-testid="event-review-action-message">
+        <p>{{ feedback.message }}</p>
+        @if (reviewRecoveryRequired()) {
+          <button
+            mat-stroked-button
+            (click)="refreshReviews()"
+            [disabled]="reviewActionPending()"
+          >
+            Load latest reviews
+          </button>
+        }
+        <a mat-button [routerLink]="['/events', feedback.eventId]"
+          >Open event</a
+        >
+      </div>
+    }
+    @if (reviewRefreshFailed()) {
+      <p class="mb-4" role="status">
+        The latest event information could not be loaded. Load it again before
+        making another change.
+      </p>
+    }
 
     @if (pendingReviewsQuery.isPending()) {
       <div class="flex items-center justify-center p-8">
@@ -71,7 +105,11 @@ export const eventReviewQueueActionDisabled = ({
         <span class="text-on-surface-variant">
           Failed to load pending reviews.
         </span>
-        <button mat-stroked-button (click)="pendingReviewsQuery.refetch()">
+        <button
+          mat-stroked-button
+          (click)="refreshReviews()"
+          [disabled]="reviewActionPending()"
+        >
           Retry
         </button>
       </div>
@@ -96,6 +134,7 @@ export const eventReviewQueueActionDisabled = ({
                       eventReviewQueueActionDisabled({
                         actionPending: reviewActionPending(),
                         mutationPending: reviewEventMutation.isPending(),
+                        recoveryRequired: reviewRecoveryRequired(),
                       })
                     "
                   >
@@ -108,6 +147,7 @@ export const eventReviewQueueActionDisabled = ({
                       eventReviewQueueActionDisabled({
                         actionPending: reviewActionPending(),
                         mutationPending: reviewEventMutation.isPending(),
+                        recoveryRequired: reviewRecoveryRequired(),
                       })
                     "
                   >
@@ -150,21 +190,56 @@ export class EventReviewsComponent {
   protected readonly pendingReviewsQuery = injectQuery(() =>
     this.rpc.events.getPendingReviews.queryOptions(),
   );
+  protected readonly reviewActionFeedback = signal<null | {
+    eventId: string;
+    message: string;
+    messageAfterRefresh?: string | undefined;
+  }>(null);
   protected readonly reviewActionPending = signal(false);
+  protected readonly reviewRecoveryRequired = signal(false);
+  protected readonly reviewRefreshFailed = signal(false);
   protected readonly reviewEventMutation = injectMutation(() =>
     this.rpc.events.reviewEvent.mutationOptions(),
   );
   private readonly dialog = inject(MatDialog);
   private readonly notifications = inject(NotificationService);
   private readonly queryClient = inject(QueryClient);
+  private readonly retainedReviewComments = new Map<string, string>();
 
   constructor() {
     // Auto-refresh pending reviews every 30 seconds
     interval(30_000)
       .pipe(takeUntilDestroyed())
       .subscribe(() => {
-        this.pendingReviewsQuery.refetch();
+        if (!this.reviewActionPending()) {
+          void this.pendingReviewsQuery.refetch();
+        }
       });
+  }
+
+  protected async refreshReviews(): Promise<void> {
+    if (this.reviewActionPending()) return;
+
+    this.reviewActionPending.set(true);
+    try {
+      await this.refreshReviewState();
+      this.reviewRefreshFailed.set(false);
+      this.reviewRecoveryRequired.set(false);
+      this.reviewActionFeedback.update((feedback) =>
+        feedback?.messageAfterRefresh
+          ? { ...feedback, message: feedback.messageAfterRefresh }
+          : feedback,
+      );
+    } catch (error) {
+      logger.error('Loading the latest event reviews failed', error);
+      this.reviewRecoveryRequired.set(true);
+      this.reviewRefreshFailed.set(true);
+      this.notifications.showError(
+        'The latest event information could not be loaded. Load it again before making another change.',
+      );
+    } finally {
+      this.reviewActionPending.set(false);
+    }
   }
 
   protected async reviewEvent(
@@ -176,61 +251,154 @@ export class EventReviewsComponent {
       eventReviewQueueActionDisabled({
         actionPending: this.reviewActionPending(),
         mutationPending: this.reviewEventMutation.isPending(),
+        recoveryRequired: this.reviewRecoveryRequired(),
       })
     ) {
       return;
     }
 
     this.reviewActionPending.set(true);
+    let actionStep: 'confirmation' | 'mutation' | 'refresh' = 'confirmation';
     try {
       if (approved) {
+        this.reviewActionFeedback.set(null);
+        this.reviewRefreshFailed.set(false);
+        actionStep = 'mutation';
         await this.reviewEventMutation.mutateAsync({ approved, eventId });
       } else {
-        const dialogReference = this.dialog.open(EventReviewDialogComponent);
+        const dialogReference = this.dialog.open<
+          EventReviewDialogComponent,
+          EventReviewDialogData,
+          string
+        >(EventReviewDialogComponent, {
+          data: {
+            initialComment: this.retainedReviewComments.get(eventId) ?? '',
+          },
+        });
         const comment = await firstValueFrom(dialogReference.afterClosed());
-        if (!comment) {
-          return;
-        }
+        if (!comment) return;
+        this.retainedReviewComments.set(eventId, comment);
+        this.reviewActionFeedback.set(null);
+        this.reviewRefreshFailed.set(false);
+        actionStep = 'mutation';
         await this.reviewEventMutation.mutateAsync({
           approved,
           comment,
           eventId,
         });
       }
+      actionStep = 'refresh';
       await this.refreshReviewState();
+      this.retainedReviewComments.delete(eventId);
       this.notifications.showEventReviewed(approved, eventTitle);
     } catch (error) {
-      await this.handleReviewActionError(error);
+      logger.error('Event review queue action failed', error);
+      if (actionStep === 'refresh') {
+        this.reviewRecoveryRequired.set(true);
+        this.reviewRefreshFailed.set(true);
+        this.showReviewActionError(
+          eventId,
+          approved
+            ? 'The event was approved. Load the latest reviews before making another change.'
+            : 'The event was returned to draft. Load the latest reviews before making another change.',
+          approved
+            ? 'The event was approved. The review list has been refreshed.'
+            : 'The event was returned to draft. The review list has been refreshed.',
+        );
+      } else if (actionStep === 'confirmation') {
+        this.showReviewActionError(
+          eventId,
+          'The action could not be confirmed. Try opening it again.',
+        );
+      } else {
+        await this.handleReviewActionError(error, eventId);
+      }
     } finally {
       this.reviewActionPending.set(false);
     }
   }
 
-  private async handleReviewActionError(error: unknown): Promise<void> {
+  private async handleReviewActionError(
+    error: unknown,
+    eventId: string,
+  ): Promise<void> {
+    this.reviewRecoveryRequired.set(true);
     const message = getErrorMessage(
       error,
-      'The event review could not be updated. Try again.',
+      'The outcome could not be confirmed. Load the latest reviews and open the event to check its status before making another change.',
       ['EventConflictError', 'EventNotFoundError', 'RpcBadRequestError'],
     );
     if (eventReviewActionErrorRequiresRefresh(error)) {
-      this.notifications.showError(
-        'This event changed while you were working. We loaded the latest details. Review them and try again.',
-      );
-      await this.refreshReviewState();
-      return;
+      try {
+        await this.refreshReviewState();
+      } catch (refreshError) {
+        logger.error(
+          'Event review conflict and follow-up read failed',
+          new AggregateError(
+            [error, refreshError],
+            'Review conflict and follow-up read failed',
+            { cause: refreshError },
+          ),
+        );
+        this.reviewRefreshFailed.set(true);
+      }
     }
-    this.notifications.showError(message);
+    const refreshedMessage = getErrorMessage(
+      error,
+      'The earlier review outcome is still unconfirmed. Open the event to check its status before making another change.',
+      ['EventConflictError', 'EventNotFoundError', 'RpcBadRequestError'],
+    );
+    this.showReviewActionError(
+      eventId,
+      message,
+      'The review list has been refreshed. ' + refreshedMessage,
+    );
   }
 
   private async refreshReviewState(): Promise<void> {
-    await this.queryClient.invalidateQueries(
+    const filters = [
       this.rpc.queryFilter(['events', 'getPendingReviews']),
-    );
-    await this.queryClient.invalidateQueries(
       this.rpc.queryFilter(['events', 'eventList']),
-    );
-    await this.queryClient.invalidateQueries(
       this.rpc.queryFilter(['events', 'findOne']),
+    ];
+    // Own each matching query separately: a failed read must not release
+    // the action lock while a sibling under the same filter is still running.
+    const reads = filters.flatMap((filter) =>
+      this.queryClient
+        .getQueryCache()
+        .findAll(filter)
+        .map((query) => async () => {
+          await this.queryClient.invalidateQueries(
+            { ...filter, exact: true, queryKey: query.queryKey },
+            { throwOnError: true },
+          );
+          // A paused offline refetch resolves without reading; it cannot unlock recovery.
+          if (query.isActive() && query.state.fetchStatus !== 'idle') {
+            throw new Error('An event review follow-up read did not complete.');
+          }
+        }),
     );
+    const results = await Promise.allSettled(reads.map(async (read) => read()));
+    const failures: unknown[] = results
+      .filter((result) => result.status === 'rejected')
+      .map((result) => result.reason);
+    if (failures.length > 0) {
+      throw new AggregateError(
+        failures,
+        'Event review follow-up reads failed',
+        {
+          cause: failures[0],
+        },
+      );
+    }
+  }
+
+  private showReviewActionError(
+    eventId: string,
+    message: string,
+    messageAfterRefresh?: string,
+  ): void {
+    this.reviewActionFeedback.set({ eventId, message, messageAfterRefresh });
+    this.notifications.showError(message);
   }
 }

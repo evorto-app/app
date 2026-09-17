@@ -1040,13 +1040,13 @@ describe('EventDetailsComponent review action outcomes', () => {
   const confirmedReadFailure = (action: Action) => {
     switch (action) {
       case 'approve': {
-        return 'The event was approved, but the latest event details could not be loaded. Load this event again before making another change.';
+        return 'The event was approved, but some event information could not be refreshed. Load this event again before making another change.';
       }
       case 'returnToDraft': {
-        return 'The event was returned to draft, but the latest event details could not be loaded. Load this event again before making another change.';
+        return 'The event was returned to draft, but some event information could not be refreshed. Load this event again before making another change.';
       }
       case 'submit': {
-        return 'The event was submitted for review, but the latest event details could not be loaded. Load this event again before making another change.';
+        return 'The event was submitted for review, but some event information could not be refreshed. Load this event again before making another change.';
       }
     }
   };
@@ -1542,6 +1542,12 @@ describe('EventDetailsComponent review action outcomes', () => {
           expect(reviewListRead).toHaveBeenCalledTimes(2);
           expect(secondListRead).toHaveBeenCalledTimes(2);
           expect(listStatus).toBe('error');
+          expect(queryClient.getQueryState(eventKey('event-1'))?.status).toBe(
+            'success',
+          );
+          expect(
+            queryClient.getQueryState(eventKey('event-1'))?.fetchStatus,
+          ).toBe('idle');
           expect(queryClient.getMutationCache().getAll()[0]?.state.status).toBe(
             'success',
           );
@@ -1740,7 +1746,7 @@ describe('EventDetailsComponent review action outcomes', () => {
         'The latest event details are now shown.',
       );
       expect(rootElement().textContent).not.toContain(
-        'The latest event details could not be loaded.',
+        'Some event information could not be refreshed.',
       );
     } catch (error) {
       failures.push(error);
@@ -1797,7 +1803,7 @@ describe('EventDetailsComponent review action outcomes', () => {
     loadEvent.mockRejectedValueOnce(new Error('Conflict detail read failed.'));
     await confirmAction('approve');
     await expectFeedback(
-      'This event changed before the review was saved. The latest event details could not be loaded. Load this event again before making another change.',
+      'This event changed before the review was saved. Some event information could not be refreshed. Load this event again before making another change.',
     );
     expectSingleMutation('approve');
     expect(loadEvent).toHaveBeenCalledTimes(2);
@@ -1814,7 +1820,7 @@ describe('EventDetailsComponent review action outcomes', () => {
       expect(buttonNamed(rootElement(), 'Try again').disabled).toBe(false);
     });
     await expectFeedback(
-      'This event changed before the review was saved. The latest event details could not be loaded. Load this event again before making another change.',
+      'This event changed before the review was saved. Some event information could not be refreshed. Load this event again before making another change.',
     );
     expectSingleMutation('approve');
 
@@ -1836,7 +1842,7 @@ describe('EventDetailsComponent review action outcomes', () => {
         expect(loadEvent).toHaveBeenCalledTimes(4);
         expect(buttonNamed(rootElement(), 'Retrying…').disabled).toBe(true);
         expect(rootElement().textContent).toContain(
-          'The latest event details could not be loaded.',
+          'Some event information could not be refreshed.',
         );
       });
       expectSingleMutation('approve');
@@ -1877,7 +1883,7 @@ describe('EventDetailsComponent review action outcomes', () => {
     const conflictMessage = 'This event changed before the review was saved.';
     const combinedMessage =
       conflictMessage +
-      ' The latest event details could not be loaded. Load this event again before making another change.';
+      ' Some event information could not be refreshed. Load this event again before making another change.';
     review.mockRejectedValueOnce(
       new EventConflictError({ message: conflictMessage }),
     );

@@ -49,7 +49,7 @@
         >
           <p class="headline-small">Loading events…</p>
         </div>
-      } @else if (eventQuery.isError() && !eventQuery.isFetchNextPageError()) {
+      } @else if (eventQuery.isError() && !eventQuery.data()) {
         <div
           role="alert"
           class="bg-error-container text-on-error-container flex flex-col items-start gap-3 rounded-xl p-4"
@@ -70,7 +70,26 @@
             {{ eventQuery.isFetching() ? "Retrying…" : "Try again" }}
           </button>
         </div>
-      } @else if (eventQuery.isSuccess() || eventQuery.isFetchNextPageError()) {
+      } @else if (eventQuery.data()) {
+        @if (eventQuery.isError() && !eventQuery.isFetchNextPageError()) {
+          <div
+            role="alert"
+            class="bg-error-container text-on-error-container flex flex-col items-start gap-3 rounded-xl p-4"
+          >
+            <p>
+              Events could not be refreshed. The events below were loaded
+              earlier and may be out of date.
+            </p>
+            <button
+              mat-stroked-button
+              type="button"
+              [disabled]="eventQuery.isFetching()"
+              (click)="eventQuery.refetch()"
+            >
+              {{ eventQuery.isFetching() ? "Retrying…" : "Try again" }}
+            </button>
+          </div>
+        }
         @for (day of eventDays(); track day.day) {
           <p
             class="title-medium sticky top-0 lg:-top-4 z-10 bg-surface-container px-4 py-2"

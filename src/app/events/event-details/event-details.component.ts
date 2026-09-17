@@ -615,8 +615,8 @@ export class EventDetailsComponent {
         this.showReviewActionError(
           eventId,
           approved
-            ? 'The event was approved, but the latest event details could not be loaded. Load this event again before making another change.'
-            : 'The event was returned to draft, but the latest event details could not be loaded. Load this event again before making another change.',
+            ? 'The event was approved, but some event information could not be refreshed. Load this event again before making another change.'
+            : 'The event was returned to draft, but some event information could not be refreshed. Load this event again before making another change.',
         );
       } else if (actionStep === 'confirmation') {
         this.showReviewActionError(
@@ -675,7 +675,7 @@ export class EventDetailsComponent {
       if (actionStep === 'refresh') {
         this.showReviewActionError(
           eventId,
-          'The event was submitted for review, but the latest event details could not be loaded. Load this event again before making another change.',
+          'The event was submitted for review, but some event information could not be refreshed. Load this event again before making another change.',
         );
       } else if (actionStep === 'confirmation') {
         this.showReviewActionError(
@@ -711,7 +711,7 @@ export class EventDetailsComponent {
         this.showReviewActionError(
           eventId,
           message +
-            ' The latest event details could not be loaded. Load this event again before making another change.',
+            ' Some event information could not be refreshed. Load this event again before making another change.',
           message,
         );
       }

@@ -99,6 +99,10 @@ describe('EventListComponent load recovery', () => {
           useValue: {
             eventDays: () => listedEvents,
             eventQuery: {
+              data: () =>
+                eventQueryState() === 'success' || nextPageError()
+                  ? { pageParams: [0], pages: [listedEvents] }
+                  : undefined,
               error: () => new Error('Events unavailable'),
               fetchNextPage,
               hasNextPage,
@@ -264,7 +268,7 @@ describe('EventListComponent load recovery', () => {
     );
   });
 
-  it('retains links and retries Load more after a real infinite-query page failure', async () => {
+  it('retains cached links through real next-page and background-refetch failures', async () => {
     const failures: unknown[] = [];
     let queryClient: QueryClient | undefined;
     let unsubscribe: (() => void) | undefined;
@@ -294,8 +298,15 @@ describe('EventListComponent load recovery', () => {
         },
       ];
       let laterPageAttempts = 0;
+      let failBackgroundRefresh = false;
       const readPage = vi.fn(async ({ pageParam }: { pageParam: number }) => {
-        if (pageParam === 0) return firstPage;
+        if (pageParam === 0) {
+          if (failBackgroundRefresh) {
+            failBackgroundRefresh = false;
+            throw new Error('Background refresh unavailable');
+          }
+          return firstPage;
+        }
         laterPageAttempts += 1;
         if (laterPageAttempts === 1) throw new Error('Later page unavailable');
         return secondPage;
@@ -317,6 +328,7 @@ describe('EventListComponent load recovery', () => {
         useValue: {
           eventDays: () => mergeEventListPages(result().data?.pages ?? []),
           eventQuery: {
+            data: () => result().data,
             error: () => result().error,
             fetchNextPage: () => observer.fetchNextPage(),
             hasNextPage: () => result().hasNextPage,
@@ -378,9 +390,44 @@ describe('EventListComponent load recovery', () => {
         expect(root.querySelector('[role="alert"]')).toBeNull();
         expect(loadMoreButton()).toBeUndefined();
       });
+      failBackgroundRefresh = true;
+      await observer.refetch();
+      rendered.detectChanges();
+      expect(result().isError).toBe(true);
+      expect(result().isFetchNextPageError).toBe(false);
+      expect(result().isRefetchError).toBe(true);
+      expect(root.querySelectorAll(':scope nav a')).toHaveLength(
+        EVENT_LIST_PAGE_SIZE + 1,
+      );
+      expect(
+        root.querySelector('a[href="/loaded-event-0"]')?.textContent,
+      ).toContain('Recovery workshop');
+      expect(
+        root.querySelector('a[href="/next-page-event"]')?.textContent,
+      ).toContain('Next page workshop');
+      const refreshAlert = root.querySelector('[role="alert"]');
+      expect(refreshAlert?.textContent).toContain(
+        'Events could not be refreshed.',
+      );
+      expect(root.textContent).not.toContain('Events could not be loaded');
+      const retry = refreshAlert?.querySelector<HTMLButtonElement>('button');
+      expect(retry?.textContent?.trim()).toBe('Try again');
+      if (!retry) throw new Error('Expected the background refresh retry');
+      retry.click();
+      await vi.waitFor(() => {
+        rendered.detectChanges();
+        expect(result().isSuccess).toBe(true);
+        expect(root.querySelectorAll(':scope nav a')).toHaveLength(
+          EVENT_LIST_PAGE_SIZE + 1,
+        );
+        expect(root.querySelector('[role="alert"]')).toBeNull();
+      });
       expect(readPage.mock.calls.map(([input]) => input.pageParam)).toEqual([
         0,
         EVENT_LIST_PAGE_SIZE,
+        EVENT_LIST_PAGE_SIZE,
+        0,
+        0,
         EVENT_LIST_PAGE_SIZE,
       ]);
     } catch (error) {
