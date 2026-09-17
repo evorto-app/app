@@ -3640,6 +3640,14 @@ const createTrustedUrlDatabaseFixture = () => {
           ]);
           return [['VAT', true, '19']];
         }
+        if (
+          statement ===
+          `select "max_active_registrations_per_user" from "${getTableName(tenants)}" where "${getTableName(tenants)}"."id" = $1`
+        ) {
+          expect(transactionOpen).toBe(true);
+          expect(parameters).toEqual([tenant.id]);
+          return [[tenant.maxActiveRegistrationsPerUser]];
+        }
         expect(transactionOpen).toBe(true);
         expect(statement).toContain(' for update');
         if (statement.includes(` from "${getTableName(usersToTenants)}"`)) {
