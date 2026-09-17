@@ -1109,7 +1109,7 @@ describe('persisted transfer bundle type bounds', () => {
           expect(fixture.pricedAddonIds).toEqual([]);
         } else {
           expect(error.message).toBe(
-            'You already have an active registration for this event',
+            'You already have a ticket for this event. This transfer was not accepted, and no payment or refund was started.',
           );
           expect(fixture.pricedAddonIds).toEqual(
             Array.from({ length: count }, (_, index) => `addon-${index + 1}`),
