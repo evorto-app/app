@@ -411,6 +411,112 @@ describe('tenant payment setup PostgreSQL serialization', () => {
     }
   });
 
+  const readOrganizationState = async (tenantId: string) => ({
+    audit: await database
+      .select()
+      .from(platformAuditEntries)
+      .where(eq(platformAuditEntries.targetTenantId, tenantId)),
+    organization: await database.query.tenants.findFirst({
+      where: { id: tenantId },
+    }),
+    transactions: await database
+      .select()
+      .from(transactions)
+      .where(eq(transactions.tenantId, tenantId)),
+  });
+
+  for (const method of ['cash', 'paypal', 'stripe', 'transfer'] as const) {
+    it(`rejects completed ${method} history without changing persisted state`, async () => {
+      const suffix = randomUUID().replaceAll('-', '').slice(0, 8);
+      const tenantId = `history-${suffix}`;
+      const domain = `${suffix}.payment-history.example`;
+      fixtures.push({ tenantId });
+      await database
+        .insert(tenants)
+        .values({ domain, id: tenantId, name: `Payment history ${suffix}` });
+      await database.insert(transactions).values({
+        amount: -1000,
+        currency: 'EUR',
+        id: `history-tx-${suffix}`,
+        manuallyCreated: true,
+        method,
+        status: 'successful',
+        tenantId,
+        type: 'refund',
+      });
+      const before = await readOrganizationState(tenantId);
+      const stripeHttpClient = new ReadyStripeAccountHttpClient();
+      const outcome = await Effect.runPromise(
+        attachTenantPaymentAccount(
+          makeInput({
+            accountId: `acct_history_${suffix}`,
+            domain,
+            organizationId: tenantId,
+            reason: 'Initial payment setup after organization history review',
+          }),
+        ).pipe(
+          Effect.provide(makePaymentSetupLayer(databaseUrl, stripeHttpClient)),
+        ),
+      );
+
+      expect(outcome).toEqual({
+        attached: false,
+        reason: 'payment-history-exists',
+      });
+      expect(before.organization?.stripeAccountId).toBeNull();
+      expect(before.audit).toEqual([]);
+      expect(before.transactions).toHaveLength(1);
+      expect(await readOrganizationState(tenantId)).toEqual(before);
+    });
+  }
+
+  it('ignores another organization payment history when attaching the first account', async () => {
+    const suffix = randomUUID().replaceAll('-', '').slice(0, 8);
+    const tenantId = `target-${suffix}`;
+    const otherTenantId = `other-${suffix}`;
+    const domain = `${suffix}.empty-payment-history.example`;
+    fixtures.push({ tenantId }, { tenantId: otherTenantId });
+    await database.insert(tenants).values([
+      { domain, id: tenantId, name: `First payment ${suffix}` },
+      {
+        domain: `${suffix}.other-payment-history.example`,
+        id: otherTenantId,
+        name: `Other payment ${suffix}`,
+      },
+    ]);
+    await database.insert(transactions).values({
+      amount: -1000,
+      currency: 'EUR',
+      id: `other-tx-${suffix}`,
+      manuallyCreated: true,
+      method: 'transfer',
+      status: 'successful',
+      tenantId: otherTenantId,
+      type: 'refund',
+    });
+    const otherBefore = await readOrganizationState(otherTenantId);
+    const stripeHttpClient = new ReadyStripeAccountHttpClient();
+    const accountId = `acct_empty_history_${suffix}`;
+    const outcome = await Effect.runPromise(
+      attachTenantPaymentAccount(
+        makeInput({
+          accountId,
+          domain,
+          organizationId: tenantId,
+          reason: 'Initial payment setup for the reviewed organization',
+        }),
+      ).pipe(
+        Effect.provide(makePaymentSetupLayer(databaseUrl, stripeHttpClient)),
+      ),
+    );
+    expect(outcome).toEqual({ attached: true });
+    const target = await readOrganizationState(tenantId);
+    expect(target.organization?.stripeAccountId).toBe(accountId);
+    expect(target.transactions).toEqual([]);
+    expect(target.audit).toHaveLength(1);
+    expect(await readOrganizationState(otherTenantId)).toEqual(otherBefore);
+  });
+
   it('rejects directly seeded pending payment work', async () => {
     const suffix = randomUUID().replaceAll('-', '').slice(0, 8);
     const tenantId = `pending-${suffix}`;

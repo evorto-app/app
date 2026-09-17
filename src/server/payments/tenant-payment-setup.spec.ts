@@ -49,7 +49,10 @@ interface PaymentSetupFixtureOptions {
   readonly importedTaxConfiguration?: boolean;
   readonly organizationExists?: boolean;
   readonly paidConfiguration?: boolean;
-  readonly paymentHistory?: boolean;
+  readonly paymentHistory?: readonly Pick<
+    typeof transactions.$inferSelect,
+    'id' | 'method' | 'tenantId'
+  >[];
   readonly pendingPayment?: boolean;
   readonly stripeResponse?: PaymentAccountResponse;
   readonly taxConfiguration?: boolean;
@@ -225,14 +228,22 @@ const createPaymentSetupFixture = (
     return options.importedTaxConfiguration ? [[taxRate.id]] : [];
   };
 
-  const readPaymentHistory = (parameters: readonly unknown[]) => {
-    expect(parameters).toEqual([organizationId, 'stripe', 1]);
+  const readPaymentHistory = (
+    parameters: readonly unknown[],
+    stripeOnly: boolean,
+  ) => {
+    expect(parameters).toEqual(
+      stripeOnly ? [organizationId, 'stripe', 1] : [organizationId, 1],
+    );
     state.transactionSelectCalls += 1;
-    const payment = { id: 'past-payment' } satisfies Pick<
-      typeof transactions.$inferSelect,
-      'id'
-    >;
-    return options.paymentHistory ? [[payment.id]] : [];
+    return (options.paymentHistory ?? [])
+      .filter(
+        (payment) =>
+          payment.tenantId === organizationId &&
+          (!stripeOnly || payment.method === 'stripe'),
+      )
+      .slice(0, 1)
+      .map((payment) => [payment.id]);
   };
 
   const attachAccount = (parameters: readonly unknown[]) => {
@@ -327,11 +338,14 @@ const createPaymentSetupFixture = (
         case 'select "id" from "tenant_stripe_tax_rates" where "tenant_stripe_tax_rates"."tenantId" = $1 limit $2': {
           return readImportedTaxConfiguration(parameters);
         }
+        case 'select "id" from "transactions" where "transactions"."tenantId" = $1 limit $2': {
+          return readPaymentHistory(parameters, false);
+        }
         case 'select "id" from "transactions" where (("transactions"."method" = $1) and ("transactions"."status" = $2) and ("transactions"."tenantId" = $3) and ("transactions"."type" in ($4, $5, $6))) limit $7': {
           return readPendingPayment(parameters);
         }
         case 'select "id" from "transactions" where (("transactions"."tenantId" = $1) and ("transactions"."method" = $2)) limit $3': {
-          return readPaymentHistory(parameters);
+          return readPaymentHistory(parameters, true);
         }
         case 'update "tenants" set "stripeAccountId" = $1, "updatedAt" = $2 where "tenants"."id" = $3 returning "id"': {
           return attachAccount(parameters);
@@ -519,7 +533,11 @@ describe('attachTenantPaymentAccount', () => {
     {
       expected: 'payment-history-exists',
       name: 'past payment history',
-      options: { paymentHistory: true },
+      options: {
+        paymentHistory: [
+          { id: 'past-payment', method: 'stripe', tenantId: organizationId },
+        ],
+      },
     },
   ];
 
@@ -541,6 +559,52 @@ describe('attachTenantPaymentAccount', () => {
       );
     });
   }
+
+  for (const method of ['cash', 'paypal', 'transfer'] as const) {
+    const fixture = createPaymentSetupFixture({
+      paymentHistory: [
+        { id: 'past-payment', method, tenantId: organizationId },
+      ],
+    });
+    layer(fixture.layer)(`${method} payment history`, (it) => {
+      it.effect(
+        'rejects attachment without changing the account or audit',
+        () =>
+          Effect.gen(function* () {
+            const outcome = yield* attachTenantPaymentAccount(input);
+            expect(outcome).toEqual({
+              attached: false,
+              reason: 'payment-history-exists',
+            });
+            expect(fixture.state.currentAccountId).toBeNull();
+            expect(fixture.state.updateValues).toEqual([]);
+            expect(fixture.state.auditValues).toEqual([]);
+          }),
+      );
+    });
+  }
+
+  const otherOrganizationHistory = createPaymentSetupFixture({
+    paymentHistory: [
+      { id: 'other-payment', method: 'transfer', tenantId: 'other-tenant' },
+    ],
+  });
+  layer(otherOrganizationHistory.layer)(
+    'another organization payment history',
+    (it) => {
+      it.effect('does not block the target organization first attachment', () =>
+        Effect.gen(function* () {
+          expect(yield* attachTenantPaymentAccount(input)).toEqual({
+            attached: true,
+          });
+          expect(otherOrganizationHistory.state.updateValues).toEqual([
+            { stripeAccountId: accountId },
+          ]);
+          expect(otherOrganizationHistory.state.auditValues).toHaveLength(1);
+        }),
+      );
+    },
+  );
 
   const unavailableAccountResponses: readonly ('missing' | 'not-ready')[] = [
     'missing',
