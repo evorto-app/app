@@ -2,7 +2,6 @@ import { pgEnum } from 'drizzle-orm/pg-core';
 
 export const registrationModes = pgEnum('registration_mode', [
   'fcfs',
-  'random',
   'application',
 ]);
 

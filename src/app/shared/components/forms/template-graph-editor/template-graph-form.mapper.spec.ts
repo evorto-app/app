@@ -4,7 +4,6 @@ import { describe, expect, it } from 'vitest';
 
 import {
   classifyTemplateGraphRecord,
-  legacyRandomTemplateEditMessage,
   templateGraphFormToPayload,
   templateGraphLocationFormModelToValue,
   templateGraphLocationValueToFormModel,
@@ -166,24 +165,6 @@ describe('template graph edit classification', () => {
         registrationOptionKey: 'organizer-option',
       },
     ]);
-  });
-
-  it('blocks a legacy random graph before constructing an editable form', () => {
-    const source = simpleTemplate();
-    const legacyRandom: TemplateGraphRecord = {
-      ...source,
-      registrationOptions: source.registrationOptions.map((option, index) =>
-        index === 1 ? { ...option, registrationMode: 'random' } : option,
-      ),
-    };
-
-    expect(classifyTemplateGraphRecord(legacyRandom)).toEqual({
-      kind: 'legacyRandomBlocked',
-      message: legacyRandomTemplateEditMessage,
-    });
-    expect(templateGraphRecordToFormModel(legacyRandom)).toEqual({
-      error: legacyRandomTemplateEditMessage,
-    });
   });
 
   it('explains a missing sign-up choice without exposing storage terms', () => {

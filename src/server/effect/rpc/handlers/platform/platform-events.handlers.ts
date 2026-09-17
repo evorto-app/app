@@ -4,10 +4,6 @@ import {
   type PlatformAuditSnapshot,
   type PlatformTenantAuditAction,
 } from '@shared/platform-audit';
-import {
-  isWritableRegistrationMode,
-  requireWritableRegistrationMode,
-} from '@shared/registration-modes';
 import { MAX_REGISTRATION_ADDON_QUANTITY } from '@shared/registration-quantity-limits';
 import {
   PlatformEventAddonRecord,
@@ -525,24 +521,11 @@ export const platformEventStateError = (
         reason: 'eventStateConflict',
       });
 
-export const platformUnsupportedRegistrationModeError = (
-  registrationModes: readonly ('application' | 'fcfs' | 'random')[],
-): null | RpcBadRequestError =>
-  registrationModes.some((mode) => !isWritableRegistrationMode(mode))
-    ? new RpcBadRequestError({
-        message:
-          'Random allocation is unsupported; replace it with first-come-first-served or manual approval',
-        reason: 'unsupportedRegistrationMode',
-      })
-    : null;
-
 export const validatePlatformEventCreateReferences = ({
   creatorMembershipFound,
-  registrationModes,
   templateFound,
 }: {
   creatorMembershipFound: boolean;
-  registrationModes: readonly ('application' | 'fcfs' | 'random')[];
   templateFound: boolean;
 }) => {
   if (!creatorMembershipFound) {
@@ -561,9 +544,6 @@ export const validatePlatformEventCreateReferences = ({
       }),
     );
   }
-  const modeError = platformUnsupportedRegistrationModeError(registrationModes);
-  if (modeError) return Effect.fail(modeError);
-
   return Effect.void;
 };
 
@@ -1123,7 +1103,6 @@ export const platformEventHandlers = {
               if (creatorMemberships.length === 0) {
                 yield* validatePlatformEventCreateReferences({
                   creatorMembershipFound: false,
-                  registrationModes: [],
                   templateFound: true,
                 });
                 return yield* Effect.die(
@@ -1147,7 +1126,6 @@ export const platformEventHandlers = {
               if (lockedTemplates.length === 0) {
                 yield* validatePlatformEventCreateReferences({
                   creatorMembershipFound: true,
-                  registrationModes: [],
                   templateFound: false,
                 });
                 return yield* Effect.die(
@@ -1164,9 +1142,6 @@ export const platformEventHandlers = {
               );
               yield* validatePlatformEventCreateReferences({
                 creatorMembershipFound: true,
-                registrationModes: template.registrationOptions.map(
-                  (option) => option.registrationMode,
-                ),
                 templateFound: true,
               });
 
@@ -1203,9 +1178,7 @@ export const platformEventHandlers = {
                   price: option.price,
                   refundFeesOnCancellation: option.refundFeesOnCancellation,
                   registeredDescription: option.registeredDescription,
-                  registrationMode: requireWritableRegistrationMode(
-                    option.registrationMode,
-                  ),
+                  registrationMode: option.registrationMode,
                   roleIds: option.roleIds,
                   sourceTemplateRegistrationOptionId: option.id,
                   spots: option.spots,
@@ -1487,10 +1460,6 @@ export const platformEventHandlers = {
     input: PlatformEventsUpdateInput,
     _options: unknown,
   ) => {
-    const modeError = platformUnsupportedRegistrationModeError(
-      input.registrationOptions.map((option) => option.registrationMode),
-    );
-    if (modeError) return Effect.fail(modeError);
     if (
       input.addOns.some((addOn) =>
         addOn.registrationOptions.some(

@@ -1707,21 +1707,6 @@ describe('platform template editor graph mapping', () => {
     });
   });
 
-  it('explains why a random-allocation template cannot be edited', () => {
-    const source = completeTemplate();
-    const legacyRandomTemplate: TemplateGraphRecord = {
-      ...source,
-      registrationOptions: source.registrationOptions.map((option, index) =>
-        index === 1 ? { ...option, registrationMode: 'random' } : option,
-      ),
-    };
-
-    expect(platformTemplateRecordToFormModel(legacyRandomTemplate)).toEqual({
-      error:
-        'Random allocation is unavailable. Create a new template using First come, first served or Manual approval instead.',
-    });
-  });
-
   it('fails only when a persisted graph reference is genuinely corrupt', () => {
     const source = completeTemplate();
     const corrupt: TemplateGraphRecord = {

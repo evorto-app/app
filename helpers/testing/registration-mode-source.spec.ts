@@ -2,8 +2,12 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-// Source guard: unsupported random registration may remain readable from data,
-// but authoring screens should only expose supported writable modes.
+import { registrationModes as databaseRegistrationModes } from '../../src/db/schema/global-enums';
+import {
+  registrationModeLabels,
+  registrationModes,
+} from '../../src/shared/registration-modes';
+
 const repositoryRoot = new URL('../..', import.meta.url).pathname;
 
 const readSource = (sourcePath: string): string =>
@@ -16,7 +20,7 @@ const authoringSurfaces = [
 ] as const;
 
 describe('registration mode source constraints', () => {
-  it('keeps event and template authoring limited to writable modes', () => {
+  it('keeps event and template authoring on the shared supported modes', () => {
     for (const path of authoringSurfaces) {
       const source = readSource(path);
 
@@ -26,16 +30,15 @@ describe('registration mode source constraints', () => {
     }
   });
 
-  it('keeps persisted unsupported modes readable but out of the authoring default', () => {
-    const labelSource = readSource('src/shared/registration-modes.ts');
-    const formSource = readSource(
-      'src/app/shared/components/forms/template-graph-editor/template-graph-form.model.ts',
+  it('aligns persisted modes, authoring choices and labels without retired values', () => {
+    expect(databaseRegistrationModes.enumValues).toEqual(registrationModes);
+    expect(registrationModes).toEqual(['fcfs', 'application']);
+    expect(Object.keys(registrationModeLabels).toSorted()).toEqual(
+      [...registrationModes].toSorted(),
     );
-
-    expect(labelSource).toContain("application: 'Manual approval'");
-    expect(labelSource).toContain("random: 'Unsupported random allocation'");
-    expect(labelSource).toContain("'application'");
-    expect(formSource).toContain("registrationMode: 'fcfs'");
-    expect(formSource).not.toContain("registrationMode: 'random'");
+    expect(registrationModeLabels).toEqual({
+      application: 'Manual approval',
+      fcfs: 'First come, first served',
+    });
   });
 });

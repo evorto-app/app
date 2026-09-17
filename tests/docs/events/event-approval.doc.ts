@@ -9,10 +9,7 @@ import {
 } from '../../../helpers/user-data';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
-import {
-  type AuthenticatedTestPage,
-  openAuthenticatedTestPage,
-} from '../../support/utils/authenticated-test-page';
+import { openAuthenticatedTestPage } from '../../support/utils/authenticated-test-page';
 import { futureServerEventWindow } from '../../support/utils/server-test-clock';
 import type { Locator, Page } from '@playwright/test';
 
@@ -62,10 +59,10 @@ const returnToDraftDialogSurface = (page: Page): Locator =>
   page
     .locator('mat-dialog-container')
     .filter({
-      has: page.getByRole('heading', { name: 'Return Event to Draft' }),
+      has: page.getByRole('heading', { name: 'Return event to draft' }),
     })
     .filter({ has: page.getByLabel('Feedback for the creator') })
-    .filter({ has: page.getByRole('button', { name: 'Return to Draft' }) })
+    .filter({ has: page.getByRole('button', { name: 'Return to draft' }) })
     .first();
 
 const clickHydratedAction = async (action: Locator): Promise<void> => {
@@ -111,7 +108,6 @@ test('Event approval workflow', async ({
     startInDays: 7,
   });
   const { end, start } = eventWindow;
-  let reviewerPage: AuthenticatedTestPage | undefined;
 
   const reviewerMembership = await database.query.usersToTenants.findFirst({
     where: {
@@ -147,7 +143,6 @@ test('Event approval workflow', async ({
       .delete(schema.roles)
       .where(eq(schema.roles.id, reviewerRoleId));
   });
-  registerDatabaseCleanup(async () => reviewerPage?.close());
 
   const readGeneratedEvent = async () => {
     const [generatedEvent] = await database
@@ -221,7 +216,7 @@ Use two different organization accounts so creation and approval remain independ
 
 - The **creator** needs **Create events** access and can edit the event they created. Saving a new event opens its details page, where they can submit it for review.
 - **Create events** does not include **View draft events**. Without the latter access, the creator's draft is intentionally absent from **Events**, so continue from the post-save details page or reopen that exact event link.
-- The **reviewer** needs **Review events** access. Start from **Admin Tools** → **Event Reviews**. Review access alone does not grant event editing.
+- The **reviewer** needs **Review events** access. Start from **Admin Tools** → **Event reviews**. Review access alone does not grant event editing.
 - No payment is needed for this free event.
 {% /callout %}
 
@@ -293,13 +288,14 @@ The screenshot below highlights the draft status and exact action before the sta
     creatorPendingStatus.getByRole('button', { name: 'Approve' }),
   ).toHaveCount(0);
 
-  reviewerPage = await openAuthenticatedTestPage({
+  const reviewerPage = await openAuthenticatedTestPage({
     baseUrl: new URL(page.url()).origin,
     browser,
     storageState: emptyStateFile,
     tenantDomain: tenant.domain,
     testClock,
   });
+  registerDatabaseCleanup(async () => reviewerPage.close());
   const currentReviewQueueItem = () => {
     if (!reviewerPage) {
       throw new Error('Review-only browser context is missing');
@@ -322,14 +318,14 @@ The screenshot below highlights the draft status and exact action before the sta
     );
     await clickHydratedAction(
       reviewerPage.page.getByRole('link', {
-        name: /^Event Reviews(?: \d+)?$/u,
+        name: /^Event reviews(?: \d+)?$/u,
       }),
     );
     await expect(
       reviewerPage.page.getByRole('heading', {
         exact: true,
         level: 1,
-        name: 'Event Reviews',
+        name: 'Event reviews',
       }),
     ).toBeVisible();
     return currentReviewQueueItem();
@@ -338,7 +334,7 @@ The screenshot below highlights the draft status and exact action before the sta
   let reviewQueueItem = await openReviewQueue();
   await expect(reviewQueueItem).toBeVisible();
   await expect(
-    reviewQueueItem.getByRole('button', { name: 'Reject' }),
+    reviewQueueItem.getByRole('button', { name: 'Return to draft' }),
   ).toBeVisible();
   await expect(
     reviewQueueItem.getByRole('button', { name: 'Approve' }),
@@ -347,9 +343,9 @@ The screenshot below highlights the draft status and exact action before the sta
     body: `
 ## 2. Review from the admin queue
 
-Sign in with the review-only account, open **Admin Tools**, and select **Event Reviews**. Find the event by title and review its start time before choosing **Reject** or **Approve**.
+Sign in with the review-only account, open **Admin Tools**, and select **Event reviews**. Find the event by title and review its start time before choosing **Return to draft** or **Approve**.
 
-The **Open Event** link is available for context, but this account has no **Organize this event** action. **Review events** access does not grant edit authority.
+The **Open event** link is available for context, but this account has no **Organize this event** action. **Review events** access does not grant edit authority.
 `,
   });
   await takeScreenshot(
@@ -359,7 +355,7 @@ The **Open Event** link is available for context, but this account has no **Orga
     'Review-only event queue with publish decision controls',
   );
 
-  await reviewQueueItem.getByRole('link', { name: 'Open Event' }).click();
+  await reviewQueueItem.getByRole('link', { name: 'Open event' }).click();
   await expect(
     reviewerPage.page.getByRole('heading', {
       exact: true,
@@ -376,13 +372,13 @@ The **Open Event** link is available for context, but this account has no **Orga
     reviewerPage.page.getByRole('heading', {
       exact: true,
       level: 1,
-      name: 'Event Reviews',
+      name: 'Event reviews',
     }),
   ).toBeVisible({ timeout: 20_000 });
   reviewQueueItem = currentReviewQueueItem();
   await expect(reviewQueueItem).toBeVisible({ timeout: 20_000 });
   await clickHydratedAction(
-    reviewQueueItem.getByRole('button', { name: 'Reject' }),
+    reviewQueueItem.getByRole('button', { name: 'Return to draft' }),
   );
   const returnToDraftDialog = returnToDraftDialogSurface(reviewerPage.page);
   await expect(returnToDraftDialog).toBeVisible();
@@ -396,7 +392,7 @@ The **Open Event** link is available for context, but this account has no **Orga
     .getByLabel('Feedback for the creator')
     .fill(reviewFeedback);
   await clickHydratedAction(
-    returnToDraftDialog.getByRole('button', { name: 'Return to Draft' }),
+    returnToDraftDialog.getByRole('button', { name: 'Return to draft' }),
   );
   await expect(
     reviewerPage.page.getByText(
@@ -457,7 +453,7 @@ This gives creators clear guidance before they re-submit.
 
   await clickHydratedAction(
     reviewerPage.page.getByRole('button', {
-      name: 'Refresh pending reviews',
+      name: 'Check pending reviews again',
     }),
   );
   reviewQueueItem = currentReviewQueueItem();
@@ -488,7 +484,7 @@ This gives creators clear guidance before they re-submit.
     body: `
 ## 4. Approval result
 
-Approving from **Admin Tools** → **Event Reviews** removes the item from the queue. Return to the creator account and refresh the event details page. The final status is **Published**.
+Approving from **Admin Tools** → **Event reviews** removes the item from the queue. Return to the creator account and refresh the event details page. The final status is **Published**.
 
 Published events are locked. Even the creator no longer sees **Edit Event**. If someone follows an old bookmark or manually enters the edit URL, Evorto returns them to the event details page instead of opening an editable form.
 `,

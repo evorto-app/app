@@ -62,12 +62,12 @@ test('event list icon actions are named and keyboard operable', async ({
   ).toBeVisible({ timeout: 20_000 });
   await expect(eventNavigation).not.toContainText('Error:');
 
-  const filterButton = page.getByRole('button', { name: 'Filter events' });
   const listActionsButton = page.getByRole('button', {
     name: 'Open event list actions',
   });
-  await expect(filterButton).toBeVisible();
-  await expect(filterButton).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Filter events' })).toHaveCount(
+    0,
+  );
   await expect(listActionsButton).toBeVisible();
   await expect(listActionsButton).toBeEnabled();
 
@@ -75,14 +75,6 @@ test('event list icon actions are named and keyboard operable', async ({
     .include('app-event-list > div > div > div:first-child')
     .analyze();
   expect(accessibilityScan.violations).toEqual([]);
-
-  await filterButton.focus();
-  await expect(filterButton).toBeFocused();
-  await filterButton.press('Enter');
-  const filterDialog = page.getByRole('dialog', { name: 'Filter events' });
-  await expect(filterDialog).toBeVisible();
-  await filterDialog.getByRole('button', { name: 'Ok' }).click();
-  await expect(filterDialog).toBeHidden();
 
   await listActionsButton.focus();
   await expect(listActionsButton).toBeFocused();

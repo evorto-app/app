@@ -131,8 +131,7 @@ const validInput = (): MutableFixture<EventGraphUpdateInput> => ({
     price: option.price,
     refundFeesOnCancellation: option.refundFeesOnCancellation,
     registeredDescription: option.registeredDescription,
-    registrationMode:
-      option.registrationMode === 'random' ? 'fcfs' : option.registrationMode,
+    registrationMode: option.registrationMode,
     roleIds: [...option.roleIds],
     spots: option.spots,
     stripeTaxRateId: option.stripeTaxRateId,
@@ -160,24 +159,29 @@ describe('event graph structural validation', () => {
     ).toBeNull();
   });
 
-  it('keeps a persisted legacy random event read-only when the payload changes it to fcfs', () => {
-    const before = beforeGraph();
-    before.registrationOptions = before.registrationOptions.map(
-      (option, index) =>
-        index === 1 ? { ...option, registrationMode: 'random' } : option,
-    );
-    const input = validInput();
+  it('preserves first-come and manual-approval modes in simple and advanced graphs', () => {
+    for (const simpleModeEnabled of [true, false]) {
+      const before = beforeGraph();
+      before.simpleModeEnabled = simpleModeEnabled;
+      before.registrationOptions = before.registrationOptions.map(
+        (option, index) =>
+          index === 1 ? { ...option, registrationMode: 'application' } : option,
+      );
+      const input = validInput();
+      input.simpleModeEnabled = simpleModeEnabled;
+      input.registrationOptions = input.registrationOptions.map(
+        (option, index) =>
+          index === 1 ? { ...option, registrationMode: 'application' } : option,
+      );
 
-    expect(
-      input.registrationOptions.map((option) => option.registrationMode),
-    ).not.toContain('random');
-    const error = validateEventGraphStructure({ before, input });
-
-    expect(error).toBeInstanceOf(RpcBadRequestError);
-    expect(error).toMatchObject({
-      _tag: 'RpcBadRequestError',
-      reason: 'unsupportedEventRegistrationMode',
-    });
+      expect(validateEventGraphStructure({ before, input })).toBeNull();
+      expect(
+        before.registrationOptions.map((option) => option.registrationMode),
+      ).toEqual(['fcfs', 'application']);
+      expect(
+        input.registrationOptions.map((option) => option.registrationMode),
+      ).toEqual(['fcfs', 'application']);
+    }
   });
 
   it('rejects simple mode with an extra registration option', () => {

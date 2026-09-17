@@ -54,20 +54,12 @@ describe('registration write errors', () => {
   });
 });
 
-describe('unsupported registration mode template', () => {
-  it('shows the warning before add-ons, questions, authentication, or write controls', () => {
+describe('supported registration mode template', () => {
+  it('keeps supported registration controls available without a retired-mode branch', () => {
     const template = readSource(
       'src/app/events/event-registration-option/event-registration-option.component.html',
     );
-    const guardIndex = template.indexOf('@if (!registrationModeSupported())');
-    const supportedModeBranchIndex = template.indexOf('} @else {', guardIndex);
-
-    expect(guardIndex).toBeGreaterThan(-1);
-    expect(template.lastIndexOf('@if (!registrationModeSupported())')).toBe(
-      guardIndex,
-    );
-    expect(supportedModeBranchIndex).toBeGreaterThan(guardIndex);
-
+    expect(template).not.toContain('registrationModeSupported');
     for (const editableMarker of [
       '@if (addOns().length',
       '@if (registrationOption().questions.length',
@@ -77,9 +69,7 @@ describe('unsupported registration mode template', () => {
       '<button',
       'href="/forward-login',
     ]) {
-      expect(template.indexOf(editableMarker)).toBeGreaterThan(
-        supportedModeBranchIndex,
-      );
+      expect(template).toContain(editableMarker);
     }
   });
 });
@@ -237,18 +227,16 @@ describe('registrationOptionCanJoinWaitlist', () => {
     ).toBe(false);
   });
 
-  it('does not offer waitlists for stored unsupported participant modes', () => {
-    for (const registrationMode of ['application', 'random'] as const) {
-      expect(
-        registrationOptionCanJoinWaitlist({
-          confirmedSpots: 8,
-          organizingRegistration: false,
-          registrationMode,
-          reservedSpots: 2,
-          spots: 10,
-        }),
-      ).toBe(false);
-    }
+  it('does not offer waitlists for manual-approval participant options', () => {
+    expect(
+      registrationOptionCanJoinWaitlist({
+        confirmedSpots: 8,
+        organizingRegistration: false,
+        registrationMode: 'application',
+        reservedSpots: 2,
+        spots: 10,
+      }),
+    ).toBe(false);
   });
 
   it('keeps normal registration primary while spots remain', () => {

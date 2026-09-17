@@ -12,11 +12,11 @@ import { Effect, Schema } from 'effect';
 import {
   PlatformEventAddonRecord,
   PlatformEventQuestionRecord,
+  PlatformEventRegistrationOptionRecord,
 } from './platform-events.rpcs';
 import {
   PlatformEventDetailRecord,
   PlatformEventFormOptionsRecord,
-  PlatformEventRegistrationOptionRecord,
   PlatformEventsCreateInput,
   PlatformEventsReviewInput,
   PlatformEventsUpdateInput,
@@ -108,101 +108,98 @@ describe('platform event administration RPC schemas', () => {
       }),
   );
 
-  it.effect(
-    'keeps legacy random event records readable but rejects random updates',
-    () =>
-      Effect.gen(function* () {
-        const registrationOption = {
-          cancellationDeadlineHoursBeforeStart: null,
-          checkedInSpots: 0,
-          closeRegistrationTime: '2026-07-10T11:00:00.000Z',
-          confirmedSpots: 0,
-          description: null,
-          esnCardDiscountedPrice: null,
-          id: 'option-1',
-          isPaid: false,
-          openRegistrationTime: '2026-07-01T12:00:00.000Z',
-          organizingRegistration: false,
-          price: 0,
-          refundFeesOnCancellation: null,
-          registeredDescription: null,
-          registrationMode: 'fcfs',
-          roleIds: [],
-          spots: 20,
-          stripeTaxRateId: null,
-          title: 'Participants',
-          transferDeadlineHoursBeforeStart: null,
-        } as const;
-        const update = {
-          addOns: [],
-          description: '<p>Supported event update</p>',
-          end: '2026-07-10T14:00:00.000Z',
-          eventId: 'event-1',
-          icon: { iconColor: 1, iconName: 'calendar:fas' },
-          location: null,
-          questions: [],
-          reason: 'Maintain the supported event graph',
-          registrationOptions: [registrationOption],
-          start: '2026-07-10T12:00:00.000Z',
-          targetTenantId: 'tenant-1',
-          title: 'Event',
-        };
+  it.effect('rejects retired random event records and updates', () =>
+    Effect.gen(function* () {
+      const registrationOption = {
+        cancellationDeadlineHoursBeforeStart: null,
+        checkedInSpots: 0,
+        closeRegistrationTime: '2026-07-10T11:00:00.000Z',
+        confirmedSpots: 0,
+        description: null,
+        esnCardDiscountedPrice: null,
+        id: 'option-1',
+        isPaid: false,
+        openRegistrationTime: '2026-07-01T12:00:00.000Z',
+        organizingRegistration: false,
+        price: 0,
+        refundFeesOnCancellation: null,
+        registeredDescription: null,
+        registrationMode: 'fcfs',
+        roleIds: [],
+        spots: 20,
+        stripeTaxRateId: null,
+        title: 'Participants',
+        transferDeadlineHoursBeforeStart: null,
+      } as const;
+      const update = {
+        addOns: [],
+        description: '<p>Supported event update</p>',
+        end: '2026-07-10T14:00:00.000Z',
+        eventId: 'event-1',
+        icon: { iconColor: 1, iconName: 'calendar:fas' },
+        location: null,
+        questions: [],
+        reason: 'Maintain the supported event graph',
+        registrationOptions: [registrationOption],
+        start: '2026-07-10T12:00:00.000Z',
+        targetTenantId: 'tenant-1',
+        title: 'Event',
+      };
 
-        expect(
-          (yield* Schema.decodeUnknownEffect(PlatformEventsUpdateInput)(update))
-            .registrationOptions[0]?.registrationMode,
-        ).toBe('fcfs');
+      expect(
+        (yield* Schema.decodeUnknownEffect(PlatformEventsUpdateInput)(update))
+          .registrationOptions[0]?.registrationMode,
+      ).toBe('fcfs');
 
-        const detail = {
-          addOns: [],
-          creator: {
-            email: 'owner@example.org',
-            firstName: 'Event',
-            id: 'owner-1',
-            lastName: 'Owner',
-          },
-          description: update.description,
-          end: update.end,
-          icon: update.icon,
-          id: update.eventId,
-          location: update.location,
-          questions: [],
-          registrationCount: 0,
-          registrationOptions: update.registrationOptions,
-          reviewedAt: null,
-          simpleModeEnabled: true,
-          start: update.start,
-          status: 'DRAFT' as const,
-          statusComment: null,
-          title: update.title,
-          unlisted: false,
-        };
-        expect(
-          (yield* Schema.decodeUnknownEffect(PlatformEventDetailRecord)(detail))
-            .simpleModeEnabled,
-        ).toBe(true);
-        const { simpleModeEnabled: _simpleModeEnabled, ...detailWithoutMode } =
-          detail;
-        const detailError = yield* Schema.decodeUnknownEffect(
-          PlatformEventDetailRecord,
-        )(detailWithoutMode).pipe(Effect.flip);
-        expect(detailError['_tag']).toBe('SchemaError');
+      const detail = {
+        addOns: [],
+        creator: {
+          email: 'owner@example.org',
+          firstName: 'Event',
+          id: 'owner-1',
+          lastName: 'Owner',
+        },
+        description: update.description,
+        end: update.end,
+        icon: update.icon,
+        id: update.eventId,
+        location: update.location,
+        questions: [],
+        registrationCount: 0,
+        registrationOptions: update.registrationOptions,
+        reviewedAt: null,
+        simpleModeEnabled: true,
+        start: update.start,
+        status: 'DRAFT' as const,
+        statusComment: null,
+        title: update.title,
+        unlisted: false,
+      };
+      expect(
+        (yield* Schema.decodeUnknownEffect(PlatformEventDetailRecord)(detail))
+          .simpleModeEnabled,
+      ).toBe(true);
+      const { simpleModeEnabled: _simpleModeEnabled, ...detailWithoutMode } =
+        detail;
+      const detailError = yield* Schema.decodeUnknownEffect(
+        PlatformEventDetailRecord,
+      )(detailWithoutMode).pipe(Effect.flip);
+      expect(detailError['_tag']).toBe('SchemaError');
 
-        const randomOption = {
-          ...registrationOption,
-          registrationMode: 'random',
-        } as const;
-        expect(
-          (yield* Schema.decodeUnknownEffect(
-            PlatformEventRegistrationOptionRecord,
-          )(randomOption)).registrationMode,
-        ).toBe('random');
+      const randomOption = {
+        ...registrationOption,
+        registrationMode: 'random',
+      } as const;
+      const recordError = yield* Schema.decodeUnknownEffect(
+        PlatformEventRegistrationOptionRecord,
+      )(randomOption).pipe(Effect.flip);
+      expect(recordError['_tag']).toBe('SchemaError');
 
-        const updateError = yield* Schema.decodeUnknownEffect(
-          PlatformEventsUpdateInput,
-        )({ ...update, registrationOptions: [randomOption] }).pipe(Effect.flip);
-        expect(updateError['_tag']).toBe('SchemaError');
-      }),
+      const updateError = yield* Schema.decodeUnknownEffect(
+        PlatformEventsUpdateInput,
+      )({ ...update, registrationOptions: [randomOption] }).pipe(Effect.flip);
+      expect(updateError['_tag']).toBe('SchemaError');
+    }),
   );
 
   it.effect(
@@ -328,11 +325,9 @@ describe('platform event administration RPC schemas', () => {
       }),
   );
 
-  it.effect('keeps legacy random template records readable', () =>
+  it.effect('rejects retired random template records', () =>
     Effect.gen(function* () {
-      const legacyRecord = yield* Schema.decodeUnknownEffect(
-        TemplateGraphRecord,
-      )({
+      const error = yield* Schema.decodeUnknownEffect(TemplateGraphRecord)({
         addOns: [],
         categoryId: 'category-1',
         description: '<p>Legacy template</p>',
@@ -365,11 +360,9 @@ describe('platform event administration RPC schemas', () => {
         ],
         simpleModeEnabled: false,
         title: 'Legacy random template',
-      });
+      }).pipe(Effect.flip);
 
-      expect(legacyRecord.registrationOptions[0]?.registrationMode).toBe(
-        'random',
-      );
+      expect(error['_tag']).toBe('SchemaError');
     }),
   );
 

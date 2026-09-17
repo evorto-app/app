@@ -548,9 +548,9 @@ Selecting a setup first opens a confirmation. Choose **Keep current setup** if y
 
 Change the general event fields you need, such as **Event title** and **Description**. Sign-up setup is saved with the same form. In this example, the attendee choice receives a clearer name, **Number of places** is set to **37**, and **How sign-ups are confirmed** is set to **Manual approval**.
 
-Select **Save changes** once and read any message before submitting again. Your entries remain in the editor. For a specific validation problem, correct the named field before trying again. If the save outcome could not be confirmed, load the page again and check the current event details before trying again.
+Select **Save changes** once. A successful save returns to the event details page. If the save is refused, read the reason and correct any form entries before trying again. If Evorto cannot confirm whether the event was saved, load the page again and check the event before trying again. If Evorto confirms the event was saved but cannot load or open its latest details, open it from **Events**; do not save again just to open the page. Changes are not saved just because they appear in the form.
 
-If the event was saved but its latest details could not be loaded, load the page again to see the saved event. If the event was saved but its page could not be opened, open it from the event list. Do not repeat a confirmed save because the page did not load.
+Your entries remain in the editor. For a specific validation problem, correct the named field before trying again.
 `,
     });
 
@@ -560,6 +560,26 @@ If the event was saved but its latest details could not be loaded, load the page
     await expect(page).toHaveURL(`/events/${editableEventId}`, {
       timeout: 20_000,
     });
+    await expect(
+      page.getByRole('heading', {
+        exact: true,
+        level: 1,
+        name: savedEditableTitle,
+      }),
+    ).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText(savedEditableDescription)).toBeVisible();
+    await expect(
+      page.locator('app-event-registration-option').getByRole('heading', {
+        exact: true,
+        name: savedParticipantOptionTitle,
+      }),
+    ).toBeVisible();
+    await expect(
+      page.locator('app-event-registration-option').getByRole('heading', {
+        exact: true,
+        name: initialParticipantOptionTitle,
+      }),
+    ).toHaveCount(0);
     await page.reload();
     await expect(
       page.getByRole('heading', {

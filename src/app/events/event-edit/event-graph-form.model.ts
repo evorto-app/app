@@ -1,4 +1,4 @@
-import type { WritableRegistrationMode } from '@shared/registration-modes';
+import type { RegistrationMode } from '@shared/registration-modes';
 import type {
   EventGraphAddonInput,
   EventGraphEditRecord,
@@ -78,7 +78,7 @@ export interface EventGraphRegistrationOptionFormModel {
   price: number;
   refundFeesOnCancellation: boolean | null;
   registeredDescription: string;
-  registrationMode: WritableRegistrationMode;
+  registrationMode: RegistrationMode;
   roleIds: string[];
   spots: number;
   stripeTaxRateId: null | string;
@@ -98,9 +98,6 @@ export interface EventGraphUpdatePayload {
   start: string;
   title: string;
 }
-
-export const legacyRandomEventEditMessage =
-  'Random allocation is unavailable. An authorized event editor must choose First come, first served or Manual approval before anyone can edit this registration setup.';
 
 const createGraphKey = (): string => globalThis.crypto.randomUUID();
 
@@ -140,22 +137,10 @@ export const advancedEventGraphWarnings = (
   return warnings;
 };
 
-const writableRegistrationOption = (
-  option: EventGraphEditRecord['registrationOptions'][number],
-): option is EventGraphEditRecord['registrationOptions'][number] & {
-  registrationMode: WritableRegistrationMode;
-} =>
-  option.registrationMode === 'application' ||
-  option.registrationMode === 'fcfs';
-
 export const eventGraphRecordToFormModel = (
   event: EventGraphEditRecord,
   timezone: SupportedTenantTimezone,
 ): EventGraphFormLoadResult => {
-  if (!event.registrationOptions.every(writableRegistrationOption)) {
-    return { error: legacyRandomEventEditMessage };
-  }
-
   const optionIds = new Set(
     event.registrationOptions.map((option) => option.id),
   );

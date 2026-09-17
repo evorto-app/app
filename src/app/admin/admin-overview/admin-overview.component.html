@@ -74,12 +74,16 @@
       >
         <div class="flex flex-row items-center gap-4">
           <fa-duotone-icon [icon]="faCalendarCheck" size="xl" />
-          <h2 class="title-medium">Event Reviews</h2>
+          <h2 class="title-medium">Event reviews</h2>
           @if (pendingReviewsCount() > 0) {
             <span
               class="bg-warning text-on-warning ml-auto rounded-full px-2 py-1 text-xs"
             >
               {{ pendingReviewsCount() }}
+            </span>
+          } @else if (pendingReviewsQuery.isError()) {
+            <span class="text-error ml-auto text-xs" role="status">
+              Count unavailable
             </span>
           }
         </div>

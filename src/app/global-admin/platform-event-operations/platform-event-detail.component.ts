@@ -336,37 +336,15 @@ export const platformEventRegistrationWindowHasValidOrder = (
     true,
   );
 
-type PlatformEventRegistrationWindowField =
-  'closeRegistrationTime' | 'openRegistrationTime';
-
-export const unsupportedPlatformEventRegistrationOptions = <
-  Option extends Pick<PlatformEventRegistrationOption, 'registrationMode'>,
->(
-  options: readonly Option[],
-): readonly Option[] =>
-  options.filter((option) => option.registrationMode === 'random');
-
-export const writablePlatformEventRegistrationOptions = <
-  Option extends Pick<PlatformEventRegistrationOption, 'registrationMode'>,
->(
-  options: readonly Option[],
-):
-  | readonly (Option & { registrationMode: 'application' | 'fcfs' })[]
-  | undefined => {
-  const supported = options.filter(
-    (option): option is Option & { registrationMode: 'application' | 'fcfs' } =>
-      option.registrationMode === 'application' ||
-      option.registrationMode === 'fcfs',
-  );
-  return supported.length === options.length ? supported : undefined;
-};
-
 export interface PlatformEventRegistrationOptionEdit extends Omit<
   PlatformEventRegistrationOption,
   'roleIds'
 > {
   roleIds: string[];
 }
+
+type PlatformEventRegistrationWindowField =
+  'closeRegistrationTime' | 'openRegistrationTime';
 
 export const resetPlatformEventGraphPayments = <
   Model extends PlatformEventGraphEditModel,
@@ -670,11 +648,6 @@ export class PlatformEventDetailComponent {
       : '',
   );
   protected readonly titleIssue = platformEventTitleIssue;
-  protected readonly unsupportedRegistrationOptions = computed(() =>
-    unsupportedPlatformEventRegistrationOptions(
-      this.graphModel().registrationOptions,
-    ),
-  );
   protected readonly updateMutation = injectMutation(() =>
     this.operations.update(),
   );
@@ -954,8 +927,7 @@ export class PlatformEventDetailComponent {
       this.graphHasIssues() ||
       this.invalidRegistrationWindowFields().size > 0 ||
       this.hasInvalidRegistrationWindowOrder() ||
-      this.simpleModeIssue() !== null ||
-      this.unsupportedRegistrationOptions().length > 0
+      this.simpleModeIssue() !== null
     ) {
       return;
     }
@@ -978,10 +950,6 @@ export class PlatformEventDetailComponent {
       const graph = this.stripeDisconnected()
         ? resetPlatformEventGraphPayments(this.graphModel())
         : this.graphModel();
-      const registrationOptions = writablePlatformEventRegistrationOptions(
-        graph.registrationOptions,
-      );
-      if (!registrationOptions) return;
       this.graphSavePending.set(true);
       this.graphSaveMessage.set('');
       let changeConfirmed = false;
@@ -995,7 +963,7 @@ export class PlatformEventDetailComponent {
           location: current.location,
           questions: graph.questions,
           reason: value.reason,
-          registrationOptions,
+          registrationOptions: graph.registrationOptions,
           start,
           targetTenantId: this.tenantId(),
           title: value.title,

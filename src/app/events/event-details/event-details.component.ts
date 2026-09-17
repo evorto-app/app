@@ -32,6 +32,7 @@ import {
   injectQuery,
   QueryClient,
 } from '@tanstack/angular-query-experimental';
+import consola from 'consola/browser';
 import { convert } from 'html-to-text';
 import { firstValueFrom } from 'rxjs';
 
@@ -40,16 +41,24 @@ import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
 import { PermissionsService } from '../../core/permissions.service';
-import { TenantDatePipe } from '../../core/tenant-date.pipe';
+import {
+  TENANT_DATE_PIPE_TIMEZONE,
+  TenantDatePipe,
+} from '../../core/tenant-date.pipe';
 import { EventStatusComponent } from '../../shared/components/event-status/event-status.component';
 import { PriceWithTaxComponent } from '../../shared/components/inclusive-price-label/price-with-tax.component';
 import { IfAnyPermissionDirective } from '../../shared/directives/if-any-permission.directive';
 import { EventActiveRegistrationComponent } from '../event-active-registration/event-active-registration.component';
 import { EventRegistrationOptionComponent } from '../event-registration-option/event-registration-option.component';
-import { EventReviewDialogComponent } from '../event-review-dialog/event-review-dialog.component';
+import {
+  EventReviewDialogComponent,
+  type EventReviewDialogData,
+} from '../event-review-dialog/event-review-dialog.component';
 import { eventReviewActionErrorRequiresRefresh } from '../event-rpc-error';
 import { SubmitEventDialogComponent } from '../submit-event-dialog/submit-event-dialog.component';
 import { UpdateVisibilityDialogComponent } from '../update-visibility-dialog/update-visibility-dialog.component';
+
+const logger = consola.withTag('app/events/details');
 
 export type RegistrationOptionsState =
   'hiddenByEligibility' | 'none' | 'visible';
@@ -162,11 +171,11 @@ export const eventSubmitForReviewActionDisabled = ({
   !controlsInteractive || !canEdit || status !== 'DRAFT' || mutationPending;
 
 export const eventReviewErrorMessage = (error: unknown): string =>
-  getErrorMessage(error, 'The event review could not be saved. Try again.', [
-    'EventConflictError',
-    'EventNotFoundError',
-    'RpcBadRequestError',
-  ]);
+  getErrorMessage(
+    error,
+    'The outcome could not be confirmed. Load this event again to check its status before making another change.',
+    ['EventConflictError', 'EventNotFoundError', 'RpcBadRequestError'],
+  );
 
 export const eventCanEdit = ({
   canEditAll,
@@ -289,7 +298,8 @@ export class EventDetailsOperations {
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
-    '[attr.aria-busy]': '!controlsInteractive() || null',
+    '[attr.aria-busy]':
+      '!controlsInteractive() || reviewActionInProgress() || null',
   },
   imports: [
     CurrencyPipe,
@@ -403,7 +413,6 @@ export class EventDetailsComponent {
   protected readonly eventAddonPurchaseTiming = eventAddonPurchaseTiming;
   protected readonly eventAddonsForRegistrationOption =
     eventAddonsForRegistrationOption;
-
   protected readonly eventIconColor = computed(() => {
     const event = this.eventQuery.data();
     if (!event) {
@@ -412,9 +421,13 @@ export class EventDetailsComponent {
     return event.icon.iconColor;
   });
   protected readonly eventReviewActionDisabled = eventReviewActionDisabled;
+
   protected readonly eventSubmitForReviewActionDisabled =
     eventSubmitForReviewActionDisabled;
+  protected readonly eventTimezone = inject(TENANT_DATE_PIPE_TIMEZONE);
+
   protected readonly faArrowLeft = faArrowLeft;
+
   protected readonly faEllipsisVertical = faEllipsisVertical;
   protected readonly outgoingRegistrationTransferCopy =
     outgoingRegistrationTransferCopy;
@@ -431,6 +444,16 @@ export class EventDetailsComponent {
   protected readonly registrationStatusQuery = injectQuery(() =>
     this.operations.registrationStatus(this.eventId()),
   );
+  protected readonly reviewActionInProgress = signal(false);
+  private readonly reviewActionFeedback = signal<null | {
+    eventId: string;
+    message: string;
+    messageAfterDetailRead?: string | undefined;
+  }>(null);
+  protected readonly reviewActionMessage = computed(() => {
+    const feedback = this.reviewActionFeedback();
+    return feedback?.eventId === this.eventId() ? feedback.message : '';
+  });
   protected readonly reviewMutation = injectMutation(() =>
     this.operations.reviewEvent(),
   );
@@ -443,6 +466,10 @@ export class EventDetailsComponent {
   private dialog = inject(MatDialog);
   private notifications = inject(NotificationService);
   private queryClient = inject(QueryClient);
+  private readonly retainedReviewComment = signal<null | {
+    comment: string;
+    eventId: string;
+  }>(null);
 
   constructor() {
     afterNextRender(() => this.controlsInteractive.set(true));
@@ -476,7 +503,15 @@ export class EventDetailsComponent {
         },
         {
           onSuccess: async () => {
-            await this.refreshReviewState();
+            await this.queryClient.invalidateQueries({
+              queryKey: this.operations.eventQueryKey(this.eventId()),
+            });
+            await this.queryClient.invalidateQueries(
+              this.operations.eventListFilter(),
+            );
+            await this.queryClient.invalidateQueries(
+              this.operations.pendingReviewsFilter(),
+            );
           },
         },
       );
@@ -495,105 +530,234 @@ export class EventDetailsComponent {
       : undefined;
   }
 
+  protected async retryEventDetails(): Promise<void> {
+    const eventId = this.eventId();
+    const feedback = this.reviewActionFeedback();
+    const result = await this.eventQuery.refetch();
+    if (
+      !result.isSuccess ||
+      result.fetchStatus !== 'idle' ||
+      result.data.id !== eventId ||
+      this.eventId() !== eventId ||
+      !feedback?.messageAfterDetailRead ||
+      feedback.eventId !== eventId ||
+      this.reviewActionFeedback() !== feedback
+    ) {
+      return;
+    }
+    this.reviewActionFeedback.set({
+      eventId,
+      message: feedback.messageAfterDetailRead,
+    });
+  }
+
   protected async reviewEvent(approved: boolean): Promise<void> {
+    const eventId = this.eventId();
     const event = this.eventQuery.data();
     if (
       !event ||
+      event.id !== eventId ||
       eventReviewActionDisabled({
         canReview: this.canReview(),
         controlsInteractive: this.controlsInteractive(),
-        mutationPending: this.reviewMutation.isPending(),
+        mutationPending:
+          this.reviewActionInProgress() || this.reviewMutation.isPending(),
         status: event.status,
       })
     ) {
       return;
     }
 
+    this.reviewActionInProgress.set(true);
+    let actionStep: 'confirmation' | 'mutation' | 'refresh' = 'confirmation';
     try {
       if (approved) {
+        this.reviewActionFeedback.set(null);
+        actionStep = 'mutation';
         await this.reviewMutation.mutateAsync({
           approved,
-          eventId: this.eventId(),
+          eventId,
         });
-        await this.refreshReviewState();
-        const event = this.eventQuery.data();
-        if (event) {
-          this.notifications.showEventReviewed(approved, event.title);
-        }
       } else {
-        const dialogReference = this.dialog.open(EventReviewDialogComponent);
+        const retained = this.retainedReviewComment();
+        const dialogReference = this.dialog.open<
+          EventReviewDialogComponent,
+          EventReviewDialogData,
+          string
+        >(EventReviewDialogComponent, {
+          data: {
+            initialComment:
+              retained?.eventId === eventId ? retained.comment : '',
+          },
+        });
         const comment = await firstValueFrom(dialogReference.afterClosed());
-
-        if (comment) {
-          await this.reviewMutation.mutateAsync({
-            approved,
-            comment,
-            eventId: this.eventId(),
-          });
-          await this.refreshReviewState();
-          const event = this.eventQuery.data();
-          if (event) {
-            this.notifications.showEventReviewed(approved, event.title);
-          }
-        }
+        if (!comment || this.eventId() !== eventId) return;
+        this.retainedReviewComment.set({ comment, eventId });
+        this.reviewActionFeedback.set(null);
+        actionStep = 'mutation';
+        await this.reviewMutation.mutateAsync({
+          approved,
+          comment,
+          eventId,
+        });
+      }
+      actionStep = 'refresh';
+      await this.refreshReviewState(eventId);
+      if (this.eventId() !== eventId) return;
+      this.retainedReviewComment.set(null);
+      const updatedEvent = this.eventQuery.data();
+      if (this.eventId() === eventId && updatedEvent?.id === eventId) {
+        this.notifications.showEventReviewed(approved, updatedEvent.title);
       }
     } catch (error) {
-      await this.handleReviewActionError(error);
+      logger.error('Event review action failed', error);
+      if (actionStep === 'refresh') {
+        this.showReviewActionError(
+          eventId,
+          approved
+            ? 'The event was approved, but the latest event details could not be loaded. Load this event again before making another change.'
+            : 'The event was returned to draft, but the latest event details could not be loaded. Load this event again before making another change.',
+        );
+      } else if (actionStep === 'confirmation') {
+        this.showReviewActionError(
+          eventId,
+          'The action could not be confirmed. Try opening it again.',
+        );
+      } else {
+        await this.handleReviewActionError(error, eventId);
+      }
+    } finally {
+      this.reviewActionInProgress.set(false);
     }
   }
 
   protected async submitForReview(): Promise<void> {
+    const eventId = this.eventId();
     const event = this.eventQuery.data();
     if (
       !event ||
+      event.id !== eventId ||
       eventSubmitForReviewActionDisabled({
         canEdit: this.canEdit(),
         controlsInteractive: this.controlsInteractive(),
-        mutationPending: this.submitForReviewMutation.isPending(),
+        mutationPending:
+          this.reviewActionInProgress() ||
+          this.submitForReviewMutation.isPending(),
         status: event.status,
       })
     ) {
       return;
     }
 
+    this.reviewActionInProgress.set(true);
+    let actionStep: 'confirmation' | 'mutation' | 'refresh' = 'confirmation';
     try {
-      const dialogReference = this.dialog.open(SubmitEventDialogComponent);
+      const dialogReference = this.dialog.open<
+        SubmitEventDialogComponent,
+        undefined,
+        boolean
+      >(SubmitEventDialogComponent);
       const confirmed = await firstValueFrom(dialogReference.afterClosed());
-
-      if (confirmed) {
-        await this.submitForReviewMutation.mutateAsync({
-          eventId: this.eventId(),
-        });
-        await this.refreshReviewState();
-        const event = this.eventQuery.data();
-        if (event) {
-          this.notifications.showEventSubmitted(event.title);
-        }
+      if (!confirmed || this.eventId() !== eventId) return;
+      this.reviewActionFeedback.set(null);
+      actionStep = 'mutation';
+      await this.submitForReviewMutation.mutateAsync({
+        eventId,
+      });
+      actionStep = 'refresh';
+      await this.refreshReviewState(eventId);
+      const updatedEvent = this.eventQuery.data();
+      if (this.eventId() === eventId && updatedEvent?.id === eventId) {
+        this.notifications.showEventSubmitted(updatedEvent.title);
       }
     } catch (error) {
-      await this.handleReviewActionError(error);
+      logger.error('Event submission action failed', error);
+      if (actionStep === 'refresh') {
+        this.showReviewActionError(
+          eventId,
+          'The event was submitted for review, but the latest event details could not be loaded. Load this event again before making another change.',
+        );
+      } else if (actionStep === 'confirmation') {
+        this.showReviewActionError(
+          eventId,
+          'The action could not be confirmed. Try opening it again.',
+        );
+      } else {
+        await this.handleReviewActionError(error, eventId);
+      }
+    } finally {
+      this.reviewActionInProgress.set(false);
     }
   }
 
-  private async handleReviewActionError(error: unknown): Promise<void> {
+  private async handleReviewActionError(
+    error: unknown,
+    eventId: string,
+  ): Promise<void> {
     const message = eventReviewErrorMessage(error);
     if (eventReviewActionErrorRequiresRefresh(error)) {
-      this.notifications.showError(
-        'This event changed while you were working. We loaded the latest details. Review them and try again.',
-      );
-      await this.refreshReviewState();
+      try {
+        await this.refreshReviewState(eventId);
+        this.showReviewActionError(eventId, message);
+      } catch (refreshError) {
+        logger.error(
+          'Event read after review conflict failed',
+          new AggregateError(
+            [error, refreshError],
+            'Review conflict and follow-up read failed',
+            { cause: refreshError },
+          ),
+        );
+        this.showReviewActionError(
+          eventId,
+          message +
+            ' The latest event details could not be loaded. Load this event again before making another change.',
+          message,
+        );
+      }
       return;
     }
-    this.notifications.showError(message);
+    this.showReviewActionError(eventId, message);
   }
 
-  private async refreshReviewState(): Promise<void> {
-    await this.queryClient.invalidateQueries({
-      queryKey: this.operations.eventQueryKey(this.eventId()),
-    });
-    await this.queryClient.invalidateQueries(this.operations.eventListFilter());
-    await this.queryClient.invalidateQueries(
+  private async refreshReviewState(eventId: string): Promise<void> {
+    const filters = [
+      { queryKey: this.operations.eventQueryKey(eventId) },
+      this.operations.eventListFilter(),
       this.operations.pendingReviewsFilter(),
+    ];
+    // Broad invalidation uses fail-fast Promise.all internally. Own each matching
+    // query separately so one failed read cannot release another read's lock.
+    const reads = filters.flatMap((filter) =>
+      this.queryClient
+        .getQueryCache()
+        .findAll(filter)
+        .map(
+          (query) => () =>
+            this.queryClient.invalidateQueries(
+              { ...filter, exact: true, queryKey: query.queryKey },
+              { throwOnError: true },
+            ),
+        ),
     );
+    const results = await Promise.allSettled(reads.map(async (read) => read()));
+    const failures: unknown[] = results
+      .filter((result) => result.status === 'rejected')
+      .map((result) => result.reason);
+    if (failures.length > 0) {
+      throw new AggregateError(failures, 'Event follow-up reads failed', {
+        cause: failures[0],
+      });
+    }
+  }
+
+  private showReviewActionError(
+    eventId: string,
+    message: string,
+    messageAfterDetailRead?: string,
+  ): void {
+    if (this.eventId() !== eventId) return;
+    this.reviewActionFeedback.set({ eventId, message, messageAfterDetailRead });
+    this.notifications.showError(message);
   }
 }

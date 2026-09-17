@@ -1,7 +1,6 @@
 import { describe, expect, it } from '@effect/vitest';
 import { createDatabaseTestLayer } from '@server/testing/database-test-layer';
 import { createRegistrationDatabaseTestLayer } from '@server/testing/registration-database';
-import { RpcBadRequestError } from '@shared/errors/rpc-errors';
 import { MAX_EVENT_ADDON_TYPES } from '@shared/registration-quantity-limits';
 import { MAX_REGISTRATION_QUESTIONS } from '@shared/registration-question-limits';
 import {
@@ -1120,61 +1119,6 @@ describe('eventLifecycleHandlers', () => {
 
         expect(error['_tag']).toBe('RpcBadRequestError');
         expect(error).toMatchObject({ reason: 'esnDiscountExceedsPrice' });
-        expect(insert).not.toHaveBeenCalled();
-      }),
-  );
-
-  it.effect(
-    'events.create rejects a persisted random source option even when the payload changes it to fcfs',
-    () =>
-      Effect.gen(function* () {
-        const insert = vi.fn();
-        const findTemplateAddons = vi.fn(() => Effect.succeed([]));
-        const database = {
-          insert,
-          query: {
-            templateEventAddons: {
-              findMany: findTemplateAddons,
-            },
-            templateRegistrationOptions: {
-              findMany: vi.fn(() =>
-                Effect.succeed([
-                  {
-                    id: 'template-option-1',
-                    registrationMode: 'random' as const,
-                  },
-                ]),
-              ),
-            },
-          },
-        };
-        const layer = Layer.mergeAll(
-          requestContextLayer,
-          Layer.succeed(Database, withTransaction(database) as never),
-        );
-
-        const error = yield* eventLifecycleHandlers['events.create'](
-          {
-            ...createInput,
-            registrationOptions: [
-              {
-                ...createInput.registrationOptions[0],
-                registrationMode: 'fcfs',
-                sourceTemplateRegistrationOptionId: 'template-option-1',
-              },
-            ],
-          },
-          { headers: {} } as never,
-        ).pipe(Effect.flip, Effect.provide(layer));
-
-        expect(error).toBeInstanceOf(RpcBadRequestError);
-        expect(error).toMatchObject({
-          _tag: 'RpcBadRequestError',
-          message:
-            'Random allocation is unavailable. An authorized template editor must choose First come, first served or Manual approval before anyone can create an event from this template.',
-          reason: 'unsupportedTemplateRegistrationMode',
-        });
-        expect(findTemplateAddons).not.toHaveBeenCalled();
         expect(insert).not.toHaveBeenCalled();
       }),
   );

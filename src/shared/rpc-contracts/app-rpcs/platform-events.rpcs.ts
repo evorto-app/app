@@ -28,7 +28,7 @@ import {
 import {
   TemplateGraphInput,
   TemplateGraphRecord,
-  TemplateWritableRegistrationMode,
+  TemplateRegistrationMode,
 } from './templates.rpcs';
 
 const nonNegativeInteger = nonNegativeNumber.check(Schema.isInt());
@@ -71,17 +71,12 @@ export const PlatformEventRegistrationOptionRecord = Schema.Struct({
   price: nonNegativeInteger,
   refundFeesOnCancellation: Schema.NullOr(Schema.Boolean),
   registeredDescription: Schema.NullOr(Schema.String),
-  registrationMode: Schema.Literals(['application', 'fcfs', 'random']),
+  registrationMode: TemplateRegistrationMode,
   roleIds: Schema.Array(Schema.NonEmptyString),
   spots: nonNegativeInteger,
   stripeTaxRateId: Schema.NullOr(Schema.NonEmptyString),
   title: Schema.NonEmptyString,
   transferDeadlineHoursBeforeStart: Schema.NullOr(nonNegativeInteger),
-});
-
-export const PlatformEventWritableRegistrationOptionInput = Schema.Struct({
-  ...PlatformEventRegistrationOptionRecord.fields,
-  registrationMode: TemplateWritableRegistrationMode,
 });
 
 export const PlatformEventAddonRegistrationOptionRecord = Schema.Struct({
@@ -254,9 +249,7 @@ export const PlatformEventsUpdateInput = Schema.Struct({
       id: Schema.optional(Schema.NonEmptyString),
     }),
   ).check(Schema.isMaxLength(MAX_REGISTRATION_QUESTIONS)),
-  registrationOptions: Schema.Array(
-    PlatformEventWritableRegistrationOptionInput,
-  ),
+  registrationOptions: Schema.Array(PlatformEventRegistrationOptionRecord),
   start: Schema.NonEmptyString,
   title: Schema.NonEmptyString,
 });
@@ -438,7 +431,7 @@ export const PlatformRegistrationDetailRecord = Schema.Struct({
   guestCount: nonNegativeInteger,
   manualApprovalAvailable: Schema.Boolean,
   paymentPending: Schema.Boolean,
-  registrationMode: Schema.Literals(['application', 'fcfs', 'random']),
+  registrationMode: TemplateRegistrationMode,
   registrationStatusIssue: Schema.Boolean,
   remainingGuestCount: nonNegativeInteger,
 });
