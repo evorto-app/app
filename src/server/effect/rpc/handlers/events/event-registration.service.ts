@@ -23,6 +23,7 @@ import {
   type RegistrationCheckoutLineItemSnapshot,
   type RegistrationCheckoutSnapshot,
   RegistrationCheckoutSnapshotSchema,
+  tenants,
   tenantStripeTaxRates,
   transactions,
   userDiscountCards,
@@ -986,7 +987,22 @@ const registrationSnapshotChanged = () =>
       'Sign-up details changed while this request was being processed. Nothing was saved. Review the current details and try again.',
   });
 
-/** The caller must hold the tenant and event locks before checking its snapshot. */
+const lockRegistrationDiscountTenant = Effect.fn(
+  'EventRegistration.lockDiscountTenant',
+)(function* (database: Pick<DatabaseClient, 'select'>, tenantId: string) {
+  const rows = yield* database
+    .select({ id: tenants.id })
+    .from(tenants)
+    .where(eq(tenants.id, tenantId))
+    .for('update')
+    .pipe(Effect.orDie);
+  if (rows.length !== 1) return yield* registrationSnapshotChanged();
+});
+
+/**
+ * Callers hold tenant and event locks. Discount evaluation requires tenant
+ * UPDATE before event/question/member locks, including a fully discounted price.
+ */
 export const ensureCurrentRegistrationSnapshot = Effect.fn(
   'EventRegistration.ensureCurrentRegistrationSnapshot',
 )(function* (
@@ -1005,6 +1021,10 @@ export const ensureCurrentRegistrationSnapshot = Effect.fn(
       typeof eventRegistrationOptions.$inferSelect,
       'isPaid' | 'price' | 'stripeTaxRateId'
     > & {
+      readonly discountEligibility?: {
+        readonly resolution: DiscountResolution;
+        readonly userId: string;
+      };
       readonly discounts?: RegistrationDiscountTerms;
       readonly eventStart: Date;
     };
@@ -1124,31 +1144,84 @@ export const ensureCurrentRegistrationSnapshot = Effect.fn(
   ) {
     return yield* registrationSnapshotChanged();
   }
-  if (pricing.discounts) {
+  if (pricing.discounts || pricing.discountEligibility) {
     const discounts = yield* database.query.eventRegistrationOptionDiscounts
       .findMany({
         columns: { discountedPrice: true, discountType: true },
         where: { registrationOptionId: input.registrationOptionId },
       })
       .pipe(Effect.orDie);
-    const compareDiscounts = (
-      left: RegistrationDiscountTerms[number],
-      right: RegistrationDiscountTerms[number],
-    ) =>
-      left.discountType.localeCompare(right.discountType) ||
-      left.discountedPrice - right.discountedPrice;
-    const currentDiscounts = discounts.toSorted(compareDiscounts);
-    const expectedDiscounts = pricing.discounts.toSorted(compareDiscounts);
-    if (
-      currentDiscounts.length !== expectedDiscounts.length ||
-      currentDiscounts.some(
-        (discount, index) =>
-          expectedDiscounts[index]?.discountType !== discount.discountType ||
-          expectedDiscounts[index]?.discountedPrice !==
-            discount.discountedPrice,
+    if (pricing.discounts) {
+      const compareDiscounts = (
+        left: RegistrationDiscountTerms[number],
+        right: RegistrationDiscountTerms[number],
+      ) =>
+        left.discountType.localeCompare(right.discountType) ||
+        left.discountedPrice - right.discountedPrice;
+      const currentDiscounts = discounts.toSorted(compareDiscounts);
+      const expectedDiscounts = pricing.discounts.toSorted(compareDiscounts);
+      if (
+        currentDiscounts.length !== expectedDiscounts.length ||
+        currentDiscounts.some(
+          (discount, index) =>
+            expectedDiscounts[index]?.discountType !== discount.discountType ||
+            expectedDiscounts[index]?.discountedPrice !==
+              discount.discountedPrice,
+        )
+      ) {
+        return yield* registrationSnapshotChanged();
+      }
+    }
+    if (pricing.discountEligibility) {
+      const tenant = yield* database.query.tenants
+        .findFirst({
+          columns: { discountProviders: true },
+          where: { id: input.tenantId },
+        })
+        .pipe(Effect.orDie);
+      if (!tenant) return yield* registrationSnapshotChanged();
+      // Lock every status: filtering in SQL would miss a concurrent transition
+      // from unverified to verified. Tenant UPDATE also serializes new inserts.
+      const cards = yield* database
+        .select({
+          status: userDiscountCards.status,
+          type: userDiscountCards.type,
+          validFrom: userDiscountCards.validFrom,
+          validTo: userDiscountCards.validTo,
+        })
+        .from(userDiscountCards)
+        .where(
+          and(
+            eq(userDiscountCards.tenantId, input.tenantId),
+            eq(userDiscountCards.userId, pricing.discountEligibility.userId),
+          ),
+        )
+        .orderBy(userDiscountCards.id)
+        .for('share')
+        .pipe(Effect.orDie);
+      const providerConfig = resolveTenantDiscountProviders(
+        tenant.discountProviders,
+      );
+      const enabledTypes = new Set(
+        Object.entries(providerConfig)
+          .filter(([, provider]) => provider?.status === 'enabled')
+          .map(([key]) => key),
+      );
+      const resolution = resolveDiscount({
+        basePrice: current.isPaid ? current.price : 0,
+        cards: cards.filter((card) => card.status === 'verified'),
+        discounts,
+        enabledTypes,
+        eventStart: current.event.start,
+      });
+      const expected = pricing.discountEligibility.resolution;
+      if (
+        resolution.appliedDiscountedPrice !== expected.appliedDiscountedPrice ||
+        resolution.appliedDiscountType !== expected.appliedDiscountType ||
+        resolution.discountAmount !== expected.discountAmount ||
+        resolution.effectivePrice !== expected.effectivePrice
       )
-    ) {
-      return yield* registrationSnapshotChanged();
+        return yield* registrationSnapshotChanged();
     }
   }
   return current;
@@ -1860,6 +1933,9 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                   );
                 const mustLockStripeAccount =
                   requiresCheckout || hasTaxConfiguration;
+                if (!mustLockStripeAccount) {
+                  yield* lockRegistrationDiscountTenant(tx, tenant.id);
+                }
                 const lockedStripeAccount = mustLockStripeAccount
                   ? yield* lockTenantStripeAccount(tx, tenant.id)
                   : undefined;
@@ -1888,6 +1964,10 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                 yield* ensureCurrentRegistrationSnapshot(tx, {
                   eventId,
                   pricing: {
+                    discountEligibility: {
+                      resolution: discountResolution,
+                      userId: registration.userId,
+                    },
                     eventStart: registration.event.start,
                     isPaid: registrationOption.isPaid,
                     price: registrationOption.price,
@@ -3139,7 +3219,9 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
         let discountResolution: DiscountResolution =
           noDiscountResolution(basePrice);
         let discountTerms: RegistrationDiscountTerms | undefined;
-        if (!manualApproval && registrationOption.isPaid && basePrice > 0) {
+        const evaluatesDiscounts =
+          !manualApproval && registrationOption.isPaid && basePrice > 0;
+        if (evaluatesDiscounts) {
           const cards = yield* databaseEffect((database) =>
             database.query.userDiscountCards.findMany({
               columns: {
@@ -3296,6 +3378,9 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                   );
                 const mustLockStripeAccount =
                   directCheckout !== undefined || hasTaxConfiguration;
+                if (evaluatesDiscounts && !mustLockStripeAccount) {
+                  yield* lockRegistrationDiscountTenant(tx, tenant.id);
+                }
                 const lockedStripeAccount = mustLockStripeAccount
                   ? yield* lockTenantStripeAccount(tx, tenant.id)
                   : undefined;
@@ -3337,6 +3422,12 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                   },
                   eventId,
                   pricing: {
+                    ...(evaluatesDiscounts && {
+                      discountEligibility: {
+                        resolution: discountResolution,
+                        userId: user.id,
+                      },
+                    }),
                     eventStart: registrationOption.event.start,
                     isPaid: registrationOption.isPaid,
                     price: registrationOption.price,

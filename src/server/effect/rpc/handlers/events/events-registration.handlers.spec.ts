@@ -3553,8 +3553,29 @@ const createTrustedUrlDatabaseFixture = () => {
           return [];
         }
         if (statement.includes(' from "user_discount_cards"')) {
-          expect(parameters).toEqual(['verified', 'tenant-1', 'attendee-1']);
+          if (transactionOpen) {
+            expect(parameters).toEqual(['tenant-1', 'attendee-1']);
+            expect(statement).toContain(
+              'order by "user_discount_cards"."id" for share',
+            );
+            expect(statement).not.toContain('"status" =');
+          } else {
+            expect(parameters).toEqual(['verified', 'tenant-1', 'attendee-1']);
+          }
           return [];
+        }
+        if (statement.includes(' from "event_registration_option_discounts"')) {
+          expect(transactionOpen).toBe(true);
+          expect(parameters).toEqual(['option-1']);
+          return [];
+        }
+        if (
+          statement.includes(' from "tenants"') &&
+          statement.includes('"discountProviders"')
+        ) {
+          expect(transactionOpen).toBe(true);
+          expect(parameters).toEqual(['tenant-1', 1]);
+          return [[{ esnCard: { config: {}, status: 'disabled' } }]];
         }
         if (
           statement.includes(` from "${getTableName(tenantStripeTaxRates)}"`)

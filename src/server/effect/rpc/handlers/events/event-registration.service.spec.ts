@@ -34,6 +34,7 @@ import {
   tenants,
   tenantStripeTaxRates,
   transactions,
+  userDiscountCards,
   usersToTenants,
 } from '../../../../../db/schema';
 import { StripeClient } from '../../../../stripe-client';
@@ -215,7 +216,8 @@ const readQuestionSetLockFixture = ({
       expect(parameters).toEqual(['event-1', 'option-1']);
       return questions.map((question) => [question.id, question.required]);
     }
-    case questionSetLockSql.tenant: {
+    case questionSetLockSql.tenant:
+    case 'select "id" from "tenants" where "tenants"."id" = $1 for update': {
       expect(transactionOpen).toBe(true);
       expect(parameters).toEqual(['tenant-1']);
       return [['tenant-1']];
@@ -328,6 +330,41 @@ const readRegistrationSnapshotAddonsFixture = ({
     addOn.price,
     addOn.stripeTaxRateId,
   ]);
+};
+
+type RegistrationDiscountCard = Pick<
+  typeof userDiscountCards.$inferSelect,
+  'status' | 'type' | 'validFrom' | 'validTo'
+>;
+const registrationDiscountProvidersSql =
+  'select "d0"."discount_providers" as "discountProviders" from "tenants" as "d0" where "d0"."id" = $1 limit $2';
+const registrationDiscountRowsSql =
+  'select "d0"."discountedPrice" as "discountedPrice", "d0"."discountType" as "discountType" from "event_registration_option_discounts" as "d0" where "d0"."registrationOptionId" = $1';
+const registrationDiscountCardsSql =
+  'select "status", "type", "validFrom"::text, "validTo"::text from "user_discount_cards" where (("user_discount_cards"."tenantId" = $1) and ("user_discount_cards"."userId" = $2)) order by "user_discount_cards"."id" for share';
+const readLockedNoDiscountFixture = ({
+  parameters,
+  statement,
+  transactionOpen,
+}: {
+  parameters: readonly unknown[];
+  statement: string;
+  transactionOpen: boolean;
+}) => {
+  if (!transactionOpen) return;
+  if (statement === registrationDiscountProvidersSql) {
+    expect(parameters).toEqual(['tenant-1', 1]);
+    return [[{ esnCard: { config: {}, status: 'disabled' } }]];
+  }
+  if (statement === registrationDiscountCardsSql) {
+    expect(parameters).toEqual(['tenant-1', 'user-1']);
+    return [];
+  }
+  if (statement === registrationDiscountRowsSql) {
+    expect(parameters).toEqual(['option-1']);
+    return [];
+  }
+  return;
 };
 
 const approvedRegistrationOption = {
@@ -542,6 +579,12 @@ const createManualApprovalDatabase = ({
             transactionOpen,
           });
           if (snapshotRows) return snapshotRows;
+          const discountRows = readLockedNoDiscountFixture({
+            parameters,
+            statement,
+            transactionOpen,
+          });
+          if (discountRows) return discountRows;
           if (
             statement.includes(` from "${getTableName(eventRegistrations)}"`) &&
             statement.includes('row_to_json')
@@ -1473,6 +1516,12 @@ const createDirectCheckoutDatabase = ({
         transactionOpen: transactionSnapshot !== undefined,
       });
       if (addonRows) return addonRows;
+      const discountRows = readLockedNoDiscountFixture({
+        parameters,
+        statement,
+        transactionOpen: transactionSnapshot !== undefined,
+      });
+      if (discountRows) return discountRows;
       if (
         statement.startsWith(
           `insert into "${getTableName(eventRegistrations)}"`,
@@ -3727,19 +3776,25 @@ describe('EventRegistrationService', () => {
     };
     const createSnapshotDatabase = ({
       addOns = [],
+      cards = [],
       discounts = pricing.discounts,
       option = currentOption,
+      providerEnabled = true,
     }: {
       addOns?: readonly RegistrationSnapshotAddon[];
+      cards?: readonly RegistrationDiscountCard[];
       discounts?: readonly Pick<
         typeof eventRegistrationOptionDiscounts.$inferSelect,
         'discountedPrice' | 'discountType'
       >[];
       option?: null | RegistrationSnapshotOption;
+      providerEnabled?: boolean;
     } = {}) =>
       Effect.gen(function* () {
         let transactionOpen = false;
-        const reads: ('addons' | 'discounts' | 'option')[] = [];
+        const reads: (
+          'addons' | 'cards' | 'discounts' | 'option' | 'providers'
+        )[] = [];
         const transactionCommands: ('BEGIN' | 'COMMIT' | 'ROLLBACK')[] = [];
         const context = yield* Layer.build(
           createRegistrationDatabaseTestLayer({
@@ -3787,6 +3842,34 @@ describe('EventRegistrationService', () => {
                     discount.discountType,
                   ]);
                 }
+                if (statement === registrationDiscountProvidersSql) {
+                  expect(transactionOpen).toBe(true);
+                  expect(reads.at(-1)).toBe('discounts');
+                  expect(parameters).toEqual(['tenant-1', 1]);
+                  reads.push('providers');
+                  return [
+                    [
+                      {
+                        esnCard: {
+                          config: {},
+                          status: providerEnabled ? 'enabled' : 'disabled',
+                        },
+                      },
+                    ],
+                  ];
+                }
+                if (statement === registrationDiscountCardsSql) {
+                  expect(transactionOpen).toBe(true);
+                  expect(reads.at(-1)).toBe('providers');
+                  expect(parameters).toEqual(['tenant-1', 'user-1']);
+                  reads.push('cards');
+                  return cards.map((card) => [
+                    card.status,
+                    card.type,
+                    card.validFrom?.toISOString().replace('Z', '') ?? null,
+                    card.validTo?.toISOString().replace('Z', '') ?? null,
+                  ]);
+                }
                 throw new Error(
                   `Unexpected registration snapshot fixture SQL: ${statement}`,
                 );
@@ -3805,6 +3888,235 @@ describe('EventRegistrationService', () => {
           transactionCommands,
         };
       });
+
+    const discountedResolution = {
+      appliedDiscountedPrice: 500,
+      appliedDiscountType: 'esnCard',
+      discountAmount: 500,
+      effectivePrice: 500,
+    } satisfies NonNullable<
+      NonNullable<
+        Parameters<typeof ensureCurrentRegistrationSnapshot>[1]['pricing']
+      >['discountEligibility']
+    >['resolution'];
+    const undiscountedResolution = {
+      appliedDiscountedPrice: null,
+      appliedDiscountType: null,
+      discountAmount: null,
+      effectivePrice: 1000,
+    };
+    const verifiedCard: RegistrationDiscountCard = {
+      status: 'verified',
+      type: 'esnCard',
+      validFrom: new Date('2026-01-01T00:00:00.000Z'),
+      validTo: new Date('2026-12-31T00:00:00.000Z'),
+    };
+    const eligibilityChanges: readonly {
+      cards: readonly RegistrationDiscountCard[];
+      name: string;
+      previouslyUndiscounted?: boolean;
+      providerEnabled?: boolean;
+    }[] = [
+      { cards: [], name: 'removed verified card' },
+      {
+        cards: [
+          {
+            ...verifiedCard,
+            status: 'invalid',
+            validFrom: null,
+            validTo: null,
+          },
+        ],
+        name: 'invalidated card',
+      },
+      {
+        cards: [{ ...verifiedCard, status: 'expired' }],
+        name: 'expired provider status',
+      },
+      {
+        cards: [
+          {
+            ...verifiedCard,
+            status: 'unverified',
+            validFrom: null,
+            validTo: null,
+          },
+        ],
+        name: 'unverified provider status',
+      },
+      {
+        cards: [
+          { ...verifiedCard, validFrom: new Date('2026-09-19T10:00:00.000Z') },
+        ],
+        name: 'validity begins after event',
+      },
+      {
+        cards: [{ ...verifiedCard, validTo: pricing.eventStart }],
+        name: 'validity ends at event',
+      },
+      {
+        cards: [verifiedCard],
+        name: 'disabled provider',
+        providerEnabled: false,
+      },
+      {
+        cards: [verifiedCard],
+        name: 'first eligible card with no captured discount rows',
+        previouslyUndiscounted: true,
+      },
+    ];
+    for (const scenario of eligibilityChanges) {
+      it.effect(
+        `rejects ${scenario.name} before recording stale discount terms`,
+        () =>
+          Effect.gen(function* () {
+            const fixture = yield* createSnapshotDatabase(scenario);
+            const capturedPricing = scenario.previouslyUndiscounted
+              ? {
+                  eventStart: pricing.eventStart,
+                  isPaid: pricing.isPaid,
+                  price: pricing.price,
+                  stripeTaxRateId: pricing.stripeTaxRateId,
+                }
+              : pricing;
+            const error = yield* fixture.database
+              .transaction((tx) =>
+                ensureCurrentRegistrationSnapshot(tx, {
+                  ...input,
+                  pricing: {
+                    ...capturedPricing,
+                    discountEligibility: {
+                      resolution: scenario.previouslyUndiscounted
+                        ? undiscountedResolution
+                        : discountedResolution,
+                      userId: 'user-1',
+                    },
+                  },
+                }),
+              )
+              .pipe(Effect.flip);
+            expect(error).toBeInstanceOf(EventRegistrationConflictError);
+            expect(error.message).toBe(
+              'Sign-up details changed while this request was being processed. Nothing was saved. Review the current details and try again.',
+            );
+            expect(fixture.reads).toEqual([
+              'option',
+              'discounts',
+              'providers',
+              'cards',
+            ]);
+            expect(fixture.transactionCommands).toEqual(['BEGIN', 'ROLLBACK']);
+          }),
+      );
+    }
+
+    it.effect(
+      'accepts a refreshed validity window that preserves the economic resolution',
+      () =>
+        Effect.gen(function* () {
+          const fixture = yield* createSnapshotDatabase({
+            cards: [
+              {
+                ...verifiedCard,
+                validFrom: new Date('2026-09-01T00:00:00.000Z'),
+                validTo: new Date('2026-10-01T00:00:00.000Z'),
+              },
+            ],
+          });
+          yield* fixture.database.transaction((tx) =>
+            ensureCurrentRegistrationSnapshot(tx, {
+              ...input,
+              pricing: {
+                ...pricing,
+                discountEligibility: {
+                  resolution: discountedResolution,
+                  userId: 'user-1',
+                },
+              },
+            }),
+          );
+          expect(fixture.reads).toEqual([
+            'option',
+            'discounts',
+            'providers',
+            'cards',
+          ]);
+          expect(fixture.transactionCommands).toEqual(['BEGIN', 'COMMIT']);
+        }),
+    );
+    it.effect(
+      'locks unverified cards with no validity window without treating them as eligible',
+      () =>
+        Effect.gen(function* () {
+          const fixture = yield* createSnapshotDatabase({
+            cards: [
+              {
+                ...verifiedCard,
+                status: 'unverified',
+                validFrom: null,
+                validTo: null,
+              },
+            ],
+          });
+          yield* fixture.database.transaction((tx) =>
+            ensureCurrentRegistrationSnapshot(tx, {
+              ...input,
+              pricing: {
+                ...pricing,
+                discountEligibility: {
+                  resolution: undiscountedResolution,
+                  userId: 'user-1',
+                },
+              },
+            }),
+          );
+          expect(fixture.reads).toEqual([
+            'option',
+            'discounts',
+            'providers',
+            'cards',
+          ]);
+          expect(fixture.transactionCommands).toEqual(['BEGIN', 'COMMIT']);
+        }),
+    );
+    it.effect(
+      'rechecks eligibility even when the captured discount makes the price zero',
+      () =>
+        Effect.gen(function* () {
+          const discounts = [
+            { discountedPrice: 0, discountType: 'esnCard' },
+          ] satisfies typeof pricing.discounts;
+          const fixture = yield* createSnapshotDatabase({
+            cards: [verifiedCard],
+            discounts,
+          });
+          yield* fixture.database.transaction((tx) =>
+            ensureCurrentRegistrationSnapshot(tx, {
+              ...input,
+              pricing: {
+                ...pricing,
+                discountEligibility: {
+                  resolution: {
+                    appliedDiscountedPrice: 0,
+                    appliedDiscountType: 'esnCard',
+                    discountAmount: 1000,
+                    effectivePrice: 0,
+                  },
+                  userId: 'user-1',
+                },
+                discounts,
+              },
+            }),
+          );
+          expect(fixture.reads).toEqual([
+            'option',
+            'discounts',
+            'providers',
+            'cards',
+          ]);
+          expect(fixture.transactionCommands).toEqual(['BEGIN', 'COMMIT']);
+        }),
+    );
 
     it.effect(
       'accepts unchanged admission and pricing from the current graph',
