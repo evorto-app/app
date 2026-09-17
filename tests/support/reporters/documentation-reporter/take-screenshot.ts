@@ -20,17 +20,39 @@ const settleScreenshotPage = async (page: Page): Promise<void> => {
 
 const assertNoVisibleLoadingState = async (page: Page): Promise<void> => {
   const visibleLoadingCopy = page
-    .getByText(/^Loading(?:\s+.*?)?(?:…|\.{3})$/u)
+    .getByText(/^\s*Loading(?:\s+.*?)?(?:…|\.{3})\s*$/su)
+    .or(
+      page.getByRole('status').filter({
+        hasText: /(?:^\s*|[.!?]\s+)Loading(?:\s|…|\.{3})/u,
+      }),
+    )
+    .filter({ visible: true });
+  const visibleLoadingIndicators = page
+    .locator(
+      'mat-spinner, mat-progress-spinner[mode="indeterminate"], mat-progress-bar[mode="indeterminate"], progress:not([value]), [role="progressbar"]:not([aria-valuenow]), [role="progressbar"][aria-label^="Loading" i]',
+    )
     .filter({ visible: true });
   try {
-    await expect(visibleLoadingCopy).toHaveCount(0);
+    await expect(visibleLoadingCopy.or(visibleLoadingIndicators)).toHaveCount(
+      0,
+    );
   } catch (cause) {
     const messages = await visibleLoadingCopy.allTextContents();
-    if (messages.length === 0) throw cause;
-    throw new Error(
-      `Documentation screenshot still contains loading copy: ${messages.join(', ')}`,
-      { cause },
-    );
+    if (messages.length > 0) {
+      throw new Error(
+        `Documentation screenshot still contains loading copy: ${messages.join(', ')}`,
+        { cause },
+      );
+    }
+    if ((await visibleLoadingIndicators.count()) > 0) {
+      throw new Error(
+        'Documentation screenshot still contains a loading indicator',
+        {
+          cause,
+        },
+      );
+    }
+    throw cause;
   }
 };
 

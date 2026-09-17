@@ -796,7 +796,7 @@ Receipt history has its own warning and **Try again** action. A receipt-loading 
     page.getByTestId('event-organize-registered-stat'),
   ).toBeVisible();
   await expect(receiptLoadAlert).toContainText(
-    'No receipts are shown. Select Try again.',
+    'The current receipt list could not be confirmed. Receipts may already exist. Select Try again before adding another receipt.',
   );
   const verifiedNoReceipts = page.getByText(
     'No receipts submitted for this event yet.',

@@ -219,6 +219,69 @@ test('documentation screenshots reject visible loading copy', async ({
   );
 });
 
+for (const loadingState of [
+  {
+    name: 'formatted plain loading copy',
+    html: '<h2>\n  Loading\n roles…\n</h2>',
+  },
+  {
+    name: 'compound discount settings copy',
+    html: '<p role="status">\n  Loading discount settings. Saving is available when they finish loading.\n</p>',
+  },
+  {
+    name: 'compound selected roles copy',
+    html: '<p role="status">Loading organization roles. Selected roles can still be removed.</p>',
+  },
+  {
+    name: 'saved result followed by a loading sentence',
+    html: '<p role="status">Review saved. Loading the latest receipt lists…</p>',
+  },
+  {
+    name: 'accessible transfer spinner',
+    html: '<mat-spinner role="progressbar" aria-label="Loading transfer" style="display:block;width:40px;height:40px"></mat-spinner>',
+  },
+  {
+    name: 'unlabelled indeterminate progress bar',
+    html: '<div role="progressbar" style="width:100px;height:4px"></div>',
+  },
+  {
+    name: 'indeterminate location progress bar',
+    html: '<mat-progress-bar mode="indeterminate" aria-label="Loading location" style="display:block;width:100px;height:4px"></mat-progress-bar>',
+  },
+  {
+    name: 'native indeterminate progress',
+    html: '<progress aria-label="Loading file"></progress>',
+  },
+]) {
+  test(`documentation screenshots reject ${loadingState.name}`, async ({
+    page,
+  }) => {
+    await page.setContent(`<main>${loadingState.html}</main>`);
+    await expect(captureDocumentationScreenshot(page)).rejects.toThrow(
+      'Documentation screenshot still contains',
+    );
+  });
+}
+
+test('documentation screenshots ignore hidden loading states and ordinary settled content', async ({
+  page,
+}) => {
+  await page.setContent(`
+    <main>
+      <p>The word Loading appears in the instructions.</p>
+      <h2>Loading dock access.</h2>
+      <p role="status">Roles loaded. Ready to edit.</p>
+      <div role="progressbar" aria-label="Profile completeness" aria-valuenow="40" aria-valuemin="0" aria-valuemax="100" style="width:100px;height:20px">40%</div>
+      <p hidden>Loading organization roles. Selected roles can still be removed.</p>
+      <div style="display:none"><mat-spinner role="progressbar" aria-label="Loading transfer" style="display:block;width:40px;height:40px"></mat-spinner></div>
+      <div role="progressbar" style="visibility:hidden;width:100px;height:4px"></div>
+    </main>
+  `);
+
+  const screenshot = await captureDocumentationScreenshot(page);
+  expect(screenshot.length).toBeGreaterThan(0);
+});
+
 test('documentation screenshot rejection restores every highlighted element', async ({
   page,
 }, testInfo) => {
