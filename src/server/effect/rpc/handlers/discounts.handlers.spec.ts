@@ -156,7 +156,9 @@ layer(discountHandlerLayer)('discountHandlers', (it) => {
               Effect.flip,
             );
           expect(error).toBeInstanceOf(RpcUnauthorizedError);
-          expect(error.message).toBe('Tenant context is no longer available');
+          expect(error.message).toBe(
+            'Organization context is no longer available',
+          );
           expect(executeValues).toHaveBeenCalledTimes(1);
         }),
     );

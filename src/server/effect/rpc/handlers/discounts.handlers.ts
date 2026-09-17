@@ -135,7 +135,7 @@ export const discountHandlers = {
       if (!resolvedTenant) {
         return yield* Effect.fail(
           new RpcUnauthorizedError({
-            message: 'Tenant context is no longer available',
+            message: 'Organization context is no longer available',
           }),
         );
       }
@@ -168,7 +168,7 @@ export const discountHandlers = {
       if (!tenantRecord) {
         return yield* Effect.fail(
           new RpcUnauthorizedError({
-            message: 'Tenant context is no longer available',
+            message: 'Organization context is no longer available',
           }),
         );
       }
@@ -263,7 +263,7 @@ export const discountHandlers = {
       if (!tenantRecord) {
         return yield* Effect.fail(
           new RpcUnauthorizedError({
-            message: 'Tenant context is no longer available',
+            message: 'Organization context is no longer available',
           }),
         );
       }
