@@ -54,17 +54,10 @@ export class TemplateCreateComponent {
   protected readonly createTemplateMutation = injectMutation(() =>
     this.rpc.templates.create.mutationOptions(),
   );
-  private readonly defaultOrganizerRolesQuery = injectQuery(() =>
-    this.rpc.roles.findMany.queryOptions({ defaultOrganizerRole: true }),
+  protected readonly rolesQuery = injectQuery(() =>
+    this.rpc.roles.findMany.queryOptions({}),
   );
-  private readonly defaultUserRolesQuery = injectQuery(() =>
-    this.rpc.roles.findMany.queryOptions({ defaultUserRole: true }),
-  );
-  protected readonly defaultsReady = computed(
-    () =>
-      this.defaultOrganizerRolesQuery.isSuccess() &&
-      this.defaultUserRolesQuery.isSuccess(),
-  );
+  protected readonly defaultsReady = signal(false);
   protected readonly discountProvidersQuery = injectQuery(() =>
     this.rpc.discounts.getTenantProviders.queryOptions(),
   );
@@ -84,6 +77,7 @@ export class TemplateCreateComponent {
   protected readonly canSubmit = computed(
     () =>
       this.defaultsReady() &&
+      this.rolesQuery.isSuccess() &&
       this.discountProvidersQuery.isSuccess() &&
       !this.templateForm().invalid() &&
       !this.templateForm().submitting() &&
@@ -91,8 +85,11 @@ export class TemplateCreateComponent {
   );
   protected readonly categoryId = input<string>();
   protected readonly defaultParticipantRoleIds = computed(() =>
-    this.defaultUserRolesQuery.isSuccess()
-      ? this.defaultUserRolesQuery.data().map((role) => role.id)
+    this.rolesQuery.isSuccess()
+      ? this.rolesQuery
+          .data()
+          .filter((role) => role.defaultUserRole)
+          .map((role) => role.id)
       : [],
   );
   protected readonly esnEnabled = computed(() => {
@@ -122,24 +119,20 @@ export class TemplateCreateComponent {
         : ('ready' as const),
   );
 
-  private readonly initializedDefaults = signal(false);
   private readonly queryClient = inject(QueryClient);
   private readonly router = inject(Router);
 
   constructor() {
     effect(() => {
-      if (
-        !this.defaultOrganizerRolesQuery.isSuccess() ||
-        !this.defaultUserRolesQuery.isSuccess() ||
-        this.initializedDefaults()
-      ) {
+      if (!this.rolesQuery.isSuccess() || this.defaultsReady()) {
         return;
       }
-      const organizerRoleIds = this.defaultOrganizerRolesQuery
-        .data()
+      const roles = this.rolesQuery.data();
+      const organizerRoleIds = roles
+        .filter((role) => role.defaultOrganizerRole)
         .map((role) => role.id);
-      const participantRoleIds = this.defaultUserRolesQuery
-        .data()
+      const participantRoleIds = roles
+        .filter((role) => role.defaultUserRole)
         .map((role) => role.id);
       const categoryId = this.categoryId() ?? '';
       untracked(() => {
@@ -154,7 +147,7 @@ export class TemplateCreateComponent {
           })),
         }));
         this.templateForm().reset();
-        this.initializedDefaults.set(true);
+        this.defaultsReady.set(true);
       });
     });
     effect(() => {

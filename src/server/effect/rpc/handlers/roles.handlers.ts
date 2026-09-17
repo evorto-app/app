@@ -39,7 +39,7 @@ const ensureRoleLookupPermission = (): Effect.Effect<
     const context = yield* RpcAccess.current();
     if (!context.authenticated) {
       return yield* Effect.fail(
-        new RpcUnauthorizedError({ message: 'Authentication required' }),
+        new RpcUnauthorizedError({ message: 'Sign in to view roles.' }),
       );
     }
 
@@ -49,7 +49,7 @@ const ensureRoleLookupPermission = (): Effect.Effect<
     if (!isAllowed) {
       return yield* Effect.fail(
         new RpcForbiddenError({
-          message: 'Missing required role lookup permission',
+          message: 'You do not have permission to view roles.',
         }),
       );
     }
@@ -84,12 +84,6 @@ export const roleHandlers = {
           orderBy: { name: 'asc' },
           where: {
             tenantId: context.tenant.id,
-            ...(input.defaultUserRole !== undefined && {
-              defaultUserRole: input.defaultUserRole,
-            }),
-            ...(input.defaultOrganizerRole !== undefined && {
-              defaultOrganizerRole: input.defaultOrganizerRole,
-            }),
             ...(input.search !== undefined && {
               name: { ilike: `%${input.search}%` },
             }),
@@ -103,14 +97,10 @@ export const roleHandlers = {
     Effect.gen(function* () {
       yield* ensureRoleLookupPermission();
       const context = yield* RpcAccess.current();
-
       const role = yield* databaseEffect((database) =>
         database.query.roles.findFirst({
           columns: selectRoleLookupColumns,
-          where: {
-            id,
-            tenantId: context.tenant.id,
-          },
+          where: { id, tenantId: context.tenant.id },
         }),
       );
       if (!role) {
@@ -118,7 +108,6 @@ export const roleHandlers = {
           new RoleLookupNotFoundError({ id, message: 'Role not found' }),
         );
       }
-
       return normalizeRoleLookupRecord(role);
     }),
 } satisfies Pick<AppRpcHandlers, 'roles.findMany' | 'roles.findOne'>;

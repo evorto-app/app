@@ -50,7 +50,7 @@ export const seedMembersHubTenantScopeDecoy = async ({
     await transaction.insert(schema.tenants).values({
       domain: `neighbor-hub-${tenantId}`,
       id: tenantId,
-      name: 'Neighboring Members Hub tenant',
+      name: 'Neighboring Members Hub',
     });
     await transaction.insert(schema.users).values({
       auth0Id: `neighbor-hub|${userId}`,
@@ -66,7 +66,7 @@ export const seedMembersHubTenantScopeDecoy = async ({
       userId,
     });
     await transaction.insert(schema.roles).values({
-      description: 'This same-named role belongs to another tenant',
+      description: 'This same-named role belongs to another organization',
       displayInHub: true,
       id: roleId,
       name: roleName,
@@ -149,7 +149,7 @@ export const seedUserRoleAssignmentScenario = async ({
       userId: user.id,
     });
     await transaction.insert(schema.roles).values({
-      description: 'Temporary role used to verify existing-user assignment',
+      description: 'Helps with event support and member questions.',
       id: roleId,
       name: roleName,
       permissions: [],

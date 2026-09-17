@@ -3,6 +3,7 @@ import {
   AdminRoleNotFoundError,
   AdminTenantNotFoundError,
 } from '@shared/rpc-contracts/app-rpcs/admin.errors';
+import { RoleNameAlreadyExistsError } from '@shared/rpc-contracts/app-rpcs/role-write.shared';
 import { type TenantDiscountProviders } from '@shared/tenant-config';
 import {
   AdminTenantSettingsSnapshot,
@@ -21,10 +22,7 @@ import type { AppRpcHandlers } from './shared/handler-types';
 
 import { Database, type DatabaseClient } from '../../../../db';
 import { roles, tenants, tenantStripeTaxRates } from '../../../../db/schema';
-import {
-  partitionTenantRolePermissions,
-  type Permission,
-} from '../../../../shared/permissions/permissions';
+import { AdminRoleRecord } from '../../../../shared/rpc-contracts/app-rpcs/admin.rpcs';
 import { Tenant } from '../../../../types/custom/tenant';
 import { normalizeEsnCardConfig } from '../../../discounts/discount-provider-config';
 import {
@@ -44,6 +42,10 @@ import {
   type StripeTaxRateAccountRotationPlan,
   type StripeTaxRateAccountRotationTargetRate,
 } from '../../../payments/stripe-tax-rate-account-rotation';
+import {
+  normalizeRoleWrite,
+  roleNameConflictFromDatabase,
+} from '../../../roles/role-write';
 import {
   ensureTenantRetainsAnotherDefaultUserRole,
   ensureTenantRoleIsUnreferenced,
@@ -75,20 +77,44 @@ const databaseBadRequestEffect = <A, R>(
     ),
   );
 
-const databaseRoleEffect = <A, R>(
+type AdminRoleDatabaseError =
+  AdminRoleNotFoundError | RoleNameAlreadyExistsError | RpcBadRequestError;
+
+type AdminRoleDatabaseErrorWithoutConflict =
+  AdminRoleNotFoundError | RpcBadRequestError;
+
+function databaseRoleEffect<A, R>(
   operation: (database: DatabaseClient) => Effect.Effect<A, unknown, R>,
-) =>
-  Database.use((database) =>
+): Effect.Effect<A, AdminRoleDatabaseErrorWithoutConflict, Database | R>;
+function databaseRoleEffect<A, R>(
+  operation: (database: DatabaseClient) => Effect.Effect<A, unknown, R>,
+  roleName: string,
+): Effect.Effect<A, AdminRoleDatabaseError, Database | R>;
+function databaseRoleEffect<A, R>(
+  operation: (database: DatabaseClient) => Effect.Effect<A, unknown, R>,
+  roleName?: string,
+): Effect.Effect<A, AdminRoleDatabaseError, Database | R> {
+  return Database.use((database) =>
     operation(database).pipe(
-      Effect.catch((error) =>
-        error instanceof AdminRoleNotFoundError ||
-        error instanceof RpcBadRequestError
-          ? Effect.fail(error)
-          : Effect.die(error),
+      Effect.catch(
+        (error): Effect.Effect<never, AdminRoleDatabaseError, never> => {
+          const nameConflict =
+            roleName === undefined
+              ? undefined
+              : roleNameConflictFromDatabase(error, roleName);
+          if (nameConflict) {
+            return Effect.fail(nameConflict);
+          }
+
+          return error instanceof AdminRoleNotFoundError ||
+            error instanceof RpcBadRequestError
+            ? Effect.fail(error)
+            : Effect.die(error);
+        },
       ),
     ),
   );
-
+}
 const normalizeOptionalUrl = (
   value: string | undefined,
   fieldName: string,
@@ -284,57 +310,46 @@ const normalizeHubRoleRecord = (role: {
   };
 };
 
-const normalizeAdminRoleRecord = <
-  Role extends { permissions: readonly Permission[] },
->(
-  role: Role,
-) => ({
-  ...role,
-  permissions: partitionTenantRolePermissions(role.permissions).accepted,
-});
+const decodeAdminRoleRecord = Schema.decodeUnknownSync(AdminRoleRecord);
 
 export const adminHandlers = {
   'admin.roles.create': (input, _options) =>
     Effect.gen(function* () {
       yield* RpcAccess.ensurePermission('admin:manageRoles');
       const { tenant } = yield* RpcAccess.current();
-      const createdRoles = yield* databaseRoleEffect((database) =>
-        database.transaction((transaction) =>
-          Effect.gen(function* () {
-            yield* lockTenantRoleGraph(transaction, tenant.id);
+      const normalized = yield* normalizeRoleWrite(input);
+      const createdRoles = yield* databaseRoleEffect(
+        (database) =>
+          database.transaction((transaction) =>
+            Effect.gen(function* () {
+              yield* lockTenantRoleGraph(transaction, tenant.id);
 
-            return yield* transaction
-              .insert(roles)
-              .values({
-                collapseMembersInHup: input.collapseMembersInHup,
-                defaultOrganizerRole: input.defaultOrganizerRole,
-                defaultUserRole: input.defaultUserRole,
-                description: input.description,
-                displayInHub: input.displayInHub,
-                name: input.name,
-                permissions: input.permissions,
-                tenantId: tenant.id,
-              })
-              .returning({
-                collapseMembersInHup: roles.collapseMembersInHup,
-                defaultOrganizerRole: roles.defaultOrganizerRole,
-                defaultUserRole: roles.defaultUserRole,
-                description: roles.description,
-                displayInHub: roles.displayInHub,
-                id: roles.id,
-                name: roles.name,
-                permissions: roles.permissions,
-                sortOrder: roles.sortOrder,
-              });
-          }),
-        ),
+              return yield* transaction
+                .insert(roles)
+                .values({
+                  ...normalized,
+                  tenantId: tenant.id,
+                })
+                .returning({
+                  defaultOrganizerRole: roles.defaultOrganizerRole,
+                  defaultUserRole: roles.defaultUserRole,
+                  description: roles.description,
+                  displayInHub: roles.displayInHub,
+                  id: roles.id,
+                  name: roles.name,
+                  permissions: roles.permissions,
+                  sortOrder: roles.sortOrder,
+                });
+            }),
+          ),
+        normalized.name,
       );
       const createdRole = createdRoles[0];
       if (!createdRole) {
         return yield* Effect.die(new Error('Role insert returned no rows'));
       }
 
-      return normalizeAdminRoleRecord(createdRole);
+      return decodeAdminRoleRecord(createdRole);
     }),
   'admin.roles.delete': ({ id }, _options) =>
     Effect.gen(function* () {
@@ -356,7 +371,7 @@ export const adminHandlers = {
             if (!lockedRole) {
               return yield* new AdminRoleNotFoundError({
                 id,
-                message: 'Role not found',
+                message: 'This role no longer exists. Return to the role list.',
               });
             }
             if (lockedRole.defaultUserRole) {
@@ -425,7 +440,6 @@ export const adminHandlers = {
       const tenantRoles = yield* databaseEffect((database) =>
         database.query.roles.findMany({
           columns: {
-            collapseMembersInHup: true,
             defaultOrganizerRole: true,
             defaultUserRole: true,
             description: true,
@@ -448,7 +462,7 @@ export const adminHandlers = {
         }),
       );
 
-      return tenantRoles.map((role) => normalizeAdminRoleRecord(role));
+      return tenantRoles.map((role) => decodeAdminRoleRecord(role));
     }),
   'admin.roles.findOne': ({ id }, _options) =>
     Effect.gen(function* () {
@@ -457,7 +471,6 @@ export const adminHandlers = {
       const role = yield* databaseEffect((database) =>
         database.query.roles.findFirst({
           columns: {
-            collapseMembersInHup: true,
             defaultOrganizerRole: true,
             defaultUserRole: true,
             description: true,
@@ -472,11 +485,14 @@ export const adminHandlers = {
       );
       if (!role) {
         return yield* Effect.fail(
-          new AdminRoleNotFoundError({ id, message: 'Role not found' }),
+          new AdminRoleNotFoundError({
+            id,
+            message: 'This role no longer exists. Return to the role list.',
+          }),
         );
       }
 
-      return normalizeAdminRoleRecord(role);
+      return decodeAdminRoleRecord(role);
     }),
   'admin.roles.search': ({ search }, _options) =>
     Effect.gen(function* () {
@@ -485,7 +501,6 @@ export const adminHandlers = {
       const matchingRoles = yield* databaseEffect((database) =>
         database.query.roles.findMany({
           columns: {
-            collapseMembersInHup: true,
             defaultOrganizerRole: true,
             defaultUserRole: true,
             description: true,
@@ -504,73 +519,71 @@ export const adminHandlers = {
         }),
       );
 
-      return matchingRoles.map((role) => normalizeAdminRoleRecord(role));
+      return matchingRoles.map((role) => decodeAdminRoleRecord(role));
     }),
   'admin.roles.update': ({ id, ...input }, _options) =>
     Effect.gen(function* () {
       yield* RpcAccess.ensurePermission('admin:manageRoles');
       const { tenant } = yield* RpcAccess.current();
-      const updatedRoles = yield* databaseRoleEffect((database) =>
-        database.transaction((transaction) =>
-          Effect.gen(function* () {
-            yield* lockTenantRoleGraph(transaction, tenant.id);
-            const lockedRoles = yield* transaction
-              .select({
-                defaultUserRole: roles.defaultUserRole,
-                id: roles.id,
-              })
-              .from(roles)
-              .where(and(eq(roles.id, id), eq(roles.tenantId, tenant.id)))
-              .for('update');
-            const lockedRole = lockedRoles[0];
-            if (!lockedRole) {
-              return yield* new AdminRoleNotFoundError({
-                id,
-                message: 'Role not found',
-              });
-            }
-            if (lockedRole.defaultUserRole && !input.defaultUserRole) {
-              yield* ensureTenantRetainsAnotherDefaultUserRole(
-                transaction,
-                tenant.id,
-                id,
-              );
-            }
+      const normalized = yield* normalizeRoleWrite(input);
+      const updatedRoles = yield* databaseRoleEffect(
+        (database) =>
+          database.transaction((transaction) =>
+            Effect.gen(function* () {
+              yield* lockTenantRoleGraph(transaction, tenant.id);
+              const lockedRoles = yield* transaction
+                .select({
+                  defaultUserRole: roles.defaultUserRole,
+                  id: roles.id,
+                })
+                .from(roles)
+                .where(and(eq(roles.id, id), eq(roles.tenantId, tenant.id)))
+                .for('update');
+              const lockedRole = lockedRoles[0];
+              if (!lockedRole) {
+                return yield* new AdminRoleNotFoundError({
+                  id,
+                  message:
+                    'This role no longer exists. Return to the role list.',
+                });
+              }
+              if (lockedRole.defaultUserRole && !normalized.defaultUserRole) {
+                yield* ensureTenantRetainsAnotherDefaultUserRole(
+                  transaction,
+                  tenant.id,
+                  id,
+                );
+              }
 
-            return yield* transaction
-              .update(roles)
-              .set({
-                collapseMembersInHup: input.collapseMembersInHup,
-                defaultOrganizerRole: input.defaultOrganizerRole,
-                defaultUserRole: input.defaultUserRole,
-                description: input.description,
-                displayInHub: input.displayInHub,
-                name: input.name,
-                permissions: input.permissions,
-              })
-              .where(and(eq(roles.id, id), eq(roles.tenantId, tenant.id)))
-              .returning({
-                collapseMembersInHup: roles.collapseMembersInHup,
-                defaultOrganizerRole: roles.defaultOrganizerRole,
-                defaultUserRole: roles.defaultUserRole,
-                description: roles.description,
-                displayInHub: roles.displayInHub,
-                id: roles.id,
-                name: roles.name,
-                permissions: roles.permissions,
-                sortOrder: roles.sortOrder,
-              });
-          }),
-        ),
+              return yield* transaction
+                .update(roles)
+                .set(normalized)
+                .where(and(eq(roles.id, id), eq(roles.tenantId, tenant.id)))
+                .returning({
+                  defaultOrganizerRole: roles.defaultOrganizerRole,
+                  defaultUserRole: roles.defaultUserRole,
+                  description: roles.description,
+                  displayInHub: roles.displayInHub,
+                  id: roles.id,
+                  name: roles.name,
+                  permissions: roles.permissions,
+                  sortOrder: roles.sortOrder,
+                });
+            }),
+          ),
+        normalized.name,
       );
       const updatedRole = updatedRoles[0];
       if (!updatedRole) {
         return yield* Effect.fail(
-          new AdminRoleNotFoundError({ id, message: 'Role not found' }),
+          new AdminRoleNotFoundError({
+            id,
+            message: 'This role no longer exists. Return to the role list.',
+          }),
         );
       }
 
-      return normalizeAdminRoleRecord(updatedRole);
+      return decodeAdminRoleRecord(updatedRole);
     }),
   'admin.tenant.importStripeTaxRates': ({ ids }, _options) =>
     Effect.gen(function* () {

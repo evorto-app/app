@@ -43,14 +43,14 @@ test('tenant user list explains a first-load failure and recovers on retry @admi
   await page.goto('/admin', { waitUntil: 'networkidle' });
   const failureCount = await failRpcOnce(page, 'users.findMany');
 
-  await page.getByRole('link', { exact: true, name: 'Users' }).click();
+  await page.getByRole('link', { exact: true, name: 'Members' }).click();
   await expect.poll(failureCount).toBe(1);
 
-  const alert = page.getByRole('alert');
-  await expect(alert).toContainText('Users could not be loaded');
-  await expect(alert).toContainText(
-    'The user list is unavailable. Check your connection and try again.',
-  );
+  const alert = page
+    .getByRole('alert')
+    .filter({ hasText: 'Members could not be loaded' });
+  await expect(alert).toContainText('Members could not be loaded');
+  await expect(alert).toContainText('No members are shown. Select Try again.');
   await alert.getByRole('button', { name: 'Try again' }).click();
 
   await expect(alert).toHaveCount(0);

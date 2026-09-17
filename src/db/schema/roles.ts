@@ -11,12 +11,12 @@ import { TenantRolePermission } from '../../shared/permissions/permissions';
 import { modelOfTenant } from './model';
 
 export const roleTenantIdentityUniqueConstraintName = 'roles_id_tenant_unique';
+export const roleTenantNameUniqueConstraintName = 'roles_tenant_name_unique';
 
 export const roles = pgTable(
   'roles',
   {
     ...modelOfTenant,
-    collapseMembersInHup: boolean().notNull().default(true),
     defaultOrganizerRole: boolean().notNull().default(false),
     defaultUserRole: boolean().notNull().default(false),
     description: text(),
@@ -27,6 +27,6 @@ export const roles = pgTable(
   },
   (table) => [
     unique(roleTenantIdentityUniqueConstraintName).on(table.id, table.tenantId),
-    unique().on(table.tenantId, table.name),
+    unique(roleTenantNameUniqueConstraintName).on(table.tenantId, table.name),
   ],
 );

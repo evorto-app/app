@@ -9,6 +9,9 @@ import {
   GlobalAdminEmailOutboxKind,
   GlobalAdminEmailOutboxKinds,
   GlobalAdminEmailOutboxRecord,
+  GlobalAdminPlatformAuditCursor,
+  GlobalAdminPlatformAuditRecord,
+  GlobalAdminPlatformAuditState,
   GlobalAdminTenantCreateInput,
   GlobalAdminTenantUpdateError,
   GlobalAdminTenantUpdateInput,
@@ -68,6 +71,103 @@ describe('GlobalAdminEmailOutboxKind', () => {
       }),
     ).toMatchObject({ tenantTimezone: 'Australia/Brisbane' });
   });
+});
+
+describe('GlobalAdminPlatformAuditCursor', () => {
+  it('accepts the explicit timestamp and id boundary returned by the server', () => {
+    expect(
+      Schema.decodeUnknownSync(GlobalAdminPlatformAuditCursor)({
+        createdAt: '2026-07-15T14:30:00.000Z',
+        id: 'audit-50',
+      }),
+    ).toEqual({
+      createdAt: '2026-07-15T14:30:00.000Z',
+      id: 'audit-50',
+    });
+  });
+
+  it('preserves PostgreSQL microseconds without passing through a Date', () => {
+    const cursor = { createdAt: '2026-07-15T14:30:00.123456Z', id: 'audit-50' };
+    expect(
+      Schema.decodeUnknownSync(GlobalAdminPlatformAuditCursor)(cursor),
+    ).toEqual(cursor);
+  });
+
+  it('rejects invalid or non-canonical timestamps', () => {
+    expect(() =>
+      Schema.decodeUnknownSync(GlobalAdminPlatformAuditCursor)({
+        createdAt: 'not-a-timestamp',
+        id: 'audit-50',
+      }),
+    ).toThrow();
+    expect(() =>
+      Schema.decodeUnknownSync(GlobalAdminPlatformAuditCursor)({
+        createdAt: '2026-07-15T16:30:00.000+02:00',
+        id: 'audit-50',
+      }),
+    ).toThrow();
+  });
+});
+
+describe('GlobalAdminPlatformAuditRecord', () => {
+  it('projects persisted audit details through the typed public state', () => {
+    const record = Schema.decodeUnknownSync(GlobalAdminPlatformAuditRecord)({
+      action: 'taxRates.import',
+      actorEmail: 'admin@example.org',
+      actorId: 'admin-1',
+      after: {
+        resourceId: 'tenant-1',
+        resourceType: 'taxRateBatch',
+        state: {
+          providerPayload: 'private',
+          taxRateAddedCount: 2,
+          taxRateCount: 5,
+          taxRateUnchangedCount: 1,
+          taxRateUpdatedCount: 2,
+        },
+      },
+      before: null,
+      createdAt: '2026-08-06T00:00:00.000Z',
+      id: 'audit-1',
+      reason: 'Refresh tax rates',
+      targetTenantId: 'tenant-1',
+      targetTenantName: 'Example organization',
+    });
+
+    expect(record.after?.state).toEqual({
+      taxRateAddedCount: 2,
+      taxRateCount: 5,
+      taxRateUnchangedCount: 1,
+      taxRateUpdatedCount: 2,
+    });
+  });
+});
+
+describe('GlobalAdminPlatformAuditState role assignment summary', () => {
+  it('retains safe role counts while omitting persisted identifiers', () => {
+    expect(
+      Schema.decodeUnknownSync(GlobalAdminPlatformAuditState)({
+        roleAddedCount: 1,
+        roleCount: 2,
+        roleIds: ['private-role'],
+        roleRemovedCount: 0,
+        userId: 'private-member',
+      }),
+    ).toEqual({ roleAddedCount: 1, roleCount: 2, roleRemovedCount: 0 });
+  });
+
+  it.each(['roleAddedCount', 'roleRemovedCount'])(
+    'rejects invalid %s values',
+    (field) => {
+      for (const value of [-1, 0.5, Infinity, NaN]) {
+        expect(() =>
+          Schema.decodeUnknownSync(GlobalAdminPlatformAuditState)({
+            [field]: value,
+          }),
+        ).toThrow();
+      }
+    },
+  );
 });
 
 describe('GlobalAdminTenantWriteInput', () => {

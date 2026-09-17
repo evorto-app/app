@@ -216,6 +216,22 @@ describe('NavigationComponent accessibility', () => {
     });
   });
 
+  it.each(['events:create', 'events:*'] as const)(
+    'shows Templates for a member with %s and its implied access',
+    (permission) => {
+      platformAuthoritySignal.set(null);
+      grantedPermissions.set([permission]);
+      const fixture = TestBed.createComponent(NavigationComponent);
+      fixture.detectChanges();
+      const root: HTMLElement = fixture.nativeElement;
+
+      expect(root.querySelector('a[href="/templates"]')?.textContent).toContain(
+        'Templates',
+      );
+      expect(root.querySelector('a[href="/global-admin"]')).toBeNull();
+    },
+  );
+
   it.each([
     ['finance', 'finance:approveReceipts', '/finance', 'Finances'],
     ['Members Hub', 'internal:viewInternalPages', '/internal', 'Members Hub'],

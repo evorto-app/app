@@ -1,5 +1,17 @@
 import { Schema } from 'effect';
 
+export const MAX_PAGE_LIMIT = 100;
+
+export const CanonicalUtcTimestamp = Schema.String.check(
+  Schema.makeFilter((value) => {
+    const timestamp = new Date(value);
+    return Number.isNaN(timestamp.getTime()) ||
+      timestamp.toISOString() !== value
+      ? 'Expected a canonical UTC ISO timestamp'
+      : undefined;
+  }),
+);
+
 export const literalUnion = <
   const Values extends readonly [string, ...string[]],
 >(
@@ -16,6 +28,13 @@ export const nonNegativePostgresInteger = Schema.Int.check(
   Schema.isGreaterThanOrEqualTo(0),
   Schema.isLessThanOrEqualTo(maximumPostgresInteger),
 );
+
+export const PageLimit = Schema.Int.check(
+  Schema.isGreaterThan(0),
+  Schema.isLessThanOrEqualTo(MAX_PAGE_LIMIT),
+);
+
+export const PageOffset = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0));
 
 export const positiveNumber = Schema.Number.check(Schema.isGreaterThan(0));
 

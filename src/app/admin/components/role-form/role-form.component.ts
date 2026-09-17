@@ -24,6 +24,7 @@ import {
   DEPENDENT_PERMISSION_PARENTS,
   RoleFormData,
   RoleFormModel,
+  roleFormPermissionsToSubmit,
 } from './role-form.schema';
 
 export const roleFormSubmitDisabled = ({
@@ -103,13 +104,15 @@ export class RoleFormComponent {
     }
 
     await submit(this.roleForm(), async (formState) => {
-      const formValue = formState().value();
+      const { originalPermissions, permissions, ...roleFields } =
+        formState().value();
       this.formSubmit.emit({
-        ...formValue,
-        description: formValue.description || null,
-        permissions: ALL_PERMISSIONS.filter(
-          (permission) => formValue.permissions[permission],
-        ),
+        ...roleFields,
+        description: roleFields.description || null,
+        permissions: roleFormPermissionsToSubmit({
+          originalPermissions,
+          permissions,
+        }),
       });
     });
   }

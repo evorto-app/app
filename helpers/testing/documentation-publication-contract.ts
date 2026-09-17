@@ -110,9 +110,7 @@ export const documentationConsumerGuideCatalog = [
   {
     id: 'evorto:manage-section-users',
     slug: 'manage-section-users',
-    sourceSlugs: [
-      'manage-organization-roles-existing-user-assignments-and-members',
-    ],
+    sourceSlugs: ['manage-members-and-roles'],
     title: 'Manage section users',
   },
   {

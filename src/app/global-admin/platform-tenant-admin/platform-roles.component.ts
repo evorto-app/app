@@ -30,32 +30,42 @@ import {
 import type { PlatformRoleRecord } from '../../../shared/rpc-contracts/app-rpcs/platform-tenant-admin.rpcs';
 
 import {
+  ALL_PERMISSIONS,
+  includesPermission,
   PERMISSION_GROUPS,
   type TenantRolePermission,
 } from '../../../shared/permissions/permissions';
+import {
+  ROLE_DESCRIPTION_MAX_LENGTH,
+  ROLE_NAME_MAX_LENGTH,
+} from '../../../shared/rpc-contracts/app-rpcs/role-write.shared';
+import {
+  createRoleFormModel,
+  roleFormPermissionsToSubmit,
+} from '../../admin/components/role-form/role-form.schema';
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
 import { PlatformTenantPageHeaderComponent } from './platform-tenant-page-header.component';
 
 interface PlatformRoleFormModel {
-  collapseMembersInHup: boolean;
   defaultOrganizerRole: boolean;
   defaultUserRole: boolean;
   description: string;
   displayInHub: boolean;
   name: string;
+  originalPermissions: TenantRolePermission[];
   permissions: TenantRolePermission[];
   reason: string;
 }
 
 const emptyRole = (): PlatformRoleFormModel => ({
-  collapseMembersInHup: false,
   defaultOrganizerRole: false,
   defaultUserRole: false,
   description: '',
   displayInHub: false,
   name: '',
+  originalPermissions: [],
   permissions: [],
   reason: '',
 });
@@ -116,13 +126,13 @@ export class PlatformRolesComponent {
   private readonly roleModel = signal<PlatformRoleFormModel>(emptyRole());
   protected readonly roleForm = form(this.roleModel, (role) => {
     required(role.name, { message: 'Enter a role name.' });
-    maxLength(role.name, 100, {
-      message: 'Name must be 100 characters or fewer.',
+    maxLength(role.name, ROLE_NAME_MAX_LENGTH, {
+      message: `Name must be ${ROLE_NAME_MAX_LENGTH} characters or fewer.`,
     });
-    maxLength(role.description, 500, {
-      message: 'Description must be 500 characters or fewer.',
+    maxLength(role.description, ROLE_DESCRIPTION_MAX_LENGTH, {
+      message: `Description must be ${ROLE_DESCRIPTION_MAX_LENGTH} characters or fewer.`,
     });
-    required(role.reason, { message: 'Enter an operational reason.' });
+    required(role.reason, { message: 'Enter a reason for this change.' });
     maxLength(role.reason, 500, {
       message: 'Reason must be 500 characters or fewer.',
     });
@@ -140,6 +150,20 @@ export class PlatformRolesComponent {
 
   constructor() {
     effect(() => {
+      const selected = this.roleModel().permissions;
+      const effective = ALL_PERMISSIONS.filter((permission) =>
+        includesPermission(permission, selected),
+      );
+      if (
+        selected.length === effective.length &&
+        selected.every((permission, index) => permission === effective[index])
+      )
+        return;
+      untracked(() =>
+        this.roleModel.update((role) => ({ ...role, permissions: effective })),
+      );
+    });
+    effect(() => {
       const tenantId = this.tenantId();
       if (this.initializedTenantId() === tenantId) return;
       untracked(() => {
@@ -147,6 +171,16 @@ export class PlatformRolesComponent {
         this.initializedTenantId.set(tenantId);
       });
     });
+  }
+
+  protected permissionIsIncluded(permission: TenantRolePermission): boolean {
+    return includesPermission(
+      permission,
+      this.roleForm
+        .permissions()
+        .value()
+        .filter((selected) => selected !== permission),
+    );
   }
 
   protected cancelDelete(): void {
@@ -177,7 +211,7 @@ export class PlatformRolesComponent {
         this.createRole();
       } catch (error) {
         this.notifications.showError(
-          getErrorMessage(error, 'Failed to delete role', [
+          getErrorMessage(error, 'The role could not be deleted. Try again.', [
             'RpcBadRequestError',
           ]),
         );
@@ -189,13 +223,15 @@ export class PlatformRolesComponent {
     this.deleteConfirmation.set(false);
     this.selectedRoleId.set(role.id);
     this.roleModel.set({
-      collapseMembersInHup: role.collapseMembersInHup,
       defaultOrganizerRole: role.defaultOrganizerRole,
       defaultUserRole: role.defaultUserRole,
       description: role.description ?? '',
       displayInHub: role.displayInHub,
       name: role.name,
-      permissions: [...role.permissions],
+      originalPermissions: [...role.permissions],
+      permissions: ALL_PERMISSIONS.filter((permission) =>
+        includesPermission(permission, role.permissions),
+      ),
       reason: '',
     });
     this.roleForm().reset();
@@ -217,14 +253,19 @@ export class PlatformRolesComponent {
     void submit(this.roleForm, async () => {
       const role = this.roleModel();
       const roleId = this.selectedRoleId();
+      const permissionSelection = createRoleFormModel({
+        originalPermissions: role.originalPermissions,
+      });
+      for (const permission of role.permissions) {
+        permissionSelection.permissions[permission] = true;
+      }
       const payload = {
-        collapseMembersInHup: role.collapseMembersInHup,
         defaultOrganizerRole: role.defaultOrganizerRole,
         defaultUserRole: role.defaultUserRole,
         description: role.description.trim() || null,
         displayInHub: role.displayInHub,
         name: role.name,
-        permissions: role.permissions,
+        permissions: roleFormPermissionsToSubmit(permissionSelection),
         reason: role.reason,
         targetTenantId: this.tenantId(),
       };
@@ -244,8 +285,14 @@ export class PlatformRolesComponent {
         this.notifications.showError(
           getErrorMessage(
             error,
-            roleId ? 'Failed to update role' : 'Failed to create role',
-            ['RpcBadRequestError'],
+            roleId
+              ? 'The role could not be updated. Try again.'
+              : 'The role could not be created. Try again.',
+            [
+              'RoleNameAlreadyExistsError',
+              'RoleWriteValidationError',
+              'RpcBadRequestError',
+            ],
           ),
         );
       }

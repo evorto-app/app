@@ -236,13 +236,13 @@ const PERMISSION_METADATA = {
   },
   'users:assignRoles': {
     description:
-      'Assign any existing organization role to any organization member, including yourself. Treat this as full organization-administrator authority because assigned roles can grant every organization permission.',
-    label: 'Assign all user roles (organization admin)',
+      'Assign any organization role to any member, including yourself. This gives full organization-administrator access because roles can allow every organization action.',
+    label: 'Assign all member roles (organization admin)',
   },
   'users:viewAll': {
     description:
       'View the organization member list, including profile names, email addresses, and role names.',
-    label: 'View all users',
+    label: 'View all members',
   },
 } satisfies Record<
   Exclude<TenantRolePermission, 'admin:manageTaxes' | `${string}:*`>,
@@ -294,7 +294,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
   {
     icon: faUser,
     key: USERS_GROUP.key,
-    label: 'Users',
+    label: 'Members',
     permissions: USERS_GROUP.permissions.map((perm) =>
       permissionMeta(`${USERS_GROUP.key}:${perm}` as TenantRolePermission),
     ),
@@ -436,31 +436,45 @@ export const includesPermission = (
   permission: Permission,
   permissions: readonly Permission[],
 ): boolean => {
-  if (permission === 'admin:tax' && permissions.includes('admin:manageTaxes')) {
-    return true;
-  }
-
-  if (permission.includes(':*')) {
-    const [group] = permission.split(':', 1);
-    if (permissions.some((granted) => granted.startsWith(`${group}:`))) {
-      return true;
-    }
-  } else if (permissions.includes(permission)) {
-    return true;
-  }
-
-  const [group] = permission.split(':', 1);
-  if (permissions.includes(`${group}:*` as Permission)) {
-    return true;
-  }
-
   if (isPlatformGlobalPermission(permission)) {
-    return false;
+    return (
+      permissions.includes('globalAdmin:*') ||
+      permissions.includes(permission) ||
+      (permission === 'globalAdmin:*' &&
+        permissions.some((granted) => isPlatformGlobalPermission(granted)))
+    );
   }
 
-  return Object.entries(PERMISSION_DEPENDENCIES).some(
-    ([parentPermission, childPermissions]) =>
-      permissions.includes(parentPermission as Permission) &&
-      childPermissions.includes(permission),
-  );
+  const effectivePermissions = new Set<Permission>(permissions);
+  const pendingPermissions = [...permissions];
+  while (pendingPermissions.length > 0) {
+    const granted = pendingPermissions.pop();
+    if (granted === undefined || isPlatformGlobalPermission(granted)) continue;
+
+    const impliedPermissions = [
+      ...(granted.endsWith(':*')
+        ? TENANT_ROLE_PERMISSION_LITERALS.filter((concretePermission) =>
+            concretePermission.startsWith(granted.slice(0, -1)),
+          )
+        : []),
+      ...(PERMISSION_DEPENDENCIES[granted] ?? []),
+    ];
+    if (granted === 'admin:manageTaxes') {
+      impliedPermissions.push('admin:tax');
+    }
+    for (const impliedPermission of impliedPermissions) {
+      if (effectivePermissions.has(impliedPermission)) {
+        continue;
+      }
+
+      effectivePermissions.add(impliedPermission);
+      pendingPermissions.push(impliedPermission);
+    }
+  }
+
+  return permission.endsWith(':*')
+    ? [...effectivePermissions].some((granted) =>
+        granted.startsWith(permission.slice(0, -1)),
+      )
+    : effectivePermissions.has(permission);
 };

@@ -1,5 +1,7 @@
+import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
 import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { MatPaginatorHarness } from '@angular/material/paginator/testing';
 import { provideRouter } from '@angular/router';
 import {
   provideTanStackQuery,
@@ -52,7 +54,7 @@ describe('UserListComponent load recovery', () => {
               queryKey: ['roles'],
             }),
             findUsers: (filter: object) => ({
-              queryFn: findUsers,
+              queryFn: () => findUsers(filter),
               queryKey: ['users', filter],
             }),
             usersFilter: () => ({ queryKey: ['users'] }),
@@ -81,6 +83,70 @@ describe('UserListComponent load recovery', () => {
     TestBed.resetTestingModule();
   });
 
+  it('keeps the selected page size and next offset after a pending reload', async () => {
+    const users = Array.from({ length: 75 }, (_, index) => ({
+      email: `member-${index}@example.org`,
+      firstName: 'Member',
+      id: `user-${index}`,
+      lastName: String(index),
+      roleIds: [],
+      roles: [],
+    }));
+    const firstPage = { users: users.slice(0, 25), usersCount: users.length };
+    let completeReload: () => void = () => {
+      throw new Error('Expected the member page resolver to be initialized');
+    };
+    const pendingPage = new Promise<typeof firstPage>((resolve) => {
+      completeReload = () => resolve(firstPage);
+    });
+    findUsers
+      .mockResolvedValueOnce({ users, usersCount: users.length })
+      .mockReturnValueOnce(pendingPage)
+      .mockResolvedValue({
+        users: users.slice(25, 50),
+        usersCount: users.length,
+      });
+
+    try {
+      const fixture = TestBed.createComponent(UserListComponent);
+      fixture.detectChanges();
+      await vi.waitFor(() => {
+        fixture.detectChanges();
+        expect(normalizeText(fixture)).toContain('member-0@example.org');
+      });
+      const loader = TestbedHarnessEnvironment.loader(fixture);
+      const initialPaginator = await loader.getHarness(MatPaginatorHarness);
+      await initialPaginator.setPageSize(25);
+
+      await vi.waitFor(() => {
+        fixture.detectChanges();
+        expect(findUsers).toHaveBeenLastCalledWith({ limit: 25, offset: 0 });
+        expect(normalizeText(fixture)).toContain('Loading members…');
+      });
+      expect(await loader.hasHarness(MatPaginatorHarness)).toBe(false);
+
+      completeReload();
+      await vi.waitFor(() => {
+        fixture.detectChanges();
+        expect(normalizeText(fixture)).toContain('member-0@example.org');
+      });
+      const reloadedPaginator = await loader.getHarness(MatPaginatorHarness);
+      expect(await reloadedPaginator.getPageSize()).toBe(25);
+      expect(await reloadedPaginator.isNextPageDisabled()).toBe(false);
+      await reloadedPaginator.goToNextPage();
+
+      await vi.waitFor(() => {
+        fixture.detectChanges();
+        expect(findUsers).toHaveBeenLastCalledWith({ limit: 25, offset: 25 });
+        expect(normalizeText(fixture)).toContain('member-25@example.org');
+      });
+      const nextPaginator = await loader.getHarness(MatPaginatorHarness);
+      expect(await nextPaginator.getPageSize()).toBe(25);
+    } finally {
+      completeReload();
+    }
+  });
+
   it('announces a failed first load and retries the users query', async () => {
     findUsers
       .mockRejectedValueOnce(new Error('Users unavailable'))
@@ -103,13 +169,13 @@ describe('UserListComponent load recovery', () => {
 
     await vi.waitFor(() => {
       fixture.detectChanges();
-      expect(normalizeText(fixture)).toContain('Users could not be loaded');
+      expect(normalizeText(fixture)).toContain('Members could not be loaded');
     });
 
     const alert: HTMLElement | null =
       fixture.nativeElement.querySelector('[role="alert"]');
     expect(alert?.textContent).toContain(
-      'The user list is unavailable. Check your connection and try again.',
+      'No members are shown. Select Try again.',
     );
 
     const retryButton: HTMLButtonElement | null =

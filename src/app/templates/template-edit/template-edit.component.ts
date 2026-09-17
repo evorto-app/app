@@ -76,13 +76,13 @@ export class TemplateEditComponent {
   protected readonly updateTemplateMutation = injectMutation(() =>
     this.rpc.templates.update.mutationOptions(),
   );
-  private readonly defaultUserRolesQuery = injectQuery(() =>
-    this.rpc.roles.findMany.queryOptions({ defaultUserRole: true }),
+  protected readonly rolesQuery = injectQuery(() =>
+    this.rpc.roles.findMany.queryOptions({}),
   );
   protected readonly canSubmit = computed(
     () =>
       this.templateQuery.isSuccess() &&
-      this.defaultUserRolesQuery.isSuccess() &&
+      this.rolesQuery.isSuccess() &&
       this.discountProvidersQuery.isSuccess() &&
       !this.editorLoadError() &&
       !this.templateForm().invalid() &&
@@ -90,8 +90,11 @@ export class TemplateEditComponent {
       !this.updateTemplateMutation.isPending(),
   );
   protected readonly defaultParticipantRoleIds = computed(() =>
-    this.defaultUserRolesQuery.isSuccess()
-      ? this.defaultUserRolesQuery.data().map((role) => role.id)
+    this.rolesQuery.isSuccess()
+      ? this.rolesQuery
+          .data()
+          .filter((role) => role.defaultUserRole)
+          .map((role) => role.id)
       : [],
   );
   protected readonly esnEnabled = computed(() => {

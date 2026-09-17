@@ -84,10 +84,10 @@ describe('PERMISSION_GROUPS', () => {
       expect.arrayContaining([
         expect.objectContaining({
           description: expect.stringContaining(
-            'full organization-administrator authority',
+            'full organization-administrator access',
           ),
           key: 'users:assignRoles',
-          label: 'Assign all user roles (organization admin)',
+          label: 'Assign all member roles (organization admin)',
         }),
       ]),
     );
@@ -139,6 +139,44 @@ describe('includesPermission', () => {
 
   it('allows legacy admin tax aliases', () => {
     expect(includesPermission('admin:tax', ['admin:manageTaxes'])).toBe(true);
+    expect(includesPermission('admin:*', ['admin:manageTaxes'])).toBe(true);
+    expect(includesPermission('admin:manageRoles', ['admin:manageTaxes'])).toBe(
+      false,
+    );
+  });
+
+  it('preserves legacy tax checks when the admin wildcard is granted', () => {
+    expect(includesPermission('admin:manageTaxes', ['admin:*'])).toBe(true);
+    expect(includesPermission('admin:tax', ['admin:*'])).toBe(true);
+    expect(includesPermission('admin:manageTaxes', ['globalAdmin:*'])).toBe(
+      false,
+    );
+  });
+
+  it('keeps implied template access visible through group checks', () => {
+    expect(includesPermission('templates:*', ['events:create'])).toBe(true);
+    expect(includesPermission('templates:create', ['events:create'])).toBe(
+      false,
+    );
+  });
+
+  it('resolves dependencies of concrete permissions granted by a wildcard', () => {
+    expect(includesPermission('templates:view', ['events:*'])).toBe(true);
+    expect(includesPermission('templates:*', ['events:*'])).toBe(true);
+    expect(includesPermission('templates:create', ['events:*'])).toBe(false);
+  });
+
+  it('keeps platform authority separate from tenant permissions', () => {
+    for (const permission of ALL_PERMISSIONS) {
+      expect(includesPermission(permission, ['globalAdmin:*'])).toBe(false);
+      expect(
+        includesPermission(permission, ['globalAdmin:manageTenants']),
+      ).toBe(false);
+    }
+    expect(
+      includesPermission('globalAdmin:manageTenants', ALL_PERMISSIONS),
+    ).toBe(false);
+    expect(includesPermission('globalAdmin:*', ALL_PERMISSIONS)).toBe(false);
   });
 
   it('allows group wildcard checks against concrete permissions', () => {

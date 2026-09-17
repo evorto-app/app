@@ -673,7 +673,9 @@ describe('generated docs source current behavior', () => {
       "getByRole('link', { name: 'Platform audit log' })",
     );
     expect(source).toContain('.delete(schema.platformAuditEntries)');
-    expect(source).toContain('await assignmentScenario.cleanup()');
+    expect(source).toContain(
+      'registerDatabaseCleanup(assignmentScenario.cleanup)',
+    );
     expect(source).toContain(
       'Reimbursement, refund recovery, and Stripe tax-rate import are separate operations and are not performed by this walkthrough.',
     );
@@ -1969,9 +1971,11 @@ describe('generated docs source current behavior', () => {
       'Learn more at [about permissions](/docs/about-permissions).',
     );
     expect(rolesSource).toContain(
-      'Permissions that are required by another permission are automatically included and shown as non-editable dependent permissions with the same admin-facing labels used in the permission reference.',
+      'When one permission needs another, Evorto includes it automatically and explains why it cannot be removed separately.',
     );
-    expect(rolesSource).toContain('Role docs ${seedDate.getTime()}');
+    expect(rolesSource).toContain(
+      "const roleName = 'Event communications lead'",
+    );
     expect(rolesSource).toContain(
       "throw new Error('Expected generated roles doc to persist the role')",
     );
@@ -1994,13 +1998,15 @@ describe('generated docs source current behavior', () => {
     expect(rolesSource).toContain('await page.reload()');
     expect(rolesSource).toContain('openAuthenticatedTestPage({');
     expect(rolesSource).toContain('storageState: userStateFile');
-    expect(rolesSource).toContain("exact: true,\n        name: 'Members Hub'");
+    expect(rolesSource.replace(/\s+/gu, ' ')).toContain(
+      "exact: true, name: 'Members Hub'",
+    );
     expect(rolesSource).toContain('tenantScopeDecoy.memberDisplayName');
     expect(rolesSource).toContain(').toHaveCount(0)');
     expect(rolesSource).not.toContain('members are collapsed by default');
     expect(roleScenarioSource).toContain('seedMembersHubTenantScopeDecoy');
     expect(roleScenarioSource).toContain(
-      "description: 'This same-named role belongs to another tenant'",
+      "description: 'This same-named role belongs to another organization'",
     );
     expect(roleScenarioSource).toContain('name: roleName');
     expect(roleScenarioSource).toContain('displayInHub: true');
@@ -2009,13 +2015,13 @@ describe('generated docs source current behavior', () => {
       'Permissions belong to an organization and are assigned through roles.',
     );
     expect(permissionsSource).toContain(
-      'Some permissions include related access so the user can reach the screens needed to use them.',
+      'Some permissions automatically provide the other permissions needed to open and use the same area.',
     );
     expect(permissionsSource).toContain(
-      'The reference below names those included permissions with the same labels shown in the role editor.',
+      'Those additions appear below as **You also receive**, using the same names shown in the role editor.',
     );
     expect(permissionsSource).toContain(
-      'Platform administrator access is separate from organization roles',
+      'Evorto administrator access is separate from organization roles',
     );
     expect(permissionsSource).toContain('PERMISSION_GROUPS');
     expect(permissionsSource).toContain('PERMISSION_DEPENDENCIES');
