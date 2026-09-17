@@ -658,6 +658,20 @@ describe('PlatformTemplateEditorComponent recovery', () => {
   );
 
   it('keeps add-on creation independent of the question cap and explains overlong help text', async () => {
+    const template = completeTemplate();
+    const [question] = template.questions;
+    if (!question) throw new Error('Expected a persisted template question');
+    loadTemplate.mockResolvedValue({
+      ...template,
+      questions: Array.from(
+        { length: MAX_REGISTRATION_QUESTIONS - 1 },
+        (_, index) => ({
+          ...question,
+          id: `question-${index + 1}`,
+          sortOrder: index,
+        }),
+      ),
+    });
     const fixture = render();
     fixture.componentRef.setInput('templateId', 'template-1');
     const element: unknown = fixture.nativeElement;
@@ -690,10 +704,12 @@ describe('PlatformTemplateEditorComponent recovery', () => {
     expect(help.closest('mat-form-field')?.textContent).toContain(
       `Question descriptions must be ${MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH} characters or fewer.`,
     );
-    for (let count = 1; count < MAX_REGISTRATION_QUESTIONS; count++) {
-      button('Add question').click();
-      fixture.detectChanges();
-    }
+    expect(questionSection.querySelectorAll('legend')).toHaveLength(
+      MAX_REGISTRATION_QUESTIONS - 1,
+    );
+    expect(button('Add question').disabled).toBe(false);
+    button('Add question').click();
+    fixture.detectChanges();
     expect(questionSection.querySelectorAll('legend')).toHaveLength(
       MAX_REGISTRATION_QUESTIONS,
     );
