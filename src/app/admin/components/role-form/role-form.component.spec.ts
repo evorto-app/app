@@ -141,6 +141,9 @@ describe('stored role authority in the form', () => {
     expect(host.roleForm.permissions['admin:changeSettings']().value()).toBe(
       true,
     );
+    expect(host.roleForm.permissions['admin:managePayments']().value()).toBe(
+      true,
+    );
     expect(host.roleForm.permissions['admin:tax']().value()).toBe(true);
     host.model.set(
       mergeRoleFormOverrides({ name: 'Renamed administrator' }, host.model()),
@@ -166,6 +169,7 @@ describe('stored role authority in the form', () => {
     expect(host.submitted()?.permissions).toEqual([
       'users:*',
       'admin:changeSettings',
+      'admin:managePayments',
       'admin:tax',
       'events:seeDrafts',
     ]);

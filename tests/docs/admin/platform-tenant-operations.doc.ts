@@ -265,7 +265,7 @@ test('Manage one organization and review change history', async ({
   await expect(
     page.getByRole('heading', {
       level: 1,
-      name: 'Platform administration',
+      name: 'Evorto administration',
     }),
   ).toBeVisible();
   await page.getByRole('link', { exact: true, name: 'Organizations' }).click();
@@ -282,7 +282,7 @@ test('Manage one organization and review change history', async ({
     new RegExp(`/global-admin/tenants/${tenant.id}$`),
   );
   await expect(
-    page.getByRole('navigation', { name: 'Organization operations' }),
+    page.getByRole('navigation', { name: 'Organization management' }),
   ).toBeVisible();
 
   await testInfo.attach('markdown', {
@@ -293,9 +293,9 @@ Use this guide only when you are signed in as a platform administrator. An organ
 
 # Operate on one organization
 
-Platform administrators do not become organization members. Start at **Platform administration**, open **Organizations**, search by primary domain, and select **Review organization**. Confirm the organization name in the page header before every operation.
+Platform administrators do not become organization members. Start at **Evorto administration**, open **Organizations**, search by primary domain, and select **Review organization**. Confirm the organization name in the page header before every operation.
 
-Every change in this guide requires an operational reason. Evorto saves the domain change and a privacy-safe change-history entry together. The final section reads every reason back from the visible **Platform audit log**.
+Every change in this guide requires an operational reason. Evorto saves the domain change and a privacy-safe change-history entry together. The final section reads every reason back from the visible **Evorto change history**.
 `,
   });
   await takeScreenshot(
@@ -548,9 +548,7 @@ This action records a decision and schedules a receipt-review notification; it d
   await expectPersistedAudit(receiptReason, 'receipt.review');
 
   await page.getByRole('link', { name: 'Back to organization' }).click();
-  await page
-    .getByRole('link', { exact: true, name: 'Inspect registrations' })
-    .click();
+  await page.getByRole('link', { exact: true, name: 'Ticket support' }).click();
   const lookupInput = page.getByLabel('Ticket link or ticket number');
   await expect(lookupInput).toBeEnabled({ timeout: 20_000 });
   await lookupInput.fill(
@@ -585,7 +583,7 @@ This action records a decision and schedules a receipt-review notification; it d
     body: `
 ## Check in an attendee and guest
 
-Return to the organization and choose **Inspect registrations**. Paste either the ticket number or its attendee ticket link, then select **Open ticket**. Evorto confirms that the registration belongs to this organization before showing it.
+Return to the organization and choose **Ticket support**. Paste either the ticket number or its attendee ticket link, then select **Open ticket**. Evorto confirms that the registration belongs to this organization before showing it.
 
 Check-in opens one hour before the event starts and closes two hours after it ends. For a confirmed registration inside that window, enter the number of guests arriving now, add a **Reason for this action**, and select **Check in**. This walkthrough checks in the attendee and one guest, then confirms the updated attendee and guest totals. It does not approve or cancel a registration.
 `,
@@ -643,7 +641,7 @@ Check-in opens one hour before the event starts and closes two hours after it en
   await expectPersistedAudit(registrationReason, 'registration.checkIn');
 
   await page.goto('/global-admin');
-  await page.getByRole('link', { name: 'Platform audit log' }).click();
+  await page.getByRole('link', { name: 'Evorto change history' }).click();
   await expect(page).toHaveURL(/\/global-admin\/audit$/u);
   const auditExpectations: ReadonlyArray<readonly [string, string]> = [
     [eventReason, 'Event updated'],
@@ -682,7 +680,7 @@ Check-in opens one hour before the event starts and closes two hours after it en
     body: `
 ## Verify the audit trail
 
-Return to **Platform administration** and select **Platform audit log**. Find each operation by its reason. Verify the action label and organization, then compare the recorded values in the visible **Changes** table. Select **Load older** to review earlier entries. The log includes the event and template edits, role changes, receipt rejection, and registration check-in reviewed in this guide.
+Return to **Evorto administration** and select **Evorto change history**. Find each operation by its reason. Verify the action label and organization, then compare the recorded values in the visible **Changes** table. Select **Load older** to review earlier entries. The log includes the event and template edits, role changes, receipt rejection, and registration check-in reviewed in this guide.
 
 Participant profiles and home pages, joining or leaving an organization, personal receipt submission, and self-service registration transfer remain participant-owned. A platform administrator does not act as an organization member for those flows.
 `,

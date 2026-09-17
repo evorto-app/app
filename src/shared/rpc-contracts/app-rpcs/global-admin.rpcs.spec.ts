@@ -45,16 +45,26 @@ describe('GlobalAdminEmailOutboxKind', () => {
   it('requires the owning tenant timezone on operator records', () => {
     expect(
       Schema.decodeUnknownSync(GlobalAdminEmailOutboxRecord)({
+        attempts: 0,
+        createdAt: '2026-07-15T14:30:00.000Z',
+        deliveryUnknownAt: null,
         id: 'email-1',
         kind: 'registrationConfirmed',
         lastAttemptAt: null,
+        lastError: null,
+        provider: null,
+        providerMessageId: null,
         recipient: 'member@example.org',
         recordIncomplete: false,
+        sentAt: null,
         status: 'queued',
         subject: 'Registration confirmed',
+        suppressedAt: null,
         tenantDomain: 'section.example.org',
+        tenantId: 'tenant-1',
         tenantName: 'Section',
         tenantTimezone: 'Australia/Brisbane',
+        updatedAt: '2026-07-15T14:30:00.000Z',
       }),
     ).toMatchObject({ tenantTimezone: 'Australia/Brisbane' });
   });
@@ -106,6 +116,9 @@ describe('GlobalAdminPlatformAuditRecord', () => {
         resourceId: 'tenant-1',
         resourceType: 'taxRateBatch',
         state: {
+          amount: 1200,
+          announcementRoleCount: 2,
+          announcementRoles: ['role-private-1', 'role-private-2'],
           providerPayload: 'private',
           taxRateAddedCount: 2,
           taxRateCount: 5,
@@ -122,11 +135,18 @@ describe('GlobalAdminPlatformAuditRecord', () => {
     });
 
     expect(record.after?.state).toEqual({
+      announcementRoleCount: 2,
       taxRateAddedCount: 2,
       taxRateCount: 5,
       taxRateUnchangedCount: 1,
       taxRateUpdatedCount: 2,
     });
+    expect(record).not.toHaveProperty('actorId');
+    expect(record).not.toHaveProperty('targetTenantId');
+    expect(record.after).not.toHaveProperty('resourceId');
+    expect(record.after?.state).not.toHaveProperty('amount');
+    expect(record.after?.state).not.toHaveProperty('announcementRoles');
+    expect(record.after?.state).not.toHaveProperty('providerPayload');
   });
 });
 

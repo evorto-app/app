@@ -1,4 +1,5 @@
 import { RpcBadRequestError } from '@shared/errors/rpc-errors';
+import { resolveReceiptCountrySettings } from '@shared/finance/receipt-countries';
 import {
   AdminRoleNotFoundError,
   AdminTenantNotFoundError,
@@ -6,8 +7,16 @@ import {
 import { RoleNameAlreadyExistsError } from '@shared/rpc-contracts/app-rpcs/role-write.shared';
 import { type TenantDiscountProviders } from '@shared/tenant-config';
 import {
-  AdminTenantSettingsSnapshot,
-  adminTenantSettingsSnapshot,
+  AdminTenantAppearanceSettingsSnapshot,
+  adminTenantAppearanceSettingsSnapshot,
+  AdminTenantLegalSettingsSnapshot,
+  adminTenantLegalSettingsSnapshot,
+  AdminTenantOrganizationSettingsSnapshot,
+  adminTenantOrganizationSettingsSnapshot,
+  AdminTenantPaymentProviderSettingsSnapshot,
+  adminTenantPaymentProviderSettingsSnapshot,
+  AdminTenantRegistrationSettingsSnapshot,
+  adminTenantRegistrationSettingsSnapshot,
   tenantSettingsConflict,
   TenantSettingsConflictError,
 } from '@shared/tenant-settings-snapshot';
@@ -23,10 +32,6 @@ import type { AppRpcHandlers } from './shared/handler-types';
 import { Database, type DatabaseClient } from '../../../../db';
 import { roles, tenants, tenantStripeTaxRates } from '../../../../db/schema';
 import { AdminRoleRecord } from '../../../../shared/rpc-contracts/app-rpcs/admin.rpcs';
-import {
-  ClientTenantConfig,
-  toClientTenantConfig,
-} from '../../../../shared/rpc-contracts/app-rpcs/config.rpcs';
 import { Tenant } from '../../../../types/custom/tenant';
 import { normalizeEsnCardConfig } from '../../../discounts/discount-provider-config';
 import { lockTenantStripeAccount } from '../../../payments/pending-stripe-obligations';
@@ -71,6 +76,43 @@ const databaseBadRequestEffect = <A, R>(
           ? Effect.fail(error)
           : Effect.die(error),
       ),
+    ),
+  );
+
+const databaseSettingsEffect = <A>(
+  operation: (database: DatabaseClient) => Effect.Effect<A, unknown, never>,
+): Effect.Effect<
+  A,
+  RpcBadRequestError | TenantSettingsConflictError,
+  Database
+> =>
+  Database.use((database) =>
+    operation(database).pipe(
+      Effect.catch((error) =>
+        error instanceof RpcBadRequestError ||
+        error instanceof TenantSettingsConflictError
+          ? Effect.fail(error)
+          : Effect.die(error),
+      ),
+    ),
+  );
+
+const validateAdminSettings = <A>(input: {
+  readonly operation: string;
+  readonly publicMessage: string;
+  readonly try: () => A;
+}) =>
+  Effect.try({
+    catch: (error) => error,
+    try: input.try,
+  }).pipe(
+    Effect.tapError(() =>
+      Effect.logWarning('Admin settings validation failed').pipe(
+        Effect.annotateLogs({ operation: input.operation }),
+      ),
+    ),
+    Effect.mapError(
+      () => new RpcBadRequestError({ message: input.publicMessage }),
     ),
   );
 
@@ -272,11 +314,11 @@ const tenantHasRuntimeDependentData = (
     return !!existingTransaction;
   });
 
-const tenantRuntimeSettingsLockedError = () =>
+const tenantTimezoneSettingsLockedError = () =>
   new RpcBadRequestError({
-    message: 'Tenant currency and timezone settings are locked',
-    reason:
-      'Currency and timezone cannot be changed after event or payment data exists.',
+    message:
+      'Time zone cannot be changed after events or payments have been added. Keep the current time zone to save these settings.',
+    reason: 'timezoneLocked',
   });
 
 const tenantCurrencySettingsLockedError = () =>
@@ -703,112 +745,135 @@ export const adminHandlers = {
         ...archivedRates.map((rate) => mapRate(rate)),
       ];
     }),
-  'admin.tenant.updateSettings': (input, _options) =>
+  'admin.tenant.updateAppearanceSettings': (input, _options) =>
     Effect.gen(function* () {
       yield* RpcAccess.ensurePermission('admin:changeSettings');
       const { tenant } = yield* RpcAccess.current();
-      const discountProviders: TenantDiscountProviders = {
-        esnCard: {
-          config: yield* Effect.try({
-            catch: (error) =>
-              new RpcBadRequestError({
-                message: 'Invalid ESN card configuration',
-                reason: error instanceof Error ? error.message : String(error),
-              }),
-            try: () => normalizeEsnCardConfig(input.buyEsnCardUrl),
-          }),
-          status: input.esnCardEnabled ? 'enabled' : 'disabled',
-        },
-      };
-      const legalLinks = yield* Effect.try({
-        catch: (error) =>
-          new RpcBadRequestError({
-            message: 'Invalid tenant legal links',
-            reason: error instanceof Error ? error.message : String(error),
-          }),
-        try: () => normalizeTenantLegalLinks(input),
-      });
-      const brandAssets = yield* Effect.try({
-        catch: (error) =>
-          new RpcBadRequestError({
-            message: 'Invalid tenant brand assets',
-            reason: error instanceof Error ? error.message : String(error),
-          }),
+      const brandAssets = yield* validateAdminSettings({
+        operation: 'admin.settings.appearance.validate',
+        publicMessage:
+          'Choose an uploaded logo or small site icon for this organization, or enter a valid web address.',
         try: () => normalizeTenantBrandAssets(input, tenant.id),
       });
-      const nextTenant = {
-        ...tenant,
-        ...brandAssets,
-        cancellationDeadlineHoursBeforeStart:
-          input.cancellationDeadlineHoursBeforeStart,
-        currency: input.currency,
-        defaultLocation: input.defaultLocation,
-        discountProviders,
-        emailSenderEmail: input.emailSenderEmail?.trim() || null,
-        emailSenderName: input.emailSenderName?.trim() || null,
-        ...legalLinks,
-        maxActiveRegistrationsPerUser: input.maxActiveRegistrationsPerUser,
-        receiptSettings: {
-          allowOther: input.allowOther,
-          receiptCountries: input.receiptCountries,
-        },
-        refundFeesOnCancellation: input.refundFeesOnCancellation,
-        seoDescription: input.seoDescription?.trim() || null,
-        seoTitle: input.seoTitle?.trim() || null,
-        theme: input.theme,
-        timezone: input.timezone,
-        transferDeadlineHoursBeforeStart:
-          input.transferDeadlineHoursBeforeStart,
-      };
 
-      const validatedTenant = yield* Effect.try({
-        catch: (error) =>
-          new RpcBadRequestError({
-            message: 'Updated tenant settings failed validation',
-            reason: error instanceof Error ? error.message : String(error),
+      const updatedTenants = yield* databaseSettingsEffect((database) =>
+        database.transaction((transaction) =>
+          Effect.gen(function* () {
+            const lockedTenantRows = yield* transaction
+              .select()
+              .from(tenants)
+              .where(eq(tenants.id, tenant.id))
+              .for('update');
+            const lockedTenant = lockedTenantRows[0];
+            if (!lockedTenant) return [];
+            if (
+              !Schema.toEquivalence(AdminTenantAppearanceSettingsSnapshot)(
+                input.expectedSettings,
+                adminTenantAppearanceSettingsSnapshot(
+                  Schema.decodeUnknownSync(Tenant)(lockedTenant),
+                ),
+              )
+            ) {
+              return yield* tenantSettingsConflict();
+            }
+
+            return yield* transaction
+              .update(tenants)
+              .set({
+                ...brandAssets,
+                seoDescription: input.seoDescription?.trim() || null,
+                seoTitle: input.seoTitle?.trim() || null,
+                theme: input.theme,
+              })
+              .where(eq(tenants.id, tenant.id))
+              .returning({ id: tenants.id });
           }),
-        try: () => Schema.decodeUnknownSync(Tenant)(nextTenant),
+        ),
+      );
+
+      if (!updatedTenants[0]) {
+        return yield* Effect.fail(
+          new AdminTenantNotFoundError({
+            id: tenant.id,
+            message:
+              'This organization no longer exists. No changes were saved. Return to the organization list and choose an existing organization.',
+          }),
+        );
+      }
+    }),
+  'admin.tenant.updateLegalSettings': (input, _options) =>
+    Effect.gen(function* () {
+      yield* RpcAccess.ensurePermission('admin:changeSettings');
+      const { tenant } = yield* RpcAccess.current();
+      const legalLinks = yield* validateAdminSettings({
+        operation: 'admin.settings.legal.validate',
+        publicMessage:
+          'Enter valid web addresses for the legal notice and terms.',
+        try: () => normalizeTenantLegalLinks(input),
       });
 
-      const tenantUpdate = {
-        ...brandAssets,
-        cancellationDeadlineHoursBeforeStart:
-          input.cancellationDeadlineHoursBeforeStart,
-        currency: input.currency,
-        defaultLocation: input.defaultLocation,
-        discountProviders,
-        emailSenderEmail: input.emailSenderEmail?.trim() || null,
-        emailSenderName: input.emailSenderName?.trim() || null,
-        ...legalLinks,
-        maxActiveRegistrationsPerUser: input.maxActiveRegistrationsPerUser,
-        receiptSettings: validatedTenant.receiptSettings,
-        refundFeesOnCancellation: input.refundFeesOnCancellation,
-        seoDescription: input.seoDescription?.trim() || null,
-        seoTitle: input.seoTitle?.trim() || null,
-        theme: input.theme,
-        timezone: input.timezone,
-        transferDeadlineHoursBeforeStart:
-          input.transferDeadlineHoursBeforeStart,
-      };
+      const updatedTenants = yield* databaseSettingsEffect((database) =>
+        database.transaction((transaction) =>
+          Effect.gen(function* () {
+            const lockedTenantRows = yield* transaction
+              .select()
+              .from(tenants)
+              .where(eq(tenants.id, tenant.id))
+              .for('update');
+            const lockedTenant = lockedTenantRows[0];
+            if (!lockedTenant) return [];
+            if (
+              !Schema.toEquivalence(AdminTenantLegalSettingsSnapshot)(
+                input.expectedSettings,
+                adminTenantLegalSettingsSnapshot(
+                  Schema.decodeUnknownSync(Tenant)(lockedTenant),
+                ),
+              )
+            ) {
+              return yield* tenantSettingsConflict();
+            }
+
+            return yield* transaction
+              .update(tenants)
+              .set(legalLinks)
+              .where(eq(tenants.id, tenant.id))
+              .returning({ id: tenants.id });
+          }),
+        ),
+      );
+
+      if (!updatedTenants[0]) {
+        return yield* Effect.fail(
+          new AdminTenantNotFoundError({
+            id: tenant.id,
+            message:
+              'This organization no longer exists. No changes were saved. Return to the organization list and choose an existing organization.',
+          }),
+        );
+      }
+    }),
+  'admin.tenant.updateOrganizationSettings': (input, _options) =>
+    Effect.gen(function* () {
+      yield* RpcAccess.ensurePermission('admin:changeSettings');
+      const { tenant } = yield* RpcAccess.current();
       const updatedTenants = yield* Database.use((database) =>
         database
-          .transaction((tx) =>
+          .transaction((transaction) =>
             Effect.gen(function* () {
-              const lockedTenantRows = yield* tx
+              const lockedTenantRows = yield* transaction
                 .select()
                 .from(tenants)
                 .where(eq(tenants.id, tenant.id))
                 .for('update');
-
               const lockedTenant = lockedTenantRows[0];
               if (!lockedTenant) {
                 return [];
               }
 
               if (
-                !Schema.toEquivalence(AdminTenantSettingsSnapshot)(
+                !Schema.toEquivalence(AdminTenantOrganizationSettingsSnapshot)(
                   input.expectedSettings,
-                  adminTenantSettingsSnapshot(
+                  adminTenantOrganizationSettingsSnapshot(
                     Schema.decodeUnknownSync(Tenant)(lockedTenant),
                   ),
                 )
@@ -816,35 +881,28 @@ export const adminHandlers = {
                 return yield* tenantSettingsConflict();
               }
 
-              if (lockedTenant.currency !== input.currency) {
-                const hasCurrencyDependentData =
-                  yield* tenantHasCurrencyDependentData(tx, tenant.id);
-                if (hasCurrencyDependentData) {
+              if (lockedTenant.timezone !== input.timezone) {
+                const hasDependentData = yield* tenantHasRuntimeDependentData(
+                  transaction,
+                  tenant.id,
+                );
+                if (hasDependentData) {
                   return yield* Effect.fail(
-                    tenantCurrencySettingsLockedError(),
+                    tenantTimezoneSettingsLockedError(),
                   );
                 }
               }
 
-              if (lockedTenant.timezone !== input.timezone) {
-                const hasDependentData = yield* tenantHasRuntimeDependentData(
-                  tx,
-                  tenant.id,
-                );
-                if (hasDependentData) {
-                  return yield* Effect.fail(tenantRuntimeSettingsLockedError());
-                }
-              }
-
-              const updatedRows = yield* tx
+              return yield* transaction
                 .update(tenants)
-                .set(tenantUpdate)
+                .set({
+                  defaultLocation: input.defaultLocation,
+                  emailSenderEmail: input.emailSenderEmail?.trim() || null,
+                  emailSenderName: input.emailSenderName?.trim() || null,
+                  timezone: input.timezone,
+                })
                 .where(eq(tenants.id, tenant.id))
-                .returning({
-                  id: tenants.id,
-                  stripeAccountId: tenants.stripeAccountId,
-                });
-              return updatedRows;
+                .returning({ id: tenants.id });
             }),
           )
           .pipe(
@@ -856,20 +914,155 @@ export const adminHandlers = {
             ),
           ),
       );
-      const updatedTenant = updatedTenants[0];
-      if (!updatedTenant) {
+      if (!updatedTenants[0]) {
         return yield* Effect.fail(
           new AdminTenantNotFoundError({
             id: tenant.id,
-            message: 'Tenant not found or stale',
+            message:
+              'This organization no longer exists. No changes were saved. Return to the organization list and choose an existing organization.',
           }),
         );
       }
+    }),
+  'admin.tenant.updatePaymentProviderSettings': (input, _options) =>
+    Effect.gen(function* () {
+      yield* RpcAccess.ensurePermission('admin:managePayments');
+      const { tenant } = yield* RpcAccess.current();
+      const discountProviders: TenantDiscountProviders = {
+        esnCard: {
+          config: yield* validateAdminSettings({
+            operation: 'admin.settings.esnCard.validate',
+            publicMessage:
+              'Enter a valid secure web address for buying an ESNcard.',
+            try: () =>
+              Schema.decodeUnknownSync(
+                Tenant.fields.discountProviders.fields.esnCard.fields.config,
+              )(normalizeEsnCardConfig(input.buyEsnCardUrl)),
+          }),
+          status: input.esnCardEnabled ? 'enabled' : 'disabled',
+        },
+      };
+      const updatedTenants = yield* Database.use((database) =>
+        database
+          .transaction((transaction) =>
+            Effect.gen(function* () {
+              const lockedTenantRows = yield* transaction
+                .select()
+                .from(tenants)
+                .where(eq(tenants.id, tenant.id))
+                .for('update');
+              const lockedTenant = lockedTenantRows[0];
+              if (!lockedTenant) {
+                return [];
+              }
 
-      return new ClientTenantConfig({
-        ...toClientTenantConfig(validatedTenant),
-        paymentsConfigured: Boolean(updatedTenant.stripeAccountId),
-      });
+              if (
+                !Schema.toEquivalence(
+                  AdminTenantPaymentProviderSettingsSnapshot,
+                )(
+                  input.expectedSettings,
+                  adminTenantPaymentProviderSettingsSnapshot(
+                    Schema.decodeUnknownSync(Tenant)(lockedTenant),
+                  ),
+                )
+              ) {
+                return yield* tenantSettingsConflict();
+              }
+
+              if (lockedTenant.currency !== input.currency) {
+                const hasCurrencyDependentData =
+                  yield* tenantHasCurrencyDependentData(transaction, tenant.id);
+                if (hasCurrencyDependentData) {
+                  return yield* Effect.fail(
+                    tenantCurrencySettingsLockedError(),
+                  );
+                }
+              }
+
+              return yield* transaction
+                .update(tenants)
+                .set({
+                  currency: input.currency,
+                  discountProviders,
+                  receiptSettings: resolveReceiptCountrySettings({
+                    allowOther: input.allowOther,
+                    receiptCountries: input.receiptCountries,
+                  }),
+                  refundFeesOnCancellation: input.refundFeesOnCancellation,
+                })
+                .where(eq(tenants.id, tenant.id))
+                .returning({ id: tenants.id });
+            }),
+          )
+          .pipe(
+            Effect.catch((error) =>
+              error instanceof RpcBadRequestError ||
+              error instanceof TenantSettingsConflictError
+                ? Effect.fail(error)
+                : Effect.die(error),
+            ),
+          ),
+      );
+      if (!updatedTenants[0]) {
+        return yield* Effect.fail(
+          new AdminTenantNotFoundError({
+            id: tenant.id,
+            message:
+              'This organization no longer exists. No changes were saved. Return to the organization list and choose an existing organization.',
+          }),
+        );
+      }
+    }),
+  'admin.tenant.updateRegistrationSettings': (input, _options) =>
+    Effect.gen(function* () {
+      yield* RpcAccess.ensurePermission('admin:changeSettings');
+      const { tenant } = yield* RpcAccess.current();
+      const updatedTenants = yield* databaseSettingsEffect((database) =>
+        database.transaction((transaction) =>
+          Effect.gen(function* () {
+            const lockedTenantRows = yield* transaction
+              .select()
+              .from(tenants)
+              .where(eq(tenants.id, tenant.id))
+              .for('update');
+            const lockedTenant = lockedTenantRows[0];
+            if (!lockedTenant) return [];
+            if (
+              !Schema.toEquivalence(AdminTenantRegistrationSettingsSnapshot)(
+                input.expectedSettings,
+                adminTenantRegistrationSettingsSnapshot(
+                  Schema.decodeUnknownSync(Tenant)(lockedTenant),
+                ),
+              )
+            ) {
+              return yield* tenantSettingsConflict();
+            }
+
+            return yield* transaction
+              .update(tenants)
+              .set({
+                cancellationDeadlineHoursBeforeStart:
+                  input.cancellationDeadlineHoursBeforeStart,
+                maxActiveRegistrationsPerUser:
+                  input.maxActiveRegistrationsPerUser,
+                transferDeadlineHoursBeforeStart:
+                  input.transferDeadlineHoursBeforeStart,
+              })
+              .where(eq(tenants.id, tenant.id))
+              .returning({ id: tenants.id });
+          }),
+        ),
+      );
+
+      if (!updatedTenants[0]) {
+        return yield* Effect.fail(
+          new AdminTenantNotFoundError({
+            id: tenant.id,
+            message:
+              'This organization no longer exists. No changes were saved. Return to the organization list and choose an existing organization.',
+          }),
+        );
+      }
     }),
   'admin.tenant.uploadBrandAsset': (input, _options) =>
     Effect.gen(function* () {

@@ -40,14 +40,14 @@ Only people who manage Evorto as a whole can use this page. The Admin role for o
 {% /callout %}
 
 
-Open **Email outbox** from **Platform administration** to review **Email delivery**. This page shows recent messages for every organization. It tells you whether each message is waiting, being sent, could not be sent, was sent, could not be confirmed, or was withheld by the environment recipient policy. The page does not show message contents or offer a resend action.
+Open **Email outbox** from **Evorto administration** to review **Email delivery**. This page shows recent messages for every organization. It tells you whether each message is waiting, being sent, could not be sent, was sent, could not be confirmed, or was withheld by the environment recipient policy. The page does not show message contents or offer a resend action.
 `,
   });
 
   await expect(
     page.getByRole('heading', {
       level: 1,
-      name: 'Platform administration',
+      name: 'Evorto administration',
     }),
   ).toBeVisible();
   await page.getByRole('link', { name: 'Email outbox' }).click();

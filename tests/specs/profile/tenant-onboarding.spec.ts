@@ -116,11 +116,11 @@ test('a tenant admin publishes a version and is immediately required to re-accep
   await expect(
     settings.getByRole('heading', {
       level: 1,
-      name: 'Member onboarding',
+      name: 'New member setup',
     }),
   ).toBeVisible();
   await expect(settings.getByRole('note')).toContainText(
-    'Publishing changed policy text or a changed link immediately requires every member, including you, to accept the new version before continuing in this organization.',
+    'When you publish a policy change, every member, including you, must accept it before continuing in this organization.',
   );
   await expect(settings).not.toHaveAttribute('ngh', /.*/);
   const privacyPolicyText = settings.getByRole('textbox', {
@@ -137,16 +137,19 @@ test('a tenant admin publishes a version and is immediately required to re-accep
   await questionInputs
     .nth(previousQuestionCount)
     .fill('Which member group should welcome you?');
-  await settings.getByRole('combobox', { name: 'Answer type' }).last().click();
-  await admin.page.getByRole('option', { name: 'Selection list' }).click();
   await settings
-    .getByRole('textbox', { name: 'Selection options' })
+    .getByRole('combobox', { name: 'How members answer' })
+    .last()
+    .click();
+  await admin.page.getByRole('option', { name: 'Choose from a list' }).click();
+  await settings
+    .getByRole('textbox', { name: 'Choices' })
     .last()
     .fill('Buddy team\nEvents team');
-  await settings.getByRole('button', { name: 'Publish settings' }).click();
-  await expect(
-    admin.page.getByText(/members must accept it before continuing/i),
-  ).toBeVisible();
+  await settings.getByRole('button', { name: 'Publish changes' }).click();
+  await expect(admin.page).toHaveURL(
+    /\/create-account\?redirectUrl=%2Fadmin%2Fonboarding$/,
+  );
 
   const allPolicies = await database.query.tenantPrivacyPolicyVersions.findMany(
     {
@@ -158,8 +161,6 @@ test('a tenant admin publishes a version and is immediately required to re-accep
   );
   expect(publishedPolicy?.createdByUserId).toBeTruthy();
 
-  await admin.page.goto('/admin');
-  await expect(admin.page).toHaveURL(/\/create-account$/);
   const onboarding = admin.page.locator('app-create-account');
   await expect(
     onboarding.getByRole('heading', { name: 'Complete organization setup' }),

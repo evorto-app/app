@@ -441,77 +441,70 @@ describe('generated docs source current behavior', () => {
     expect(source).not.toContain('A supported non-Stripe source');
   });
 
-  it('keeps organization general-settings docs aligned with implemented branding and legal routes', () => {
+  it('keeps focused organization settings docs aligned with routes, permissions, and ownership', () => {
     const source = readSource('tests/docs/admin/general-settings.doc.ts');
 
-    expect(source).not.toContain(
-      'domain onboarding, brand asset upload, legal text page',
+    expect(source).toContain('Settings are divided into five pages');
+    expect(source).toContain('**Organization settings**');
+    expect(source).toContain('**Sign-up rules**');
+    expect(source).toContain('**Appearance**');
+    expect(source).toContain('**Legal pages**');
+    expect(source).toContain('**Payments**');
+    expect(source).toContain('Separate **Manage payments** access is required');
+    expect(source).toContain(
+      'Each page has its own **Save** action. Saving one page does not change settings on another page.',
     );
     expect(source).toContain(
-      'A read-only **Organization** summary with its name and public domain.',
+      'Joining a waitlist does not count toward this limit',
     );
+    expect(source).toContain("page.locator('app-organization-settings')");
+    expect(source).toContain("page.locator('app-registration-settings')");
+    expect(source).toContain("page.locator('app-appearance-settings')");
+    expect(source).toContain("page.locator('app-legal-settings')");
+    expect(source).toContain("page.locator('app-payment-provider-settings')");
+    expect(source).toContain(
+      'Organization name, reply email, location, and time zone',
+    );
+    expect(source).toContain(
+      'Active sign-up limit and transfer and cancellation deadlines',
+    );
+    expect(source).toContain('Theme, logo, tab icon, and search preview text');
+    expect(source).toContain(
+      'Imprint and terms settings with a link to privacy setup',
+    );
+    expect(source).toContain(
+      'Payment readiness, currency, refunds, receipts, and discounts',
+    );
+    expect(source).toContain("name: 'Save organization settings'");
+    expect(source).toContain("name: 'Save sign-up rules'");
+    expect(source).toContain("name: 'Save appearance settings'");
+    expect(source).toContain("name: 'Save legal pages'");
+    expect(source).toContain("name: 'Save payment settings'");
     expect(source).not.toContain('canonicalRootUrl');
     expect(source).not.toContain('Canonical root URL');
-    expect(source).toContain(
-      'A **Currency** select with EUR, CZK, and AUD plus a **Timezone** text field for the city or region used for event times.',
-    );
     expect(source).not.toContain('**Formatting locale**');
-    expect(source).not.toContain(
-      "generalSettings.getByRole('combobox', { name: 'Locale' })",
-    );
-    expect(source).toContain(
-      "generalSettings.getByText('Organization name', { exact: true })",
-    );
-    expect(source).toContain(
-      "generalSettings.getByText('Public domain', { exact: true })",
-    );
-    expect(source).toContain(
-      "generalSettings.getByRole('textbox', { name: 'Timezone' })",
-    );
-    expect(source).toContain(
-      '**SEO title** and **SEO description** for public-page previews.',
-    );
-    expect(source).not.toContain('A **Deferred settings** summary');
-    expect(source).toContain(
-      '**Operations settings** for email reply-to name/email, paid sign-up readiness, the organization-wide active registration limit, default registration transfer/cancellation deadlines, and cancellation fee-refund behavior.',
-    );
     expect(source).toContain('documentedEmailSenderName');
     expect(source).toContain('documentedEmailSenderEmail');
     expect(source).toContain('documentedStripeAccountId');
+    expect(source).toContain('stripeAccountId: documentedStripeAccountId');
     expect(source).toContain('documentedRegistrationLimit');
     expect(source).toContain('documentedTransferDeadlineHours');
     expect(source).toContain('documentedCancellationDeadlineHours');
-    expect(source).toContain('documentedRefundFeesOnCancellation');
-    expect(source).toContain("page.getByPlaceholder('Example Section')");
-    expect(source).toContain("generalSettings.getByPlaceholder('acct_...')");
-    expect(source).toContain('await page.reload()');
-    expect(source).toContain('Expected generated general-settings docs tenant');
+    expect(source).toContain('documentedBuyEsnCardUrl');
     expect(source).toContain("from '../../support/fixtures/parallel-test'");
     expect(source).not.toContain('} finally {');
     expect(source).not.toContain('.update(schema.tenants)');
-    expect(source).toContain(
-      'The walkthrough below updates the editable operations values and uploaded brand assets while preserving the attached Stripe account. It saves the form, reloads the page, and confirms that the same values and payment readiness remain.',
-    );
     expect(source).toContain("getByLabel('Upload organization logo file')");
-    expect(source).toContain("getByLabel('Upload organization favicon file')");
+    expect(source).toContain("getByLabel('Upload organization tab icon file')");
     expect(source).toContain('documentedLogoUrl');
     expect(source).toContain('documentedFaviconUrl');
-    expect(source).toContain(
-      'Use uploaded assets that belong to this organization.',
-    );
     expect(source).toContain('Transfer deadline before event (hours)');
     expect(source).toContain('Cancellation deadline before event (hours)');
     expect(source).toContain('Refund fees on cancellation');
     expect(source).toContain(
-      'When both fields are saved, the public footer gives the external URL precedence and does not show the hosted text.',
+      'If paid sign-ups are not ready, contact Evorto support before adding prices.',
     );
-    expect(source).toContain(
-      'The privacy policy is managed with required questions on **Member onboarding**, so a policy cannot be changed without the member-acceptance warning.',
-    );
-    expect(source).not.toContain('Do not fill both alternatives');
-    expect(source).toContain(
-      "test('Publish hosted legal pages and verify the signed-out footer @admin'",
-    );
+    expect(source).toContain("test('Publish legal pages @admin'");
     expect(source).toContain(
       "getByRole('textbox', { name: 'Privacy policy text' })",
     );
@@ -519,22 +512,63 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain("name: 'Privacy policy'");
     expect(source).toContain('privacyPolicyUrl: null');
     expect(source).toContain(
-      '**Allowed receipt countries** and **Allow other** for receipt submission.',
+      'When both are present, your public pages link to the page on the other website.',
     );
     expect(source).toContain(
-      '**ESN Card discounts** and optional **Buy ESNcard URL** when the organization uses ESNcard validation.',
+      'Tax rates remain on the separate **Tax rates** page.',
     );
     expect(source).toContain(
-      'Tax rates are managed on the separate **Tax Rates** page.',
+      'check the saved settings before making another change',
     );
     expect(source).toContain(
-      'Currency and timezone can be changed before the organization has event or payment data; after that, Evorto prevents the change.',
+      'settings were saved but the current values could not be loaded',
     );
+    expect(source).toContain(
+      '**Load saved settings** replaces those retained entries with the saved values',
+    );
+    expect(source).not.toContain('If saving fails, try again.');
+    expect(source).toContain('Expected generated general-settings docs tenant');
+    expect(source).toContain('expect(tenantRecord.domain).toBe(tenant.domain)');
+    expect(source).toContain('domain: tenantRecord.domain');
+    expect(source).toContain('name: tenantRecord.name');
+    expect(source).toContain("settings.getByLabel('Stripe account ID')");
+    expect(source).toContain("settings.getByPlaceholder('acct_...')");
+    expect(source).toContain('settings.getByText(documentedStripeAccountId');
+    expect(source).toContain(
+      'expect(await readPrivacyPolicies()).toEqual(originalPrivacyPolicies)',
+    );
+    expect(source).toContain('await page.reload()');
+    expect(source).toContain(
+      'Read saved values after reopening each settings page',
+    );
+    expect(source).toContain(
+      'expect(await uploadedLogoResponse.body()).toEqual(onePixelPng)',
+    );
+    expect(source).toContain(
+      'expect(await uploadedFaviconResponse.body()).toEqual(onePixelPng)',
+    );
+    expect(source).toContain('faviconUrl: tenantRecord.faviconUrl');
+    expect(source).toContain('logoUrl: tenantRecord.logoUrl');
+    expect(source).toContain('Hosted privacy policy ready to publish');
+    expect(source).toContain(
+      'Your organization name and website address cannot be edited here',
+    );
+    expect(source).toContain(
+      'Uploading a file alone does not change the saved logo or tab icon',
+    );
+    expect(source).not.toContain(
+      'domain onboarding, brand asset upload, legal text page',
+    );
+    expect(source).not.toContain("getByRole('combobox', { name: 'Locale' })");
+    expect(source).not.toContain('A **Deferred settings** summary');
+    expect(source).not.toContain('Do not fill both alternatives');
     expect(source).not.toContain(
       'When one of those accepted changes is saved, Evorto reloads the app',
     );
     expect(source).not.toContain('Tax rates are configured here');
     expect(source).not.toContain('Stripe account management gaps');
+    expect(source).not.toContain('app-general-settings');
+    expect(source).not.toContain("name: 'General settings'");
   });
 
   it('keeps unknown-domain recovery public, non-mutating, and beginner-readable', () => {
@@ -549,10 +583,10 @@ describe('generated docs source current behavior', () => {
       "'/scan/registration/example-registration-from-qr'",
     );
     expect(source).toContain('expect(response?.status()).toBe(404)');
+    expect(source).toContain('Your account and tickets have not changed');
     expect(source).toContain(
-      'Your account and registrations have not been changed',
+      'ask the person running the activity for the current Evorto link for this event',
     );
-    expect(source).toContain('do not create a replacement registration');
     expect(responseSource).toContain('status: 404');
     expect(responseSource).toContain("'Cache-Control': 'no-store'");
     expect(responseSource).toContain("'X-Robots-Tag': 'noindex, nofollow'");
@@ -566,9 +600,13 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain('Search organizations');
     expect(source).toContain('No organizations match this search');
     expect(source).toContain(
-      "Review this organization's settings and platform tools.",
+      "Review this organization's settings and manage its events, members, roles, and finances.",
     );
     expect(source).toContain('Open organization');
+    expect(source).toContain("name: 'Website address'");
+    expect(source).toContain("getByLabel('Time zone')");
+    expect(source).toContain("getByLabel('Reason for this change')");
+    expect(source).toContain("getByRole('searchbox'");
     expect(source).not.toContain('canonicalRootUrl');
     expect(source).not.toContain('Canonical root URL');
     expect(source).toContain('Stripe account');
@@ -588,29 +626,27 @@ describe('generated docs source current behavior', () => {
       'expect(tenantPrimaryDomainInput(page)).toHaveValue(',
     );
     expect(source).toContain(
-      'Create and edit manage the primary domain, name, theme, currency, and timezone.',
+      'Create and edit manage the website address, name, theme, currency, and time zone.',
     );
     expect(source).toContain(
-      'Once attached, the account cannot be changed or removed.',
+      'These forms do not attach, change, or remove payment accounts.',
     );
     expect(source).not.toContain('The formatting locale remains fixed');
     expect(source).toContain(
-      'Domains must be unique host names without paths, queries, fragments, credentials, or custom ports.',
+      "Enter only the organization's main website address",
     );
     expect(source).toContain(
-      'The create journey also checks domain safeguards before saving: domains with paths are rejected, and duplicate primary domains return a visible error while keeping the form intact.',
+      "Evorto rejects an address for a specific page instead of the organization's main address, or an address already used by another organization.",
+    );
+    expect(source).toContain('Each change requires a reason.');
+    expect(source).toContain(
+      'The website address cannot change while a payment, refund, or ticket transfer is unfinished.',
     );
     expect(source).toContain(
-      'Each platform change requires an operator reason.',
+      'Existing links and QR codes that use the old address will stop working after the change.',
     );
     expect(source).toContain(
-      'A public-domain change is rejected while pending payments, refunds, or registration transfers still depend on existing links.',
-    );
-    expect(source).toContain(
-      'Keep the old domain redirecting to the new one so issued links and QR codes continue to work.',
-    );
-    expect(source).toContain(
-      "getByRole('link', { name: 'Platform audit log' })",
+      "getByRole('link', { name: 'Evorto change history' })",
     );
     expect(source).toContain("page.locator('app-platform-audit')");
     expect(source).toContain('.delete(schema.platformAuditEntries)');
@@ -672,7 +708,7 @@ describe('generated docs source current behavior', () => {
       'expect(checkIn).toBeEnabled({ timeout: 20_000 })',
     );
     expect(source).toContain(
-      "getByRole('link', { name: 'Platform audit log' })",
+      "getByRole('link', { name: 'Evorto change history' })",
     );
     expect(source).toContain('.delete(schema.platformAuditEntries)');
     expect(source).toContain(
@@ -819,6 +855,15 @@ describe('generated docs source current behavior', () => {
     );
     expect(source).toContain('accepted privacy-policy version');
     expect(source).toContain('original home organization stays unchanged');
+    expect(source).toContain(
+      'If Evorto says the organization changed its questions or privacy policy',
+    );
+    expect(source).toContain(
+      'load the page again to check whether setup completed before trying again',
+    );
+    expect(source).not.toContain(
+      'If setup fails or the policy changes while the form is open',
+    );
     expect(source).not.toContain('login email as your notification email');
     expect(source).not.toContain('tenant-specific notification email');
   });
@@ -828,24 +873,24 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain("admin.page.goto('/admin/onboarding')");
     expect(source).toContain('takeScreenshot');
     expect(source).toContain('Publishing a policy takes effect immediately');
-    expect(source).toContain('Every existing member');
+    expect(source).toContain('every existing member');
     expect(source).toContain('Confirm and continue');
     expect(source).toContain('tenantPrivacyPolicyAcceptances.findFirst');
     expect(source).toContain('tenantOnboardingQuestionAnswers.findFirst');
     expect(source).toContain('Make this my home organization');
     expect(source).toContain(
-      'Text and URL saved together form one policy version with one publication time and author.',
+      'Privacy acceptance and answers stay with the organization and the policy the member accepted.',
     );
     expect(source).toContain(
-      'while a URL is saved, **Privacy** opens that external page',
+      'When a web address is saved, selecting **Privacy** on a public page opens that address.',
     );
-    expect(source).toContain("name: 'Privacy policy URL'");
+    expect(source).toContain("name: 'Privacy policy web address'");
     expect(source).toContain('.fill(privacyPolicyUrl)');
     expect(source).toContain('privacyPolicyText,\n    privacyPolicyUrl,');
     expect(source).toContain("name: 'Open the full privacy policy'");
     expect(source).toContain("toHaveAttribute('href', privacyPolicyUrl)");
     expect(source).toContain(
-      'Hosted text plus an external URL count as one policy version.',
+      'Text published by Evorto and a separate web address belong to the same policy.',
     );
   });
 

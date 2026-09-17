@@ -12,7 +12,12 @@ import { Schema } from 'effect';
 // Define the permission groups as const
 const ADMIN_GROUP = {
   key: 'admin',
-  permissions: ['manageRoles', 'changeSettings', 'tax'] as const,
+  permissions: [
+    'manageRoles',
+    'changeSettings',
+    'managePayments',
+    'tax',
+  ] as const,
 } as const;
 
 const EVENTS_GROUP = {
@@ -122,6 +127,11 @@ const PERMISSION_METADATA = {
     description:
       'Update organization-wide settings such as theme, receipt countries, and discount card configuration.',
     label: 'Change organization settings',
+  },
+  'admin:managePayments': {
+    description:
+      'View whether paid sign-ups are ready, and manage currency, accepted receipt countries, cancellation refund fees, and ESNcard discounts.',
+    label: 'Manage payments',
   },
   'admin:manageRoles': {
     description:

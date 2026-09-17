@@ -371,8 +371,8 @@ test('Publish and complete member onboarding @admin', async ({
       .map((question) => question.id),
   );
   const privacyPolicyText =
-    'We process your profile and onboarding answers to provide section membership services.';
-  const privacyPolicyUrl = `https://example.com/privacy/${tenant.id}`;
+    'We process your profile and the answers you provide while joining to provide membership services.';
+  const privacyPolicyUrl = 'https://lakeside-students.example.org/privacy';
 
   registerDatabaseCleanup(async (cleanupDatabase) => {
     const currentPolicies =
@@ -438,27 +438,26 @@ test('Publish and complete member onboarding @admin', async ({
 
   await testInfo.attach('markdown', {
     body: `
-# Member Onboarding
 
-Member onboarding protects every organization-specific feature with three current requirements: a valid profile, acceptance of the organization's latest privacy-policy version, and an answer to every active organization question.
+Before someone can join or continue using an organization, they must complete their profile, accept the latest privacy policy, and answer every required question.
 
 {% callout type="warning" title="Publishing a policy takes effect immediately" %}
-When an administrator changes the hosted policy text or external policy link, Evorto publishes an immutable new version. Every existing member, including the administrator who publishes it, must accept that version before continuing in the organization. Coordinate legal review and member communication before publishing.
+When an administrator publishes a changed privacy policy, every existing member, including that administrator, must accept it before continuing. Complete legal review and tell members about the change before publishing.
 {% /callout %}
 
-## Open the onboarding settings
+## Open new member setup
 
-Use **Admin Tools** -> **Member onboarding**. The account needs **Change organization settings** access for the current organization.
+Use **Admin Tools** → **New member setup**. You need **Change organization settings** access for the current organization.
 `,
   });
 
   await admin.page.goto('/admin/onboarding');
   const settings = admin.page.locator('app-onboarding-settings');
   await expect(
-    settings.getByRole('heading', { level: 1, name: 'Member onboarding' }),
+    settings.getByRole('heading', { level: 1, name: 'New member setup' }),
   ).toBeVisible();
   await expect(settings.getByRole('note')).toContainText(
-    'Publishing changed policy text or a changed link immediately requires every member, including you, to accept the new version before continuing in this organization.',
+    'When you publish a policy change, every member, including you, must accept it before continuing in this organization.',
   );
   await expect(settings).not.toHaveAttribute('ngh', /.*/);
   await takeScreenshot(
@@ -470,13 +469,13 @@ Use **Admin Tools** -> **Member onboarding**. The account needs **Change organiz
 
   await testInfo.attach('markdown', {
     body: `
-## Configure the policy and questions
+## Choose the policy and questions
 
-Provide hosted **Privacy policy text**, an external HTTP or HTTPS **Privacy policy URL**, or both. Text and URL saved together form one policy version with one publication time and author. On **Complete organization setup**, Evorto shows the hosted text and an **Open the full privacy policy** link; the member's single checkbox accepts that whole version.
+Enter **Privacy policy text**, a full **Privacy policy web address**, or both. If both are present, members see the text and an **Open the full privacy policy** link. One checkbox accepts the complete policy shown there.
 
-The public footer uses a separate display rule: while a URL is saved, **Privacy** opens that external page instead of the hosted text. Clear the URL and publish again when the footer should use the hosted privacy page instead.
+When a web address is saved, selecting **Privacy** on a public page opens that address. Clear the address and publish again when **Privacy** should open the text published in Evorto instead.
 
-Use **Add question** for organization-wide information that every member must provide. **Short text** accepts up to 250 characters. **Selection list** requires 2 to 20 unique options, one per line, with at most 80 characters per option. Publishing a changed question set retires the previous questions instead of rewriting their historical answers.
+Use **Add question** for information that every member must provide. **Write an answer** accepts up to 250 characters. **Choose from a list** requires 2 to 20 different choices, one per line, with at most 80 characters each. Changing the questions does not change answers members already submitted.
 `,
   });
 
@@ -484,7 +483,7 @@ Use **Add question** for organization-wide information that every member must pr
     .getByRole('textbox', { name: 'Privacy policy text' })
     .fill(privacyPolicyText);
   await settings
-    .getByRole('textbox', { name: 'Privacy policy URL' })
+    .getByRole('textbox', { name: 'Privacy policy web address' })
     .fill(privacyPolicyUrl);
   const questionInputs = settings.getByRole('textbox', { name: 'Question' });
   const previousQuestionCount = await questionInputs.count();
@@ -493,10 +492,13 @@ Use **Add question** for organization-wide information that every member must pr
   await questionInputs
     .nth(previousQuestionCount)
     .fill('Which member group should welcome you?');
-  await settings.getByRole('combobox', { name: 'Answer type' }).last().click();
-  await admin.page.getByRole('option', { name: 'Selection list' }).click();
   await settings
-    .getByRole('textbox', { name: 'Selection options' })
+    .getByRole('combobox', { name: 'How members answer' })
+    .last()
+    .click();
+  await admin.page.getByRole('option', { name: 'Choose from a list' }).click();
+  await settings
+    .getByRole('textbox', { name: 'Choices' })
     .last()
     .fill('Buddy team\nEvents team');
   await takeScreenshot(
@@ -506,10 +508,10 @@ Use **Add question** for organization-wide information that every member must pr
     'Configured privacy policy and required selection question',
   );
 
-  await settings.getByRole('button', { name: 'Publish settings' }).click();
-  await expect(
-    admin.page.getByText(/members must accept it before continuing/i),
-  ).toBeVisible();
+  await settings.getByRole('button', { name: 'Publish changes' }).click();
+  await expect(admin.page).toHaveURL(
+    /\/create-account\?redirectUrl=%2Fadmin%2Fonboarding$/,
+  );
 
   const allPolicies = await database.query.tenantPrivacyPolicyVersions.findMany(
     {
@@ -530,16 +532,14 @@ Use **Add question** for organization-wide information that every member must pr
 
   await testInfo.attach('markdown', {
     body: `
-## Complete the current requirements
+## Finish setup after publishing the changes
 
-After publication, the next protected navigation returns the administrator to **Complete organization setup**. Existing profile details and earlier answers are prefilled where they still apply. Review the exact policy version, answer every current question, and select the privacy acceptance checkbox.
+After publishing changed requirements, Evorto immediately opens **Complete organization setup**. Existing profile details and earlier answers are already filled in where they still apply. Review the current policy, answer every current question, and select the privacy acceptance checkbox. Completing the form opens your profile. Use **Admin Tools** → **New member setup** to return to the published settings.
 
-Evorto does not add the person to the organization or assign standard member access until every current requirement is complete. If the policy or questions change while this page is open, submission stops and asks the user to review the new requirements.
+For a new member, Evorto creates the organization membership only after they complete the form. Existing members remain in the organization but cannot continue until they accept the current policy and answer the current required questions. If the policy or questions change while the form is open, Evorto asks them to review the latest version before submitting again.
 `,
   });
 
-  await admin.page.goto('/admin');
-  await expect(admin.page).toHaveURL(/\/create-account$/);
   const onboarding = admin.page.locator('app-create-account');
   await expect(
     onboarding.getByRole('heading', { name: 'Complete organization setup' }),
@@ -577,6 +577,14 @@ Evorto does not add the person to the organization or assign standard member acc
     .getByRole('button', { name: 'Confirm and continue' })
     .click();
   await expect(admin.page).toHaveURL(/\/profile$/);
+  await admin.page.goto('/admin');
+  await admin.page
+    .getByRole('link', { name: 'New member setup', exact: true })
+    .click();
+  await expect(admin.page).toHaveURL(/\/admin\/onboarding$/);
+  await expect(
+    settings.getByRole('heading', { level: 1, name: 'New member setup' }),
+  ).toBeVisible();
   expect(
     await database.query.tenantPrivacyPolicyAcceptances.findFirst({
       where: {
@@ -611,9 +619,9 @@ Evorto does not add the person to the organization or assign standard member acc
     body: `
 ## Home organization behavior
 
-Completing onboarding for another organization joins that organization without silently replacing the user's existing home organization. On the profile page, Evorto explains when the current organization differs from the home organization and offers the deliberate **Make this my home organization** action.
+Completing setup for another organization joins that organization without silently replacing the member's existing home organization. On the profile page, Evorto explains when the current organization differs from the home organization and offers the deliberate **Make this my home organization** action.
 
-Privacy acceptance and answers remain linked to the organization and the version the member accepted. Hosted text plus an external URL count as one policy version. A later policy version requires a new acceptance; unchanged policy content does not create another version.
+Privacy acceptance and answers stay with the organization and the policy the member accepted. Text published by Evorto and a separate web address belong to the same policy. Members must accept a changed policy again; saving the same content does not ask them twice.
 `,
   });
 });

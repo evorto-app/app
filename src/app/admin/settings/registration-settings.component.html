@@ -1,0 +1,136 @@
+<div class="mb-4 flex flex-row items-center gap-2">
+  <a
+    routerLink="/admin"
+    mat-icon-button
+    class="lg:hidden! block"
+    aria-label="Back to administration"
+  >
+    <fa-duotone-icon [icon]="faArrowLeft" />
+  </a>
+  <h1 class="title-large">Sign-up rules</h1>
+</div>
+
+@if (settingsPhase() === "reading") {
+  <p role="status" class="mb-4 text-on-surface-variant">
+    Your settings were saved. Loading current settings…
+  </p>
+}
+@if (saveOutcome(); as outcome) {
+  <div role="alert" class="mb-4">
+    @if (outcome === "stale") {
+      <p>
+        These settings changed while you were editing. Your changes were not
+        saved.
+      </p>
+    } @else if (outcome === "unknown") {
+      <p>We could not confirm whether your settings were saved.</p>
+    } @else if (outcome === "saved-read-paused") {
+      <p>
+        Your settings were saved, but loading the current settings is paused.
+      </p>
+    } @else {
+      <p>
+        Your settings were saved, but the current settings could not be loaded.
+      </p>
+    }
+    <p class="my-2">
+      @if (outcome === "stale") {
+        Your entries are still here. Copy any changes you want to keep before
+        loading the latest settings. Reloading replaces these entries.
+      } @else {
+        Your entries are still here. Load the saved settings before making
+        another change. This replaces these entries with the saved values.
+      }
+    </p>
+    <button mat-stroked-button type="button" (click)="reloadSettings()">
+      {{ outcome === "stale" ? "Load latest settings" : "Load saved settings" }}
+    </button>
+  </div>
+}
+
+<form
+  class="bg-surface text-on-surface rounded-2xl p-4"
+  (submit)="save($event)"
+>
+  <fieldset
+    class="m-0 grid min-w-0 grid-cols-1 gap-4 border-0 p-0"
+    [disabled]="!settingsInteractionReady() || settingsLocked()"
+  >
+    <p class="text-on-surface-variant text-sm">
+      These defaults apply across the organization. Use zero where the policy
+      explicitly says there is no organization-wide limit or deadline.
+    </p>
+
+    <mat-form-field>
+      <mat-label>Active sign-up limit</mat-label>
+      <input
+        matInput
+        type="number"
+        step="1"
+        [formField]="settingsForm.maxActiveRegistrationsPerUser"
+      />
+      <mat-hint>
+        Use 0 for no organization-wide limit. Joining a waitlist does not count
+        toward this limit.
+      </mat-hint>
+      @for (
+        error of settingsForm.maxActiveRegistrationsPerUser().errors();
+        track error
+      ) {
+        <mat-error>{{ error.message }}</mat-error>
+      }
+    </mat-form-field>
+
+    <mat-form-field>
+      <mat-label>Transfer deadline before event (hours)</mat-label>
+      <input
+        matInput
+        type="number"
+        step="1"
+        [formField]="settingsForm.transferDeadlineHoursBeforeStart"
+      />
+      <mat-hint>
+        Use 0 to allow attendee transfers until the event starts.
+      </mat-hint>
+      @for (
+        error of settingsForm.transferDeadlineHoursBeforeStart().errors();
+        track error
+      ) {
+        <mat-error>{{ error.message }}</mat-error>
+      }
+    </mat-form-field>
+
+    <mat-form-field>
+      <mat-label>Cancellation deadline before event (hours)</mat-label>
+      <input
+        matInput
+        type="number"
+        step="1"
+        [formField]="settingsForm.cancellationDeadlineHoursBeforeStart"
+      />
+      <mat-hint>The default 120 hours is five days.</mat-hint>
+      @for (
+        error of settingsForm.cancellationDeadlineHoursBeforeStart().errors();
+        track error
+      ) {
+        <mat-error>{{ error.message }}</mat-error>
+      }
+    </mat-form-field>
+
+    <button
+      mat-flat-button
+      type="submit"
+      class="w-fit"
+      [disabled]="
+        tenantSettingsSaveDisabled({
+          formInvalid: settingsForm().invalid(),
+          formSubmitting: settingsForm().submitting(),
+          interactionReady: settingsInteractionReady(),
+          mutationPending: updateMutation.isPending() || settingsLocked(),
+        })
+      "
+    >
+      Save sign-up rules
+    </button>
+  </fieldset>
+</form>
