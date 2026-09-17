@@ -886,7 +886,7 @@ If payment safety cannot be confirmed, an add-on Checkout is pending, or the reg
       testInfo,
       cancellationDialog,
       page,
-      'Cancel ticket of the ticket and remaining paid add-on',
+      'Cancel the ticket and remaining paid add-on',
     );
     await cancellationDialog
       .getByRole('button', { name: 'Cancel ticket' })
