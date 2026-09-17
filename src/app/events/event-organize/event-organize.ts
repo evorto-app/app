@@ -24,6 +24,7 @@ import {
 } from '@shared/finance/receipt-countries';
 import {
   registrationCancellationActionLabel,
+  registrationCancellationCompletedLabel,
   registrationCancellationKind,
 } from '@shared/registration-cancellation';
 import {
@@ -460,7 +461,14 @@ export class EventOrganize {
         },
         onSuccess: async () => {
           await this.invalidateOrganizerState();
-          this.notifications.showSuccess('Ticket cancelled');
+          this.notifications.showSuccess(
+            registrationCancellationCompletedLabel(
+              registrationCancellationKind({
+                paymentPending: expectedPaymentPending,
+                status: expectedStatus,
+              }),
+            ),
+          );
         },
       },
     );

@@ -31,6 +31,15 @@ export const registrationCancellationConfirmationCopy = ({
   if (actor === 'organizer') {
     const subject = participantName?.trim() || 'this participant';
 
+    if (status === 'WAITLIST') {
+      return {
+        cancelLabel: 'Go back',
+        confirmLabel: 'Remove from waitlist',
+        impact: `This immediately removes ${subject} from the waitlist. No confirmed place is released and no refund is started. This action cannot be undone.`,
+        title: `Remove ${subject} from the waitlist?`,
+      };
+    }
+
     if (status === 'PENDING' && !paymentPending) {
       return {
         cancelLabel: 'Go back',

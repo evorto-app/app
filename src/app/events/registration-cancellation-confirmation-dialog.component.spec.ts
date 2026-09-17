@@ -70,6 +70,23 @@ describe('registrationCancellationConfirmationCopy', () => {
     });
   });
 
+  it('explains organizer waitlist removal without implying a ticket or refund', () => {
+    expect(
+      registrationCancellationConfirmationCopy({
+        actor: 'organizer',
+        participantName: 'Alex Able',
+        paymentPending: false,
+        status: 'WAITLIST',
+      }),
+    ).toEqual({
+      cancelLabel: 'Go back',
+      confirmLabel: 'Remove from waitlist',
+      impact:
+        'This immediately removes Alex Able from the waitlist. No confirmed place is released and no refund is started. This action cannot be undone.',
+      title: 'Remove Alex Able from the waitlist?',
+    });
+  });
+
   it('falls back to a safe generic organizer subject', () => {
     expect(
       registrationCancellationConfirmationCopy({

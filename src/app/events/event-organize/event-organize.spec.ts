@@ -781,6 +781,11 @@ type OrganizerCancellationOptions = ReturnType<
   OrganizerClient['events']['cancelEventRegistration']['mutationOptions']
 >;
 
+type OrganizerCancellationState = Pick<
+  Parameters<NonNullable<OrganizerCancellationOptions['mutationFn']>>[0],
+  'expectedPaymentPending' | 'expectedStatus'
+>;
+
 type OrganizerClient = ReturnType<typeof AppRpc.injectClient>;
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -788,14 +793,16 @@ type OrganizerClient = ReturnType<typeof AppRpc.injectClient>;
   template: '',
 })
 class OrganizerCancellationTestComponent extends EventOrganize {
-  cancelForTest() {
+  cancelForTest(state?: OrganizerCancellationState) {
+    const expectedPaymentPending = state?.expectedPaymentPending ?? false;
+    const expectedStatus = state?.expectedStatus ?? 'CONFIRMED';
     return this.cancelRegistration({
       checkedIn: false,
       firstName: 'Alex',
       lastName: 'Attendee',
-      paymentPending: false,
+      paymentPending: expectedPaymentPending,
       registrationId: 'registration-1',
-      status: 'CONFIRMED',
+      status: expectedStatus,
     });
   }
 }
@@ -906,6 +913,58 @@ describe('organizer cancellation outcome feedback', () => {
     queryClient.clear();
     TestBed.resetTestingModule();
   });
+
+  it.each([
+    {
+      expectedPaymentPending: false,
+      expectedStatus: 'WAITLIST',
+      message: 'Waitlist place removed',
+    },
+    {
+      expectedPaymentPending: false,
+      expectedStatus: 'PENDING',
+      message: 'Application withdrawn',
+    },
+    {
+      expectedPaymentPending: true,
+      expectedStatus: 'PENDING',
+      message: 'Sign-up cancelled',
+    },
+    {
+      expectedPaymentPending: false,
+      expectedStatus: 'CONFIRMED',
+      message: 'Ticket cancelled',
+    },
+  ] satisfies (OrganizerCancellationState & { message: string })[])(
+    'reports the confirmed outcome for $expectedStatus with payment pending $expectedPaymentPending',
+    async ({ expectedPaymentPending, expectedStatus, message }) => {
+      cancelOrganizerRegistration.mockResolvedValue(undefined);
+      const fixture = TestBed.createComponent(
+        OrganizerCancellationTestComponent,
+      );
+      fixture.componentRef.setInput('eventId', 'event-1');
+      fixture.detectChanges();
+      await fixture.componentInstance.cancelForTest({
+        expectedPaymentPending,
+        expectedStatus,
+      });
+      await vi.waitFor(() =>
+        expect(showCancellationSuccess).toHaveBeenCalledExactlyOnceWith(
+          message,
+        ),
+      );
+      expect(cancelOrganizerRegistration).toHaveBeenCalledExactlyOnceWith(
+        {
+          eventId: 'event-1',
+          expectedPaymentPending,
+          expectedStatus,
+          registrationId: 'registration-1',
+        },
+        expect.anything(),
+      );
+      expect(showCancellationError).not.toHaveBeenCalled();
+    },
+  );
 
   it.each([
     {
