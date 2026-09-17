@@ -1,7 +1,9 @@
+import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
 import { DOCUMENT } from '@angular/common';
 import { signal, type Type } from '@angular/core';
 import { type ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { MatSelectHarness } from '@angular/material/select/testing';
+import { provideRouter, Router } from '@angular/router';
 import {
   createRpcMutationOptions,
   createRpcQueryFilter,
@@ -37,7 +39,10 @@ import {
 import { AdminTenantNotFoundError } from '../../../shared/rpc-contracts/app-rpcs/admin.errors';
 import { ClientTenantConfig } from '../../../shared/rpc-contracts/app-rpcs/config.rpcs';
 import { ConfigService } from '../../core/config.service';
-import { APP_RPC_CLIENT } from '../../core/effect-rpc-angular-client';
+import {
+  APP_RPC_CLIENT,
+  type AppRpc,
+} from '../../core/effect-rpc-angular-client';
 import { NotificationService } from '../../core/notification.service';
 import { AppearanceSettingsComponent } from './appearance-settings.component';
 import { LegalSettingsComponent } from './legal-settings.component';
@@ -49,6 +54,7 @@ import {
   tenantSettingsCanDeactivate,
   tenantSettingsSaveDisabled,
   tenantSettingsShouldHydrate,
+  tenantSettingsUnsavedChangesGuard,
 } from './settings-form';
 
 describe('tenantSettingsSaveDisabled', () => {
@@ -151,6 +157,13 @@ type FocusedSettingsComponent =
   | OrganizationSettingsComponent
   | PaymentProviderSettingsComponent
   | RegistrationSettingsComponent;
+type SettingsBrandUploadMutation = NonNullable<
+  ReturnType<
+    SettingsRpc['admin']['tenant']['uploadBrandAsset']['mutationOptions']
+  >['mutationFn']
+>;
+
+type SettingsRpc = ReturnType<typeof AppRpc.injectClient>;
 
 // Narrow each concrete component so protected test access remains typed.
 const settingsControls = (component: FocusedSettingsComponent) => {
@@ -411,7 +424,12 @@ const withSettingsFixture = async (
     showSuccess: ReturnType<typeof vi.fn>;
     stopConfig: () => void;
     track: <T>(promise: Promise<T>) => Promise<T>;
+    uploadMutation: ReturnType<typeof vi.fn<SettingsBrandUploadMutation>>;
   }) => Promise<void>,
+  options: {
+    initialTenant?: ClientTenantConfig;
+    skipInitialEdit?: boolean;
+  } = {},
 ): Promise<void> => {
   const releases: (() => void)[] = [];
   const drains: (() => Promise<unknown>)[] = [];
@@ -454,22 +472,23 @@ const withSettingsFixture = async (
       },
     });
     acquiredQueryClient = queryClient;
+    const initialTenant = options.initialTenant ?? settingsTenant;
     const savedTenant = new ClientTenantConfig({
-      ...settingsTenant,
+      ...initialTenant,
       ...entry.saved,
     });
-    const configSignal = signal<ClientTenantConfig | null>(settingsTenant);
+    const configSignal = signal<ClientTenantConfig | null>(initialTenant);
     const readConfig = vi
       .fn<() => Promise<ClientTenantConfig>>()
       .mockResolvedValue(savedTenant);
     const saveMutation = vi
       .fn<(input: unknown, context: MutationFunctionContext) => Promise<void>>()
       .mockResolvedValue(undefined);
-    const uploadMutation = vi.fn();
+    const uploadMutation = vi.fn<SettingsBrandUploadMutation>();
     const showSuccess = vi.fn();
     const showError = vi.fn();
     const configObserver = new QueryObserver(queryClient, {
-      initialData: settingsTenant,
+      initialData: initialTenant,
       queryFn: readConfig,
       queryKey: settingsConfigKey,
       staleTime: Infinity,
@@ -570,10 +589,12 @@ const withSettingsFixture = async (
         settingsControls(fixture.componentInstance).settingsInteractionReady(),
       ).toBe(true);
     });
-    input.value = entry.input;
-    input.dispatchEvent(new Event('input', { bubbles: true }));
-    fixture.detectChanges();
-    expect(fixture.componentInstance.hasUnsavedSettingsChanges()).toBe(true);
+    if (!options.skipInitialEdit) {
+      input.value = entry.input;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      fixture.detectChanges();
+      expect(fixture.componentInstance.hasUnsavedSettingsChanges()).toBe(true);
+    }
     expect(
       settingsControls(fixture.componentInstance).settingsForm().invalid(),
     ).toBe(false);
@@ -593,6 +614,7 @@ const withSettingsFixture = async (
       showSuccess,
       stopConfig,
       track,
+      uploadMutation,
     });
   } catch (error) {
     failures.push(error);
@@ -607,6 +629,7 @@ const withSettingsFixture = async (
     () => acquiredQueryClient?.clear(),
     () => onlineManager.setOnline(originallyOnline),
     () => vi.restoreAllMocks(),
+    () => vi.unstubAllGlobals(),
     () => TestBed.resetTestingModule(),
   ];
   for (const release of cleanup) {
@@ -1650,4 +1673,242 @@ describe('focused settings named optional payloads', () => {
       });
     }
   }
+});
+
+describe('focused settings upload navigation and persisted timezone', () => {
+  it.each(['logo', 'favicon'] as const)(
+    'protects pristine appearance navigation while a %s file read and upload are pending',
+    async (kind) => {
+      const entry = settingsCases.find(
+        (candidate) => candidate.name === 'appearance',
+      );
+      if (!entry) throw new Error('Expected the appearance settings case');
+      await withSettingsFixture(
+        entry,
+        async ({
+          defer,
+          fixture,
+          queryClient,
+          root,
+          saveMutation,
+          showSuccess,
+          track,
+          uploadMutation,
+        }) => {
+          const component = fixture.componentInstance;
+          if (!(component instanceof AppearanceSettingsComponent))
+            throw new Error('Expected the rendered appearance settings page');
+          const router = TestBed.inject(Router);
+          const confirmDiscard = vi.fn(() => false);
+          vi.stubGlobal('confirm', confirmDiscard);
+          const canLeave = () =>
+            tenantSettingsUnsavedChangesGuard(
+              component,
+              router.routerState.snapshot.root,
+              router.routerState.snapshot,
+              router.routerState.snapshot,
+            );
+          expect(component['settingsForm']().dirty()).toBe(false);
+          expect(component.hasUnsavedSettingsChanges()).toBe(false);
+          expect(canLeave()).toBe(true);
+          expect(confirmDiscard).not.toHaveBeenCalled();
+
+          const fileRead = defer<undefined>(undefined);
+          const nativeReadAsDataURL = FileReader.prototype.readAsDataURL;
+          const readFile = vi
+            .spyOn(FileReader.prototype, 'readAsDataURL')
+            .mockImplementation(function (this: FileReader, blob: Blob): void {
+              void track(
+                fileRead.promise.then(() =>
+                  nativeReadAsDataURL.call(this, blob),
+                ),
+              );
+            });
+          const assetUrl = `/tenant-assets/settings-tenant/${kind}/selected.gif`;
+          const uploadAction = vi.fn(
+            component['uploadBrandAsset'].bind(component),
+          );
+          component['uploadBrandAsset'] = uploadAction;
+          const fileInput = root.querySelector<HTMLInputElement>(
+            kind === 'logo'
+              ? 'input[type="file"][aria-label="Upload organization logo file"]'
+              : 'input[type="file"][aria-label="Upload organization tab icon file"]',
+          );
+          if (!fileInput)
+            throw new Error('Expected the rendered brand file input');
+          const imageBase64 =
+            'R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+          const file = new File(
+            [
+              Uint8Array.from(
+                atob(imageBase64),
+                (character) => character.codePointAt(0) ?? 0,
+              ),
+            ],
+            'selected.gif',
+            { type: 'image/gif' },
+          );
+          const uploadResult = {
+            assetUrl,
+            sizeBytes: file.size,
+            storageKey: `tenant-assets/settings-tenant/${kind}/selected.gif`,
+          } satisfies Awaited<ReturnType<SettingsBrandUploadMutation>>;
+          const upload = defer(uploadResult);
+          uploadMutation.mockReturnValueOnce(upload.promise);
+          // Model the browser's selected FileList without bypassing its change handler.
+          Object.defineProperty(fileInput, 'files', {
+            configurable: true,
+            value: [file],
+          });
+          fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+          const started = uploadAction.mock.results.at(-1);
+          if (started?.type !== 'return')
+            throw new Error('Expected the file-input upload action');
+          const operation = track(started.value);
+          fixture.detectChanges();
+          expect(readFile).toHaveBeenCalledExactlyOnceWith(file);
+          expect(uploadMutation).not.toHaveBeenCalled();
+          expect(component['settingsForm']().dirty()).toBe(false);
+          expect(component.hasUnsavedSettingsChanges()).toBe(true);
+          expect(canLeave()).toBe(false);
+          expect(confirmDiscard).toHaveBeenCalledExactlyOnceWith(
+            'You have unsaved settings changes. Leave this page and discard them?',
+          );
+          expect(
+            root.querySelector<HTMLButtonElement>('button[type="submit"]')
+              ?.disabled,
+          ).toBe(true);
+          expect(root.textContent).toContain(
+            kind === 'logo' ? 'Uploading logo' : 'Uploading tab icon',
+          );
+          expect(saveMutation).not.toHaveBeenCalled();
+
+          fileRead.resolve(undefined);
+          await vi.waitFor(() => {
+            fixture.detectChanges();
+            expect(uploadMutation).toHaveBeenCalledOnce();
+          });
+          expect(uploadMutation).toHaveBeenCalledWith(
+            {
+              fileBase64: imageBase64,
+              fileName: file.name,
+              fileSizeBytes: file.size,
+              kind,
+              mimeType: file.type,
+            },
+            expect.objectContaining({ client: queryClient }),
+          );
+          expect(component['settingsForm']().dirty()).toBe(false);
+          expect(component.hasUnsavedSettingsChanges()).toBe(true);
+          expect(canLeave()).toBe(false);
+          expect(confirmDiscard).toHaveBeenCalledTimes(2);
+          expect(
+            root.querySelector<HTMLButtonElement>('button[type="submit"]')
+              ?.disabled,
+          ).toBe(true);
+          expect(saveMutation).not.toHaveBeenCalled();
+
+          upload.resolve(uploadResult);
+          await operation;
+          await fixture.whenStable();
+          fixture.detectChanges();
+          expect(
+            settingsInput(
+              root,
+              kind === 'logo' ? 'Logo web address' : 'Tab icon web address',
+            ).value,
+          ).toBe(assetUrl);
+          expect(component['settingsForm']().dirty()).toBe(true);
+          expect(component.hasUnsavedSettingsChanges()).toBe(true);
+          expect(showSuccess).toHaveBeenCalledExactlyOnceWith(
+            kind === 'logo'
+              ? 'Logo uploaded. Save appearance settings to publish it.'
+              : 'Tab icon uploaded. Save appearance settings to publish it.',
+          );
+          expect(saveMutation).not.toHaveBeenCalled();
+        },
+        { skipInitialEdit: true },
+      );
+    },
+  );
+
+  it('renders a saved noncurated IANA timezone in the real select and preserves it on save', async () => {
+    const entry = settingsCases.find(
+      (candidate) => candidate.name === 'organization',
+    );
+    if (!entry) throw new Error('Expected the organization settings case');
+    const initialTenant = new ClientTenantConfig({
+      ...settingsTenant,
+      timezone: 'America/New_York',
+    });
+    await withSettingsFixture(
+      entry,
+      async ({
+        fixture,
+        input,
+        queryClient,
+        readConfig,
+        root,
+        saveMutation,
+        showSuccess,
+        track,
+      }) => {
+        const component = fixture.componentInstance;
+        if (!(component instanceof OrganizationSettingsComponent))
+          throw new Error('Expected the rendered organization settings page');
+        expect(component.hasUnsavedSettingsChanges()).toBe(false);
+        const loader = TestbedHarnessEnvironment.loader(fixture);
+        const timezoneSelect = await loader.getHarness(MatSelectHarness);
+        expect(await timezoneSelect.getValueText()).toBe('New York time');
+        await timezoneSelect.open();
+        const options = await timezoneSelect.getOptions({
+          text: 'New York time',
+        });
+        expect(options).toHaveLength(1);
+        const currentOption = options[0];
+        if (!currentOption)
+          throw new Error('Expected the saved timezone option');
+        expect(await currentOption.isSelected()).toBe(true);
+        await currentOption.click();
+        expect(await timezoneSelect.getValueText()).toBe('New York time');
+        input.value = entry.input;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        fixture.detectChanges();
+        const saveAction = vi.fn(component['save'].bind(component));
+        component['save'] = saveAction;
+        const formElement = root.querySelector('form');
+        if (!formElement)
+          throw new Error('Expected the organization settings form');
+        expect(
+          root.querySelector<HTMLButtonElement>('button[type="submit"]')
+            ?.disabled,
+        ).toBe(false);
+        formElement.dispatchEvent(
+          new Event('submit', { bubbles: true, cancelable: true }),
+        );
+        const submitted = saveAction.mock.results.at(-1);
+        if (submitted?.type !== 'return')
+          throw new Error('Expected the rendered settings submit action');
+        await track(submitted.value);
+        await fixture.whenStable();
+        fixture.detectChanges();
+        expect(saveMutation).toHaveBeenCalledExactlyOnceWith(
+          {
+            ...entry.payload,
+            expectedSettings:
+              adminTenantOrganizationSettingsSnapshot(initialTenant),
+            timezone: 'America/New_York',
+          },
+          expect.objectContaining({ client: queryClient }),
+        );
+        expect(readConfig).toHaveBeenCalledOnce();
+        expect(showSuccess).toHaveBeenCalledExactlyOnceWith(
+          'Organization settings updated',
+        );
+        expect(await timezoneSelect.getValueText()).toBe('New York time');
+        expect(component.hasUnsavedSettingsChanges()).toBe(false);
+      },
+      { initialTenant, skipInitialEdit: true },
+    );
+  });
 });

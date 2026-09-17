@@ -71,6 +71,17 @@ export const emailOutbox = pgTable(
       table.createdAt,
     ),
     idempotencyKeyUnique: unique().on(table.idempotencyKey),
+    incompleteTerminalIndex: index('email_outbox_incomplete_terminal_idx').on(
+      table.status,
+      table.updatedAt.desc().nullsFirst(),
+      table.id.asc(),
+    ).where(sql`(
+        (${table.status} = 'sent' and ${table.sentAt} is null)
+        or (
+          ${table.status} = 'suppressed'
+          and (${table.suppressedAt} is null or ${table.lastAttemptAt} is null)
+        )
+      )`),
     overviewIndex: index('email_outbox_overview_idx').on(
       table.status,
       table.updatedAt.desc().nullsFirst(),

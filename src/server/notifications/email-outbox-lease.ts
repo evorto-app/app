@@ -41,19 +41,45 @@ export const emailOutboxAbandonedSendingPredicate = () => sql<boolean>`
   )
 `;
 
+const emailOutboxSendingIncidentPredicate = () => sql<boolean>`
+  ${emailOutbox.status} = 'sending'
+  and (
+    ${emailOutbox.lastAttemptAt} is null
+    or (${emailOutboxAbandonedSendingPredicate()})
+  )
+`;
+
+const emailOutboxIncompleteSentPredicate = () => sql<boolean>`
+  ${emailOutbox.sentAt} is null
+`;
+
+const emailOutboxIncompleteSuppressedPredicate = () => sql<boolean>`
+  (${emailOutbox.suppressedAt} is null or ${emailOutbox.lastAttemptAt} is null)
+`;
+
 export const emailOutboxOperationalIncidentPredicate = () => sql<boolean>`
   (
     ${emailOutbox.status} in ('failed', 'deliveryUnknown')
-    or (${emailOutboxAbandonedSendingPredicate()})
+    or (${emailOutboxSendingIncidentPredicate()})
+    or (
+      ${emailOutbox.status} = 'sent'
+      and ${emailOutboxIncompleteSentPredicate()}
+    )
+    or (
+      ${emailOutbox.status} = 'suppressed'
+      and ${emailOutboxIncompleteSuppressedPredicate()}
+    )
   )
 `;
 
 /**
  * Each disjoint status/incident bucket contributes at most one page. Any row
  * outside its bucket's first page cannot belong to the global first page.
- * The status/updatedAt/id index keeps retained sent history out of the final
- * incident sort. Sending eligibility still filters current claims; exact
- * summary counts intentionally aggregate the complete retained outbox.
+ * The overview and incomplete-terminal indexes keep routine sent history out
+ * of terminal incident scans and the final sort. Sending eligibility still
+ * filters current claims; exact summary counts intentionally aggregate the
+ * complete retained outbox. Incomplete rows are degraded diagnostic states,
+ * not another opportunity to dispatch an email.
  */
 export const emailOutboxOverviewCandidates = () => {
   const query = new QueryBuilder();
@@ -76,11 +102,13 @@ export const emailOutboxOverviewCandidates = () => {
   return unionAll(
     bucket('failed', 0),
     bucket('deliveryUnknown', 0),
-    bucket('sending', 0, emailOutboxAbandonedSendingPredicate()),
-    bucket('sending', 1, not(emailOutboxAbandonedSendingPredicate())),
+    bucket('sending', 0, emailOutboxSendingIncidentPredicate()),
+    bucket('sending', 1, not(emailOutboxSendingIncidentPredicate())),
     bucket('queued', 1),
-    bucket('sent', 1),
-    bucket('suppressed', 1),
+    bucket('sent', 0, emailOutboxIncompleteSentPredicate()),
+    bucket('sent', 1, not(emailOutboxIncompleteSentPredicate())),
+    bucket('suppressed', 0, emailOutboxIncompleteSuppressedPredicate()),
+    bucket('suppressed', 1, not(emailOutboxIncompleteSuppressedPredicate())),
   )
     .orderBy(({ id, incidentRank, updatedAt }) => [
       asc(incidentRank),

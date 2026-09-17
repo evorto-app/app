@@ -180,7 +180,11 @@ export class AppearanceSettingsComponent {
   }
 
   public hasUnsavedSettingsChanges(): boolean {
-    return this.retainedSettingsDirty() || this.settingsForm().dirty();
+    return (
+      this.uploadingBrandAsset() !== null ||
+      this.retainedSettingsDirty() ||
+      this.settingsForm().dirty()
+    );
   }
 
   protected reloadSettings(): void {

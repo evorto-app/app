@@ -54,7 +54,10 @@ import {
   lockTenantRoleGraph,
 } from '../../../roles/tenant-role-graph';
 import { StripeClient } from '../../../stripe-client';
-import { uploadTenantBrandAsset } from '../../../tenant-brand-assets';
+import {
+  associateTenantBrandAssets,
+  uploadTenantBrandAsset,
+} from '../../../tenant-brand-assets';
 import {
   tenantCurrencyChangeBlockedErrorDetails,
   tenantHasCurrencyDependentData,
@@ -228,11 +231,14 @@ const normalizeTenantAssetPath = (
 const normalizeOptionalBrandAssetUrl = (
   value: string | undefined,
   options: {
+    currentUrl: null | string;
     fieldName: string;
     kind: AdminTenantBrandAssetKind;
     tenantId: string;
   },
 ): null | string => {
+  // Existing static/external selections are not retroactively adopted.
+  if (value === options.currentUrl) return options.currentUrl;
   const trimmedValue = value?.trim();
   if (!trimmedValue) {
     return null;
@@ -249,7 +255,18 @@ const normalizeOptionalBrandAssetUrl = (
     );
   }
 
-  return normalizeOptionalUrl(trimmedValue, options.fieldName);
+  const normalized = normalizeOptionalUrl(trimmedValue, options.fieldName);
+  if (
+    normalized &&
+    decodeURIComponent(new URL(normalized).pathname).startsWith(
+      '/tenant-assets/',
+    )
+  ) {
+    throw new Error(
+      'Managed organization images must be selected by their app-relative path',
+    );
+  }
+  return normalized;
 };
 
 const normalizeTenantLegalLinks = (input: {
@@ -270,13 +287,16 @@ const normalizeTenantBrandAssets = (
     logoUrl?: string | undefined;
   },
   tenantId: string,
+  current: Pick<typeof tenants.$inferSelect, 'faviconUrl' | 'logoUrl'>,
 ) => ({
   faviconUrl: normalizeOptionalBrandAssetUrl(input.faviconUrl, {
+    currentUrl: current.faviconUrl,
     fieldName: 'faviconUrl',
     kind: 'favicon',
     tenantId,
   }),
   logoUrl: normalizeOptionalBrandAssetUrl(input.logoUrl, {
+    currentUrl: current.logoUrl,
     fieldName: 'logoUrl',
     kind: 'logo',
     tenantId,
@@ -749,12 +769,6 @@ export const adminHandlers = {
     Effect.gen(function* () {
       yield* RpcAccess.ensurePermission('admin:changeSettings');
       const { tenant } = yield* RpcAccess.current();
-      const brandAssets = yield* validateAdminSettings({
-        operation: 'admin.settings.appearance.validate',
-        publicMessage:
-          'Choose an uploaded logo or small site icon for this organization, or enter a valid web address.',
-        try: () => normalizeTenantBrandAssets(input, tenant.id),
-      });
 
       const updatedTenants = yield* databaseSettingsEffect((database) =>
         database.transaction((transaction) =>
@@ -777,6 +791,18 @@ export const adminHandlers = {
               return yield* tenantSettingsConflict();
             }
 
+            const brandAssets = yield* validateAdminSettings({
+              operation: 'admin.settings.appearance.validate',
+              publicMessage:
+                'Choose an uploaded logo or small site icon for this organization, or enter a valid web address.',
+              try: () =>
+                normalizeTenantBrandAssets(input, tenant.id, lockedTenant),
+            });
+            yield* associateTenantBrandAssets(transaction, {
+              next: brandAssets,
+              previous: lockedTenant,
+              tenantId: tenant.id,
+            });
             return yield* transaction
               .update(tenants)
               .set({

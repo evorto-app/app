@@ -49,10 +49,7 @@ import {
 } from './server/effect/rpc/app-rpcs.web-handler';
 import { serverLoggerLayer } from './server/effect/server-logger.layer';
 import { serverTelemetryLayer } from './server/effect/server-telemetry.layer';
-import {
-  processReceiptOrphans,
-  runReceiptOrphanCleanupWorker,
-} from './server/finance/receipt-orphan-cleanup';
+import { runReceiptOrphanCleanupWorker } from './server/finance/receipt-orphan-cleanup';
 import {
   APPLICATION_READINESS_PATH,
   createApplicationReadinessResponse,
@@ -99,6 +96,10 @@ import {
   workerEmailDeliveryRouteLayer,
 } from './server/http/worker-email-delivery.route';
 import {
+  workerReceiptOrphanCleanupPath,
+  workerReceiptOrphanCleanupRouteLayer,
+} from './server/http/worker-media-cleanup.route';
+import {
   WORKER_PAYMENT_SETUP_PATH,
   workerPaymentSetupRouteLayer,
 } from './server/http/worker-payment-setup.route';
@@ -124,6 +125,7 @@ import {
 import { supervisePollingWorkers } from './server/runtime/polling-worker-supervision';
 import { validateRuntimeRoleConfiguration } from './server/runtime/runtime-role';
 import { stripeClientLayer } from './server/stripe-client';
+import { runTenantBrandAssetCleanupWorker } from './server/tenant-brand-assets';
 import { sanitizeRelativeRedirectPath } from './shared/auth-redirect';
 import { attachSsrRpcCapability } from './shared/request-routing';
 
@@ -140,8 +142,6 @@ const stripeWebhookPath = '/webhooks/stripe';
 const browserErrorTelemetryPath = '/telemetry/browser-errors';
 const workerExpiredCheckoutCleanupPath =
   '/internal/worker/expired-checkout-cleanup';
-const workerReceiptOrphanCleanupPath =
-  '/internal/worker/receipt-orphan-cleanup';
 const workerStripeRefundPath = '/internal/worker/stripe-refunds';
 const opsSchemaExplainPath = '/internal/ops/schema-explain';
 const opsSchemaApplyPath = '/internal/ops/schema-apply';
@@ -417,15 +417,6 @@ const workerStripeRefundRouteLayer = HttpLayerRouter.add(
   (request) =>
     handleWorkerTrigger(request, ({ limit }) =>
       processDueRegistrationRefundClaims(limit),
-    ),
-);
-
-const workerReceiptOrphanCleanupRouteLayer = HttpLayerRouter.add(
-  'POST',
-  workerReceiptOrphanCleanupPath,
-  (request) =>
-    handleWorkerTrigger(request, ({ limit }) =>
-      processReceiptOrphans(limit === undefined ? {} : { batchSize: limit }),
     ),
 );
 
@@ -1011,6 +1002,11 @@ const serveEffect = Effect.gen(function* () {
           Effect.provide(ObjectStorage.Default),
           Effect.provide(configProviderLayer),
         );
+        const brandAssetCleanupWorker = runTenantBrandAssetCleanupWorker.pipe(
+          Effect.provide(databaseContext),
+          Effect.provide(ObjectStorage.Default),
+          Effect.provide(configProviderLayer),
+        );
         yield* Effect.logInfo('Polling worker started').pipe(
           Effect.annotateLogs({ role: runtimeRole.role }),
         );
@@ -1019,6 +1015,7 @@ const serveEffect = Effect.gen(function* () {
           checkoutCleanupWorker.pipe(Effect.asVoid),
           refundWorker.pipe(Effect.asVoid),
           receiptCleanupWorker.pipe(Effect.asVoid),
+          brandAssetCleanupWorker.pipe(Effect.asVoid),
         ]);
       }),
     );

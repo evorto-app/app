@@ -16,7 +16,6 @@ import { processDueEmailOutbox } from './email-delivery';
 import {
   emailOutboxAbandonedSendingPredicate,
   emailOutboxDispatchablePredicate,
-  emailOutboxOperationalIncidentPredicate,
   emailOutboxOverviewCandidates,
 } from './email-outbox-lease';
 
@@ -91,9 +90,45 @@ const acquireOutboxFixture = () =>
 const unknownMessage =
   'Evorto could not confirm whether this email was sent. It will not send it again, to avoid sending it twice.';
 
+interface OutboxOverviewPlanNode {
+  actualLoops: number;
+  actualRows: number;
+  indexName: null | string;
+  nodeType: string;
+}
+
+const outboxOverviewPlanNodes = (value: unknown): OutboxOverviewPlanNode[] => {
+  if (Array.isArray(value))
+    return value.flatMap((node) => outboxOverviewPlanNodes(node));
+  if (typeof value !== 'object' || value === null)
+    throw new Error('Expected PostgreSQL EXPLAIN JSON');
+  if ('Plan' in value) return outboxOverviewPlanNodes(value.Plan);
+  if (
+    !('Node Type' in value) ||
+    typeof value['Node Type'] !== 'string' ||
+    !('Actual Rows' in value) ||
+    typeof value['Actual Rows'] !== 'number' ||
+    !('Actual Loops' in value) ||
+    typeof value['Actual Loops'] !== 'number'
+  )
+    throw new Error('Expected an analyzed PostgreSQL plan node');
+  return [
+    {
+      actualLoops: value['Actual Loops'],
+      actualRows: value['Actual Rows'],
+      indexName:
+        'Index Name' in value && typeof value['Index Name'] === 'string'
+          ? value['Index Name']
+          : null,
+      nodeType: value['Node Type'],
+    },
+    ...('Plans' in value ? outboxOverviewPlanNodes(value.Plans) : []),
+  ];
+};
+
 describe('email outbox single-dispatch state transitions', () => {
   it.effect(
-    'keeps older incidents ahead of retained history with bounded status candidates',
+    'prioritizes older incomplete diagnostics with bounded indexed candidates and an unforced plan',
     () =>
       Effect.gen(function* () {
         const { baseEmail, database, ownedIds, tenantId } =
@@ -114,6 +149,7 @@ describe('email outbox single-dispatch state transitions', () => {
           attempts: 1,
           id: `sent-${fixtureSuffix}-${String(index).padStart(4, '0')}`,
           idempotencyKey: `history/${fixtureSuffix}/${index}`,
+          sentAt: new Date('2026-01-01T00:00:00Z'),
           status: 'sent' as const,
           updatedAt: new Date('2026-01-01T00:00:00Z'),
         }));
@@ -125,6 +161,11 @@ describe('email outbox single-dispatch state transitions', () => {
           'no-id',
           'no-exp',
           'expired',
+          'no-attempt',
+          'no-sent',
+          'no-sup-time',
+          'no-sup-at',
+          'no-sup-both',
         ].map((kind) => `${kind}-${fixtureSuffix}`);
         yield* insertRows([
           {
@@ -149,6 +190,7 @@ describe('email outbox single-dispatch state transitions', () => {
             claimLeaseExpiresAt: new Date('2099-01-01'),
             id: `no-id-${fixtureSuffix}`,
             idempotencyKey: `no-id/${fixtureSuffix}`,
+            lastAttemptAt: new Date(500),
             status: 'sending',
             updatedAt: new Date(1000),
           },
@@ -158,6 +200,7 @@ describe('email outbox single-dispatch state transitions', () => {
             claimLeaseId: 'owned',
             id: `no-exp-${fixtureSuffix}`,
             idempotencyKey: `no-exp/${fixtureSuffix}`,
+            lastAttemptAt: new Date(500),
             status: 'sending',
             updatedAt: new Date(1000),
           },
@@ -168,7 +211,52 @@ describe('email outbox single-dispatch state transitions', () => {
             claimLeaseId: 'owned',
             id: `expired-${fixtureSuffix}`,
             idempotencyKey: `expired/${fixtureSuffix}`,
+            lastAttemptAt: new Date(500),
             status: 'sending',
+            updatedAt: new Date(1000),
+          },
+          {
+            ...baseEmail,
+            attempts: 1,
+            claimLeaseExpiresAt: new Date('2099-01-01'),
+            claimLeaseId: 'active-with-missing-attempt',
+            id: `no-attempt-${fixtureSuffix}`,
+            idempotencyKey: `no-attempt/${fixtureSuffix}`,
+            status: 'sending',
+            updatedAt: new Date(1000),
+          },
+          {
+            ...baseEmail,
+            attempts: 1,
+            id: `no-sent-${fixtureSuffix}`,
+            idempotencyKey: `no-sent/${fixtureSuffix}`,
+            status: 'sent',
+            updatedAt: new Date(1000),
+          },
+          {
+            ...baseEmail,
+            attempts: 1,
+            id: `no-sup-time-${fixtureSuffix}`,
+            idempotencyKey: `no-sup-time/${fixtureSuffix}`,
+            lastAttemptAt: new Date(500),
+            status: 'suppressed',
+            updatedAt: new Date(1000),
+          },
+          {
+            ...baseEmail,
+            attempts: 1,
+            id: `no-sup-at-${fixtureSuffix}`,
+            idempotencyKey: `no-sup-at/${fixtureSuffix}`,
+            status: 'suppressed',
+            suppressedAt: new Date(500),
+            updatedAt: new Date(1000),
+          },
+          {
+            ...baseEmail,
+            attempts: 1,
+            id: `no-sup-both-${fixtureSuffix}`,
+            idempotencyKey: `no-sup-both/${fixtureSuffix}`,
+            status: 'suppressed',
             updatedAt: new Date(1000),
           },
           ...(['queued', 'sending', 'suppressed'] as const).map((status) => ({
@@ -178,7 +266,10 @@ describe('email outbox single-dispatch state transitions', () => {
             claimLeaseId: 'active',
             id: `${status}-${fixtureSuffix}`,
             idempotencyKey: `routine/${status}/${fixtureSuffix}`,
+            lastAttemptAt: status === 'queued' ? null : new Date('2027-01-01'),
             status,
+            suppressedAt:
+              status === 'suppressed' ? new Date('2027-01-01') : null,
             updatedAt: new Date('2027-01-01'),
           })),
         ]);
@@ -193,18 +284,31 @@ describe('email outbox single-dispatch state transitions', () => {
               asc(candidates.id),
             );
         };
+        // Independent full-table reference: do not reuse the candidate predicate.
+        const referenceIncidentRank = sql<number>`case when
+          ${emailOutbox.status} in ('failed', 'deliveryUnknown')
+          or (${emailOutbox.status} = 'sending' and (
+            ${emailOutbox.lastAttemptAt} is null
+            or ${emailOutbox.claimLeaseId} is null
+            or ${emailOutbox.claimLeaseExpiresAt} is null
+            or ${emailOutbox.claimLeaseExpiresAt} <= now()
+          ))
+          or (${emailOutbox.status} = 'sent' and ${emailOutbox.sentAt} is null)
+          or (${emailOutbox.status} = 'suppressed' and (
+            ${emailOutbox.suppressedAt} is null
+            or ${emailOutbox.lastAttemptAt} is null
+          ))
+          then 0 else 1 end`;
         const referencePage = () =>
           database
             .select({
               id: emailOutbox.id,
-              incidentRank: sql<number>`case when ${emailOutboxOperationalIncidentPredicate()} then 0 else 1 end`,
+              incidentRank: referenceIncidentRank,
               updatedAt: emailOutbox.updatedAt,
             })
             .from(emailOutbox)
             .orderBy(
-              asc(
-                sql`case when ${emailOutboxOperationalIncidentPredicate()} then 0 else 1 end`,
-              ),
+              asc(referenceIncidentRank),
               desc(emailOutbox.updatedAt),
               asc(emailOutbox.id),
             )
@@ -212,15 +316,57 @@ describe('email outbox single-dispatch state transitions', () => {
         const first = yield* Effect.promise(readPage);
         expect(first).toEqual(yield* Effect.promise(referencePage));
         expect(first).toHaveLength(100);
-        expect(first.slice(0, 5).map((row) => row.id)).toEqual(
+        expect(first.slice(0, incidentIds.length).map((row) => row.id)).toEqual(
           incidentIds.toSorted(),
         );
-        expect(first.slice(5, 8).map((row) => row.id)).toEqual(
+        expect(
+          first
+            .slice(incidentIds.length, incidentIds.length + 3)
+            .map((row) => row.id),
+        ).toEqual(
           ['queued', 'sending', 'suppressed'].map(
             (status) => `${status}-${fixtureSuffix}`,
           ),
         );
         expect(new Set(first.map((row) => row.id)).size).toBe(100);
+
+        // Use ordinary planner settings; never disable sequential scans or force an index.
+        yield* Effect.promise(() =>
+          database.execute(sql`analyze ${emailOutbox}`),
+        );
+        const explained = yield* Effect.promise(() =>
+          database.execute<{ 'QUERY PLAN': unknown }>(sql`
+            explain (analyze, buffers, costs false, timing false, summary false, format json)
+            ${readPage()}
+          `),
+        );
+        const planNodes = outboxOverviewPlanNodes(
+          explained.rows[0]?.['QUERY PLAN'],
+        );
+        const incompleteScans = planNodes.filter(
+          (node) => node.indexName === 'email_outbox_incomplete_terminal_idx',
+        );
+        expect(
+          incompleteScans.length,
+          JSON.stringify(explained.rows),
+        ).toBeGreaterThanOrEqual(2);
+        for (const scan of incompleteScans) {
+          expect(scan.actualRows * scan.actualLoops).toBeLessThanOrEqual(100);
+        }
+        const candidateStreams = planNodes.filter(
+          (node) =>
+            node.nodeType === 'Append' || node.nodeType === 'Merge Append',
+        );
+        expect(
+          candidateStreams.length,
+          JSON.stringify(explained.rows),
+        ).toBeGreaterThan(0);
+        for (const candidates of candidateStreams) {
+          // Nine disjoint buckets each return at most one 100-row page.
+          expect(
+            candidates.actualRows * candidates.actualLoops,
+          ).toBeLessThanOrEqual(900);
+        }
 
         yield* insertRows(
           Array.from({ length: 105 }, (_, index) => ({

@@ -125,7 +125,7 @@ type UsersPermissions =
 const PERMISSION_METADATA = {
   'admin:changeSettings': {
     description:
-      'Update organization-wide settings such as theme, receipt countries, and discount card configuration.',
+      'Change organization details, sign-up rules, appearance, legal pages, and time zone.',
     label: 'Change organization settings',
   },
   'admin:managePayments': {

@@ -41,7 +41,10 @@ import type { GoogleLocationType } from '../../../types/location';
 import { isIanaTimezone } from '../../../types/custom/tenant';
 import { ConfigService } from '../../core/config.service';
 import { AppRpc } from '../../core/effect-rpc-angular-client';
-import { tenantTimezoneOptions } from '../../core/geography-labels';
+import {
+  tenantTimezoneLabel,
+  tenantTimezoneOptions,
+} from '../../core/geography-labels';
 import { NotificationService } from '../../core/notification.service';
 import { LocationSelectorField } from '../../shared/components/controls/location-selector/location-selector-field/location-selector-field';
 import { tenantIdentityRows as buildTenantIdentityRows } from './organization-settings.identity';
@@ -124,7 +127,15 @@ export class OrganizationSettingsComponent {
     buildTenantIdentityRows(this.currentTenant()),
   );
   protected readonly tenantSettingsSaveDisabled = tenantSettingsSaveDisabled;
-  protected readonly timezoneOptions = tenantTimezoneOptions;
+  protected readonly timezoneOptions = computed(() => {
+    const timezone = this.model().timezone;
+    return tenantTimezoneOptions.some((option) => option.value === timezone)
+      ? tenantTimezoneOptions
+      : [
+          ...tenantTimezoneOptions,
+          { label: tenantTimezoneLabel(timezone), value: timezone },
+        ];
+  });
   private readonly rpc = AppRpc.injectClient();
   protected readonly updateMutation = injectMutation(() =>
     this.rpc.admin.tenant.updateOrganizationSettings.mutationOptions(),

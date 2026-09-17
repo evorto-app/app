@@ -1387,7 +1387,7 @@ describe('adminHandlers tenant settings', () => {
     }),
   );
 
-  it.effect('preserves uploaded tenant brand asset route URLs', () =>
+  it.effect('preserves exactly unchanged legacy organization image URLs', () =>
     Effect.gen(function* () {
       let capturedUpdate: Record<string, unknown> | undefined;
       const updateQuery = {
@@ -1403,17 +1403,27 @@ describe('adminHandlers tenant settings', () => {
         },
         where: () => updateQuery,
       };
-      const database = withTenantSettingsTransaction({
-        update: () => updateQuery,
-      });
+      const currentImages = {
+        faviconUrl: '/tenant-assets/tenant-1/favicon/favicon.ico',
+        logoUrl: 'https://old.example/tenant-assets/tenant-1/logo/logo.png',
+      };
+      const database = withTenantSettingsTransaction(
+        { update: () => updateQuery },
+        { lockedSettings: currentImages },
+      );
 
       const result = yield* adminHandlers[
         'admin.tenant.updateAppearanceSettings'
       ](
         {
           ...createAppearanceSettingsInput(),
-          faviconUrl: ' /tenant-assets/tenant-1/favicon/favicon.ico ',
-          logoUrl: '/tenant-assets/tenant-1/logo/logo.png',
+          ...currentImages,
+          expectedSettings: adminTenantAppearanceSettingsSnapshot(
+            Schema.decodeUnknownSync(Tenant)({
+              ...createTenant(),
+              ...currentImages,
+            }),
+          ),
         },
         createRpcOptions(
           AdminRpcs.AdminTenantUpdateAppearanceSettings.middleware(
@@ -1430,11 +1440,11 @@ describe('adminHandlers tenant settings', () => {
 
       expect(capturedUpdate).toMatchObject({
         faviconUrl: '/tenant-assets/tenant-1/favicon/favicon.ico',
-        logoUrl: '/tenant-assets/tenant-1/logo/logo.png',
+        logoUrl: 'https://old.example/tenant-assets/tenant-1/logo/logo.png',
       });
       expect(capturedUpdate).toEqual({
         faviconUrl: '/tenant-assets/tenant-1/favicon/favicon.ico',
-        logoUrl: '/tenant-assets/tenant-1/logo/logo.png',
+        logoUrl: 'https://old.example/tenant-assets/tenant-1/logo/logo.png',
         seoDescription: null,
         seoTitle: null,
         theme: 'evorto',
@@ -1445,11 +1455,11 @@ describe('adminHandlers tenant settings', () => {
 
   it.effect('rejects invalid tenant brand asset URLs', () =>
     Effect.gen(function* () {
-      const database = {
+      const database = withTenantSettingsTransaction({
         update: () => {
           throw new Error('database should not be touched');
         },
-      };
+      });
 
       const error = yield* adminHandlers[
         'admin.tenant.updateAppearanceSettings'
@@ -1482,11 +1492,11 @@ describe('adminHandlers tenant settings', () => {
     'rejects uploaded tenant brand asset paths with encoded separators',
     () =>
       Effect.gen(function* () {
-        const database = {
+        const database = withTenantSettingsTransaction({
           update: () => {
             throw new Error('database should not be touched');
           },
-        };
+        });
 
         const error = yield* adminHandlers[
           'admin.tenant.updateAppearanceSettings'
@@ -1521,15 +1531,18 @@ describe('adminHandlers tenant settings', () => {
     'rejects uploaded brand asset paths owned by another tenant or asset kind',
     () =>
       Effect.gen(function* () {
-        const database = {
+        const database = withTenantSettingsTransaction({
           update: () => {
             throw new Error('database should not be touched');
           },
-        };
+        });
 
         for (const logoUrl of [
           '/tenant-assets/tenant-2/logo/logo.png',
           '/tenant-assets/tenant-1/favicon/logo.png',
+          'https://tenant-1.test/tenant-assets/tenant-1/logo/logo.png',
+          'https://other-host.test/tenant-assets/tenant-1/logo/logo.png',
+          'https://other-host.test/%74enant-assets/tenant-1/logo/logo.png',
         ]) {
           const error = yield* adminHandlers[
             'admin.tenant.updateAppearanceSettings'

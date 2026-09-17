@@ -76,7 +76,7 @@ describe('email outbox lease predicates', () => {
     );
   });
 
-  it('classifies terminal failures and abandoned claims as operational incidents', () => {
+  it('classifies failed, abandoned, and incomplete delivery records as operational incidents', () => {
     const query = dialect.sqlToQuery(emailOutboxOperationalIncidentPredicate());
     const statement = normalizeSql(query.sql);
 
@@ -86,6 +86,13 @@ describe('email outbox lease predicates', () => {
     expect(statement).toContain('"email_outbox"."status" = \'sending\'');
     expect(statement).toContain(
       '"email_outbox"."claim_lease_expires_at" <= now()',
+    );
+    expect(statement).toContain('"email_outbox"."last_attempt_at" is null');
+    expect(statement).toContain(
+      '"email_outbox"."status" = \'sent\' and "email_outbox"."sent_at" is null',
+    );
+    expect(statement).toContain(
+      '"email_outbox"."status" = \'suppressed\' and ("email_outbox"."suppressed_at" is null or "email_outbox"."last_attempt_at" is null)',
     );
   });
 });

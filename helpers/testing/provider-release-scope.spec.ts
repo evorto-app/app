@@ -223,7 +223,7 @@ describe('production provider scope', () => {
     expect(receiptMedia).toContain('export const buildReceiptStorageKey');
     expect(receiptMedia).toContain("'receipts',");
     expect(tenantBrandAssets).toContain(
-      "import { ObjectStorage } from './integrations/object-storage';",
+      "from './integrations/object-storage';",
     );
     expect(tenantBrandAssets).toContain(
       'return `tenant-assets/${tenantId}/${input.kind}/${input.fileName}`;',
