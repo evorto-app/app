@@ -39,6 +39,8 @@ import {
   isEsnCardUnconfirmedError,
 } from './profile-discounts.esn-card';
 
+type CardReconciliation = 'changed' | 'removed';
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
@@ -66,6 +68,8 @@ export class ProfileDiscountsComponent {
       : undefined;
   });
   protected readonly cardReadPending = signal(false);
+  protected readonly cardReconciliationRequired =
+    signal<CardReconciliation | null>(null);
   protected readonly confirmedCardAction = signal<EsnCardMutationAction | null>(
     null,
   );
@@ -85,6 +89,7 @@ export class ProfileDiscountsComponent {
       () =>
         this.activeCardAction() !== null ||
         this.cardReadPending() ||
+        this.cardReconciliationRequired() !== null ||
         this.confirmedCardAction() !== null ||
         this.unconfirmedCardAction() !== null,
     );
@@ -137,6 +142,7 @@ export class ProfileDiscountsComponent {
   protected esnCardMutationPending(): boolean {
     return (
       this.cardOperationBusy() ||
+      this.cardReconciliationRequired() !== null ||
       this.confirmedCardAction() !== null ||
       this.unconfirmedCardAction() !== null
     );
@@ -146,11 +152,17 @@ export class ProfileDiscountsComponent {
     if (this.cardOperationBusy() || !this.esnEnabled()) return;
     const confirmedAction = this.confirmedCardAction();
     const unconfirmedAction = this.unconfirmedCardAction();
+    const reconciliation = this.cardReconciliationRequired();
     this.cardReadPending.set(true);
     try {
       await this.refreshCardList();
       if (confirmedAction) this.completeConfirmedCardRead(confirmedAction);
-      else {
+      else if (reconciliation) {
+        this.cardReconciliationRequired.set(null);
+        this.esnCardErrorMessage.set(
+          this.reconciliationReadMessage(reconciliation, true),
+        );
+      } else {
         this.unconfirmedCardAction.set(null);
         this.esnCardErrorMessage.set(null);
       }
@@ -160,7 +172,9 @@ export class ProfileDiscountsComponent {
           ? this.confirmedCardReadFailure(confirmedAction)
           : unconfirmedAction
             ? `Your current cards could not be loaded. ${esnCardMutationErrorMessage(unconfirmedAction, null)}`
-            : 'Your discount cards could not be loaded. Select Try again.',
+            : reconciliation
+              ? this.reconciliationReadMessage(reconciliation, false)
+              : 'Your discount cards could not be loaded. Select Try again.',
       );
     } finally {
       this.cardReadPending.set(false);
@@ -203,6 +217,20 @@ export class ProfileDiscountsComponent {
     const result =
       action === 'save' ? 'saved' : action === 'remove' ? 'removed' : 'checked';
     return `Your ESNcard was ${result}, but your card list could not be updated. Select Try again to load your current cards before making another change.`;
+  }
+
+  private reconciliationReadMessage(
+    reason: CardReconciliation,
+    readSucceeded: boolean,
+  ): string {
+    if (reason === 'changed') {
+      return readSucceeded
+        ? 'Your saved ESNcard changed while it was being checked. The old check was not saved. Review your current card before checking again.'
+        : 'Your saved ESNcard changed while it was being checked. The old check was not saved, and your card list could not be updated. Select Try again above.';
+    }
+    return readSucceeded
+      ? 'This ESNcard was already removed. Your card list is now up to date.'
+      : 'This ESNcard is no longer saved. Your card list could not be updated. Select Try again above.';
   }
 
   private async refreshCardList(): Promise<void> {
@@ -280,19 +308,19 @@ export class ProfileDiscountsComponent {
       return;
     }
 
-    const result = await this.myCardsQuery.refetch();
-    if (cardChanged) {
+    const reconciliation = cardChanged ? 'changed' : 'removed';
+    this.cardReconciliationRequired.set(reconciliation);
+    try {
+      await this.refreshCardList();
+    } catch {
       this.esnCardErrorMessage.set(
-        result.isSuccess
-          ? 'Your saved ESNcard changed while it was being checked. The old check was not saved. Review your current card before checking again.'
-          : 'Your saved ESNcard changed while it was being checked. The old check was not saved, and your card list could not be updated. Select Try again above.',
+        this.reconciliationReadMessage(reconciliation, false),
       );
       return;
     }
+    this.cardReconciliationRequired.set(null);
     this.esnCardErrorMessage.set(
-      result.isSuccess
-        ? 'This ESNcard was already removed. Your card list is now up to date.'
-        : 'This ESNcard is no longer saved. Your card list could not be updated. Select Try again above.',
+      this.reconciliationReadMessage(reconciliation, true),
     );
   }
 }

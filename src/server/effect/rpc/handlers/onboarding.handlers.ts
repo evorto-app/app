@@ -97,7 +97,7 @@ export const normalizeOnboardingProfile = (input: {
   if (!isCanonicalEmailAddress(communicationEmail)) {
     return failValidation(
       'communicationEmail',
-      'Enter a valid notification email address.',
+      'Enter a valid email address for updates.',
     );
   }
 

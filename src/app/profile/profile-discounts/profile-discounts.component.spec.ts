@@ -746,6 +746,150 @@ describe('ProfileDiscountsComponent save outcomes', () => {
     });
   }
 
+  it.each([true, false])(
+    'requires explicit successful read recovery after a failed known card reconciliation (changed=%s)',
+    async (changed) => {
+      const failure = changed
+        ? new DiscountCardChangedError({
+            message: 'Private changed-card detail',
+          })
+        : new DiscountCardNotFoundError({
+            message: 'Private removed-card detail',
+          });
+      const failureMessage = changed
+        ? 'Your saved ESNcard changed while it was being checked. The old check was not saved, and your card list could not be updated. Select Try again above.'
+        : 'This ESNcard is no longer saved. Your card list could not be updated. Select Try again above.';
+      const successfulReadMessage = changed
+        ? 'Your saved ESNcard changed while it was being checked. The old check was not saved. Review your current card before checking again.'
+        : 'This ESNcard was already removed. Your card list is now up to date.';
+      const currentCards = changed
+        ? [{ ...card, id: 'current-card', identifier: 'CURRENT34' }]
+        : [];
+      const readOperation = vi.fn<() => Promise<void>>();
+      readOperation.mockImplementation(
+        fixture.componentInstance['readSavedCards'].bind(
+          fixture.componentInstance,
+        ),
+      );
+      fixture.componentInstance['readSavedCards'] = readOperation;
+      const retryRead = () => {
+        button('Try again').click();
+        const result = readOperation.mock.results.at(-1);
+        if (result?.type !== 'return')
+          throw new Error('Expected the actual card-read retry action');
+        return own(result.value);
+      };
+      check.mockRejectedValueOnce(failure);
+      readCards.mockRejectedValueOnce(
+        new Error('Private reconciliation read failure'),
+      );
+      await start('refresh');
+      await message(failureMessage);
+      expectOneMutation('refresh');
+      expect(readCards).toHaveBeenCalledTimes(2);
+      expect(input().value).toBe('NEWCARD12');
+      expect(input().disabled).toBe(true);
+      expect(submitButton().disabled).toBe(true);
+      expect(button('Try again').disabled).toBe(false);
+      expect(root.textContent).not.toContain(failure.message);
+      expect(root.textContent).not.toContain(
+        esnCardMutationErrorMessage('refresh', null),
+      );
+      expect(notifications.showSuccess).not.toHaveBeenCalled();
+      await start('save');
+      await start('refresh');
+      await start('remove');
+      expectOneMutation('refresh');
+
+      readCards.mockRejectedValueOnce(
+        new Error('Private explicit-read failure'),
+      );
+      await retryRead();
+      await message(failureMessage);
+      expect(readCards).toHaveBeenCalledTimes(3);
+      expect(input().disabled).toBe(true);
+      expect(submitButton().disabled).toBe(true);
+      expect(button('Try again').disabled).toBe(false);
+      expectOneMutation('refresh');
+
+      // Background publication cannot acknowledge the required explicit recovery.
+      readCards.mockResolvedValue(currentCards);
+      await queryClient.refetchQueries(
+        { exact: true, queryKey },
+        { throwOnError: true },
+      );
+      await vi.waitFor(() => {
+        fixture.detectChanges();
+        expect(queryClient.getQueryState(queryKey)?.status).toBe('success');
+        expect(input().disabled).toBe(true);
+        expect(submitButton().disabled).toBe(true);
+        expect(button('Try again').disabled).toBe(false);
+      });
+      expect(readCards).toHaveBeenCalledTimes(4);
+      if (changed) {
+        expect(button('Check again').disabled).toBe(true);
+        expect(button('Remove').disabled).toBe(true);
+      }
+      await start('save');
+      await start('refresh');
+      await start('remove');
+      expectOneMutation('refresh');
+
+      let releaseRead: (() => void) | undefined;
+      // Angular's browser target does not expose Promise.withResolvers.
+      // eslint-disable-next-line unicorn/prefer-promise-with-resolvers
+      const heldRead = new Promise<void>((resolve) => {
+        releaseRead = resolve;
+      });
+      readCards.mockImplementationOnce(async () => {
+        await heldRead;
+        return currentCards;
+      });
+      let recovery: Promise<void> | undefined;
+      try {
+        recovery = retryRead();
+        await vi.waitFor(() => {
+          fixture.detectChanges();
+          expect(readCards).toHaveBeenCalledTimes(5);
+          expect(button('Trying again…').disabled).toBe(true);
+          expect(input().disabled).toBe(true);
+          expect(submitButton().disabled).toBe(true);
+        });
+        await start('save');
+        await start('refresh');
+        await start('remove');
+        expectOneMutation('refresh');
+      } finally {
+        releaseRead?.();
+        await heldRead;
+        await recovery;
+      }
+      await message(successfulReadMessage);
+      expect(input().disabled).toBe(false);
+      expect(input().value).toBe('NEWCARD12');
+      expect(submitButton().disabled).toBe(false);
+      expect(queryClient.getQueryData(queryKey)).toEqual(currentCards);
+      expectOneMutation('refresh');
+      expect(notifications.showSuccess).not.toHaveBeenCalled();
+      expect(
+        [...root.querySelectorAll('button')].some(
+          (candidate) => candidate.textContent?.trim() === 'Try again',
+        ),
+      ).toBe(false);
+
+      const savedCard = { ...card, identifier: 'NEWCARD12' };
+      save.mockResolvedValueOnce(savedCard);
+      readCards.mockResolvedValueOnce([savedCard]);
+      await start('save');
+      expect(save).toHaveBeenCalledOnce();
+      expect(check).toHaveBeenCalledOnce();
+      expect(remove).not.toHaveBeenCalled();
+      expect(notifications.showSuccess).toHaveBeenCalledExactlyOnceWith(
+        'ESNcard saved',
+      );
+    },
+  );
+
   it('retains invalid input without invoking a mutation', async () => {
     input().value = 'short';
     input().dispatchEvent(new Event('input', { bubbles: true }));

@@ -729,7 +729,7 @@ export const userHandlers = {
 
       if (!isCanonicalEmailAddress(input.communicationEmail)) {
         return yield* new RpcBadRequestError({
-          message: 'Enter a valid notification email address.',
+          message: 'Enter a valid email address for updates.',
           reason: 'invalidCommunicationEmail',
         });
       }

@@ -128,6 +128,7 @@ describe('tenant onboarding completion validation', () => {
 
         expect(error._tag).toBe('TenantOnboardingValidationError');
         expect(error.field).toBe('communicationEmail');
+        expect(error.message).toBe('Enter a valid email address for updates.');
       }),
   );
 

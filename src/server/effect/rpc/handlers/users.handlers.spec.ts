@@ -1420,6 +1420,12 @@ describe('userHandlers', () => {
 
           expect(error['_tag']).toBe('RpcBadRequestError');
           expect(error).toHaveProperty('reason', testCase.reason);
+          if (testCase.reason === 'invalidCommunicationEmail') {
+            expect(error).toHaveProperty(
+              'message',
+              'Enter a valid email address for updates.',
+            );
+          }
         }
         expect(fixture.executeValues).not.toHaveBeenCalled();
       }),
