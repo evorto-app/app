@@ -491,17 +491,30 @@ export class PlatformScannerComponent {
   private async navigateToRegistration(registrationId: string): Promise<void> {
     if (this.lookupPending()) return;
 
+    const target = [
+      '/global-admin/tenants',
+      this.tenantId(),
+      'scanner',
+      registrationId,
+    ];
     this.lookupPending.set(true);
     try {
-      const navigated = await this.router.navigate([
-        '/global-admin/tenants',
-        this.tenantId(),
-        'scanner',
-        registrationId,
-      ]);
-      if (!navigated) {
+      const navigated = await this.router.navigate(target);
+      const targetIsOpen = this.router.isActive(
+        this.router.createUrlTree(target),
+        {
+          fragment: 'ignored',
+          matrixParams: 'ignored',
+          paths: 'exact',
+          queryParams: 'ignored',
+        },
+      );
+      if (!navigated && !targetIsOpen) {
         this.lookupError.set(platformScannerNavigationErrorMessage);
         this.lookupNavigationFailed.set(true);
+      } else {
+        this.lookupError.set('');
+        this.lookupNavigationFailed.set(false);
       }
     } catch {
       this.lookupError.set(platformScannerNavigationErrorMessage);
