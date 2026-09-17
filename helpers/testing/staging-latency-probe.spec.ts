@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { accessSync, constants, realpathSync, statSync } from 'node:fs';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
@@ -35,7 +35,11 @@ const timeoutHelper = fileURLToPath(
   new URL('./run-with-wall-clock-timeout.ts', import.meta.url),
 );
 
-const executeFile = async (command: 'bash', args: readonly string[]) => {
+const executeFile = async (
+  command: 'bash',
+  args: readonly string[],
+  environment: NodeJS.ProcessEnv = process.env,
+) => {
   if (process.platform === 'win32') {
     throw new Error('The Bash latency fixture requires POSIX process groups');
   }
@@ -43,7 +47,7 @@ const executeFile = async (command: 'bash', args: readonly string[]) => {
   const child = spawn(
     bunExecutable,
     [timeoutHelper, '6', '1', command, ...args],
-    { stdio: ['pipe', 'pipe', 'pipe'] },
+    { env: environment, stdio: ['pipe', 'pipe', 'pipe'] },
   );
   const processFailures: unknown[] = [];
   const completion = new Promise<{
@@ -150,6 +154,65 @@ const closeServer = async (server: ReturnType<typeof createServer>) => {
 };
 
 describe('staging latency observability', () => {
+  it('rejects non-origin inputs before making any network request', async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), 'evorto-origin-'));
+    const requestMarker = path.join(directory, 'request');
+    const reportPath = path.join(directory, 'report.json');
+    try {
+      await writeFile(
+        path.join(directory, 'curl'),
+        '#!/bin/sh\nprintf request > "$LATENCY_REQUEST_MARKER"\nexit 97\n',
+        { mode: 0o700 },
+      );
+      for (const origin of [
+        'https://staging.example.test/other',
+        'https://staging.example.test/../',
+        'https://staging.example.test//',
+        'https://staging.example.test?token=example',
+        'https://staging.example.test#fragment',
+        'https://user:example@staging.example.test',
+        'https://staging.example.test\\other',
+        'https://staging.example.test\t',
+        'https://staging.example.test\n',
+        'https://staging.example.test\r',
+        'https://staging.example.test\u0001',
+        'https://staging.example.test\u007f',
+        'https://staging.example.test:',
+        'https://staging.example.test:65536',
+        'https://staging.example.test:invalid',
+        'https://staging.example.test.',
+        'https:///staging.example.test',
+        'https://',
+        'https://[invalid]',
+        'file://staging.example.test',
+      ]) {
+        await expect(
+          executeFile(
+            'bash',
+            [probeScript, '--origin', origin, '--output', reportPath],
+            {
+              ...process.env,
+              LATENCY_REQUEST_MARKER: requestMarker,
+              PATH: `${directory}${path.delimiter}${process.env['PATH'] ?? ''}`,
+            },
+          ),
+          origin,
+        ).rejects.toMatchObject({
+          code: 64,
+          stderr: expect.stringContaining('--origin must be'),
+        });
+        await expect(readFile(requestMarker)).rejects.toMatchObject({
+          code: 'ENOENT',
+        });
+        await expect(readFile(reportPath)).rejects.toMatchObject({
+          code: 'ENOENT',
+        });
+      }
+    } finally {
+      await rm(directory, { force: true, recursive: true });
+    }
+  });
+
   it('records warm samples and enforces only critical latency on request', async () => {
     let eventRequestCount = 0;
     let eventUpstreamServiceMs = 200;
@@ -214,7 +277,7 @@ describe('staging latency observability', () => {
       await executeFile('bash', [
         probeScript,
         '--origin',
-        origin,
+        `${origin}/`,
         '--output',
         reportPath,
         '--summary-output',
@@ -399,7 +462,7 @@ describe('staging latency observability', () => {
     const source = await readFile(probeScript, 'utf8');
 
     expect(source).toContain(
-      'for required_command in awk curl date dirname grep jq mkdir mktemp mv rm; do',
+      'for required_command in awk curl date dirname grep jq mkdir mktemp mv node rm; do',
     );
   });
 

@@ -30,18 +30,24 @@ These thresholds become active after the corresponding improvement has met the
 budget in `LATENCY_IMPROVEMENT.md`. Until then, collect them in report-only mode
 so the known defect does not create permanent noise.
 
-| Signal                                     | Target        | Warning                 | Critical                |
-| ------------------------------------------ | ------------- | ----------------------- | ----------------------- |
-| Warm-candidate `/events` upstream p95      | <= 500 ms     | > 750 ms for 3 checks   | > 1,500 ms for 2 checks |
-| Warm-candidate `/events` external TTFB p95 | <= 750 ms     | > 1,000 ms for 3 checks | > 2,000 ms for 2 checks |
-| `events.eventList` trace p95               | <= 350 ms     | > 500 ms for 15 min     | > 1,000 ms for 5 min    |
-| Request-context trace p95                  | <= 250 ms     | > 350 ms for 15 min     | > 750 ms for 5 min      |
-| Event-list-ready browser measure           | p75 <= 1.25 s | p75 > 1.5 s for 30 min  | p75 > 2.5 s for 15 min  |
-| HTTP 5xx ratio                             | < 1%          | > 1% for 10 min         | > 5% for 5 min          |
+| Signal                                     | Target        | Warning                | Critical               |
+| ------------------------------------------ | ------------- | ---------------------- | ---------------------- |
+| Warm-candidate `/events` upstream p95      | <= 500 ms     | > 750 ms per check     | > 1,500 ms per check   |
+| Warm-candidate `/events` external TTFB p95 | <= 750 ms     | > 1,000 ms per check   | > 2,000 ms per check   |
+| `events.eventList` trace p95               | <= 350 ms     | > 500 ms for 15 min    | > 1,000 ms for 5 min   |
+| Request-context trace p95                  | <= 250 ms     | > 350 ms for 15 min    | > 750 ms for 5 min     |
+| Event-list-ready browser measure           | p75 <= 1.25 s | p75 > 1.5 s for 30 min | p75 > 2.5 s for 15 min |
+| HTTP 5xx ratio                             | < 1%          | > 1% for 10 min        | > 5% for 5 min         |
 
 Page immediately for availability failures, persistent critical latency, or a
 latency increase paired with elevated errors. Send warnings to the normal
 operational channel for investigation during working hours.
+
+The synthetic evaluates each burst independently. It retains no state across
+workflow runs: `enforce-critical` fails on one critical check. Confirm persistent
+latency from successive artifacts and traces before treating it as a sustained
+regression. The trace, browser and error-rate windows above are operational
+objectives; this HTTP probe does not calculate them or send paging messages.
 
 `Rpc.config.bootstrap` remains planned and is not emitted by the application.
 Add it to the active trace objectives and dashboards only after the endpoint
@@ -93,6 +99,11 @@ sample set plus a Markdown summary, and retains the workflow artifact for seven
 days. It runs independently from deployment reconciliation and records the
 GitHub runner class as its vantage because GitHub does not expose a stable
 runner region.
+
+The probe requires Bash, Node.js (for standard URL parsing), curl, jq and the
+listed POSIX utilities; it checks those commands before starting. Use a plain
+HTTP(S) origin, optionally ending in one slash. Paths, credentials, queries,
+fragments and malformed authorities are rejected before any network request.
 
 Latency thresholds remain report-only while the known defect is open. A manual
 workflow dispatch can enable `enforce_critical` to exercise the critical gate.

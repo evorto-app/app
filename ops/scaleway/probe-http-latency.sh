@@ -95,19 +95,42 @@ if [[ "${mode}" != 'report-only' && "${mode}" != 'enforce-critical' ]]; then
   echo "--mode must be report-only or enforce-critical" >&2
   exit 64
 fi
-if [[ ! "${origin}" =~ ^https?://[^[:space:]]+$ ]]; then
-  echo "--origin must be an absolute HTTP(S) origin" >&2
-  exit 64
-fi
-
-origin="${origin%/}"
-
-for required_command in awk curl date dirname grep jq mkdir mktemp mv rm; do
+for required_command in awk curl date dirname grep jq mkdir mktemp mv node rm; do
   if ! command -v "${required_command}" >/dev/null; then
     echo "Missing required command: ${required_command}" >&2
     exit 69
   fi
 done
+
+# Reject raw path/control syntax before URL parsing can normalize it away.
+# Use the standard URL parser for IPv6, ports and hostname validation.
+if ! origin="$(node - "${origin}" <<'NODE'
+const value = process.argv[2];
+try {
+  if (
+    /[\u0000-\u0020\u007f]/u.test(value) ||
+    !/^https?:\/\/[^/\\\s@?#]+\/?$/iu.test(value) || /:\/?$/u.test(value)
+  ) {
+    process.exit(64);
+  }
+  const url = new URL(value);
+  if (
+    !['http:', 'https:'].includes(url.protocol) ||
+    !url.hostname || url.hostname.endsWith('.') ||
+    url.pathname !== '/' || url.search || url.hash ||
+    url.username || url.password
+  ) {
+    process.exit(64);
+  }
+  process.stdout.write(url.origin);
+} catch {
+  process.exit(64);
+}
+NODE
+)"; then
+  echo "--origin must be an absolute HTTP(S) origin without credentials, a path, a query or a fragment" >&2
+  exit 64
+fi
 
 temporary_root="${TMPDIR:-/tmp}"
 working_directory="$(mktemp -d "${temporary_root%/}/evorto-latency.XXXXXX")"
