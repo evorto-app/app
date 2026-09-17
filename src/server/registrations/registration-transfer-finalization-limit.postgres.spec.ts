@@ -32,7 +32,10 @@ import {
 import { RegistrationTransferConflictError } from '../../shared/rpc-contracts/app-rpcs/registration-transfers.errors';
 import { EventRegistrationService } from '../effect/rpc/handlers/events/event-registration.service';
 import { StripeClient } from '../stripe-client';
-import { createRegistrationTransferClaimCode } from './registration-transfer-claim-code';
+import {
+  createRegistrationTransferClaimCode,
+  hashRegistrationTransferClaimCode,
+} from './registration-transfer-claim-code';
 import { finalizeRegistrationTransferCheckout } from './registration-transfer-finalization';
 import {
   ensureRegistrationMutationHasNoActiveTransfer,
@@ -753,6 +756,81 @@ const claimOpenCandidate = (
     ),
   );
 
+const createOfferForCandidate = async (
+  database: TestDatabase,
+  layer: TestLayer,
+  fixture: TransferLimitFixture,
+  candidate: TransferCandidate,
+) => {
+  const tenant = await database.query.tenants.findFirst({
+    where: { id: fixture.tenantId },
+  });
+  if (!tenant) throw new Error('Expected transfer fixture tenant');
+  return Effect.runPromiseExit(
+    RegistrationTransferService.use((service) =>
+      service.createOffer({
+        registrationId: candidate.registrationId,
+        tenant,
+        user: {
+          communicationEmail: 'source@example.com',
+          email: 'source@example.com',
+          id: candidate.sourceUserId,
+          roleIds: [],
+        },
+      }),
+    ).pipe(
+      Effect.provide(RegistrationTransferService.Default),
+      Effect.provide(layer),
+    ),
+  );
+};
+
+const reopenExpiredOfferWindow = async (
+  database: TestDatabase,
+  fixture: TransferLimitFixture,
+  candidate: TransferCandidate,
+) => {
+  const eventStart = new Date(Date.now() + 12 * 60 * 60 * 1000);
+  const oldExpiry = new Date(eventStart.getTime() - 24 * 60 * 60 * 1000);
+  await database
+    .update(eventInstances)
+    .set({ start: eventStart })
+    .where(eq(eventInstances.id, candidate.eventId));
+  await database
+    .update(eventRegistrationOptions)
+    .set({
+      isPaid: false,
+      price: 0,
+      stripeTaxRateId: null,
+      transferDeadlineHoursBeforeStart: null,
+    })
+    .where(eq(eventRegistrationOptions.id, candidate.optionId));
+  await database
+    .update(tenants)
+    .set({ transferDeadlineHoursBeforeStart: 24 })
+    .where(eq(tenants.id, fixture.tenantId));
+  await database
+    .update(registrationTransfers)
+    .set({
+      claimCodeHash: createRegistrationTransferClaimCode().claimCodeHash,
+      expiresAt: oldExpiry,
+      recipientBasePrice: null,
+      recipientCheckoutTransactionId: null,
+      recipientUserId: null,
+      status: 'open',
+    })
+    .where(eq(registrationTransfers.id, candidate.transferId));
+  await database
+    .delete(transactions)
+    .where(eq(transactions.id, candidate.transactionId));
+  // The old offer keeps the previously saved 24-hour cutoff after policy reopens.
+  await database
+    .update(tenants)
+    .set({ transferDeadlineHoursBeforeStart: 0 })
+    .where(eq(tenants.id, fixture.tenantId));
+  return { eventStart, oldExpiry };
+};
+
 const checkInCandidate = (
   layer: TestLayer,
   fixture: TransferLimitFixture,
@@ -820,6 +898,267 @@ describe('registration transfer finalization tenant limit', () => {
     }
     throwCleanupFailures(failures);
   });
+
+  it('replaces an expired open offer when current tenant policy reopens the transfer window', async () => {
+    const fixture = await seedTransferLimitFixture(database);
+    fixtures.push(fixture);
+    const candidate = fixture.candidates[0];
+    const otherCandidate = fixture.candidates[1];
+    if (!candidate || !otherCandidate)
+      throw new Error('Expected transfer candidates');
+    const { eventStart, oldExpiry } = await reopenExpiredOfferWindow(
+      database,
+      fixture,
+      candidate,
+    );
+    const otherOffer = await database.query.registrationTransfers.findFirst({
+      where: { id: otherCandidate.transferId, tenantId: fixture.tenantId },
+    });
+    const paymentsBefore = await database.query.transactions.findMany({
+      where: { tenantId: fixture.tenantId },
+    });
+    const hiddenExpiredOffer =
+      await database.query.registrationTransfers.findFirst({
+        where: {
+          RAW: registrationTransferOpenDeadlinePredicate,
+          sourceRegistrationId: candidate.registrationId,
+          status: 'open',
+          tenantId: fixture.tenantId,
+        },
+      });
+    expect(hiddenExpiredOffer).toBeUndefined();
+    const outcome = await createOfferForCandidate(
+      database,
+      layer,
+      fixture,
+      candidate,
+    );
+    if (Exit.isFailure(outcome)) throw Cause.squash(outcome.cause);
+    const replacement = await database.query.registrationTransfers.findFirst({
+      where: {
+        claimCodeHash: hashRegistrationTransferClaimCode(
+          outcome.value.claimCode,
+        ),
+        sourceRegistrationId: candidate.registrationId,
+        tenantId: fixture.tenantId,
+      },
+    });
+    expect(replacement).toBeDefined();
+    if (!replacement) throw new Error('Expected persisted replacement offer');
+    expect(replacement.id).not.toBe(candidate.transferId);
+    expect(outcome.value.expiresAt).toBe(eventStart.toISOString());
+    expect(
+      await database.query.registrationTransfers.findFirst({
+        where: { id: candidate.transferId, tenantId: fixture.tenantId },
+      }),
+    ).toMatchObject({
+      expiredAt: expect.any(Date),
+      expiresAt: oldExpiry,
+      status: 'expired',
+    });
+    expect(replacement).toMatchObject({
+      expiresAt: eventStart,
+      sourceRegistrationId: candidate.registrationId,
+      status: 'open',
+    });
+    expect(
+      await database.query.registrationTransferEvents.findMany({
+        columns: {
+          actorUserId: true,
+          eventType: true,
+          fromStatus: true,
+          toStatus: true,
+        },
+        where: { tenantId: fixture.tenantId, transferId: candidate.transferId },
+      }),
+    ).toEqual([
+      {
+        actorUserId: candidate.sourceUserId,
+        eventType: 'expired',
+        fromStatus: 'open',
+        toStatus: 'expired',
+      },
+    ]);
+    expect(
+      await database.query.registrationTransfers.findFirst({
+        where: { id: otherCandidate.transferId, tenantId: fixture.tenantId },
+      }),
+    ).toEqual(otherOffer);
+    expect(
+      await database.query.transactions.findMany({
+        where: { tenantId: fixture.tenantId },
+      }),
+    ).toEqual(paymentsBefore);
+    expect(
+      await database.query.eventRegistrations.findFirst({
+        where: { id: candidate.registrationId, tenantId: fixture.tenantId },
+      }),
+    ).toMatchObject({ status: 'CONFIRMED', userId: candidate.sourceUserId });
+  });
+
+  it.each(['open', 'checkout_pending'] as const)(
+    'does not replace a still-active %s offer',
+    async (status) => {
+      const fixture = await seedTransferLimitFixture(database);
+      fixtures.push(fixture);
+      const candidate = fixture.candidates[0];
+      if (!candidate) throw new Error('Expected transfer candidate');
+      if (status === 'open') {
+        await database
+          .update(registrationTransfers)
+          .set({
+            expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+            recipientBasePrice: null,
+            recipientCheckoutTransactionId: null,
+            recipientUserId: null,
+            status,
+          })
+          .where(eq(registrationTransfers.id, candidate.transferId));
+        await database
+          .delete(transactions)
+          .where(eq(transactions.id, candidate.transactionId));
+      } else {
+        await database
+          .update(registrationTransfers)
+          .set({ expiresAt: new Date(Date.now() - 60_000) })
+          .where(eq(registrationTransfers.id, candidate.transferId));
+      }
+      const before = await database.query.registrationTransfers.findMany({
+        where: { tenantId: fixture.tenantId },
+      });
+      const paymentsBefore = await database.query.transactions.findMany({
+        where: { tenantId: fixture.tenantId },
+      });
+      const outcome = await createOfferForCandidate(
+        database,
+        layer,
+        fixture,
+        candidate,
+      );
+      expect(Exit.isFailure(outcome)).toBe(true);
+      if (!Exit.isFailure(outcome))
+        throw new Error('Expected active offer conflict');
+      expect(Cause.squash(outcome.cause)).toMatchObject({
+        _tag: 'RegistrationTransferConflictError',
+        message:
+          'This ticket already has an open transfer offer. No new transfer or refund was started. Cancel the current offer before creating another.',
+      });
+      expect(
+        await database.query.registrationTransfers.findMany({
+          where: { tenantId: fixture.tenantId },
+        }),
+      ).toEqual(before);
+      expect(
+        await database.query.registrationTransferEvents.findMany({
+          where: { tenantId: fixture.tenantId },
+        }),
+      ).toEqual([]);
+      expect(
+        await database.query.transactions.findMany({
+          where: { tenantId: fixture.tenantId },
+        }),
+      ).toEqual(paymentsBefore);
+    },
+  );
+
+  it('allows only one concurrent replacement and records the old expiry once', async () => {
+    const fixture = await seedTransferLimitFixture(database);
+    fixtures.push(fixture);
+    const candidate = fixture.candidates[0];
+    if (!candidate) throw new Error('Expected transfer candidate');
+    await reopenExpiredOfferWindow(database, fixture, candidate);
+    const sourceLock = await pool.connect();
+    let locked = false;
+    let discard = false;
+    const errors: unknown[] = [];
+    const actors: ReturnType<typeof createOfferForCandidate>[] = [];
+    try {
+      await sourceLock.query('BEGIN');
+      locked = true;
+      const pid = await sourceLock.query<{ pid: number }>(
+        'SELECT pg_backend_pid() AS pid',
+      );
+      const sourcePid = pid.rows[0]?.pid;
+      if (!sourcePid) throw new Error('Expected source-lock backend');
+      await sourceLock.query(
+        'SELECT id FROM event_registrations WHERE id=$1 FOR UPDATE',
+        [candidate.registrationId],
+      );
+      actors.push(
+        createOfferForCandidate(database, layer, fixture, candidate),
+        createOfferForCandidate(database, layer, fixture, candidate),
+      );
+      const settledActors = Promise.allSettled(actors);
+      await waitFor(async () => {
+        const result = await pool.query<{ count: number }>(
+          `WITH RECURSIVE blocked(pid) AS (SELECT pid FROM pg_stat_activity WHERE $1::integer=ANY(pg_blocking_pids(pid)) UNION SELECT activity.pid FROM pg_stat_activity activity JOIN blocked ON blocked.pid=ANY(pg_blocking_pids(activity.pid))) SELECT count(*)::integer AS count FROM pg_stat_activity WHERE datname=current_database() AND wait_event_type='Lock' AND query ILIKE '%event_registrations%' AND pid IN (SELECT pid FROM blocked)`,
+          [sourcePid],
+        );
+        return result.rows[0]?.count === 2;
+      }, 'Expected both replacement requests blocked on their source registration');
+      await sourceLock.query('COMMIT');
+      locked = false;
+      const settled = await settledActors;
+      const outcomes = settled.map((outcome) => {
+        if (outcome.status === 'rejected') throw outcome.reason;
+        return outcome.value;
+      });
+      const failures = outcomes.filter((outcome) => Exit.isFailure(outcome));
+      for (const failure of failures)
+        expect(Cause.squash(failure.cause)).toMatchObject({
+          _tag: 'RegistrationTransferConflictError',
+          message:
+            'This ticket already has an open transfer offer. No new transfer or refund was started. Cancel the current offer before creating another.',
+        });
+      expect(
+        outcomes.filter((outcome) => Exit.isSuccess(outcome)),
+      ).toHaveLength(1);
+      expect(failures).toHaveLength(1);
+      expect(
+        await database.query.registrationTransfers.findMany({
+          columns: { status: true },
+          orderBy: { status: 'asc' },
+          where: {
+            sourceRegistrationId: candidate.registrationId,
+            tenantId: fixture.tenantId,
+          },
+        }),
+      ).toEqual([{ status: 'open' }, { status: 'expired' }]);
+      expect(
+        await database.query.registrationTransferEvents.findMany({
+          columns: { eventType: true },
+          where: {
+            tenantId: fixture.tenantId,
+            transferId: candidate.transferId,
+          },
+        }),
+      ).toEqual([{ eventType: 'expired' }]);
+    } catch (error) {
+      errors.push(error);
+    } finally {
+      try {
+        if (locked) await sourceLock.query('ROLLBACK');
+      } catch (error) {
+        discard = true;
+        errors.push(error);
+      }
+      try {
+        sourceLock.release(discard);
+      } catch (error) {
+        errors.push(error);
+      }
+      for (const outcome of await Promise.allSettled(actors)) {
+        if (outcome.status === 'rejected' && !errors.includes(outcome.reason))
+          errors.push(outcome.reason);
+      }
+    }
+    if (errors.length === 1) throw errors[0];
+    if (errors.length > 1)
+      throw new AggregateError(
+        errors,
+        'Concurrent offer replacement and cleanup failed',
+      );
+  }, 20_000);
 
   it('releases an expired open offer exactly once when the source ticket is checked in', async () => {
     const fixture = await seedTransferLimitFixture(database);

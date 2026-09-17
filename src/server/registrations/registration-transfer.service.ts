@@ -57,7 +57,7 @@ import {
   resolveTenantDiscountProviders,
   type TenantDiscountProviders,
 } from '@shared/tenant-config';
-import { and, desc, eq, inArray, isNull, not, or, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, lte, not, or, sql } from 'drizzle-orm';
 import { Cause, Context, Effect, Layer, Schema } from 'effect';
 
 import type { Tenant } from '../../types/custom/tenant';
@@ -552,46 +552,56 @@ const resolveCurrentRegistrationTransferPrice = Effect.fn(
   });
 });
 
+const expireOpenRegistrationTransferInTransaction = Effect.fn(
+  'expireOpenRegistrationTransferInTransaction',
+)(function* (
+  tx: Pick<DatabaseClient, 'insert' | 'update'>,
+  {
+    actorUserId,
+    now,
+    tenantId,
+    transferId,
+  }: {
+    actorUserId: string;
+    now: Date;
+    tenantId: string;
+    transferId: string;
+  },
+) {
+  const expired = yield* tx
+    .update(registrationTransfers)
+    .set({ expiredAt: now, status: 'expired' })
+    .where(
+      and(
+        eq(registrationTransfers.id, transferId),
+        eq(registrationTransfers.status, 'open'),
+        eq(registrationTransfers.tenantId, tenantId),
+        lte(registrationTransfers.expiresAt, now),
+      ),
+    )
+    .returning({ id: registrationTransfers.id });
+  if (expired.length === 1) {
+    yield* tx.insert(registrationTransferEvents).values({
+      actorUserId,
+      eventType: 'expired',
+      fromStatus: 'open',
+      tenantId,
+      toStatus: 'expired',
+      transferId,
+    });
+    return true;
+  }
+  return false;
+});
+
 const expireOpenRegistrationTransfer = Effect.fn(
   'expireOpenRegistrationTransfer',
-)(function* ({
-  actorUserId,
-  now,
-  tenantId,
-  transferId,
-}: {
-  actorUserId: string;
-  now: Date;
-  tenantId: string;
-  transferId: string;
-}) {
+)(function* (
+  input: Parameters<typeof expireOpenRegistrationTransferInTransaction>[1],
+) {
   return yield* databaseEffect((database) =>
     database.transaction((tx) =>
-      Effect.gen(function* () {
-        const expired = yield* tx
-          .update(registrationTransfers)
-          .set({ expiredAt: now, status: 'expired' })
-          .where(
-            and(
-              eq(registrationTransfers.id, transferId),
-              eq(registrationTransfers.status, 'open'),
-              eq(registrationTransfers.tenantId, tenantId),
-            ),
-          )
-          .returning({ id: registrationTransfers.id });
-        if (expired.length === 1) {
-          yield* tx.insert(registrationTransferEvents).values({
-            actorUserId,
-            eventType: 'expired',
-            fromStatus: 'open',
-            tenantId,
-            toStatus: 'expired',
-            transferId,
-          });
-          return true;
-        }
-        return false;
-      }),
+      expireOpenRegistrationTransferInTransaction(tx, input),
     ),
   );
 });
@@ -1217,6 +1227,36 @@ const createOffer = Effect.fn('RegistrationTransferService.createOffer')(
                 message:
                   'The ticket transfer deadline passed before the offer could be created. No ticket transfer or refund was started.',
               });
+            }
+
+            const expiredOffers = yield* tx
+              .select({ id: registrationTransfers.id })
+              .from(registrationTransfers)
+              .where(
+                and(
+                  eq(registrationTransfers.tenantId, tenant.id),
+                  eq(
+                    registrationTransfers.sourceRegistrationId,
+                    lockedSource.id,
+                  ),
+                  eq(registrationTransfers.status, 'open'),
+                  lte(registrationTransfers.expiresAt, offerInsertNow),
+                ),
+              )
+              .for('update');
+            for (const expiredOffer of expiredOffers) {
+              const expired =
+                yield* expireOpenRegistrationTransferInTransaction(tx, {
+                  actorUserId: user.id,
+                  now: offerInsertNow,
+                  tenantId: tenant.id,
+                  transferId: expiredOffer.id,
+                });
+              if (!expired) {
+                return yield* Effect.die(
+                  new Error('Locked transfer offer could not be expired'),
+                );
+              }
             }
 
             const inserted = yield* tx

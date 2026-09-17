@@ -723,6 +723,22 @@ describe('generated docs source current behavior', () => {
     expect(source).not.toContain('Refresh retries the email');
   });
 
+  it('keeps transfer coverage and the profile guide on the private-code flow', () => {
+    const coverage = readSource('tests/README.md');
+    const profile = readSource('tests/docs/profile/user-profile.doc.ts');
+
+    expect(coverage).toContain('private transfer offer by private code');
+    expect(coverage).toContain('uses the private offer-and-claim path');
+    expect(coverage).not.toContain('by link or manual code');
+    expect(coverage).not.toContain('Immediate direct reassignment');
+    expect(profile).toContain(
+      "The code is not included in the transfer page's web address.",
+    );
+    expect(profile).not.toContain(
+      'opens directly from a private transfer link',
+    );
+  });
+
   it('keeps profile docs aligned with implemented account and event-card behavior', () => {
     const source = readSource('tests/docs/profile/user-profile.doc.ts');
 
