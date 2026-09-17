@@ -12,3 +12,7 @@ while preserving the remaining controls and their entered values.
 
 Show icon search loading and failure states, offer an explicit retry, and keep
 icon selection clear and usable within event and template dialogs.
+
+Keep supported text, links, and formatting when editing rich text, without accepting
+images that the editor cannot save. Show tax-rate refreshes as loading while
+retaining the selected rates and blocking saves until verification finishes.

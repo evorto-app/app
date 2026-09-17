@@ -1,4 +1,5 @@
 import type { PlatformTemplatesUpdateInput } from '@shared/rpc-contracts/app-rpcs/platform-events.rpcs';
+import type { PlatformStripeTaxRateRecord } from '@shared/rpc-contracts/app-rpcs/platform-tenant-admin.rpcs';
 
 import '@angular/compiler';
 
@@ -10,6 +11,7 @@ import { Component, input, output } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { FormField } from '@angular/forms/signals';
 import { MatDialog } from '@angular/material/dialog';
+import { MatSelect } from '@angular/material/select';
 import { MatSelectHarness } from '@angular/material/select/testing';
 import { By } from '@angular/platform-browser';
 import { provideRouter, Router } from '@angular/router';
@@ -200,13 +202,15 @@ describe('PlatformTemplateEditorComponent recovery', () => {
 
   const createTemplate = vi.fn(async () => ({ id: 'template-1' }));
   let taxRateFailuresRemaining = 0;
-  const loadTaxRates = vi.fn(async () => {
-    if (taxRateFailuresRemaining > 0) {
-      taxRateFailuresRemaining -= 1;
-      throw new Error('Tax catalog unavailable');
-    }
-    return [];
-  });
+  const loadTaxRates = vi.fn(
+    async (): Promise<readonly PlatformStripeTaxRateRecord[]> => {
+      if (taxRateFailuresRemaining > 0) {
+        taxRateFailuresRemaining -= 1;
+        throw new Error('Tax catalog unavailable');
+      }
+      return [];
+    },
+  );
 
   beforeEach(async () => {
     optionFailuresRemaining = 0;
@@ -1237,6 +1241,150 @@ describe('PlatformTemplateEditorComponent recovery', () => {
     fixture.detectChanges();
     expect(addOnSection?.querySelectorAll('legend')).toHaveLength(2);
   });
+
+  it.each(['success', 'error'])(
+    'shows tax background refresh as loading, retaining selections until %s',
+    async (outcome) => {
+      const rates: readonly PlatformStripeTaxRateRecord[] = [
+        {
+          active: true,
+          country: null,
+          displayName: 'Registration VAT',
+          id: 'txr-organizer',
+          imported: true,
+          inclusive: true,
+          percentage: 19,
+          state: null,
+        },
+        {
+          active: true,
+          country: null,
+          displayName: 'Add-on VAT',
+          id: 'txr-addon',
+          imported: true,
+          inclusive: true,
+          percentage: 7,
+          state: null,
+        },
+      ];
+      loadTaxRates.mockResolvedValueOnce(rates);
+      const { fixture, root } = await renderExistingTemplate(['role-1']);
+      const taxBindings = fixture.debugElement
+        .queryAll(By.css('mat-select'))
+        .filter((binding) => {
+          const element: unknown = binding.nativeElement;
+          return (
+            element instanceof HTMLElement &&
+            element
+              .closest('mat-form-field')
+              ?.querySelector('mat-label')
+              ?.textContent?.trim() === 'Tax rate included in price'
+          );
+        });
+      const taxFields = taxBindings.map(
+        (binding) => binding.injector.get(FormField).state,
+      );
+      const taxSelects = taxBindings.map((binding) =>
+        binding.injector.get(MatSelect),
+      );
+      expect(taxFields.map((field) => field().value())).toEqual([
+        'txr-organizer',
+        'txr-addon',
+      ]);
+      expect(taxSelects).toHaveLength(2);
+      expect(
+        root.querySelector<HTMLButtonElement>('button[type="submit"]')
+          ?.disabled,
+      ).toBe(false);
+      let resolveRates:
+        ((value: readonly PlatformStripeTaxRateRecord[]) => void) | undefined;
+      let rejectRates: ((error: Error) => void) | undefined;
+      // Angular's browser library target does not expose Promise.withResolvers.
+      // eslint-disable-next-line unicorn/prefer-promise-with-resolvers
+      const pendingRates = new Promise<readonly PlatformStripeTaxRateRecord[]>(
+        (resolve, reject) => {
+          resolveRates = resolve;
+          rejectRates = reject;
+        },
+      );
+      loadTaxRates.mockReturnValueOnce(pendingRates);
+      const refetch = queryClient.refetchQueries({
+        exact: true,
+        queryKey: ['platform-template', 'tax-rates'],
+      });
+      try {
+        await vi.waitFor(() => {
+          fixture.detectChanges();
+          expect(
+            queryClient.getQueryState(['platform-template', 'tax-rates'])
+              ?.fetchStatus,
+          ).toBe('fetching');
+          expect(
+            root.querySelector<HTMLButtonElement>('button[type="submit"]')
+              ?.disabled,
+          ).toBe(true);
+        });
+        for (const select of taxSelects) {
+          select.open();
+          fixture.detectChanges();
+          await vi.waitFor(() => {
+            fixture.detectChanges();
+            expect(select.options.map((option) => option.viewValue)).toEqual([
+              'Loading tax rates…',
+            ]);
+            expect(select.options.first?.disabled).toBe(true);
+          });
+          select.close();
+          fixture.detectChanges();
+        }
+        expect(taxFields.map((field) => field().value())).toEqual([
+          'txr-organizer',
+          'txr-addon',
+        ]);
+        const form = root.querySelector('form');
+        if (!form) throw new Error('Expected the template form');
+        form.dispatchEvent(
+          new Event('submit', { bubbles: true, cancelable: true }),
+        );
+        fixture.detectChanges();
+        expect(updateTemplate).not.toHaveBeenCalled();
+        if (!resolveRates || !rejectRates)
+          throw new Error('Expected a pending tax refresh');
+        if (outcome === 'error')
+          rejectRates(new Error('Tax catalog unavailable'));
+        else resolveRates(rates);
+        await refetch;
+        await vi.waitFor(async () => {
+          await fixture.whenStable();
+          expect(
+            root.querySelector<HTMLButtonElement>('button[type="submit"]')
+              ?.disabled,
+          ).toBe(outcome === 'error');
+        });
+        expect(taxFields.map((field) => field().value())).toEqual([
+          'txr-organizer',
+          'txr-addon',
+        ]);
+        if (outcome === 'error') {
+          expect(root.textContent).toContain('Tax rates could not be loaded.');
+          await submitTemplate(fixture);
+          expect(updateTemplate).not.toHaveBeenCalled();
+        } else {
+          await submitTemplate(fixture);
+          expect(updateTemplate).toHaveBeenCalledOnce();
+          expect(updateTemplate.mock.calls[0]?.[0]).toMatchObject({
+            addOns: [expect.objectContaining({ stripeTaxRateId: 'txr-addon' })],
+            registrationOptions: expect.arrayContaining([
+              expect.objectContaining({ stripeTaxRateId: 'txr-organizer' }),
+            ]),
+          });
+        }
+      } finally {
+        resolveRates?.(rates);
+        await refetch;
+      }
+    },
+  );
 
   it('keeps loaded paid prices while tax loading fails and payment settings become unavailable', async () => {
     taxRateFailuresRemaining = 1;

@@ -20,7 +20,6 @@ import { MatSelectModule } from '@angular/material/select';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faEdit } from '@fortawesome/duotone-regular-svg-icons';
 import { Editor } from '@tiptap/core';
-import Image from '@tiptap/extension-image';
 import Link from '@tiptap/extension-link';
 import { TableKit } from '@tiptap/extension-table';
 import StarterKit from '@tiptap/starter-kit';
@@ -214,7 +213,6 @@ export class EditorComponent implements OnDestroy {
           defaultProtocol: 'https',
           openOnClick: false,
         }),
-        Image,
         TableKit.configure({
           table: { resizable: true },
         }),
