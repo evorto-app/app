@@ -18,3 +18,5 @@ Reject oversized stored question sets and implicit included add-on selections be
 Reject event creation from stored templates that exceed the add-on or sign-up question limits before copying any event data.
 
 Reject new transfer claims for oversized stored add-on bundles before expanding their fulfillment or recipient prices. Keep supported bundles complete, and explain oversized bundles in the claim view.
+
+Show the sign-up answer character limit before participants start typing, alongside any organizer guidance, while keeping the existing input limit and validation.
