@@ -22,6 +22,7 @@
         mat-icon-button
         aria-label="Open event list actions"
         [matMenuTriggerFor]="menu"
+        *appIfAnyPermission="['events:create']"
       >
         <fa-icon [icon]="faEllipsisVertical" />
       </button>
