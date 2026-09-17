@@ -73,7 +73,10 @@ const defaultDockerRuntime: StripeWebhookSecretDockerRuntime = {
  */
 export const resolveStripeWebhookSecret = async ({
   dockerRuntime = defaultDockerRuntime,
-  environment = process.env,
+  environment = {
+    COMPOSE_PROJECT_NAME: process.env['COMPOSE_PROJECT_NAME'],
+    STRIPE_WEBHOOK_SECRET: process.env['STRIPE_WEBHOOK_SECRET'],
+  },
   pollIntervalsMs = defaultPollIntervalsMs,
 }: ResolveStripeWebhookSecretOptions = {}): Promise<string> => {
   const composeProject = environment.COMPOSE_PROJECT_NAME?.trim();

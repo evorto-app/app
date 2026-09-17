@@ -1,10 +1,4 @@
-import type { Headers } from 'effect/unstable/http';
-
-import {
-  RpcBadRequestError,
-  RpcForbiddenError,
-  RpcUnauthorizedError,
-} from '@shared/errors/rpc-errors';
+import { RpcBadRequestError } from '@shared/errors/rpc-errors';
 import {
   AdminRoleNotFoundError,
   AdminTenantNotFoundError,
@@ -25,11 +19,9 @@ import type { AppRpcHandlers } from './shared/handler-types';
 import { Database, type DatabaseClient } from '../../../../db';
 import { roles, tenants, tenantStripeTaxRates } from '../../../../db/schema';
 import {
-  includesPermission,
   partitionTenantRolePermissions,
   type Permission,
 } from '../../../../shared/permissions/permissions';
-import { ConfigPermissions } from '../../../../shared/rpc-contracts/app-rpcs/config.rpcs';
 import { Tenant } from '../../../../types/custom/tenant';
 import { normalizeEsnCardConfig } from '../../../discounts/discount-provider-config';
 import {
@@ -60,10 +52,7 @@ import {
   tenantCurrencyChangeBlockedErrorDetails,
   tenantHasCurrencyDependentData,
 } from '../../../tenant-currency-integrity';
-import {
-  decodeRpcContextHeaderJson,
-  RPC_CONTEXT_HEADERS,
-} from '../rpc-context-headers';
+import { RpcAccess } from './shared/rpc-access.service';
 
 const databaseEffect = <A>(
   operation: (database: DatabaseClient) => Effect.Effect<A, unknown, never>,
@@ -96,12 +85,6 @@ const databaseRoleEffect = <A, R>(
       ),
     ),
   );
-
-const decodeHeaderJson = <S extends Schema.ConstraintDecoder<unknown>>(
-  value: string | undefined,
-  schema: S,
-): S['Type'] =>
-  Schema.decodeUnknownSync(schema)(decodeRpcContextHeaderJson(value));
 
 const normalizeOptionalUrl = (
   value: string | undefined,
@@ -310,41 +293,11 @@ const normalizeAdminRoleRecord = <
   permissions: partitionTenantRolePermissions(role.permissions).accepted,
 });
 
-const ensureAuthenticated = (
-  headers: Headers.Headers,
-): Effect.Effect<void, RpcUnauthorizedError> =>
-  headers[RPC_CONTEXT_HEADERS.AUTHENTICATED] === 'true'
-    ? Effect.void
-    : Effect.fail(
-        new RpcUnauthorizedError({ message: 'Authentication required' }),
-      );
-
-const ensurePermission = (
-  headers: Headers.Headers,
-  permission: Permission,
-): Effect.Effect<void, RpcForbiddenError | RpcUnauthorizedError> =>
-  Effect.gen(function* () {
-    yield* ensureAuthenticated(headers);
-    const currentPermissions = decodeHeaderJson(
-      headers[RPC_CONTEXT_HEADERS.PERMISSIONS],
-      ConfigPermissions,
-    );
-
-    if (!includesPermission(permission, currentPermissions)) {
-      return yield* Effect.fail(
-        new RpcForbiddenError({ message: 'Forbidden', permission }),
-      );
-    }
-  });
-
 export const adminHandlers = {
-  'admin.roles.create': (input, options) =>
+  'admin.roles.create': (input, _options) =>
     Effect.gen(function* () {
-      yield* ensurePermission(options.headers, 'admin:manageRoles');
-      const tenant = decodeHeaderJson(
-        options.headers[RPC_CONTEXT_HEADERS.TENANT],
-        Tenant,
-      );
+      yield* RpcAccess.ensurePermission('admin:manageRoles');
+      const { tenant } = yield* RpcAccess.current();
       const createdRoles = yield* databaseRoleEffect((database) =>
         database.transaction((transaction) =>
           Effect.gen(function* () {
@@ -383,13 +336,10 @@ export const adminHandlers = {
 
       return normalizeAdminRoleRecord(createdRole);
     }),
-  'admin.roles.delete': ({ id }, options) =>
+  'admin.roles.delete': ({ id }, _options) =>
     Effect.gen(function* () {
-      yield* ensurePermission(options.headers, 'admin:manageRoles');
-      const tenant = decodeHeaderJson(
-        options.headers[RPC_CONTEXT_HEADERS.TENANT],
-        Tenant,
-      );
+      yield* RpcAccess.ensurePermission('admin:manageRoles');
+      const { tenant } = yield* RpcAccess.current();
       yield* databaseRoleEffect((database) =>
         database.transaction((transaction) =>
           Effect.gen(function* () {
@@ -431,13 +381,10 @@ export const adminHandlers = {
         ),
       );
     }),
-  'admin.roles.findHubRoles': (_payload, options) =>
+  'admin.roles.findHubRoles': (_payload, _options) =>
     Effect.gen(function* () {
-      yield* ensurePermission(options.headers, 'internal:viewInternalPages');
-      const tenant = decodeHeaderJson(
-        options.headers[RPC_CONTEXT_HEADERS.TENANT],
-        Tenant,
-      );
+      yield* RpcAccess.ensurePermission('internal:viewInternalPages');
+      const { tenant } = yield* RpcAccess.current();
       const hubRoles = yield* databaseEffect((database) =>
         database.query.roles.findMany({
           columns: {
@@ -471,13 +418,10 @@ export const adminHandlers = {
 
       return hubRoles.map((role) => normalizeHubRoleRecord(role));
     }),
-  'admin.roles.findMany': (input, options) =>
+  'admin.roles.findMany': (input, _options) =>
     Effect.gen(function* () {
-      yield* ensurePermission(options.headers, 'admin:manageRoles');
-      const tenant = decodeHeaderJson(
-        options.headers[RPC_CONTEXT_HEADERS.TENANT],
-        Tenant,
-      );
+      yield* RpcAccess.ensurePermission('admin:manageRoles');
+      const { tenant } = yield* RpcAccess.current();
       const tenantRoles = yield* databaseEffect((database) =>
         database.query.roles.findMany({
           columns: {
@@ -506,13 +450,10 @@ export const adminHandlers = {
 
       return tenantRoles.map((role) => normalizeAdminRoleRecord(role));
     }),
-  'admin.roles.findOne': ({ id }, options) =>
+  'admin.roles.findOne': ({ id }, _options) =>
     Effect.gen(function* () {
-      yield* ensurePermission(options.headers, 'admin:manageRoles');
-      const tenant = decodeHeaderJson(
-        options.headers[RPC_CONTEXT_HEADERS.TENANT],
-        Tenant,
-      );
+      yield* RpcAccess.ensurePermission('admin:manageRoles');
+      const { tenant } = yield* RpcAccess.current();
       const role = yield* databaseEffect((database) =>
         database.query.roles.findFirst({
           columns: {
@@ -537,13 +478,10 @@ export const adminHandlers = {
 
       return normalizeAdminRoleRecord(role);
     }),
-  'admin.roles.search': ({ search }, options) =>
+  'admin.roles.search': ({ search }, _options) =>
     Effect.gen(function* () {
-      yield* ensurePermission(options.headers, 'admin:manageRoles');
-      const tenant = decodeHeaderJson(
-        options.headers[RPC_CONTEXT_HEADERS.TENANT],
-        Tenant,
-      );
+      yield* RpcAccess.ensurePermission('admin:manageRoles');
+      const { tenant } = yield* RpcAccess.current();
       const matchingRoles = yield* databaseEffect((database) =>
         database.query.roles.findMany({
           columns: {
@@ -568,13 +506,10 @@ export const adminHandlers = {
 
       return matchingRoles.map((role) => normalizeAdminRoleRecord(role));
     }),
-  'admin.roles.update': ({ id, ...input }, options) =>
+  'admin.roles.update': ({ id, ...input }, _options) =>
     Effect.gen(function* () {
-      yield* ensurePermission(options.headers, 'admin:manageRoles');
-      const tenant = decodeHeaderJson(
-        options.headers[RPC_CONTEXT_HEADERS.TENANT],
-        Tenant,
-      );
+      yield* RpcAccess.ensurePermission('admin:manageRoles');
+      const { tenant } = yield* RpcAccess.current();
       const updatedRoles = yield* databaseRoleEffect((database) =>
         database.transaction((transaction) =>
           Effect.gen(function* () {
@@ -637,14 +572,11 @@ export const adminHandlers = {
 
       return normalizeAdminRoleRecord(updatedRole);
     }),
-  'admin.tenant.importStripeTaxRates': ({ ids }, options) =>
+  'admin.tenant.importStripeTaxRates': ({ ids }, _options) =>
     Effect.gen(function* () {
-      yield* ensurePermission(options.headers, 'admin:tax');
+      yield* RpcAccess.ensurePermission('admin:tax');
       const stripe = yield* StripeClient;
-      const tenant = decodeHeaderJson(
-        options.headers[RPC_CONTEXT_HEADERS.TENANT],
-        Tenant,
-      );
+      const { tenant } = yield* RpcAccess.current();
       const stripeAccount = tenant.stripeAccountId;
       if (!stripeAccount) {
         return;
@@ -742,13 +674,10 @@ export const adminHandlers = {
         ),
       );
     }),
-  'admin.tenant.listImportedTaxRates': (_payload, options) =>
+  'admin.tenant.listImportedTaxRates': (_payload, _options) =>
     Effect.gen(function* () {
-      yield* ensurePermission(options.headers, 'admin:tax');
-      const tenant = decodeHeaderJson(
-        options.headers[RPC_CONTEXT_HEADERS.TENANT],
-        Tenant,
-      );
+      yield* RpcAccess.ensurePermission('admin:tax');
+      const { tenant } = yield* RpcAccess.current();
       const stripeAccountId = tenant.stripeAccountId;
       if (!stripeAccountId) {
         return [];
@@ -773,14 +702,11 @@ export const adminHandlers = {
 
       return importedTaxRates;
     }),
-  'admin.tenant.listStripeTaxRates': (_payload, options) =>
+  'admin.tenant.listStripeTaxRates': (_payload, _options) =>
     Effect.gen(function* () {
-      yield* ensurePermission(options.headers, 'admin:tax');
+      yield* RpcAccess.ensurePermission('admin:tax');
       const stripe = yield* StripeClient;
-      const tenant = decodeHeaderJson(
-        options.headers[RPC_CONTEXT_HEADERS.TENANT],
-        Tenant,
-      );
+      const { tenant } = yield* RpcAccess.current();
       const stripeAccount = tenant.stripeAccountId;
       if (!stripeAccount) {
         return [];
@@ -810,13 +736,10 @@ export const adminHandlers = {
         ...archivedRates.data.map((rate) => mapRate(rate)),
       ];
     }),
-  'admin.tenant.updateSettings': (input, options) =>
+  'admin.tenant.updateSettings': (input, _options) =>
     Effect.gen(function* () {
-      yield* ensurePermission(options.headers, 'admin:changeSettings');
-      const tenant = decodeHeaderJson(
-        options.headers[RPC_CONTEXT_HEADERS.TENANT],
-        Tenant,
-      );
+      yield* RpcAccess.ensurePermission('admin:changeSettings');
+      const { tenant } = yield* RpcAccess.current();
       const discountProviders: TenantDiscountProviders = {
         esnCard: {
           config: yield* Effect.try({
@@ -1054,13 +977,10 @@ export const adminHandlers = {
 
       return validatedTenant;
     }),
-  'admin.tenant.uploadBrandAsset': (input, options) =>
+  'admin.tenant.uploadBrandAsset': (input, _options) =>
     Effect.gen(function* () {
-      yield* ensurePermission(options.headers, 'admin:changeSettings');
-      const tenant = decodeHeaderJson(
-        options.headers[RPC_CONTEXT_HEADERS.TENANT],
-        Tenant,
-      );
+      yield* RpcAccess.ensurePermission('admin:changeSettings');
+      const { tenant } = yield* RpcAccess.current();
 
       return yield* uploadTenantBrandAsset({
         fileBase64: input.fileBase64,

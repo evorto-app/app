@@ -9,7 +9,7 @@ import { randomUUID } from 'node:crypto';
 
 import { ObjectStorage } from './integrations/object-storage';
 
-const MAX_TENANT_BRAND_ASSET_SIZE_BYTES = 5 * 1024 * 1024;
+export const MAX_TENANT_BRAND_ASSET_SIZE_BYTES = 5 * 1024 * 1024;
 
 const brandAssetMimeTypes = {
   favicon: new Set([

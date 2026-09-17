@@ -1619,7 +1619,6 @@ describe('generated docs source current behavior', () => {
     );
     expect(source).toContain('Unlisted event opened from its direct link');
     expect(source).toContain('page.context().clearCookies()');
-    expect(source).toContain('page.context().addCookies([tenantCookie])');
     expect(source).toContain("name: 'Log in now'");
     expect(source).toContain(
       'Anyone with the exact link can open the approved event details.',

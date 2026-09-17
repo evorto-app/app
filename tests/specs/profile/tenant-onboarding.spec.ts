@@ -115,7 +115,7 @@ test('a tenant admin publishes a version and is immediately required to re-accep
         .where(eq(schema.tenants.id, tenant.id));
     }
   });
-  registerDatabaseCleanup(async () => admin.context.close());
+  registerDatabaseCleanup(async () => admin.close());
 
   await admin.page.goto('/admin/onboarding');
   const settings = admin.page.locator('app-onboarding-settings');

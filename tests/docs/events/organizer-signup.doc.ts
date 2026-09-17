@@ -99,7 +99,7 @@ const openAdminOrganizerOverview = async ({
     ).toBeVisible({ timeout: 20_000 });
     return reviewer;
   } catch (error) {
-    await reviewer.context.close();
+    await reviewer.close();
     throw error;
   }
 };
@@ -761,7 +761,7 @@ Reload the applicant's event page after approval. This free application now show
         'Approved organizer application with event access',
       );
     } finally {
-      await reviewer?.context.close();
+      await reviewer?.close();
     }
   });
 });

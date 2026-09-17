@@ -405,7 +405,7 @@ Organization membership by itself is not organizer access. A regular member in t
     }),
   );
 
-  registerDatabaseCleanup(async () => sameTenantViewer?.context.close());
+  registerDatabaseCleanup(async () => sameTenantViewer?.close());
   sameTenantViewer = await openAuthenticatedTestPage({
     baseUrl: new URL(page.url()).origin,
     browser,

@@ -1,16 +1,54 @@
 import { describe, expect, it } from '@effect/vitest';
-import { Cause, Effect, Exit, Layer } from 'effect';
+import {
+  createDefaultTenantDiscountProviders,
+  DEFAULT_TENANT_RECEIPT_ALLOW_OTHER,
+  DEFAULT_TENANT_RECEIPT_COUNTRIES,
+} from '@shared/tenant-config';
+import { Cause, Effect, Exit, Layer, Schema, Tracer } from 'effect';
 import {
   HttpRouter,
   HttpServerError,
   HttpServerRequest,
   HttpServerResponse,
 } from 'effect/unstable/http';
+import { execFile } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import { promisify } from 'node:util';
 
 import type { DeploymentConfig } from '../config/deployment-config';
 
+import { Context as RequestContext } from '../../types/custom/context';
 import { runAuth0SdkOperation, toAuthSession } from '../auth/auth-session';
-import { makeServerResponseMiddleware } from './server-response.middleware';
+import { toRpcRequestContext } from '../effect/rpc/app-rpcs.request-handler';
+import {
+  makeServerResponseMiddleware,
+  safeServerRequestRoute,
+} from './server-response.middleware';
+
+const execFileAsync = promisify(execFile);
+
+const authenticatedRpcContext = Schema.decodeUnknownSync(RequestContext)({
+  authentication: { isAuthenticated: true },
+  permissions: [],
+  tenant: {
+    cancellationDeadlineHoursBeforeStart: 120,
+    currency: 'EUR',
+    discountProviders: createDefaultTenantDiscountProviders(),
+    domain: 'tenant.example.com',
+    id: 'tenant-1',
+    locale: 'de-DE',
+    maxActiveRegistrationsPerUser: 0,
+    name: 'Tenant',
+    receiptSettings: {
+      allowOther: DEFAULT_TENANT_RECEIPT_ALLOW_OTHER,
+      receiptCountries: [...DEFAULT_TENANT_RECEIPT_COUNTRIES],
+    },
+    refundFeesOnCancellation: true,
+    theme: 'evorto',
+    timezone: 'Europe/Berlin',
+    transferDeadlineHoursBeforeStart: 0,
+  },
+});
 
 const makeTestHandler = Effect.fn('makeTestHandler')(function* (
   routeLayer: Layer.Layer<
@@ -157,14 +195,17 @@ describe('server response middleware', () => {
                 new Request(url, {
                   headers: {
                     accept: 'text/html',
+                    connection: 'close',
                     cookie:
                       'appSession=unusable; appSession.0=first-fragment; appSession.1=second-fragment; appSession.preference=keep; appTransaction=keep-transaction; unrelated=keep',
+                    host: new URL(url).host,
                     'x-forwarded-proto': new URL(url).protocol.slice(0, -1),
                   },
                 }),
               ),
             );
             expect(response.status).toBe(401);
+            expect(response.headers.get('connection')).toBe('close');
             expect(requestHandlingReached).toBe(false);
             expect(response.headers.get('cache-control')).toBe('no-store');
             expect(response.headers.get('location')).toBeNull();
@@ -212,14 +253,18 @@ describe('server response middleware', () => {
           handler(
             new Request('http://localhost/rpc', {
               headers: {
+                connection: 'close',
                 'content-type': 'application/json',
                 cookie: 'appSession.0=unusable',
+                host: 'localhost',
+                'x-forwarded-proto': 'http',
               },
               method: 'POST',
             }),
           ),
         );
         expect(response.status).toBe(401);
+        expect(response.headers.get('connection')).toBe('close');
         expect(response.headers.get('cache-control')).toBe('no-store');
         expect(response.headers.get('location')).toBeNull();
         expect(yield* Effect.promise(() => response.json())).toEqual({
@@ -229,6 +274,123 @@ describe('server response middleware', () => {
         });
         expect(response.headers.getSetCookie()).toHaveLength(1);
         expect(response.headers.getSetCookie()[0]).toContain('appSession.0=;');
+      }),
+  );
+
+  it.effect(
+    'recovers malformed optional profile claims before running the RPC handler',
+    () =>
+      Effect.gen(function* () {
+        for (const profile of [
+          { email: 123 },
+          { email_verified: 'true' },
+          { given_name: false },
+          { family_name: ['private-profile-value'] },
+        ]) {
+          let rpcHandlingReached = false;
+          const { handler } = yield* makeTestHandler(
+            HttpRouter.add(
+              'POST',
+              '/rpc',
+              Effect.gen(function* () {
+                const session = yield* toAuthSession({
+                  tokenSets: [
+                    {
+                      accessToken: 'fixture-token',
+                      audience: 'default',
+                      expiresAt: 0,
+                    },
+                  ],
+                  user: { sub: 'auth0|fixture-user', ...profile },
+                });
+                if (!session)
+                  throw new Error('Expected the decoded session fixture');
+
+                yield* toRpcRequestContext(
+                  authenticatedRpcContext,
+                  session.authData,
+                );
+                rpcHandlingReached = true;
+                return HttpServerResponse.empty();
+              }),
+            ),
+          );
+          const response = yield* Effect.promise(() =>
+            handler(
+              new Request('http://localhost/rpc', {
+                headers: {
+                  connection: 'close',
+                  'content-type': 'application/json',
+                  cookie:
+                    'appSession=unusable; appSession.0=fragment; appSession.preference=keep; unrelated=keep',
+                  host: 'localhost',
+                  'x-forwarded-proto': 'http',
+                },
+                method: 'POST',
+              }),
+            ),
+          );
+          expect(response.status).toBe(401);
+          expect(rpcHandlingReached).toBe(false);
+          expect(response.headers.get('cache-control')).toBe('no-store');
+          expect(response.headers.get('connection')).toBe('close');
+          expect(response.headers.get('location')).toBeNull();
+          expect(yield* Effect.promise(() => response.json())).toEqual({
+            error: 'Unauthorized',
+            message:
+              'Your sign-in session is no longer valid. Sign in again to continue.',
+          });
+          const cookies = response.headers.getSetCookie();
+          expect(
+            cookies.map((cookie) => cookie.split('=', 1)[0]).toSorted(),
+          ).toEqual(['appSession', 'appSession.0']);
+          for (const cookie of cookies) {
+            expect(cookie).toContain('Max-Age=0');
+            expect(cookie).toContain('HttpOnly');
+            expect(cookie).toContain('SameSite=Lax');
+            expect(cookie).not.toContain('fragment');
+          }
+        }
+      }),
+  );
+
+  it.effect(
+    'preserves unexpected profile access defects without clearing session cookies',
+    () =>
+      Effect.gen(function* () {
+        const { handler } = yield* makeTestHandler(
+          HttpRouter.add(
+            'POST',
+            '/rpc',
+            Effect.gen(function* () {
+              yield* toRpcRequestContext(authenticatedRpcContext, {
+                get email() {
+                  throw new Error('private profile access defect');
+                },
+                sub: 'auth0|fixture-user',
+              });
+              return HttpServerResponse.empty();
+            }),
+          ),
+        );
+        const response = yield* Effect.promise(() =>
+          handler(
+            new Request('http://localhost/rpc', {
+              headers: {
+                'content-type': 'application/json',
+                cookie: 'appSession=valid',
+                host: 'localhost',
+                'x-forwarded-proto': 'http',
+              },
+              method: 'POST',
+            }),
+          ),
+        );
+        expect(response.status).toBe(500);
+        expect(response.headers.getSetCookie()).toEqual([]);
+        expect(yield* Effect.promise(() => response.json())).toEqual({
+          error: 'Internal Server Error',
+        });
       }),
   );
 
@@ -260,6 +422,218 @@ describe('server response middleware', () => {
         expect(response.headers.getSetCookie()).toEqual([]);
       }),
   );
+
+  it.effect.each(['close', 'Close', 'keep-alive, CLOSE', ' close , upgrade '])(
+    'explicitly closes the response for the request connection option %s',
+    (connection) =>
+      Effect.gen(function* () {
+        const { handler } = yield* makeTestHandler(
+          HttpRouter.add(
+            'GET',
+            '/asset',
+            Effect.succeed(
+              HttpServerResponse.text('asset body', {
+                headers: {
+                  'cache-control': 'public, max-age=3600',
+                  connection: 'keep-alive',
+                },
+                status: 202,
+              }),
+            ),
+          ),
+        );
+        const response = yield* Effect.promise(() =>
+          handler(
+            new Request('http://localhost/asset', {
+              headers: { connection, 'x-request-id': 'close-request-1' },
+            }),
+          ),
+        );
+
+        expect(response.headers.get('connection')).toBe('close');
+        expect(response.status).toBe(202);
+        expect(yield* Effect.promise(() => response.text())).toBe('asset body');
+        expect(response.headers.get('cache-control')).toBe(
+          'public, max-age=3600',
+        );
+        expect(response.headers.get('x-content-type-options')).toBe('nosniff');
+        expect(response.headers.get('x-request-id')).toBe('close-request-1');
+      }),
+  );
+
+  it.effect.each([undefined, '', 'keep-alive', 'x-close', 'disclose'])(
+    'preserves the response connection policy for request option %s',
+    (connection) =>
+      Effect.gen(function* () {
+        const { handler } = yield* makeTestHandler(
+          HttpRouter.add(
+            'GET',
+            '/ok',
+            Effect.succeed(HttpServerResponse.text('ok')),
+          ),
+        );
+        const headers = new Headers();
+        if (connection !== undefined) headers.set('connection', connection);
+        const response = yield* Effect.promise(() =>
+          handler(new Request('http://localhost/ok', { headers })),
+        );
+
+        expect(response.headers.has('connection')).toBe(false);
+        expect(yield* Effect.promise(() => response.text())).toBe('ok');
+      }),
+  );
+
+  it.effect('closes redirects and handled error responses when requested', () =>
+    Effect.gen(function* () {
+      const { handler } = yield* makeTestHandler(
+        Layer.mergeAll(
+          HttpRouter.add(
+            'GET',
+            '/redirect',
+            Effect.succeed(HttpServerResponse.redirect('/done')),
+          ),
+          HttpRouter.add(
+            'GET',
+            '/defect',
+            Effect.die(new Error('test defect')),
+          ),
+        ),
+      );
+      for (const [pathname, status] of [
+        ['/redirect', 302],
+        ['/missing', 404],
+        ['/defect', 500],
+      ] satisfies readonly (readonly [string, number])[]) {
+        const response = yield* Effect.promise(() =>
+          handler(
+            new Request(`http://localhost${pathname}`, {
+              headers: { connection: 'close' },
+            }),
+          ),
+        );
+        expect(response.status).toBe(status);
+        expect(response.headers.get('connection')).toBe('close');
+        if (pathname === '/redirect')
+          expect(response.headers.get('location')).toBe('/done');
+        yield* Effect.promise(() => response.arrayBuffer());
+      }
+    }),
+  );
+
+  it('retires pooled Node client sockets through the real Bun HTTP server', async ({
+    signal,
+  }) => {
+    const { stderr, stdout } = await execFileAsync(
+      'bun',
+      ['helpers/testing/response-connection-bun-regression.ts'],
+      { cwd: process.cwd(), signal, timeout: 10_000 },
+    );
+
+    expect(stderr).toBe('');
+    expect(JSON.parse(stdout)).toEqual({
+      requests: 12,
+      responsesWithCloseHeader: 12,
+      reusedSockets: 0,
+      sockets: 12,
+    });
+  }, 15_000);
+
+  it('derives stable trace routes without query values or sensitive identifiers', () => {
+    const callbackCode = 'callback-code-sentinel';
+
+    expect(
+      safeServerRequestRoute(
+        `https://tenant.example.com/callback?code=${callbackCode}`,
+      ),
+    ).toBe('/callback');
+    expect(
+      safeServerRequestRoute('/qr/registration/sensitive-registration-id'),
+    ).toBe('/qr/registration/:registrationId');
+    expect(
+      safeServerRequestRoute('/tenant-assets/tenant-1/logo/file-name.png'),
+    ).toBe('/tenant-assets/:tenantId/:kind/:fileName');
+  });
+
+  it.effect(
+    'records a sanitized request trace while handlers keep the original URL',
+    () =>
+      Effect.gen(function* () {
+        const callbackCode = 'callback-code-sentinel';
+        let serverSpan: Tracer.NativeSpan | undefined;
+        const tracer = Tracer.make({
+          span(options) {
+            serverSpan = new Tracer.NativeSpan(options);
+            return serverSpan;
+          },
+        });
+        const request = HttpServerRequest.fromWeb(
+          new Request(
+            `https://tenant.example.com/registration-transfers?code=${callbackCode}`,
+            {
+              headers: {
+                host: 'tenant.example.com',
+                'x-forwarded-proto': 'https',
+              },
+            },
+          ),
+        );
+        let routeRequestUrl: string | undefined;
+
+        yield* makeServerResponseMiddleware(
+          HttpServerRequest.HttpServerRequest.pipe(
+            Effect.tap((routeRequest) =>
+              Effect.sync(() => {
+                routeRequestUrl = routeRequest.url;
+              }),
+            ),
+            Effect.as(HttpServerResponse.empty({ status: 204 })),
+          ),
+        ).pipe(
+          Effect.provideService(HttpServerRequest.HttpServerRequest, request),
+          Effect.provideService(Tracer.Tracer, tracer),
+        );
+        yield* Effect.yieldNow;
+
+        expect(routeRequestUrl).toContain(callbackCode);
+        expect(serverSpan).toBeDefined();
+        expect(serverSpan?.attributes.get('http.route')).toBe(
+          '/registration-transfers',
+        );
+        expect(serverSpan?.attributes.get('url.path')).toBe(
+          '/registration-transfers',
+        );
+        expect(serverSpan?.attributes.has('url.query')).toBe(false);
+        expect(serverSpan?.attributes.get('url.full')).not.toContain(
+          callbackCode,
+        );
+      }),
+  );
+
+  it('disables raw request logging at every server boundary', () => {
+    const serverSource = readFileSync(
+      new URL('../../server.ts', import.meta.url),
+      'utf8',
+    );
+
+    expect(serverSource).toMatch(
+      /HttpLayerRouter\.toWebHandler\(\s*handlerAppLayer,\s*\{ disableLogger: true \},\s*\)/u,
+    );
+    expect(serverSource).toContain(
+      'const bunServeOptions = { disableLogger: true } as const;',
+    );
+    expect(serverSource).toContain(
+      'HttpLayerRouter.serve(bootstrapRoutesLayer, bunServeOptions)',
+    );
+    expect(serverSource).toContain(
+      'HttpLayerRouter.serve(webRoutesLayer, bunServeOptions)',
+    );
+    expect(serverSource).toMatch(
+      /HttpLayerRouter\.serve\(\s*configuredWorkerRoutesLayer,\s*bunServeOptions,\s*\)/u,
+    );
+    expect(serverSource).toContain(
+      'HttpLayerRouter.serve(opsRoutesLayer, bunServeOptions)',
+    );
+  });
 
   it.effect('returns a sanitized JSON response for a route defect', () =>
     Effect.gen(function* () {

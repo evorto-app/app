@@ -45,19 +45,7 @@ for (const userData of usersToAuthenticate) {
   setup(
     `authenticate ${userData.email}`,
     async ({ requirePlatformAdministratorClaim, page }) => {
-      const runtime = await waitForRuntime();
-
-      if (runtime.tenantDomain) {
-        await page.context().addCookies([
-          {
-            domain: 'localhost',
-            expires: -1,
-            name: 'evorto-tenant',
-            path: '/',
-            value: runtime.tenantDomain,
-          },
-        ]);
-      }
+      await waitForRuntime();
 
       if (userData.platformAdministrator) {
         await requirePlatformAdministratorClaim(userData.authId);

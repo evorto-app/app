@@ -128,7 +128,7 @@ test('Join another organization and choose your home organization', async ({
     tenantDomain: joinedTenantDomain,
     testClock,
   });
-  registerDatabaseCleanup(async () => member.context.close());
+  registerDatabaseCleanup(async () => member.close());
 
   await testInfo.attach('markdown', {
     body: `
@@ -442,7 +442,7 @@ test('Publish and complete member onboarding @admin', async ({
       })
       .where(eq(schema.tenants.id, tenant.id));
   });
-  registerDatabaseCleanup(async () => admin.context.close());
+  registerDatabaseCleanup(async () => admin.close());
 
   await testInfo.attach('markdown', {
     body: `

@@ -41,6 +41,43 @@ not replace it with aspirational documentation.
 - Specs should consume deterministic scenario handles from `seeded.scenario`
 - Do not discover test entities by template title fragments, fuzzy event searches, or wall-clock checks
 
+The automatic `falsoSeed` fixture scopes deterministic data by project, file,
+title path, repetition index, and retry. Use `--repeat-each` for diagnostic
+repetitions; each repetition receives a distinct fixture seed.
+
+Local tenant selection uses the scoped routing helper in
+`tests/support/utils/tenant-request-routing.ts`. Use the returned `close()`
+method for pages created with `openAuthenticatedTestPage`. The base page
+fixture uses `closeTenantRequestPages` to close its context's current pages
+while tenant interception and the context request client remain available,
+then drains active requests before removing the exact owned route. If a page
+remains open, cleanup fails and retains routing for Playwright's outer context
+teardown; it does not retry page closure or remove interception from live pages.
+The fixture exclusively owns this final page cleanup. Custom contexts use
+`closeTenantRequestContext` for the same page-close and drain sequence followed
+by owned context closure. It still attempts that closure if page cleanup fails,
+and joins remaining callbacks only after confirming the context is closed.
+Normal and emergency cleanup share one context-close attempt; a rejected or
+unproven closure is not retried, and all known failures remain visible.
+Do not replace the scoped drain with
+`unrouteAll`, which can release other active requests before their handlers
+finish.
+
+Playwright Test sets `Connection: close` from the first request because its API
+client shares idle connections across contexts. The local routing helper
+overrides incoming connection headers before fetching. The server also returns
+`Connection: close` when that option was requested, so pooled Node clients retire
+the socket as soon as its response finishes. The request header alone does not
+guarantee retirement when an upstream omits the response header. Keep this policy
+when supplying custom context or request headers. Project defaults cover browser contexts and
+the independent request fixture, including external provider requests; standalone
+clients outside Playwright Test must supply their own connection policy.
+Requests are still issued once and all request failures remain visible.
+
+Register database cleanup through `registerDatabaseCleanup` before the first
+write. Its callbacks run in reverse order while the owning database pool is
+still available, and cleanup failures remain visible.
+
 ## Platform Operation Coverage
 
 - `specs/admin/platform-tenant-operations.spec.ts` follows the guarded tenant
@@ -139,6 +176,11 @@ not replace it with aspirational documentation.
   closed while rejection remains available. These helpers require the
   generated `MINIO_HOST_PORT` and never use developer or remote `S3_ENDPOINT`
   values.
+- The tenant-routing fixture grants Chromium local-network access only to the
+  exact loopback application origin, allowing its PDF iframe to load the
+  separate local MinIO origin. This accounts for Chromium treating Playwright's
+  fulfilled application document as an unknown network address space. The
+  permission ends with the test context; external origins receive no grant.
 - The documentation readback accepts any configured HTTP(S) S3-compatible
   endpoint while requiring the exact tenant/event/user-bound bucket-key suffix.
   Receipt/upload database rows are deleted by the journey. The Docker MinIO
@@ -261,6 +303,14 @@ credentials must not be printed or committed.
 - Scaleway web containers set `SSR_RPC_ORIGIN=http://127.0.0.1:4200` so their
   readiness SSR check reaches RPC inside the candidate revision before the
   public custom domain routes traffic to it.
+- `SSR_RPC_ORIGIN` must return to the same HTTP runtime process that is rendering
+  the page, including during Vite development. Internal SSR requests carry a
+  process-local capability through a non-enumerable render-context property and
+  the redacted Authorization header; public routing markers alone grant no trust.
+  Do not point this origin at a load balancer or a different worker. Missing or
+  mismatched capabilities cannot bypass the cookie-origin check or choose a
+  tenant. Contextless prerender/development fallbacks have no capability, and
+  an in-flight render during a server reload may need to be requested again.
 - Auth0 callback URLs are registered out-of-band. Worktree-local generated
   ports keep stacks isolated, but authenticated Browser/Playwright validation
   needs a callback URL Auth0 accepts. On this machine, run Docker-backed
@@ -317,6 +367,19 @@ credentials must not be printed or committed.
   Playwright own a fresh stack, or explicitly start the exact checkout being
   pushed and verify that provenance. `/readyz` proves behavior, not commit or
   image identity.
+  Saved authentication state is validated before the shared test context is
+  created and before an explicitly authenticated helper creates another context.
+  The saved-state contract requires complete serialized cookies and canonical
+  HTTP(S) origins with valid local-storage records. Optional captured IndexedDB,
+  OPFS, and credential records retain their supported structural shape. This is
+  validation of saved output, not the looser URL-based `addCookies` input format.
+  Missing or invalid selected files fail with a setup instruction; they do not
+  silently become anonymous sessions or trigger automatic authentication. Normal
+  setup always signs in and replaces the six state files. There is no file-age
+  reuse or refresh policy. An intentional undefined state remains anonymous, and
+  valid inline state is preserved. Validation errors never include cookie values
+  or malformed JSON fragments.
+
 - `bun run test:e2e:ui` first creates the six authenticated storage states in a
   trace-off setup run, then opens a baseline-only Playwright UI. The UI baseline
   projects retain their `database-setup` dependency for the newly started UI

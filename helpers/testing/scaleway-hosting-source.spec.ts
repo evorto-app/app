@@ -455,6 +455,9 @@ fi
   );
 
   it('retires the legacy Fly deployment surface and hostname', () => {
+    const server = source('src/server.ts');
+    const seoMetadata = source('src/server/http/seo-metadata.web-handler.ts');
+
     for (const removedPath of [
       '.github/workflows/fly-deploy.yml',
       'fly.toml',
@@ -464,12 +467,20 @@ fi
 
     for (const currentSource of [
       source('angular.json'),
-      source('public/robots.txt'),
-      source('public/sitemap.xml'),
       source('src/db/setup-database.ts'),
+      seoMetadata,
     ]) {
       expect(currentSource).not.toContain('evorto.fly.dev');
     }
+    expect(seoMetadata).not.toContain('alpha.evorto.app');
+    expect(server).toMatch(/\bseoMetadataRouteLayer,/u);
+    expect(seoMetadata).toContain('export const seoMetadataRouteLayer');
+    expect(existsSync(path.join(repositoryRoot, 'public/robots.txt'))).toBe(
+      false,
+    );
+    expect(existsSync(path.join(repositoryRoot, 'public/sitemap.xml'))).toBe(
+      false,
+    );
   });
 
   it('keeps production defined but disabled until an explicit protected promotion', () => {

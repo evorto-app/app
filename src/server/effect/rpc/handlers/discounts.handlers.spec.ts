@@ -1,63 +1,86 @@
-import { describe, expect, it, vi } from '@effect/vitest';
+import { expect, layer, vi } from '@effect/vitest';
 import { RpcBadRequestError } from '@shared/errors/rpc-errors';
-import { Effect, Layer } from 'effect';
+import { Effect, Layer, Schema } from 'effect';
 import * as Headers from 'effect/unstable/http/Headers';
+import { Rpc, RpcMessage } from 'effect/unstable/rpc';
 
 import { Database } from '../../../../db';
 import { userDiscountCards } from '../../../../db/schema';
 import {
+  RpcRequestContext,
+  RpcRequestContextMiddleware,
+  type RpcRequestContextShape,
+} from '../../../../shared/rpc-contracts/app-rpcs';
+import * as DiscountRpcs from '../../../../shared/rpc-contracts/app-rpcs/discounts.rpcs';
+import { Tenant } from '../../../../types/custom/tenant';
+import { User } from '../../../../types/custom/user';
+import {
   Adapters,
   ProviderValidationUnavailableError,
 } from '../../../discounts/providers';
-import {
-  encodeRpcContextHeaderJson,
-  RPC_CONTEXT_HEADERS,
-} from '../rpc-context-headers';
 import { discountHandlers } from './discounts.handlers';
+import { RpcAccess } from './shared/rpc-access.service';
 
-const createTenant = (id = 'tenant-1') => ({
-  currency: 'EUR' as const,
-  defaultLocation: null,
-  discountProviders: {
-    esnCard: {
-      config: {},
-      status: 'enabled' as const,
+const createTenant = (id = 'tenant-1') =>
+  Schema.decodeUnknownSync(Tenant)({
+    currency: 'EUR' as const,
+    defaultLocation: null,
+    discountProviders: {
+      esnCard: {
+        config: {},
+        status: 'enabled' as const,
+      },
     },
-  },
-  domain: `${id}.example.com`,
-  id,
-  locale: 'en',
-  name: id,
-  receiptSettings: {
-    allowOther: false,
-    receiptCountries: ['NL'],
-  },
-  stripeAccountId: null,
-  theme: 'evorto' as const,
-  timezone: 'Europe/Amsterdam',
-});
-
-const createUser = () => ({
-  attributes: [],
-  auth0Id: 'auth0|user-1',
-  email: 'alice@example.com',
-  firstName: 'Alice',
-  iban: null,
-  id: 'user-1',
-  lastName: 'Doe',
-  paypalEmail: null,
-  permissions: [] as string[],
-  roleIds: [],
-});
-
-const createHeaders = (tenant = createTenant(), user = createUser()) =>
-  Headers.fromInput({
-    [RPC_CONTEXT_HEADERS.AUTHENTICATED]: 'true',
-    [RPC_CONTEXT_HEADERS.TENANT]: encodeRpcContextHeaderJson(tenant),
-    [RPC_CONTEXT_HEADERS.USER]: encodeRpcContextHeaderJson(user),
+    domain: `${id}.example.com`,
+    id,
+    locale: 'en',
+    name: id,
+    receiptSettings: {
+      allowOther: false,
+      receiptCountries: ['NL'],
+    },
+    stripeAccountId: null,
+    theme: 'evorto' as const,
+    timezone: 'Europe/Amsterdam',
   });
 
-describe('discountHandlers', () => {
+const createUser = () =>
+  Schema.decodeUnknownSync(User)({
+    attributes: [],
+    auth0Id: 'auth0|user-1',
+    email: 'alice@example.com',
+    firstName: 'Alice',
+    iban: null,
+    id: 'user-1',
+    lastName: 'Doe',
+    paypalEmail: null,
+    permissions: [] as string[],
+    roleIds: [],
+  });
+
+const createRpcOptions = <R extends Rpc.Any>(rpc: R) => ({
+  client: new Rpc.ServerClient(1),
+  headers: Headers.empty,
+  requestId: RpcMessage.RequestId(1),
+  rpc,
+});
+
+const discountRequestContext = {
+  authData: {},
+  authenticated: true,
+  permissions: [],
+  platformAuthority: null,
+  tenant: createTenant('tenant-2'),
+  user: createUser(),
+  userAssigned: true,
+} satisfies RpcRequestContextShape;
+
+const discountHandlerLayer = Layer.mergeAll(
+  RpcAccess.Default,
+  Layer.succeed(RpcRequestContext, discountRequestContext),
+);
+
+layer(discountHandlerLayer)('discountHandlers', (it) => {
   it.effect('getMyCards reads discount cards for the current tenant', () =>
     Effect.gen(function* () {
       const findMany = vi.fn(() =>
@@ -79,9 +102,14 @@ describe('discountHandlers', () => {
         },
       };
 
-      const cards = yield* discountHandlers['discounts.getMyCards'](undefined, {
-        headers: createHeaders(createTenant('tenant-2')),
-      }).pipe(Effect.provide(Layer.succeed(Database, database as never)));
+      const cards = yield* discountHandlers['discounts.getMyCards'](
+        undefined,
+        createRpcOptions(
+          DiscountRpcs.DiscountsGetMyCards.middleware(
+            RpcRequestContextMiddleware,
+          ),
+        ),
+      ).pipe(Effect.provide(Layer.succeed(Database, database as never)));
 
       expect(cards).toEqual([
         {
@@ -176,7 +204,11 @@ describe('discountHandlers', () => {
           identifier: 'ESN-123',
           type: 'esnCard',
         },
-        { headers: createHeaders(createTenant('tenant-2')) },
+        createRpcOptions(
+          DiscountRpcs.DiscountsUpsertMyCard.middleware(
+            RpcRequestContextMiddleware,
+          ),
+        ),
       ).pipe(Effect.provide(Layer.succeed(Database, database as never)));
 
       expect(card).toEqual({
@@ -211,7 +243,8 @@ describe('discountHandlers', () => {
     }).pipe(
       Effect.ensuring(
         Effect.sync(() => {
-          Adapters.esnCard = originalAdapter;
+          if (originalAdapter) Adapters.esnCard = originalAdapter;
+          else delete Adapters.esnCard;
         }),
       ),
     );
@@ -273,7 +306,11 @@ describe('discountHandlers', () => {
               identifier: 'ESN-123',
               type: 'esnCard',
             },
-            { headers: createHeaders(createTenant('tenant-2')) },
+            createRpcOptions(
+              DiscountRpcs.DiscountsUpsertMyCard.middleware(
+                RpcRequestContextMiddleware,
+              ),
+            ),
           ).pipe(Effect.provide(Layer.succeed(Database, database as never))),
         );
 
@@ -291,7 +328,8 @@ describe('discountHandlers', () => {
       }).pipe(
         Effect.ensuring(
           Effect.sync(() => {
-            Adapters.esnCard = originalAdapter;
+            if (originalAdapter) Adapters.esnCard = originalAdapter;
+            else delete Adapters.esnCard;
           }),
         ),
       );
@@ -358,7 +396,11 @@ describe('discountHandlers', () => {
 
         const refreshed = yield* discountHandlers['discounts.refreshMyCard'](
           { type: 'esnCard' },
-          { headers: createHeaders(createTenant('tenant-2')) },
+          createRpcOptions(
+            DiscountRpcs.DiscountsRefreshMyCard.middleware(
+              RpcRequestContextMiddleware,
+            ),
+          ),
         ).pipe(Effect.provide(Layer.succeed(Database, database as never)));
 
         expect(refreshed).toEqual({
@@ -391,7 +433,8 @@ describe('discountHandlers', () => {
       }).pipe(
         Effect.ensuring(
           Effect.sync(() => {
-            Adapters.esnCard = originalAdapter;
+            if (originalAdapter) Adapters.esnCard = originalAdapter;
+            else delete Adapters.esnCard;
           }),
         ),
       );
@@ -400,7 +443,7 @@ describe('discountHandlers', () => {
 
   it.effect('deleteMyCard removes only the current user card type', () =>
     Effect.gen(function* () {
-      const where = vi.fn(() => Effect.void);
+      const where = vi.fn((_condition: unknown) => Effect.void);
       const database = {
         delete: vi.fn((table: unknown) => {
           expect(table).toBe(userDiscountCards);
@@ -410,13 +453,18 @@ describe('discountHandlers', () => {
 
       yield* discountHandlers['discounts.deleteMyCard'](
         { type: 'esnCard' },
-        {
-          headers: createHeaders(createTenant('tenant-2')),
-        },
+        createRpcOptions(
+          DiscountRpcs.DiscountsDeleteMyCard.middleware(
+            RpcRequestContextMiddleware,
+          ),
+        ),
       ).pipe(Effect.provide(Layer.succeed(Database, database as never)));
 
       const condition = where.mock.calls[0]?.[0];
-      const collectValues = (value: unknown, seen = new WeakSet<object>()) => {
+      const collectValues = (
+        value: unknown,
+        seen = new WeakSet<object>(),
+      ): unknown[] => {
         if (value === null || value === undefined) return [];
         if (typeof value !== 'object') return [value];
         if (seen.has(value)) return [];

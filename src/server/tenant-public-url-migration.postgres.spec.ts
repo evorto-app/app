@@ -2,8 +2,11 @@ import { afterAll, beforeAll, describe, expect, it } from '@effect/vitest';
 import { eq } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { ConfigProvider, Effect, Layer } from 'effect';
+import * as Headers from 'effect/unstable/http/Headers';
+import { Rpc, RpcMessage } from 'effect/unstable/rpc';
 import { createHash, randomUUID } from 'node:crypto';
 import { Pool } from 'pg';
+import Stripe from 'stripe';
 
 import type { GlobalAdminTenantWriteInput } from '../shared/rpc-contracts/app-rpcs/global-admin.rpcs';
 
@@ -22,13 +25,17 @@ import {
   transactions,
   users,
 } from '../db/schema';
+import {
+  RpcRequestContext,
+  RpcRequestContextMiddleware,
+  type RpcRequestContextShape,
+} from '../shared/rpc-contracts/app-rpcs';
+import { GlobalAdminTenantsUpdate } from '../shared/rpc-contracts/app-rpcs/global-admin.rpcs';
 import { PlatformAdministratorAuthority } from '../types/custom/platform-authority';
 import { globalAdminHandlers } from './effect/rpc/handlers/global-admin.handlers';
-import {
-  encodeRpcContextHeaderJson,
-  RPC_CONTEXT_HEADERS,
-} from './effect/rpc/rpc-context-headers';
+import { RpcAccess } from './effect/rpc/handlers/shared/rpc-access.service';
 import { lockTenantStripeAccount } from './payments/pending-stripe-obligations';
+import { StripeClient } from './stripe-client';
 
 const databaseUrl = process.env['DATABASE_URL'];
 if (!databaseUrl) {
@@ -71,12 +78,54 @@ const platformAuthority = PlatformAdministratorAuthority.make({
   kind: 'platformAdministrator',
 });
 
-const platformHeaders = {
-  [RPC_CONTEXT_HEADERS.AUTHENTICATED]: 'true',
-  [RPC_CONTEXT_HEADERS.PERMISSIONS]: encodeRpcContextHeaderJson([]),
-  [RPC_CONTEXT_HEADERS.PLATFORM_AUTHORITY]:
-    encodeRpcContextHeaderJson(platformAuthority),
+const platformHandlerOptions = {
+  client: new Rpc.ServerClient(1),
+  headers: Headers.empty,
+  requestId: RpcMessage.RequestId(1),
+  rpc: GlobalAdminTenantsUpdate.middleware(RpcRequestContextMiddleware),
 };
+
+const createPlatformRequestContext = (tenant: {
+  readonly currency: GlobalAdminTenantWriteInput['currency'];
+  readonly domain: string;
+  readonly id: string;
+  readonly name: string;
+  readonly stripeAccountId: null | string;
+  readonly theme: GlobalAdminTenantWriteInput['theme'];
+  readonly timezone: GlobalAdminTenantWriteInput['timezone'];
+}): RpcRequestContextShape => ({
+  authData: {},
+  authenticated: true,
+  permissions: [],
+  platformAuthority,
+  tenant: {
+    cancellationDeadlineHoursBeforeStart: 0,
+    currency: tenant.currency,
+    defaultLocation: undefined,
+    discountProviders: {
+      esnCard: {
+        config: {},
+        status: 'disabled',
+      },
+    },
+    domain: tenant.domain,
+    id: tenant.id,
+    locale: 'de-DE',
+    maxActiveRegistrationsPerUser: 0,
+    name: tenant.name,
+    receiptSettings: {
+      allowOther: false,
+      receiptCountries: ['NL'],
+    },
+    refundFeesOnCancellation: true,
+    stripeAccountId: tenant.stripeAccountId,
+    theme: tenant.theme,
+    timezone: tenant.timezone,
+    transferDeadlineHoursBeforeStart: 0,
+  },
+  user: null,
+  userAssigned: false,
+});
 
 const waitForBlockedTenantLock = async (pool: Pool) => {
   const deadline = Date.now() + 10_000;
@@ -94,6 +143,21 @@ const waitForBlockedTenantLock = async (pool: Pool) => {
   }
   throw new Error('Timed out waiting for blocked tenant URL migration lock');
 };
+
+class NoNetworkStripeHttpClient extends Stripe.HttpClient {
+  override getClientName() {
+    return 'tenant-url-fixture';
+  }
+  override makeRequest(): Promise<never> {
+    return Promise.reject(
+      new Error('Unexpected Stripe request during tenant URL migration'),
+    );
+  }
+}
+const stripeClient = new Stripe('sk_test_tenant_url_fixture', {
+  httpClient: new NoNetworkStripeHttpClient(),
+  maxNetworkRetries: 0,
+});
 
 const runUrlMigration = (
   tenant: {
@@ -122,7 +186,7 @@ const runUrlMigration = (
           timezone: tenant.timezone,
         },
       },
-      { headers: platformHeaders } as never,
+      platformHandlerOptions,
     ).pipe(
       Effect.match({
         onFailure: (error) => ({ error, status: 'failure' as const }),
@@ -131,6 +195,16 @@ const runUrlMigration = (
           updatedTenant,
         }),
       }),
+      Effect.provide(
+        Layer.mergeAll(
+          RpcAccess.Default,
+          Layer.succeed(StripeClient, stripeClient),
+          Layer.succeed(
+            RpcRequestContext,
+            createPlatformRequestContext(tenant),
+          ),
+        ),
+      ),
       Effect.provide(serviceLayer),
     ),
   );

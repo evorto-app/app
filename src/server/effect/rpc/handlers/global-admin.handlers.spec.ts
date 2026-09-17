@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from '@effect/vitest';
-import { Effect, Layer } from 'effect';
+import { Effect, Layer, Schema } from 'effect';
+import * as Headers from 'effect/unstable/http/Headers';
+import { Rpc, RpcMessage } from 'effect/unstable/rpc';
 import Stripe from 'stripe';
 
 import { Database, type DatabaseClient } from '../../../../db';
@@ -8,16 +10,21 @@ import {
   tenantPrivacyPolicyVersions,
   tenants as tenantsTable,
 } from '../../../../db/schema';
-import { PlatformAdministratorAuthority } from '../../../../types/custom/platform-authority';
-import { StripeClient } from '../../../stripe-client';
+import { type Permission } from '../../../../shared/permissions/permissions';
 import {
-  encodeRpcContextHeaderJson,
-  RPC_CONTEXT_HEADERS,
-} from '../rpc-context-headers';
+  RpcRequestContext,
+  RpcRequestContextMiddleware,
+  type RpcRequestContextShape,
+} from '../../../../shared/rpc-contracts/app-rpcs';
+import * as GlobalAdminRpcs from '../../../../shared/rpc-contracts/app-rpcs/global-admin.rpcs';
+import { PlatformAdministratorAuthority } from '../../../../types/custom/platform-authority';
+import { Tenant } from '../../../../types/custom/tenant';
+import { StripeClient } from '../../../stripe-client';
 import {
   globalAdminHandlers,
   tenantPrivacyPolicyDigest,
 } from './global-admin.handlers';
+import { RpcAccess } from './shared/rpc-access.service';
 
 const platformAuthority = PlatformAdministratorAuthority.make({
   actorEmail: 'platform@example.org',
@@ -25,19 +32,41 @@ const platformAuthority = PlatformAdministratorAuthority.make({
   kind: 'platformAdministrator',
 });
 
-const createHeaders = (
-  permissions: readonly string[],
+const createRequestContext = (
+  permissions: readonly Permission[],
   options: { authenticated?: boolean; platformAdministrator?: boolean } = {},
-) => ({
-  [RPC_CONTEXT_HEADERS.AUTHENTICATED]:
-    options.authenticated === false ? 'false' : 'true',
-  [RPC_CONTEXT_HEADERS.PERMISSIONS]: encodeRpcContextHeaderJson(permissions),
-  [RPC_CONTEXT_HEADERS.PLATFORM_AUTHORITY]: encodeRpcContextHeaderJson(
-    options.platformAdministrator === false ? null : platformAuthority,
-  ),
+) =>
+  ({
+    authData: {},
+    authenticated: options.authenticated !== false,
+    permissions,
+    platformAuthority:
+      options.platformAdministrator === false ? null : platformAuthority,
+    tenant: Schema.decodeUnknownSync(Tenant)({
+      currency: 'EUR',
+      domain: 'tenant.example.com',
+      id: 'tenant-1',
+      locale: 'de-DE',
+      name: 'Tenant',
+      stripeAccountId: null,
+      theme: 'evorto',
+      timezone: 'Europe/Berlin',
+    }),
+    user: null,
+    userAssigned: false,
+  }) satisfies RpcRequestContextShape;
+
+const requestContextLayer = (context: RpcRequestContextShape) =>
+  Layer.mergeAll(RpcAccess.Default, Layer.succeed(RpcRequestContext, context));
+
+const createRpcOptions = <R extends Rpc.Any>(rpc: R) => ({
+  client: new Rpc.ServerClient(1),
+  headers: Headers.empty,
+  requestId: RpcMessage.RequestId(1),
+  rpc,
 });
 
-const provideDatabase = (database: object) =>
+const provideDatabaseOnly = (database: object) =>
   Layer.succeed(Database, database as DatabaseClient);
 
 class RotationStripeHttpClient extends Stripe.HttpClient {
@@ -85,9 +114,38 @@ class RotationStripeResponse extends Stripe.HttpClientResponse {
   }
 }
 
+class UnexpectedStripeHttpClient extends Stripe.HttpClient {
+  override getClientName(): string {
+    return 'evorto-global-admin-no-stripe-fixture';
+  }
+
+  override makeRequest(
+    ...arguments_: Parameters<
+      InstanceType<typeof Stripe.HttpClient>['makeRequest']
+    >
+  ): Promise<RotationStripeResponse> {
+    const [host, , requestPath, method] = arguments_;
+    return Promise.reject(
+      new Error(`Unexpected Stripe request: ${method} ${host}${requestPath}`),
+    );
+  }
+}
+
+const provideDatabase = (database: object) =>
+  Layer.mergeAll(
+    provideDatabaseOnly(database),
+    Layer.succeed(
+      StripeClient,
+      new Stripe('sk_test_global_admin_no_requests', {
+        httpClient: new UnexpectedStripeHttpClient(),
+        maxNetworkRetries: 0,
+      }),
+    ),
+  );
+
 const provideStripeRotation = (database: object) =>
   Layer.mergeAll(
-    provideDatabase(database),
+    provideDatabaseOnly(database),
     Layer.succeed(
       StripeClient,
       new Stripe('sk_test_global_admin_rotation', {
@@ -260,9 +318,22 @@ describe('globalAdminHandlers', () => {
 
       const tenants = yield* globalAdminHandlers[
         'globalAdmin.tenants.findMany'
-      ](undefined, {
-        headers: createHeaders(['globalAdmin:manageTenants']),
-      } as never).pipe(Effect.provide(provideDatabase(database)));
+      ](
+        undefined,
+        createRpcOptions(
+          GlobalAdminRpcs.GlobalAdminTenantsFindMany.middleware(
+            RpcRequestContextMiddleware,
+          ),
+        ),
+      )
+        .pipe(
+          Effect.provide(
+            requestContextLayer(
+              createRequestContext(['globalAdmin:manageTenants']),
+            ),
+          ),
+        )
+        .pipe(Effect.provide(provideDatabase(database)));
 
       expect(tenants).toEqual([]);
     }),
@@ -292,9 +363,16 @@ describe('globalAdminHandlers', () => {
 
       const tenants = yield* globalAdminHandlers[
         'globalAdmin.tenants.findMany'
-      ](undefined, { headers: createHeaders([]) } as never).pipe(
-        Effect.provide(provideDatabase(database)),
-      );
+      ](
+        undefined,
+        createRpcOptions(
+          GlobalAdminRpcs.GlobalAdminTenantsFindMany.middleware(
+            RpcRequestContextMiddleware,
+          ),
+        ),
+      )
+        .pipe(Effect.provide(requestContextLayer(createRequestContext([]))))
+        .pipe(Effect.provide(provideDatabase(database)));
 
       expect(tenants).toEqual([
         {
@@ -338,10 +416,20 @@ describe('globalAdminHandlers', () => {
 
       const tenant = yield* globalAdminHandlers['globalAdmin.tenants.findOne'](
         { id: 'tenant-1' },
-        {
-          headers: createHeaders(['globalAdmin:manageTenants']),
-        } as never,
-      ).pipe(Effect.provide(provideDatabase(database)));
+        createRpcOptions(
+          GlobalAdminRpcs.GlobalAdminTenantsFindOne.middleware(
+            RpcRequestContextMiddleware,
+          ),
+        ),
+      )
+        .pipe(
+          Effect.provide(
+            requestContextLayer(
+              createRequestContext(['globalAdmin:manageTenants']),
+            ),
+          ),
+        )
+        .pipe(Effect.provide(provideDatabase(database)));
 
       expect(tenant).toEqual({
         currency: 'EUR',
@@ -362,17 +450,27 @@ describe('globalAdminHandlers', () => {
       const database = {
         query: {
           tenants: {
-            findFirst: () => Effect.succeed(),
+            findFirst: () => Effect.succeed(undefined),
           },
         },
       };
 
       const tenant = yield* globalAdminHandlers['globalAdmin.tenants.findOne'](
         { id: 'missing-tenant' },
-        {
-          headers: createHeaders(['globalAdmin:manageTenants']),
-        } as never,
-      ).pipe(Effect.provide(provideDatabase(database)));
+        createRpcOptions(
+          GlobalAdminRpcs.GlobalAdminTenantsFindOne.middleware(
+            RpcRequestContextMiddleware,
+          ),
+        ),
+      )
+        .pipe(
+          Effect.provide(
+            requestContextLayer(
+              createRequestContext(['globalAdmin:manageTenants']),
+            ),
+          ),
+        )
+        .pipe(Effect.provide(provideDatabase(database)));
 
       expect(tenant).toBeNull();
     }),
@@ -390,12 +488,22 @@ describe('globalAdminHandlers', () => {
 
       const error = yield* globalAdminHandlers['globalAdmin.tenants.findMany'](
         undefined,
-        {
-          headers: createHeaders(['globalAdmin:manageTenants'], {
-            platformAdministrator: false,
-          }),
-        } as never,
-      ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
+        createRpcOptions(
+          GlobalAdminRpcs.GlobalAdminTenantsFindMany.middleware(
+            RpcRequestContextMiddleware,
+          ),
+        ),
+      )
+        .pipe(
+          Effect.provide(
+            requestContextLayer(
+              createRequestContext(['globalAdmin:manageTenants'], {
+                platformAdministrator: false,
+              }),
+            ),
+          ),
+        )
+        .pipe(Effect.provide(provideDatabase(database)), Effect.flip);
 
       expect(error['_tag']).toBe('RpcForbiddenError');
       expect(error.message).toBe('Platform administrator authority required');
@@ -414,17 +522,22 @@ describe('globalAdminHandlers', () => {
 
       const error = yield* globalAdminHandlers['globalAdmin.tenants.findMany'](
         undefined,
-        {
-          headers: {
-            [RPC_CONTEXT_HEADERS.AUTHENTICATED]: 'false',
-            [RPC_CONTEXT_HEADERS.PERMISSIONS]: encodeRpcContextHeaderJson([
-              'globalAdmin:manageTenants',
-            ]),
-            [RPC_CONTEXT_HEADERS.PLATFORM_AUTHORITY]:
-              encodeRpcContextHeaderJson(platformAuthority),
-          },
-        } as never,
-      ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
+        createRpcOptions(
+          GlobalAdminRpcs.GlobalAdminTenantsFindMany.middleware(
+            RpcRequestContextMiddleware,
+          ),
+        ),
+      )
+        .pipe(
+          Effect.provide(
+            requestContextLayer(
+              createRequestContext(['globalAdmin:manageTenants'], {
+                authenticated: false,
+              }),
+            ),
+          ),
+        )
+        .pipe(Effect.provide(provideDatabase(database)), Effect.flip);
 
       expect(error['_tag']).toBe('RpcUnauthorizedError');
     }),
@@ -492,9 +605,22 @@ describe('globalAdminHandlers', () => {
 
       const overview = yield* globalAdminHandlers[
         'globalAdmin.emailOutbox.findOverview'
-      ](undefined, {
-        headers: createHeaders(['globalAdmin:manageTenants']),
-      } as never).pipe(Effect.provide(provideDatabase(database)));
+      ](
+        undefined,
+        createRpcOptions(
+          GlobalAdminRpcs.GlobalAdminEmailOutboxFindOverview.middleware(
+            RpcRequestContextMiddleware,
+          ),
+        ),
+      )
+        .pipe(
+          Effect.provide(
+            requestContextLayer(
+              createRequestContext(['globalAdmin:manageTenants']),
+            ),
+          ),
+        )
+        .pipe(Effect.provide(provideDatabase(database)));
 
       expect(overview.summary).toEqual({
         deliveryUnknown: 0,
@@ -565,9 +691,16 @@ describe('globalAdminHandlers', () => {
 
       const entries = yield* globalAdminHandlers[
         'globalAdmin.platformAudit.findMany'
-      ](undefined, { headers: createHeaders([]) } as never).pipe(
-        Effect.provide(provideDatabase(database)),
-      );
+      ](
+        undefined,
+        createRpcOptions(
+          GlobalAdminRpcs.GlobalAdminPlatformAuditFindMany.middleware(
+            RpcRequestContextMiddleware,
+          ),
+        ),
+      )
+        .pipe(Effect.provide(requestContextLayer(createRequestContext([]))))
+        .pipe(Effect.provide(provideDatabase(database)));
 
       expect(entries).toEqual([
         expect.objectContaining({
@@ -594,12 +727,22 @@ describe('globalAdminHandlers', () => {
 
       const error = yield* globalAdminHandlers['globalAdmin.tenants.findOne'](
         { id: 'tenant-1' },
-        {
-          headers: createHeaders(['globalAdmin:manageTenants'], {
-            platformAdministrator: false,
-          }),
-        } as never,
-      ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
+        createRpcOptions(
+          GlobalAdminRpcs.GlobalAdminTenantsFindOne.middleware(
+            RpcRequestContextMiddleware,
+          ),
+        ),
+      )
+        .pipe(
+          Effect.provide(
+            requestContextLayer(
+              createRequestContext(['globalAdmin:manageTenants'], {
+                platformAdministrator: false,
+              }),
+            ),
+          ),
+        )
+        .pipe(Effect.provide(provideDatabase(database)), Effect.flip);
 
       expect(error['_tag']).toBe('RpcForbiddenError');
       expect(error.message).toBe('Platform administrator authority required');
@@ -656,7 +799,7 @@ describe('globalAdminHandlers', () => {
         },
         query: {
           tenants: {
-            findFirst: () => Effect.succeed(),
+            findFirst: () => Effect.succeed(undefined),
           },
         },
         transaction: (operation: (transaction: object) => unknown) =>
@@ -679,8 +822,20 @@ describe('globalAdminHandlers', () => {
             timezone: 'Europe/Prague',
           },
         },
-        { headers: createHeaders(['globalAdmin:manageTenants']) } as never,
-      ).pipe(Effect.provide(provideDatabase(database)));
+        createRpcOptions(
+          GlobalAdminRpcs.GlobalAdminTenantsCreate.middleware(
+            RpcRequestContextMiddleware,
+          ),
+        ),
+      )
+        .pipe(
+          Effect.provide(
+            requestContextLayer(
+              createRequestContext(['globalAdmin:manageTenants']),
+            ),
+          ),
+        )
+        .pipe(Effect.provide(provideDatabase(database)));
 
       expect(capturedInsert).toMatchObject({
         currency: 'CZK',
@@ -766,11 +921,28 @@ describe('globalAdminHandlers', () => {
               timezone: 'Europe/Berlin',
             },
           },
-          { headers: createHeaders(['globalAdmin:manageTenants']) } as never,
-        ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
+          createRpcOptions(
+            GlobalAdminRpcs.GlobalAdminTenantsCreate.middleware(
+              RpcRequestContextMiddleware,
+            ),
+          ),
+        )
+          .pipe(
+            Effect.provide(
+              requestContextLayer(
+                createRequestContext(['globalAdmin:manageTenants']),
+              ),
+            ),
+          )
+          .pipe(Effect.provide(provideDatabase(database)), Effect.flip);
 
         expect(error['_tag']).toBe('RpcBadRequestError');
         expect(error.message).toBe('Organization domain already exists');
+        if (error._tag !== 'RpcBadRequestError') {
+          return yield* Effect.die(
+            new Error('Expected a typed bad-request error'),
+          );
+        }
         expect(error.reason).toBe('tenant.example.com');
       }),
   );
@@ -800,8 +972,14 @@ describe('globalAdminHandlers', () => {
             timezone: 'Europe/Berlin',
           },
         },
-        { headers: createHeaders([]) } as never,
-      ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
+        createRpcOptions(
+          GlobalAdminRpcs.GlobalAdminTenantsCreate.middleware(
+            RpcRequestContextMiddleware,
+          ),
+        ),
+      )
+        .pipe(Effect.provide(requestContextLayer(createRequestContext([]))))
+        .pipe(Effect.provide(provideDatabase(database)), Effect.flip);
 
       expect(error['_tag']).toBe('RpcBadRequestError');
       expect(error.message).toContain('privacy policy');
@@ -894,8 +1072,20 @@ describe('globalAdminHandlers', () => {
             timezone: 'Europe/Berlin',
           },
         },
-        { headers: createHeaders(['globalAdmin:manageTenants']) } as never,
-      ).pipe(Effect.provide(provideDatabase(database)));
+        createRpcOptions(
+          GlobalAdminRpcs.GlobalAdminTenantsUpdate.middleware(
+            RpcRequestContextMiddleware,
+          ),
+        ),
+      )
+        .pipe(
+          Effect.provide(
+            requestContextLayer(
+              createRequestContext(['globalAdmin:manageTenants']),
+            ),
+          ),
+        )
+        .pipe(Effect.provide(provideDatabase(database)));
 
       expect(capturedUpdate).toMatchObject({
         domain: 'tenant.example.com',
@@ -989,8 +1179,14 @@ describe('globalAdminHandlers', () => {
             timezone: 'Europe/Berlin',
           },
         },
-        { headers: createHeaders([]) } as never,
-      ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
+        createRpcOptions(
+          GlobalAdminRpcs.GlobalAdminTenantsUpdate.middleware(
+            RpcRequestContextMiddleware,
+          ),
+        ),
+      )
+        .pipe(Effect.provide(requestContextLayer(createRequestContext([]))))
+        .pipe(Effect.provide(provideDatabase(database)), Effect.flip);
 
       expect(error['_tag']).toBe('RpcBadRequestError');
       expect(error.message).toBe(
@@ -1012,8 +1208,14 @@ describe('globalAdminHandlers', () => {
 
         const tenant = yield* globalAdminHandlers['globalAdmin.tenants.update'](
           createStripeAccountUpdateInput('acct_next'),
-          { headers: createHeaders([]) } as never,
-        ).pipe(Effect.provide(provideStripeRotation(fixture.database)));
+          createRpcOptions(
+            GlobalAdminRpcs.GlobalAdminTenantsUpdate.middleware(
+              RpcRequestContextMiddleware,
+            ),
+          ),
+        )
+          .pipe(Effect.provide(requestContextLayer(createRequestContext([]))))
+          .pipe(Effect.provide(provideStripeRotation(fixture.database)));
 
         expect(fixture.capturedUpdate()?.['stripeAccountId']).toBe('acct_next');
         expect(tenant.stripeAccountId).toBe('acct_next');
@@ -1042,10 +1244,14 @@ describe('globalAdminHandlers', () => {
         });
         const error = yield* globalAdminHandlers['globalAdmin.tenants.update'](
           createStripeAccountUpdateInput(),
-          {
-            headers: createHeaders([]),
-          } as never,
-        ).pipe(Effect.provide(provideDatabase(fixture.database)), Effect.flip);
+          createRpcOptions(
+            GlobalAdminRpcs.GlobalAdminTenantsUpdate.middleware(
+              RpcRequestContextMiddleware,
+            ),
+          ),
+        )
+          .pipe(Effect.provide(requestContextLayer(createRequestContext([]))))
+          .pipe(Effect.provide(provideDatabase(fixture.database)), Effect.flip);
 
         expect(error['_tag']).toBe('RpcBadRequestError');
         expect(error.message).toBe(
@@ -1069,10 +1275,14 @@ describe('globalAdminHandlers', () => {
 
         const error = yield* globalAdminHandlers['globalAdmin.tenants.update'](
           createStripeAccountUpdateInput(),
-          {
-            headers: createHeaders([]),
-          } as never,
-        ).pipe(Effect.provide(provideDatabase(fixture.database)), Effect.flip);
+          createRpcOptions(
+            GlobalAdminRpcs.GlobalAdminTenantsUpdate.middleware(
+              RpcRequestContextMiddleware,
+            ),
+          ),
+        )
+          .pipe(Effect.provide(requestContextLayer(createRequestContext([]))))
+          .pipe(Effect.provide(provideDatabase(fixture.database)), Effect.flip);
 
         expect(error['_tag']).toBe('RpcBadRequestError');
         expect(error.message).toBe(
@@ -1188,8 +1398,14 @@ describe('globalAdminHandlers', () => {
                 timezone: 'Europe/Berlin',
               },
             },
-            { headers: createHeaders([]) } as never,
-          ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
+            createRpcOptions(
+              GlobalAdminRpcs.GlobalAdminTenantsUpdate.middleware(
+                RpcRequestContextMiddleware,
+              ),
+            ),
+          )
+            .pipe(Effect.provide(requestContextLayer(createRequestContext([]))))
+            .pipe(Effect.provide(provideDatabase(database)), Effect.flip);
 
           expect(error._tag).toBe('GlobalAdminTenantUrlMigrationBlockedError');
           if (error._tag !== 'GlobalAdminTenantUrlMigrationBlockedError') {
@@ -1285,13 +1501,24 @@ describe('globalAdminHandlers', () => {
               timezone: 'Europe/Berlin',
             },
           },
-          { headers: createHeaders([]) } as never,
-        ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
+          createRpcOptions(
+            GlobalAdminRpcs.GlobalAdminTenantsUpdate.middleware(
+              RpcRequestContextMiddleware,
+            ),
+          ),
+        )
+          .pipe(Effect.provide(requestContextLayer(createRequestContext([]))))
+          .pipe(Effect.provide(provideDatabase(database)), Effect.flip);
 
         expect(error['_tag']).toBe('RpcBadRequestError');
         expect(error.message).toBe(
           'Tenant currency is locked by existing financial configuration',
         );
+        if (error._tag !== 'RpcBadRequestError') {
+          return yield* Effect.die(
+            new Error('Expected a typed bad-request error'),
+          );
+        }
         expect(error.reason).toContain('dedicated currency migration');
         expect(update).not.toHaveBeenCalled();
         expect(insert).not.toHaveBeenCalled();
@@ -1350,8 +1577,14 @@ describe('globalAdminHandlers', () => {
               timezone: 'Europe/Berlin',
             },
           },
-          { headers: createHeaders([]) } as never,
-        ).pipe(Effect.provide(provideDatabase(database)));
+          createRpcOptions(
+            GlobalAdminRpcs.GlobalAdminTenantsUpdate.middleware(
+              RpcRequestContextMiddleware,
+            ),
+          ),
+        )
+          .pipe(Effect.provide(requestContextLayer(createRequestContext([]))))
+          .pipe(Effect.provide(provideDatabase(database)));
 
         expect(tenant.name).toBe('Tenant after update');
         expect(select).toHaveBeenCalledTimes(1);
@@ -1385,11 +1618,28 @@ describe('globalAdminHandlers', () => {
               timezone: 'Europe/Berlin',
             },
           },
-          { headers: createHeaders(['globalAdmin:manageTenants']) } as never,
-        ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
+          createRpcOptions(
+            GlobalAdminRpcs.GlobalAdminTenantsUpdate.middleware(
+              RpcRequestContextMiddleware,
+            ),
+          ),
+        )
+          .pipe(
+            Effect.provide(
+              requestContextLayer(
+                createRequestContext(['globalAdmin:manageTenants']),
+              ),
+            ),
+          )
+          .pipe(Effect.provide(provideDatabase(database)), Effect.flip);
 
         expect(error['_tag']).toBe('RpcBadRequestError');
         expect(error.message).toBe('Organization domain already exists');
+        if (error._tag !== 'RpcBadRequestError') {
+          return yield* Effect.die(
+            new Error('Expected a typed bad-request error'),
+          );
+        }
         expect(error.reason).toBe('tenant.example.com');
       }),
   );
@@ -1417,8 +1667,20 @@ describe('globalAdminHandlers', () => {
             timezone: 'Europe/Berlin',
           },
         },
-        { headers: createHeaders(['globalAdmin:manageTenants']) } as never,
-      ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
+        createRpcOptions(
+          GlobalAdminRpcs.GlobalAdminTenantsCreate.middleware(
+            RpcRequestContextMiddleware,
+          ),
+        ),
+      )
+        .pipe(
+          Effect.provide(
+            requestContextLayer(
+              createRequestContext(['globalAdmin:manageTenants']),
+            ),
+          ),
+        )
+        .pipe(Effect.provide(provideDatabase(database)), Effect.flip);
 
       expect(error['_tag']).toBe('RpcBadRequestError');
       expect(error.message).toBe('Invalid tenant settings');
@@ -1456,11 +1718,28 @@ describe('globalAdminHandlers', () => {
               timezone: 'Europe/Berlin',
             },
           },
-          { headers: createHeaders(['globalAdmin:manageTenants']) } as never,
-        ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
+          createRpcOptions(
+            GlobalAdminRpcs.GlobalAdminTenantsCreate.middleware(
+              RpcRequestContextMiddleware,
+            ),
+          ),
+        )
+          .pipe(
+            Effect.provide(
+              requestContextLayer(
+                createRequestContext(['globalAdmin:manageTenants']),
+              ),
+            ),
+          )
+          .pipe(Effect.provide(provideDatabase(database)), Effect.flip);
 
         expect(error['_tag']).toBe('RpcBadRequestError');
         expect(error.message).toBe('Invalid tenant settings');
+        if (error._tag !== 'RpcBadRequestError') {
+          return yield* Effect.die(
+            new Error('Expected a typed bad-request error'),
+          );
+        }
         expect(error.reason).toBe(
           'Enter the main website address only, for example section.example.org.',
         );

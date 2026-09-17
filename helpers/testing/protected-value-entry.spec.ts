@@ -417,7 +417,8 @@ describe('protected Playwright value entry', () => {
       typeof packageJson !== 'object' ||
       !('scripts' in packageJson) ||
       !packageJson.scripts ||
-      typeof packageJson.scripts !== 'object'
+      typeof packageJson.scripts !== 'object' ||
+      !('test:e2e:ui' in packageJson.scripts)
     ) {
       throw new Error('Expected package scripts');
     }

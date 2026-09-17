@@ -12,7 +12,6 @@ setup('Setup database', async ({ database, seedDate }) => {
   setup.setTimeout(120_000);
   applyTestConsolaLevel();
   // Reset DB and seed a single baseline tenant for this run
-  // @ts-expect-error drizzle-seed missing proper types
   await reset(database, schema);
   const runId = init({ length: 10 })();
   const result = await seedTenant(database, {
@@ -26,7 +25,7 @@ setup('Setup database', async ({ database, seedDate }) => {
     seedDate,
   });
 
-  // Persist runtime info for other tests (tenant cookie injection, etc.)
+  // Persist runtime info for other tests (tenant routing injection, etc.)
   const runtimePath = path.resolve('.e2e-runtime.json');
   const payload = {
     runId,

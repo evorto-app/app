@@ -100,6 +100,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - specs/seed/seed-baseline.test.ts
   - specs/smoke/load-application.test.ts
   - specs/smoke/semantic-theme-colors.test.ts
+  - specs/smoke/tenant-request-routing.test.ts
   - specs/template-categories/template-categories.test.ts
   - specs/templates/paid-option-requires-tax-rate.spec.ts [finance]
   - specs/templates/registration-configuration.spec.ts
@@ -223,7 +224,7 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - `docs/events/event-management.doc.ts` (organizer overview context)
   - `specs/scanning/scanner.test.ts`
 - Runtime, reporting, screenshots, and seed health:
-  - `specs/auth/storage-state-refresh.test.ts`
+  - `specs/auth/storage-state-refresh.test.ts` validates selected saved/inline state before context use and roundtrips synthetic cookies/local storage through offline contexts; it does not certify an age-based refresh policy.
   - `specs/reporting/reporter-paths.test.ts`
   - `specs/screenshot/doc-screenshot.test.ts`
   - `specs/seed/seed-baseline.test.ts` proves the seeded tenant has default
@@ -231,6 +232,9 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
     wiring, reusable template add-ons, scenario handles, confirmed
     registrations, and checked-in scanner aggregates.
   - `specs/smoke/load-application.test.ts`
+  - `specs/smoke/tenant-request-routing.test.ts` verifies local tenant headers
+    stay on the application origin, including when the browser follows an
+    external redirect.
   - `specs/smoke/semantic-theme-colors.test.ts` verifies the rendered success
     and warning role pairs for Evorto and ESN themes in light, dark, and
     increased-contrast modes.
@@ -813,8 +817,8 @@ ESNcard provider credential path.
     `docs/events/registration-transfer.doc.ts` owns transfer guidance.
   - `docs/events/unlisted-user.doc.ts` now changes one approved event to
     unlisted in an isolated tenant, proves it is absent from the participant
-    list, opens its direct link while signed in, then preserves the tenant
-    routing cookie while proving the same detail page remains readable when
+    list, opens its direct link while signed in, then keeps scoped tenant
+    routing while proving the same detail page remains readable when
     signed out with **Log in now**. Cleanup restores the original visibility.
   - `docs/events/event-discovery.doc.ts` is the first source in the published
     **Find an event** guide. It uses two disposable approved/listed events to

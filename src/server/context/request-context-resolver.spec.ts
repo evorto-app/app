@@ -1,28 +1,107 @@
+import type * as SqlConnection from 'effect/unstable/sql/SqlConnection';
+
+import * as PgClient from '@effect/sql-pg/PgClient';
 import { describe, expect, it, vi } from '@effect/vitest';
-import { Cause, Effect, Exit, Layer } from 'effect';
+import { getTableColumns } from 'drizzle-orm';
+import * as PgDrizzle from 'drizzle-orm/effect-postgres';
+import { Cause, Effect, Exit, Layer, Stream } from 'effect';
 
 import { Database } from '../../db';
+import { relations } from '../../db/relations';
+import { tenants } from '../../db/schema';
 import {
   resolveAuthenticationContext,
+  resolveExplicitTenantDomain,
   resolvePlatformAuthority,
   resolveRequestPermissions,
   resolveTenantContext,
   resolveUserContext,
 } from './request-context-resolver';
 
-const createTenant = (domain: string) => ({
-  currency: 'EUR',
-  defaultLocation: null,
-  discountProviders: null,
-  domain,
-  id: `tenant-${domain}`,
-  locale: 'en',
-  name: domain,
-  receiptSettings: null,
-  stripeAccountId: null,
-  theme: 'evorto',
-  timezone: 'Europe/Berlin',
-});
+const createTenant = (domain: string) =>
+  ({
+    cancellationDeadlineHoursBeforeStart: 120,
+    createdAt: new Date('2026-07-01T12:00:00.000Z'),
+    currency: 'EUR',
+    defaultLocation: null,
+    discountProviders: { esnCard: { config: {}, status: 'disabled' } },
+    domain,
+    emailSenderEmail: null,
+    emailSenderName: null,
+    faviconUrl: null,
+    id: 'tenant-fixture',
+    legalNoticeText: null,
+    legalNoticeUrl: null,
+    locale: 'de-DE',
+    logoUrl: null,
+    maxActiveRegistrationsPerUser: 0,
+    name: domain,
+    privacyPolicyText: null,
+    privacyPolicyUrl: null,
+    receiptSettings: { allowOther: false, receiptCountries: ['DE'] },
+    refundFeesOnCancellation: true,
+    seoDescription: null,
+    seoTitle: null,
+    stripeAccountId: null,
+    termsText: null,
+    termsUrl: null,
+    theme: 'evorto',
+    timezone: 'Europe/Berlin',
+    transferDeadlineHoursBeforeStart: 0,
+    updatedAt: new Date('2026-07-01T12:00:00.000Z'),
+  }) satisfies typeof tenants.$inferSelect;
+
+const createTenantDatabaseLayer = (
+  findTenant: (input: {
+    domain: string;
+  }) => Effect.Effect<typeof tenants.$inferSelect | undefined>,
+) => {
+  const unexpectedDatabaseAccess = Effect.die(
+    new Error('Unexpected database operation in tenant routing fixture'),
+  );
+  const executeValues: SqlConnection.Connection['executeValues'] = (
+    statement,
+    parameters,
+  ) =>
+    Effect.gen(function* () {
+      expect(statement).toContain('from "tenants"');
+      const domain = parameters[0];
+      if (typeof domain !== 'string') {
+        return yield* Effect.die(new Error('Expected the bound tenant domain'));
+      }
+      const tenant = yield* findTenant({ domain });
+      if (!tenant) return [];
+      expect(Object.keys(tenant)).toEqual(
+        Object.keys(getTableColumns(tenants)),
+      );
+      return [
+        Object.values(tenant).map((value) =>
+          value instanceof Date ? value.toISOString().replace('Z', '') : value,
+        ),
+      ];
+    });
+  const connection = {
+    execute: () => unexpectedDatabaseAccess,
+    executeRaw: () => unexpectedDatabaseAccess,
+    executeStream: () =>
+      Stream.die(new Error('Unexpected tenant query stream')),
+    executeUnprepared: () => unexpectedDatabaseAccess,
+    executeValues,
+    executeValuesUnprepared: () => unexpectedDatabaseAccess,
+  } satisfies SqlConnection.Connection;
+  return Layer.effect(Database, PgDrizzle.makeWithDefaults({ relations })).pipe(
+    Layer.provide(
+      PgClient.layerFrom(
+        PgClient.makeWith({
+          acquirer: Effect.succeed(connection),
+          config: {},
+          listenAcquirer: unexpectedDatabaseAccess,
+          transactionAcquirer: unexpectedDatabaseAccess,
+        }),
+      ),
+    ),
+  );
+};
 
 const createPreparedDatabase = ({
   attributesExecute = vi.fn(() => Effect.succeed([])),
@@ -69,47 +148,40 @@ describe('request-context-resolver', () => {
     });
   });
 
-  it.effect(
-    'resolves the tenant from a non-local host before a tenant cookie',
-    () =>
-      Effect.gen(function* () {
-        const tenantExecute = vi.fn(({ domain }: { domain: string }) =>
-          Effect.succeed(createTenant(domain)),
-        );
-        const database = createPreparedDatabase({ tenantExecute });
+  it.effect('resolves the tenant from one normalized host', () =>
+    Effect.gen(function* () {
+      const tenantExecute = vi.fn(({ domain }: { domain: string }) =>
+        Effect.succeed(createTenant(domain)),
+      );
+      const databaseLayer = createTenantDatabaseLayer(tenantExecute);
 
-        const result = yield* resolveTenantContext({
-          cookies: {
-            'evorto-tenant': 'other.example.com',
-          },
-          protocol: 'https',
-          requestHost: 'tenant.example.com',
-        }).pipe(Effect.provide(Layer.succeed(Database, database as never)));
+      const result = yield* resolveTenantContext({
+        protocol: 'https',
+        requestHost: 'tenant.example.com',
+      }).pipe(Effect.provide(databaseLayer));
 
-        expect(result.tenant?.domain).toBe('tenant.example.com');
-        expect(tenantExecute).toHaveBeenCalledTimes(1);
-        expect(tenantExecute).toHaveBeenCalledWith({
-          domain: 'tenant.example.com',
-        });
-      }),
+      expect(result.tenant?.domain).toBe('tenant.example.com');
+      expect(tenantExecute).toHaveBeenCalledTimes(1);
+      expect(tenantExecute).toHaveBeenCalledWith({
+        domain: 'tenant.example.com',
+      });
+    }),
   );
 
-  it.effect('uses the tenant cookie for localhost requests', () =>
+  it.effect('uses an explicitly routed tenant instead of a local host', () =>
     Effect.gen(function* () {
       const tenantExecute = vi.fn(({ domain }: { domain: string }) =>
         Effect.succeed(
           domain === 'tenant.example.com' ? createTenant(domain) : undefined,
         ),
       );
-      const database = createPreparedDatabase({ tenantExecute });
+      const databaseLayer = createTenantDatabaseLayer(tenantExecute);
 
       const result = yield* resolveTenantContext({
-        cookies: {
-          'evorto-tenant': 'tenant.example.com',
-        },
         protocol: 'http',
         requestHost: 'localhost:4200',
-      }).pipe(Effect.provide(Layer.succeed(Database, database as never)));
+        routedTenantDomain: 'tenant.example.com',
+      }).pipe(Effect.provide(databaseLayer));
 
       expect(result.tenant?.domain).toBe('tenant.example.com');
       expect(tenantExecute).toHaveBeenCalledTimes(1);
@@ -120,7 +192,7 @@ describe('request-context-resolver', () => {
   );
 
   it.effect(
-    'falls back to the local host when the local tenant cookie is stale',
+    'does not fall back to the local host when an explicit route is stale',
     () =>
       Effect.gen(function* () {
         const tenantExecute = vi.fn(({ domain }: { domain: string }) =>
@@ -128,43 +200,61 @@ describe('request-context-resolver', () => {
             domain === 'localhost' ? createTenant(domain) : undefined,
           ),
         );
-        const database = createPreparedDatabase({ tenantExecute });
+        const databaseLayer = createTenantDatabaseLayer(tenantExecute);
 
         const result = yield* resolveTenantContext({
-          cookies: {
-            'evorto-tenant': 'stale.example.com',
-          },
           protocol: 'http',
           requestHost: 'localhost:4200',
-        }).pipe(Effect.provide(Layer.succeed(Database, database as never)));
+          routedTenantDomain: 'stale.example.com',
+        }).pipe(Effect.provide(databaseLayer));
 
-        expect(result.tenant?.domain).toBe('localhost');
-        expect(tenantExecute).toHaveBeenNthCalledWith(1, {
-          domain: 'stale.example.com',
+        expect(result).toEqual({
+          cause: { domain: 'stale.example.com' },
+          tenant: undefined,
         });
-        expect(tenantExecute).toHaveBeenNthCalledWith(2, {
-          domain: 'localhost',
+        expect(tenantExecute).toHaveBeenCalledOnce();
+        expect(tenantExecute).toHaveBeenCalledWith({
+          domain: 'stale.example.com',
         });
       }),
   );
 
-  it.effect('fails closed for an unknown non-local host', () =>
+  it.effect(
+    'does not fall back to the host when an explicit route is malformed',
+    () =>
+      Effect.gen(function* () {
+        const tenantExecute = vi.fn(({ domain }: { domain: string }) =>
+          Effect.succeed(createTenant(domain)),
+        );
+        const databaseLayer = createTenantDatabaseLayer(tenantExecute);
+
+        const result = yield* resolveTenantContext({
+          protocol: 'http',
+          requestHost: 'localhost:4200',
+          routedTenantDomain: 'attacker.example.com/path',
+        }).pipe(Effect.provide(databaseLayer));
+
+        expect(result).toEqual({
+          cause: { domain: '' },
+          tenant: undefined,
+        });
+        expect(tenantExecute).not.toHaveBeenCalled();
+      }),
+  );
+
+  it.effect('fails closed for an unknown normalized host', () =>
     Effect.gen(function* () {
       const tenantExecute = vi.fn(() => Effect.succeed(undefined));
-      const database = createPreparedDatabase({ tenantExecute });
+      const databaseLayer = createTenantDatabaseLayer(tenantExecute);
 
       const result = yield* resolveTenantContext({
-        cookies: {
-          'evorto-tenant': 'tenant.example.com',
-        },
         protocol: 'https',
         requestHost: 'unknown.example.com',
-      }).pipe(Effect.provide(Layer.succeed(Database, database as never)));
+      }).pipe(Effect.provide(databaseLayer));
 
       expect(result).toEqual({
         cause: {
           domain: 'unknown.example.com',
-          tenantCookie: 'tenant.example.com',
         },
         tenant: undefined,
       });
@@ -174,6 +264,71 @@ describe('request-context-resolver', () => {
       });
     }),
   );
+
+  it.effect(
+    'does not query for a missing, repeated, malformed, or non-normalized host',
+    () =>
+      Effect.gen(function* () {
+        const tenantExecute = vi.fn(() =>
+          Effect.succeed(createTenant('tenant.example.com')),
+        );
+        const databaseLayer = createTenantDatabaseLayer(tenantExecute);
+
+        for (const requestHost of [
+          undefined,
+          [],
+          ['tenant.example.com', 'attacker.example.com'],
+          ' tenant.example.com',
+          'tenant.example.com/path',
+          'Tenant.Example.com',
+          '_tenant.example.com',
+          'tenant..example.com',
+          'tenant.example.com.',
+        ] as const) {
+          const result = yield* resolveTenantContext({
+            protocol: 'https',
+            requestHost,
+          }).pipe(Effect.provide(databaseLayer));
+
+          expect(result).toEqual({
+            cause: { domain: '' },
+            tenant: undefined,
+          });
+        }
+
+        expect(tenantExecute).not.toHaveBeenCalled();
+      }),
+  );
+
+  it('only accepts the local test route in the local environment', () => {
+    expect(
+      resolveExplicitTenantDomain({
+        applicationEnvironment: 'local',
+        localTestTenantDomain: 'local-test.example.com',
+        trustedTenantDomain: undefined,
+      }),
+    ).toBe('local-test.example.com');
+
+    for (const applicationEnvironment of ['staging', 'production'] as const) {
+      expect(
+        resolveExplicitTenantDomain({
+          applicationEnvironment,
+          localTestTenantDomain: 'hostile.example.com',
+          trustedTenantDomain: undefined,
+        }),
+      ).toBeUndefined();
+    }
+  });
+
+  it('prefers the domain from an already trusted route', () => {
+    expect(
+      resolveExplicitTenantDomain({
+        applicationEnvironment: 'local',
+        localTestTenantDomain: 'local-test.example.com',
+        trustedTenantDomain: 'trusted.example.com',
+      }),
+    ).toBe('trusted.example.com');
+  });
 
   it('resolves explicit platform authority without granting tenant permissions', () => {
     const oidcUser = {
