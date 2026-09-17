@@ -95,11 +95,28 @@ jobs:
           command -v aws >/dev/null
           jq --exit-status 'type == "object"' <<<"${PROTECTED_SECRET_VALUES}" >/dev/null
 
+      - name: Require the current main production workflow
+        id: forward
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "${GITHUB_REF}" != "refs/heads/main" ]; then
+            echo "::error::Production promotion must be dispatched from main"
+            exit 1
+          fi
+          current_revision="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
+          if [[ ! "${GITHUB_SHA}" =~ ^[0-9a-f]{40}$ ]] || [ "${GITHUB_SHA}" != "${current_revision}" ]; then
+            echo "::error::Production promotion requires a new dispatch from the current main revision"
+            exit 1
+          fi
+          echo "revision=${current_revision}" >> "${GITHUB_OUTPUT}"
+
       - name: Fetch and validate the accepted staging manifest
         id: staging
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.SCW_ACCESS_KEY }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.SCW_SECRET_KEY }}
+          FORWARD_REVISION: ${{ steps.forward.outputs.revision }}
           MANIFEST_KEY: ${{ inputs.staging_manifest_key }}
           STAGING_METADATA_BUCKET: evorto-staging-deployment-${{ vars.BUCKET_SUFFIX }}
         run: |
@@ -114,8 +131,10 @@ jobs:
             --endpoint-url https://s3.fr-par.scw.cloud \
             --only-show-errors
           jq --exit-status \
+            --arg forward_revision "${FORWARD_REVISION}" \
             '.status == "succeeded"
               and .environment == "staging"
+              and .revision == $forward_revision
               and (.revision | test("^[0-9a-f]{40}$"))
               and (.digest | test("^sha256:[0-9a-f]{64}$"))
               and (.schemaHash | test("^[0-9a-f]{64}$"))
@@ -275,6 +294,17 @@ jobs:
           fi
           terraform -chdir=infrastructure/scaleway/production output -json platform > deployment/platform.json
           terraform -chdir=infrastructure/scaleway/production output -json database > deployment/database.json
+
+      - name: Recheck current main before production writes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REVISION: ${{ steps.staging.outputs.revision }}
+        run: |
+          current_revision="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
+          if [ "${REVISION}" != "${GITHUB_SHA}" ] || [ "${REVISION}" != "${current_revision}" ]; then
+            echo "::error::Main changed before production deployment. Accept the current revision in staging and start a new promotion."
+            exit 1
+          fi
 
       - name: Reconcile production role-scoped Secret Manager values
         env:

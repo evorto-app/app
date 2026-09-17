@@ -60,6 +60,156 @@ describe('Scaleway hosting source', () => {
   const digestHash = 'a'.repeat(64);
 
   it.each([
+    { name: 'current accepted revision', expected: [0, 0] },
+    {
+      name: 'non-main dispatch',
+      workflowRef: 'refs/heads/release',
+      expected: [1],
+    },
+    {
+      name: 'old workflow rerun',
+      workflowRevision: 'b'.repeat(40),
+      expected: [1],
+    },
+    { name: 'malformed canonical response', firstMain: 'null', expected: [1] },
+    { name: 'failed initial main read', failFirst: true, expected: [1] },
+    {
+      name: 'main advances during promotion',
+      secondMain: 'b'.repeat(40),
+      expected: [0, 1],
+    },
+    {
+      name: 'selected revision differs from workflow',
+      selectedRevision: 'b'.repeat(40),
+      expected: [0, 1],
+    },
+    { name: 'failed final main read', failSecond: true, expected: [0, 1] },
+  ])('checks both production revision snapshots: $name', (scenario) => {
+    const context = {
+      workflowRef: 'refs/heads/main',
+      workflowRevision: revision,
+      firstMain: revision,
+      secondMain: revision,
+      selectedRevision: revision,
+      failFirst: false,
+      failSecond: false,
+      ...scenario,
+    };
+    const workflow = source('.github/workflows/scaleway-production.yml');
+    const firstStep = between(
+      workflow,
+      '- name: Require the current main production workflow',
+      '- name: Fetch and validate the accepted staging manifest',
+    );
+    const finalStep = between(
+      workflow,
+      '- name: Recheck current main before production writes',
+      '- name: Reconcile production role-scoped Secret Manager values',
+    );
+    const writeGuard = workflow.indexOf(
+      '- name: Recheck current main before production writes',
+    );
+    expect(writeGuard).toBeGreaterThan(
+      workflow.indexOf(
+        '- name: Verify production infrastructure has no pending changes',
+      ),
+    );
+    for (const mutation of [
+      '- name: Reconcile production role-scoped Secret Manager values',
+      '- name: Deploy production ops and apply only a stable safe schema plan',
+      '- name: Deploy production worker and web at the accepted digest',
+    ])
+      expect(writeGuard).toBeLessThan(workflow.indexOf(mutation));
+    const runBody = (step: string) => {
+      const marker = '        run: |\n';
+      const offset = step.indexOf(marker);
+      if (offset < 0) throw new Error('Missing actual production guard script');
+      return step
+        .slice(offset + marker.length)
+        .split('\n')
+        .map((line) => (line.startsWith('          ') ? line.slice(10) : line))
+        .join('\n');
+    };
+    const directory = mkdtempSync(
+      path.join(tmpdir(), 'evorto-production-forward-'),
+    );
+    const output = path.join(directory, 'output');
+    const calls = path.join(directory, 'gh-calls');
+    try {
+      writeFileSync(
+        path.join(directory, 'gh'),
+        String.raw`#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$*" >> "$FAKE_GH_LOG"
+if [ "$*" != 'api repos/evorto-app/app/commits/main --jq .sha' ]; then
+  echo 'Unexpected fake GitHub request' >&2
+  exit 1
+fi
+if [ "$FAKE_GH_FAILURE" = 'true' ]; then
+  echo 'Simulated GitHub read failure' >&2
+  exit 1
+fi
+printf '%s\n' "$FAKE_MAIN_REVISION"
+`,
+        { mode: 0o700 },
+      );
+      const invoke = (step: string, currentMain: string, fail: boolean) =>
+        spawnSync(
+          'bash',
+          [
+            '--noprofile',
+            '--norc',
+            '-e',
+            '-o',
+            'pipefail',
+            '-c',
+            runBody(step) + '\nprintf "guard-passed\\n"',
+          ],
+          {
+            encoding: 'utf8',
+            timeout: 2000,
+            env: {
+              PATH: `${directory}:${process.env['PATH'] ?? ''}`,
+              GH_TOKEN: 'test-token',
+              GITHUB_REPOSITORY: 'evorto-app/app',
+              GITHUB_REF: context.workflowRef,
+              GITHUB_SHA: context.workflowRevision,
+              GITHUB_OUTPUT: output,
+              REVISION: context.selectedRevision,
+              FAKE_MAIN_REVISION: currentMain,
+              FAKE_GH_LOG: calls,
+              FAKE_GH_FAILURE: String(fail),
+            },
+          },
+        );
+      const first = invoke(firstStep, context.firstMain, context.failFirst);
+      expect(first.error).toBeUndefined();
+      expect(first.signal).toBeNull();
+      expect(first.status).toBe(context.expected[0]);
+      if (first.status !== 0) {
+        expect(first.stdout).not.toContain('guard-passed');
+        expect(existsSync(output)).toBe(false);
+        if (context.workflowRef !== 'refs/heads/main')
+          expect(existsSync(calls)).toBe(false);
+        return;
+      }
+      expect(readFileSync(output, 'utf8')).toBe(`revision=${revision}\n`);
+      const final = invoke(finalStep, context.secondMain, context.failSecond);
+      expect(final.error).toBeUndefined();
+      expect(final.signal).toBeNull();
+      expect(final.status).toBe(context.expected[1]);
+      if (final.status === 0) expect(final.stdout).toBe('guard-passed\n');
+      else expect(final.stdout).not.toContain('guard-passed');
+      expect(readFileSync(calls, 'utf8').trim().split('\n')).toEqual([
+        'api repos/evorto-app/app/commits/main --jq .sha',
+        'api repos/evorto-app/app/commits/main --jq .sha',
+      ]);
+    } finally {
+      rmSync(directory, { force: true, recursive: true });
+    }
+  });
+
+  it.each([
     {
       name: 'matching image digest and artifact keys',
       overrides: {},
@@ -193,6 +343,15 @@ describe('Scaleway hosting source', () => {
   it.each([
     { name: 'matching artifact keys', overrides: {}, expectedStatus: 0 },
     {
+      name: 'successful historical revision with internally matching artifacts',
+      overrides: {
+        revision: 'e'.repeat(40),
+        sourceMapsKey: `source-maps/${'e'.repeat(40)}/${digestHash}.tar.gz`,
+        sbomKey: `sbom/${'e'.repeat(40)}/${digestHash}.spdx.json`,
+      },
+      expectedStatus: 1,
+    },
+    {
       name: 'image for a different digest',
       overrides: {
         image: `rg.fr-par.scw.cloud/evorto-staging/evorto@sha256:${'b'.repeat(64)}`,
@@ -234,22 +393,32 @@ describe('Scaleway hosting source', () => {
       if (!predicate) {
         throw new Error('Missing production manifest validation predicate');
       }
+      expect(validation).toContain(
+        'FORWARD_REVISION: ${{ steps.forward.outputs.revision }}',
+      );
+      expect(validation).toContain(
+        '--arg forward_revision "${FORWARD_REVISION}"',
+      );
       const digest = `sha256:${digestHash}`;
-      const result = spawnSync('jq', ['--exit-status', predicate], {
-        encoding: 'utf8',
-        input: JSON.stringify({
-          digest,
-          environment: 'staging',
-          image: `rg.fr-par.scw.cloud/evorto-staging/evorto@${digest}`,
-          revision,
-          sbomKey: `sbom/${revision}/${digestHash}.spdx.json`,
-          schemaHash: 'c'.repeat(64),
-          sourceMapsKey: `source-maps/${revision}/${digestHash}.tar.gz`,
-          status: 'succeeded',
-          ...overrides,
-        }),
-        timeout: 5000,
-      });
+      const result = spawnSync(
+        'jq',
+        ['--exit-status', '--arg', 'forward_revision', revision, predicate],
+        {
+          encoding: 'utf8',
+          input: JSON.stringify({
+            digest,
+            environment: 'staging',
+            image: `rg.fr-par.scw.cloud/evorto-staging/evorto@${digest}`,
+            revision,
+            sbomKey: `sbom/${revision}/${digestHash}.spdx.json`,
+            schemaHash: 'c'.repeat(64),
+            sourceMapsKey: `source-maps/${revision}/${digestHash}.tar.gz`,
+            status: 'succeeded',
+            ...overrides,
+          }),
+          timeout: 5000,
+        },
+      );
       expect(result.error).toBeUndefined();
       expect(result.stderr).toBe('');
       expect(result.status).toBe(expectedStatus);
@@ -728,7 +897,7 @@ fi
       const validation = between(
         steps,
         '- name: Validate explicit production enablement and protected configuration',
-        '      - name: Fetch and validate the accepted staging manifest',
+        '      - name: Require the current main production workflow',
       );
       expect(validation).toContain(
         'PRODUCTION_ENABLED: ${{ vars.PRODUCTION_ENABLED }}',
@@ -873,7 +1042,18 @@ ${runBody.replace(/^ {10}/gmu, '').trim()}`,
     expect(productionMain).toMatch(/database_is_ha\s+= true/u);
     expect(productionMain).toMatch(/database_backup_retention_days\s+= 30/u);
     expect(bootstrapIam).toContain('"IPAMReadOnly"');
-    expect(database).toContain('prevent_destroy = true');
+    for (const [resource, nextResource] of [
+      ['scaleway_rdb_instance', 'scaleway_rdb_database'],
+      ['scaleway_rdb_database', 'scaleway_rdb_privilege'],
+    ]) {
+      expect(
+        between(
+          database,
+          `resource "${resource}" "application" {`,
+          `resource "${nextResource}"`,
+        ),
+      ).toMatch(/lifecycle\s*\{\s*prevent_destroy\s*=\s*true\s*\}/u);
+    }
   });
 
   it('verifies managed Drizzle schema connections against the database identity', () => {

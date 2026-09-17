@@ -303,9 +303,25 @@ the first validation step requires its value to be exactly `true`; a false,
 missing, or other value fails the job before external commands. Environment
 variables are available only after the job starts, so this check belongs in the
 protected step rather than the job condition. The workflow then accepts only an
-immutable, successful staging manifest, copies that exact digest into the
-production registry without rebuilding, requires an empty read-only production
-Terraform plan, applies a safe schema plan, and smokes `alpha.evorto.app`.
+immutable, successful staging manifest for the current canonical `main` SHA.
+The workflow must itself be dispatched from that revision on `main`; queued
+older dispatches and reruns fail the fresh revision check. It copies the exact
+accepted digest into the production registry without rebuilding, requires an
+empty read-only production Terraform plan, then rechecks canonical `main`
+immediately before reconciling production secrets and deploying the ops role.
+It applies a safe schema plan, deploys worker/web, and smokes `alpha.evorto.app`.
+
+These revision checks prevent selecting an older accepted release through this
+workflow. They do not establish compatibility with an already-applied schema
+or protect against out-of-band changes or rewritten branch history. The schema
+explain/apply checks and coordinated compatibility review remain required.
+
+Both the managed database instance and the application database declare
+`prevent_destroy`. This blocks Terraform destruction or replacement while their
+resource blocks remain in the configuration; removing a resource block also
+removes its protection and requires explicit data-retention review. The protected
+staging reset workflow resets and seeds through its private ops endpoint without
+removing either Terraform database resource.
 
 ## Operational drills
 
