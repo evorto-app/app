@@ -722,6 +722,52 @@ describe('EventDetailsComponent load recovery', () => {
     ).toBeNull();
   });
 
+  it.each([
+    { announcementRoleIds: [], expected: false, hasRegistrationOptions: true },
+    {
+      announcementRoleIds: ['role-member'],
+      expected: false,
+      hasRegistrationOptions: true,
+    },
+    { announcementRoleIds: [], expected: true, hasRegistrationOptions: false },
+    {
+      announcementRoleIds: ['role-member'],
+      expected: true,
+      hasRegistrationOptions: false,
+    },
+  ])(
+    'uses authoritative event kind for the announcement panel: $hasRegistrationOptions/$expected',
+    async ({ announcementRoleIds, expected, hasRegistrationOptions }) => {
+      announcementPermission.set(true);
+      findEvent.mockResolvedValue({
+        ...eventDetails,
+        announcementRoleIds,
+        hasRegistrationOptions,
+        // A normal event may have no sign-up choices eligible for this viewer.
+        registrationOptions: [],
+        registrationOptionsHiddenByEligibility: hasRegistrationOptions,
+      });
+      findRegistrationStatus.mockResolvedValue({
+        isRegistered: false,
+        outgoingTransfers: [],
+        registrations: [],
+      });
+      const fixture = render();
+      await vi.waitFor(async () => {
+        await fixture.whenStable();
+        fixture.detectChanges();
+        expect(normalizeText(fixture)).toContain('Recovery workshop');
+      });
+      expect(
+        normalizeText(fixture).includes('Who can find this announcement'),
+      ).toBe(expected);
+      if (expected)
+        expect(normalizeText(fixture)).not.toContain(
+          'Based on sign-up choices',
+        );
+    },
+  );
+
   it('does not load discount cards for a signed-out visitor', async () => {
     findAuthentication.mockResolvedValue(false);
     findEvent.mockResolvedValue(eventDetails);
@@ -1378,7 +1424,7 @@ describe('EventDetailsComponent review action outcomes', () => {
         return 'The event was approved, but some event information could not be refreshed. Load this event again before making another change.';
       }
       case 'discovery': {
-        return 'Who can find the announcement was updated, but the latest event details could not be loaded. Load this event again before making another change.';
+        return 'Who can find the announcement was updated, but some event information could not be refreshed. Load this event again before making another change.';
       }
       case 'returnToDraft': {
         return 'The event was returned to draft, but some event information could not be refreshed. Load this event again before making another change.';

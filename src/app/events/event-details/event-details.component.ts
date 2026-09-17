@@ -740,7 +740,7 @@ export class EventDetailsComponent {
       if (actionStep === 'refresh') {
         this.showReviewActionError(
           eventId,
-          'Who can find the announcement was updated, but the latest event details could not be loaded. Load this event again before making another change.',
+          'Who can find the announcement was updated, but some event information could not be refreshed. Load this event again before making another change.',
         );
       } else if (actionStep === 'confirmation') {
         this.showReviewActionError(
@@ -768,7 +768,7 @@ export class EventDetailsComponent {
           this.showReviewActionError(
             eventId,
             message +
-              ' The latest event details could not be loaded. Check the event list before making another change.',
+              ' Some event information could not be refreshed. Check the event list before making another change.',
           );
         }
       }

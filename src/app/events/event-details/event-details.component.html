@@ -293,7 +293,11 @@
           ></div>
         </section>
 
-        @if (eventQuery.data().announcementRoleIds; as announcementRoleIds) {
+        @if (
+          !eventQuery.data().hasRegistrationOptions &&
+            eventQuery.data().announcementRoleIds;
+          as announcementRoleIds
+        ) {
           <section class="bg-surface text-on-surface rounded-2xl p-4">
             <h2 class="title-medium">Who can find this announcement</h2>
             <p class="body-medium mt-2">
