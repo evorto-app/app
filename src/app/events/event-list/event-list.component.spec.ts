@@ -1,5 +1,7 @@
+import type { Permission } from '@shared/permissions/permissions';
 import type { EventsEventListDayRecord } from '@shared/rpc-contracts/app-rpcs/events.rpcs';
 
+import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
 import {
   ApplicationRef,
   createEnvironmentInjector,
@@ -8,6 +10,7 @@ import {
   signal,
 } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { MatMenuHarness } from '@angular/material/menu/testing';
 import { provideRouter } from '@angular/router';
 import { createRpcQueryKey } from '@heddendorp/effect-angular-query';
 import { provideTanStackQuery } from '@tanstack/angular-query-experimental';
@@ -144,6 +147,80 @@ describe('EventListComponent load recovery', () => {
     expect(refetchEvents).toHaveBeenCalledOnce();
     expect(fixture.nativeElement.querySelector('[role="alert"]')).toBeNull();
   });
+
+  const renderWithPermissions = (initialPermissions: Permission[]) => {
+    const permissions = signal(initialPermissions);
+    TestBed.overrideProvider(ConfigService, {
+      useValue: {
+        get permissions() {
+          return permissions();
+        },
+        updateTitle: vi.fn(),
+      },
+    });
+    TestBed.overrideProvider(PermissionsService, {
+      useFactory: () => new PermissionsService(),
+    });
+    eventQueryState.set('success');
+    const fixture = TestBed.createComponent(EventListComponent);
+    fixture.detectChanges();
+    const root: unknown = fixture.nativeElement;
+    if (!(root instanceof HTMLElement))
+      throw new Error('Expected the rendered event list.');
+    return { fixture, permissions, root };
+  };
+
+  it.each([
+    { label: 'anonymous', permissions: [] },
+    { label: 'member', permissions: ['events:viewPublic'] },
+    { label: 'reviewer', permissions: ['events:review'] },
+  ] satisfies { label: string; permissions: Permission[] }[])(
+    'keeps public event links without an empty actions menu for $label',
+    ({ permissions }) => {
+      const { root } = renderWithPermissions(permissions);
+
+      expect(root.querySelector('a[href="/event-1"]')?.textContent).toContain(
+        'Recovery workshop',
+      );
+      expect(
+        root.querySelector('[aria-label="Open event list actions"]'),
+      ).toBeNull();
+      expect(root.querySelector('a[href="/templates"]')).toBeNull();
+    },
+  );
+
+  it.each(['events:create', 'events:*'] satisfies Permission[])(
+    'keeps the working creation menu for %s and removes it when access is revoked',
+    async (permission) => {
+      const { fixture, permissions, root } = renderWithPermissions([
+        permission,
+      ]);
+      const menu = await TestbedHarnessEnvironment.loader(fixture).getHarness(
+        MatMenuHarness.with({
+          selector: '[aria-label="Open event list actions"]',
+        }),
+      );
+      await menu.open();
+      const items = await menu.getItems();
+      expect(items).toHaveLength(1);
+      const [createEvent] = items;
+      if (!createEvent) throw new Error('Expected the create event action.');
+      expect(await createEvent.getText()).toBe('Create Event');
+      const createEventLink = await createEvent.host();
+      expect(await createEventLink.getAttribute('href')).toBe('/templates');
+      await menu.close();
+      permissions.set([]);
+      fixture.detectChanges();
+      await fixture.whenStable();
+
+      expect(
+        root.querySelector('[aria-label="Open event list actions"]'),
+      ).toBeNull();
+      expect(root.querySelector('a[href="/event-1"]')?.textContent).toContain(
+        'Recovery workshop',
+      );
+    },
+  );
 
   it('has no filter control without a complete filtering product flow', () => {
     TestBed.overrideProvider(PermissionsService, {
