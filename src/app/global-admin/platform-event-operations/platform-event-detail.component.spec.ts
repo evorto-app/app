@@ -128,7 +128,7 @@ describe('platform event registration-mode compatibility', () => {
       'utf8',
     );
 
-    expect(template).toContain('Update registration mode');
+    expect(template).not.toContain('Update registration mode');
     expect(template).not.toContain('· {{ option.id }}');
     expect(template).not.toContain('errorMessage(');
     expect(template).not.toContain('getErrorMessage(');
