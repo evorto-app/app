@@ -71,6 +71,11 @@ export const emailOutbox = pgTable(
       table.createdAt,
     ),
     idempotencyKeyUnique: unique().on(table.idempotencyKey),
+    overviewIndex: index('email_outbox_overview_idx').on(
+      table.status,
+      table.updatedAt.desc().nullsFirst(),
+      table.id.asc(),
+    ),
     singleDispatchAttemptsCheck: check(
       'email_outbox_single_dispatch_attempts_check',
       sql`(

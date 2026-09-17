@@ -29,6 +29,9 @@ describe('email outbox schema', () => {
     const dispatchIndex = tableConfig.indexes.find(
       (index) => index.config.name === 'email_outbox_dispatch_idx',
     );
+    const overviewIndex = tableConfig.indexes.find(
+      (index) => index.config.name === 'email_outbox_overview_idx',
+    );
     const singleDispatchCheck = tableConfig.checks.find(
       (check) => check.name === 'email_outbox_single_dispatch_attempts_check',
     );
@@ -62,6 +65,11 @@ describe('email outbox schema', () => {
     expect(
       tableConfig.columns.some((column) => column.name === 'from_name'),
     ).toBe(false);
+    expect(overviewIndex?.config.columns).toMatchObject([
+      { indexConfig: { nulls: 'last', order: 'asc' }, name: 'status' },
+      { indexConfig: { nulls: 'first', order: 'desc' }, name: 'updatedAt' },
+      { indexConfig: { nulls: 'last', order: 'asc' }, name: 'id' },
+    ]);
     expect(singleDispatchCheck).toBeDefined();
   });
 });

@@ -302,7 +302,7 @@ const failedMessage =
 const unknownMessage =
   'Evorto could not confirm whether this email was sent. It will not try again automatically, to avoid sending it twice.';
 const suppressedMessage =
-  'This email was not sent because this address cannot receive organization emails.';
+  'Sending was withheld by the environment recipient policy.';
 
 type CapturedOutboxInsert = Pick<
   OutboxRow,
@@ -831,7 +831,7 @@ describe('email delivery', () => {
           claimLeaseExpiresAt: null,
           claimLeaseId: null,
           lastError:
-            'This email was not sent because this address cannot receive organization emails.',
+            'Sending was withheld by the environment recipient policy.',
           provider: 'tem',
           status: 'suppressed',
           suppressedAt: expect.any(Date),

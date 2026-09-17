@@ -59,7 +59,7 @@ import {
 import { PlatformAdministratorAuthority } from '../../../../types/custom/platform-authority';
 import {
   emailOutboxAbandonedSendingPredicate,
-  emailOutboxOverviewOrderBy,
+  emailOutboxOverviewCandidates,
 } from '../../../notifications/email-outbox-lease';
 import { normalizeTenantPrivacyPolicy } from '../../../onboarding/tenant-onboarding.service';
 import { tenantHasPendingStripeObligations } from '../../../payments/pending-stripe-obligations';
@@ -619,6 +619,7 @@ export const globalAdminHandlers = {
   'globalAdmin.emailOutbox.findOverview': (_payload, _options) =>
     Effect.gen(function* () {
       yield* requirePlatformAdministrator();
+      const candidates = emailOutboxOverviewCandidates();
       const [statusCounts, staleSendingRows, itemRows] = yield* databaseEffect(
         (database) =>
           Effect.all([
@@ -652,18 +653,12 @@ export const globalAdminHandlers = {
               })
               .from(emailOutbox)
               .innerJoin(tenants, eq(emailOutbox.tenantId, tenants.id))
-              .where(
-                inArray(emailOutbox.status, [
-                  'queued',
-                  'sending',
-                  'sent',
-                  'failed',
-                  'deliveryUnknown',
-                  'suppressed',
-                ]),
-              )
-              .orderBy(...emailOutboxOverviewOrderBy())
-              .limit(100),
+              .innerJoin(candidates, eq(emailOutbox.id, candidates.id))
+              .orderBy(
+                asc(candidates.incidentRank),
+                desc(candidates.updatedAt),
+                asc(candidates.id),
+              ),
           ]),
       );
       const summary = {

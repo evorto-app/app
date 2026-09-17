@@ -116,7 +116,7 @@ interface TenantEmailSender {
 const failedDeliveryMessage =
   'This email could not be sent. Check the recipient address and email settings.';
 const suppressedDeliveryMessage =
-  'This email was not sent because this address cannot receive organization emails.';
+  'Sending was withheld by the environment recipient policy.';
 const unknownDeliveryMessage =
   'Evorto could not confirm whether this email was sent. It will not try again automatically, to avoid sending it twice.';
 

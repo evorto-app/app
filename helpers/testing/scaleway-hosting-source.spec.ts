@@ -744,8 +744,10 @@ fi
       expect(privateRole).toContain('privacy                = "private"');
       expect(privateRole).toContain('min_scale              = 0');
       expect(privateRole).toContain('max_scale              = 1');
-      expect(privateRole.match(/path = "\/healthz"/gu)).toHaveLength(2);
     }
+    expect(worker.match(/path = "\/readyz"/gu)).toHaveLength(1);
+    expect(worker.match(/path = "\/healthz"/gu)).toHaveLength(1);
+    expect(ops.match(/path = "\/healthz"/gu)).toHaveLength(2);
     expect(mainMinScale(source('infrastructure/scaleway/main.tf'))).toEqual({
       production: 1,
       staging: 0,

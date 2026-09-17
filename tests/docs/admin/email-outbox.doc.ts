@@ -40,7 +40,7 @@ Only people who manage Evorto as a whole can use this page. The Admin role for o
 {% /callout %}
 
 
-Open **Email outbox** from **Platform administration** to review **Email delivery**. This page shows recent messages for every organization. It tells you whether each message is waiting, being sent, could not be sent, was sent, could not be confirmed, or was not sent because the address cannot receive organization emails. The page does not show message contents or offer a resend action.
+Open **Email outbox** from **Platform administration** to review **Email delivery**. This page shows recent messages for every organization. It tells you whether each message is waiting, being sent, could not be sent, was sent, could not be confirmed, or was withheld by the environment recipient policy. The page does not show message contents or offer a resend action.
 `,
   });
 
@@ -129,7 +129,7 @@ Each row identifies the organization, recipient, purpose, and relevant times. Ch
 - **Could not send** means sending failed and Evorto will not try again automatically.
 - **Sent** means Evorto sent the message.
 - **Delivery not confirmed** means Evorto could not confirm delivery and will not send the message again, avoiding a duplicate.
-- **Not sent** means the address cannot receive organization emails.
+- **Not sent** means the environment recipient policy withheld the message. In staging, only allowlisted recipients can receive email. This does not mean the address is invalid.
 
 There is currently no search or resend action on this page. **Check again** shows the latest information but does not send anything.
 `,
