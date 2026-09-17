@@ -6,6 +6,12 @@
 </div>
 
 <main>
+  @if (saveFollowUpMessage()) {
+    <div class="text-error mb-4 grid gap-1" role="alert">
+      <p>{{ saveFollowUpMessage() }}</p>
+      <p>Your entries are still here.</p>
+    </div>
+  }
   @if (templateQuery.isPending()) {
     <p role="status" aria-live="polite">Loading template...</p>
   } @else if (templateQuery.isError()) {
@@ -85,26 +91,67 @@
             is loading.
           </p>
         } @else if (paidControlsUnavailable()) {
+          @if (paidGraphBlocked()) {
+            <p class="text-error mb-4 text-sm" role="alert">
+              This template contains paid registration options or add-ons.
+              Existing payment details are preserved. Saving is unavailable
+              until this organization has a connected Stripe account.
+            </p>
+          } @else {
+            <p class="text-on-surface-variant mb-4 text-sm" role="status">
+              Paid controls are unavailable because this organization has no
+              connected Stripe account.
+            </p>
+          }
+        }
+        @if (discountProviderState() === "error") {
+          <div class="text-error mb-4 grid gap-2" role="alert">
+            <p>
+              Discount settings could not be loaded. Prices remain unchanged and
+              saving is unavailable.
+            </p>
+            <button
+              mat-stroked-button
+              type="button"
+              (click)="discountProvidersQuery.refetch()"
+            >
+              Try again
+            </button>
+          </div>
+        } @else if (!authoringProvidersReady() && taxRateState() !== "error") {
           <p class="text-on-surface-variant mb-4 text-sm" role="status">
-            Paid controls are unavailable because this organization has no
-            connected Stripe account. Saving keeps registration options and
-            add-ons free.
+            Wait for discount settings and tax rates to finish loading before
+            saving.
           </p>
+        }
+        @if (taxRateState() === "error") {
+          <div class="text-error mb-4 grid gap-2" role="alert">
+            <p>
+              Tax rates could not be loaded. Tax choices remain unchanged and
+              saving is unavailable.
+            </p>
+            <button
+              mat-stroked-button
+              type="button"
+              (click)="taxRatesQuery.refetch()"
+            >
+              Try again
+            </button>
+          </div>
         }
         <app-template-graph-editor
           [defaultParticipantRoleIds]="defaultParticipantRoleIds()"
           [esnEnabled]="esnEnabled()"
           [graphForm]="templateForm"
-          [persistedTemplate]="templateQuery.data()"
-          [taxRates]="taxRatesQuery.data() ?? []"
+          [taxRates]="availableTaxRates() ?? []"
           [taxRateState]="taxRateState()"
         />
       </section>
 
-      @if (updateTemplateMutation.isError()) {
+      @if (updateTemplateMutation.isError() && !saveFollowUpMessage()) {
         <div class="text-error grid gap-1" role="alert">
-          <p>The template could not be saved.</p>
-          <p>Your entries are still here. Review them and try again.</p>
+          <p>{{ updateErrorMessage() }}</p>
+          <p>Your entries are still here.</p>
         </div>
       }
 

@@ -44,6 +44,7 @@ import {
 } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
+import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
 import {
   majorCurrencyInputToMinorUnits,
@@ -385,6 +386,23 @@ export const resetPlatformEventGraphPayments = <
   return unchanged ? model : { ...model, addOns, registrationOptions };
 };
 
+export const platformEventMutationErrorMessage = (
+  error: unknown,
+  fallback: string,
+): string => {
+  const tag =
+    typeof error === 'object' && error !== null && '_tag' in error
+      ? error._tag
+      : null;
+  if (tag === 'RpcForbiddenError') {
+    return 'You do not have access to make this change. Ask your administrator for help.';
+  }
+  if (tag === 'RpcUnauthorizedError') {
+    return 'Sign in again before changing this event.';
+  }
+  return getErrorMessage(error, fallback, ['RpcBadRequestError']);
+};
+
 const textInputValue = (event: Event): string | undefined =>
   event.target instanceof HTMLInputElement ||
   event.target instanceof HTMLTextAreaElement
@@ -517,7 +535,6 @@ export class PlatformEventDetailComponent {
   protected readonly formOptionsQuery = injectQuery(() =>
     this.operations.formOptions(this.tenantId()),
   );
-
   private readonly editModel = signal<PlatformEventEditFormModel>({
     description: '',
     end: '',
@@ -560,6 +577,7 @@ export class PlatformEventDetailComponent {
       message: 'Reason must be 500 characters or fewer.',
     });
   });
+
   protected readonly eventEditorIsReadOnly = platformEventEditorIsReadOnly;
   protected readonly eventQuery = injectQuery(() =>
     this.operations.findOne(this.tenantId(), this.eventId()),
@@ -589,6 +607,8 @@ export class PlatformEventDetailComponent {
         taxRateIds: this.availableTaxRateIds(),
       }),
   );
+  protected readonly graphSaveMessage = signal('');
+  protected readonly graphSavePending = signal(false);
   protected readonly hasInvalidRegistrationWindowOrder = computed(() =>
     this.graphModel().registrationOptions.some(
       (option) => !platformEventRegistrationWindowHasValidOrder(option),
@@ -843,6 +863,8 @@ export class PlatformEventDetailComponent {
 
   protected mutationPending(): boolean {
     return (
+      this.graphSavePending() ||
+      this.editForm().submitting() ||
       this.listingMutation.isPending() ||
       this.reviewMutation.isPending() ||
       this.submitMutation.isPending() ||
@@ -960,6 +982,9 @@ export class PlatformEventDetailComponent {
         graph.registrationOptions,
       );
       if (!registrationOptions) return;
+      this.graphSavePending.set(true);
+      this.graphSaveMessage.set('');
+      let changeConfirmed = false;
       try {
         await this.updateMutation.mutateAsync({
           addOns: graph.addOns,
@@ -975,12 +1000,20 @@ export class PlatformEventDetailComponent {
           targetTenantId: this.tenantId(),
           title: value.title,
         });
-        await this.refresh();
+        changeConfirmed = true;
+        await this.refreshSavedGraph();
         this.notifications.showSuccess('Event updated');
-      } catch {
-        this.notifications.showError(
-          'The event could not be updated. Review the details and try again.',
-        );
+      } catch (error) {
+        const message = changeConfirmed
+          ? 'The event was updated, but the latest event information could not be loaded. Load this page again to check the saved details.'
+          : platformEventMutationErrorMessage(
+              error,
+              'The event update could not be confirmed. Load this page again and check the current event before trying again.',
+            );
+        this.graphSaveMessage.set(message);
+        this.notifications.showError(message);
+      } finally {
+        this.graphSavePending.set(false);
       }
     });
   }
@@ -1370,6 +1403,38 @@ export class PlatformEventDetailComponent {
   private async refresh(): Promise<void> {
     await this.queryClient.invalidateQueries(this.operations.eventFilter());
     await this.eventQuery.refetch();
+  }
+
+  private async refreshSavedGraph(): Promise<void> {
+    const filter = this.operations.eventFilter();
+    const activeQueries = this.queryClient
+      .getQueryCache()
+      .findAll({ ...filter, type: 'active' })
+      .filter((query) => !query.isDisabled() && !query.isStatic());
+    const invalidation = this.queryClient.invalidateQueries(filter, {
+      throwOnError: true,
+    });
+    // Invalidation may reject before another matching active query settles.
+    const siblingReads = activeQueries
+      .filter((query) => query.state.fetchStatus === 'fetching')
+      .map((query) => query.promise);
+    const invalidationResults = await Promise.allSettled([
+      invalidation,
+      ...siblingReads,
+    ]);
+    const detailResults = await Promise.allSettled([
+      this.eventQuery.refetch({ throwOnError: true }),
+    ]);
+    const failures: unknown[] = [];
+    for (const result of [...invalidationResults, ...detailResults]) {
+      if (result.status === 'rejected') failures.push(result.reason);
+    }
+    if (failures.length > 0) {
+      throw new AggregateError(
+        failures,
+        'Platform event follow-up reads failed',
+      );
+    }
   }
 
   private review(approved: boolean): void {

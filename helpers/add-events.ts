@@ -402,7 +402,7 @@ const createEvents = (
       registrationOptions.push(
         {
           closeRegistrationTime,
-          description: `${template.title} registration ${index + 1}`,
+          description: `${template.title} attendee sign-up ${index + 1}`,
           eventId,
           id: participantOptionId,
           isPaid: options.paid,
@@ -418,7 +418,7 @@ const createEvents = (
         },
         {
           closeRegistrationTime,
-          description: `${template.title} registration ${index + 1}`,
+          description: `${template.title} organizer sign-up ${index + 1}`,
           eventId,
           id: organizerOptionId,
           isPaid: options.paid,
@@ -430,7 +430,7 @@ const createEvents = (
           roleIds: defaultOrganizerRoles.map((role) => role.id),
           spots: 3,
           stripeTaxRateId: organizerTaxRateId,
-          title: 'Organizer registration',
+          title: 'Organizer sign-up',
         },
       );
 

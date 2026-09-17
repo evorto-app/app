@@ -613,7 +613,7 @@ describe('platform event, template, and registration handlers', () => {
     expect(platformEventAddonMappingRemovalError(true)).toMatchObject({
       _tag: 'RpcBadRequestError',
       message:
-        'An add-on that has already been purchased must remain available with its existing registration option',
+        'An add-on that has already been bought must remain available with its current sign-up choice.',
       reason: 'eventAddonMappingInUse',
     });
   });

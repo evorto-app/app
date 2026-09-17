@@ -239,7 +239,7 @@ describe('eventGraphFormSchema', () => {
         .errors()
         .map((error) => error.message),
     ).toContain(
-      `Each person can get at most ${MAX_REGISTRATION_ADDON_QUANTITY} items.`,
+      `Each person can buy at most ${MAX_REGISTRATION_ADDON_QUANTITY} items.`,
     );
 
     graph.addOns[0]

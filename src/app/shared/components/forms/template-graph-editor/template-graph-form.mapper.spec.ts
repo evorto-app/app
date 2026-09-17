@@ -181,6 +181,22 @@ describe('template graph edit classification', () => {
       error: legacyRandomTemplateEditMessage,
     });
   });
+
+  it('explains a missing sign-up choice without exposing storage terms', () => {
+    const source = simpleTemplate();
+    const result = templateGraphRecordToFormModel({
+      ...source,
+      questions: source.questions.map((question) => ({
+        ...question,
+        registrationOptionId: 'missing-choice',
+      })),
+    });
+
+    expect(result).toEqual({
+      error:
+        'A sign-up question or add-on points to a choice that no longer exists. Ask Evorto support to repair this template before editing it.',
+    });
+  });
 });
 
 describe('template graph location mapping', () => {

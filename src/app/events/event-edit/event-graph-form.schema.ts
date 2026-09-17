@@ -19,7 +19,6 @@ import {
   MAX_REGISTRATION_QUESTION_TITLE_LENGTH,
   MAX_REGISTRATION_QUESTIONS,
 } from '@shared/registration-question-limits';
-import { hasTemporaryRichTextImageSources } from '@shared/utils/rich-text-media';
 
 import type { EventGraphFormModel } from './event-graph-form.model';
 
@@ -42,21 +41,12 @@ const positiveIntegerError = (value: number) =>
       }
     : undefined;
 
-const richTextUploadError = (value: string) =>
-  hasTemporaryRichTextImageSources(value)
-    ? {
-        kind: 'richTextPendingUpload',
-        message: 'Wait for image uploads to finish before saving.',
-      }
-    : undefined;
-
 export const eventGraphFormSchema = schema<EventGraphFormModel>((form) => {
   required(form.title, { message: 'Enter an event title.' });
   required(form.description, { message: 'Enter an event description.' });
   required(form.icon, { message: 'Choose an event icon.' });
   required(form.start, { message: 'Enter an event start.' });
   required(form.end, { message: 'Enter an event end.' });
-  validate(form.description, ({ value }) => richTextUploadError(value()));
   validate(form.end, ({ value, valueOf }) => {
     const end = value();
     const start = valueOf(form.start);
@@ -106,10 +96,6 @@ export const eventGraphFormSchema = schema<EventGraphFormModel>((form) => {
     required(option.closeRegistrationTime, {
       message: 'Enter a registration closing time.',
     });
-    validate(option.description, ({ value }) => richTextUploadError(value()));
-    validate(option.registeredDescription, ({ value }) =>
-      richTextUploadError(value()),
-    );
     validate(option.closeRegistrationTime, ({ value, valueOf }) => {
       const close = value();
       const open = valueOf(option.openRegistrationTime);
@@ -176,7 +162,7 @@ export const eventGraphFormSchema = schema<EventGraphFormModel>((form) => {
       },
     );
     required(question.registrationOptionKey, {
-      message: 'Choose the registration option that receives this question.',
+      message: 'Choose the sign-up choice that receives this question.',
     });
     required(question.sortOrder, { message: 'Enter a sort order.' });
     min(question.sortOrder, 0, { message: 'Sort order cannot be negative.' });
@@ -198,7 +184,6 @@ export const eventGraphFormSchema = schema<EventGraphFormModel>((form) => {
 
   applyEach(form.addOns, (addOn) => {
     required(addOn.title, { message: 'Enter an add-on name.' });
-    validate(addOn.description, ({ value }) => richTextUploadError(value()));
     required(addOn.price, {
       message: 'Enter a price.',
       when: ({ valueOf }) => valueOf(addOn.isPaid),
@@ -211,7 +196,7 @@ export const eventGraphFormSchema = schema<EventGraphFormModel>((form) => {
       message: 'Enter a per-user maximum.',
     });
     max(addOn.maxQuantityPerUser, MAX_REGISTRATION_ADDON_QUANTITY, {
-      message: `Each person can get at most ${MAX_REGISTRATION_ADDON_QUANTITY} items.`,
+      message: `Each person can buy at most ${MAX_REGISTRATION_ADDON_QUANTITY} items.`,
     });
     validate(addOn.maxQuantityPerUser, ({ value }) =>
       positiveIntegerError(value()),
@@ -241,12 +226,12 @@ export const eventGraphFormSchema = schema<EventGraphFormModel>((form) => {
         ? undefined
         : {
             kind: 'duplicateRegistrationOption',
-            message: 'Each registration option can be mapped only once.',
+            message: 'Each sign-up choice can be mapped only once.',
           };
     });
     applyEach(addOn.registrationOptions, (mapping) => {
       required(mapping.registrationOptionKey, {
-        message: 'Choose a registration option.',
+        message: 'Choose a sign-up choice.',
       });
       required(mapping.includedQuantity, {
         message: 'Enter an included quantity.',

@@ -28,6 +28,8 @@ describe('IconSelectorDialogComponent accessibility', () => {
       'class="bg-surface text-on-surface break-all rounded px-2 text-sm"',
     );
     expect(template).toContain('class="text-on-surface!">Cancel</button>');
+    expect(template).toContain("We couldn't load the icons.");
+    expect(template).toContain('iconSearchQuery.refetch()');
   });
 });
 

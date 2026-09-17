@@ -4,8 +4,8 @@
     {{
       option.title().value().trim() ||
         (option.organizingRegistration().value()
-          ? "Organizing option"
-          : "Registration option")
+          ? "Organizer choice"
+          : "Sign-up choice")
     }}
   </legend>
 
@@ -14,13 +14,13 @@
       <p class="body-small text-on-surface-variant">
         {{
           option.organizingRegistration().value()
-            ? "Organizing registration"
-            : "Non-organizing registration"
+            ? "Organizer choice"
+            : "Attendee choice"
         }}
       </p>
     } @else {
       <mat-checkbox [formField]="option.organizingRegistration">
-        Organizing option
+        Organizer choice
       </mat-checkbox>
       <button
         mat-button
@@ -29,7 +29,7 @@
         (click)="remove.emit()"
       >
         <fa-duotone-icon [icon]="faTrashCan" />
-        Remove option
+        Remove choice
       </button>
     }
   </div>
@@ -41,7 +41,7 @@
   }
 
   <mat-form-field>
-    <mat-label>Registration option name</mat-label>
+    <mat-label>Sign-up choice name</mat-label>
     <input matInput [formField]="option.title" />
     @for (error of option.title().errors(); track error) {
       <mat-error>{{ error.message }}</mat-error>
@@ -55,7 +55,7 @@
     </section>
     <section class="grid gap-2">
       <span class="text-on-surface-variant text-sm">
-        Description for registered users
+        Description after sign-up
       </span>
       <app-editor [control]="option.registeredDescription" />
     </section>
@@ -65,7 +65,7 @@
 
   <div class="grid gap-4 @sm:grid-cols-2">
     <mat-form-field>
-      <mat-label>Registration mode</mat-label>
+      <mat-label>How sign-ups are confirmed</mat-label>
       <mat-select [formField]="option.registrationMode">
         @for (mode of registrationModes; track mode) {
           <mat-option [value]="mode">{{
@@ -75,7 +75,7 @@
       </mat-select>
     </mat-form-field>
     <mat-form-field>
-      <mat-label>Spots</mat-label>
+      <mat-label>Places</mat-label>
       <input matInput type="number" [formField]="option.spots" />
       @for (error of option.spots().errors(); track error) {
         <mat-error>{{ error.message }}</mat-error>
@@ -86,20 +86,20 @@
   <div class="grid gap-4 @sm:grid-cols-2">
     <div class="grid gap-2">
       <span class="text-on-surface-variant text-sm">
-        Registration opens before the event
+        Sign-up opens before the event
       </span>
       <app-duration-selector
         [formField]="option.openRegistrationOffset"
-        hint="How long before the event registration opens"
+        hint="How long before the event sign-up opens"
       />
     </div>
     <div class="grid gap-2">
       <span class="text-on-surface-variant text-sm">
-        Registration closes before the event
+        Sign-up closes before the event
       </span>
       <app-duration-selector
         [formField]="option.closeRegistrationOffset"
-        hint="How long before the event registration closes"
+        hint="How long before the event sign-up closes"
       />
     </div>
   </div>
@@ -139,7 +139,7 @@
 
   <mat-checkbox [formField]="option.isPaid">Enable payment</mat-checkbox>
   <p class="text-on-surface-variant text-sm">
-    Paid options require a connected Stripe account.
+    Paid options require an online payment account.
   </p>
   @if (!option.price().hidden()) {
     <div class="grid gap-4 @sm:grid-cols-2">
