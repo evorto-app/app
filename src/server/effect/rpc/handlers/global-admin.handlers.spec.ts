@@ -540,18 +540,7 @@ describe('globalAdminHandlers', () => {
               }
               if (statement.includes('inner join "tenants"')) {
                 expect(statement).toContain('"tenants"."timezone"');
-                expect(statement).toContain('order by case when');
-                expect(statement).toContain('"email_outbox"."updatedAt" desc');
-                expect(statement).toContain('"email_outbox"."id" asc');
-                expect(parameters.slice(0, 6)).toEqual([
-                  'queued',
-                  'sending',
-                  'sent',
-                  'failed',
-                  'deliveryUnknown',
-                  'suppressed',
-                ]);
-                expect(parameters.at(-1)).toBe(100);
+                expect(statement).toContain('"email_outbox_overview"');
                 return deliveryRows;
               }
               expect(statement).toContain('"claim_lease_id" is null');

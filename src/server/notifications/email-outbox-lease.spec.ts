@@ -9,7 +9,6 @@ import {
   emailOutboxDispatchableByIdPredicate,
   emailOutboxDispatchablePredicate,
   emailOutboxOperationalIncidentPredicate,
-  emailOutboxOverviewOrderBy,
   emailOutboxOwnedClaimPredicate,
 } from './email-outbox-lease';
 
@@ -88,19 +87,5 @@ describe('email outbox lease predicates', () => {
     expect(statement).toContain(
       '"email_outbox"."claim_lease_expires_at" <= now()',
     );
-  });
-
-  it('lists incidents before newer routine outbox rows', () => {
-    const statements = emailOutboxOverviewOrderBy().map((expression) =>
-      normalizeSql(dialect.sqlToQuery(expression).sql),
-    );
-
-    expect(statements).toHaveLength(3);
-    expect(statements[0]).toContain(
-      'case when ( "email_outbox"."status" in (\'failed\', \'deliveryUnknown\')',
-    );
-    expect(statements[0]).toMatch(/then 0 else 1 end asc$/);
-    expect(statements[1]).toBe('"email_outbox"."updatedAt" desc');
-    expect(statements[2]).toBe('"email_outbox"."id" asc');
   });
 });

@@ -281,7 +281,7 @@ describe('EmailOutboxComponent overview', () => {
         'Evorto could not confirm whether this email was delivered, so it will not send it again.',
       );
       expect(text).toContain(
-        'This email was not sent because this address cannot receive organization emails.',
+        'Sending was withheld by the environment recipient policy.',
       );
       expect(text).not.toContain('Send attempts');
       expect(text).not.toContain('Provider');
