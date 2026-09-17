@@ -20,3 +20,5 @@ Reject event creation from stored templates that exceed the add-on or sign-up qu
 Reject new transfer claims for oversized stored add-on bundles before expanding their fulfillment or recipient prices. Keep supported bundles complete, and explain oversized bundles in the claim view.
 
 Show the sign-up answer character limit before participants start typing, alongside any organizer guidance, while keeping the existing input limit and validation.
+
+Reject oversized stored included-plus-optional add-on mappings before selecting entitlements, and check all event add-on types before offering public registration. Keep authorized event editing available for repairs. Show the transfer-answer character limit alongside organizer guidance while preserving the native Signal Forms limit.

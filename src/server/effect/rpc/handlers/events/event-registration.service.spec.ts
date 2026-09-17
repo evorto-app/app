@@ -5901,7 +5901,7 @@ describe('EventRegistrationService', () => {
         ...availableAddOn,
         includedQuantity: 2,
         maxQuantityPerUser: MAX_REGISTRATION_ADDON_QUANTITY,
-        optionalPurchaseQuantity: MAX_REGISTRATION_ADDON_QUANTITY,
+        optionalPurchaseQuantity: MAX_REGISTRATION_ADDON_QUANTITY - 2,
         totalAvailableQuantity: 30,
       };
       const addOns = [
@@ -5925,7 +5925,46 @@ describe('EventRegistrationService', () => {
           ],
           availableAddOns: [addOn],
         }),
-      ).toThrow('Choose no more than 10 of the same add-on');
+      ).toThrow('Add-on quantity exceeds this registration option limit');
+    });
+
+    it.each([
+      { includedQuantity: 1, optionalPurchaseQuantity: 10 },
+      { includedQuantity: 0, optionalPurchaseQuantity: 11 },
+    ])(
+      'rejects an oversized stored mapping before selecting any quantity: %j',
+      (mapping) => {
+        expect(() =>
+          validateRegistrationAddons({
+            addOns: [],
+            availableAddOns: [
+              {
+                ...availableAddOn,
+                ...mapping,
+                maxQuantityPerUser: MAX_REGISTRATION_ADDON_QUANTITY,
+                totalAvailableQuantity: 30,
+              },
+            ],
+          }),
+        ).toThrow(EventRegistrationConflictError);
+      },
+    );
+
+    it('accepts the stored combined quantity boundary with no optional selections', () => {
+      expect(
+        validateRegistrationAddons({
+          addOns: [],
+          availableAddOns: [
+            {
+              ...availableAddOn,
+              includedQuantity: 1,
+              maxQuantityPerUser: MAX_REGISTRATION_ADDON_QUANTITY,
+              optionalPurchaseQuantity: MAX_REGISTRATION_ADDON_QUANTITY - 1,
+              totalAvailableQuantity: 30,
+            },
+          ],
+        }),
+      ).toMatchObject([{ fulfilledQuantity: 1, selectedQuantity: 0 }]);
     });
 
     it('bounds implicit included add-on types even with no submitted selections', () => {

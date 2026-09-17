@@ -3,6 +3,7 @@ import {
   includesPermission,
   type Permission,
 } from '@shared/permissions/permissions';
+import { MAX_EVENT_ADDON_TYPES } from '@shared/registration-quantity-limits';
 import { MAX_REGISTRATION_QUESTIONS } from '@shared/registration-question-limits';
 import {
   EventConflictError,
@@ -500,6 +501,22 @@ export const eventQueryHandlers = {
         return yield* Effect.fail(
           new EventNotFoundError({ id, message: 'Event not found' }),
         );
+      }
+
+      // Count event-wide types, including add-ons without a visible option.
+      // Reading the add-on table avoids counting one type once per mapping.
+      const eventAddOnTypes = yield* databaseEffect((database) =>
+        database.query.eventAddons.findMany({
+          columns: { id: true },
+          limit: MAX_EVENT_ADDON_TYPES + 1,
+          where: { event: { tenantId: tenant.id }, eventId: event.id },
+        }),
+      );
+      if (eventAddOnTypes.length > MAX_EVENT_ADDON_TYPES) {
+        return yield* new EventConflictError({
+          message:
+            'Registration is unavailable because its add-on settings need to be corrected. Contact the organizer.',
+        });
       }
 
       const hasAnyRegistrationOption =

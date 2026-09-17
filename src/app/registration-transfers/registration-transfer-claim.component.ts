@@ -307,6 +307,7 @@ export class RegistrationTransferClaimComponent {
     this.operations.getClaim(this.credential()),
   );
   protected readonly lookupErrorCopy = registrationTransferLookupErrorCopy;
+  protected readonly maxAnswerLength = MAX_REGISTRATION_ANSWER_LENGTH;
   protected readonly retryMutation = injectMutation(() =>
     this.operations.retryCheckout(),
   );

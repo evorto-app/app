@@ -147,9 +147,65 @@ const createContextLayer = ({
 };
 
 describe('event discount tenant isolation', () => {
-  for (const questionCount of [0, 25, 26]) {
+  for (const {
+    addonCount,
+    hiddenOptions,
+    mappingCount,
+    questionCount,
+    status,
+  } of [
+    {
+      addonCount: 0,
+      hiddenOptions: false,
+      mappingCount: 0,
+      questionCount: 0,
+      status: 'APPROVED',
+    },
+    {
+      addonCount: 0,
+      hiddenOptions: false,
+      mappingCount: 0,
+      questionCount: 25,
+      status: 'APPROVED',
+    },
+    {
+      addonCount: 0,
+      hiddenOptions: false,
+      mappingCount: 0,
+      questionCount: 26,
+      status: 'APPROVED',
+    },
+    {
+      addonCount: 20,
+      hiddenOptions: false,
+      mappingCount: 40,
+      questionCount: 0,
+      status: 'APPROVED',
+    },
+    {
+      addonCount: 21,
+      hiddenOptions: false,
+      mappingCount: 0,
+      questionCount: 0,
+      status: 'APPROVED',
+    },
+    {
+      addonCount: 21,
+      hiddenOptions: true,
+      mappingCount: 0,
+      questionCount: 0,
+      status: 'APPROVED',
+    },
+    {
+      addonCount: 21,
+      hiddenOptions: false,
+      mappingCount: 0,
+      questionCount: 0,
+      status: 'DRAFT',
+    },
+  ]) {
     it.effect(
-      `preserves tenant discount isolation and rejects invalid actionable question count ${questionCount}`,
+      `bounds visible events before registration: questions=${questionCount}, add-ons=${addonCount}, mappings=${mappingCount}, hidden=${hiddenOptions}, status=${status}`,
       () =>
         Effect.gen(function* () {
           const findCards = vi.fn((query: { where: { tenantId?: string } }) =>
@@ -164,12 +220,39 @@ describe('event discount tenant isolation', () => {
                   ],
             ),
           );
+          const findAddons = vi.fn(() =>
+            Effect.succeed(
+              Array.from({ length: addonCount }, (_, index) => ({
+                id: `addon-${index}`,
+              })),
+            ),
+          );
+          const addonMappings = Array.from(
+            { length: mappingCount },
+            (_, index) => ({
+              allowMultiple: true,
+              allowPurchaseBeforeEvent: false,
+              allowPurchaseDuringEvent: false,
+              allowPurchaseDuringRegistration: true,
+              description: null,
+              id: `addon-${index % 20}`,
+              includedQuantity: 1,
+              isPaid: false,
+              maxQuantityPerUser: 1,
+              optionalPurchaseQuantity: 0,
+              price: 0,
+              registrationOptionId: `option-${1 + Math.floor(index / 20)}`,
+              stripeTaxRateId: null,
+              title: 'Included item',
+              totalAvailableQuantity: 100,
+            }),
+          );
           const select = vi.fn(() => ({
             from: (table: unknown) => {
               if (table === eventAddons) {
                 return {
                   innerJoin: () => ({
-                    where: () => Effect.succeed([]),
+                    where: () => Effect.succeed(addonMappings),
                   }),
                 };
               }
@@ -207,6 +290,7 @@ describe('event discount tenant isolation', () => {
           }));
           const database = {
             query: {
+              eventAddons: { findMany: findAddons },
               eventInstances: {
                 findFirst: () =>
                   Effect.succeed({
@@ -216,38 +300,43 @@ describe('event discount tenant isolation', () => {
                     icon: 'calendar',
                     id: 'event-1',
                     location: null,
-                    registrationOptions: [
-                      {
-                        checkedInSpots: 0,
-                        closeRegistrationTime: new Date(
-                          '2099-01-01T00:00:00.000Z',
-                        ),
-                        confirmedSpots: 0,
-                        description: null,
-                        eventId: 'event-1',
-                        id: 'option-1',
-                        isPaid: true,
-                        openRegistrationTime: new Date(
-                          '2098-01-01T00:00:00.000Z',
-                        ),
-                        organizingRegistration: false,
-                        price: 2000,
-                        registeredDescription: null,
-                        registrationMode: 'fcfs' as const,
-                        reservedSpots: 0,
-                        roleIds: [],
-                        spots: 20,
-                        stripeTaxRateId: null,
-                        title: 'Participant',
-                      },
-                    ],
+                    registrationOptions: hiddenOptions
+                      ? []
+                      : [
+                          {
+                            checkedInSpots: 0,
+                            closeRegistrationTime: new Date(
+                              '2099-01-01T00:00:00.000Z',
+                            ),
+                            confirmedSpots: 0,
+                            description: null,
+                            eventId: 'event-1',
+                            id: 'option-1',
+                            isPaid: true,
+                            openRegistrationTime: new Date(
+                              '2098-01-01T00:00:00.000Z',
+                            ),
+                            organizingRegistration: false,
+                            price: 2000,
+                            registeredDescription: null,
+                            registrationMode: 'fcfs' as const,
+                            reservedSpots: 0,
+                            roleIds: [],
+                            spots: 20,
+                            stripeTaxRateId: null,
+                            title: 'Participant',
+                          },
+                        ],
                     reviewer: null,
                     start: new Date('2099-01-01T12:00:00.000Z'),
-                    status: 'APPROVED' as const,
+                    status,
                     statusComment: null,
                     title: 'Tenant-scoped event',
                     unlisted: false,
                   }),
+              },
+              eventRegistrationOptions: {
+                findFirst: () => Effect.succeed({ id: 'hidden-option' }),
               },
               userDiscountCards: {
                 findMany: findCards,
@@ -276,6 +365,32 @@ describe('event discount tenant isolation', () => {
             ),
           );
 
+          if (status === 'DRAFT') {
+            expect(Result.isFailure(result)).toBe(true);
+            if (Result.isFailure(result))
+              expect(result.failure).toMatchObject({
+                _tag: 'EventNotFoundError',
+              });
+            expect(findAddons).not.toHaveBeenCalled();
+            return;
+          }
+          expect(findAddons).toHaveBeenCalledExactlyOnceWith({
+            columns: { id: true },
+            limit: 21,
+            where: { event: { tenantId: tenant.id }, eventId: 'event-1' },
+          });
+          if (addonCount > 20) {
+            expect(Result.isFailure(result)).toBe(true);
+            if (Result.isFailure(result))
+              expect(result.failure).toMatchObject({
+                _tag: 'EventConflictError',
+                message:
+                  'Registration is unavailable because its add-on settings need to be corrected. Contact the organizer.',
+              });
+            expect(select).not.toHaveBeenCalled();
+            expect(findCards).not.toHaveBeenCalled();
+            return;
+          }
           if (questionCount > 25) {
             expect(Result.isFailure(result)).toBe(true);
             if (Result.isFailure(result))
@@ -288,6 +403,7 @@ describe('event discount tenant isolation', () => {
           expect(Result.isSuccess(result)).toBe(true);
           if (!Result.isSuccess(result)) return;
           const event = result.success;
+          expect(event.addOns).toHaveLength(Math.min(mappingCount, 20));
           expect(event.registrationOptions[0]?.questions).toHaveLength(
             questionCount,
           );

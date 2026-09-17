@@ -1466,7 +1466,14 @@ export const validateRegistrationAddons = ({
       message: `Choose no more than ${MAX_EVENT_ADDON_TYPES} different add-ons`,
     });
   }
-  if (availableAddOns.length > MAX_EVENT_ADDON_TYPES) {
+  if (
+    availableAddOns.length > MAX_EVENT_ADDON_TYPES ||
+    availableAddOns.some(
+      (addOn) =>
+        addOn.includedQuantity + addOn.optionalPurchaseQuantity >
+        MAX_REGISTRATION_ADDON_QUANTITY,
+    )
+  ) {
     throw new EventRegistrationConflictError({
       message:
         'Registration is unavailable because its add-on settings need to be corrected. Contact the organizer.',
