@@ -141,7 +141,7 @@
           <mat-form-field>
             <mat-label>Tax rate</mat-label>
             <mat-select [formField]="option.stripeTaxRateId">
-              @if (taxRatesQuery.isPending()) {
+              @if (taxRatesQuery.isPending() || taxRatesQuery.isFetching()) {
                 <mat-option disabled>Loading tax rates…</mat-option>
               } @else if (taxRatesQuery.isError()) {
                 <mat-option disabled>Tax rates are unavailable</mat-option>
@@ -158,6 +158,11 @@
                       {{ rate.displayName || "Tax rate name unavailable" }} —
                       {{ rate.percentage }}%
                     }
+                  </mat-option>
+                } @empty {
+                  <mat-option disabled>
+                    No tax rates are available. Ask someone who manages payments
+                    to import a tax rate.
                   </mat-option>
                 }
               } @else {
