@@ -5,7 +5,16 @@ import { PlatformEventsUpdateInput } from '@shared/rpc-contracts/app-rpcs/platfo
 import { PlatformOperationRpcError } from '@shared/rpc-contracts/app-rpcs/platform-operations.shared';
 import { RpcRequestContext } from '@shared/rpc-contracts/app-rpcs/rpc-request-context.middleware';
 import { getTableColumns } from 'drizzle-orm';
-import { Cause, ConfigProvider, Effect, Exit, Layer, Schema } from 'effect';
+import {
+  Cause,
+  ConfigProvider,
+  Effect,
+  Exit,
+  Layer,
+  Logger,
+  References,
+  Schema,
+} from 'effect';
 import { readFileSync } from 'node:fs';
 import Stripe from 'stripe';
 import { vi } from 'vitest';
@@ -765,31 +774,50 @@ describe('platform event, template, and registration handlers', () => {
     }),
   );
 
-  it.effect('preserves platform cancellation internal causes as defects', () =>
-    Effect.gen(function* () {
-      const exit = yield* platformHandlers['platform.registrations.cancel'](
-        {
-          reason: 'Cancel the target registration',
-          registrationId: registrationRecord.id,
-          targetTenantId: targetTenant.id,
-        },
-        undefined,
-      ).pipe(
-        Effect.provide(platformRegistrationInternalFailureLayer),
-        Effect.exit,
-      );
+  it.effect(
+    'preserves platform cancellation internal failures as defects',
+    () =>
+      Effect.gen(function* () {
+        const logs: Record<string, unknown>[] = [];
+        const logger = Logger.make(({ fiber }) => {
+          logs.push({ ...fiber.getRef(References.CurrentLogAnnotations) });
+        });
+        const exit = yield* platformHandlers['platform.registrations.cancel'](
+          {
+            reason: 'Cancel the target registration',
+            registrationId: registrationRecord.id,
+            targetTenantId: targetTenant.id,
+          },
+          undefined,
+        ).pipe(
+          Effect.provide(platformRegistrationInternalFailureLayer),
+          Effect.provide(Logger.layer([logger])),
+          Effect.exit,
+        );
 
-      expect(Exit.isFailure(exit)).toBe(true);
-      if (Exit.isSuccess(exit)) {
-        return;
-      }
-      const defect = Cause.squash(exit.cause);
-      expect(defect).toBeInstanceOf(EventRegistrationInternalError);
-      expect(defect).toMatchObject({
-        cause: expect.any(Error),
-        message: 'Invalid E2E_NOW_ISO server clock value',
-      });
-    }),
+        expect(Exit.isFailure(exit)).toBe(true);
+        if (Exit.isSuccess(exit)) {
+          return;
+        }
+        const defect = Cause.squash(exit.cause);
+        expect(defect).toBeInstanceOf(EventRegistrationInternalError);
+        expect(defect).toMatchObject({
+          message:
+            'The event time could not be checked. Open the event again and review its current sign-ups and payment status before continuing.',
+        });
+        expect(defect).not.toHaveProperty('cause');
+        const diagnostic = logs.find(
+          (entry) => entry['operation'] === 'eventRegistration.handlerClock',
+        );
+        expect(diagnostic?.['cause']).toBeInstanceOf(Error);
+        expect(diagnostic).toMatchObject({
+          cause: {
+            message: expect.stringContaining(
+              'Invalid pinnedNowIso value "not-an-instant"',
+            ),
+          },
+        });
+      }),
   );
 
   it('maps an active in-place transfer to a truthful platform conflict', () => {

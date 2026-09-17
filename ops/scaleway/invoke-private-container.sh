@@ -136,25 +136,8 @@ if ((curl_exit != 0)); then
       and (keys == ["detail", "error"])
       and .error == "ops-command-failed"
       and ([
-        "bounded-command-failed",
         "command-failed",
-        "database-authentication-failed",
-        "database-configuration-invalid",
-        "database-host-resolution-failed",
-        "database-not-found",
-        "database-permission-denied",
-        "database-tls-ca-untrusted",
-        "database-tls-certificate-expired",
-        "database-tls-certificate-not-yet-valid",
-        "database-tls-hostname-mismatch",
-        "database-tls-verification-failed",
-        "database-unreachable",
-        "drizzle-application-unconfirmed",
-        "drizzle-cli-incompatible",
-        "drizzle-invalid-json",
-        "runtime-artifact-missing",
-        "staging-schema-unconfirmed",
-        "staging-seed-configuration-invalid"
+        "drizzle-output-invalid"
       ] | index($response.detail)) != null
   ' "${response_file}" >/dev/null 2>&1; then
     diagnostic="$(jq --raw-output '.detail' "${response_file}")"

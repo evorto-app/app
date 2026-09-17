@@ -10,7 +10,6 @@ export class RegistrationTransferConflictError extends Schema.TaggedErrorClass<R
 export class RegistrationTransferInternalError extends Schema.TaggedErrorClass<RegistrationTransferInternalError>()(
   'RegistrationTransferInternalError',
   {
-    cause: Schema.optional(Schema.Defect()),
     message: Schema.String,
   },
 ) {}

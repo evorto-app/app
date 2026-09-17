@@ -175,20 +175,20 @@ describe('stored role authority in the form', () => {
     ]);
   });
 
-  it('shows legacy tax authority and allows that displayed grant to be revoked', async () => {
+  it('shows tax authority and allows that displayed grant to be revoked', async () => {
     const fixture = createRoleFormFixture();
     const host = fixture.componentInstance;
     host.model.set(
       createRoleFormModel({
         name: 'Tax manager',
-        permissions: ['admin:manageTaxes'],
+        permissions: ['admin:tax'],
       }),
     );
     fixture.detectChanges();
     await fixture.whenStable();
     expect(host.roleForm.permissions['admin:tax']().value()).toBe(true);
     await submitVisibleRoleForm(fixture);
-    expect(host.submitted()?.permissions).toEqual(['admin:manageTaxes']);
+    expect(host.submitted()?.permissions).toEqual(['admin:tax']);
     host.roleForm.permissions['admin:tax']().value.set(false);
     fixture.detectChanges();
     await submitVisibleRoleForm(fixture);
