@@ -23,6 +23,7 @@ import {
   type RegistrationCheckoutLineItemSnapshot,
   type RegistrationCheckoutSnapshot,
   RegistrationCheckoutSnapshotSchema,
+  tenants,
   tenantStripeTaxRates,
   transactions,
   userDiscountCards,
@@ -45,6 +46,7 @@ import {
   enqueueRegistrationConfirmedEmail,
 } from '../../../../notifications/email-delivery';
 import { lockTenantStripeAccount } from '../../../../payments/pending-stripe-obligations';
+import { lockEventRegistrationQuestionSet } from '../../../../registrations/event-question-answer-guard';
 import {
   establishRegistrationAcquisition,
   settleAcquisitionComponentTerms,
@@ -931,6 +933,7 @@ interface RegistrationAddonRecord {
   allowMultiple: boolean;
   allowPurchaseDuringRegistration: boolean;
   includedQuantity: number;
+  isPaid: boolean;
   maxQuantityPerUser: number;
   optionalPurchaseQuantity: number;
   price: number;
@@ -941,6 +944,29 @@ interface RegistrationAddonRecord {
   title: string;
   totalAvailableQuantity: number;
 }
+
+const registrationAddonTermsColumns = {
+  addOnId: eventAddons.id,
+  allowMultiple: eventAddons.allowMultiple,
+  allowPurchaseDuringRegistration: eventAddons.allowPurchaseDuringRegistration,
+  includedQuantity: addonToEventRegistrationOptions.includedQuantity,
+  isPaid: eventAddons.isPaid,
+  maxQuantityPerUser: eventAddons.maxQuantityPerUser,
+  optionalPurchaseQuantity:
+    addonToEventRegistrationOptions.optionalPurchaseQuantity,
+  price: eventAddons.price,
+  stripeTaxRateId: eventAddons.stripeTaxRateId,
+};
+
+type RegistrationAddonTerms = Pick<
+  RegistrationAddonRecord,
+  keyof typeof registrationAddonTermsColumns
+>;
+
+type RegistrationDiscountTerms = readonly Pick<
+  typeof eventRegistrationOptionDiscounts.$inferSelect,
+  'discountedPrice' | 'discountType'
+>[];
 
 interface RegistrationTaxConfigurationAddonExpectation {
   readonly addOnId: string;
@@ -954,6 +980,252 @@ interface RegistrationTaxRateSnapshot {
   readonly percentage: string;
   readonly stripeTaxRateId: string;
 }
+
+const registrationSnapshotChanged = () =>
+  new EventRegistrationConflictError({
+    message:
+      'Sign-up details changed while this request was being processed. Nothing was saved. Review the current details and try again.',
+  });
+
+const lockRegistrationDiscountTenant = Effect.fn(
+  'EventRegistration.lockDiscountTenant',
+)(function* (database: Pick<DatabaseClient, 'select'>, tenantId: string) {
+  const rows = yield* database
+    .select({ id: tenants.id })
+    .from(tenants)
+    .where(eq(tenants.id, tenantId))
+    .for('update')
+    .pipe(Effect.orDie);
+  if (rows.length !== 1) return yield* registrationSnapshotChanged();
+});
+
+/**
+ * Callers hold tenant and event locks. Discount evaluation requires tenant
+ * UPDATE before event/question/member locks, including a fully discounted price.
+ */
+export const ensureCurrentRegistrationSnapshot = Effect.fn(
+  'EventRegistration.ensureCurrentRegistrationSnapshot',
+)(function* (
+  database: Pick<DatabaseClient, 'query' | 'select'>,
+  input: {
+    readonly addOns?: readonly RegistrationAddonTerms[];
+    readonly admission?: Pick<
+      typeof eventRegistrationOptions.$inferSelect,
+      | 'closeRegistrationTime'
+      | 'openRegistrationTime'
+      | 'organizingRegistration'
+      | 'roleIds'
+    > & { readonly now: Date };
+    readonly eventId: string;
+    readonly pricing?: Pick<
+      typeof eventRegistrationOptions.$inferSelect,
+      'isPaid' | 'price' | 'stripeTaxRateId'
+    > & {
+      readonly discountEligibility?: {
+        readonly resolution: DiscountResolution;
+        readonly userId: string;
+      };
+      readonly discounts?: RegistrationDiscountTerms;
+      readonly eventStart: Date;
+    };
+    readonly registrationMode: typeof eventRegistrationOptions.$inferSelect.registrationMode;
+    readonly registrationOptionId: string;
+    readonly tenantId: string;
+  },
+) {
+  const current = yield* database.query.eventRegistrationOptions
+    .findFirst({
+      columns: {
+        closeRegistrationTime: true,
+        id: true,
+        isPaid: true,
+        openRegistrationTime: true,
+        organizingRegistration: true,
+        price: true,
+        registrationMode: true,
+        roleIds: true,
+        stripeTaxRateId: true,
+      },
+      where: { eventId: input.eventId, id: input.registrationOptionId },
+      with: {
+        event: {
+          columns: { start: true, status: true, tenantId: true },
+        },
+      },
+    })
+    .pipe(Effect.orDie);
+  if (
+    !current?.event ||
+    current.event.tenantId !== input.tenantId ||
+    current.event.status !== 'APPROVED' ||
+    current.registrationMode !== input.registrationMode
+  ) {
+    return yield* registrationSnapshotChanged();
+  }
+
+  const admission = input.admission;
+  if (admission) {
+    const currentRoles = current.roleIds.toSorted();
+    const expectedRoles = admission.roleIds.toSorted();
+    if (
+      current.openRegistrationTime.getTime() !==
+        admission.openRegistrationTime.getTime() ||
+      current.closeRegistrationTime.getTime() !==
+        admission.closeRegistrationTime.getTime() ||
+      admission.now < current.openRegistrationTime ||
+      admission.now > current.closeRegistrationTime ||
+      current.organizingRegistration !== admission.organizingRegistration ||
+      currentRoles.length !== expectedRoles.length ||
+      currentRoles.some((roleId, index) => roleId !== expectedRoles[index])
+    ) {
+      return yield* registrationSnapshotChanged();
+    }
+  }
+
+  if (input.addOns) {
+    const mappedAddOns = yield* database
+      .select(registrationAddonTermsColumns)
+      .from(eventAddons)
+      .innerJoin(
+        addonToEventRegistrationOptions,
+        and(
+          eq(addonToEventRegistrationOptions.addonId, eventAddons.id),
+          eq(addonToEventRegistrationOptions.eventId, eventAddons.eventId),
+        ),
+      )
+      .where(
+        and(
+          eq(eventAddons.eventId, input.eventId),
+          eq(
+            addonToEventRegistrationOptions.registrationOptionId,
+            input.registrationOptionId,
+          ),
+        ),
+      )
+      .pipe(Effect.orDie);
+    const expectedAddOns = new Map(
+      input.addOns.map((addOn) => [addOn.addOnId, addOn]),
+    );
+    const currentAddOns = mappedAddOns.filter(
+      (addOn) =>
+        addOn.includedQuantity > 0 || expectedAddOns.has(addOn.addOnId),
+    );
+    if (
+      expectedAddOns.size !== input.addOns.length ||
+      currentAddOns.length !== expectedAddOns.size ||
+      currentAddOns.some((addOn) => {
+        const expected = expectedAddOns.get(addOn.addOnId);
+        return (
+          !expected ||
+          addOn.isPaid !== expected.isPaid ||
+          addOn.price !== expected.price ||
+          addOn.stripeTaxRateId !== expected.stripeTaxRateId ||
+          addOn.includedQuantity !== expected.includedQuantity ||
+          addOn.optionalPurchaseQuantity !==
+            expected.optionalPurchaseQuantity ||
+          addOn.allowMultiple !== expected.allowMultiple ||
+          addOn.allowPurchaseDuringRegistration !==
+            expected.allowPurchaseDuringRegistration ||
+          addOn.maxQuantityPerUser !== expected.maxQuantityPerUser
+        );
+      })
+    ) {
+      return yield* registrationSnapshotChanged();
+    }
+  }
+
+  const pricing = input.pricing;
+  if (!pricing) return current;
+  if (
+    current.isPaid !== pricing.isPaid ||
+    current.price !== pricing.price ||
+    current.stripeTaxRateId !== pricing.stripeTaxRateId ||
+    current.event.start.getTime() !== pricing.eventStart.getTime()
+  ) {
+    return yield* registrationSnapshotChanged();
+  }
+  if (pricing.discounts || pricing.discountEligibility) {
+    const discounts = yield* database.query.eventRegistrationOptionDiscounts
+      .findMany({
+        columns: { discountedPrice: true, discountType: true },
+        where: { registrationOptionId: input.registrationOptionId },
+      })
+      .pipe(Effect.orDie);
+    if (pricing.discounts) {
+      const compareDiscounts = (
+        left: RegistrationDiscountTerms[number],
+        right: RegistrationDiscountTerms[number],
+      ) =>
+        left.discountType.localeCompare(right.discountType) ||
+        left.discountedPrice - right.discountedPrice;
+      const currentDiscounts = discounts.toSorted(compareDiscounts);
+      const expectedDiscounts = pricing.discounts.toSorted(compareDiscounts);
+      if (
+        currentDiscounts.length !== expectedDiscounts.length ||
+        currentDiscounts.some(
+          (discount, index) =>
+            expectedDiscounts[index]?.discountType !== discount.discountType ||
+            expectedDiscounts[index]?.discountedPrice !==
+              discount.discountedPrice,
+        )
+      ) {
+        return yield* registrationSnapshotChanged();
+      }
+    }
+    if (pricing.discountEligibility) {
+      const tenant = yield* database.query.tenants
+        .findFirst({
+          columns: { discountProviders: true },
+          where: { id: input.tenantId },
+        })
+        .pipe(Effect.orDie);
+      if (!tenant) return yield* registrationSnapshotChanged();
+      // Lock every status: filtering in SQL would miss a concurrent transition
+      // from unverified to verified. Tenant UPDATE also serializes new inserts.
+      const cards = yield* database
+        .select({
+          status: userDiscountCards.status,
+          type: userDiscountCards.type,
+          validFrom: userDiscountCards.validFrom,
+          validTo: userDiscountCards.validTo,
+        })
+        .from(userDiscountCards)
+        .where(
+          and(
+            eq(userDiscountCards.tenantId, input.tenantId),
+            eq(userDiscountCards.userId, pricing.discountEligibility.userId),
+          ),
+        )
+        .orderBy(userDiscountCards.id)
+        .for('share')
+        .pipe(Effect.orDie);
+      const providerConfig = resolveTenantDiscountProviders(
+        tenant.discountProviders,
+      );
+      const enabledTypes = new Set(
+        Object.entries(providerConfig)
+          .filter(([, provider]) => provider?.status === 'enabled')
+          .map(([key]) => key),
+      );
+      const resolution = resolveDiscount({
+        basePrice: current.isPaid ? current.price : 0,
+        cards: cards.filter((card) => card.status === 'verified'),
+        discounts,
+        enabledTypes,
+        eventStart: current.event.start,
+      });
+      const expected = pricing.discountEligibility.resolution;
+      if (
+        resolution.appliedDiscountedPrice !== expected.appliedDiscountedPrice ||
+        resolution.appliedDiscountType !== expected.appliedDiscountType ||
+        resolution.discountAmount !== expected.discountAmount ||
+        resolution.effectivePrice !== expected.effectivePrice
+      )
+        return yield* registrationSnapshotChanged();
+    }
+  }
+  return current;
+});
 
 const registrationTaxConfigurationChanged = () =>
   new EventRegistrationConflictError({
@@ -1468,6 +1740,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
           : 0;
         let discountResolution: DiscountResolution =
           noDiscountResolution(basePrice);
+        let discountTerms: RegistrationDiscountTerms | undefined;
         const cards = yield* databaseEffect((database) =>
           database.query.userDiscountCards.findMany({
             columns: {
@@ -1512,6 +1785,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
               where: { registrationOptionId: registrationOption.id },
             }),
           );
+          discountTerms = discounts;
           discountResolution = resolveDiscount({
             basePrice,
             cards,
@@ -1659,6 +1933,9 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                   );
                 const mustLockStripeAccount =
                   requiresCheckout || hasTaxConfiguration;
+                if (!mustLockStripeAccount) {
+                  yield* lockRegistrationDiscountTenant(tx, tenant.id);
+                }
                 const lockedStripeAccount = mustLockStripeAccount
                   ? yield* lockTenantStripeAccount(tx, tenant.id)
                   : undefined;
@@ -1674,6 +1951,35 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                         }),
                   );
                 }
+
+                const currentQuestionSet =
+                  yield* lockEventRegistrationQuestionSet(tx, {
+                    eventId,
+                    registrationOptionId: registrationOption.id,
+                    tenantId: tenant.id,
+                  });
+                if (!currentQuestionSet) {
+                  return yield* registrationSnapshotChanged();
+                }
+                yield* ensureCurrentRegistrationSnapshot(tx, {
+                  eventId,
+                  pricing: {
+                    discountEligibility: {
+                      resolution: discountResolution,
+                      userId: registration.userId,
+                    },
+                    eventStart: registration.event.start,
+                    isPaid: registrationOption.isPaid,
+                    price: registrationOption.price,
+                    stripeTaxRateId: registrationOption.stripeTaxRateId,
+                    ...(discountTerms !== undefined && {
+                      discounts: discountTerms,
+                    }),
+                  },
+                  registrationMode: registrationOption.registrationMode,
+                  registrationOptionId: registrationOption.id,
+                  tenantId: tenant.id,
+                });
 
                 const existingClaims = yield* tx
                   .select(claimSelection)
@@ -1866,7 +2172,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                     appliedDiscountedPrice,
                     appliedDiscountType,
                     basePriceAtRegistration: basePrice,
-                    discountAmount,
+                    discountAmount: discountAmount ?? 0,
                     status: requiresCheckout ? 'PENDING' : 'CONFIRMED',
                     ...(selectedTaxRateId && {
                       stripeTaxRateId: selectedTaxRateId,
@@ -2786,28 +3092,10 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
           );
         }
 
-        const answerInserts = yield* Effect.try({
-          catch: (error) => error as EventRegistrationConflictError,
-          try: () =>
-            validateRegistrationQuestionAnswers({
-              answers,
-              questions: registrationOption.questions ?? [],
-            }),
-        });
         const availableAddOns = yield* databaseEffect((database) =>
           database
             .select({
-              addOnId: eventAddons.id,
-              allowMultiple: eventAddons.allowMultiple,
-              allowPurchaseDuringRegistration:
-                eventAddons.allowPurchaseDuringRegistration,
-              includedQuantity:
-                addonToEventRegistrationOptions.includedQuantity,
-              maxQuantityPerUser: eventAddons.maxQuantityPerUser,
-              optionalPurchaseQuantity:
-                addonToEventRegistrationOptions.optionalPurchaseQuantity,
-              price: eventAddons.price,
-              stripeTaxRateId: eventAddons.stripeTaxRateId,
+              ...registrationAddonTermsColumns,
               taxRateDisplayName: tenantStripeTaxRates.displayName,
               taxRateInclusive: tenantStripeTaxRates.inclusive,
               taxRatePercentage: tenantStripeTaxRates.percentage,
@@ -2930,7 +3218,10 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
           : 0;
         let discountResolution: DiscountResolution =
           noDiscountResolution(basePrice);
-        if (!manualApproval && registrationOption.isPaid && basePrice > 0) {
+        let discountTerms: RegistrationDiscountTerms | undefined;
+        const evaluatesDiscounts =
+          !manualApproval && registrationOption.isPaid && basePrice > 0;
+        if (evaluatesDiscounts) {
           const cards = yield* databaseEffect((database) =>
             database.query.userDiscountCards.findMany({
               columns: {
@@ -2975,6 +3266,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                 where: { registrationOptionId: registrationOption.id },
               }),
             );
+            discountTerms = discounts;
             discountResolution = resolveDiscount({
               basePrice,
               cards,
@@ -3079,6 +3371,86 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
           database
             .transaction((tx) =>
               Effect.gen(function* () {
+                const hasTaxConfiguration =
+                  selectedTaxRateId !== undefined ||
+                  addOnTaxExpectations.some(
+                    (addOn) => addOn.stripeTaxRateId !== null,
+                  );
+                const mustLockStripeAccount =
+                  directCheckout !== undefined || hasTaxConfiguration;
+                if (evaluatesDiscounts && !mustLockStripeAccount) {
+                  yield* lockRegistrationDiscountTenant(tx, tenant.id);
+                }
+                const lockedStripeAccount = mustLockStripeAccount
+                  ? yield* lockTenantStripeAccount(tx, tenant.id)
+                  : undefined;
+                if (mustLockStripeAccount && !lockedStripeAccount) {
+                  return yield* Effect.fail(
+                    directCheckout
+                      ? new EventRegistrationInternalError({
+                          message: 'Stripe account not found',
+                        })
+                      : new EventRegistrationConflictError({
+                          message:
+                            'Registration tax configuration is unavailable because Stripe is not connected',
+                        }),
+                  );
+                }
+                const questions = yield* lockEventRegistrationQuestionSet(tx, {
+                  eventId,
+                  registrationOptionId: registrationOption.id,
+                  tenantId: tenant.id,
+                });
+                if (!questions) {
+                  return yield* Effect.fail(
+                    new EventRegistrationConflictError({
+                      message: 'Registration event is no longer available',
+                    }),
+                  );
+                }
+                yield* ensureCurrentRegistrationSnapshot(tx, {
+                  addOns: selectedAddOns,
+                  admission: {
+                    closeRegistrationTime:
+                      registrationOption.closeRegistrationTime,
+                    now: yield* registrationServiceNow(pinnedNowIso),
+                    openRegistrationTime:
+                      registrationOption.openRegistrationTime,
+                    organizingRegistration:
+                      registrationOption.organizingRegistration,
+                    roleIds: registrationOption.roleIds,
+                  },
+                  eventId,
+                  pricing: {
+                    ...(evaluatesDiscounts && {
+                      discountEligibility: {
+                        resolution: discountResolution,
+                        userId: user.id,
+                      },
+                    }),
+                    eventStart: registrationOption.event.start,
+                    isPaid: registrationOption.isPaid,
+                    price: registrationOption.price,
+                    stripeTaxRateId: registrationOption.stripeTaxRateId,
+                    ...(discountTerms !== undefined && {
+                      discounts: discountTerms,
+                    }),
+                  },
+                  registrationMode: registrationOption.registrationMode,
+                  registrationOptionId: registrationOption.id,
+                  tenantId: tenant.id,
+                });
+                const answerInserts = yield* Effect.try({
+                  catch: (error) =>
+                    error instanceof EventRegistrationConflictError
+                      ? error
+                      : new EventRegistrationInternalError({
+                          cause: error,
+                          message: 'Registration question validation failed',
+                        }),
+                  try: () =>
+                    validateRegistrationQuestionAnswers({ answers, questions }),
+                });
                 const lockedMemberships = yield* tx
                   .select({ id: usersToTenants.id })
                   .from(usersToTenants)
@@ -3097,28 +3469,6 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                   );
                 }
 
-                const hasTaxConfiguration =
-                  selectedTaxRateId !== undefined ||
-                  addOnTaxExpectations.some(
-                    (addOn) => addOn.stripeTaxRateId !== null,
-                  );
-                const mustLockStripeAccount =
-                  directCheckout !== undefined || hasTaxConfiguration;
-                const lockedStripeAccount = mustLockStripeAccount
-                  ? yield* lockTenantStripeAccount(tx, tenant.id)
-                  : undefined;
-                if (mustLockStripeAccount && !lockedStripeAccount) {
-                  return yield* Effect.fail(
-                    directCheckout
-                      ? new EventRegistrationInternalError({
-                          message: 'Stripe account not found',
-                        })
-                      : new EventRegistrationConflictError({
-                          message:
-                            'Registration tax configuration is unavailable because Stripe is not connected',
-                        }),
-                  );
-                }
                 const lockedTaxRateById = lockedStripeAccount
                   ? yield* lockCurrentRegistrationTaxConfiguration(tx, {
                       addOns: addOnTaxExpectations,
@@ -3210,13 +3560,12 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                 const createdRegistrations = yield* tx
                   .insert(eventRegistrations)
                   .values({
-                    ...(!manualApproval &&
-                      mayRequireCheckout && {
-                        appliedDiscountedPrice,
-                        appliedDiscountType,
-                        basePriceAtRegistration: basePrice,
-                        discountAmount,
-                      }),
+                    ...(!manualApproval && {
+                      appliedDiscountedPrice,
+                      appliedDiscountType,
+                      basePriceAtRegistration: basePrice,
+                      discountAmount: discountAmount ?? 0,
+                    }),
                     eventId,
                     guestCount,
                     registrationOptionId: registrationOption.id,
@@ -3249,8 +3598,11 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                   yield* tx.insert(eventRegistrationQuestionAnswers).values(
                     answerInserts.map((answer) => ({
                       answer: answer.answer,
+                      eventId,
                       questionId: answer.questionId,
                       registrationId: userRegistration.id,
+                      registrationOptionId: registrationOption.id,
+                      tenantId: tenant.id,
                     })),
                   );
                 }
@@ -3710,19 +4062,55 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
             );
           }
 
-          const answerInserts = yield* Effect.try({
-            catch: (error) => error as EventRegistrationConflictError,
-            try: () =>
-              validateRegistrationQuestionAnswers({
-                answers,
-                questions: registrationOption.questions ?? [],
-              }),
-          });
-
           const waitlistResult = yield* Database.use((database) =>
             database
               .transaction((tx) =>
                 Effect.gen(function* () {
+                  const questions = yield* lockEventRegistrationQuestionSet(
+                    tx,
+                    {
+                      eventId,
+                      registrationOptionId: registrationOption.id,
+                      tenantId: tenant.id,
+                    },
+                  );
+                  if (!questions) {
+                    return yield* Effect.fail(
+                      new EventRegistrationConflictError({
+                        message: 'Registration event is no longer available',
+                      }),
+                    );
+                  }
+                  yield* ensureCurrentRegistrationSnapshot(tx, {
+                    admission: {
+                      closeRegistrationTime:
+                        registrationOption.closeRegistrationTime,
+                      now: yield* registrationServiceNow(pinnedNowIso),
+                      openRegistrationTime:
+                        registrationOption.openRegistrationTime,
+                      organizingRegistration:
+                        registrationOption.organizingRegistration,
+                      roleIds: registrationOption.roleIds,
+                    },
+                    eventId,
+                    registrationMode: registrationOption.registrationMode,
+                    registrationOptionId: registrationOption.id,
+                    tenantId: tenant.id,
+                  });
+                  const answerInserts = yield* Effect.try({
+                    catch: (error) =>
+                      error instanceof EventRegistrationConflictError
+                        ? error
+                        : new EventRegistrationInternalError({
+                            cause: error,
+                            message: 'Registration question validation failed',
+                          }),
+                    try: () =>
+                      validateRegistrationQuestionAnswers({
+                        answers,
+                        questions,
+                      }),
+                  });
                   const lockedMemberships = yield* tx
                     .select({ id: usersToTenants.id })
                     .from(usersToTenants)
@@ -3826,8 +4214,11 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                     yield* tx.insert(eventRegistrationQuestionAnswers).values(
                       answerInserts.map((answer) => ({
                         answer: answer.answer,
+                        eventId,
                         questionId: answer.questionId,
                         registrationId: createdRegistrations[0].id,
+                        registrationOptionId: registrationOption.id,
+                        tenantId: tenant.id,
                       })),
                     );
                   }

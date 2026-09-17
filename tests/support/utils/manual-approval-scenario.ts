@@ -153,6 +153,7 @@ export const seedManualApprovalScenario = async ({
     .set({
       end: eventWindow.end,
       start: eventWindow.start,
+      reviewedAt: new Date(),
       status: 'APPROVED',
     })
     .where(eq(schema.eventInstances.id, event.id));
@@ -242,6 +243,7 @@ export const seedManualApprovalScenario = async ({
       .update(schema.eventInstances)
       .set({
         end: event.end,
+        reviewedAt: event.reviewedAt,
         start: event.start,
         status: event.status,
       })
@@ -272,6 +274,21 @@ export const seedManualApprovalScenario = async ({
         .update(schema.eventRegistrationOptions)
         .set({ reservedSpots: 1 })
         .where(eq(schema.eventRegistrationOptions.id, option.id));
+      await database
+        .update(schema.eventRegistrations)
+        .set({
+          appliedDiscountedPrice: null,
+          appliedDiscountType: null,
+          basePriceAtRegistration: option.price,
+          discountAmount: 0,
+        })
+        .where(
+          and(
+            eq(schema.eventRegistrations.id, registrationId),
+            eq(schema.eventRegistrations.registrationOptionId, option.id),
+            eq(schema.eventRegistrations.tenantId, tenant.id),
+          ),
+        );
       await database.insert(schema.transactions).values({
         amount: option.price,
         appFee: Math.round(option.price * 0.035),

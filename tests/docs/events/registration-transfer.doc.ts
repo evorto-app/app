@@ -59,6 +59,7 @@ test('Transfer a registration with a private offer', async ({
     icon: { iconColor: 0x4f46e5, iconName: 'ticket' },
     id: eventId,
     start: startsAt,
+    reviewedAt: new Date(),
     status: 'APPROVED',
     templateId: template.id,
     tenantId: tenant.id,
@@ -90,6 +91,7 @@ test('Transfer a registration with a private offer', async ({
     title: 'What should the organizer know?',
   });
   await database.insert(schema.eventRegistrations).values({
+    discountAmount: 0,
     basePriceAtRegistration: 0,
     eventId,
     id: sourceRegistrationId,
@@ -100,9 +102,12 @@ test('Transfer a registration with a private offer', async ({
   });
   await database.insert(schema.eventRegistrationQuestionAnswers).values({
     answer: 'The previous owner entered this answer.',
+    eventId,
     id: createId(),
     questionId,
     registrationId: sourceRegistrationId,
+    registrationOptionId: optionId,
+    tenantId: tenant.id,
   });
   await database.insert(schema.registrationAcquisitions).values({
     acquiredAt: new Date(),

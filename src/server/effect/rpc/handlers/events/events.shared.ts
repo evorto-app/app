@@ -1,3 +1,4 @@
+import { RpcBadRequestError } from '@shared/errors/rpc-errors';
 import { Effect } from 'effect';
 
 import { Database, type DatabaseClient } from '../../../../../db';
@@ -6,6 +7,25 @@ import {
   includesPermission,
   type Permission,
 } from '../../../../../shared/permissions/permissions';
+
+export const registrationOptionPriceError = (option: {
+  readonly isPaid: boolean;
+  readonly price: number;
+}): null | RpcBadRequestError => {
+  if (option.isPaid && option.price <= 0) {
+    return new RpcBadRequestError({
+      message: 'Paid event registration options require a positive price',
+      reason: 'paidEventRegistrationOptionRequiresPositivePrice',
+    });
+  }
+  if (!option.isPaid && option.price !== 0) {
+    return new RpcBadRequestError({
+      message: 'Free event registration options require a zero price',
+      reason: 'freeEventRegistrationOptionRequiresZeroPrice',
+    });
+  }
+  return null;
+};
 
 export const databaseEffect = <A>(
   operation: (database: DatabaseClient) => Effect.Effect<A, unknown, never>,

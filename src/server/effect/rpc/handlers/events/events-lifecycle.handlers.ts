@@ -50,6 +50,7 @@ import {
   databaseEffect,
   type EventRegistrationOptionDiscountInsert,
   isEsnCardEnabled,
+  registrationOptionPriceError,
 } from './events.shared';
 
 const isTransactionRollbackError = (
@@ -211,6 +212,8 @@ const validateEventCreatePreflight = (
   }
 
   for (const option of input.registrationOptions) {
+    const priceError = registrationOptionPriceError(option);
+    if (priceError) return priceError;
     if (!Number.isInteger(option.spots) || option.spots < 0) {
       return invalidRegistrationOptionSpotsError();
     }
@@ -338,6 +341,10 @@ export const createEventGraph = (input: EventCreateInput) =>
         ),
       }),
     );
+    for (const option of sanitizedRegistrationOptions) {
+      const priceError = registrationOptionPriceError(option);
+      if (priceError) return yield* Effect.fail(priceError);
+    }
     const lockedStripeAccountId = yield* Database.use((database) =>
       lockTenantStripeAccount(database, tenant.id).pipe(Effect.orDie),
     );
@@ -668,6 +675,7 @@ export const createEventGraph = (input: EventCreateInput) =>
           discountInserts.push({
             discountedPrice: discount.discountedPrice,
             discountType: discount.discountType,
+            eventId: event.id,
             registrationOptionId: createdOptionSource.createdOptionId,
           });
         }
@@ -876,6 +884,8 @@ export const eventLifecycleHandlers = {
       );
 
       for (const option of sanitizedRegistrationOptions) {
+        const priceError = registrationOptionPriceError(option);
+        if (priceError) return yield* Effect.fail(priceError);
         if (!Number.isInteger(option.spots) || option.spots < 0) {
           return yield* Effect.fail(invalidRegistrationOptionSpotsError());
         }
@@ -1178,6 +1188,7 @@ export const eventLifecycleHandlers = {
               yield* tx.insert(eventRegistrationOptionDiscounts).values({
                 discountedPrice,
                 discountType: 'esnCard',
+                eventId: input.eventId,
                 registrationOptionId: option.id,
               });
             }

@@ -1679,8 +1679,8 @@ const createTransferDatabase = Effect.fn(function* ({
           expectedBasePrice > 0 ? 'esnCard' : null,
           expectedBasePrice,
           updatedAt,
-          // Current layer07 pricing uses null when no discount was applied.
-          expectedBasePrice > 0 ? expectedBasePrice : null,
+          // Persist zero when the recipient has no discount.
+          expectedBasePrice,
           null,
           targetUserId,
           registrationId,
@@ -3299,6 +3299,30 @@ const createTrustedUrlDatabaseFixture = () => {
     executeValues: (statement, parameters) =>
       Effect.sync(() => {
         if (
+          statement ===
+          'select "id" from "tenants" where "tenants"."id" = $1 for key share'
+        ) {
+          expect(transactionOpen).toBe(true);
+          expect(parameters).toEqual(['tenant-1']);
+          return [['tenant-1']];
+        }
+        if (
+          statement ===
+          'select "id" from "event_instances" where (("event_instances"."id" = $1) and ("event_instances"."tenantId" = $2)) for share'
+        ) {
+          expect(transactionOpen).toBe(true);
+          expect(parameters).toEqual(['event-1', 'tenant-1']);
+          return [['event-1']];
+        }
+        if (
+          statement ===
+          'select "id", "required" from "event_registration_questions" where (("event_registration_questions"."eventId" = $1) and ("event_registration_questions"."registrationOptionId" = $2)) order by "event_registration_questions"."id" for share'
+        ) {
+          expect(transactionOpen).toBe(true);
+          expect(parameters).toEqual(['event-1', 'option-1']);
+          return [];
+        }
+        if (
           statement.startsWith(
             `insert into "${getTableName(eventRegistrations)}"`,
           )
@@ -3313,7 +3337,7 @@ const createTrustedUrlDatabaseFixture = () => {
             1000,
             id,
             'tenant-1',
-            null,
+            0,
             'event-1',
             0,
             'option-1',
@@ -3426,6 +3450,30 @@ const createTrustedUrlDatabaseFixture = () => {
         ) {
           if (!statement.includes(' for update')) {
             expect(parameters).toEqual([1, 'event-1', 'option-1', 1]);
+            if (transactionOpen) {
+              expect(statement).toContain(
+                'select "d0"."closeRegistrationTime"::text as "closeRegistrationTime", "d0"."id" as "id", "d0"."isPaid" as "isPaid"',
+              );
+              expect(statement).not.toContain('"questions"');
+              return [
+                [
+                  '2099-01-02T00:00:00.000',
+                  'option-1',
+                  true,
+                  '2000-01-01T00:00:00.000',
+                  false,
+                  1000,
+                  'fcfs',
+                  [],
+                  'txr_123',
+                  {
+                    start: '2099-01-01T12:00:00.000',
+                    status: 'APPROVED',
+                    tenantId: 'tenant-1',
+                  },
+                ],
+              ];
+            }
             return [
               [
                 '2099-01-02T00:00:00.000',
@@ -3488,6 +3536,12 @@ const createTrustedUrlDatabaseFixture = () => {
           return [[null, current.stripeCheckoutSessionId]];
         }
         if (statement.includes(` from "${getTableName(eventAddons)}"`)) {
+          if (transactionOpen) {
+            expect(parameters).toEqual(['event-1', 'option-1']);
+            expect(statement).toContain('"event_addons"."isPaid"');
+            expect(statement).not.toContain('"totalAvailableQuantity"');
+            return [];
+          }
           expect(parameters).toEqual([
             'tenant-1',
             'acct_123',
@@ -3499,8 +3553,29 @@ const createTrustedUrlDatabaseFixture = () => {
           return [];
         }
         if (statement.includes(' from "user_discount_cards"')) {
-          expect(parameters).toEqual(['verified', 'tenant-1', 'attendee-1']);
+          if (transactionOpen) {
+            expect(parameters).toEqual(['tenant-1', 'attendee-1']);
+            expect(statement).toContain(
+              'order by "user_discount_cards"."id" for share',
+            );
+            expect(statement).not.toContain('"status" =');
+          } else {
+            expect(parameters).toEqual(['verified', 'tenant-1', 'attendee-1']);
+          }
           return [];
+        }
+        if (statement.includes(' from "event_registration_option_discounts"')) {
+          expect(transactionOpen).toBe(true);
+          expect(parameters).toEqual(['option-1']);
+          return [];
+        }
+        if (
+          statement.includes(' from "tenants"') &&
+          statement.includes('"discountProviders"')
+        ) {
+          expect(transactionOpen).toBe(true);
+          expect(parameters).toEqual(['tenant-1', 1]);
+          return [[{ esnCard: { config: {}, status: 'disabled' } }]];
         }
         if (
           statement.includes(` from "${getTableName(tenantStripeTaxRates)}"`)

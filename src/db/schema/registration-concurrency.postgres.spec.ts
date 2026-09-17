@@ -572,6 +572,7 @@ const seedFixture = async (database: TestDatabase): Promise<Fixture> => {
     end: new Date(now + 8 * 24 * 60 * 60 * 1000),
     icon: { iconColor: 0, iconName: 'circle' },
     id: eventId,
+    reviewedAt: new Date(),
     start: new Date(now + 7 * 24 * 60 * 60 * 1000),
     status: 'APPROVED',
     templateId,
@@ -958,7 +959,7 @@ describe('database registration concurrency invariants', () => {
     fixtures.push(fixture);
     await database
       .update(eventRegistrationOptions)
-      .set({ isPaid: false, price: 0 })
+      .set({ isPaid: false, price: 0, stripeTaxRateId: null })
       .where(eq(eventRegistrationOptions.id, fixture.optionId));
     const fakeHttpClient = new IdempotentStripeHttpClient();
     const stripe = new StripeClientLibrary('sk_test_concurrency', {

@@ -199,11 +199,13 @@ describe('SimpleTemplateService', () => {
           stripeTaxRateId: 'txr_vat_19',
         },
         registrationOptionId: 'option-1',
+        templateId: 'template-1',
       }),
     ).toEqual({
       discountedPrice: 1900,
       discountType: 'esnCard',
       registrationOptionId: 'option-1',
+      templateId: 'template-1',
     });
   });
 
@@ -217,6 +219,7 @@ describe('SimpleTemplateService', () => {
           price: 0,
         },
         registrationOptionId: 'option-1',
+        templateId: 'template-1',
       }),
     ).toBeNull();
     expect(
@@ -229,6 +232,7 @@ describe('SimpleTemplateService', () => {
           stripeTaxRateId: 'txr_vat_19',
         },
         registrationOptionId: 'option-1',
+        templateId: 'template-1',
       }),
     ).toBeNull();
   });

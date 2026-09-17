@@ -624,6 +624,7 @@ export const seedPostRegistrationAddonPurchaseScenario = async (
       waitlistSpots: 0,
     });
     await tx.insert(schema.eventRegistrations).values({
+      discountAmount: 0,
       basePriceAtRegistration: 0,
       createdAt: nowDate,
       eventId,
