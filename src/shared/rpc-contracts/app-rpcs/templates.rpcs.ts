@@ -1,5 +1,14 @@
 import { asRpcMutation, asRpcQuery } from '@heddendorp/effect-angular-query';
 import {
+  MAX_EVENT_ADDON_TYPES,
+  MAX_REGISTRATION_ADDON_QUANTITY,
+} from '@shared/registration-quantity-limits';
+import {
+  MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH,
+  MAX_REGISTRATION_QUESTION_TITLE_LENGTH,
+  MAX_REGISTRATION_QUESTIONS,
+} from '@shared/registration-question-limits';
+import {
   literalUnion,
   nonNegativeNumber,
   pickStruct,
@@ -16,6 +25,23 @@ import {
   TemplatesGroupedByCategoryError,
   TemplateSimpleRpcError,
 } from './templates.errors';
+
+const NonNegativeInteger = nonNegativeNumber.check(Schema.isInt());
+const PositiveInteger = positiveNumber.check(Schema.isInt());
+const RegistrationAddonQuantity = NonNegativeInteger.check(
+  Schema.isLessThanOrEqualTo(MAX_REGISTRATION_ADDON_QUANTITY),
+);
+const PositiveRegistrationAddonQuantity = PositiveInteger.check(
+  Schema.isLessThanOrEqualTo(MAX_REGISTRATION_ADDON_QUANTITY),
+);
+const RegistrationQuestionDescription = Schema.NullOr(
+  Schema.String.check(
+    Schema.isMaxLength(MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH),
+  ),
+);
+const RegistrationQuestionTitle = Schema.NonEmptyString.check(
+  Schema.isMaxLength(MAX_REGISTRATION_QUESTION_TITLE_LENGTH),
+);
 
 export const TemplateRegistrationMode = literalUnion(
   'application',
@@ -64,10 +90,10 @@ export const TemplateSimpleAddonInput = Schema.Struct({
   allowPurchaseDuringEvent: Schema.Boolean,
   allowPurchaseDuringRegistration: Schema.Boolean,
   description: Schema.optional(Schema.NullOr(Schema.String)),
-  includedQuantity: nonNegativeNumber,
+  includedQuantity: RegistrationAddonQuantity,
   isPaid: Schema.Boolean,
-  maxQuantityPerUser: positiveNumber,
-  optionalPurchaseQuantity: nonNegativeNumber,
+  maxQuantityPerUser: PositiveRegistrationAddonQuantity,
+  optionalPurchaseQuantity: RegistrationAddonQuantity,
   price: nonNegativeNumber,
   registrationOptionKind: TemplateSimpleAddonRegistrationOptionKind,
   stripeTaxRateId: Schema.optional(Schema.NullOr(Schema.NonEmptyString)),
@@ -81,15 +107,17 @@ export const TemplateSimpleQuestionRegistrationOptionKind = literalUnion(
 );
 
 export const TemplateSimpleQuestionInput = Schema.Struct({
-  description: Schema.optional(Schema.NullOr(Schema.String)),
+  description: Schema.optional(RegistrationQuestionDescription),
   registrationOptionKind: TemplateSimpleQuestionRegistrationOptionKind,
   required: Schema.Boolean,
-  title: Schema.NonEmptyString,
+  title: RegistrationQuestionTitle,
 });
 
 export const TemplateSimpleInput = Schema.Struct({
   addOns: Schema.optional(
-    Schema.mutable(Schema.Array(TemplateSimpleAddonInput)),
+    Schema.mutable(Schema.Array(TemplateSimpleAddonInput)).check(
+      Schema.isMaxLength(MAX_EVENT_ADDON_TYPES),
+    ),
   ),
   categoryId: Schema.NonEmptyString,
   description: Schema.NonEmptyString,
@@ -99,7 +127,9 @@ export const TemplateSimpleInput = Schema.Struct({
   participantRegistration: TemplateSimpleRegistrationInput,
   planningTips: Schema.optional(Schema.NullOr(Schema.String)),
   questions: Schema.optional(
-    Schema.mutable(Schema.Array(TemplateSimpleQuestionInput)),
+    Schema.mutable(Schema.Array(TemplateSimpleQuestionInput)).check(
+      Schema.isMaxLength(MAX_REGISTRATION_QUESTIONS),
+    ),
   ),
   title: Schema.NonEmptyString,
 });
@@ -153,12 +183,12 @@ export const TemplateAddonRecord = Schema.Struct({
 });
 
 export const TemplateQuestionRecord = Schema.Struct({
-  description: Schema.NullOr(Schema.String),
+  description: RegistrationQuestionDescription,
   id: Schema.NonEmptyString,
   registrationOptionId: Schema.NonEmptyString,
   required: Schema.Boolean,
   sortOrder: Schema.Number,
-  title: Schema.NonEmptyString,
+  title: RegistrationQuestionTitle,
 });
 
 export const TemplateFindOneRecord = Schema.Struct({
@@ -203,8 +233,8 @@ export type TemplateGraphRegistrationOptionInput = Schema.Schema.Type<
 >;
 
 export const TemplateGraphAddonRegistrationOptionInput = Schema.Struct({
-  includedQuantity: nonNegativeNumber,
-  optionalPurchaseQuantity: nonNegativeNumber,
+  includedQuantity: RegistrationAddonQuantity,
+  optionalPurchaseQuantity: RegistrationAddonQuantity,
   registrationOptionKey: Schema.NonEmptyString,
 });
 
@@ -217,7 +247,7 @@ export const TemplateGraphAddonInput = Schema.Struct({
   id: Schema.optional(Schema.NonEmptyString),
   isPaid: Schema.Boolean,
   key: Schema.NonEmptyString,
-  maxQuantityPerUser: positiveNumber,
+  maxQuantityPerUser: PositiveRegistrationAddonQuantity,
   price: nonNegativeNumber,
   registrationOptions: Schema.mutable(
     Schema.Array(TemplateGraphAddonRegistrationOptionInput),
@@ -232,13 +262,13 @@ export type TemplateGraphAddonInput = Schema.Schema.Type<
 >;
 
 export const TemplateGraphQuestionInput = Schema.Struct({
-  description: Schema.NullOr(Schema.String),
+  description: RegistrationQuestionDescription,
   id: Schema.optional(Schema.NonEmptyString),
   key: Schema.NonEmptyString,
   registrationOptionKey: Schema.NonEmptyString,
   required: Schema.Boolean,
   sortOrder: nonNegativeNumber,
-  title: Schema.NonEmptyString,
+  title: RegistrationQuestionTitle,
 });
 
 export type TemplateGraphQuestionInput = Schema.Schema.Type<
@@ -246,13 +276,17 @@ export type TemplateGraphQuestionInput = Schema.Schema.Type<
 >;
 
 export const TemplateGraphInput = Schema.Struct({
-  addOns: Schema.mutable(Schema.Array(TemplateGraphAddonInput)),
+  addOns: Schema.mutable(Schema.Array(TemplateGraphAddonInput)).check(
+    Schema.isMaxLength(MAX_EVENT_ADDON_TYPES),
+  ),
   categoryId: Schema.NonEmptyString,
   description: Schema.NonEmptyString,
   icon: iconSchema,
   location: Schema.NullOr(EventLocation),
   planningTips: Schema.NullOr(Schema.String),
-  questions: Schema.mutable(Schema.Array(TemplateGraphQuestionInput)),
+  questions: Schema.mutable(Schema.Array(TemplateGraphQuestionInput)).check(
+    Schema.isMaxLength(MAX_REGISTRATION_QUESTIONS),
+  ),
   registrationOptions: Schema.mutable(
     Schema.Array(TemplateGraphRegistrationOptionInput),
   ),

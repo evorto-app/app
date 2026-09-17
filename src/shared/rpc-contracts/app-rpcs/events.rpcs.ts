@@ -1,5 +1,16 @@
 import { asRpcMutation, asRpcQuery } from '@heddendorp/effect-angular-query';
 import { notificationEmailPattern } from '@shared/notification-email';
+import {
+  MAX_EVENT_ADDON_TYPES,
+  MAX_REGISTRATION_ADDON_QUANTITY,
+  MAX_REGISTRATION_GUESTS,
+} from '@shared/registration-quantity-limits';
+import {
+  MAX_REGISTRATION_ANSWER_LENGTH,
+  MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH,
+  MAX_REGISTRATION_QUESTION_TITLE_LENGTH,
+  MAX_REGISTRATION_QUESTIONS,
+} from '@shared/registration-question-limits';
 import { RegistrationTransferRefundLifecycle } from '@shared/registration-transfer';
 import {
   literalUnion,
@@ -43,6 +54,26 @@ const NullableRefundFeesInput = Schema.NullOr(Schema.Boolean).pipe(
 );
 const NonNegativeInteger = nonNegativeNumber.check(Schema.isInt());
 const PositiveInteger = positiveNumber.check(Schema.isInt());
+const RegistrationAddonQuantity = NonNegativeInteger.check(
+  Schema.isLessThanOrEqualTo(MAX_REGISTRATION_ADDON_QUANTITY),
+);
+const PositiveRegistrationAddonQuantity = PositiveInteger.check(
+  Schema.isLessThanOrEqualTo(MAX_REGISTRATION_ADDON_QUANTITY),
+);
+const RegistrationGuestCount = NonNegativeInteger.check(
+  Schema.isLessThanOrEqualTo(MAX_REGISTRATION_GUESTS),
+);
+const RegistrationQuestionAnswer = Schema.String.check(
+  Schema.isMaxLength(MAX_REGISTRATION_ANSWER_LENGTH),
+);
+const RegistrationQuestionDescription = Schema.NullOr(
+  Schema.String.check(
+    Schema.isMaxLength(MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH),
+  ),
+);
+const RegistrationQuestionTitle = Schema.NonEmptyString.check(
+  Schema.isMaxLength(MAX_REGISTRATION_QUESTION_TITLE_LENGTH),
+);
 const RegistrationAddonOperationKey = Schema.String.check(
   Schema.isTrimmed(),
   Schema.isMinLength(1),
@@ -699,7 +730,7 @@ export type EventsPurchaseRegistrationAddonResult = Schema.Schema.Type<
 export const EventsPurchaseRegistrationAddonPayload = Schema.Struct({
   addOnId: Schema.NonEmptyString,
   operationKey: RegistrationAddonOperationKey,
-  quantity: PositiveInteger,
+  quantity: PositiveRegistrationAddonQuantity,
   registrationId: Schema.NonEmptyString,
 });
 
@@ -742,20 +773,28 @@ export const EventsReviewEvent = asRpcMutation(
 );
 
 export const EventsRegistrationQuestionAnswerInput = Schema.Struct({
-  answer: Schema.String,
+  answer: RegistrationQuestionAnswer,
   questionId: Schema.NonEmptyString,
 });
 
 export const EventsRegistrationAddonInput = Schema.Struct({
   addOnId: Schema.NonEmptyString,
-  quantity: nonNegativeNumber,
+  quantity: RegistrationAddonQuantity,
 });
 
 export const EventsRegisterForEventPayload = Schema.Struct({
-  addOns: Schema.optional(Schema.Array(EventsRegistrationAddonInput)),
-  answers: Schema.optional(Schema.Array(EventsRegistrationQuestionAnswerInput)),
+  addOns: Schema.optional(
+    Schema.Array(EventsRegistrationAddonInput).check(
+      Schema.isMaxLength(MAX_EVENT_ADDON_TYPES),
+    ),
+  ),
+  answers: Schema.optional(
+    Schema.Array(EventsRegistrationQuestionAnswerInput).check(
+      Schema.isMaxLength(MAX_REGISTRATION_QUESTIONS),
+    ),
+  ),
   eventId: Schema.NonEmptyString,
-  guestCount: nonNegativeNumber,
+  guestCount: RegistrationGuestCount,
   registrationOptionId: Schema.NonEmptyString,
 });
 
@@ -768,7 +807,11 @@ export const EventsRegisterForEvent = asRpcMutation(
 );
 
 export const EventsJoinWaitlistPayload = Schema.Struct({
-  answers: Schema.optional(Schema.Array(EventsRegistrationQuestionAnswerInput)),
+  answers: Schema.optional(
+    Schema.Array(EventsRegistrationQuestionAnswerInput).check(
+      Schema.isMaxLength(MAX_REGISTRATION_QUESTIONS),
+    ),
+  ),
   eventId: Schema.NonEmptyString,
   registrationOptionId: Schema.NonEmptyString,
 });
@@ -1003,8 +1046,8 @@ export type EventGraphRegistrationOptionInput = Schema.Schema.Type<
 >;
 
 export const EventGraphAddonRegistrationOptionInput = Schema.Struct({
-  includedQuantity: NonNegativeInteger,
-  optionalPurchaseQuantity: NonNegativeInteger,
+  includedQuantity: RegistrationAddonQuantity,
+  optionalPurchaseQuantity: RegistrationAddonQuantity,
   registrationOptionKey: Schema.NonEmptyString,
 });
 
@@ -1017,7 +1060,7 @@ export const EventGraphAddonInput = Schema.Struct({
   id: Schema.optional(Schema.NonEmptyString),
   isPaid: Schema.Boolean,
   key: Schema.NonEmptyString,
-  maxQuantityPerUser: PositiveInteger,
+  maxQuantityPerUser: PositiveRegistrationAddonQuantity,
   price: NonNegativeInteger,
   registrationOptions: Schema.mutable(
     Schema.Array(EventGraphAddonRegistrationOptionInput),
@@ -1032,13 +1075,13 @@ export type EventGraphAddonInput = Schema.Schema.Type<
 >;
 
 export const EventGraphQuestionInput = Schema.Struct({
-  description: Schema.NullOr(Schema.String),
+  description: RegistrationQuestionDescription,
   id: Schema.optional(Schema.NonEmptyString),
   key: Schema.NonEmptyString,
   registrationOptionKey: Schema.NonEmptyString,
   required: Schema.Boolean,
   sortOrder: NonNegativeInteger,
-  title: Schema.NonEmptyString,
+  title: RegistrationQuestionTitle,
 });
 
 export type EventGraphQuestionInput = Schema.Schema.Type<
@@ -1062,12 +1105,12 @@ export const EventGraphAddonRecord = Schema.Struct({
 });
 
 export const EventGraphQuestionRecord = Schema.Struct({
-  description: Schema.NullOr(Schema.String),
+  description: RegistrationQuestionDescription,
   id: Schema.NonEmptyString,
   registrationOptionId: Schema.NonEmptyString,
   required: Schema.Boolean,
   sortOrder: Schema.Number,
-  title: Schema.NonEmptyString,
+  title: RegistrationQuestionTitle,
 });
 
 export const EventGraphEditRecord = Schema.Struct({
@@ -1102,13 +1145,17 @@ export const EventsUpdateGraph = asRpcMutation(
   Rpc.make('events.updateGraph', {
     error: EventsUpdateRpcError,
     payload: Schema.Struct({
-      addOns: Schema.mutable(Schema.Array(EventGraphAddonInput)),
+      addOns: Schema.mutable(Schema.Array(EventGraphAddonInput)).check(
+        Schema.isMaxLength(MAX_EVENT_ADDON_TYPES),
+      ),
       description: Schema.NonEmptyString,
       end: Schema.NonEmptyString,
       eventId: Schema.NonEmptyString,
       icon: iconSchema,
       location: Schema.NullOr(EventLocation),
-      questions: Schema.mutable(Schema.Array(EventGraphQuestionInput)),
+      questions: Schema.mutable(Schema.Array(EventGraphQuestionInput)).check(
+        Schema.isMaxLength(MAX_REGISTRATION_QUESTIONS),
+      ),
       registrationOptions: Schema.mutable(
         Schema.Array(EventGraphRegistrationOptionInput),
       ),

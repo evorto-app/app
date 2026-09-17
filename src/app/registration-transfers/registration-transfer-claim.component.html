@@ -304,7 +304,7 @@
             ) {
               @let question = claim.registrationOption.questions[questionIndex];
               @if (question) {
-                <mat-form-field>
+                <mat-form-field subscriptSizing="dynamic">
                   <mat-label>{{ question.title }}</mat-label>
                   <textarea
                     matInput
@@ -314,6 +314,9 @@
                   @if (question.description) {
                     <mat-hint>{{ question.description }}</mat-hint>
                   }
+                  <mat-hint align="end">
+                    {{ maxAnswerLength }} characters maximum
+                  </mat-hint>
                   @if (
                     answerField.answer().touched() &&
                     answerField.answer().invalid()

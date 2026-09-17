@@ -283,11 +283,19 @@
             <button
               type="button"
               mat-button
-              [disabled]="eventModel().registrationOptions.length === 0"
+              [disabled]="
+                eventModel().registrationOptions.length === 0 ||
+                eventModel().questions.length >= maxRegistrationQuestions
+              "
               (click)="addQuestion()"
             >
               Add question
             </button>
+            @if (eventModel().questions.length >= maxRegistrationQuestions) {
+              <p class="body-small text-on-surface-variant" role="status">
+                Maximum of {{ maxRegistrationQuestions }} questions reached.
+              </p>
+            }
           </div>
 
           <div class="grid gap-4">
@@ -303,6 +311,14 @@
                   <mat-form-field class="lg:col-span-2">
                     <mat-label>Question</mat-label>
                     <input matInput [formField]="question.title" />
+                    <mat-hint
+                      >Up to
+                      {{ maxRegistrationQuestionTitleLength }}
+                      characters.</mat-hint
+                    >
+                    @for (error of question.title().errors(); track error) {
+                      <mat-error>{{ error.message }}</mat-error>
+                    }
                   </mat-form-field>
                   <mat-form-field>
                     <mat-label>Registration option</mat-label>
@@ -330,6 +346,14 @@
                     rows="2"
                     [formField]="question.description"
                   ></textarea>
+                  <mat-hint
+                    >Up to
+                    {{ maxRegistrationQuestionDescriptionLength }}
+                    characters.</mat-hint
+                  >
+                  @for (error of question.description().errors(); track error) {
+                    <mat-error>{{ error.message }}</mat-error>
+                  }
                 </mat-form-field>
                 <div class="flex flex-wrap items-center justify-between gap-2">
                   <mat-checkbox [formField]="question.required">
@@ -340,6 +364,10 @@
                       type="button"
                       mat-button
                       (click)="duplicateQuestion(questionIndex)"
+                      [disabled]="
+                        eventModel().questions.length >=
+                        maxRegistrationQuestions
+                      "
                     >
                       Duplicate question
                     </button>
@@ -375,12 +403,27 @@
                   option has its own included and optional quantities.
                 </p>
               </div>
-              <button type="button" mat-button (click)="addAddOn()">
+              <button
+                type="button"
+                mat-button
+                (click)="addAddOn()"
+                [disabled]="eventModel().addOns.length >= maxEventAddonTypes"
+              >
                 Add add-on
               </button>
+              @if (eventModel().addOns.length >= maxEventAddonTypes) {
+                <p class="body-small text-on-surface-variant" role="status">
+                  Maximum of {{ maxEventAddonTypes }} add-ons reached.
+                </p>
+              }
             </div>
 
             <div class="grid gap-4">
+              @for (error of eventForm.addOns().errors(); track error) {
+                <p class="body-small text-error" role="alert">
+                  {{ error.message }}
+                </p>
+              }
               @for (
                 addOn of eventForm.addOns;
                 track addOn.key().value();

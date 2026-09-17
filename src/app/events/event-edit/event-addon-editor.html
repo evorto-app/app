@@ -31,6 +31,13 @@
       <mat-form-field>
         <mat-label>Maximum optional units per user</mat-label>
         <input matInput type="number" [formField]="addOn.maxQuantityPerUser" />
+        <mat-hint
+          >At most {{ maxRegistrationAddonQuantity }} items per
+          sign-up.</mat-hint
+        >
+        @for (error of addOn.maxQuantityPerUser().errors(); track error) {
+          <mat-error>{{ error.message }}</mat-error>
+        }
       </mat-form-field>
       <mat-checkbox [formField]="addOn.allowMultiple">
         Allow multiple units
@@ -138,6 +145,13 @@
               type="number"
               [formField]="mapping.includedQuantity"
             />
+            <mat-hint
+              >Included and optional items together cannot exceed
+              {{ maxRegistrationAddonQuantity }} per sign-up.</mat-hint
+            >
+            @for (error of mapping.includedQuantity().errors(); track error) {
+              <mat-error>{{ error.message }}</mat-error>
+            }
           </mat-form-field>
           <mat-form-field>
             <mat-label>Optional quantity</mat-label>

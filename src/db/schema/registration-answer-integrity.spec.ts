@@ -2,6 +2,11 @@ import { describe, expect, it } from '@effect/vitest';
 import { getTableConfig } from 'drizzle-orm/pg-core';
 
 import {
+  MAX_REGISTRATION_ANSWER_LENGTH,
+  MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH,
+  MAX_REGISTRATION_QUESTION_TITLE_LENGTH,
+} from '../../shared/registration-question-limits';
+import {
   eventRegistrationAnswerQuestionOwnerForeignKeyName,
   eventRegistrationAnswerRegistrationOwnerForeignKeyName,
   eventRegistrationAnswerRegistrationQuestionUniqueConstraintName,
@@ -13,6 +18,7 @@ import {
   eventRegistrationQuestions,
   eventRegistrations,
   registrationOptionEventIdentityUniqueConstraintName,
+  registrationTransferAnswers,
   templateRegistrationQuestions,
 } from './index';
 
@@ -66,7 +72,7 @@ const expectUniqueConstraint = ({
 };
 
 describe('registration question answer integrity', () => {
-  it('preserves question and answer text storage', () => {
+  it('bounds question and answer text storage', () => {
     for (const table of [
       eventRegistrationQuestions,
       templateRegistrationQuestions,
@@ -74,16 +80,23 @@ describe('registration question answer integrity', () => {
       const columns = getTableConfig(table).columns;
       expect(
         columns.find((column) => column.name === 'title')?.getSQLType(),
-      ).toBe('text');
+      ).toBe(`varchar(${MAX_REGISTRATION_QUESTION_TITLE_LENGTH})`);
       expect(
         columns.find((column) => column.name === 'description')?.getSQLType(),
-      ).toBe('text');
+      ).toBe(`varchar(${MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH})`);
     }
 
-    const answerColumn = getTableConfig(
+    for (const table of [
       eventRegistrationQuestionAnswers,
-    ).columns.find((column) => column.name === 'answer');
-    expect(answerColumn?.getSQLType()).toBe('text');
+      registrationTransferAnswers,
+    ]) {
+      const answerColumn = getTableConfig(table).columns.find(
+        (column) => column.name === 'answer',
+      );
+      expect(answerColumn?.getSQLType()).toBe(
+        `varchar(${MAX_REGISTRATION_ANSWER_LENGTH})`,
+      );
+    }
   });
 
   it('binds each question to one event registration option', () => {

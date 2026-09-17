@@ -3,11 +3,22 @@ import {
   applyEach,
   disabled,
   hidden,
+  max,
+  maxLength,
   min,
   required,
   schema,
   validate,
 } from '@angular/forms/signals';
+import {
+  MAX_EVENT_ADDON_TYPES,
+  MAX_REGISTRATION_ADDON_QUANTITY,
+} from '@shared/registration-quantity-limits';
+import {
+  MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH,
+  MAX_REGISTRATION_QUESTION_TITLE_LENGTH,
+  MAX_REGISTRATION_QUESTIONS,
+} from '@shared/registration-question-limits';
 import { hasTemporaryRichTextImageSources } from '@shared/utils/rich-text-media';
 
 import type { EventGraphFormModel } from './event-graph-form.model';
@@ -68,6 +79,22 @@ export const eventGraphFormSchema = schema<EventGraphFormModel>((form) => {
         }
       : undefined;
   });
+  validate(form.addOns, ({ value }) =>
+    value().length > MAX_EVENT_ADDON_TYPES
+      ? {
+          kind: 'maxLength',
+          message: `An event can have at most ${MAX_EVENT_ADDON_TYPES} add-ons.`,
+        }
+      : undefined,
+  );
+  validate(form.questions, ({ value }) =>
+    value().length > MAX_REGISTRATION_QUESTIONS
+      ? {
+          kind: 'maxLength',
+          message: `An event can have at most ${MAX_REGISTRATION_QUESTIONS} sign-up questions.`,
+        }
+      : undefined,
+  );
   hidden(form.addOns, ({ valueOf }) => valueOf(form.simpleModeEnabled));
 
   applyEach(form.registrationOptions, (option) => {
@@ -138,6 +165,16 @@ export const eventGraphFormSchema = schema<EventGraphFormModel>((form) => {
 
   applyEach(form.questions, (question) => {
     required(question.title, { message: 'Enter a question.' });
+    maxLength(question.title, MAX_REGISTRATION_QUESTION_TITLE_LENGTH, {
+      message: `Questions must be ${MAX_REGISTRATION_QUESTION_TITLE_LENGTH} characters or fewer.`,
+    });
+    maxLength(
+      question.description,
+      MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH,
+      {
+        message: `Question descriptions must be ${MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH} characters or fewer.`,
+      },
+    );
     required(question.registrationOptionKey, {
       message: 'Choose the registration option that receives this question.',
     });
@@ -172,6 +209,9 @@ export const eventGraphFormSchema = schema<EventGraphFormModel>((form) => {
     validate(addOn.price, ({ value }) => nonNegativeIntegerError(value()));
     required(addOn.maxQuantityPerUser, {
       message: 'Enter a per-user maximum.',
+    });
+    max(addOn.maxQuantityPerUser, MAX_REGISTRATION_ADDON_QUANTITY, {
+      message: `Each person can get at most ${MAX_REGISTRATION_ADDON_QUANTITY} items.`,
     });
     validate(addOn.maxQuantityPerUser, ({ value }) =>
       positiveIntegerError(value()),
@@ -234,6 +274,12 @@ export const eventGraphFormSchema = schema<EventGraphFormModel>((form) => {
           return {
             kind: 'emptyMapping',
             message: 'Include or offer at least one unit.',
+          };
+        }
+        if (included + optional > MAX_REGISTRATION_ADDON_QUANTITY) {
+          return {
+            kind: 'registrationQuantityMaximum',
+            message: `Included and optional items cannot exceed ${MAX_REGISTRATION_ADDON_QUANTITY} per sign-up.`,
           };
         }
         return included + optional > valueOf(addOn.totalAvailableQuantity)

@@ -4,6 +4,15 @@ import { Database } from '@db/index';
 import { describe, expect, it, layer } from '@effect/vitest';
 import { createDatabaseTestLayer } from '@server/testing/database-test-layer';
 import { RpcBadRequestError } from '@shared/errors/rpc-errors';
+import {
+  MAX_EVENT_ADDON_TYPES,
+  MAX_REGISTRATION_ADDON_QUANTITY,
+} from '@shared/registration-quantity-limits';
+import {
+  MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH,
+  MAX_REGISTRATION_QUESTION_TITLE_LENGTH,
+  MAX_REGISTRATION_QUESTIONS,
+} from '@shared/registration-question-limits';
 import { EventsUpdateRpcError } from '@shared/rpc-contracts/app-rpcs/events.errors';
 import { Effect, Schema } from 'effect';
 
@@ -315,6 +324,93 @@ describe('event graph structural validation', () => {
       _tag: 'RpcBadRequestError',
       reason: 'paidEventAddonRequiresPositivePrice',
     });
+  });
+
+  it('accepts the add-on type cap and rejects cap plus one', () => {
+    const input = validInput();
+    const addOn = input.addOns[0];
+    if (!addOn) throw new Error('Missing add-on fixture');
+    input.addOns = Array.from(
+      { length: MAX_EVENT_ADDON_TYPES },
+      (_, index) => ({
+        ...addOn,
+        key: `addon-${index}`,
+      }),
+    );
+
+    expect(
+      validateEventGraphStructure({ before: beforeGraph(), input }),
+    ).toBeNull();
+    input.addOns.push({ ...addOn, key: 'addon-over-limit' });
+    expect(
+      validateEventGraphStructure({ before: beforeGraph(), input }),
+    ).toMatchObject({ reason: 'eventAddonTypeLimitExceeded' });
+  });
+
+  it('rejects a mapped add-on quantity above the per-registration cap', () => {
+    const input = validInput();
+    const addOn = input.addOns[0];
+    if (!addOn) throw new Error('Missing add-on fixture');
+    addOn.maxQuantityPerUser = MAX_REGISTRATION_ADDON_QUANTITY;
+    addOn.registrationOptions = [
+      {
+        includedQuantity: MAX_REGISTRATION_ADDON_QUANTITY,
+        optionalPurchaseQuantity: 1,
+        registrationOptionKey: 'option-participant',
+      },
+    ];
+
+    expect(
+      validateEventGraphStructure({ before: beforeGraph(), input }),
+    ).toMatchObject({ reason: 'invalidEventAddon' });
+  });
+});
+
+describe('event question input bounds', () => {
+  it('accepts exact count and raw text caps and rejects cap plus one', () => {
+    const input = validInput();
+    const question = {
+      ...input.questions[0],
+      description: 'd'.repeat(MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH),
+      title: 't'.repeat(MAX_REGISTRATION_QUESTION_TITLE_LENGTH),
+    };
+    const questions = Array.from(
+      { length: MAX_REGISTRATION_QUESTIONS },
+      (_, index) => ({ ...question, key: `question-${index}` }),
+    );
+    expect(
+      validateEventGraphStructure({
+        before: beforeGraph(),
+        input: { ...input, questions },
+      }),
+    ).toBeNull();
+    expect(
+      validateEventGraphStructure({
+        before: beforeGraph(),
+        input: {
+          ...input,
+          questions: [...questions, { ...question, key: 'question-overflow' }],
+        },
+      }),
+    ).toBeInstanceOf(RpcBadRequestError);
+    expect(
+      validateEventGraphStructure({
+        before: beforeGraph(),
+        input: {
+          ...input,
+          questions: [{ ...question, title: ` ${question.title}` }],
+        },
+      }),
+    ).toBeInstanceOf(RpcBadRequestError);
+    expect(
+      validateEventGraphStructure({
+        before: beforeGraph(),
+        input: {
+          ...input,
+          questions: [{ ...question, description: `${question.description} ` }],
+        },
+      }),
+    ).toBeInstanceOf(RpcBadRequestError);
   });
 });
 

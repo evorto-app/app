@@ -1,3 +1,4 @@
+import { MAX_REGISTRATION_ADDON_QUANTITY } from '@shared/registration-quantity-limits';
 import { Effect, Schema } from 'effect';
 
 import {
@@ -207,7 +208,8 @@ export const finalizeAddonPaymentAllocations = Effect.fn(
       !isPersistableNonNegativeInteger(lot.baseAmount) ||
       lot.baseAmount === 0 ||
       !isPersistableNonNegativeInteger(lot.quantity) ||
-      lot.quantity === 0
+      lot.quantity === 0 ||
+      lot.quantity > MAX_REGISTRATION_ADDON_QUANTITY
     ) {
       return yield* allocationError('Purchase lot terms are invalid');
     }

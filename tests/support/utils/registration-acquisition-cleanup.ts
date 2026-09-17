@@ -12,7 +12,7 @@ export const deleteRegistrationAcquisitionLedger = async ({
   registrationIds,
   tenantId,
 }: {
-  database: TestDatabase;
+  database: Pick<TestDatabase, 'delete' | 'select'>;
   registrationIds: readonly string[];
   tenantId: string;
 }): Promise<void> => {

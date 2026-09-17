@@ -1,6 +1,9 @@
 import { describe, expect, it } from '@effect/vitest';
 import { createDatabaseTestLayer } from '@server/testing/database-test-layer';
+import { createRegistrationDatabaseTestLayer } from '@server/testing/registration-database';
 import { RpcBadRequestError } from '@shared/errors/rpc-errors';
+import { MAX_EVENT_ADDON_TYPES } from '@shared/registration-quantity-limits';
+import { MAX_REGISTRATION_QUESTIONS } from '@shared/registration-question-limits';
 import {
   EventsCreateRpcError,
   EventsUpdateRpcError,
@@ -1195,6 +1198,192 @@ describe('eventLifecycleHandlers', () => {
       title: 'Experience',
     });
   });
+
+  for (const scenario of [
+    {
+      addOnCount: MAX_EVENT_ADDON_TYPES,
+      questionCount: MAX_REGISTRATION_QUESTIONS,
+      reason: null,
+    },
+    {
+      addOnCount: MAX_EVENT_ADDON_TYPES + 1,
+      questionCount: MAX_REGISTRATION_QUESTIONS,
+      reason: 'eventAddonTypeLimitExceeded',
+    },
+    {
+      addOnCount: MAX_EVENT_ADDON_TYPES,
+      questionCount: MAX_REGISTRATION_QUESTIONS + 1,
+      reason: 'eventQuestionLimitExceeded',
+    },
+  ]) {
+    it.effect(
+      `events.create bounds the persisted template before writes (${scenario.addOnCount} add-ons, ${scenario.questionCount} questions)`,
+      () =>
+        Effect.gen(function* () {
+          const writes: string[] = [];
+          const commands: string[] = [];
+          const databaseLayer = createRegistrationDatabaseTestLayer({
+            executeValues: (statement, parameters) =>
+              Effect.sync(() => {
+                if (statement.startsWith('insert ')) {
+                  writes.push(statement);
+                  if (statement.startsWith('insert into "event_instances"'))
+                    return [['event-1']];
+                  if (
+                    statement.startsWith(
+                      'insert into "event_registration_options"',
+                    )
+                  )
+                    return [['event-option-1']];
+                  if (statement.startsWith('insert into "event_addons"'))
+                    return [[`event-addon-${writes.length}`]];
+                  if (
+                    statement.startsWith(
+                      'insert into "event_registration_questions"',
+                    )
+                  ) {
+                    expect(
+                      parameters.filter(
+                        (value) =>
+                          typeof value === 'string' &&
+                          value.startsWith('question-'),
+                      ),
+                    ).toHaveLength(scenario.questionCount);
+                    return [];
+                  }
+                }
+                if (statement.includes('pg_advisory_xact_lock')) return [];
+                if (statement.includes('from "tenants"')) {
+                  expect(parameters).toEqual([tenant.id]);
+                  return [[null]];
+                }
+                if (statement.includes('from "roles"')) return [['role-1']];
+                if (statement.includes('from "event_templates"')) {
+                  expect(statement).toContain('for share');
+                  expect(parameters).toEqual(['template-1', tenant.id, 1]);
+                  return [[false, false]];
+                }
+                if (statement.includes('from "template_registration_options"'))
+                  return [['template-option-1', 'fcfs']];
+                if (
+                  statement.includes(
+                    'from "template_registration_option_discounts"',
+                  )
+                )
+                  return [];
+                if (statement.includes('from "template_event_addons"')) {
+                  expect(parameters).toEqual(['template-1']);
+                  return Array.from(
+                    { length: scenario.addOnCount },
+                    (_, index) => [
+                      false,
+                      true,
+                      false,
+                      true,
+                      '2026-01-01',
+                      null,
+                      `template-addon-${index}`,
+                      false,
+                      1,
+                      0,
+                      null,
+                      'template-1',
+                      'Free add-on',
+                      20,
+                      '2026-01-01',
+                    ],
+                  );
+                }
+                if (
+                  statement.includes('from "template_registration_questions"')
+                ) {
+                  expect(parameters).toEqual([
+                    'template-option-1',
+                    'template-1',
+                  ]);
+                  return Array.from(
+                    { length: scenario.questionCount },
+                    (_, index) => [
+                      '2026-01-01',
+                      null,
+                      `question-${index}`,
+                      'template-option-1',
+                      true,
+                      index,
+                      'template-1',
+                      'Question',
+                      '2026-01-01',
+                    ],
+                  );
+                }
+                if (
+                  statement.includes(
+                    'from "addon_to_template_registration_options"',
+                  )
+                )
+                  return [];
+                throw new Error(
+                  `Unexpected template-copy fixture statement: ${statement}`,
+                );
+              }),
+            transactionControl: (command) =>
+              Effect.sync(() => {
+                commands.push(command);
+              }),
+          });
+          const result = yield* eventLifecycleHandlers['events.create'](
+            Schema.decodeUnknownSync(EventsCreate.payloadSchema)({
+              ...createInput,
+              registrationOptions: [
+                {
+                  ...createInput.registrationOptions[0],
+                  sourceTemplateRegistrationOptionId: 'template-option-1',
+                },
+              ],
+            }),
+            {
+              client: new Rpc.ServerClient(1),
+              headers: Headers.empty,
+              requestId: RpcMessage.RequestId(1),
+              rpc: EventsCreate.middleware(RpcRequestContextMiddleware),
+            },
+          ).pipe(
+            Effect.result,
+            Effect.provide(Layer.mergeAll(requestContextLayer, databaseLayer)),
+          );
+          if (scenario.reason === null) {
+            expect(result).toMatchObject({
+              _tag: 'Success',
+              success: { id: 'event-1' },
+            });
+            expect(
+              writes.filter((statement) =>
+                statement.startsWith('insert into "event_addons"'),
+              ),
+            ).toHaveLength(MAX_EVENT_ADDON_TYPES);
+            expect(
+              writes.filter((statement) =>
+                statement.startsWith(
+                  'insert into "event_registration_questions"',
+                ),
+              ),
+            ).toHaveLength(1);
+            expect(commands).toEqual(['BEGIN', 'COMMIT']);
+          } else {
+            expect(result._tag).toBe('Failure');
+            if (result._tag !== 'Failure')
+              throw new Error('Expected a template limit failure');
+            expect(result.failure).toMatchObject({
+              _tag: 'RpcBadRequestError',
+              reason: scenario.reason,
+            });
+            expect(Schema.is(EventsCreateRpcError)(result.failure)).toBe(true);
+            expect(writes).toEqual([]);
+            expect(commands).toEqual(['BEGIN', 'ROLLBACK']);
+          }
+        }),
+    );
+  }
 
   it.effect(
     'events.create copies template add-ons to matching event registration options',

@@ -18,6 +18,7 @@ import {
   registrationAcquisitionPayments,
   registrationAcquisitions,
   type RegistrationCheckoutSnapshot,
+  RegistrationCheckoutSnapshotSchema,
   registrationTransferAnswers,
   registrationTransferBundleAddonPurchaseLots,
   registrationTransferBundleAddonPurchases,
@@ -33,6 +34,12 @@ import {
   users,
   usersToTenants,
 } from '@db/schema';
+import {
+  MAX_EVENT_ADDON_TYPES,
+  MAX_REGISTRATION_ADDON_QUANTITY,
+  MAX_REGISTRATION_GUESTS,
+} from '@shared/registration-quantity-limits';
+import { MAX_REGISTRATION_QUESTIONS } from '@shared/registration-question-limits';
 import { registrationTransferAddonAllocationKey } from '@shared/registration-transfer';
 import {
   RegistrationTransferConflictError,
@@ -51,7 +58,7 @@ import {
   type TenantDiscountProviders,
 } from '@shared/tenant-config';
 import { and, desc, eq, inArray, isNull, not, or, sql } from 'drizzle-orm';
-import { Cause, Context, Effect, Layer } from 'effect';
+import { Cause, Context, Effect, Layer, Schema } from 'effect';
 
 import type { Tenant } from '../../types/custom/tenant';
 import type { User } from '../../types/custom/user';
@@ -86,6 +93,7 @@ import {
   completePaidRegistrationCheckout,
   registrationCheckoutInitialReconcileAt,
 } from './registration-checkout-completion';
+import { registrationCheckoutHasTooManyLines } from './registration-checkout-lines';
 import { isActiveRegistrationTransferUniqueViolation } from './registration-transfer-constraint';
 import {
   createRegistrationTransferCredentials,
@@ -241,9 +249,20 @@ export const resumeRegistrationTransferCheckout = Effect.fn(
   tenantId: string;
   transferId: string;
 }) {
+  const request = yield* Schema.decodeUnknownEffect(
+    RegistrationCheckoutSnapshotSchema,
+  )(paymentClaim.request).pipe(
+    Effect.mapError(
+      (cause) =>
+        new RegistrationTransferInternalError({
+          cause,
+          message: 'Persisted transfer Checkout snapshot is invalid',
+        }),
+    ),
+  );
   const session = yield* createHostedCheckoutSession(
     buildRegistrationTransferCheckoutParameters({
-      paymentClaim,
+      paymentClaim: { ...paymentClaim, request },
       registrationId,
       tenantId,
       transferId,
@@ -1446,7 +1465,8 @@ const getClaim = Effect.fn('RegistrationTransferService.getClaim')(function* ({
               ),
               eq(registrationTransferBundleAddonPurchases.tenantId, tenant.id),
             ),
-          ),
+          )
+          .limit(MAX_EVENT_ADDON_TYPES + 1),
       ),
       useSealedRecipientPricing && transfer.recipientBasePrice !== null
         ? Effect.succeed(
@@ -1549,6 +1569,20 @@ const getClaim = Effect.fn('RegistrationTransferService.getClaim')(function* ({
     ],
     { concurrency: 'unbounded' },
   );
+
+  if (questions.length > MAX_REGISTRATION_QUESTIONS) {
+    return yield* new RegistrationTransferConflictError({
+      message:
+        'This registration option has too many sign-up questions. Ask an organizer to update it before claiming.',
+    });
+  }
+
+  if (bundleAddOns.length > MAX_EVENT_ADDON_TYPES) {
+    return yield* new RegistrationTransferConflictError({
+      message:
+        'This ticket includes too many different add-ons to transfer. Ask an organizer for help.',
+    });
+  }
 
   const refundClaims =
     status === 'compensation_pending' || status === 'compensation_failed'
@@ -2148,6 +2182,12 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
   const paymentTransactionId = createId();
   const recipientSpotCount = transfer.sourceSpotCount;
   const guestCount = transfer.sourceSpotCount - 1;
+  if (guestCount < 0 || guestCount > MAX_REGISTRATION_GUESTS) {
+    return yield* new RegistrationTransferConflictError({
+      message:
+        'This ticket includes too many guests to transfer. No payment or refund was started. Ask an organizer for help.',
+    });
+  }
 
   const claimResult = yield* Database.use((database) =>
     database
@@ -2267,7 +2307,27 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
               ),
             )
             .orderBy(registrationTransferBundleAddonPurchases.sourcePurchaseId)
+            .limit(MAX_EVENT_ADDON_TYPES + 1)
             .for('update');
+          if (bundleSnapshots.length > MAX_EVENT_ADDON_TYPES) {
+            return yield* new RegistrationTransferConflictError({
+              message:
+                'This ticket includes too many different add-ons to transfer. No payment or refund was started. Ask an organizer for help.',
+            });
+          }
+          if (
+            bundleSnapshots.some(
+              (snapshot) =>
+                snapshot.quantity > MAX_REGISTRATION_ADDON_QUANTITY ||
+                snapshot.includedQuantity > MAX_REGISTRATION_ADDON_QUANTITY ||
+                snapshot.purchasedQuantity > MAX_REGISTRATION_ADDON_QUANTITY,
+            )
+          ) {
+            return yield* new RegistrationTransferConflictError({
+              message:
+                'This ticket includes too many of one or more add-ons to transfer. No payment or refund was started. Ask an organizer for help.',
+            });
+          }
           const sourceFulfillment = yield* tx
             .select({
               addonId: eventRegistrationAddonPurchases.addonId,
@@ -2570,6 +2630,22 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
           if (lockedBundleAddOns.length !== bundleSnapshots.length) {
             return { _tag: 'TermsChanged' as const };
           }
+          if (
+            (lockedOption.optionIsPaid &&
+              !lockedOption.optionStripeTaxRateId) ||
+            lockedBundleAddOns.some(
+              (addOn) =>
+                addOn.price > 0 &&
+                !addOn.stripeTaxRateId &&
+                bundleSnapshots.some(
+                  (snapshot) =>
+                    snapshot.addonId === addOn.addOnId &&
+                    snapshot.purchasedQuantity > 0,
+                ),
+            )
+          ) {
+            return { _tag: 'TermsChanged' as const };
+          }
           const taxRateIds = [
             lockedOption.optionStripeTaxRateId,
             ...lockedBundleAddOns.map((addOn) => addOn.stripeTaxRateId),
@@ -2749,6 +2825,12 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
                 taxRateId: addOn.stripeTaxRateId,
               }),
               unitAmount: addOn.price,
+            });
+          }
+          if (registrationCheckoutHasTooManyLines(checkoutLineItems)) {
+            return yield* new RegistrationTransferConflictError({
+              message:
+                'This ticket has too many separately priced items to complete one payment. No payment or refund was started. Ask an organizer for help.',
             });
           }
           let paymentClaim: RegistrationTransferPaymentClaim | undefined;

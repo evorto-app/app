@@ -1,7 +1,15 @@
-import '@angular/compiler';
+import {
+  MAX_EVENT_ADDON_TYPES,
+  MAX_REGISTRATION_ADDON_QUANTITY,
+} from '@shared/registration-quantity-limits';
 import { readFileSync } from 'node:fs';
+import '@angular/compiler';
 import nodePath from 'node:path';
 
+import {
+  platformEventAddOnQuantityLimitIssue,
+  platformEventAddonTypeLimitIssue,
+} from './platform-event-detail.component';
 import {
   platformEventAddOnAvailabilityIssue,
   platformEventAddOnMappingIssue,
@@ -391,5 +399,53 @@ describe('platform event registration-mode compatibility', () => {
       'titleIssue(option.title, "registration option")',
     );
     expect(template).toContain('questionOptionIssue(');
+  });
+  it('accepts platform add-on caps and rejects cap plus one', () => {
+    const addOn = {
+      maxQuantityPerUser: MAX_REGISTRATION_ADDON_QUANTITY,
+      totalAvailableQuantity: 100,
+    };
+
+    expect(
+      platformEventAddOnQuantityLimitIssue(MAX_REGISTRATION_ADDON_QUANTITY),
+    ).toBeNull();
+    expect(
+      platformEventAddOnQuantityLimitIssue(MAX_REGISTRATION_ADDON_QUANTITY + 1),
+    ).toBe(
+      `Maximum per attendee cannot exceed ${MAX_REGISTRATION_ADDON_QUANTITY}.`,
+    );
+    expect(
+      platformEventAddOnMappingIssue(addOn, MAX_REGISTRATION_ADDON_QUANTITY, 0),
+    ).toBeNull();
+    expect(
+      platformEventAddOnMappingIssue(addOn, MAX_REGISTRATION_ADDON_QUANTITY, 1),
+    ).toBe(
+      `Included and optional quantities cannot exceed ${MAX_REGISTRATION_ADDON_QUANTITY} per sign-up.`,
+    );
+    expect(
+      platformEventAddonTypeLimitIssue(
+        Array.from({ length: MAX_EVENT_ADDON_TYPES }),
+      ),
+    ).toBeNull();
+    expect(
+      platformEventAddonTypeLimitIssue(
+        Array.from({ length: MAX_EVENT_ADDON_TYPES + 1 }),
+      ),
+    ).toBe(`Add no more than ${MAX_EVENT_ADDON_TYPES} different add-ons.`);
+
+    const template = readFileSync(
+      nodePath.join(
+        process.cwd(),
+        'src/app/global-admin/platform-event-operations/platform-event-detail.component.html',
+      ),
+      'utf8',
+    );
+    expect(
+      template.match(/\[max\]="maxRegistrationAddonQuantity"/g)?.length,
+    ).toBe(3);
+    expect(template).toContain(
+      '[disabled]="graph.addOns.length >= maxEventAddonTypes"',
+    );
+    expect(template).toContain('addOnTypeLimitIssue(graph.addOns)');
   });
 });
