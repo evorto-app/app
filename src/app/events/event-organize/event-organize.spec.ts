@@ -209,7 +209,7 @@ describe('event organizer error notifications', () => {
     {
       conflict: 'Checked-in registrations cannot be cancelled',
       fallback:
-        'The cancellation outcome could not be confirmed. Reload the page to check the current sign-up status before trying again.',
+        'The cancellation outcome could not be confirmed. Load the page again to check the current sign-up status before trying again.',
       label: 'Cancel registration',
       mutation: cancelRegistration,
     },
