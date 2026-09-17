@@ -2,7 +2,7 @@ import { asRpcMutation, asRpcQuery } from '@heddendorp/effect-angular-query';
 import { notificationEmailPattern } from '@shared/notification-email';
 import { literalUnion } from '@shared/schema-utilities';
 import { AdminTenantSettingsSnapshot } from '@shared/tenant-settings-snapshot';
-import { Schema } from 'effect';
+import { Effect, Schema, SchemaTransformation } from 'effect';
 import * as Rpc from 'effect/unstable/rpc/Rpc';
 import * as RpcGroup from 'effect/unstable/rpc/RpcGroup';
 
@@ -14,6 +14,7 @@ import {
   AdminRoleWriteRpcError,
   AdminTenantRpcError,
 } from './admin.errors';
+import { ClientTenantConfig } from './config.rpcs';
 import { RoleWriteInput } from './role-write.shared';
 
 const UrlString = Schema.String.pipe(
@@ -227,7 +228,7 @@ export const AdminTenantListStripeTaxRates = asRpcQuery(
   }),
 );
 
-export const AdminTenantUpdateSettingsInput = Schema.Struct({
+const AdminTenantUpdateSettingsPayload = Schema.Struct({
   allowOther: Schema.Boolean,
   buyEsnCardUrl: Schema.optional(UrlString),
   cancellationDeadlineHoursBeforeStart:
@@ -247,7 +248,6 @@ export const AdminTenantUpdateSettingsInput = Schema.Struct({
   refundFeesOnCancellation: Schema.Boolean,
   seoDescription: Schema.optional(Schema.String),
   seoTitle: Schema.optional(Schema.String),
-  stripeAccountId: Schema.optional(Schema.NonEmptyString),
   termsText: Schema.optional(Schema.String),
   termsUrl: Schema.optional(UrlString),
   theme: Tenant.fields.theme,
@@ -255,6 +255,24 @@ export const AdminTenantUpdateSettingsInput = Schema.Struct({
   transferDeadlineHoursBeforeStart:
     Tenant.fields.transferDeadlineHoursBeforeStart,
 });
+
+export const AdminTenantUpdateSettingsInput = Schema.Json.pipe(
+  Schema.decodeTo(
+    AdminTenantUpdateSettingsPayload,
+    SchemaTransformation.transformOrFail({
+      decode: (input) =>
+        Schema.decodeUnknownEffect(
+          Schema.toCodecJson(AdminTenantUpdateSettingsPayload),
+        )(input, {
+          onExcessProperty: 'error',
+        }).pipe(Effect.mapError((error) => error.issue)),
+      encode: (value) =>
+        Schema.encodeEffect(
+          Schema.toCodecJson(AdminTenantUpdateSettingsPayload),
+        )(value).pipe(Effect.mapError((error) => error.issue)),
+    }),
+  ),
+);
 
 export type AdminTenantUpdateSettingsInput = Schema.Schema.Type<
   typeof AdminTenantUpdateSettingsInput
@@ -287,7 +305,7 @@ export const AdminTenantUpdateSettings = asRpcMutation(
   Rpc.make('admin.tenant.updateSettings', {
     error: AdminTenantRpcError,
     payload: AdminTenantUpdateSettingsInput,
-    success: Tenant,
+    success: ClientTenantConfig,
   }),
 );
 

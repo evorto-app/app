@@ -11,8 +11,6 @@ test.setTimeout(120_000);
 test.use({ storageState: gaStateFile });
 
 const tenantSearchLabel = 'Search organizations';
-const expectedStripeAccountId =
-  process.env['STRIPE_TEST_ACCOUNT_ID'] ?? 'acct_playwright_list';
 
 const fillTenantSearch = async (page: Page, value: string) => {
   const tenantList = page.locator('app-tenant-list');
@@ -23,12 +21,30 @@ const fillTenantSearch = async (page: Page, value: string) => {
   await expect(searchInput).toHaveValue(value);
 };
 
-const expectTenantRows = async (page: Page) => {
+const expectTenantRows = async (
+  page: Page,
+  tenant: Pick<typeof schema.tenants.$inferSelect, 'stripeAccountId'>,
+) => {
   await expect(page.getByText('Primary domain').first()).toBeVisible();
   await expect(page.getByText('Theme').first()).toBeVisible();
   await expect(page.getByText('Currency').first()).toBeVisible();
   await expect(page.getByText('Timezone').first()).toBeVisible();
-  await expect(page.getByText('Stripe account').first()).toBeVisible();
+  await expect(
+    page.getByText('Payments', { exact: true }).first(),
+  ).toBeVisible();
+  await expect(
+    page
+      .getByText(
+        tenant.stripeAccountId
+          ? 'Paid sign-ups ready'
+          : 'Paid sign-ups need attention',
+        { exact: true },
+      )
+      .first(),
+  ).toBeVisible();
+  if (tenant.stripeAccountId) {
+    await expect(page.getByText(tenant.stripeAccountId)).toHaveCount(0);
+  }
   await expect(page.getByText('evorto').first()).toBeVisible();
   await expect(page.getByText('EUR').first()).toBeVisible();
   await expect(page.getByText('Europe/Berlin').first()).toBeVisible();
@@ -46,14 +62,14 @@ const expectTenantFormScope = async (
   await expect(form.getByLabel('Organization name')).toBeVisible();
   await expect(form.getByLabel('Primary domain')).toBeVisible();
   await expect(form.getByLabel('Theme')).toBeVisible();
-  await expect(form.getByLabel('Stripe account ID')).toBeVisible();
+  await expect(form.getByLabel('Stripe account ID')).toHaveCount(0);
+  await expect(form.getByPlaceholder('acct_...')).toHaveCount(0);
   await expect(form.getByLabel('Currency')).toBeVisible();
   await expect(form.getByLabel('Timezone')).toBeVisible();
   if (options.expectCreatePlaceholders) {
     await expect(
       form.getByRole('textbox', { name: 'Primary domain', exact: true }),
     ).toBeVisible();
-    await expect(form.getByPlaceholder('acct_...')).toBeVisible();
   }
   await expect(form.getByRole('combobox').first()).toBeVisible();
   await expect(form.getByLabel('Reason for platform change')).toBeVisible();
@@ -90,6 +106,12 @@ test('platform administrator reviews tenant list, detail, and forms @admin @glob
     .limit(1);
   if (!originalTenant) {
     throw new Error('Expected seeded global-admin tenant');
+  }
+  const originalStripeAccountId = originalTenant.stripeAccountId;
+  if (!originalStripeAccountId) {
+    throw new Error(
+      'Expected seeded global-admin tenant to have a connected Stripe account',
+    );
   }
   const createdTenantDomain = `created-${getId().slice(0, 8)}.example.test`;
   const createdTenantName = 'Created Section';
@@ -144,7 +166,7 @@ test('platform administrator reviews tenant list, detail, and forms @admin @glob
     page.getByRole('link', { name: 'Create organization' }),
   ).toHaveAttribute('href', '/global-admin/tenants/create');
   await expect(page.getByLabel(tenantSearchLabel)).toBeVisible();
-  await expectTenantRows(page);
+  await expectTenantRows(page, originalTenant);
 
   await fillTenantSearch(page, 'no-such-tenant');
   await expect(
@@ -152,10 +174,12 @@ test('platform administrator reviews tenant list, detail, and forms @admin @glob
   ).toBeVisible();
   await fillTenantSearch(page, 'localhost');
   await expect(page.getByText('localhost').first()).toBeVisible();
-  await fillTenantSearch(page, expectedStripeAccountId);
+  await fillTenantSearch(page, originalStripeAccountId);
   await expect(
-    page.getByText(`Connected (${expectedStripeAccountId})`).first(),
+    page.getByRole('heading', { name: 'No organizations match this search' }),
   ).toBeVisible();
+  await fillTenantSearch(page, 'localhost');
+  await expectTenantRows(page, originalTenant);
 
   await page.getByRole('link', { name: 'Create organization' }).click();
   await expect(
@@ -207,6 +231,7 @@ test('platform administrator reviews tenant list, detail, and forms @admin @glob
     throw new Error('Expected global-admin create flow to persist tenant');
   }
   createdTenantId = createdTenant.id;
+  await expectTenantRows(page, createdTenant);
   expect(createdTenant).toEqual(
     expect.objectContaining({
       currency: 'EUR',
@@ -294,7 +319,7 @@ test('platform administrator reviews tenant list, detail, and forms @admin @glob
   await expect(
     page.getByText("Review this organization's settings and platform tools."),
   ).toBeVisible();
-  await expectTenantRows(page);
+  await expectTenantRows(page, originalTenant);
   await expect(
     page.getByRole('link', { name: 'Open organization' }),
   ).toHaveCount(0);
@@ -340,6 +365,7 @@ test('platform administrator reviews tenant list, detail, and forms @admin @glob
       domain: originalTenant.domain,
       id: originalTenant.id,
       name: updatedTenantName,
+      stripeAccountId: originalTenant.stripeAccountId,
     }),
   );
   await page.goto('/global-admin');

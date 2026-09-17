@@ -1,13 +1,13 @@
 import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
+import { ClientTenantConfig } from '@shared/rpc-contracts/app-rpcs/config.rpcs';
 import {
   provideTanStackQuery,
   QueryClient,
 } from '@tanstack/angular-query-experimental';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { Tenant } from '../../../types/custom/tenant';
 import { ConfigService } from '../../core/config.service';
 import { EventGeneralForm } from '../../shared/components/forms/event-general-form/event-general-form';
 import {
@@ -128,7 +128,7 @@ describe('templateCreateEventErrorMessage', () => {
 const createEvent = vi.fn();
 const findTemplate = vi.fn();
 
-const tenantConfig = new Tenant({
+const tenantConfig = new ClientTenantConfig({
   cancellationDeadlineHoursBeforeStart: 24,
   currency: 'EUR',
   defaultLocation: undefined,
@@ -142,6 +142,7 @@ const tenantConfig = new Tenant({
   id: 'tenant-1',
   maxActiveRegistrationsPerUser: 3,
   name: 'Tenant',
+  paymentsConfigured: false,
   receiptSettings: {
     allowOther: false,
     receiptCountries: ['DE'],
@@ -186,7 +187,7 @@ describe('TemplateCreateEventComponent load recovery', () => {
         {
           provide: ConfigService,
           useValue: {
-            tenantSignal: signal<null | Tenant>(tenantConfig),
+            tenantSignal: signal<ClientTenantConfig | null>(tenantConfig),
           } satisfies Pick<ConfigService, 'tenantSignal'>,
         },
         {

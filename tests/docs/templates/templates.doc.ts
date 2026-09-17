@@ -271,7 +271,7 @@ When **Enable Payment** is on, the price and tax-rate fields appear for that reg
   await expect(
     organizerRegistrationForm
       .locator('mat-form-field')
-      .filter({ hasText: 'Inclusive tax rate' })
+      .filter({ hasText: 'Tax included in the shown price' })
       .locator('mat-select')
       .first(),
   ).toBeVisible();

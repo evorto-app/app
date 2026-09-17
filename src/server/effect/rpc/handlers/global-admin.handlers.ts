@@ -58,26 +58,11 @@ import {
   registrationTransfers,
   tenantPrivacyPolicyVersions,
   tenants,
-  tenantStripeTaxRates,
 } from '../../../../db/schema';
 import { PlatformAdministratorAuthority } from '../../../../types/custom/platform-authority';
 import { emailOutboxStaleSendingPredicate } from '../../../notifications/email-outbox-lease';
 import { normalizeTenantPrivacyPolicy } from '../../../onboarding/tenant-onboarding.service';
-import {
-  stripeAccountRemovalBlockedByPaidConfigurationErrorDetails,
-  stripeAccountRemovalBlockedByTaxConfigurationErrorDetails,
-  tenantHasPaidEventConfiguration,
-  tenantHasStripeTaxRateConfiguration,
-} from '../../../payments/paid-event-configuration';
 import { tenantHasPendingStripeObligations } from '../../../payments/pending-stripe-obligations';
-import {
-  applyStripeTaxRateAccountRotation,
-  fetchStripeTaxRateAccountRotationTargetRates,
-  planStripeTaxRateAccountRotation,
-  type StripeTaxRateAccountRotationPlan,
-  type StripeTaxRateAccountRotationTargetRate,
-} from '../../../payments/stripe-tax-rate-account-rotation';
-import { StripeClient } from '../../../stripe-client';
 import {
   tenantCurrencyChangeBlockedErrorDetails,
   tenantHasCurrencyDependentData,
@@ -225,6 +210,7 @@ const PersistedGlobalAdminPlatformAuditState = Schema.Struct({
   guestCount: GlobalAdminPlatformAuditState.fields.guestCount,
   locationName: GlobalAdminPlatformAuditState.fields.locationName,
   name: GlobalAdminPlatformAuditState.fields.name,
+  paymentsConfigured: GlobalAdminPlatformAuditState.fields.paymentsConfigured,
   permissions: GlobalAdminPlatformAuditState.fields.permissions,
   questions: Schema.optional(Schema.Array(Schema.Unknown)),
   rates: Schema.optional(Schema.Array(PersistedGlobalAdminTaxRateAuditRecord)),
@@ -237,7 +223,6 @@ const PersistedGlobalAdminPlatformAuditState = Schema.Struct({
   simpleModeEnabled: GlobalAdminPlatformAuditState.fields.simpleModeEnabled,
   sortOrder: GlobalAdminPlatformAuditState.fields.sortOrder,
   status: GlobalAdminPlatformAuditState.fields.status,
-  stripeConnected: GlobalAdminPlatformAuditState.fields.stripeConnected,
   taxAmount: Schema.optional(Schema.Number),
   theme: GlobalAdminPlatformAuditState.fields.theme,
   timezone: GlobalAdminPlatformAuditState.fields.timezone,
@@ -283,6 +268,7 @@ const toGlobalAdminPlatformAuditSnapshot = (
       guestCount: state.guestCount,
       locationName: state.locationName,
       name: state.name,
+      paymentsConfigured: state.paymentsConfigured,
       permissions: state.permissions,
       questionCount: state.questions?.length,
       receiptCount: state.receiptCount,
@@ -292,7 +278,6 @@ const toGlobalAdminPlatformAuditSnapshot = (
       simpleModeEnabled: state.simpleModeEnabled,
       sortOrder: state.sortOrder,
       status: state.status,
-      stripeConnected: state.stripeConnected,
       ...changeSummary,
       taxRateCount: state.rates?.length,
       theme: state.theme,
@@ -441,7 +426,7 @@ const toGlobalAdminTenantRecord = (tenant: {
 }): GlobalAdminTenantRecordType => {
   return Schema.decodeUnknownSync(GlobalAdminTenantRecord)({
     ...tenant,
-    stripeConnected: !!tenant.stripeAccountId,
+    paymentsConfigured: !!tenant.stripeAccountId,
   });
 };
 
@@ -460,8 +445,7 @@ const toPlatformTenantAuditSnapshot = (
     id: tenant.id,
     name: tenant.name,
     ...privacyPolicy,
-    stripeAccountId: tenant.stripeAccountId,
-    stripeConnected: tenant.stripeConnected,
+    paymentsConfigured: tenant.paymentsConfigured,
     theme: tenant.theme,
     timezone: tenant.timezone,
   },
@@ -492,7 +476,6 @@ const normalizeTenantWriteInput = (
     currency: input.currency,
     domain,
     name,
-    stripeAccountId: input.stripeAccountId?.trim() || undefined,
     theme: input.theme,
     timezone: input.timezone,
   };
@@ -766,7 +749,7 @@ export const globalAdminHandlers = {
                 .insert(tenants)
                 .values({
                   ...tenantInput,
-                  stripeAccountId: tenantInput.stripeAccountId ?? null,
+                  stripeAccountId: null,
                 })
                 .returning(globalAdminTenantReturningColumns);
               const createdTenant = createdTenants[0];
@@ -871,51 +854,6 @@ export const globalAdminHandlers = {
           new RpcBadRequestError({ message: 'Tenant not found' }),
         );
       }
-      const nextStripeAccountId = tenantInput.stripeAccountId ?? null;
-      let stripeTaxRateRotationTargets: readonly StripeTaxRateAccountRotationTargetRate[] =
-        [];
-      if (
-        targetTenant.stripeAccountId &&
-        nextStripeAccountId &&
-        targetTenant.stripeAccountId !== nextStripeAccountId
-      ) {
-        yield* databaseEffectWithTenantUpdateError(
-          tenantInput.domain,
-          (database) =>
-            database.transaction((transaction) =>
-              Effect.gen(function* () {
-                const currentRows = yield* transaction
-                  .select(globalAdminTenantReturningColumns)
-                  .from(tenants)
-                  .where(eq(tenants.id, id))
-                  .for('update');
-                const currentTenant = currentRows[0];
-                if (!currentTenant) {
-                  return yield* Effect.die(
-                    new Error('Tenant disappeared during platform update'),
-                  );
-                }
-                if (
-                  !Schema.toEquivalence(PlatformTenantSettingsSnapshot)(
-                    input.expectedSettings,
-                    platformTenantSettingsSnapshot(currentTenant),
-                  )
-                ) {
-                  return yield* tenantSettingsConflict();
-                }
-              }),
-            ),
-        );
-        // Release the preflight lock before provider I/O; the write transaction
-        // below rechecks the snapshot after the provider response.
-        const stripe = yield* StripeClient;
-        stripeTaxRateRotationTargets =
-          yield* fetchStripeTaxRateAccountRotationTargetRates(
-            stripe,
-            nextStripeAccountId,
-          );
-      }
-
       return yield* databaseEffectWithTenantUpdateError(
         tenantInput.domain,
         (database) =>
@@ -968,59 +906,6 @@ export const globalAdminHandlers = {
                 }
               }
 
-              let rotationPlan: StripeTaxRateAccountRotationPlan | undefined;
-              if (beforeTenant.stripeAccountId !== nextStripeAccountId) {
-                const hasPendingStripeObligations =
-                  yield* tenantHasPendingStripeObligations(transaction, id);
-                if (hasPendingStripeObligations) {
-                  return yield* new RpcBadRequestError({
-                    message:
-                      'Stripe account cannot change while registration Checkouts or refunds are pending',
-                    reason:
-                      'Complete or cancel every pending Checkout and refund before changing the connected account.',
-                  });
-                }
-
-                if (nextStripeAccountId === null) {
-                  const hasPaidEventConfiguration =
-                    yield* tenantHasPaidEventConfiguration(transaction, id);
-                  if (hasPaidEventConfiguration) {
-                    return yield* new RpcBadRequestError(
-                      stripeAccountRemovalBlockedByPaidConfigurationErrorDetails,
-                    );
-                  }
-                  const hasStripeTaxRateConfiguration =
-                    yield* tenantHasStripeTaxRateConfiguration(transaction, id);
-                  if (hasStripeTaxRateConfiguration) {
-                    return yield* new RpcBadRequestError(
-                      stripeAccountRemovalBlockedByTaxConfigurationErrorDetails,
-                    );
-                  }
-                } else if (beforeTenant.stripeAccountId) {
-                  rotationPlan = yield* planStripeTaxRateAccountRotation(
-                    transaction,
-                    {
-                      sourceStripeAccountId: beforeTenant.stripeAccountId,
-                      targetRates: stripeTaxRateRotationTargets,
-                      targetStripeAccountId: nextStripeAccountId,
-                      tenantId: id,
-                    },
-                  );
-                } else {
-                  const hasStripeTaxRateConfiguration =
-                    yield* tenantHasStripeTaxRateConfiguration(transaction, id);
-                  if (hasStripeTaxRateConfiguration) {
-                    return yield* new RpcBadRequestError(
-                      stripeAccountRemovalBlockedByTaxConfigurationErrorDetails,
-                    );
-                  }
-                }
-
-                yield* transaction
-                  .delete(tenantStripeTaxRates)
-                  .where(eq(tenantStripeTaxRates.tenantId, id));
-              }
-
               if (beforeTenant.currency !== tenantInput.currency) {
                 const hasCurrencyDependentData =
                   yield* tenantHasCurrencyDependentData(transaction, id);
@@ -1033,10 +918,7 @@ export const globalAdminHandlers = {
 
               const updatedTenants = yield* transaction
                 .update(tenants)
-                .set({
-                  ...tenantInput,
-                  stripeAccountId: nextStripeAccountId,
-                })
+                .set(tenantInput)
                 .where(eq(tenants.id, id))
                 .returning(globalAdminTenantReturningColumns);
               const updatedTenant = updatedTenants[0];
@@ -1045,15 +927,6 @@ export const globalAdminHandlers = {
                   new Error('Tenant update returned no rows'),
                 );
               }
-              if (rotationPlan) {
-                // Source metadata was removed with the old account; restore
-                // only the provider-verified target-account matches.
-                yield* applyStripeTaxRateAccountRotation(
-                  transaction,
-                  rotationPlan,
-                );
-              }
-
               const before = toGlobalAdminTenantRecord(beforeTenant);
               const after = toGlobalAdminTenantRecord(updatedTenant);
               yield* transaction.insert(platformAuditEntries).values({

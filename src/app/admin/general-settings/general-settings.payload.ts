@@ -25,7 +25,6 @@ export interface GeneralSettingsModel {
   refundFeesOnCancellation: boolean;
   seoDescription: string;
   seoTitle: string;
-  stripeAccountId: string;
   termsText: string;
   termsUrl: string;
   theme: Tenant['theme'];
@@ -57,7 +56,6 @@ export const generalSettingsPayloadFromModel = (
   refundFeesOnCancellation: settings.refundFeesOnCancellation,
   seoDescription: optionalTrimmed(settings.seoDescription),
   seoTitle: optionalTrimmed(settings.seoTitle),
-  stripeAccountId: optionalTrimmed(settings.stripeAccountId),
   termsText: optionalTrimmed(settings.termsText),
   termsUrl: optionalTrimmed(settings.termsUrl),
   theme: settings.theme,

@@ -38,9 +38,7 @@ describe('tenant outbound URL source boundary', () => {
       'src/shared/rpc-contracts/app-rpcs/admin.rpcs.ts',
     );
     const tenantAdminSettings = tenantAdminContract.slice(
-      tenantAdminContract.indexOf(
-        'export const AdminTenantUpdateSettingsInput',
-      ),
+      tenantAdminContract.indexOf('const AdminTenantUpdateSettingsPayload'),
       tenantAdminContract.indexOf('export type AdminTenantUpdateSettingsInput'),
     );
 

@@ -156,13 +156,13 @@ Use **Upload favicon** the same way. Favicons additionally accept ICO files. If 
 In **Operations settings**:
 
 1. **Email reply-to name** and **Email reply-to email** control where replies to organization emails go. Evorto keeps the actual From address on the ESN.WORLD notification domain.
-2. **Stripe account ID** identifies the Stripe account used for organization payments. Confirm the account in Stripe before changing it. Without a connected account, every event registration option and add-on must be free. Remove an account only after all paid event and add-on configuration has been converted to free.
+2. **Paid sign-ups** shows whether payments are ready. If **Paid sign-ups are not ready** appears, contact Evorto support before adding prices. Support handles the first Stripe account attachment; organization and platform settings do not accept account identifiers. Once attached, the account cannot be changed or removed. Until payments are ready, every event registration option and add-on must be free.
 3. **Active registration limit** caps how many active registrations one person may have across this organization. Enter **0** for no organization-wide limit.
 4. **Transfer deadline before event (hours)** says how long before an event starts participants stop being able to transfer a registration. Enter **0** to allow transfers until the event starts.
 5. **Cancellation deadline before event (hours)** says how long before an event starts participant cancellations close. The default **120** is five days.
 6. **Refund fees on cancellation** controls whether eligible cancellation refunds include refundable payment fees.
 
-The walkthrough below updates these values and the uploaded brand assets while preserving the connected Stripe account. It saves the form, reloads the page, and confirms that the same values remain.
+The walkthrough below updates the editable operations values and uploaded brand assets while preserving the attached Stripe account. It saves the form, reloads the page, and confirms that the same values and payment readiness remain.
 `,
     });
 
@@ -172,9 +172,13 @@ The walkthrough below updates these values and the uploaded brand assets while p
     await page
       .getByPlaceholder('events@section.example.org')
       .fill(` ${documentedEmailSenderEmail} `);
-    await page
-      .getByPlaceholder('acct_...')
-      .fill(` ${documentedStripeAccountId} `);
+    await expect(generalSettings.getByLabel('Stripe account ID')).toHaveCount(
+      0,
+    );
+    await expect(generalSettings.getByPlaceholder('acct_...')).toHaveCount(0);
+    await expect(
+      generalSettings.getByText('Paid sign-ups are ready.', { exact: true }),
+    ).toBeVisible();
     await page
       .getByRole('spinbutton', { name: 'Active registration limit' })
       .fill(String(documentedRegistrationLimit));
@@ -241,9 +245,13 @@ The walkthrough below updates these values and the uploaded brand assets while p
     await expect(
       page.getByPlaceholder('events@section.example.org'),
     ).toHaveValue(documentedEmailSenderEmail);
-    await expect(page.getByPlaceholder('acct_...')).toHaveValue(
-      documentedStripeAccountId,
+    await expect(generalSettings.getByLabel('Stripe account ID')).toHaveCount(
+      0,
     );
+    await expect(generalSettings.getByPlaceholder('acct_...')).toHaveCount(0);
+    await expect(
+      generalSettings.getByText('Paid sign-ups are ready.', { exact: true }),
+    ).toBeVisible();
     await expect(
       page.getByRole('spinbutton', { name: 'Active registration limit' }),
     ).toHaveValue(String(documentedRegistrationLimit));
@@ -276,7 +284,7 @@ The walkthrough below updates these values and the uploaded brand assets while p
       body: `
 ## Completion and recovery
 
-The **Organization settings updated** message confirms that the changes were saved. Reload the page when you want to confirm the saved reply-to identity, Stripe account ID, registration limit, transfer deadline, cancellation deadline, and fee-refund choice.
+The **Organization settings updated** message confirms that the changes were saved. Reload the page when you want to confirm the saved reply-to identity, payment readiness, registration limit, transfer deadline, cancellation deadline, and fee-refund choice.
 
 The Save action remains unavailable while the form is invalid or another save is running. If Evorto cannot save a change, it explains what needs attention; correct the value and try again. Evorto prevents currency and timezone changes after event or payment data exists.
 
@@ -285,7 +293,7 @@ The Save action remains unavailable while the form is invalid or another save is
 The current general settings page supports:
 
 - A read-only **Organization** summary with its name and public domain.
-- **Operations settings** for email reply-to name/email, Stripe account id, the organization-wide active registration limit, default registration transfer/cancellation deadlines, and cancellation fee-refund behavior. Users with event-review access can review submitted events.
+- **Operations settings** for email reply-to name/email, paid sign-up readiness, the organization-wide active registration limit, default registration transfer/cancellation deadlines, and cancellation fee-refund behavior. Users with event-review access can review submitted events.
 - **Default Location** for event location search bias.
 - **Site theme** for the organization's theme.
 - A **Currency** select with EUR, CZK, and AUD plus a **Timezone** text field for the city or region used for event times. Currency and timezone can be changed before the organization has event or payment data; after that, Evorto prevents the change.

@@ -177,7 +177,7 @@ export class EventEdit {
   });
   protected readonly eventEditSubmitDisabled = eventEditSubmitDisabled;
   protected readonly stripeConnected = computed(() =>
-    Boolean(this.config.tenantSignal()?.stripeAccountId),
+    Boolean(this.config.tenantSignal()?.paymentsConfigured),
   );
   protected readonly eventForm = form(
     this.eventModel,

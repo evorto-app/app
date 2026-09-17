@@ -44,8 +44,7 @@ describe('platform tenant stale-edit recovery', () => {
       domain: 'tenant.example.test',
       id: 'tenant-1',
       name: 'Original name',
-      stripeAccountId: null,
-      stripeConnected: false,
+      paymentsConfigured: false,
       theme: 'evorto',
       timezone: 'Europe/Berlin',
     };
