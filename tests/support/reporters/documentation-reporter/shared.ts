@@ -70,6 +70,27 @@ export type TestSection = {
   title: string;
 };
 
+export const buildDocumentationPage = (
+  mainTitle: string,
+  sections: readonly TestSection[],
+): string => {
+  const hasMultipleSections = sections.length > 1;
+  const pageLines: string[] = [
+    `---\ntitle: ${mainTitle}\n---`,
+    '',
+    `# ${mainTitle}`,
+    '',
+  ];
+
+  for (const [index, section] of sections.entries()) {
+    if (index > 0) pageLines.push('');
+    if (hasMultipleSections) pageLines.push(`## ${section.title}`);
+    pageLines.push(...section.content);
+  }
+
+  return pageLines.join('\n');
+};
+
 export type TestGroupDocument = {
   describeTitle?: string;
   filePath?: string;

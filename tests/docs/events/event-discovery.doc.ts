@@ -240,7 +240,7 @@ test('Find an event you can join', async ({
 Open the correct organization's Evorto address to see its events. After signing in, a sign-up event appears when it has at least one choice available to you, whether you want to attend, help organize, or join in another way defined by the organization. Here, available means the choice allows one of your roles; it may still be full or outside its sign-up window.
 
 {% callout type="note" title="Before you start" %}
-Check the organization name and address before choosing an event. Each organization has its own list. Events that are not yet published, have ended, or have no sign-up choice for your roles do not appear. Registration windows and remaining places are checked separately when you open the event. A shared link still opens a published event and explains when you cannot sign up. Announcements follow a different rule: they appear to members with roles selected on the announcement. Without a selected role, an announcement can be opened only through a shared link. This choice does not change anyone's role or send a message.
+Check the organization name and address before choosing an event. Each organization has its own list. Events that are not yet published, have ended, or have no sign-up choice for your roles do not appear. Sign-up windows and remaining places are checked separately when you open the event. A shared link still opens a published event and explains when you cannot sign up. Announcements follow a different rule: they appear to members with roles selected on the announcement. Without a selected role, an announcement can be opened only through a shared link. This choice does not change anyone's role or send a message.
 {% /callout %}
 
 ## Open Events

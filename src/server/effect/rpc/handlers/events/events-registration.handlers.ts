@@ -192,7 +192,8 @@ export const mapRegistrationMutationInternalError = (error: unknown) => {
         Effect.andThen(
           Effect.fail(
             new EventRegistrationInternalError({
-              message: 'Internal server error',
+              message:
+                'The result of this request could not be confirmed. Open the event again and review your ticket and payment status before taking another action.',
             }),
           ),
         ),

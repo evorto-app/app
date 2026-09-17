@@ -251,10 +251,10 @@ If rates cannot be loaded, select **Try again**; nothing is added until the list
   });
 });
 
-test.describe('Tax included in the shown prices documentation (creators)', () => {
+test.describe('Use tax rates for paid sign-ups', () => {
   test.use({ storageState: adminStateFile });
 
-  test('Assign compatible tax rates to paid registrations', async ({
+  test('Choose tax rates for paid sign-ups', async ({
     database,
     page,
     registerDatabaseCleanup,
@@ -404,15 +404,14 @@ test.describe('Tax included in the shown prices documentation (creators)', () =>
 
     await testInfo.attach('markdown', {
       body: `
-{% callout type="note" title="Account, access, and payment prerequisites" %}
-Sign in to the organization you intend to edit. This journey needs **View templates**, **Edit all templates**, and **Create events** access. The organization must have a connected Stripe account and at least one active, inclusive rate imported under **Admin Tools** → **Tax Rates**.
+{% callout type="note" title="Account, access, and payment before you start" %}
+Sign in to the organization you intend to edit. This journey needs **View templates**, **Edit all templates**, and **Create events** access. The organization must have a connected payment account and at least one active, inclusive rate imported under **Admin Tools** → **Tax Rates**.
 {% /callout %}
 
-# Require and assign a tax rate for paid registration options
 
-Paid event and template registration options must reference a compatible inclusive tax rate. Free options hide the price and tax-rate fields; select **Enable payment** or **Charge for this choice** to reveal them.
+Paid event and template sign-up choices must reference a compatible inclusive tax rate. Free options hide the price and tax-rate fields; select **Enable payment** or **Charge for this choice** to reveal them.
 
-Navigate to **Templates** and open an existing paid template. If the selector says **No active inclusive tax rates**, ask an organization administrator with **Manage tax rates** access to import one from the organization's connected Stripe account, then reload the editor. If loading failed, retry when Stripe is available again. Keep the option free until a compatible rate is available.
+Navigate to **Templates** and open an existing paid template. If the selector says **No active inclusive tax rates**, ask an organization administrator with **Manage tax rates** access to import one from the organization's connected payment account, then return to the editor. If loading failed, retry when payments are available again. Keep the option free until a compatible rate is available.
 `,
     });
 
@@ -444,12 +443,12 @@ Navigate to **Templates** and open an existing paid template. If the selector sa
       testInfo,
       registrationSection,
       page,
-      'Template registration options with inclusive labels',
+      'Template sign-up choices with tax included in the shown price',
     );
 
     await testInfo.attach('markdown', {
       body: `
-Each paid registration displays the final price together with its inclusive tax label (for example “19% VAT included in the shown price”). Exclusive or inactive rates never appear in this list.
+Each paid sign-up displays the final price together with its inclusive tax label (for example “19% VAT included in the shown price”). Exclusive or inactive rates never appear in this list.
 `,
     });
 
@@ -489,12 +488,12 @@ Each paid registration displays the final price together with its inclusive tax 
       testInfo,
       organizerSection,
       page,
-      'Compatible tax rate selected for the paid template option',
+      'Tax rate selected for the paid template choice',
     );
 
     await testInfo.attach('markdown', {
       body: `
-Paid organizer registrations require a compatible inclusive tax rate. Select the intended imported rate, review its percentage, then choose **Update template**. This changes the reusable template for future events; it does not rewrite events already created from that template.
+Paid organizer tickets require a compatible inclusive tax rate. Select the intended imported rate, review its percentage, then choose **Update template**. This changes the reusable template for future events; it does not rewrite events already created from that template.
 `,
     });
 
@@ -591,7 +590,7 @@ Paid organizer registrations require a compatible inclusive tax rate. Select the
       body: `
 ## Update tax rates in existing events
 
-Event editors can revisit the same controls when updating an editable event.
+People editing an event can revisit the same controls when updating an editable event.
 Open **Edit Event** on a draft event to adjust tax rates if regulations or pricing change.
 `,
     });
@@ -641,12 +640,12 @@ Open **Edit Event** on a draft event to adjust tax rates if regulations or prici
       testInfo,
       eventOrganizerSection,
       page,
-      'Compatible tax rate selected for the paid event option',
+      'Tax rate selected for the paid event choice',
     );
 
     await testInfo.attach('markdown', {
       body: `
-Existing paid registration options keep their inclusive tax requirement. Select the intended compatible imported rate and choose **Save changes**. The event keeps its own selection independently from the original template.
+Existing paid sign-up choices keep their inclusive tax requirement. Select the intended compatible imported rate and choose **Save changes**. The event keeps its own selection independently from the original template.
 `,
     });
 
@@ -678,9 +677,9 @@ Existing paid registration options keep their inclusive tax requirement. Select 
       body: `
 ## Completion and recovery
 
-Returning to the event detail page confirms that **Save changes** completed. The saved registration option now uses the selected imported rate, while the reusable template keeps its separately saved rate. Existing registrations retain their original monetary and tax details.
+Returning to the event detail page confirms that **Save changes** completed. The saved sign-up choice now uses the selected imported rate, while the reusable template keeps its separately saved rate. Existing tickets retain their original monetary and tax details.
 
-If saving reports that the rate is missing, inactive, exclusive, or belongs to another Stripe account, leave the option unchanged. Return to **Admin Tools** → **Tax Rates**, import a compatible rate from the organization's current connected account, reload the editor, and select it deliberately before retrying.
+If saving reports that the rate is missing, inactive, exclusive, or belongs to another payment account, leave the option unchanged. Return to **Admin Tools** → **Tax Rates**, import a compatible rate from the organization's current connected account, return to the editor, and select it deliberately before retrying.
 `,
     });
     const eventDetail = page.locator(
@@ -691,7 +690,7 @@ If saving reports that the rate is missing, inactive, exclusive, or belongs to a
       testInfo,
       eventDetail,
       page,
-      'Paid event after saving its compatible tax rate',
+      'Paid event after saving its tax rate',
     );
   });
 });

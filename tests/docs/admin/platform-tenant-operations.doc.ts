@@ -287,15 +287,14 @@ test('Manage one organization and review change history', async ({
 
   await testInfo.attach('markdown', {
     body: `
-{% callout type="note" title="Platform administrator requirements" %}
-Use this guide only when you are signed in as a platform administrator. An organization role does not grant this access.
+{% callout type="note" title="Who can do this" %}
+Use this guide only when you are signed in as an Evorto administrator. An organization role does not grant this access.
 {% /callout %}
 
-# Operate on one organization
 
-Platform administrators do not become organization members. Start at **Evorto administration**, open **Organizations**, search by primary domain, and select **Review organization**. Confirm the organization name in the page header before every operation.
+Evorto administrators do not become organization members. Start at **Evorto administration**, open **Organizations**, search by main website address, and select **Review organization**. Confirm the organization name in the page header before every operation.
 
-Every change in this guide requires an operational reason. Evorto saves the domain change and a privacy-safe change-history entry together. The final section reads every reason back from the visible **Evorto change history**.
+Every change in this guide requires a reason for the change. Evorto saves the website-address change and a privacy-safe change-history entry together. The final section reads every reason back from the visible **Evorto change history**.
 `,
   });
   await takeScreenshot(
@@ -323,7 +322,7 @@ Every change in this guide requires an operational reason. Evorto saves the doma
     body: `
 ## Edit a draft event
 
-Choose **Manage events**, find the draft, and select **Review event**. The editor shows the event owner, status, schedule, and complete registration setup. Only a draft can be saved from this form. Change the title, enter a precise **Update reason**, and select **Save draft details**. Review decisions and changes to who can find an announcement use their own reason field and are not performed by this walkthrough.
+Choose **Manage events**, find the draft, and select **Review event**. The editor shows the event owner, status, schedule, and complete sign-up setup. Only a draft can be saved from this form. Change the title, enter a precise **Update reason**, and select **Save draft details**. Review decisions and changes to who can find an announcement use their own reason field and are not performed by this walkthrough.
 `,
   });
   const eventEditor = page.locator('app-platform-event-detail');
@@ -336,7 +335,7 @@ Choose **Manage events**, find the draft, and select **Review event**. The edito
     testInfo,
     eventEditor,
     page,
-    'Edit a draft event with an operational reason',
+    'Edit a draft event with a reason for the change',
   );
   await eventEditor.getByRole('button', { name: 'Save draft details' }).click();
   await expect(page.getByText('Event updated')).toBeVisible();
@@ -395,7 +394,7 @@ Return to the organization, choose **Manage templates**, find the reusable templ
     testInfo,
     templateEditor,
     page,
-    'Edit a template with an operational reason',
+    'Edit a template with a reason for the change',
   );
   await templateEditor.getByRole('button', { name: 'Save template' }).click();
   await expect(page.getByText('Template updated')).toBeVisible();
@@ -443,7 +442,7 @@ Return to the organization and choose **Manage members**. Search by the existing
     testInfo,
     page.locator('app-platform-tenant-users form'),
     page,
-    'Assign an organization role with a reason',
+    'Assign an organization role with a reason for the change',
   );
   await page.getByRole('button', { name: 'Save roles' }).click();
   await expect(page.getByText('Member roles updated')).toBeVisible();
@@ -501,9 +500,9 @@ To remove that role, select **Manage roles** again, deselect it in **Assigned ro
     body: `
 ## Reject an unverifiable receipt
 
-Return to the organization, choose **Review finance**, and open **Receipt approval**. Select the submitted receipt. When its stored evidence is unavailable, approval stays disabled, but rejection remains available. Choose **Reject**, enter a participant-facing **Rejection reason**, then enter a separate **Reason for this decision** for the change history. Select **Save decision**.
+Return to the organization, choose **Review finance**, and open **Receipt approval**. Select the submitted receipt. When its stored evidence is unavailable, approval stays disabled, but rejection remains available. Choose **Reject**, enter an attendee-facing **Rejection reason**, then enter a separate **Reason for this decision** for the change history. Select **Save decision**.
 
-This action records a decision and schedules a receipt-review notification; it does not reimburse the member or transfer money. Reimbursement, refund recovery, and Stripe tax-rate import are separate operations and are not performed by this walkthrough.
+This action records a decision and schedules a receipt-review notification; it does not reimburse the member or transfer money. Reimbursement, refund recovery, and adding tax rates are separate operations and are not performed by this walkthrough.
 `,
   });
   await expect(
@@ -520,7 +519,7 @@ This action records a decision and schedules a receipt-review notification; it d
     testInfo,
     platformFinance,
     page,
-    'Reject a receipt with participant and operator reasons',
+    'Reject a receipt with reasons for the member and change history',
   );
   const saveDecision = platformFinance.getByRole('button', {
     name: 'Save decision',
@@ -583,9 +582,9 @@ This action records a decision and schedules a receipt-review notification; it d
     body: `
 ## Check in an attendee and guest
 
-Return to the organization and choose **Ticket support**. Paste either the ticket number or its attendee ticket link, then select **Open ticket**. Evorto confirms that the registration belongs to this organization before showing it.
+Return to the organization and choose **Ticket support**. Paste either the ticket number or its attendee ticket link, then select **Open ticket**. Evorto confirms that the sign-up belongs to this organization before showing it.
 
-Check-in opens one hour before the event starts and closes two hours after it ends. For a confirmed registration inside that window, enter the number of guests arriving now, add a **Reason for this action**, and select **Check in**. This walkthrough checks in the attendee and one guest, then confirms the updated attendee and guest totals. It does not approve or cancel a registration.
+Check-in opens one hour before the event starts and closes two hours after it ends. For a confirmed ticket inside that window, enter the number of guests arriving now, add a **Reason for this action**, and select **Check in**. This walkthrough checks in the attendee and one guest, then confirms the updated attendee and guest totals. It does not approve or cancel a sign-up.
 `,
   });
   const guestCheckInCount = registrationDetail.getByLabel(
@@ -601,7 +600,7 @@ Check-in opens one hour before the event starts and closes two hours after it en
     testInfo,
     registrationDetail,
     page,
-    'Check in an attendee and guest with an operational reason',
+    'Check in an attendee and guest with a reason for the action',
   );
   const checkIn = registrationDetail.getByRole('button', {
     name: 'Check in',
@@ -678,17 +677,17 @@ Check-in opens one hour before the event starts and closes two hours after it en
 
   await testInfo.attach('markdown', {
     body: `
-## Verify the audit trail
+## Verify the change history
 
-Return to **Evorto administration** and select **Evorto change history**. Find each operation by its reason. Verify the action label and organization, then compare the recorded values in the visible **Changes** table. Select **Load older** to review earlier entries. The log includes the event and template edits, role changes, receipt rejection, and registration check-in reviewed in this guide.
+Return to **Evorto administration** and select **Evorto change history**. Find each operation by its reason. Verify the action label and organization, then compare the recorded values in the visible **Changes** table. Select **Load older** to review earlier entries. The log includes the event and template edits, role changes, receipt rejection, and sign-up check-in reviewed in this guide.
 
-Participant profiles and home pages, joining or leaving an organization, personal receipt submission, and self-service registration transfer remain participant-owned. A platform administrator does not act as an organization member for those flows.
+Attendee profiles and home pages, joining or leaving an organization, personal receipt submission, and self-service sign-up transfer remain member-owned. An Evorto administrator does not act as an organization member for those flows.
 `,
   });
   await takeScreenshot(
     testInfo,
     page.locator('app-platform-audit'),
     page,
-    'Verify organization change-history entries',
+    'Review organization change history',
   );
 });

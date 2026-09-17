@@ -546,7 +546,9 @@ export const eventQueryHandlers = {
         })
       ) {
         return yield* Effect.fail(
-          new RpcForbiddenError({ message: 'Forbidden' }),
+          new RpcForbiddenError({
+            message: 'You do not have permission to edit this event.',
+          }),
         );
       }
       if (event.status !== 'DRAFT') {
@@ -1084,7 +1086,9 @@ export const eventQueryHandlers = {
         includesPermission('events:editAll', user.permissions);
       if (!canEdit) {
         return yield* Effect.fail(
-          new RpcForbiddenError({ message: 'Forbidden' }),
+          new RpcForbiddenError({
+            message: 'You do not have permission to edit this event.',
+          }),
         );
       }
 

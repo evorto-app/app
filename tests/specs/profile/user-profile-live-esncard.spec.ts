@@ -2,7 +2,11 @@ import { and, eq } from 'drizzle-orm';
 
 import { userStateFile, usersToAuthenticate } from '../../../helpers/user-data';
 import * as schema from '../../../src/db/schema';
-import { expect, test } from '../../support/fixtures/parallel-test';
+import {
+  expect,
+  seededEsnCardIdentifier,
+  test,
+} from '../../support/fixtures/parallel-test';
 import { fillProtectedValue } from '../../support/utils/fill-protected-value';
 import type { Locator } from '@playwright/test';
 
@@ -17,7 +21,6 @@ const liveEsnCardIdentifier =
   process.env['E2E_LIVE_ESN_CARD_IDENTIFIER']?.trim();
 const expiredEsnCardIdentifier =
   process.env['E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER']?.trim();
-const seededEsnCardIdentifier = 'TEST-ESN-0001';
 
 test.setTimeout(120_000);
 

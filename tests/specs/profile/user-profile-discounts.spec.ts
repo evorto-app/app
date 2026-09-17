@@ -1,12 +1,14 @@
 import { userStateFile, usersToAuthenticate } from '../../../helpers/user-data';
 import { TENANT_FORMATTING_LOCALE } from '../../../src/types/custom/tenant';
-import { expect, test } from '../../support/fixtures/parallel-test';
+import {
+  expect,
+  seededEsnCardIdentifier,
+  test,
+} from '../../support/fixtures/parallel-test';
 
 test.setTimeout(120_000);
 
 test.use({ storageState: userStateFile });
-
-const seededEsnCardIdentifier = 'TEST-ESN-0001';
 
 test('profile discounts show seeded ESN card state and block invalid saves', async ({
   database,
@@ -20,6 +22,13 @@ test('profile discounts show seeded ESN card state and block invalid saves', asy
   );
   if (!regularUser) {
     throw new Error('Expected regular profile user fixture');
+  }
+  const tenantSettings = await database.query.tenants.findFirst({
+    columns: { timezone: true },
+    where: { id: tenant.id },
+  });
+  if (!tenantSettings) {
+    throw new Error('Expected persisted ESNcard tenant settings');
   }
   const seededEsnCard = await database.query.userDiscountCards.findFirst({
     where: {
@@ -43,7 +52,7 @@ test('profile discounts show seeded ESN card state and block invalid saves', asy
   const validUntil = new Intl.DateTimeFormat(TENANT_FORMATTING_LOCALE, {
     day: '2-digit',
     month: '2-digit',
-    timeZone: tenant.timezone,
+    timeZone: tenantSettings.timezone,
     year: 'numeric',
   }).format(seededEsnCard.validTo);
 

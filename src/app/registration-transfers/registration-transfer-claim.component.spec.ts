@@ -297,7 +297,7 @@ describe('RegistrationTransferClaimComponent form synchronization', () => {
         transferClaim('transfer-a', 'question-a', 'completed'),
       );
     claimMutation.mockRejectedValueOnce(
-      new Error('Registration transfer is no longer available'),
+      new Error('Ticket transfer is no longer available'),
     );
     const fixture = TestBed.createComponent(RegistrationTransferClaimComponent);
     fixture.componentRef.setInput('claimCode', 'offer-a');
@@ -622,7 +622,7 @@ describe('registration transfer bundle review template', () => {
     expect(template).toContain(
       '[attr.aria-busy]="claimMutation.isPending() || null"',
     );
-    expect(template).toContain('Claiming registration. Please wait.');
+    expect(template).toContain('Accepting ticket. Please wait.');
     expect(template).toContain('answerField.answer().touched()');
     expect(template).toContain('<mat-error>{{ error.message }}</mat-error>');
   });
@@ -632,12 +632,12 @@ describe('registration transfer bundle review template', () => {
       'src/app/registration-transfers/registration-transfer-claim.component.html',
     );
 
-    expect(template).toContain('Registration check-in');
+    expect(template).toContain('Attendee check-in');
     expect(template).toContain('claim.bundle.checkInTime | date: "medium"');
     expect(template).toContain('{{ claim.bundle.checkedInGuestCount }} of');
     expect(template).toContain('Available to use');
     expect(template).toContain('{{ addOn.remainingQuantity }}');
-    expect(template).toContain('Redeemed');
+    expect(template).toContain('Handed out');
     expect(template).toContain('{{ addOn.redeemedQuantity }}');
     expect(template).toContain('Cancelled');
     expect(template).toContain('{{ addOn.cancelledQuantity }}');
@@ -655,7 +655,7 @@ describe('registration transfer bundle review template', () => {
     expect(template).toContain('claim.registrationOption.basePrice / 100');
     expect(template).toContain('Your current ESNcard discount');
     expect(template).toContain('claim.registrationOption.discountAmount / 100');
-    expect(template).toContain('Your current registration price');
+    expect(template).toContain('Your current ticket price');
     expect(template).toContain('claim.registrationOption.currentPrice / 100');
     expect(template).not.toContain('sourceDiscount');
   });
@@ -666,11 +666,11 @@ describe('registration transfer bundle review template', () => {
     );
 
     expect(template).toContain(
-      'Includes the add-on units marked Included below.',
+      'Includes the add-ons marked Included in the ticket price below.',
     );
-    expect(template).toContain('Included in registration price');
+    expect(template).toContain('Included in the ticket price');
     expect(template).toContain('{{ addOn.includedQuantity }}');
-    expect(template).toContain('Purchased at current unit price');
+    expect(template).toContain('Purchased at the current price per item');
     expect(template).toContain('{{ addOn.purchasedQuantity }} ×');
     expect(template).toContain('addOn.currentUnitPrice / 100');
     expect(template).not.toContain('{{ addOn.quantity }} total ·');
@@ -730,11 +730,11 @@ describe('registrationTransferStatusCopy', () => {
     const completed = registrationTransferStatusCopy('compensated');
 
     expect(pending?.body).toContain('full refund');
-    expect(pending?.body).toContain('including the platform fee');
+    expect(pending?.body).toContain('including any fees');
     expect(failed?.body).toContain('contact the organizer for an update');
     expect(completed?.body).toContain('was refunded');
     for (const copy of [pending, failed, completed]) {
-      expect(copy?.body).toContain('Do not pay or claim again');
+      expect(copy?.body).toContain('Do not pay or try the transfer again');
     }
   });
 
@@ -742,8 +742,8 @@ describe('registrationTransferStatusCopy', () => {
     expect(
       registrationTransferStatusCopy('refund_pending', { state: 'processing' }),
     ).toEqual({
-      body: 'The fixed registration bundle now belongs to you and remains confirmed. The previous owner refund is still being processed; you do not need to do anything.',
-      title: 'Transfer complete — refund processing',
+      body: "The ticket and included items now belong to you and remain confirmed. The previous owner's refund is still being processed; you do not need to do anything.",
+      title: 'Transfer complete — refund in progress',
       tone: 'success',
     });
   });
@@ -760,7 +760,9 @@ describe('registrationTransferStatusCopy', () => {
     expect(actionRequired?.title).toBe(
       'Transfer stopped — refund needs attention',
     );
-    expect(actionRequired?.body).toContain('Do not pay or claim again');
+    expect(actionRequired?.body).toContain(
+      'Do not pay or try the transfer again',
+    );
     expect(actionRequired?.body).not.toContain('is processing');
     expect(stopped?.title).toBe('Transfer complete — refund needs attention');
     expect(stopped?.body).toContain('still needs follow-up');
@@ -778,14 +780,18 @@ describe('registrationTransferStatusCopy', () => {
     const copy = registrationTransferStatusCopy('refund_failed');
 
     expect(copy?.title).toBe('Transfer complete — refund needs attention');
-    expect(copy?.body).toContain('you do not need to pay or claim again');
-    expect(copy?.body).toContain('previous owner refund still needs follow-up');
+    expect(copy?.body).toContain(
+      'you do not need to pay or try the transfer again',
+    );
+    expect(copy?.body).toContain(
+      "previous owner's refund still needs follow-up",
+    );
     expect(copy?.body).not.toContain('platform administrator');
   });
 
   it('states that an expired Checkout preserves the source registration', () => {
     expect(registrationTransferStatusCopy('expired')?.body).toContain(
-      'previous owner kept their confirmed registration',
+      'previous attendee kept their ticket',
     );
   });
 });

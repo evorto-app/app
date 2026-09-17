@@ -82,7 +82,7 @@ const invalidSourceTemplateRegistrationOptionError = () =>
 
 const invalidTemplateError = () =>
   new RpcBadRequestError({
-    message: 'Template does not exist for this tenant',
+    message: 'The selected template could not be found in this organization.',
     reason: 'templateNotFound',
   });
 
@@ -133,7 +133,7 @@ const invalidEsnCardDiscountPriceError = () =>
 
 const unavailableEsnCardDiscountError = () =>
   new RpcBadRequestError({
-    message: 'ESN card discounts are not enabled for this tenant',
+    message: 'ESNcard discounts are not available for this organization',
     reason: 'esnDiscountUnavailable',
   });
 
@@ -939,7 +939,9 @@ export const eventLifecycleHandlers = {
         })
       ) {
         return yield* Effect.fail(
-          new RpcForbiddenError({ message: 'Forbidden' }),
+          new RpcForbiddenError({
+            message: 'You do not have permission to edit this event.',
+          }),
         );
       }
       if (event.status !== 'DRAFT') {

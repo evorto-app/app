@@ -160,7 +160,7 @@ From here you can open the edit dialog to update your profile details.
 
 If another attendee sends you a transfer code, select **Use transfer code** under **Ticket transfers**. Paste the complete code, including its hyphens, and review the event, questions you need to answer, price, guests, add-ons, check-ins, and handed-out items before accepting it. The code is not included in the transfer page's web address.
 
-Review the complete fixed registration/add-on bundle before accepting it. The bundle includes guests, add-ons, and existing attendee and guest check-in and fulfillment history.
+Review the complete fixed ticket and add-on bundle before accepting it. The bundle includes guests, add-ons, and existing attendee and guest check-in and fulfillment history.
 `,
     });
 

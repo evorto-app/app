@@ -123,7 +123,7 @@ type UsersPermissions =
 const PERMISSION_METADATA = {
   'admin:changeSettings': {
     description:
-      'Update organization-wide settings such as theme, receipt countries, and discount card configuration.',
+      'Change organization details, sign-up rules, appearance, legal pages, and time zone.',
     label: 'Change organization settings',
   },
   'admin:managePayments': {
@@ -133,18 +133,18 @@ const PERMISSION_METADATA = {
   },
   'admin:manageRoles': {
     description:
-      'Create, update, and delete organization roles and the permissions granted by those roles.',
+      'Create, change, and delete organization roles, and choose what each role can do.',
     label: 'Manage roles',
   },
   'admin:tax': {
     description:
-      'Manage organization tax rates used for paid registration options and Stripe tax-rate imports.',
+      'Manage the tax rates used for paid sign-up choices and add available tax rates to Evorto.',
     label: 'Manage tax rates',
   },
   'events:cancelRegistrations': {
     description:
-      'Cancel attendee registrations or unredeemed event add-ons and choose whether eligible add-on purchases should be refunded.',
-    label: 'Cancel registrations and add-ons',
+      'Cancel attendee tickets or unused event add-ons, with an optional refund when one is available.',
+    label: 'Cancel tickets and add-ons',
   },
   'events:changeAnnouncementDiscovery': {
     description:
@@ -153,12 +153,12 @@ const PERMISSION_METADATA = {
   },
   'events:create': {
     description:
-      'Create events from scratch or from templates for the current organization.',
+      'Create events for the current organization, starting with a blank event or a template.',
     label: 'Create events',
   },
   'events:editAll': {
     description:
-      'Edit organization events even when the current user is not the event creator or organizer.',
+      'Edit organization events even when you did not create or organize them.',
     label: 'Edit all events',
   },
   'events:organizeAll': {
@@ -168,12 +168,12 @@ const PERMISSION_METADATA = {
   },
   'events:review': {
     description:
-      'Review submitted events and approve or reject them for publication.',
+      'Review submitted events and publish them or return them with feedback.',
     label: 'Review events',
   },
   'events:seeDrafts': {
     description:
-      'See draft and pending-review events that are hidden from normal public event lists.',
+      'See drafts and events waiting for review that are hidden from normal event lists.',
     label: 'See draft events',
   },
   'finance:approveReceipts': {
@@ -182,24 +182,21 @@ const PERMISSION_METADATA = {
     label: 'Approve receipts',
   },
   'finance:createTransactions': {
-    description:
-      'Create manual finance transactions for organization bookkeeping.',
-    label: 'Create transactions',
+    description: 'Record money received or spent outside Evorto payments.',
+    label: 'Record money received or spent',
   },
   'finance:manageReceipts': {
-    description:
-      'Manage event receipts broadly, including receipt submission support for organization events.',
+    description: 'View and submit receipts for any organization event.',
     label: 'Manage receipts',
   },
   'finance:refundReceipts': {
-    description:
-      'Record manual reimbursement transactions for approved receipts.',
+    description: 'Record when an approved receipt has been reimbursed.',
     label: 'Record receipt reimbursements',
   },
   'finance:viewTransactions': {
     description:
-      'View organization finance transactions, amounts, payment methods, fees, and comments.',
-    label: 'View transactions',
+      'View money received and spent, including amounts, payment methods, fees, and comments.',
+    label: 'View money received and spent',
   },
   'internal:viewInternalPages': {
     description:
@@ -208,7 +205,7 @@ const PERMISSION_METADATA = {
   },
   'templates:create': {
     description:
-      'Create reusable event templates and their organizer/participant registration defaults.',
+      'Create reusable event templates with default sign-up choices.',
     label: 'Create templates',
   },
   'templates:delete': {

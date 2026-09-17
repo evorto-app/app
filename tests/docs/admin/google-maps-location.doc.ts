@@ -9,7 +9,7 @@ test.use({
 });
 test.setTimeout(90_000);
 
-test('Choose an organization default location with Google Maps @needs-google-maps', async ({
+test('Choose an organization default location @needs-google-maps', async ({
   database,
   page,
   tenant,

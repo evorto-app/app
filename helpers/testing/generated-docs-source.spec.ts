@@ -1,9 +1,12 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
+import { PERMISSION_GROUPS } from '../../src/shared/permissions/permissions';
 import { documentationConsumerGuideCatalog } from './documentation-publication-contract';
+import { generatedGuideImplementationTerms } from './generated-docs-language';
 
 // Source guard: generated documentation is product-facing, so these checks keep
 // the docs tied to implemented flows instead of stale aspirational copy.
@@ -12,7 +15,402 @@ const repositoryRoot = fileURLToPath(new URL('../..', import.meta.url));
 const readSource = (sourcePath: string): string =>
   readFileSync(path.join(repositoryRoot, sourcePath), 'utf8');
 
+const documentationSources = (directory: string): string[] =>
+  readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const entryPath = path.join(directory, entry.name);
+    if (entry.isDirectory()) return documentationSources(entryPath);
+    return entry.isFile() && entry.name.endsWith('.doc.ts') ? [entryPath] : [];
+  });
+
+const attachedMarkdownBodies = (source: string): string[] =>
+  [...source.matchAll(/body:\s*`(?<body>(?:\\[\s\S]|[^`])*)`/gu)].map(
+    (match) => match.groups?.['body'] ?? '',
+  );
+
+const generatedFixtureResidueTerms =
+  /Choose the advanced organizer category that matches your tenant role\.?|Organizer\/helper registration|Organizer\/helper signup journey|Advanced organizer application journey|A free extra for the sign-up flow\.?/giu;
+
+const temporaryOrganizationIdentityTerms = /\bE2E\b|\blocalhost\b/giu;
+
+interface AuthoredDocumentationCopy {
+  kind: 'caption' | 'section title' | 'guide title';
+  line: number;
+  text: string;
+}
+
+const parseDocumentationSource = (sourcePath: string, source: string) =>
+  ts.createSourceFile(
+    sourcePath,
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+
+const staticAuthoredText = (initializer: ts.Expression): string | undefined => {
+  if (ts.isStringLiteralLike(initializer)) return initializer.text;
+  if (ts.isTemplateExpression(initializer)) {
+    return [
+      initializer.head.text,
+      ...initializer.templateSpans.map(({ literal }) => literal.text),
+    ].join(' ');
+  }
+  return;
+};
+
+const authoredLiteralText = (
+  sourcePath: string,
+): { line: number; text: string }[] => {
+  const source = readFileSync(sourcePath, 'utf8');
+  const sourceFile = parseDocumentationSource(sourcePath, source);
+  const copy: { line: number; text: string }[] = [];
+  const visit = (node: ts.Node): void => {
+    const text = ts.isExpression(node) ? staticAuthoredText(node) : undefined;
+    if (text !== undefined) {
+      const { line } = sourceFile.getLineAndCharacterOfPosition(
+        node.getStart(sourceFile),
+      );
+      copy.push({ line: line + 1, text });
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+  return copy;
+};
+
+const authoredPropertyText = (
+  sourcePath: string,
+  propertyNames: ReadonlySet<string>,
+): { line: number; text: string }[] => {
+  const source = readFileSync(sourcePath, 'utf8');
+  const sourceFile = parseDocumentationSource(sourcePath, source);
+  const copy: { line: number; text: string }[] = [];
+  const visit = (node: ts.Node): void => {
+    if (ts.isPropertyAssignment(node)) {
+      const propertyName = ts.isIdentifier(node.name)
+        ? node.name.text
+        : ts.isStringLiteralLike(node.name)
+          ? node.name.text
+          : undefined;
+      const text = staticAuthoredText(node.initializer);
+      if (
+        propertyName &&
+        propertyNames.has(propertyName) &&
+        text !== undefined
+      ) {
+        const { line } = sourceFile.getLineAndCharacterOfPosition(
+          node.initializer.getStart(sourceFile),
+        );
+        copy.push({ line: line + 1, text });
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+  return copy;
+};
+
+const authoredDocumentationCopy = (
+  sourcePath: string,
+  source: string,
+): AuthoredDocumentationCopy[] => {
+  const sourceFile = parseDocumentationSource(sourcePath, source);
+  const copy: AuthoredDocumentationCopy[] = [];
+  const visit = (node: ts.Node): void => {
+    if (ts.isCallExpression(node)) {
+      const { expression } = node;
+      const firstArgument = node.arguments[0];
+      const isGuideTitle =
+        ts.isPropertyAccessExpression(expression) &&
+        expression.name.text === 'describe' &&
+        ts.isIdentifier(expression.expression) &&
+        expression.expression.text === 'test';
+      const isSectionTitle =
+        ts.isIdentifier(expression) && expression.text === 'test';
+      const isScreenshot =
+        ts.isIdentifier(expression) && expression.text === 'takeScreenshot';
+      const visibleArgument = isScreenshot ? node.arguments[3] : firstArgument;
+      const kind = isScreenshot
+        ? 'caption'
+        : isGuideTitle
+          ? 'guide title'
+          : isSectionTitle
+            ? 'section title'
+            : undefined;
+
+      if (kind && visibleArgument && ts.isStringLiteralLike(visibleArgument)) {
+        const { line } = sourceFile.getLineAndCharacterOfPosition(
+          visibleArgument.getStart(sourceFile),
+        );
+        copy.push({ kind, line: line + 1, text: visibleArgument.text });
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+  return copy;
+};
+
+const screenshotCaptionViolations = (
+  sourcePath: string,
+  source: string,
+): string[] => {
+  const sourceFile = parseDocumentationSource(sourcePath, source);
+  const violations: string[] = [];
+  const visit = (node: ts.Node): void => {
+    if (
+      ts.isCallExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      node.expression.text === 'takeScreenshot'
+    ) {
+      const caption = node.arguments[3];
+      if (
+        !caption ||
+        !ts.isStringLiteralLike(caption) ||
+        !caption.text.trim()
+      ) {
+        const { line } = sourceFile.getLineAndCharacterOfPosition(
+          node.getStart(sourceFile),
+        );
+        violations.push(
+          `${path.relative(repositoryRoot, sourcePath)}:${line + 1}: screenshot needs a non-empty literal caption`,
+        );
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+  return violations;
+};
+
 describe('generated docs source current behavior', () => {
+  it('keeps implementation language out of generated guide copy', () => {
+    const docsRoot = path.join(repositoryRoot, 'tests/docs');
+    const violations = documentationSources(docsRoot).flatMap((sourcePath) => {
+      const source = readFileSync(sourcePath, 'utf8');
+      const bodyViolations = attachedMarkdownBodies(source).flatMap((body) => {
+        const prose = body
+          .replaceAll(/\$\{[\s\S]*?\}/gu, '')
+          .replaceAll(/\]\([^)]+\)/gu, ']');
+        return [...prose.matchAll(generatedGuideImplementationTerms)].map(
+          (match) =>
+            `${path.relative(repositoryRoot, sourcePath)}: guide prose: ${match[0]}`,
+        );
+      });
+      const titleAndCaptionViolations = authoredDocumentationCopy(
+        sourcePath,
+        source,
+      ).flatMap((entry) =>
+        [...entry.text.matchAll(generatedGuideImplementationTerms)].map(
+          (match) =>
+            `${path.relative(repositoryRoot, sourcePath)}:${entry.line}: ${entry.kind}: ${match[0]}`,
+        ),
+      );
+      return [...bodyViolations, ...titleAndCaptionViolations];
+    });
+
+    expect(violations).toEqual([]);
+  });
+
+  it('requires a plain-language caption for every generated screenshot', () => {
+    const docsRoot = path.join(repositoryRoot, 'tests/docs');
+    const violations = documentationSources(docsRoot).flatMap((sourcePath) =>
+      screenshotCaptionViolations(sourcePath, readFileSync(sourcePath, 'utf8')),
+    );
+
+    expect(violations).toEqual([]);
+  });
+
+  it('keeps seeded event and template copy in product language', () => {
+    const templateSeedRoot = path.join(repositoryRoot, 'helpers/templates');
+    const seedCopySources = [
+      ...readdirSync(templateSeedRoot, { withFileTypes: true })
+        .filter((entry) => entry.isFile() && entry.name.endsWith('.ts'))
+        .map((entry) => path.join(templateSeedRoot, entry.name)),
+      path.join(repositoryRoot, 'helpers/add-events.ts'),
+      path.join(
+        repositoryRoot,
+        'tests/docs/events/registration-cancellation.doc.ts',
+      ),
+      path.join(repositoryRoot, 'tests/support/utils/email-outbox-scenario.ts'),
+      path.join(
+        repositoryRoot,
+        'tests/support/utils/organizer-signup-scenario.ts',
+      ),
+      path.join(
+        repositoryRoot,
+        'tests/support/utils/paid-registration-transfer-scenario.ts',
+      ),
+      path.join(
+        repositoryRoot,
+        'tests/support/utils/post-registration-addon-purchase-scenario.ts',
+      ),
+      path.join(repositoryRoot, 'tests/support/utils/profile-event-cards.ts'),
+      path.join(
+        repositoryRoot,
+        'tests/support/utils/seed-registration-addons.ts',
+      ),
+      path.join(
+        repositoryRoot,
+        'tests/support/utils/user-role-assignment-scenario.ts',
+      ),
+    ];
+    const publicPropertyNames = new Set([
+      'description',
+      'html',
+      'name',
+      'planningTips',
+      'registeredDescription',
+      'subject',
+      'text',
+      'title',
+    ]);
+    const violations = seedCopySources.flatMap((sourcePath) =>
+      authoredPropertyText(sourcePath, publicPropertyNames).flatMap(
+        ({ line, text }) =>
+          [
+            ...text.matchAll(generatedGuideImplementationTerms),
+            ...text.matchAll(generatedFixtureResidueTerms),
+          ].map(
+            (match) =>
+              `${path.relative(repositoryRoot, sourcePath)}:${line}: ${match[0]}`,
+          ),
+      ),
+    );
+
+    expect(violations).toEqual([]);
+  });
+
+  it('keeps visible organization fixture identities publication-ready', () => {
+    const identitySourcePath = path.join(
+      repositoryRoot,
+      'tests/support/fixtures/tenant-identity.ts',
+    );
+    const databaseSetupPath = path.join(
+      repositoryRoot,
+      'tests/setup/database.setup.ts',
+    );
+    const parallelFixturePath = path.join(
+      repositoryRoot,
+      'tests/support/fixtures/parallel-test.ts',
+    );
+    const visibleIdentityProperties = new Set(['domain', 'name']);
+    const identityCopy = [
+      ...authoredLiteralText(identitySourcePath).map((entry) => ({
+        ...entry,
+        sourcePath: identitySourcePath,
+      })),
+      ...authoredPropertyText(databaseSetupPath, new Set(['name'])).map(
+        (entry) => ({ ...entry, sourcePath: databaseSetupPath }),
+      ),
+      ...authoredPropertyText(
+        parallelFixturePath,
+        visibleIdentityProperties,
+      ).map((entry) => ({ ...entry, sourcePath: parallelFixturePath })),
+    ];
+    const violations = identityCopy.flatMap(({ line, sourcePath, text }) =>
+      [...text.matchAll(temporaryOrganizationIdentityTerms)].map(
+        (match) =>
+          `${path.relative(repositoryRoot, sourcePath)}:${line}: ${match[0]}`,
+      ),
+    );
+    const databaseSetup = readSource('tests/setup/database.setup.ts');
+    const parallelFixture = readSource(
+      'tests/support/fixtures/parallel-test.ts',
+    );
+    const discountGuide = readSource('tests/docs/profile/discounts.doc.ts');
+
+    expect(violations).toEqual([]);
+    expect(discountGuide).not.toContain('TEST-ESN');
+    expect(parallelFixture).not.toContain('TEST-ESN');
+    expect(databaseSetup).toContain("domain: 'localhost'");
+    expect(databaseSetup).toContain('name: fixtureOrganizationName');
+    expect(parallelFixture).toContain(
+      'domain: parallelOrganizationDomain(runId)',
+    );
+    expect(parallelFixture).toContain('name: fixtureOrganizationName');
+  });
+
+  it('keeps internal and local addresses out of generated screenshots', () => {
+    const appearanceSource = readSource(
+      'tests/docs/admin/general-settings.doc.ts',
+    );
+    const appearanceScreenshot = appearanceSource.indexOf(
+      "'Theme, logo, tab icon, and search preview text'",
+    );
+    const uploadedLogoPath = appearanceSource.indexOf('/logo/.+');
+    const uploadedFaviconPath = appearanceSource.indexOf('/favicon/.+');
+    const publicLogoFill = appearanceSource.indexOf(
+      'await logoUrlInput.fill(documentedLogoUrl)',
+      uploadedLogoPath,
+    );
+    const publicFaviconFill = appearanceSource.indexOf(
+      'await faviconUrlInput.fill(documentedFaviconUrl)',
+      uploadedFaviconPath,
+    );
+
+    expect(appearanceSource).toMatch(
+      /const documentedLogoUrl\s*=\s*'https:\/\/[^']+'/u,
+    );
+    expect(appearanceSource).toMatch(
+      /const documentedFaviconUrl\s*=\s*'https:\/\/[^']+'/u,
+    );
+    expect(uploadedLogoPath).toBeGreaterThanOrEqual(0);
+    expect(uploadedFaviconPath).toBeGreaterThan(uploadedLogoPath);
+    expect(publicLogoFill).toBeGreaterThan(uploadedLogoPath);
+    expect(publicFaviconFill).toBeGreaterThan(uploadedFaviconPath);
+    expect(appearanceScreenshot).toBeGreaterThan(publicLogoFill);
+    expect(appearanceScreenshot).toBeGreaterThan(publicFaviconFill);
+
+    const transferDialog = readSource(
+      'src/app/events/event-active-registration/event-registration-transfer-dialog.component.html',
+    );
+    expect(transferDialog).not.toContain('[value]="data.claimPageUrl"');
+    expect(transferDialog).toContain(
+      `(click)="copy(data.claimPageUrl, 'page')"`,
+    );
+    expect(transferDialog).toContain('[value]="data.claimCode"');
+    expect(transferDialog).toContain(`(click)="copy(data.claimCode, 'code')"`);
+  });
+
+  it('keeps publication metadata and shared permission copy plain', () => {
+    const publicCopy = [
+      ...documentationConsumerGuideCatalog.flatMap(({ id, slug, title }) => [
+        `guide id ${id}`,
+        `guide slug ${slug}`,
+        `guide title ${title}`,
+      ]),
+      ...PERMISSION_GROUPS.flatMap((group) => [
+        `permission group ${group.label}`,
+        ...group.permissions.flatMap(({ description, label }) => [
+          `permission label ${label}`,
+          `permission description ${description ?? ''}`,
+        ]),
+      ]),
+    ];
+    const violations = publicCopy.flatMap((copy) =>
+      [...copy.matchAll(generatedGuideImplementationTerms)].map(
+        (match) => `${copy}: ${match[0]}`,
+      ),
+    );
+
+    expect(violations).toEqual([]);
+  });
+
+  it('uses real ellipses in generated guide prose', () => {
+    const docsRoot = path.join(repositoryRoot, 'tests/docs');
+    const violations = documentationSources(docsRoot).flatMap((sourcePath) =>
+      attachedMarkdownBodies(readFileSync(sourcePath, 'utf8'))
+        .filter((body) => body.includes('...'))
+        .map((body) => {
+          const excerpt = body.match(/.{0,30}\.\.\..{0,30}/u)?.[0] ?? '...';
+          return `${path.relative(repositoryRoot, sourcePath)}: ${excerpt}`;
+        }),
+    );
+
+    expect(violations).toEqual([]);
+  });
+
   it('uses exact profile navigation links when event names contain Profile', () => {
     const profileSource = readSource('tests/docs/profile/user-profile.doc.ts');
     const receiptSource = readSource(
@@ -39,10 +437,10 @@ describe('generated docs source current behavior', () => {
       'tests/docs/events/registration-cancellation.doc.ts',
     );
     const scenarioStart = source.indexOf(
-      "test('Cancel a confirmed free registration and release its capacity'",
+      "test('Cancel a confirmed free ticket and release its places'",
     );
     const scenarioEnd = source.indexOf(
-      "test('Cancel a Stripe-backed registration with settled add-ons and recover its refund'",
+      "test('Cancel a paid ticket with add-ons and resolve a refund problem'",
       scenarioStart,
     );
     const scenarioSeed = source.slice(scenarioStart, scenarioEnd);
@@ -65,10 +463,10 @@ describe('generated docs source current behavior', () => {
       'tests/docs/events/registration-cancellation.doc.ts',
     );
     const scenarioStart = source.indexOf(
-      "test('Cancel a confirmed free registration and release its capacity'",
+      "test('Cancel a confirmed free ticket and release its places'",
     );
     const scenarioEnd = source.indexOf(
-      "test('Cancel a Stripe-backed registration with settled add-ons and recover its refund'",
+      "test('Cancel a paid ticket with add-ons and resolve a refund problem'",
       scenarioStart,
     );
     const scenario = source.slice(scenarioStart, scenarioEnd);
@@ -102,10 +500,10 @@ describe('generated docs source current behavior', () => {
       'tests/support/utils/registration-checkout-webhook.ts',
     );
     const journeyTitle =
-      "test('Cancel a Stripe-backed registration with settled add-ons and recover its refund'";
+      "test('Cancel a paid ticket with add-ons and resolve a refund problem'";
     const journeyStart = source.indexOf(journeyTitle);
     const nextJourneyStart = source.indexOf(
-      "test('Understand a participant cancellation deadline block'",
+      "test('Understand when you can no longer cancel your ticket'",
       journeyStart,
     );
 
@@ -372,7 +770,7 @@ describe('generated docs source current behavior', () => {
     expect(journey).toContain("toEqual({ status: 'CANCELLED' })");
     expect(journey).toContain('money may not have arrived yet');
     expect(journey).toContain(
-      "This local walkthrough verifies Evorto's refund workflow but not settlement by the card network or bank.",
+      'This example demonstrates how Evorto tracks the refund; it cannot establish when a card network or bank credits the money.',
     );
     expect(addOnScenarioSource).toContain(
       'paidIncludedQuantity > initialStock - paidPurchaseQuantity',
@@ -430,7 +828,7 @@ describe('generated docs source current behavior', () => {
     );
 
     const freeJourneyStart = source.indexOf(
-      "test('Cancel a confirmed free registration and release its capacity'",
+      "test('Cancel a confirmed free ticket and release its places'",
     );
     expect(freeJourneyStart).toBeGreaterThanOrEqual(0);
     const freeJourney = source.slice(freeJourneyStart, journeyStart);
@@ -715,7 +1113,7 @@ describe('generated docs source current behavior', () => {
       'registerDatabaseCleanup(assignmentScenario.cleanup)',
     );
     expect(source).toContain(
-      'Reimbursement, refund recovery, and Stripe tax-rate import are separate operations and are not performed by this walkthrough.',
+      'Reimbursement, refund recovery, and adding tax rates are separate operations and are not performed by this walkthrough.',
     );
     expect(source).not.toContain('full event and template graph editing');
     expect(source).not.toContain('### Recover a refund without duplicating it');
@@ -779,7 +1177,7 @@ describe('generated docs source current behavior', () => {
     );
     expect(source).toContain('## Use a private transfer code');
     expect(source).toContain(
-      'Review the complete fixed registration/add-on bundle before accepting it',
+      'Review the complete fixed ticket and add-on bundle before accepting it',
     );
     expect(source).toContain(
       'review the event, questions you need to answer, price, guests, add-ons, check-ins, and handed-out items before accepting it',
@@ -1149,7 +1547,7 @@ describe('generated docs source current behavior', () => {
       '**ESNcard price**: An optional lower price for organizations that offer an ESNcard discount.',
     );
     expect(source).toContain(
-      '**Selected roles**: The roles that are selected for this registration.',
+      '**Selected roles**: The roles that are selected for this sign-up.',
     );
     expect(source).toContain(
       '**Manual approval** lets an organizer review it first.',
@@ -1200,7 +1598,7 @@ describe('generated docs source current behavior', () => {
       'the place is confirmed only after successful payment',
     );
     expect(source).toContain(
-      'There is no cash or manually settled paid-event alternative.',
+      'There is no cash payment or option to mark a paid ticket as paid manually.',
     );
     expect(source).toContain('fillTemplateBasics');
     expect(source).toContain('Switch to advanced setup?');
@@ -1288,7 +1686,7 @@ describe('generated docs source current behavior', () => {
       'tests/docs/events/registration-transfer.doc.ts',
     );
     const paidTransferJourneyStart = transferSource.indexOf(
-      "test('Complete a paid transfer and retry a failed refund'",
+      "test('Finish a paid transfer and resolve a refund problem'",
     );
     expect(paidTransferJourneyStart).toBeGreaterThan(0);
     const freeTransferSource = transferSource.slice(
@@ -1401,19 +1799,15 @@ describe('generated docs source current behavior', () => {
     );
     expect(addOnScenarioSource).not.toContain('.insert(schema.transactions)');
     expect(addOnScenarioSource).not.toContain('.update(schema.eventAddons)');
-    expect(transferSource).toContain(
-      "test('Transfer a registration with a private offer'",
-    );
+    expect(transferSource).toContain("test('Transfer your ticket privately'");
     expect(transferSource).toContain('waitForRegistrationPage');
     expect(transferSource).toContain(
-      'This guide uses two signed-in participant accounts that belong to the same organization:',
+      'This guide uses two signed-in attendee accounts that belong to the same organization:',
     );
     expect(transferSource).toContain(
-      '/docs/complete-a-paid-transfer-and-retry-a-failed-refund',
+      '/docs/finish-a-paid-transfer-and-resolve-a-refund-problem',
     );
-    expect(transferSource).toContain(
-      '/docs/transfer-a-registration-with-a-private-offer',
-    );
+    expect(transferSource).toContain('/docs/transfer-your-ticket-privately');
     expect(transferSource).toContain(
       'The private transfer code grants access to the offer.',
     );
@@ -1425,13 +1819,13 @@ describe('generated docs source current behavior', () => {
     );
     expect(freeTransferSource).toContain("getByLabel('Transfer code')");
     expect(freeTransferSource).toContain(
-      "getByRole('button', { name: 'Cancel transfer offer' })",
+      "getByRole('button', { name: 'Cancel private transfer' })",
     );
     expect(freeTransferSource).toContain(".toBe('cancelled')");
     expect(freeTransferSource).toContain(
-      'Cancelling the offer invalidates its private code; it does not cancel or transfer the registration.',
+      'Cancelling the offer invalidates its private code; it does not cancel or transfer the sign-up.',
     );
-    expect(freeTransferSource).toContain("getByLabel('Claim code')");
+    expect(freeTransferSource).toContain("getByLabel('Transfer code')");
     expect(freeTransferSource).toContain(
       '0000-0000-0000-0000-0000-0000-0000-0000',
     );
@@ -1441,7 +1835,9 @@ describe('generated docs source current behavior', () => {
     expect(freeTransferSource).toContain(
       'If Evorto says the transfer could not be opened, select **Enter another code**',
     );
-    expect(freeTransferSource).toContain("name: 'Enter a private claim code'");
+    expect(freeTransferSource).toContain(
+      "name: 'Enter a private transfer code'",
+    );
     expect(freeTransferSource).toContain(
       "getByLabel('What should the organizer know?')",
     );
@@ -1454,7 +1850,7 @@ describe('generated docs source current behavior', () => {
     expect(freeTransferSource).toContain(
       'Previous answers do not transfer: answer every currently required question for the recipient',
     );
-    expect(transferSource).toContain('current role eligibility');
+    expect(transferSource).toContain('current role requirements');
     expect(transferSource).toContain('one inseparable bundle');
     expect(transferSource).toContain(
       "The previous owner's answers and discounts do not transfer.",
@@ -1472,15 +1868,15 @@ describe('generated docs source current behavior', () => {
       'prices the fixed bundle from current base prices',
     );
     expect(transferSource).toContain(
-      "applies only the recipient's current eligible discounts",
+      "applies only the recipient's currently available discounts",
     );
     expect(
       transferSource.match(
-        /Evorto refunds the exact remaining refundable amount from each original Stripe payment after accounting for prior successful refunds\./gu,
+        /Evorto refunds the exact remaining refundable amount from each original online payment after accounting for prior successful refunds\./gu,
       ),
     ).toHaveLength(2);
     expect(transferSource).toContain(
-      'When the bundle is free and no refund is needed, the transfer completes immediately without Stripe.',
+      'When the bundle is free and no refund is needed, the transfer completes immediately without opening a payment page.',
     );
     expect(transferSource).not.toContain(
       'a successful separately paid add-on currently blocks',
@@ -1489,26 +1885,26 @@ describe('generated docs source current behavior', () => {
       'Non-Stripe and multi-source paid tickets stay blocked',
     );
     expect(transferSource).toContain(
-      "The registration stays confirmed under the current owner's ownership while the offer is open.",
+      "The sign-up stays confirmed under the current owner's ownership while the offer is open.",
     );
     expect(transferSource).toContain(
-      "Stripe Checkout on the organization's connected account and includes the platform application fee.",
+      "a payment page on the organization's connected account and includes the platform application fee.",
     );
     expect(transferSource).toContain(
-      '**Transfer complete — refund processing**',
+      '**Transfer complete — refund in progress**',
     );
     expect(transferSource).toContain(
       '**Transfer complete — refund needs attention**',
     );
     expect(transferSource).toContain(
-      'A platform administrator must retry the failed refund',
+      'An Evorto administrator must retry the failed refund',
     );
     expect(transferSource).toContain(
-      'A platform administrator opens the affected organization, selects **Review finance**, and then opens **Refunds needing attention**.',
+      'An Evorto administrator opens the affected organization, selects **Review finance**, and then opens **Refunds needing attention**.',
     );
     expect(transferSource).not.toContain('finance or platform administrator');
     expect(transferSource).toContain(
-      'starts a full recipient refund including the platform fee',
+      'starts a full recipient refund including any fees',
     );
     expect(transferSource).toContain(
       '**Transfer stopped — refund needs attention**',
@@ -1517,7 +1913,7 @@ describe('generated docs source current behavior', () => {
       'the recipient does not own the ticket and must not pay or claim again',
     );
     expect(transferSource).toContain(
-      "test('Complete a paid transfer and retry a failed refund'",
+      "test('Finish a paid transfer and resolve a refund problem'",
     );
     expect(transferSource).toContain('seedPaidRegistrationTransferScenario');
     expect(transferSource).toContain('await scenario.completeCheckout()');
@@ -1534,7 +1930,7 @@ describe('generated docs source current behavior', () => {
     expect(transferSource).toContain("name: 'Try failed refund again'");
     expect(transferSource).toContain("name: 'Payment still required'");
     expect(transferSource).toContain(
-      "name: 'Transfer complete — refund processing'",
+      "name: 'Transfer complete — refund in progress'",
     );
     expect(transferSource).toContain(
       "name: 'Transfer complete — refund needs attention'",
@@ -1623,7 +2019,7 @@ describe('generated docs source current behavior', () => {
     expect(paidTransferSource).toContain('toEqual(addonStockBefore)');
     expect(paidTransferSource).toContain('toEqual(optionCapacityBefore)');
     expect(paidTransferSource).toContain(
-      "getByText('Registration check-in', { exact: true })",
+      "getByText('Attendee check-in', { exact: true })",
     );
     expect(paidTransferSource).toContain(
       "getByText('Guests checked in', { exact: true })",
@@ -1635,7 +2031,7 @@ describe('generated docs source current behavior', () => {
       "getByText('Transfer checklist item', { exact: true })",
     );
     expect(paidTransferSource).toContain(
-      String.raw`toContainText(/Redeemed\s*1/)`,
+      String.raw`toContainText(/Handed out\s*1/)`,
     );
     expect(paidTransferSource).toContain(
       String.raw`toContainText(/Cancelled\s*1/)`,
@@ -1844,7 +2240,7 @@ describe('generated docs source current behavior', () => {
       "id: 'evorto:find-an-event'",
     );
     const registerForEventStart = publicationSource.indexOf(
-      "id: 'evorto:register-for-an-event'",
+      "id: 'evorto:sign-up-for-an-event'",
       findAnEventStart,
     );
     const findAnEventCatalog = publicationSource.slice(
@@ -2023,7 +2419,7 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain('await page.goto(`/events/${eventId}/edit`)');
     expect(source).toContain('\\?error=event-locked$');
     expect(source).toContain(
-      'Published events expose no edit action, and direct edit URLs return to the event details page.',
+      'Published events expose no edit action, and direct edit web addresses return to the event details page.',
     );
     expect(source).toContain('.delete(schema.eventRegistrationOptions)');
     expect(source).toContain('.delete(schema.eventInstances)');
@@ -2077,13 +2473,13 @@ describe('generated docs source current behavior', () => {
       'Organizers check in attendees from the dedicated QR scanner.',
     );
     expect(source).toContain(
-      'The scanned-registration page shows the attendee, event, registration option, ESNcard discount marker when applicable, guest check-in progress when guests are attached to the registration, and warnings for self-scan, future events, non-confirmed registrations, and already checked-in tickets.',
+      'The scanned-sign-up page shows the attendee, event, sign-up choice, ESNcard discount marker when applicable, guest check-in progress when guests are attached to the sign-up, and warnings for self-scan, future events, non-confirmed tickets, and already checked-in tickets.',
     );
     expect(source).toContain(
-      'Confirming check-in records the registration check-in time and updates the checked-in count shown on the organizer overview.',
+      'Confirming check-in records the ticket check-in time and updates the checked-in count shown on the organizer overview.',
     );
     expect(source).toContain(
-      'When a registration includes guests, the organizer chooses how many guests arrived with the attendee, and the checked-in count increases by the attendee plus the selected guests.',
+      'When a sign-up includes guests, the organizer chooses how many guests arrived with the attendee, and the checked-in count increases by the attendee plus the selected guests.',
     );
     expect(source).toContain(
       'page.goto(`/scan/registration/${scannerRegistrationId}`)',
@@ -2110,10 +2506,10 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain('.update(eventRegistrationOptions)');
     expect(source).toContain('.set({ checkedInSpots: initialCheckedInSpots })');
     expect(source).toContain(
-      "Organizers can also cancel a participant's confirmed registration from the organizer overview before check-in, which releases the confirmed spot and submits the appropriate Stripe refunds for paid event and add-on payments.",
+      "Organizers can also cancel an attendee's confirmed ticket from the organizer overview before check-in, which releases the confirmed spot and submits the appropriate refunds for paid event and add-on payments.",
     );
     expect(source).toContain(
-      'Event registration and add-on payments are Stripe-only',
+      'Event sign-up and add-on payments are handled through online payments only',
     );
     expect(source).toContain(
       'Guest quantity, all included/free/purchased add-on quantities, and check-in/fulfillment history move unchanged.',
@@ -2132,13 +2528,13 @@ describe('generated docs source current behavior', () => {
       'separately paid add-on or a non-Stripe registration payment currently blocks',
     );
     expect(source).toContain(
-      'It does not currently include attendee export, attendee messaging, or manual check-in controls outside QR scanning',
+      'It does not currently include downloading attendee lists, attendee messaging, or check-in controls outside QR scanning',
     );
     expect(source).toContain(
-      'Already selected roles are hidden from suggestions so the same eligibility role cannot be added twice.',
+      'Already selected roles are hidden from suggestions so the same role that allows this sign-up choice cannot be added twice.',
     );
     expect(source).toContain(
-      'If the organizer overview request fails, Evorto hides every registration count and participant action.',
+      'If the organizer overview request fails, Evorto hides every sign-up count and attendee action.',
     );
     expect(source).toContain(
       'Receipt history has its own warning and **Try again** action.',
@@ -2152,7 +2548,7 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain(
       "registrationOptionEditor.getByPlaceholder('Add role…')",
     );
-    expect(source).toContain('Event edit role picker duplicate prevention');
+    expect(source).toContain('Choose which roles can use a sign-up choice');
     expect(source).toContain('## Edit an existing draft event');
     expect(source).toContain('await database.insert(eventInstances).values({');
     expect(source).toContain("status: 'DRAFT'");
@@ -2169,7 +2565,7 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain(
       "persistedParticipantOption?.registrationMode).toBe('application')",
     );
-    expect(source).toContain('Reloaded draft event with saved changes');
+    expect(source).toContain('Saved draft event with updated details');
     expect(source).toContain('.where(eq(eventInstances.id, editableEventId))');
     expect(source).not.toContain('manual check-in from the organizer overview');
     expect(source).not.toContain('automatic refund controls are available');
