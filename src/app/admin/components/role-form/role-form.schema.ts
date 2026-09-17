@@ -103,13 +103,6 @@ export const roleFormPermissionsToSubmit = ({
         !includesPermission(permission, [grant]) || permissions[permission],
     ),
   );
-  if (
-    permissions['admin:tax'] &&
-    includesPermission('admin:manageTaxes', originalPermissions) &&
-    !includesPermission('admin:manageTaxes', retainedGrants)
-  ) {
-    retainedGrants.push('admin:manageTaxes');
-  }
   return [
     ...retainedGrants,
     ...ALL_PERMISSIONS.filter(

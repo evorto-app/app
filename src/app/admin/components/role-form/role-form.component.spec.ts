@@ -165,8 +165,8 @@ describe('stored role authority in the form', () => {
     await submitVisibleRoleForm(fixture);
     expect(host.submitted()?.permissions).toEqual([
       'users:*',
-      'admin:manageTaxes',
       'admin:changeSettings',
+      'admin:tax',
       'events:seeDrafts',
     ]);
   });
