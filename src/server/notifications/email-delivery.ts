@@ -118,7 +118,7 @@ const failedDeliveryMessage =
 const suppressedDeliveryMessage =
   'Sending was withheld by the environment recipient policy.';
 const unknownDeliveryMessage =
-  'Evorto could not confirm whether this email was sent. It will not try again automatically, to avoid sending it twice.';
+  'Evorto could not confirm whether this email was sent. It will not send it again, to avoid sending it twice.';
 
 class EmailTemplateRenderError extends Schema.TaggedErrorClass<EmailTemplateRenderError>()(
   'EmailTemplateRenderError',

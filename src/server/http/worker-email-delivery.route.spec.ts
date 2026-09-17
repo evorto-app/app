@@ -167,7 +167,7 @@ const outboxDatabase = () => {
   };
 };
 const unknownMessage =
-  'Evorto could not confirm whether this email was sent. It will not try again automatically, to avoid sending it twice.';
+  'Evorto could not confirm whether this email was sent. It will not send it again, to avoid sending it twice.';
 
 describe('worker email delivery route', () => {
   it.effect('delivers a due outbox row with request-scoped services', () =>

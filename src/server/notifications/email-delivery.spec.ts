@@ -300,7 +300,7 @@ const outboxDatabase = ({
 const failedMessage =
   'This email could not be sent. Check the recipient address and email settings.';
 const unknownMessage =
-  'Evorto could not confirm whether this email was sent. It will not try again automatically, to avoid sending it twice.';
+  'Evorto could not confirm whether this email was sent. It will not send it again, to avoid sending it twice.';
 const suppressedMessage =
   'Sending was withheld by the environment recipient policy.';
 
@@ -693,7 +693,7 @@ describe('email delivery', () => {
             claimLeaseId: null,
             deliveryUnknownAt: expect.any(Date),
             lastError:
-              'Evorto could not confirm whether this email was sent. It will not try again automatically, to avoid sending it twice.',
+              'Evorto could not confirm whether this email was sent. It will not send it again, to avoid sending it twice.',
             status: 'deliveryUnknown',
           }),
         ]);
@@ -754,7 +754,7 @@ describe('email delivery', () => {
             claimLeaseId: null,
             deliveryUnknownAt: expect.any(Date),
             lastError:
-              'Evorto could not confirm whether this email was sent. It will not try again automatically, to avoid sending it twice.',
+              'Evorto could not confirm whether this email was sent. It will not send it again, to avoid sending it twice.',
             provider: 'tem',
             status: 'deliveryUnknown',
           }),

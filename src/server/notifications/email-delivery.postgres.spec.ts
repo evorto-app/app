@@ -89,7 +89,7 @@ const acquireOutboxFixture = () =>
   });
 
 const unknownMessage =
-  'Evorto could not confirm whether this email was sent. It will not try again automatically, to avoid sending it twice.';
+  'Evorto could not confirm whether this email was sent. It will not send it again, to avoid sending it twice.';
 
 describe('email outbox single-dispatch state transitions', () => {
   it.effect(
