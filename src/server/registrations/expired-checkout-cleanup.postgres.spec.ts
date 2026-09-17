@@ -502,6 +502,7 @@ describe('expired unbound checkout cleanup concurrency', () => {
       fixture.registrationId,
     );
     let registrationLockCommitted = false;
+    let discardRegistrationLock = false;
     const failures: unknown[] = [];
 
     try {
@@ -538,10 +539,11 @@ describe('expired unbound checkout cleanup concurrency', () => {
           await registrationLock.query('ROLLBACK');
         }
       } catch (error) {
+        discardRegistrationLock = true;
         failures.push(error);
       }
       try {
-        registrationLock.release();
+        registrationLock.release(discardRegistrationLock);
       } catch (error) {
         failures.push(error);
       }
@@ -566,6 +568,7 @@ describe('expired unbound checkout cleanup concurrency', () => {
       fixture.registrationId,
     );
     let registrationLockCommitted = false;
+    let discardRegistrationLock = false;
     const failures: unknown[] = [];
     const stripeCheckoutSessionId = `cs_test_${fixture.transactionId}`;
 
@@ -612,10 +615,11 @@ describe('expired unbound checkout cleanup concurrency', () => {
           await registrationLock.query('ROLLBACK');
         }
       } catch (error) {
+        discardRegistrationLock = true;
         failures.push(error);
       }
       try {
-        registrationLock.release();
+        registrationLock.release(discardRegistrationLock);
       } catch (error) {
         failures.push(error);
       }
@@ -648,6 +652,7 @@ describe('expired unbound checkout cleanup concurrency', () => {
       fixture.registrationId,
     );
     let registrationLockCommitted = false;
+    let discardRegistrationLock = false;
     const failures: unknown[] = [];
     const candidate = {
       registrationId: fixture.registrationId,
@@ -697,10 +702,11 @@ describe('expired unbound checkout cleanup concurrency', () => {
           await registrationLock.query('ROLLBACK');
         }
       } catch (error) {
+        discardRegistrationLock = true;
         failures.push(error);
       }
       try {
-        registrationLock.release();
+        registrationLock.release(discardRegistrationLock);
       } catch (error) {
         failures.push(error);
       }
