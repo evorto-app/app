@@ -190,9 +190,24 @@ describe('handleQrRegistrationCodeWebRequest', () => {
       });
 
       expect(response.status).toBe(401);
+      expect(response.headers.get('Cache-Control')).toBe('private, no-store');
       expect(yield* Effect.promise(() => response.text())).toBe(
         'Sign in to open this ticket.',
       );
+    }),
+  );
+
+  it.effect('does not cache a missing ticket response', () =>
+    Effect.gen(function* () {
+      const response = yield* runQrRequest({
+        database: createDatabase({ registration: null }),
+      });
+      expect(response.status).toBe(404);
+      expect(response.headers.get('Cache-Control')).toBe('private, no-store');
+      expect(yield* Effect.promise(() => response.text())).toBe(
+        'Ticket not found.',
+      );
+      expect(qrCodeToBuffer).not.toHaveBeenCalled();
     }),
   );
 
@@ -285,6 +300,7 @@ describe('handleQrRegistrationCodeWebRequest', () => {
         });
 
         expect(response.status).toBe(404);
+        expect(response.headers.get('Cache-Control')).toBe('private, no-store');
         expect(yield* Effect.promise(() => response.text())).toBe(
           'Ticket not found.',
         );
@@ -298,6 +314,7 @@ describe('handleQrRegistrationCodeWebRequest', () => {
       });
 
       expect(response.status).toBe(404);
+      expect(response.headers.get('Cache-Control')).toBe('private, no-store');
       expect(yield* Effect.promise(() => response.text())).toBe(
         'This ticket is unavailable. Ask the event organizer for help.',
       );
@@ -333,6 +350,7 @@ describe('handleQrRegistrationCodeWebRequest', () => {
         });
 
         expect(response.status).toBe(404);
+        expect(response.headers.get('Cache-Control')).toBe('private, no-store');
         expect(yield* Effect.promise(() => response.text())).toBe(
           'Ticket not found.',
         );
@@ -352,6 +370,7 @@ describe('handleQrRegistrationCodeWebRequest', () => {
       });
 
       expect(response.status).toBe(404);
+      expect(response.headers.get('Cache-Control')).toBe('private, no-store');
     }),
   );
 });

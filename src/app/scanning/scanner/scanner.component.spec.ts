@@ -199,6 +199,47 @@ describe('ScannerComponent', () => {
     return fixture;
   };
 
+  it.each(['factory', 'start'] as const)(
+    'recovers from a camera %s failure through the visible retry',
+    async (failureStage) => {
+      const denied = new DOMException(
+        'Test camera permission denial',
+        'NotAllowedError',
+      );
+      if (failureStage === 'factory') {
+        createCamera.mockImplementationOnce(() => {
+          throw denied;
+        });
+      } else {
+        vi.mocked(camera.start).mockRejectedValueOnce(denied);
+      }
+      const fixture = render();
+      const root = renderedElement(fixture.nativeElement);
+      await vi.waitFor(() => {
+        fixture.detectChanges();
+        expect(root.querySelector('[role="alert"]')?.textContent).toContain(
+          'Camera access was blocked.',
+        );
+        expect(normalizedText(fixture)).not.toContain('Camera ready.');
+      });
+      const retry = buttonNamed(fixture, 'Try camera again');
+      if (!retry) throw new Error('Expected the camera retry button');
+      expect(retry.disabled).toBe(false);
+      retry.click();
+      await vi.waitFor(() => {
+        fixture.detectChanges();
+        expect(normalizedText(fixture)).toContain('Camera ready.');
+        expect(root.querySelector('[role="alert"]')).toBeNull();
+      });
+      expect(createCamera).toHaveBeenCalledTimes(
+        failureStage === 'factory' ? 2 : 1,
+      );
+      expect(camera.start).toHaveBeenCalledTimes(
+        failureStage === 'factory' ? 1 : 2,
+      );
+    },
+  );
+
   it('waits for a positive organizer capability before requesting camera access', async () => {
     let resolveAccess: ((allowed: boolean) => void) | undefined;
     // Angular's browser library target does not expose Promise.withResolvers.

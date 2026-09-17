@@ -1948,13 +1948,13 @@ describe('generated docs source current behavior', () => {
       'Guest quantity, all included/free/purchased add-on quantities, and check-in/fulfillment history move unchanged.',
     );
     expect(source).toContain(
-      'The previous owner receives exact refunds for every original Stripe payment',
+      'The previous owner receives exact refunds for every original online payment',
     );
     expect(source).toContain(
-      'only when the entire fixed bundle is free, requires no refund, and has no participant questions',
+      'Tickets move through a private transfer started by the current ticket owner, for both free and paid bundles.',
     );
     expect(source).toContain(
-      'When participant questions exist, the organizer creates a private transfer offer instead',
+      "Organizers cannot directly move someone else's ticket or create that owner's private offer.",
     );
     expect(source).not.toContain('pending manual refund record');
     expect(source).not.toContain(

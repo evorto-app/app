@@ -428,6 +428,42 @@ describe('PlatformScannerComponent', () => {
     });
   });
 
+  it('keeps an already displayed ticket open when same-URL navigation is ignored', async () => {
+    const router = TestBed.inject(Router);
+    router.resetConfig([
+      {
+        component: PlatformScannerComponent,
+        path: 'global-admin/tenants/:tenantId/scanner/:registrationId',
+      },
+    ]);
+    const currentUrl = '/global-admin/tenants/tenant-1/scanner/registration-1';
+    expect(await router.navigateByUrl(currentUrl)).toBe(true);
+    const navigate = vi.spyOn(router, 'navigate');
+    const fixture = await render();
+    const root = renderedElement(fixture.nativeElement);
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(root.querySelector<HTMLInputElement>('input')?.disabled).toBe(
+        false,
+      );
+    });
+    const input = root.querySelector<HTMLInputElement>('input');
+    if (!input) throw new Error('Expected a registration lookup input');
+    input.value = 'registration-1';
+    input.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    findButton(fixture, 'Open ticket')?.click();
+    await vi.waitFor(() => expect(navigate).toHaveBeenCalledOnce());
+    await expect(navigate.mock.results[0]?.value).resolves.toBe(false);
+    fixture.detectChanges();
+    expect(router.url).toBe(currentUrl);
+    expect(root.textContent).toContain('Weekend trip');
+    expect(root.textContent).not.toContain(
+      platformScannerNavigationErrorMessage,
+    );
+    expect(findButton(fixture, 'Try opening ticket again')).toBeUndefined();
+  });
+
   it('surfaces failed lookup navigation and keeps an explicit retry action', async () => {
     const router = TestBed.inject(Router);
     const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(false);

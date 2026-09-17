@@ -11,7 +11,10 @@ import {
 import { tenantOutboundUrl } from '../tenant-outbound-url';
 
 const responseText = (body: string, status = 200): Response =>
-  new Response(body, { status });
+  new Response(body, {
+    headers: { 'Cache-Control': 'private, no-store' },
+    status,
+  });
 
 const databaseEffect = <A, E>(
   operation: (database: DatabaseClient) => Effect.Effect<A, E, never>,
