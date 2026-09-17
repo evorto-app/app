@@ -42,7 +42,21 @@
   </div>
 } @else if (refundableReceiptsQuery.isError() && refundGroups().length === 0) {
   <div class="bg-error-container text-on-error-container rounded-2xl p-4">
-    The refundable receipts could not be loaded. Try again.
+    <p role="alert">
+      The refundable receipts could not be loaded. Select Try again.
+    </p>
+    <button
+      mat-button
+      type="button"
+      [disabled]="refundableReceiptsQuery.isFetching()"
+      (click)="refundableReceiptsQuery.refetch()"
+    >
+      @if (refundableReceiptsQuery.isFetching()) {
+        Loading receipts…
+      } @else {
+        Try again
+      }
+    </button>
   </div>
 } @else if (refundGroups().length === 0) {
   <div class="bg-surface text-on-surface rounded-2xl p-4">

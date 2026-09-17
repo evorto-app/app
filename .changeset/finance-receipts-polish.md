@@ -26,3 +26,8 @@ eligibility.
 
 Leaving a platform receipt page prevents a late detail read from changing the
 closed editor or showing its error notification.
+
+Distinguish a missing uploaded receipt from a temporary storage outage. Missing
+files are rejected with instructions to add the file again; storage failures
+retain cleanup ownership. Receipt approval and reimbursement queues offer a
+read-only retry after an initial load failure without repeating a reimbursement.

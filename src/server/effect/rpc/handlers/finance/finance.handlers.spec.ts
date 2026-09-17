@@ -9,6 +9,7 @@ import {
   financeReceipts,
   financeReceiptUploads,
 } from '../../../../../db/schema';
+import { RpcInternalServerError } from '../../../../../shared/errors/rpc-errors';
 import { type Permission } from '../../../../../shared/permissions/permissions';
 import {
   AppRpcs,
@@ -17,6 +18,10 @@ import {
   type RpcRequestContextShape,
 } from '../../../../../shared/rpc-contracts/app-rpcs';
 import { ReceiptMediaServiceUnavailableError } from '../../../../../shared/rpc-contracts/app-rpcs/finance.errors';
+import {
+  ObjectStorage,
+  ObjectStorageNotFoundError,
+} from '../../../../integrations/object-storage';
 import { RpcAccess } from '../shared/rpc-access.service';
 import { financeReceiptSubmitterEmail } from './finance-receipts.handlers';
 import { financeHandlers } from './finance.handlers';
@@ -365,6 +370,7 @@ const databaseWithPendingReceiptUpload = (failure?: {
     | 'fileName'
     | 'id'
     | 'mimeType'
+    | 'rejectionReason'
     | 'sizeBytes'
     | 'status'
     | 'storageKey'
@@ -374,31 +380,33 @@ const databaseWithPendingReceiptUpload = (failure?: {
     fileName: 'receipt.png',
     id: 'upload-1',
     mimeType: 'image/png',
+    rejectionReason: null,
     sizeBytes: 7,
     status: 'pending',
     storageKey: 'receipt-uploads/tenant-1/event-1/user-1/upload-1-receipt.png',
   };
   let updatedValues: Partial<typeof financeReceiptUploads.$inferInsert> = {};
+  const persistUpdate = () =>
+    Effect.gen(function* () {
+      const fails =
+        (failure?.step === 'destination' &&
+          updatedValues.storageKey !== undefined) ||
+        (failure?.step === 'ready' && updatedValues.status === 'ready');
+      if (!fails || failure?.afterCommit) {
+        Object.assign(upload, updatedValues);
+      }
+      if (fails) {
+        return yield* Effect.fail(new Error('Database response failed'));
+      }
+      return [{ ...upload }];
+    });
   const updateQuery = {
-    returning: () =>
-      Effect.gen(function* () {
-        const fails =
-          (failure?.step === 'destination' &&
-            updatedValues.storageKey !== undefined) ||
-          (failure?.step === 'ready' && updatedValues.status === 'ready');
-        if (!fails || failure?.afterCommit) {
-          Object.assign(upload, updatedValues);
-        }
-        if (fails) {
-          return yield* Effect.fail(new Error('Database response failed'));
-        }
-        return [{ ...upload }];
-      }),
+    returning: persistUpdate,
     set: (values: Partial<typeof financeReceiptUploads.$inferInsert>) => {
       updatedValues = values;
       return updateQuery;
     },
-    where: () => updateQuery,
+    where: () => Object.assign(persistUpdate(), { returning: persistUpdate }),
   };
 
   return {
@@ -1226,6 +1234,94 @@ describe('finance receipt media permissions', () => {
         expect(lifecycleSteps).toEqual(['preflight']);
       }),
   );
+
+  for (const missing of [true, false]) {
+    it.effect(
+      missing
+        ? 'rejects a missing uploaded object and asks for a new file'
+        : 'preserves finalizing ownership when inspection has a storage outage',
+      () =>
+        Effect.gen(function* () {
+          const fixture = databaseWithPendingReceiptUpload();
+          const get = vi.fn(() =>
+            Effect.fail(
+              missing
+                ? new ObjectStorageNotFoundError()
+                : new RpcInternalServerError({
+                    message: 'Storage unavailable',
+                  }),
+            ),
+          );
+          const put = vi.fn(() =>
+            Effect.die(new Error('Unexpected promotion')),
+          );
+          const storage = Layer.succeed(ObjectStorage)({
+            deleteObject: () => Effect.die(new Error('Unexpected deletion')),
+            exists: () => Effect.die(new Error('Unexpected existence probe')),
+            get,
+            metadata: () => Effect.die(new Error('Unexpected metadata read')),
+            presignGet: () =>
+              Effect.die(new Error('Unexpected preview signing')),
+            presignPost: () =>
+              Effect.die(new Error('Unexpected upload signing')),
+            put,
+          });
+          const inspectUpload: Context.Service.Shape<
+            typeof ReceiptMediaService
+          >['inspectUpload'] = (input) =>
+            ReceiptMediaService.inspectUpload(input).pipe(
+              Effect.provide(ReceiptMediaService.Default),
+              Effect.provide(storage),
+            );
+          const context = createContextLayer(['events:organizeAll'], {
+            database: fixture.database,
+            receiptMediaService: { inspectUpload },
+          });
+          const error = yield* financeHandlers[
+            'finance.receiptMedia.finalizeUpload'
+          ]({ uploadId: 'upload-1' }, receiptUploadOptions).pipe(
+            Effect.flip,
+            Effect.provide(context),
+          );
+
+          expect(error._tag).toBe(
+            missing
+              ? 'ReceiptMediaBadRequestError'
+              : 'ReceiptMediaServiceUnavailableError',
+          );
+          expect(fixture.upload).toMatchObject({
+            rejectionReason: missing
+              ? 'This receipt file is no longer available. Add the file again.'
+              : null,
+            status: missing ? 'rejected' : 'finalizing',
+            storageKey:
+              'receipt-uploads/tenant-1/event-1/user-1/upload-1-receipt.png',
+          });
+          if (missing) {
+            expect(error.message).toBe(
+              'This receipt file is no longer available. Add the file again.',
+            );
+          }
+          expect(get).toHaveBeenCalledExactlyOnceWith(
+            fixture.upload.storageKey,
+          );
+          expect(put).not.toHaveBeenCalled();
+
+          const retryError = yield* financeHandlers[
+            'finance.receiptMedia.finalizeUpload'
+          ]({ uploadId: 'upload-1' }, receiptUploadOptions).pipe(
+            Effect.flip,
+            Effect.provide(context),
+          );
+          expect(retryError._tag).toBe('RpcBadRequestError');
+          expect(retryError.message).toBe(
+            'This receipt file can no longer be used. Add the file again.',
+          );
+          expect(get).toHaveBeenCalledOnce();
+          expect(put).not.toHaveBeenCalled();
+        }),
+    );
+  }
 
   it.effect(
     'records the promoted immutable key when finalizing an upload',

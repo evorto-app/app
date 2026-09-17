@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { MatButtonModule } from '@angular/material/button';
 import { RouterLink } from '@angular/router';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
@@ -8,7 +9,7 @@ import { ReceiptAmountPipe } from '../shared/receipt-amount.pipe';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, TenantDatePipe, ReceiptAmountPipe],
+  imports: [MatButtonModule, RouterLink, TenantDatePipe, ReceiptAmountPipe],
   selector: 'app-receipt-approval-list',
   styles: ``,
   templateUrl: './receipt-approval-list.component.html',

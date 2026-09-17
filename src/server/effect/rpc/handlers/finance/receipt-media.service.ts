@@ -7,7 +7,10 @@ import {
 import { Context, Effect, Layer } from 'effect';
 import { createHash } from 'node:crypto';
 
-import { ObjectStorage } from '../../../../integrations/object-storage';
+import {
+  ObjectStorage,
+  ObjectStorageNotFoundError,
+} from '../../../../integrations/object-storage';
 import { safeServerErrorSummary } from '../../../../utils/safe-server-error-summary';
 import {
   ReceiptMediaBadRequestError,
@@ -458,9 +461,21 @@ export class ReceiptMediaService extends Context.Service<ReceiptMediaService>()(
 
           const body = yield* objectStorage.get(input.storageKey).pipe(
             Effect.tapError((error) =>
-              logReceiptStorageFailure('receiptMedia.inspectUpload.get', error),
+              error instanceof ObjectStorageNotFoundError
+                ? Effect.void
+                : logReceiptStorageFailure(
+                    'receiptMedia.inspectUpload.get',
+                    error,
+                  ),
             ),
-            Effect.mapError(receiptMediaServiceUnavailable),
+            Effect.mapError((error) =>
+              error instanceof ObjectStorageNotFoundError
+                ? new ReceiptMediaBadRequestError({
+                    message:
+                      'This receipt file is no longer available. Add the file again.',
+                  })
+                : receiptMediaServiceUnavailable(),
+            ),
           );
           const detectedMimeType = detectReceiptMimeType(body.slice(0, 16));
           if (
