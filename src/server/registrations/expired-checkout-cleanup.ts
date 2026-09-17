@@ -21,21 +21,14 @@ import {
   or,
   sql,
 } from 'drizzle-orm';
-import {
-  Cause,
-  Clock,
-  Duration,
-  Effect,
-  Result,
-  Schedule,
-  Schema,
-} from 'effect';
+import { Clock, Duration, Effect, Result, Schedule, Schema } from 'effect';
 import { randomUUID } from 'node:crypto';
 
 import {
   expireHostedCheckoutSession,
   retrieveHostedCheckoutSession,
 } from '../integrations/stripe-checkout';
+import { reportPollingWorkerFailure } from '../runtime/polling-worker-supervision';
 import {
   completePaidAddonPurchaseCheckout,
   expirePaidAddonPurchaseCheckout,
@@ -1436,12 +1429,10 @@ const runExpiredCheckoutCleanupIteration =
           )
         : Effect.void,
     ),
-    Effect.catchCause((cause) =>
-      Cause.hasInterrupts(cause)
-        ? Effect.failCause(cause)
-        : Effect.logError(
-            'Expired registration checkout cleanup iteration failed',
-          ).pipe(Effect.annotateLogs({ cause: String(cause) })),
+    Effect.catchCause(
+      reportPollingWorkerFailure(
+        'Expired registration checkout cleanup iteration failed',
+      ),
     ),
   );
 

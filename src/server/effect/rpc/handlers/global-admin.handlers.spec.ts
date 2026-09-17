@@ -416,110 +416,195 @@ describe('globalAdminHandlers', () => {
     }),
   );
 
-  it.effect('summarizes email outbox retry and exhaustion state', () =>
-    Effect.gen(function* () {
-      const now = new Date('2026-07-09T10:00:00.000Z');
-      const exhaustedAt = new Date('2026-07-09T09:00:00.000Z');
-      const selectResults = [
-        [
-          { status: 'failed', total: 2 },
-          { status: 'queued', total: 1 },
-        ],
-        [{ total: 1 }],
-        [{ total: 1 }],
-        [{ total: 1 }],
-        [
-          {
-            attempts: 8,
-            createdAt: now,
-            deliveryUnknownAt: null,
-            exhaustedAt,
-            id: 'email-1',
-            kind: 'receiptReviewed',
-            lastAttemptAt: exhaustedAt,
-            lastError: 'tem email request failed with HTTP 400',
-            maxAttempts: 8,
-            nextAttemptAt: exhaustedAt,
-            provider: 'tem',
-            providerMessageId: null,
-            recipient: 'member@example.org',
-            sentAt: null,
-            status: 'failed',
-            subject: 'Receipt rejected',
-            suppressedAt: null,
-            tenantDomain: 'section.example.org',
-            tenantId: 'tenant-1',
-            tenantName: 'Section',
-            tenantTimezone: 'Australia/Brisbane',
-            updatedAt: exhaustedAt,
-          },
-        ],
-      ];
-      const select = vi.fn(() => {
-        const result = selectResults.shift();
-        if (!result) {
-          throw new Error('unexpected select');
-        }
-        return {
-          from: () => ({
-            groupBy: () => Effect.succeed(result),
-            innerJoin: () => ({
-              where: () => ({
-                orderBy: () => ({
-                  limit: () => Effect.succeed(result),
-                }),
-              }),
+  it.effect(
+    'summarizes single-dispatch outcomes and includes sent history',
+    () =>
+      Effect.gen(function* () {
+        const attempt = '2026-07-09T09:00:00.000';
+        const queries: string[] = [];
+        const deliveryRows = [
+          [
+            null,
+            'failed',
+            'receiptReviewed',
+            attempt,
+            'failed@example.org',
+            null,
+            'failed',
+            'Receipt rejected',
+            null,
+            'section.example.org',
+            'Section',
+            'Australia/Brisbane',
+          ],
+          [
+            null,
+            'unknown',
+            'receiptReviewed',
+            attempt,
+            'unknown@example.org',
+            null,
+            'deliveryUnknown',
+            'Receipt reviewed',
+            null,
+            'section.example.org',
+            'Section',
+            'Australia/Brisbane',
+          ],
+          [
+            null,
+            'sent',
+            'registrationConfirmed',
+            attempt,
+            'sent@example.org',
+            attempt,
+            'sent',
+            'Registration confirmed',
+            null,
+            'section.example.org',
+            'Section',
+            'Australia/Brisbane',
+          ],
+          [
+            null,
+            'sent-missing-attempt',
+            'registrationConfirmed',
+            null,
+            'sent-missing-attempt@example.org',
+            attempt,
+            'sent',
+            'Registration confirmed',
+            null,
+            'section.example.org',
+            'Section',
+            'Australia/Brisbane',
+          ],
+          [
+            null,
+            'suppressed',
+            'manualApproval',
+            null,
+            'suppressed@example.org',
+            null,
+            'suppressed',
+            'Manual approval',
+            null,
+            'section.example.org',
+            'Section',
+            'Australia/Brisbane',
+          ],
+          [
+            null,
+            'sending',
+            'manualApproval',
+            null,
+            'sending@example.org',
+            null,
+            'sending',
+            'Manual approval',
+            null,
+            'section.example.org',
+            'Section',
+            'Australia/Brisbane',
+          ],
+          [
+            null,
+            'queued',
+            'manualApproval',
+            null,
+            'queued@example.org',
+            null,
+            'queued',
+            'Manual approval',
+            null,
+            'section.example.org',
+            'Section',
+            'Australia/Brisbane',
+          ],
+        ];
+        const databaseLayer = createRegistrationDatabaseTestLayer({
+          executeValues: (statement, parameters) =>
+            Effect.sync(() => {
+              queries.push(statement);
+              expect(statement).toContain('from "email_outbox"');
+              if (statement.includes('group by')) {
+                expect(parameters).toEqual([]);
+                return [
+                  ['failed', 2],
+                  ['queued', 1],
+                  ['sent', 2],
+                  ['deliveryUnknown', 1],
+                  ['sending', 1],
+                  ['suppressed', 1],
+                ];
+              }
+              if (statement.includes('inner join "tenants"')) {
+                expect(statement).toContain('"tenants"."timezone"');
+                expect(statement).toContain('"email_outbox_overview"');
+                return deliveryRows;
+              }
+              expect(statement).toContain('"claim_lease_id" is null');
+              expect(statement).toContain('"claim_lease_expires_at" is null');
+              expect(parameters).toEqual([]);
+              return [[1]];
             }),
-            where: () => Effect.succeed(result),
-          }),
-        };
-      });
-      const database = { select };
-
-      const overview = yield* globalAdminHandlers[
-        'globalAdmin.emailOutbox.findOverview'
-      ](
-        undefined,
-        createRpcOptions(
-          GlobalAdminRpcs.GlobalAdminEmailOutboxFindOverview.middleware(
-            RpcRequestContextMiddleware,
-          ),
-        ),
-      )
-        .pipe(
-          Effect.provide(
-            requestContextLayer(
-              createRequestContext(['globalAdmin:manageTenants']),
+        });
+        const overview = yield* globalAdminHandlers[
+          'globalAdmin.emailOutbox.findOverview'
+        ](
+          undefined,
+          createRpcOptions(
+            GlobalAdminRpcs.GlobalAdminEmailOutboxFindOverview.middleware(
+              RpcRequestContextMiddleware,
             ),
           ),
-        )
-        .pipe(Effect.provide(provideDatabase(database)));
+        ).pipe(
+          Effect.provide(requestContextLayer(createRequestContext([]))),
+          Effect.provide(databaseLayer),
+        );
 
-      expect(overview.summary).toEqual({
-        deliveryUnknown: 0,
-        exhausted: 1,
-        failed: 2,
-        queued: 1,
-        sending: 0,
-        sent: 0,
-        staleSending: 1,
-        suppressed: 0,
-        waitingForRetry: 1,
-      });
-      expect(select).toHaveBeenNthCalledWith(
-        5,
-        expect.objectContaining({ tenantTimezone: expect.anything() }),
-      );
-      expect(overview.items).toEqual([
-        expect.objectContaining({
-          exhaustedAt: '2026-07-09T09:00:00.000Z',
-          id: 'email-1',
-          lastError: 'tem email request failed with HTTP 400',
+        expect(queries).toHaveLength(3);
+        expect(overview.summary).toEqual({
+          deliveryUnknown: 1,
+          failed: 2,
+          queued: 1,
+          sending: 1,
+          sent: 2,
+          staleSending: 1,
+          suppressed: 1,
+        });
+        expect(
+          overview.items.map(({ id, recordIncomplete }) => ({
+            id,
+            recordIncomplete,
+          })),
+        ).toEqual([
+          { id: 'failed', recordIncomplete: false },
+          { id: 'unknown', recordIncomplete: true },
+          { id: 'sent', recordIncomplete: false },
+          { id: 'sent-missing-attempt', recordIncomplete: true },
+          { id: 'suppressed', recordIncomplete: true },
+          { id: 'sending', recordIncomplete: true },
+          { id: 'queued', recordIncomplete: false },
+        ]);
+        expect(overview.items[0]).toEqual({
+          id: 'failed',
+          kind: 'receiptReviewed',
+          lastAttemptAt: '2026-07-09T09:00:00.000Z',
+          recipient: 'failed@example.org',
+          recordIncomplete: false,
           status: 'failed',
+          subject: 'Receipt rejected',
+          tenantDomain: 'section.example.org',
+          tenantName: 'Section',
           tenantTimezone: 'Australia/Brisbane',
-        }),
-      ]);
-    }),
+        });
+        for (const item of overview.items) {
+          expect(item).not.toHaveProperty('lastError');
+          expect(item).not.toHaveProperty('provider');
+          expect(item).not.toHaveProperty('attempts');
+        }
+      }),
   );
 
   it.effect('returns application append-only platform audit entries', () =>

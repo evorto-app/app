@@ -1,9 +1,10 @@
 import { Database } from '@db/index';
 import { financeReceiptUploads } from '@db/schema';
 import { and, asc, eq, inArray, lte, or } from 'drizzle-orm';
-import { Cause, Clock, Duration, Effect, Schedule } from 'effect';
+import { Clock, Duration, Effect, Schedule } from 'effect';
 
 import { ObjectStorage } from '../integrations/object-storage';
+import { reportPollingWorkerFailure } from '../runtime/polling-worker-supervision';
 
 const defaultBatchSize = 25;
 const maximumBatchSize = 100;
@@ -121,12 +122,8 @@ const runReceiptOrphanCleanupIteration = processReceiptOrphans().pipe(
         )
       : Effect.void,
   ),
-  Effect.catchCause((cause) =>
-    Cause.hasInterrupts(cause)
-      ? Effect.failCause(cause)
-      : Effect.logError('Receipt orphan cleanup iteration failed').pipe(
-          Effect.annotateLogs({ cause: String(cause) }),
-        ),
+  Effect.catchCause(
+    reportPollingWorkerFailure('Receipt orphan cleanup iteration failed'),
   ),
 );
 

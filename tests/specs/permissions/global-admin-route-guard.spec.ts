@@ -43,7 +43,7 @@ test.describe('global admin route guard allow path', () => {
     await page.goto('/global-admin/email-outbox');
     await expect(page).toHaveURL(/\/global-admin\/email-outbox/);
     await expect(
-      page.getByRole('heading', { level: 1, name: 'Email outbox' }),
+      page.getByRole('heading', { level: 1, name: 'Email delivery' }),
     ).toBeVisible();
   });
 
