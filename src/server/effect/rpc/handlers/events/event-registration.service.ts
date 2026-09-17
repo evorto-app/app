@@ -932,6 +932,7 @@ interface RegistrationAddonRecord {
   allowMultiple: boolean;
   allowPurchaseDuringRegistration: boolean;
   includedQuantity: number;
+  isPaid: boolean;
   maxQuantityPerUser: number;
   optionalPurchaseQuantity: number;
   price: number;
@@ -942,6 +943,29 @@ interface RegistrationAddonRecord {
   title: string;
   totalAvailableQuantity: number;
 }
+
+const registrationAddonTermsColumns = {
+  addOnId: eventAddons.id,
+  allowMultiple: eventAddons.allowMultiple,
+  allowPurchaseDuringRegistration: eventAddons.allowPurchaseDuringRegistration,
+  includedQuantity: addonToEventRegistrationOptions.includedQuantity,
+  isPaid: eventAddons.isPaid,
+  maxQuantityPerUser: eventAddons.maxQuantityPerUser,
+  optionalPurchaseQuantity:
+    addonToEventRegistrationOptions.optionalPurchaseQuantity,
+  price: eventAddons.price,
+  stripeTaxRateId: eventAddons.stripeTaxRateId,
+};
+
+type RegistrationAddonTerms = Pick<
+  RegistrationAddonRecord,
+  keyof typeof registrationAddonTermsColumns
+>;
+
+type RegistrationDiscountTerms = readonly Pick<
+  typeof eventRegistrationOptionDiscounts.$inferSelect,
+  'discountedPrice' | 'discountType'
+>[];
 
 interface RegistrationTaxConfigurationAddonExpectation {
   readonly addOnId: string;
@@ -955,6 +979,180 @@ interface RegistrationTaxRateSnapshot {
   readonly percentage: string;
   readonly stripeTaxRateId: string;
 }
+
+const registrationSnapshotChanged = () =>
+  new EventRegistrationConflictError({
+    message:
+      'Sign-up details changed while this request was being processed. Nothing was saved. Review the current details and try again.',
+  });
+
+/** The caller must hold the tenant and event locks before checking its snapshot. */
+export const ensureCurrentRegistrationSnapshot = Effect.fn(
+  'EventRegistration.ensureCurrentRegistrationSnapshot',
+)(function* (
+  database: Pick<DatabaseClient, 'query' | 'select'>,
+  input: {
+    readonly addOns?: readonly RegistrationAddonTerms[];
+    readonly admission?: Pick<
+      typeof eventRegistrationOptions.$inferSelect,
+      | 'closeRegistrationTime'
+      | 'openRegistrationTime'
+      | 'organizingRegistration'
+      | 'roleIds'
+    > & { readonly now: Date };
+    readonly eventId: string;
+    readonly pricing?: Pick<
+      typeof eventRegistrationOptions.$inferSelect,
+      'isPaid' | 'price' | 'stripeTaxRateId'
+    > & {
+      readonly discounts?: RegistrationDiscountTerms;
+      readonly eventStart: Date;
+    };
+    readonly registrationMode: typeof eventRegistrationOptions.$inferSelect.registrationMode;
+    readonly registrationOptionId: string;
+    readonly tenantId: string;
+  },
+) {
+  const current = yield* database.query.eventRegistrationOptions
+    .findFirst({
+      columns: {
+        closeRegistrationTime: true,
+        id: true,
+        isPaid: true,
+        openRegistrationTime: true,
+        organizingRegistration: true,
+        price: true,
+        registrationMode: true,
+        roleIds: true,
+        stripeTaxRateId: true,
+      },
+      where: { eventId: input.eventId, id: input.registrationOptionId },
+      with: {
+        event: {
+          columns: { start: true, status: true, tenantId: true },
+        },
+      },
+    })
+    .pipe(Effect.orDie);
+  if (
+    !current?.event ||
+    current.event.tenantId !== input.tenantId ||
+    current.event.status !== 'APPROVED' ||
+    current.registrationMode !== input.registrationMode
+  ) {
+    return yield* registrationSnapshotChanged();
+  }
+
+  const admission = input.admission;
+  if (admission) {
+    const currentRoles = current.roleIds.toSorted();
+    const expectedRoles = admission.roleIds.toSorted();
+    if (
+      current.openRegistrationTime.getTime() !==
+        admission.openRegistrationTime.getTime() ||
+      current.closeRegistrationTime.getTime() !==
+        admission.closeRegistrationTime.getTime() ||
+      admission.now < current.openRegistrationTime ||
+      admission.now > current.closeRegistrationTime ||
+      current.organizingRegistration !== admission.organizingRegistration ||
+      currentRoles.length !== expectedRoles.length ||
+      currentRoles.some((roleId, index) => roleId !== expectedRoles[index])
+    ) {
+      return yield* registrationSnapshotChanged();
+    }
+  }
+
+  if (input.addOns) {
+    const mappedAddOns = yield* database
+      .select(registrationAddonTermsColumns)
+      .from(eventAddons)
+      .innerJoin(
+        addonToEventRegistrationOptions,
+        and(
+          eq(addonToEventRegistrationOptions.addonId, eventAddons.id),
+          eq(addonToEventRegistrationOptions.eventId, eventAddons.eventId),
+        ),
+      )
+      .where(
+        and(
+          eq(eventAddons.eventId, input.eventId),
+          eq(
+            addonToEventRegistrationOptions.registrationOptionId,
+            input.registrationOptionId,
+          ),
+        ),
+      )
+      .pipe(Effect.orDie);
+    const expectedAddOns = new Map(
+      input.addOns.map((addOn) => [addOn.addOnId, addOn]),
+    );
+    const currentAddOns = mappedAddOns.filter(
+      (addOn) =>
+        addOn.includedQuantity > 0 || expectedAddOns.has(addOn.addOnId),
+    );
+    if (
+      expectedAddOns.size !== input.addOns.length ||
+      currentAddOns.length !== expectedAddOns.size ||
+      currentAddOns.some((addOn) => {
+        const expected = expectedAddOns.get(addOn.addOnId);
+        return (
+          !expected ||
+          addOn.isPaid !== expected.isPaid ||
+          addOn.price !== expected.price ||
+          addOn.stripeTaxRateId !== expected.stripeTaxRateId ||
+          addOn.includedQuantity !== expected.includedQuantity ||
+          addOn.optionalPurchaseQuantity !==
+            expected.optionalPurchaseQuantity ||
+          addOn.allowMultiple !== expected.allowMultiple ||
+          addOn.allowPurchaseDuringRegistration !==
+            expected.allowPurchaseDuringRegistration ||
+          addOn.maxQuantityPerUser !== expected.maxQuantityPerUser
+        );
+      })
+    ) {
+      return yield* registrationSnapshotChanged();
+    }
+  }
+
+  const pricing = input.pricing;
+  if (!pricing) return current;
+  if (
+    current.isPaid !== pricing.isPaid ||
+    current.price !== pricing.price ||
+    current.stripeTaxRateId !== pricing.stripeTaxRateId ||
+    current.event.start.getTime() !== pricing.eventStart.getTime()
+  ) {
+    return yield* registrationSnapshotChanged();
+  }
+  if (pricing.discounts) {
+    const discounts = yield* database.query.eventRegistrationOptionDiscounts
+      .findMany({
+        columns: { discountedPrice: true, discountType: true },
+        where: { registrationOptionId: input.registrationOptionId },
+      })
+      .pipe(Effect.orDie);
+    const compareDiscounts = (
+      left: RegistrationDiscountTerms[number],
+      right: RegistrationDiscountTerms[number],
+    ) =>
+      left.discountType.localeCompare(right.discountType) ||
+      left.discountedPrice - right.discountedPrice;
+    const currentDiscounts = discounts.toSorted(compareDiscounts);
+    const expectedDiscounts = pricing.discounts.toSorted(compareDiscounts);
+    if (
+      currentDiscounts.length !== expectedDiscounts.length ||
+      currentDiscounts.some(
+        (discount, index) =>
+          expectedDiscounts[index]?.discountType !== discount.discountType ||
+          expectedDiscounts[index]?.discountedPrice !==
+            discount.discountedPrice,
+      )
+    ) {
+      return yield* registrationSnapshotChanged();
+    }
+  }
+  return current;
+});
 
 const registrationTaxConfigurationChanged = () =>
   new EventRegistrationConflictError({
@@ -1469,6 +1667,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
           : 0;
         let discountResolution: DiscountResolution =
           noDiscountResolution(basePrice);
+        let discountTerms: RegistrationDiscountTerms | undefined;
         const cards = yield* databaseEffect((database) =>
           database.query.userDiscountCards.findMany({
             columns: {
@@ -1513,6 +1712,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
               where: { registrationOptionId: registrationOption.id },
             }),
           );
+          discountTerms = discounts;
           discountResolution = resolveDiscount({
             basePrice,
             cards,
@@ -1675,6 +1875,31 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                         }),
                   );
                 }
+
+                const currentQuestionSet =
+                  yield* lockEventRegistrationQuestionSet(tx, {
+                    eventId,
+                    registrationOptionId: registrationOption.id,
+                    tenantId: tenant.id,
+                  });
+                if (!currentQuestionSet) {
+                  return yield* registrationSnapshotChanged();
+                }
+                yield* ensureCurrentRegistrationSnapshot(tx, {
+                  eventId,
+                  pricing: {
+                    eventStart: registration.event.start,
+                    isPaid: registrationOption.isPaid,
+                    price: registrationOption.price,
+                    stripeTaxRateId: registrationOption.stripeTaxRateId,
+                    ...(discountTerms !== undefined && {
+                      discounts: discountTerms,
+                    }),
+                  },
+                  registrationMode: registrationOption.registrationMode,
+                  registrationOptionId: registrationOption.id,
+                  tenantId: tenant.id,
+                });
 
                 const existingClaims = yield* tx
                   .select(claimSelection)
@@ -2790,17 +3015,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
         const availableAddOns = yield* databaseEffect((database) =>
           database
             .select({
-              addOnId: eventAddons.id,
-              allowMultiple: eventAddons.allowMultiple,
-              allowPurchaseDuringRegistration:
-                eventAddons.allowPurchaseDuringRegistration,
-              includedQuantity:
-                addonToEventRegistrationOptions.includedQuantity,
-              maxQuantityPerUser: eventAddons.maxQuantityPerUser,
-              optionalPurchaseQuantity:
-                addonToEventRegistrationOptions.optionalPurchaseQuantity,
-              price: eventAddons.price,
-              stripeTaxRateId: eventAddons.stripeTaxRateId,
+              ...registrationAddonTermsColumns,
               taxRateDisplayName: tenantStripeTaxRates.displayName,
               taxRateInclusive: tenantStripeTaxRates.inclusive,
               taxRatePercentage: tenantStripeTaxRates.percentage,
@@ -2923,6 +3138,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
           : 0;
         let discountResolution: DiscountResolution =
           noDiscountResolution(basePrice);
+        let discountTerms: RegistrationDiscountTerms | undefined;
         if (!manualApproval && registrationOption.isPaid && basePrice > 0) {
           const cards = yield* databaseEffect((database) =>
             database.query.userDiscountCards.findMany({
@@ -2968,6 +3184,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                 where: { registrationOptionId: registrationOption.id },
               }),
             );
+            discountTerms = discounts;
             discountResolution = resolveDiscount({
               basePrice,
               cards,
@@ -3106,6 +3323,32 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                     }),
                   );
                 }
+                yield* ensureCurrentRegistrationSnapshot(tx, {
+                  addOns: selectedAddOns,
+                  admission: {
+                    closeRegistrationTime:
+                      registrationOption.closeRegistrationTime,
+                    now: yield* registrationServiceNow(pinnedNowIso),
+                    openRegistrationTime:
+                      registrationOption.openRegistrationTime,
+                    organizingRegistration:
+                      registrationOption.organizingRegistration,
+                    roleIds: registrationOption.roleIds,
+                  },
+                  eventId,
+                  pricing: {
+                    eventStart: registrationOption.event.start,
+                    isPaid: registrationOption.isPaid,
+                    price: registrationOption.price,
+                    stripeTaxRateId: registrationOption.stripeTaxRateId,
+                    ...(discountTerms !== undefined && {
+                      discounts: discountTerms,
+                    }),
+                  },
+                  registrationMode: registrationOption.registrationMode,
+                  registrationOptionId: registrationOption.id,
+                  tenantId: tenant.id,
+                });
                 const answerInserts = yield* Effect.try({
                   catch: (error) =>
                     error instanceof EventRegistrationConflictError
@@ -3747,6 +3990,22 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                       }),
                     );
                   }
+                  yield* ensureCurrentRegistrationSnapshot(tx, {
+                    admission: {
+                      closeRegistrationTime:
+                        registrationOption.closeRegistrationTime,
+                      now: yield* registrationServiceNow(pinnedNowIso),
+                      openRegistrationTime:
+                        registrationOption.openRegistrationTime,
+                      organizingRegistration:
+                        registrationOption.organizingRegistration,
+                      roleIds: registrationOption.roleIds,
+                    },
+                    eventId,
+                    registrationMode: registrationOption.registrationMode,
+                    registrationOptionId: registrationOption.id,
+                    tenantId: tenant.id,
+                  });
                   const answerInserts = yield* Effect.try({
                     catch: (error) =>
                       error instanceof EventRegistrationConflictError

@@ -23,6 +23,7 @@ import {
   eventInstances,
   eventRegistrationAddonPurchaseLots,
   eventRegistrationAddonPurchases,
+  eventRegistrationOptionDiscounts,
   eventRegistrationOptions,
   eventRegistrationQuestionAnswers,
   eventRegistrationQuestions,
@@ -40,6 +41,7 @@ import { createRegistrationDatabaseTestLayer } from '../../../../testing/registr
 import {
   type ApproveManualRegistrationArguments,
   decodeRegistrationCheckoutSnapshot,
+  ensureCurrentRegistrationSnapshot,
   EventRegistrationService,
   isDefinitiveCheckoutSessionCreateFailure,
   isUserEligibleForRegistrationOption,
@@ -224,6 +226,110 @@ const readQuestionSetLockFixture = ({
   }
 };
 
+type RegistrationSnapshotOption = Omit<
+  Pick<
+    typeof eventRegistrationOptions.$inferSelect,
+    | 'closeRegistrationTime'
+    | 'id'
+    | 'isPaid'
+    | 'openRegistrationTime'
+    | 'organizingRegistration'
+    | 'price'
+    | 'registrationMode'
+    | 'roleIds'
+    | 'stripeTaxRateId'
+  >,
+  'roleIds'
+> & {
+  readonly event: null | Pick<
+    typeof eventInstances.$inferSelect,
+    'start' | 'status' | 'tenantId'
+  >;
+  readonly roleIds: readonly string[];
+};
+
+const registrationSnapshotSelectPrefix =
+  'select "d0"."closeRegistrationTime"::text as "closeRegistrationTime", "d0"."id" as "id", "d0"."isPaid" as "isPaid", "d0"."openRegistrationTime"::text as "openRegistrationTime", "d0"."organizingRegistration" as "organizingRegistration", "d0"."price" as "price", "d0"."registrationMode" as "registrationMode", "d0"."roleIds" as "roleIds", "d0"."stripeTaxRateId" as "stripeTaxRateId", "event"."r" as "event" from "event_registration_options" as "d0" ';
+
+const readRegistrationSnapshotFixture = ({
+  option,
+  parameters,
+  statement,
+  transactionOpen,
+}: {
+  option: null | RegistrationSnapshotOption;
+  parameters: readonly unknown[];
+  statement: string;
+  transactionOpen: boolean;
+}) => {
+  if (!statement.startsWith(registrationSnapshotSelectPrefix)) return;
+  expect(transactionOpen).toBe(true);
+  expect(statement).toContain(
+    'select "d1"."start"::text as "start", "d1"."status" as "status", "d1"."tenantId" as "tenantId" from "event_instances" as "d1"',
+  );
+  expect(statement).toContain('"d0"."eventId" = "d1"."id"');
+  expect(
+    statement.endsWith(
+      ' where (("d0"."eventId" = $2) and ("d0"."id" = $3)) limit $4',
+    ),
+  ).toBe(true);
+  expect(parameters).toEqual([1, 'event-1', 'option-1', 1]);
+  if (!option) return [];
+  return [
+    [
+      option.closeRegistrationTime.toISOString().replace('Z', ''),
+      option.id,
+      option.isPaid,
+      option.openRegistrationTime.toISOString().replace('Z', ''),
+      option.organizingRegistration,
+      option.price,
+      option.registrationMode,
+      [...option.roleIds],
+      option.stripeTaxRateId,
+      option.event
+        ? {
+            ...option.event,
+            start: option.event.start.toISOString().replace('Z', ''),
+          }
+        : null,
+    ],
+  ];
+};
+
+type RegistrationSnapshotAddon = NonNullable<
+  Parameters<typeof ensureCurrentRegistrationSnapshot>[1]['addOns']
+>[number];
+
+const registrationSnapshotAddonSql =
+  'select "event_addons"."id", "event_addons"."allowMultiple", "event_addons"."allowPurchaseDuringRegistration", "addon_to_event_registration_options"."included_quantity", "event_addons"."isPaid", "event_addons"."maxQuantityPerUser", "addon_to_event_registration_options"."optional_purchase_quantity", "event_addons"."price", "event_addons"."stripeTaxRateId" from "event_addons" inner join "addon_to_event_registration_options" on (("addon_to_event_registration_options"."addonId" = "event_addons"."id") and ("addon_to_event_registration_options"."eventId" = "event_addons"."eventId")) where (("event_addons"."eventId" = $1) and ("addon_to_event_registration_options"."registrationOptionId" = $2))';
+
+const readRegistrationSnapshotAddonsFixture = ({
+  addOns,
+  parameters,
+  statement,
+  transactionOpen,
+}: {
+  addOns: readonly RegistrationSnapshotAddon[];
+  parameters: readonly unknown[];
+  statement: string;
+  transactionOpen: boolean;
+}) => {
+  if (statement !== registrationSnapshotAddonSql) return;
+  expect(transactionOpen).toBe(true);
+  expect(parameters).toEqual(['event-1', 'option-1']);
+  return addOns.map((addOn) => [
+    addOn.addOnId,
+    addOn.allowMultiple,
+    addOn.allowPurchaseDuringRegistration,
+    addOn.includedQuantity,
+    addOn.isPaid,
+    addOn.maxQuantityPerUser,
+    addOn.optionalPurchaseQuantity,
+    addOn.price,
+    addOn.stripeTaxRateId,
+  ]);
+};
+
 const approvedRegistrationOption = {
   closeRegistrationTime: new Date('2026-09-20T10:00:00.000Z'),
   confirmedSpots: 0,
@@ -394,6 +500,7 @@ const createManualApprovalDatabase = ({
     let registrationUpdateValues:
       Partial<typeof eventRegistrations.$inferSelect> | undefined;
     let transactionCount = 0;
+    let transactionOpen = false;
     let persistedEmail = false;
     let releasedClaimId: string | undefined;
     const claimRows = () =>
@@ -418,6 +525,23 @@ const createManualApprovalDatabase = ({
     const databaseLayer = createRegistrationDatabaseTestLayer({
       executeValues: (statement, parameters) =>
         Effect.sync(() => {
+          const questionSetRows = readQuestionSetLockFixture({
+            parameters,
+            statement,
+            transactionOpen,
+          });
+          if (questionSetRows) return questionSetRows;
+          const snapshotRows = readRegistrationSnapshotFixture({
+            option: {
+              ...approvedRegistrationOption,
+              ...registration.registrationOption,
+              event: registration.event,
+            },
+            parameters,
+            statement,
+            transactionOpen,
+          });
+          if (snapshotRows) return snapshotRows;
           if (
             statement.includes(` from "${getTableName(eventRegistrations)}"`) &&
             statement.includes('row_to_json')
@@ -839,6 +963,7 @@ const createManualApprovalDatabase = ({
         }),
       transactionControl: (command) =>
         Effect.gen(function* () {
+          transactionOpen = command === 'BEGIN';
           if (command === 'BEGIN') transactionCount += 1;
           if (
             bindingCommitAmbiguous &&
@@ -1334,6 +1459,20 @@ const createDirectCheckoutDatabase = ({
         transactionOpen: transactionSnapshot !== undefined,
       });
       if (questionSetRows) return questionSetRows;
+      const snapshotRows = readRegistrationSnapshotFixture({
+        option,
+        parameters,
+        statement,
+        transactionOpen: transactionSnapshot !== undefined,
+      });
+      if (snapshotRows) return snapshotRows;
+      const addonRows = readRegistrationSnapshotAddonsFixture({
+        addOns: [],
+        parameters,
+        statement,
+        transactionOpen: transactionSnapshot !== undefined,
+      });
+      if (addonRows) return addonRows;
       if (
         statement.startsWith(
           `insert into "${getTableName(eventRegistrations)}"`,
@@ -1452,6 +1591,7 @@ const createDirectCheckoutDatabase = ({
       if (statement.includes(` from "${getTableName(eventAddons)}"`)) {
         expect(statement).toContain(' inner join ');
         expect(statement).toContain(' left join ');
+        expect(statement).toContain('"event_addons"."isPaid"');
         expect(parameters).toEqual([
           'tenant-1',
           expect.any(String),
@@ -1961,6 +2101,13 @@ const createCurrentWaitlistDatabaseFixture = ({
             transactionOpen: inTransaction,
           });
           if (questionSetRows) return Effect.succeed(questionSetRows);
+          const snapshotRows = readRegistrationSnapshotFixture({
+            option,
+            parameters,
+            statement,
+            transactionOpen: inTransaction,
+          });
+          if (snapshotRows) return Effect.succeed(snapshotRows);
           if (statement.includes(` from "${getTableName(usersToTenants)}"`))
             return lockMembership(statement, parameters);
           if (
@@ -2910,6 +3057,7 @@ type CurrentReservationAvailableAddon = Pick<
     typeof eventAddons.$inferSelect,
     | 'allowMultiple'
     | 'allowPurchaseDuringRegistration'
+    | 'isPaid'
     | 'maxQuantityPerUser'
     | 'price'
     | 'stripeTaxRateId'
@@ -2951,6 +3099,8 @@ type CurrentReservationDatabaseStep =
   | 'readActiveRegistration'
   | 'readAddons'
   | 'readConcurrentRegistration'
+  | 'readCurrentAddons'
+  | 'readCurrentOption'
   | 'readEmailTenant'
   | 'readExistingRegistration'
   | 'readLockedQuestions'
@@ -2969,6 +3119,8 @@ const currentReservationInitialReadSteps: readonly CurrentReservationDatabaseSte
     'lockQuestionTenant',
     'lockQuestionEvent',
     'readLockedQuestions',
+    'readCurrentOption',
+    'readCurrentAddons',
     'lockMembership',
   ];
 
@@ -3256,7 +3408,7 @@ const createCurrentReservationDatabaseFixture = ({
           }
           case 'readAddons': {
             expect(statement).toBe(
-              `select "${addonTable}"."id", "${addonTable}"."allowMultiple", "${addonTable}"."allowPurchaseDuringRegistration", "${attachmentTable}"."included_quantity", "${addonTable}"."maxQuantityPerUser", "${attachmentTable}"."optional_purchase_quantity", "${addonTable}"."price", "${addonTable}"."stripeTaxRateId", "${taxTable}"."displayName", "${taxTable}"."inclusive", "${taxTable}"."percentage", "${addonTable}"."title", "${addonTable}"."totalAvailableQuantity" from "${addonTable}" inner join "${attachmentTable}" on "${attachmentTable}"."addonId" = "${addonTable}"."id" left join "${taxTable}" on (("${taxTable}"."stripeTaxRateId" = "${addonTable}"."stripeTaxRateId") and ("${taxTable}"."tenantId" = $1) and ("${taxTable}"."stripeAccountId" = $2) and ("${taxTable}"."active" = $3) and ("${taxTable}"."inclusive" = $4)) where (("${addonTable}"."eventId" = $5) and ("${attachmentTable}"."registrationOptionId" = $6))`,
+              `select "${addonTable}"."id", "${addonTable}"."allowMultiple", "${addonTable}"."allowPurchaseDuringRegistration", "${attachmentTable}"."included_quantity", "${addonTable}"."isPaid", "${addonTable}"."maxQuantityPerUser", "${attachmentTable}"."optional_purchase_quantity", "${addonTable}"."price", "${addonTable}"."stripeTaxRateId", "${taxTable}"."displayName", "${taxTable}"."inclusive", "${taxTable}"."percentage", "${addonTable}"."title", "${addonTable}"."totalAvailableQuantity" from "${addonTable}" inner join "${attachmentTable}" on "${attachmentTable}"."addonId" = "${addonTable}"."id" left join "${taxTable}" on (("${taxTable}"."stripeTaxRateId" = "${addonTable}"."stripeTaxRateId") and ("${taxTable}"."tenantId" = $1) and ("${taxTable}"."stripeAccountId" = $2) and ("${taxTable}"."active" = $3) and ("${taxTable}"."inclusive" = $4)) where (("${addonTable}"."eventId" = $5) and ("${attachmentTable}"."registrationOptionId" = $6))`,
             );
             expect(parameters).toEqual([
               'tenant-1',
@@ -3273,6 +3425,7 @@ const createCurrentReservationDatabaseFixture = ({
                     addon.allowMultiple,
                     addon.allowPurchaseDuringRegistration,
                     addon.includedQuantity,
+                    addon.isPaid,
                     addon.maxQuantityPerUser,
                     addon.optionalPurchaseQuantity,
                     addon.price,
@@ -3291,6 +3444,30 @@ const createCurrentReservationDatabaseFixture = ({
               { id: 'concurrent-registration' };
             expectActiveRegistrationRead(statement, parameters, false);
             return [[existing.id]];
+          }
+          case 'readCurrentAddons': {
+            const rows = readRegistrationSnapshotAddonsFixture({
+              addOns: addon ? [addon] : [],
+              parameters,
+              statement,
+              transactionOpen,
+            });
+            if (!rows) {
+              throw new Error(`Unexpected current add-on SQL: ${statement}`);
+            }
+            return rows;
+          }
+          case 'readCurrentOption': {
+            const rows = readRegistrationSnapshotFixture({
+              option,
+              parameters,
+              statement,
+              transactionOpen,
+            });
+            if (!rows) {
+              throw new Error(`Unexpected current option SQL: ${statement}`);
+            }
+            return rows;
           }
           case 'readEmailTenant': {
             return yield* findEmailTenant(statement, parameters);
@@ -3497,6 +3674,581 @@ describe('EventRegistrationService', () => {
       );
     }
   }
+
+  describe('ensureCurrentRegistrationSnapshot', () => {
+    const currentOption: RegistrationSnapshotOption = {
+      ...approvedRegistrationOption,
+      isPaid: true,
+      price: 1000,
+      roleIds: ['role-a', 'role-b'],
+      stripeTaxRateId: 'txr_19',
+    };
+    const admission = {
+      closeRegistrationTime: approvedRegistrationOption.closeRegistrationTime,
+      now: new Date('2026-09-15T12:00:00.000Z'),
+      openRegistrationTime: approvedRegistrationOption.openRegistrationTime,
+      organizingRegistration: false,
+      roleIds: ['role-a', 'role-b'],
+    };
+    const pricing = {
+      discounts: [{ discountedPrice: 500, discountType: 'esnCard' }],
+      eventStart: approvedRegistrationOption.event.start,
+      isPaid: true,
+      price: 1000,
+      stripeTaxRateId: 'txr_19',
+    } satisfies NonNullable<
+      Parameters<typeof ensureCurrentRegistrationSnapshot>[1]['pricing']
+    >;
+    const capturedAddOn = {
+      addOnId: 'addon-1',
+      allowMultiple: true,
+      allowPurchaseDuringRegistration: true,
+      includedQuantity: 1,
+      isPaid: true,
+      maxQuantityPerUser: 3,
+      optionalPurchaseQuantity: 2,
+      price: 300,
+      stripeTaxRateId: 'txr_19',
+      taxRateDisplayName: 'VAT',
+      taxRateInclusive: true,
+      taxRatePercentage: '19',
+      title: 'Lunch',
+      totalAvailableQuantity: 10,
+    } satisfies Parameters<
+      typeof validateRegistrationAddons
+    >[0]['availableAddOns'][number];
+    const input: Parameters<typeof ensureCurrentRegistrationSnapshot>[1] = {
+      admission,
+      eventId: 'event-1',
+      pricing,
+      registrationMode: 'fcfs',
+      registrationOptionId: 'option-1',
+      tenantId: 'tenant-1',
+    };
+    const createSnapshotDatabase = ({
+      addOns = [],
+      discounts = pricing.discounts,
+      option = currentOption,
+    }: {
+      addOns?: readonly RegistrationSnapshotAddon[];
+      discounts?: readonly Pick<
+        typeof eventRegistrationOptionDiscounts.$inferSelect,
+        'discountedPrice' | 'discountType'
+      >[];
+      option?: null | RegistrationSnapshotOption;
+    } = {}) =>
+      Effect.gen(function* () {
+        let transactionOpen = false;
+        const reads: ('addons' | 'discounts' | 'option')[] = [];
+        const transactionCommands: ('BEGIN' | 'COMMIT' | 'ROLLBACK')[] = [];
+        const context = yield* Layer.build(
+          createRegistrationDatabaseTestLayer({
+            executeValues: (statement, parameters) =>
+              Effect.sync(() => {
+                const rows = readRegistrationSnapshotFixture({
+                  option,
+                  parameters,
+                  statement,
+                  transactionOpen,
+                });
+                if (rows) {
+                  reads.push('option');
+                  return rows;
+                }
+                const addonRows = readRegistrationSnapshotAddonsFixture({
+                  addOns,
+                  parameters,
+                  statement,
+                  transactionOpen,
+                });
+                if (addonRows) {
+                  expect(reads).toEqual(['option']);
+                  reads.push('addons');
+                  return addonRows;
+                }
+                if (
+                  statement.includes(
+                    ' from "event_registration_option_discounts" as "d0"',
+                  )
+                ) {
+                  expect(transactionOpen).toBe(true);
+                  expect(reads).toEqual(
+                    reads.includes('addons')
+                      ? ['option', 'addons']
+                      : ['option'],
+                  );
+                  expect(statement).toBe(
+                    'select "d0"."discountedPrice" as "discountedPrice", "d0"."discountType" as "discountType" from "event_registration_option_discounts" as "d0" where "d0"."registrationOptionId" = $1',
+                  );
+                  expect(parameters).toEqual(['option-1']);
+                  reads.push('discounts');
+                  return discounts.map((discount) => [
+                    discount.discountedPrice,
+                    discount.discountType,
+                  ]);
+                }
+                throw new Error(
+                  `Unexpected registration snapshot fixture SQL: ${statement}`,
+                );
+              }),
+            transactionControl: (command) =>
+              Effect.sync(() => {
+                expect(transactionOpen).toBe(command !== 'BEGIN');
+                transactionOpen = command === 'BEGIN';
+                transactionCommands.push(command);
+              }),
+          }),
+        );
+        return {
+          database: Context.get(context, Database),
+          reads,
+          transactionCommands,
+        };
+      });
+
+    it.effect(
+      'accepts unchanged admission and pricing from the current graph',
+      () =>
+        Effect.gen(function* () {
+          const fixture = yield* createSnapshotDatabase();
+          const current = yield* fixture.database.transaction((tx) =>
+            ensureCurrentRegistrationSnapshot(tx, input),
+          );
+          expect(current).toMatchObject({
+            event: {
+              start: pricing.eventStart,
+              status: 'APPROVED',
+              tenantId: 'tenant-1',
+            },
+            id: 'option-1',
+            isPaid: true,
+            price: 1000,
+            stripeTaxRateId: 'txr_19',
+          });
+          expect(fixture.reads).toEqual(['option', 'discounts']);
+          expect(fixture.transactionCommands).toEqual(['BEGIN', 'COMMIT']);
+        }),
+    );
+
+    it.effect('ignores role order while preserving both role collections', () =>
+      Effect.gen(function* () {
+        const reorderedRoles = ['role-b', 'role-a'];
+        const fixture = yield* createSnapshotDatabase({
+          option: { ...currentOption, roleIds: reorderedRoles },
+        });
+        const current = yield* fixture.database.transaction((tx) =>
+          ensureCurrentRegistrationSnapshot(tx, input),
+        );
+        expect(current).toMatchObject({ roleIds: ['role-b', 'role-a'] });
+        expect(reorderedRoles).toEqual(['role-b', 'role-a']);
+        expect(admission.roleIds).toEqual(['role-a', 'role-b']);
+        expect(fixture.reads).toEqual(['option', 'discounts']);
+        expect(fixture.transactionCommands).toEqual(['BEGIN', 'COMMIT']);
+      }),
+    );
+
+    it.effect('accepts unchanged selected add-on commercial terms', () =>
+      Effect.gen(function* () {
+        const fixture = yield* createSnapshotDatabase({
+          addOns: [capturedAddOn],
+        });
+        const current = yield* fixture.database.transaction((tx) =>
+          ensureCurrentRegistrationSnapshot(tx, {
+            ...input,
+            addOns: [capturedAddOn],
+          }),
+        );
+        expect(current).toMatchObject({ id: 'option-1' });
+        expect(fixture.reads).toEqual(['option', 'addons', 'discounts']);
+        expect(fixture.transactionCommands).toEqual(['BEGIN', 'COMMIT']);
+      }),
+    );
+
+    it.effect(
+      'accepts reordered mapped add-ons without changing captured order',
+      () =>
+        Effect.gen(function* () {
+          const first = { ...capturedAddOn, addOnId: 'addon-a' };
+          const second = { ...capturedAddOn, addOnId: 'addon-b' };
+          const captured = [first, second];
+          const mapped = [second, first];
+          const fixture = yield* createSnapshotDatabase({ addOns: mapped });
+          yield* fixture.database.transaction((tx) =>
+            ensureCurrentRegistrationSnapshot(tx, {
+              ...input,
+              addOns: captured,
+            }),
+          );
+          expect(captured.map((addOn) => addOn.addOnId)).toEqual([
+            'addon-a',
+            'addon-b',
+          ]);
+          expect(mapped.map((addOn) => addOn.addOnId)).toEqual([
+            'addon-b',
+            'addon-a',
+          ]);
+          expect(fixture.reads).toEqual(['option', 'addons', 'discounts']);
+          expect(fixture.transactionCommands).toEqual(['BEGIN', 'COMMIT']);
+        }),
+    );
+
+    const changedAddonTerms = [
+      { change: { price: 450 }, name: 'price' },
+      {
+        change: { isPaid: false, price: 0, stripeTaxRateId: null },
+        name: 'paid status',
+      },
+      { change: { stripeTaxRateId: 'txr_other' }, name: 'tax binding' },
+      { change: { includedQuantity: 2 }, name: 'included quantity' },
+      { change: { optionalPurchaseQuantity: 0 }, name: 'optional quantity' },
+      {
+        change: { allowMultiple: false },
+        name: 'multiple purchase permission',
+      },
+      {
+        change: { allowPurchaseDuringRegistration: false },
+        name: 'registration purchase permission',
+      },
+      { change: { maxQuantityPerUser: 1 }, name: 'per-user quantity limit' },
+    ] satisfies readonly {
+      change: Partial<RegistrationSnapshotAddon>;
+      name: string;
+    }[];
+    for (const scenario of changedAddonTerms) {
+      it.effect(`rejects a changed selected add-on ${scenario.name}`, () =>
+        Effect.gen(function* () {
+          const fixture = yield* createSnapshotDatabase({
+            addOns: [{ ...capturedAddOn, ...scenario.change }],
+          });
+          const error = yield* fixture.database
+            .transaction((tx) =>
+              ensureCurrentRegistrationSnapshot(tx, {
+                ...input,
+                addOns: [capturedAddOn],
+              }),
+            )
+            .pipe(Effect.flip);
+          expect(error).toBeInstanceOf(EventRegistrationConflictError);
+          expect(error.message).toContain('Nothing was saved');
+          expect(fixture.reads).toEqual(['option', 'addons']);
+          expect(fixture.transactionCommands).toEqual(['BEGIN', 'ROLLBACK']);
+        }),
+      );
+    }
+
+    it.effect('rejects a selected add-on removed from the option mapping', () =>
+      Effect.gen(function* () {
+        const fixture = yield* createSnapshotDatabase({ addOns: [] });
+        const error = yield* fixture.database
+          .transaction((tx) =>
+            ensureCurrentRegistrationSnapshot(tx, {
+              ...input,
+              addOns: [capturedAddOn],
+            }),
+          )
+          .pipe(Effect.flip);
+        expect(error).toBeInstanceOf(EventRegistrationConflictError);
+        expect(fixture.reads).toEqual(['option', 'addons']);
+        expect(fixture.transactionCommands).toEqual(['BEGIN', 'ROLLBACK']);
+      }),
+    );
+
+    it.effect(
+      'rejects newly included add-ons even when none were initially selected',
+      () =>
+        Effect.gen(function* () {
+          const fixture = yield* createSnapshotDatabase({
+            addOns: [capturedAddOn],
+          });
+          const error = yield* fixture.database
+            .transaction((tx) =>
+              ensureCurrentRegistrationSnapshot(tx, { ...input, addOns: [] }),
+            )
+            .pipe(Effect.flip);
+          expect(error).toBeInstanceOf(EventRegistrationConflictError);
+          expect(fixture.reads).toEqual(['option', 'addons']);
+          expect(fixture.transactionCommands).toEqual(['BEGIN', 'ROLLBACK']);
+        }),
+    );
+
+    it.effect(
+      'ignores newly offered optional add-ons that were not selected',
+      () =>
+        Effect.gen(function* () {
+          const fixture = yield* createSnapshotDatabase({
+            addOns: [{ ...capturedAddOn, includedQuantity: 0 }],
+          });
+          yield* fixture.database.transaction((tx) =>
+            ensureCurrentRegistrationSnapshot(tx, { ...input, addOns: [] }),
+          );
+          expect(fixture.reads).toEqual(['option', 'addons', 'discounts']);
+          expect(fixture.transactionCommands).toEqual(['BEGIN', 'COMMIT']);
+        }),
+    );
+
+    it.effect(
+      'leaves stock to atomic reservation and ignores display metadata',
+      () =>
+        Effect.gen(function* () {
+          const currentAddOn = {
+            ...capturedAddOn,
+            taxRateDisplayName: 'Updated VAT label',
+            taxRateInclusive: false,
+            taxRatePercentage: '20',
+            title: 'Updated lunch label',
+            totalAvailableQuantity: 0,
+          };
+          const fixture = yield* createSnapshotDatabase({
+            addOns: [currentAddOn],
+          });
+          yield* fixture.database.transaction((tx) =>
+            ensureCurrentRegistrationSnapshot(tx, {
+              ...input,
+              addOns: [capturedAddOn],
+            }),
+          );
+          expect(fixture.reads).toEqual(['option', 'addons', 'discounts']);
+          expect(fixture.transactionCommands).toEqual(['BEGIN', 'COMMIT']);
+        }),
+    );
+
+    const changedOptions = [
+      { name: 'missing option', option: null },
+      {
+        name: 'missing event',
+        option: { ...currentOption, event: null },
+      },
+      {
+        name: 'foreign event tenant',
+        option: {
+          ...currentOption,
+          event: { ...approvedRegistrationOption.event, tenantId: 'tenant-2' },
+        },
+      },
+      {
+        name: 'unpublished event',
+        option: {
+          ...currentOption,
+          event: { ...approvedRegistrationOption.event, status: 'DRAFT' },
+        },
+      },
+      {
+        name: 'registration mode',
+        option: { ...currentOption, registrationMode: 'application' },
+      },
+      {
+        name: 'opening time',
+        option: {
+          ...currentOption,
+          openRegistrationTime: new Date('2026-09-11T10:00:00.000Z'),
+        },
+      },
+      {
+        name: 'closing time',
+        option: {
+          ...currentOption,
+          closeRegistrationTime: new Date('2026-09-19T10:00:00.000Z'),
+        },
+      },
+      {
+        name: 'organizer option',
+        option: { ...currentOption, organizingRegistration: true },
+      },
+      {
+        name: 'role membership',
+        option: { ...currentOption, roleIds: ['role-a', 'role-c'] },
+      },
+      {
+        name: 'role count',
+        option: { ...currentOption, roleIds: ['role-a'] },
+      },
+      {
+        name: 'paid status',
+        option: { ...currentOption, isPaid: false, price: 0 },
+      },
+      {
+        name: 'base price',
+        option: { ...currentOption, price: 1200 },
+      },
+      {
+        name: 'tax rate binding',
+        option: { ...currentOption, stripeTaxRateId: 'txr_other' },
+      },
+      {
+        name: 'event start',
+        option: {
+          ...currentOption,
+          event: {
+            ...approvedRegistrationOption.event,
+            start: new Date('2026-09-19T10:00:00.000Z'),
+          },
+        },
+      },
+    ] satisfies readonly {
+      name: string;
+      option: null | RegistrationSnapshotOption;
+    }[];
+
+    for (const scenario of changedOptions) {
+      it.effect(
+        `rejects changed ${scenario.name} before reading discount terms`,
+        () =>
+          Effect.gen(function* () {
+            const fixture = yield* createSnapshotDatabase({
+              option: scenario.option,
+            });
+            const error = yield* fixture.database
+              .transaction((tx) => ensureCurrentRegistrationSnapshot(tx, input))
+              .pipe(Effect.flip);
+            expect(error).toBeInstanceOf(EventRegistrationConflictError);
+            expect(error.message).toContain('Nothing was saved');
+            expect(fixture.reads).toEqual(['option']);
+            expect(fixture.transactionCommands).toEqual(['BEGIN', 'ROLLBACK']);
+          }),
+      );
+    }
+
+    for (const scenario of [
+      {
+        discounts: [{ discountedPrice: 750, discountType: 'esnCard' }],
+        name: 'changed discount price',
+      },
+      { discounts: [], name: 'removed discount' },
+    ] satisfies readonly {
+      discounts: readonly Pick<
+        typeof eventRegistrationOptionDiscounts.$inferSelect,
+        'discountedPrice' | 'discountType'
+      >[];
+      name: string;
+    }[]) {
+      it.effect(`rejects a ${scenario.name} used by the captured price`, () =>
+        Effect.gen(function* () {
+          const fixture = yield* createSnapshotDatabase({
+            discounts: scenario.discounts,
+          });
+          const error = yield* fixture.database
+            .transaction((tx) => ensureCurrentRegistrationSnapshot(tx, input))
+            .pipe(Effect.flip);
+          expect(error).toBeInstanceOf(EventRegistrationConflictError);
+          expect(fixture.reads).toEqual(['option', 'discounts']);
+          expect(fixture.transactionCommands).toEqual(['BEGIN', 'ROLLBACK']);
+        }),
+      );
+    }
+
+    it.effect(
+      'rejects a newly added discount after capturing an empty set',
+      () =>
+        Effect.gen(function* () {
+          const fixture = yield* createSnapshotDatabase();
+          const error = yield* fixture.database
+            .transaction((tx) =>
+              ensureCurrentRegistrationSnapshot(tx, {
+                ...input,
+                pricing: { ...pricing, discounts: [] },
+              }),
+            )
+            .pipe(Effect.flip);
+          expect(error).toBeInstanceOf(EventRegistrationConflictError);
+          expect(fixture.reads).toEqual(['option', 'discounts']);
+          expect(fixture.transactionCommands).toEqual(['BEGIN', 'ROLLBACK']);
+        }),
+    );
+
+    it.effect(
+      'rejects an unchanged window that expired while locks were awaited',
+      () =>
+        Effect.gen(function* () {
+          const fixture = yield* createSnapshotDatabase();
+          const error = yield* fixture.database
+            .transaction((tx) =>
+              ensureCurrentRegistrationSnapshot(tx, {
+                ...input,
+                admission: {
+                  ...admission,
+                  now: new Date(admission.closeRegistrationTime.getTime() + 1),
+                },
+              }),
+            )
+            .pipe(Effect.flip);
+          expect(error).toBeInstanceOf(EventRegistrationConflictError);
+          expect(fixture.reads).toEqual(['option']);
+          expect(fixture.transactionCommands).toEqual(['BEGIN', 'ROLLBACK']);
+        }),
+    );
+
+    for (const boundary of [
+      'openRegistrationTime',
+      'closeRegistrationTime',
+    ] as const) {
+      it.effect(`accepts the inclusive ${boundary} boundary`, () =>
+        Effect.gen(function* () {
+          const fixture = yield* createSnapshotDatabase();
+          yield* fixture.database.transaction((tx) =>
+            ensureCurrentRegistrationSnapshot(tx, {
+              ...input,
+              admission: { ...admission, now: admission[boundary] },
+            }),
+          );
+          expect(fixture.transactionCommands).toEqual(['BEGIN', 'COMMIT']);
+        }),
+      );
+    }
+
+    it.effect('does not apply admission windows to manual approval', () =>
+      Effect.gen(function* () {
+        const fixture = yield* createSnapshotDatabase({
+          option: {
+            ...currentOption,
+            closeRegistrationTime: new Date('2026-09-12T10:00:00.000Z'),
+            registrationMode: 'application',
+          },
+        });
+        yield* fixture.database.transaction((tx) =>
+          ensureCurrentRegistrationSnapshot(tx, {
+            eventId: input.eventId,
+            pricing,
+            registrationMode: 'application',
+            registrationOptionId: input.registrationOptionId,
+            tenantId: input.tenantId,
+          }),
+        );
+        expect(fixture.reads).toEqual(['option', 'discounts']);
+        expect(fixture.transactionCommands).toEqual(['BEGIN', 'COMMIT']);
+      }),
+    );
+
+    it.effect(
+      'checks waitlist admission without reading unused discount prices',
+      () =>
+        Effect.gen(function* () {
+          const fixture = yield* createSnapshotDatabase({
+            option: { ...currentOption, price: 1200 },
+          });
+          const current = yield* fixture.database.transaction((tx) =>
+            ensureCurrentRegistrationSnapshot(tx, {
+              admission,
+              eventId: input.eventId,
+              registrationMode: input.registrationMode,
+              registrationOptionId: input.registrationOptionId,
+              tenantId: input.tenantId,
+            }),
+          );
+          expect(current).toMatchObject({
+            event: {
+              start: pricing.eventStart,
+              status: 'APPROVED',
+              tenantId: 'tenant-1',
+            },
+            id: 'option-1',
+            price: 1200,
+            registrationMode: 'fcfs',
+          });
+          expect(fixture.reads).toEqual(['option']);
+          expect(fixture.transactionCommands).toEqual(['BEGIN', 'COMMIT']);
+        }),
+    );
+  });
 
   describe('decodeRegistrationCheckoutSnapshot', () => {
     const validSnapshot = {
@@ -3794,6 +4546,7 @@ describe('EventRegistrationService', () => {
       allowMultiple: true,
       allowPurchaseDuringRegistration: true,
       includedQuantity: 0,
+      isPaid: true,
       maxQuantityPerUser: 2,
       optionalPurchaseQuantity: 2,
       price: 500,
@@ -4798,6 +5551,7 @@ describe('EventRegistrationService', () => {
       allowMultiple: true,
       allowPurchaseDuringRegistration: true,
       includedQuantity: 2,
+      isPaid: true,
       maxQuantityPerUser: 2,
       optionalPurchaseQuantity: 2,
       price: 500,
@@ -6370,6 +7124,7 @@ describe('EventRegistrationService', () => {
             allowMultiple: false,
             allowPurchaseDuringRegistration: true,
             includedQuantity: 1,
+            isPaid: false,
             maxQuantityPerUser: 1,
             optionalPurchaseQuantity: 1,
             price: 0,
@@ -6455,6 +7210,7 @@ describe('EventRegistrationService', () => {
             allowMultiple: false,
             allowPurchaseDuringRegistration: true,
             includedQuantity: 0,
+            isPaid: false,
             maxQuantityPerUser: 1,
             optionalPurchaseQuantity: 1,
             price: 0,

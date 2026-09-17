@@ -3450,6 +3450,30 @@ const createTrustedUrlDatabaseFixture = () => {
         ) {
           if (!statement.includes(' for update')) {
             expect(parameters).toEqual([1, 'event-1', 'option-1', 1]);
+            if (transactionOpen) {
+              expect(statement).toContain(
+                'select "d0"."closeRegistrationTime"::text as "closeRegistrationTime", "d0"."id" as "id", "d0"."isPaid" as "isPaid"',
+              );
+              expect(statement).not.toContain('"questions"');
+              return [
+                [
+                  '2099-01-02T00:00:00.000',
+                  'option-1',
+                  true,
+                  '2000-01-01T00:00:00.000',
+                  false,
+                  1000,
+                  'fcfs',
+                  [],
+                  'txr_123',
+                  {
+                    start: '2099-01-01T12:00:00.000',
+                    status: 'APPROVED',
+                    tenantId: 'tenant-1',
+                  },
+                ],
+              ];
+            }
             return [
               [
                 '2099-01-02T00:00:00.000',
@@ -3512,6 +3536,12 @@ const createTrustedUrlDatabaseFixture = () => {
           return [[null, current.stripeCheckoutSessionId]];
         }
         if (statement.includes(` from "${getTableName(eventAddons)}"`)) {
+          if (transactionOpen) {
+            expect(parameters).toEqual(['event-1', 'option-1']);
+            expect(statement).toContain('"event_addons"."isPaid"');
+            expect(statement).not.toContain('"totalAvailableQuantity"');
+            return [];
+          }
           expect(parameters).toEqual([
             'tenant-1',
             'acct_123',

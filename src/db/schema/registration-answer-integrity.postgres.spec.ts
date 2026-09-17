@@ -14,10 +14,16 @@ import { Database, databaseLayer } from '../database.layer';
 import { createNodePgPoolConfig } from '../pg-connection-config';
 import { relations } from '../relations';
 import {
+  addonToEventRegistrationOptions,
+  emailOutbox,
+  eventAddons,
   eventInstances,
+  eventRegistrationAddonPurchaseLots,
+  eventRegistrationAddonPurchases,
   eventRegistrationAnswerQuestionOwnerForeignKeyName,
   eventRegistrationAnswerRegistrationOwnerForeignKeyName,
   eventRegistrationAnswerRegistrationQuestionUniqueConstraintName,
+  eventRegistrationOptionDiscounts,
   eventRegistrationOptions,
   eventRegistrationQuestionAnswers,
   eventRegistrationQuestionOptionEventForeignKeyName,
@@ -25,9 +31,16 @@ import {
   eventRegistrations,
   eventTemplateCategories,
   eventTemplates,
+  platformAuditEntries,
+  registrationAcquisitionComponents,
+  registrationAcquisitionPayments,
+  registrationAcquisitions,
   registrationTransferAnswers,
   registrationTransfers,
   tenants,
+  tenantStripeTaxRates,
+  transactions,
+  userDiscountCards,
   users,
   usersToTenants,
 } from './index';
@@ -206,6 +219,38 @@ const cleanFixture = async (
   fixture: RegistrationAnswerFixture,
 ) => {
   await database
+    .delete(emailOutbox)
+    .where(inArray(emailOutbox.tenantId, fixture.tenantIds));
+  await database
+    .delete(platformAuditEntries)
+    .where(inArray(platformAuditEntries.targetTenantId, fixture.tenantIds));
+  await database
+    .delete(registrationAcquisitionComponents)
+    .where(
+      inArray(registrationAcquisitionComponents.tenantId, fixture.tenantIds),
+    );
+  await database
+    .delete(registrationAcquisitionPayments)
+    .where(
+      inArray(registrationAcquisitionPayments.tenantId, fixture.tenantIds),
+    );
+  await database
+    .delete(registrationAcquisitions)
+    .where(inArray(registrationAcquisitions.tenantId, fixture.tenantIds));
+  await database
+    .delete(eventRegistrationAddonPurchaseLots)
+    .where(
+      inArray(eventRegistrationAddonPurchaseLots.tenantId, fixture.tenantIds),
+    );
+  await database
+    .delete(eventRegistrationAddonPurchases)
+    .where(
+      inArray(eventRegistrationAddonPurchases.tenantId, fixture.tenantIds),
+    );
+  await database
+    .delete(transactions)
+    .where(inArray(transactions.tenantId, fixture.tenantIds));
+  await database
     .delete(registrationTransferAnswers)
     .where(inArray(registrationTransferAnswers.tenantId, fixture.tenantIds));
   await database
@@ -221,10 +266,13 @@ const cleanFixture = async (
     .where(inArray(eventRegistrationQuestions.eventId, fixture.eventIds));
   await database
     .delete(eventRegistrations)
-    .where(eq(eventRegistrations.id, fixture.registrationId));
+    .where(inArray(eventRegistrations.tenantId, fixture.tenantIds));
   await database
     .delete(eventRegistrationOptions)
     .where(inArray(eventRegistrationOptions.id, fixture.optionIds));
+  await database
+    .delete(eventAddons)
+    .where(inArray(eventAddons.eventId, fixture.eventIds));
   await database
     .delete(eventInstances)
     .where(inArray(eventInstances.id, fixture.eventIds));
@@ -237,6 +285,12 @@ const cleanFixture = async (
   await database
     .delete(usersToTenants)
     .where(eq(usersToTenants.userId, fixture.userId));
+  await database
+    .delete(userDiscountCards)
+    .where(inArray(userDiscountCards.tenantId, fixture.tenantIds));
+  await database
+    .delete(tenantStripeTaxRates)
+    .where(inArray(tenantStripeTaxRates.tenantId, fixture.tenantIds));
   await database.delete(users).where(eq(users.id, fixture.userId));
   await database.delete(tenants).where(inArray(tenants.id, fixture.tenantIds));
 };
@@ -380,20 +434,25 @@ describe('registration answer integrity in PostgreSQL', () => {
   });
 });
 
-const questionRaceLayer = (url: string) => {
+const questionRaceLayer = (
+  url: string,
+  stripe = new Stripe('sk_test_question_race'),
+  pinnedNowIso?: string,
+) => {
   const config = ConfigProvider.layer(
     ConfigProvider.fromEnv({
       env: {
         BASE_URL: 'https://question-race.example',
         DATABASE_TLS_REQUIRED: 'false',
         DATABASE_URL: url,
+        ...(pinnedNowIso && { E2E_NOW_ISO: pinnedNowIso }),
       },
     }),
   );
   return Layer.mergeAll(
     config,
     databaseLayer.pipe(Layer.provide(config)),
-    Layer.succeed(StripeClient, new Stripe('sk_test_question_race')),
+    Layer.succeed(StripeClient, stripe),
   );
 };
 
@@ -794,4 +853,538 @@ describe('question answer history concurrency in PostgreSQL', () => {
       await cleanFixture(database, fixture);
     }
   }, 20_000);
+});
+
+type AdmissionSnapshotMutation =
+  | 'add-on free to paid'
+  | 'add-on price'
+  | 'add-on quantities'
+  | 'add-on removal'
+  | 'closing window'
+  | 'discount'
+  | 'event start'
+  | 'event status'
+  | 'free to paid'
+  | 'price';
+
+type AdmissionSnapshotWriter = 'manual approval' | 'registration' | 'waitlist';
+
+const admissionSnapshotNow = new Date('2026-10-01T10:00:00.000Z');
+const admissionSnapshotEventStart = new Date('2026-10-02T10:00:00.000Z');
+
+class AdmissionSnapshotStripeHttpClient extends Stripe.HttpClient {
+  requestCount = 0;
+
+  override getClientName() {
+    return 'registration-admission-snapshot-test';
+  }
+
+  override makeRequest(): Promise<Stripe.HttpClientResponse> {
+    this.requestCount++;
+    return Promise.reject(
+      new Error('Unexpected Stripe request during stale admission'),
+    );
+  }
+}
+
+const seedAdmissionSnapshotFixture = async (
+  database: TestDatabase,
+  fixture: RegistrationAnswerFixture,
+  writer: AdmissionSnapshotWriter,
+  mutation: AdmissionSnapshotMutation,
+) => {
+  await seedFixture(database, fixture);
+  const stripeAccountId = `acct_${fixture.tenantIds[0]}`;
+  const stripeTaxRateId = `txr_${fixture.optionIds[0]}`;
+  const usesDiscount = mutation === 'discount' || mutation === 'event start';
+  const usesAddon = mutation.startsWith('add-on ');
+  const addonId = `add-${fixture.userId}`;
+  await database
+    .update(tenants)
+    .set({
+      discountProviders: {
+        esnCard: {
+          config: {},
+          status: usesDiscount ? 'enabled' : 'disabled',
+        },
+      },
+      stripeAccountId,
+    })
+    .where(eq(tenants.id, fixture.tenantIds[0]));
+  await database.insert(tenantStripeTaxRates).values({
+    active: true,
+    inclusive: true,
+    percentage: '0',
+    stripeAccountId,
+    stripeTaxRateId,
+    tenantId: fixture.tenantIds[0],
+  });
+  await database.insert(usersToTenants).values({
+    tenantId: fixture.tenantIds[0],
+    userId: fixture.userId,
+  });
+  await database
+    .update(eventInstances)
+    .set({
+      end: new Date('2026-10-05T10:00:00.000Z'),
+      reviewedAt: admissionSnapshotNow,
+      start: admissionSnapshotEventStart,
+      status: 'APPROVED',
+    })
+    .where(eq(eventInstances.id, fixture.eventIds[0]));
+  const initiallyPaid =
+    writer !== 'waitlist' && mutation !== 'free to paid' && !usesAddon;
+  await database
+    .update(eventRegistrationOptions)
+    .set({
+      closeRegistrationTime: new Date('2026-10-01T20:00:00.000Z'),
+      confirmedSpots: writer === 'waitlist' ? 10 : 0,
+      isPaid: initiallyPaid,
+      openRegistrationTime: new Date('2026-09-30T10:00:00.000Z'),
+      price: initiallyPaid ? 1000 : 0,
+      registrationMode: writer === 'manual approval' ? 'application' : 'fcfs',
+      stripeTaxRateId: initiallyPaid ? stripeTaxRateId : null,
+    })
+    .where(eq(eventRegistrationOptions.id, fixture.optionIds[0]));
+  await database
+    .update(eventRegistrations)
+    .set({
+      basePriceAtRegistration:
+        writer === 'manual approval' ? null : initiallyPaid ? 1000 : 0,
+      discountAmount: writer === 'manual approval' ? null : 0,
+      status: writer === 'manual approval' ? 'PENDING' : 'CANCELLED',
+    })
+    .where(eq(eventRegistrations.id, fixture.registrationId));
+  if (writer === 'manual approval') {
+    await database.insert(eventRegistrationQuestionAnswers).values({
+      answer: 'Existing manual application answer',
+      eventId: fixture.eventIds[0],
+      questionId: fixture.questionIds[0],
+      registrationId: fixture.registrationId,
+      registrationOptionId: fixture.optionIds[0],
+      tenantId: fixture.tenantIds[0],
+    });
+  }
+  if (usesDiscount) {
+    await database.insert(userDiscountCards).values({
+      identifier: `card-${fixture.userId}`,
+      status: 'verified',
+      tenantId: fixture.tenantIds[0],
+      type: 'esnCard',
+      userId: fixture.userId,
+      validFrom: new Date('2026-09-01T00:00:00.000Z'),
+      validTo: new Date('2026-10-03T00:00:00.000Z'),
+    });
+    await database.insert(eventRegistrationOptionDiscounts).values({
+      discountedPrice: 500,
+      discountType: 'esnCard',
+      eventId: fixture.eventIds[0],
+      registrationOptionId: fixture.optionIds[0],
+    });
+  }
+  if (usesAddon) {
+    const addonIsPaid = mutation !== 'add-on free to paid';
+    await database.insert(eventAddons).values({
+      allowMultiple: true,
+      allowPurchaseBeforeEvent: false,
+      allowPurchaseDuringEvent: false,
+      allowPurchaseDuringRegistration: true,
+      eventId: fixture.eventIds[0],
+      id: addonId,
+      isPaid: addonIsPaid,
+      maxQuantityPerUser: 3,
+      price: addonIsPaid ? 300 : 0,
+      stripeTaxRateId: addonIsPaid ? stripeTaxRateId : null,
+      title: 'Selected admission add-on',
+      totalAvailableQuantity: 10,
+    });
+    await database.insert(addonToEventRegistrationOptions).values({
+      addonId,
+      eventId: fixture.eventIds[0],
+      includedQuantity: 1,
+      optionalPurchaseQuantity: 2,
+      registrationOptionId: fixture.optionIds[0],
+    });
+  }
+  return {
+    addOns: usesAddon ? [{ addOnId: addonId, quantity: 1 }] : [],
+    stripeAccountId,
+    stripeTaxRateId,
+  };
+};
+
+const readAdmissionSnapshotEffects = async (
+  database: TestDatabase,
+  fixture: RegistrationAnswerFixture,
+) => {
+  const [
+    registrations,
+    capacity,
+    answers,
+    payments,
+    acquisitions,
+    acquisitionComponents,
+    acquisitionPayments,
+    emails,
+    audit,
+    addonStock,
+    addonPurchases,
+    addonLots,
+  ] = await Promise.all([
+    database
+      .select()
+      .from(eventRegistrations)
+      .where(eq(eventRegistrations.tenantId, fixture.tenantIds[0]))
+      .orderBy(eventRegistrations.id),
+    database
+      .select({
+        checkedInSpots: eventRegistrationOptions.checkedInSpots,
+        confirmedSpots: eventRegistrationOptions.confirmedSpots,
+        id: eventRegistrationOptions.id,
+        reservedSpots: eventRegistrationOptions.reservedSpots,
+        waitlistSpots: eventRegistrationOptions.waitlistSpots,
+      })
+      .from(eventRegistrationOptions)
+      .where(inArray(eventRegistrationOptions.id, fixture.optionIds))
+      .orderBy(eventRegistrationOptions.id),
+    database
+      .select()
+      .from(eventRegistrationQuestionAnswers)
+      .where(
+        eq(eventRegistrationQuestionAnswers.tenantId, fixture.tenantIds[0]),
+      )
+      .orderBy(eventRegistrationQuestionAnswers.id),
+    database
+      .select()
+      .from(transactions)
+      .where(eq(transactions.tenantId, fixture.tenantIds[0]))
+      .orderBy(transactions.id),
+    database
+      .select()
+      .from(registrationAcquisitions)
+      .where(eq(registrationAcquisitions.tenantId, fixture.tenantIds[0]))
+      .orderBy(registrationAcquisitions.id),
+    database
+      .select()
+      .from(registrationAcquisitionComponents)
+      .where(
+        eq(registrationAcquisitionComponents.tenantId, fixture.tenantIds[0]),
+      )
+      .orderBy(registrationAcquisitionComponents.id),
+    database
+      .select()
+      .from(registrationAcquisitionPayments)
+      .where(eq(registrationAcquisitionPayments.tenantId, fixture.tenantIds[0]))
+      .orderBy(registrationAcquisitionPayments.id),
+    database
+      .select()
+      .from(emailOutbox)
+      .where(eq(emailOutbox.tenantId, fixture.tenantIds[0]))
+      .orderBy(emailOutbox.id),
+    database
+      .select()
+      .from(platformAuditEntries)
+      .where(eq(platformAuditEntries.targetTenantId, fixture.tenantIds[0]))
+      .orderBy(platformAuditEntries.id),
+    database
+      .select({
+        id: eventAddons.id,
+        quantity: eventAddons.totalAvailableQuantity,
+      })
+      .from(eventAddons)
+      .where(eq(eventAddons.eventId, fixture.eventIds[0]))
+      .orderBy(eventAddons.id),
+    database
+      .select()
+      .from(eventRegistrationAddonPurchases)
+      .where(eq(eventRegistrationAddonPurchases.tenantId, fixture.tenantIds[0]))
+      .orderBy(eventRegistrationAddonPurchases.id),
+    database
+      .select()
+      .from(eventRegistrationAddonPurchaseLots)
+      .where(
+        eq(eventRegistrationAddonPurchaseLots.tenantId, fixture.tenantIds[0]),
+      )
+      .orderBy(eventRegistrationAddonPurchaseLots.id),
+  ]);
+  return {
+    acquisitionComponents,
+    acquisitionPayments,
+    acquisitions,
+    addonLots,
+    addonPurchases,
+    addonStock,
+    answers,
+    audit,
+    capacity,
+    emails,
+    payments,
+    registrations,
+  };
+};
+
+const changeAdmissionSnapshot = async (
+  editor: TestDatabase,
+  fixture: RegistrationAnswerFixture,
+  mutation: AdmissionSnapshotMutation,
+  stripeTaxRateId: string,
+) => {
+  switch (mutation) {
+    case 'add-on free to paid': {
+      await editor
+        .update(eventAddons)
+        .set({ isPaid: true, price: 300, stripeTaxRateId })
+        .where(eq(eventAddons.id, `add-${fixture.userId}`));
+      break;
+    }
+    case 'add-on price': {
+      await editor
+        .update(eventAddons)
+        .set({ price: 450 })
+        .where(eq(eventAddons.id, `add-${fixture.userId}`));
+      break;
+    }
+    case 'add-on quantities': {
+      await editor
+        .update(addonToEventRegistrationOptions)
+        .set({ includedQuantity: 2, optionalPurchaseQuantity: 1 })
+        .where(
+          eq(addonToEventRegistrationOptions.addonId, `add-${fixture.userId}`),
+        );
+      break;
+    }
+    case 'add-on removal': {
+      await editor
+        .delete(addonToEventRegistrationOptions)
+        .where(
+          eq(addonToEventRegistrationOptions.addonId, `add-${fixture.userId}`),
+        );
+      break;
+    }
+    case 'closing window': {
+      await editor
+        .update(eventRegistrationOptions)
+        .set({ closeRegistrationTime: new Date('2026-10-01T09:00:00.000Z') })
+        .where(eq(eventRegistrationOptions.id, fixture.optionIds[0]));
+      break;
+    }
+    case 'discount': {
+      await editor
+        .update(eventRegistrationOptionDiscounts)
+        .set({ discountedPrice: 750 })
+        .where(
+          eq(
+            eventRegistrationOptionDiscounts.registrationOptionId,
+            fixture.optionIds[0],
+          ),
+        );
+      break;
+    }
+    case 'event start': {
+      await editor
+        .update(eventInstances)
+        .set({ start: new Date('2026-10-04T10:00:00.000Z') })
+        .where(eq(eventInstances.id, fixture.eventIds[0]));
+      break;
+    }
+    case 'event status': {
+      await editor
+        .update(eventInstances)
+        .set({ reviewedAt: null, status: 'DRAFT' })
+        .where(eq(eventInstances.id, fixture.eventIds[0]));
+      break;
+    }
+    case 'free to paid': {
+      await editor
+        .update(eventRegistrationOptions)
+        .set({ isPaid: true, price: 1200, stripeTaxRateId })
+        .where(eq(eventRegistrationOptions.id, fixture.optionIds[0]));
+      break;
+    }
+    case 'price': {
+      await editor
+        .update(eventRegistrationOptions)
+        .set({ price: 1200 })
+        .where(eq(eventRegistrationOptions.id, fixture.optionIds[0]));
+      break;
+    }
+  }
+};
+
+describe('registration admission snapshots in PostgreSQL', () => {
+  const pool = new Pool(createNodePgPoolConfig({ databaseUrl }));
+  const database = drizzle({ client: pool, relations });
+  afterAll(() => pool.end());
+
+  const cases = [
+    { mutation: 'add-on price', writer: 'registration' },
+    { mutation: 'add-on free to paid', writer: 'registration' },
+    { mutation: 'add-on quantities', writer: 'registration' },
+    { mutation: 'add-on removal', writer: 'registration' },
+    { mutation: 'price', writer: 'registration' },
+    { mutation: 'discount', writer: 'registration' },
+    { mutation: 'event status', writer: 'registration' },
+    { mutation: 'closing window', writer: 'registration' },
+    { mutation: 'event start', writer: 'registration' },
+    { mutation: 'free to paid', writer: 'registration' },
+    { mutation: 'event status', writer: 'waitlist' },
+    { mutation: 'closing window', writer: 'waitlist' },
+    { mutation: 'price', writer: 'manual approval' },
+    { mutation: 'discount', writer: 'manual approval' },
+    { mutation: 'event status', writer: 'manual approval' },
+  ] as const satisfies readonly {
+    mutation: AdmissionSnapshotMutation;
+    writer: AdmissionSnapshotWriter;
+  }[];
+
+  for (const { mutation, writer } of cases) {
+    it(`rejects stale ${writer} without side effects when ${mutation} changes before admission locks`, async () => {
+      const fixture = makeFixture();
+      try {
+        const { addOns, stripeAccountId, stripeTaxRateId } =
+          await seedAdmissionSnapshotFixture(
+            database,
+            fixture,
+            writer,
+            mutation,
+          );
+        const stripeHttpClient = new AdmissionSnapshotStripeHttpClient();
+        const stripe = new Stripe('sk_test_admission_snapshot', {
+          httpClient: stripeHttpClient,
+          maxNetworkRetries: 0,
+        });
+        const layer = questionRaceLayer(
+          databaseUrl,
+          stripe,
+          admissionSnapshotNow.toISOString(),
+        );
+        const tenant = {
+          currency: 'EUR' as const,
+          domain: `${fixture.tenantIds[0]}.answer-integrity.example`,
+          emailSenderEmail: undefined,
+          emailSenderName: undefined,
+          id: fixture.tenantIds[0],
+          name: 'Admission snapshot tenant',
+          stripeAccountId,
+        };
+        const client = await pool.connect();
+        const editor = drizzle({ client, relations });
+        let pending: Promise<unknown> | undefined;
+        let approvalHookCalls = 0;
+        try {
+          const before = await readAdmissionSnapshotEffects(database, fixture);
+          await client.query('BEGIN');
+          const pidResult = await client.query<{ pid: number }>(
+            'SELECT pg_backend_pid() AS pid',
+          );
+          const pid = pidResult.rows[0]?.pid;
+          if (pid === undefined)
+            throw new Error('Missing admission editor PID');
+          // Match both event editors: tenant UPDATE precedes event UPDATE.
+          // Changes remain uncommitted while the service reads its old snapshot.
+          await editor
+            .select({ id: tenants.id })
+            .from(tenants)
+            .where(eq(tenants.id, fixture.tenantIds[0]))
+            .for('update');
+          await editor
+            .select({ id: eventInstances.id })
+            .from(eventInstances)
+            .where(eq(eventInstances.id, fixture.eventIds[0]))
+            .for('update');
+          await changeAdmissionSnapshot(
+            editor,
+            fixture,
+            mutation,
+            stripeTaxRateId,
+          );
+          const input = {
+            addOns,
+            answers: [
+              {
+                answer: 'Answer to the observed sign-up details',
+                questionId: fixture.questionIds[0],
+              },
+            ],
+            eventId: fixture.eventIds[0],
+            guestCount: 0,
+            registrationOptionId: fixture.optionIds[0],
+            tenant,
+            user: {
+              email: `${fixture.userId}@example.com`,
+              id: fixture.userId,
+              roleIds: [],
+            },
+          };
+          const operation =
+            writer === 'manual approval'
+              ? EventRegistrationService.approveManualRegistration({
+                  executiveUserId: fixture.userId,
+                  expectedEventId: fixture.eventIds[0],
+                  onApproved: (tx, transition) =>
+                    Effect.gen(function* () {
+                      approvalHookCalls++;
+                      yield* tx.insert(platformAuditEntries).values({
+                        action: 'registration.approve',
+                        actorId: 'admission-snapshot-test',
+                        after: {
+                          resourceId: fixture.registrationId,
+                          resourceType: 'registration',
+                          state: { status: transition.statusAfter },
+                        },
+                        before: {
+                          resourceId: fixture.registrationId,
+                          resourceType: 'registration',
+                          state: { status: 'PENDING' },
+                        },
+                        reason: 'Approve the reviewed registration',
+                        targetTenantId: fixture.tenantIds[0],
+                      });
+                    }),
+                  registrationId: fixture.registrationId,
+                  targetTenant: tenant,
+                })
+              : writer === 'waitlist'
+                ? EventRegistrationService.joinWaitlist(input)
+                : EventRegistrationService.registerForEvent(input);
+          const result = Effect.runPromise(
+            Effect.gen(function* () {
+              yield* operation;
+            }).pipe(
+              Effect.match({
+                onFailure: (error) => ({ error }),
+                onSuccess: () => ({ success: true }),
+              }),
+              Effect.provide(EventRegistrationService.Default),
+              Effect.provide(layer),
+            ),
+          );
+          pending = result;
+          await waitForQuestionRaceLock(pool, pid);
+          await client.query('COMMIT');
+
+          expect(await result).toMatchObject({
+            error: {
+              _tag: 'EventRegistrationConflictError',
+              message: expect.stringContaining('changed'),
+            },
+          });
+          expect(await readAdmissionSnapshotEffects(database, fixture)).toEqual(
+            before,
+          );
+          expect(stripeHttpClient.requestCount).toBe(0);
+          expect(approvalHookCalls).toBe(0);
+        } finally {
+          try {
+            await client.query('ROLLBACK');
+          } finally {
+            client.release();
+            if (pending) await pending;
+          }
+        }
+      } finally {
+        await cleanFixture(database, fixture);
+      }
+    }, 20_000);
+  }
 });
