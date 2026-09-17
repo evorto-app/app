@@ -1,27 +1,25 @@
 import { Schema } from 'effect';
 
-export interface ProviderAdapter<TConfig> {
-  validate: (arguments_: {
-    config: TConfig;
-    identifier: string;
-  }) => Promise<ValidationResult>;
+export interface ProviderAdapter {
+  validate: (arguments_: { identifier: string }) => Promise<ValidationResult>;
 }
 
-export interface ProviderConfig<TConfig extends Schema.Top = Schema.Top> {
-  configSchema: TConfig;
-  description?: string;
-  displayName: string;
-  type: ProviderType;
-}
+export const PROVIDER_TYPES = ['esnCard'] as const;
+export type ProviderType = (typeof PROVIDER_TYPES)[number];
 
-export type ProviderType = 'esnCard';
-
-export interface ValidationResult {
-  metadata?: unknown;
-  status: 'expired' | 'invalid' | 'unverified' | 'verified';
-  validFrom?: Date;
-  validTo?: Date;
-}
+export type ValidationResult =
+  | {
+      metadata?: unknown;
+      status: 'expired' | 'verified';
+      validFrom: Date;
+      validTo: Date;
+    }
+  | {
+      metadata?: unknown;
+      status: 'invalid' | 'unverified';
+      validFrom?: undefined;
+      validTo?: undefined;
+    };
 
 export class ProviderValidationUnavailableError extends Error {
   constructor(
@@ -38,21 +36,31 @@ const esnCardValidationTimeoutMs = 10_000;
 const isAbortError = (error: unknown): boolean =>
   error instanceof Error && error.name === 'AbortError';
 
-const isValidDate = (date: Date): boolean => !Number.isNaN(date.getTime());
-
-// ESN Card example config schema (placeholder)
-const EsnConfig = Schema.Struct({
-  apiKey: Schema.NonEmptyString,
-  apiUrl: Schema.NonEmptyString,
+const esnCardProviderRecord = Schema.Struct({
+  'activation date': Schema.String,
+  'expiration-date': Schema.String,
+  status: Schema.Literals(['active', 'expired']),
 });
 
-export const PROVIDERS: Record<ProviderType, ProviderConfig> = {
-  esnCard: {
-    configSchema: EsnConfig,
-    description: 'Validate ESN cards and eligibility windows.',
-    displayName: 'ESN Card',
-    type: 'esnCard',
-  },
+const invalidEsnCardResponse = () =>
+  new ProviderValidationUnavailableError(
+    'ESNcard validation provider returned an invalid response',
+    'invalidResponse',
+  );
+
+const providerDate = (value: string): Date => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    throw invalidEsnCardResponse();
+  }
+
+  const date = new Date(`${value}T00:00:00.000Z`);
+  if (
+    Number.isNaN(date.getTime()) ||
+    date.toISOString().slice(0, 10) !== value
+  ) {
+    throw invalidEsnCardResponse();
+  }
+  return date;
 };
 
 export const validateEsnCard = async ({
@@ -60,7 +68,9 @@ export const validateEsnCard = async ({
   identifier,
   timeoutMs = esnCardValidationTimeoutMs,
 }: {
-  fetchImpl?: typeof fetch;
+  fetchImpl?: (
+    ...arguments_: Parameters<typeof fetch>
+  ) => ReturnType<typeof fetch>;
   identifier: string;
   timeoutMs?: number;
 }): Promise<ValidationResult> => {
@@ -78,32 +88,34 @@ export const validateEsnCard = async ({
         'unavailable',
       );
     }
-    const data = (await response.json()) as unknown;
-    if (!Array.isArray(data)) {
-      throw new ProviderValidationUnavailableError(
-        'ESNcard validation provider returned an invalid response',
-        'invalidResponse',
-      );
+    let data: unknown;
+    try {
+      data = await response.json();
+    } catch (error) {
+      if (error instanceof SyntaxError) throw invalidEsnCardResponse();
+      throw error;
     }
-    const card = data[0] as Record<string, unknown> | undefined;
-    if (!card) return { status: 'invalid' };
-    const status = String(card['status'] ?? '').toLowerCase();
-    if (status !== 'active') {
-      return { status: status === 'expired' ? 'expired' : 'invalid' };
+    if (!Array.isArray(data)) throw invalidEsnCardResponse();
+    if (data.length === 0) return { status: 'invalid' };
+    if (data.length !== 1) throw invalidEsnCardResponse();
+
+    let card: Schema.Schema.Type<typeof esnCardProviderRecord>;
+    try {
+      card = Schema.decodeUnknownSync(esnCardProviderRecord)(data[0]);
+    } catch {
+      throw invalidEsnCardResponse();
     }
-    const expiration = card['expiration-date'] ?? card['expiration_date'];
-    const validTo =
-      typeof expiration === 'string' || typeof expiration === 'number'
-        ? new Date(expiration)
-        : undefined;
-    const result: ValidationResult = {
+
+    const validFrom = providerDate(card['activation date']);
+    const validTo = providerDate(card['expiration-date']);
+    if (validFrom > validTo) throw invalidEsnCardResponse();
+
+    return {
       metadata: card,
-      status: 'verified',
+      status: card.status === 'active' ? 'verified' : 'expired',
+      validFrom,
+      validTo,
     };
-    if (validTo && isValidDate(validTo)) {
-      result.validTo = validTo;
-    }
-    return result;
   } catch (error) {
     if (error instanceof ProviderValidationUnavailableError) {
       throw error;
@@ -118,11 +130,10 @@ export const validateEsnCard = async ({
   }
 };
 
-export const Adapters: Partial<Record<ProviderType, ProviderAdapter<unknown>>> =
-  {
-    esnCard: {
-      async validate({ identifier }) {
-        return validateEsnCard({ identifier });
-      },
+export const Adapters: Record<ProviderType, ProviderAdapter> = {
+  esnCard: {
+    async validate({ identifier }) {
+      return validateEsnCard({ identifier });
     },
-  };
+  },
+};

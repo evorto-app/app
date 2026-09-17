@@ -17,6 +17,9 @@ const taggedErrorField = (
   return typeof value === 'string' ? value : undefined;
 };
 
+export const isEsnCardChangedError = (error: unknown): boolean =>
+  taggedErrorField(error, '_tag') === 'DiscountCardChangedError';
+
 export const esnCardMutationErrorMessage = (
   action: EsnCardMutationAction,
   error: unknown,
@@ -24,6 +27,9 @@ export const esnCardMutationErrorMessage = (
   const tag = taggedErrorField(error, '_tag');
 
   switch (tag) {
+    case 'DiscountCardChangedError': {
+      return 'Your saved ESN card changed while it was being checked. Checking your current cards…';
+    }
     case 'DiscountCardConflictError': {
       return 'This ESN card is already linked to another account in this organization.';
     }

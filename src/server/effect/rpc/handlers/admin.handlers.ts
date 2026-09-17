@@ -748,11 +748,7 @@ export const adminHandlers = {
                 message: 'Invalid ESN card configuration',
                 reason: error instanceof Error ? error.message : String(error),
               }),
-            try: () =>
-              normalizeEsnCardConfig(
-                { buyEsnCardUrl: input.buyEsnCardUrl },
-                { rejectInvalidUrl: true },
-              ),
+            try: () => normalizeEsnCardConfig(input.buyEsnCardUrl),
           }),
           status: input.esnCardEnabled ? 'enabled' : 'disabled',
         },

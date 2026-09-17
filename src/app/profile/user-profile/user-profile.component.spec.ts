@@ -1,5 +1,24 @@
-import { describe, expect, it } from 'vitest';
+import type { DiscountCardRecord } from '@shared/rpc-contracts/app-rpcs/discounts.rpcs';
 
+import { signal } from '@angular/core';
+import { TestBed } from '@angular/core/testing';
+import { MatDialog } from '@angular/material/dialog';
+import { ActivatedRoute } from '@angular/router';
+import {
+  RpcBadRequestError,
+  RpcInternalServerError,
+} from '@shared/errors/rpc-errors';
+import { DiscountCardChangedError } from '@shared/rpc-contracts/app-rpcs/discounts.errors';
+import {
+  provideTanStackQuery,
+  QueryClient,
+} from '@tanstack/angular-query-experimental';
+import { of } from 'rxjs';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { ConfigService } from '../../core/config.service';
+import { APP_RPC_CLIENT, AppRpc } from '../../core/effect-rpc-angular-client';
+import { NotificationService } from '../../core/notification.service';
 import {
   isBrowsingOutsideHomeTenant,
   isStripeCheckoutUrl,
@@ -18,6 +37,7 @@ import {
   registrationRefundSourceLabel,
   registrationRefundStateLabel,
   registrationStatusLabel,
+  UserProfileComponent,
 } from './user-profile.component';
 
 describe('profile account actions', () => {
@@ -44,6 +64,7 @@ import {
   esnCardSaveDisabled,
   esnCardStatusLabel,
   esnCardSubmitPayloadFromIdentifier,
+  isEsnCardChangedError,
 } from './user-profile.esn-card';
 
 describe('profile event labels', () => {
@@ -350,6 +371,21 @@ describe('profile event labels', () => {
 });
 
 describe('profile ESN card messages', () => {
+  it('explains a changed card and identifies when the card list must be refreshed', () => {
+    const error = { _tag: 'DiscountCardChangedError' };
+    expect(isEsnCardChangedError(error)).toBe(true);
+    expect(isEsnCardChangedError({ _tag: 'DiscountCardConflictError' })).toBe(
+      false,
+    );
+    expect(isEsnCardChangedError({ _tag: 'DiscountCardNotFoundError' })).toBe(
+      false,
+    );
+    expect(isEsnCardChangedError(null)).toBe(false);
+    expect(esnCardMutationErrorMessage('refresh', error)).toBe(
+      'Your saved ESN card changed while it was being checked. Checking your current cards…',
+    );
+  });
+
   it('keeps ESN card action labels aligned with pending states', () => {
     expect(esnCardActionLabel('refresh', false)).toBe('Refresh');
     expect(esnCardActionLabel('refresh', true)).toBe('Refreshing...');
@@ -551,4 +587,210 @@ describe('profile section fragments', () => {
     expect(profileSectionFromFragment(null, true)).toBe('overview');
     expect(profileSectionFromFragment('unknown', true)).toBe('overview');
   });
+});
+
+type ProfileRpcClient = ReturnType<typeof AppRpc.injectClient>;
+type RefreshCardOptions = ReturnType<
+  ProfileRpcClient['discounts']['refreshMyCard']['mutationOptions']
+>;
+type SaveCardOptions = ReturnType<
+  ProfileRpcClient['discounts']['upsertMyCard']['mutationOptions']
+>;
+const saveCard = vi.fn<NonNullable<SaveCardOptions['mutationFn']>>();
+const refreshCard = vi.fn<NonNullable<RefreshCardOptions['mutationFn']>>();
+const loadCards = vi.fn<() => Promise<DiscountCardRecord[]>>();
+const originalCard: DiscountCardRecord = {
+  id: 'card-1',
+  identifier: 'OLD12345',
+  status: 'verified',
+  type: 'esnCard',
+  validTo: '2026-12-31T00:00:00.000Z',
+};
+const replacementCard: DiscountCardRecord = {
+  ...originalCard,
+  identifier: 'NEW12345',
+};
+
+// Keep real component callbacks, form state and TanStack queries while isolating
+// unrelated profile sections from this mutation-recovery test.
+const esnRecoveryTemplate = `
+  <form (submit)="saveEsnCard($event)">
+    <input aria-label="Card number" [formField]="esnCardForm.identifier" />
+    <button type="submit">Save</button>
+  </form>
+  <button id="refresh-card" type="button" (click)="refreshEsnCard()">Check again</button>
+  <p id="card-error">{{ esnCardErrorMessage() }}</p>
+  @if (myCardsQuery.isSuccess()) {
+    @for (card of myCardsQuery.data(); track card.id) { <span>{{ card.identifier }}</span> }
+  }
+`;
+
+describe('profile saved-card mutation recovery', () => {
+  let queryClient: QueryClient;
+  beforeEach(async () => {
+    saveCard.mockReset();
+    refreshCard.mockReset();
+    loadCards.mockReset();
+    loadCards
+      .mockResolvedValueOnce([originalCard])
+      .mockResolvedValue([replacementCard]);
+    queryClient = new QueryClient({
+      defaultOptions: {
+        mutations: { retry: false },
+        queries: { gcTime: 0, retry: false, staleTime: Infinity },
+      },
+    });
+    await TestBed.configureTestingModule({
+      imports: [UserProfileComponent],
+      providers: [
+        provideTanStackQuery(queryClient),
+        { provide: ConfigService, useValue: { tenantSignal: signal(null) } },
+        { provide: MatDialog, useValue: {} },
+        { provide: ActivatedRoute, useValue: { fragment: of('discounts') } },
+        {
+          provide: NotificationService,
+          useValue: { showError: vi.fn(), showSuccess: vi.fn() },
+        },
+        {
+          provide: APP_RPC_CLIENT,
+          useValue: {
+            discounts: {
+              deleteMyCard: {
+                mutationOptions: () => ({ mutationKey: ['delete-card'] }),
+              },
+              getMyCards: {
+                queryOptions: () => ({
+                  queryFn: loadCards,
+                  queryKey: ['cards'],
+                }),
+              },
+              getTenantProviders: {
+                queryOptions: () => ({
+                  enabled: false,
+                  queryKey: ['providers'],
+                }),
+              },
+              refreshMyCard: {
+                mutationOptions: (): RefreshCardOptions => ({
+                  mutationFn: refreshCard,
+                  mutationKey: ['refresh-card'],
+                }),
+              },
+              upsertMyCard: {
+                mutationOptions: (): SaveCardOptions => ({
+                  mutationFn: saveCard,
+                  mutationKey: ['save-card'],
+                }),
+              },
+            },
+            finance: {
+              receipts: {
+                my: {
+                  queryOptions: () => ({
+                    enabled: false,
+                    queryKey: ['receipts'],
+                  }),
+                },
+              },
+            },
+            users: {
+              events: {
+                queryOptions: () => ({ enabled: false, queryKey: ['events'] }),
+              },
+              self: {
+                queryOptions: () => ({ enabled: false, queryKey: ['self'] }),
+              },
+              setHomeTenant: {
+                mutationOptions: () => ({ mutationKey: ['home-tenant'] }),
+              },
+              updateProfile: {
+                mutationOptions: () => ({ mutationKey: ['profile'] }),
+              },
+            },
+          },
+        },
+      ],
+    })
+      .overrideComponent(UserProfileComponent, {
+        set: { template: esnRecoveryTemplate },
+      })
+      .compileComponents();
+  });
+  afterEach(() => {
+    TestBed.resetTestingModule();
+    queryClient.clear();
+  });
+
+  for (const action of ['save', 'refresh']) {
+    for (const failure of [
+      {
+        error: new DiscountCardChangedError({ message: 'Changed' }),
+        label: 'changed card',
+        message: 'Review your current card',
+        reload: true,
+      },
+      {
+        error: new RpcBadRequestError({
+          message: 'Unavailable',
+          reason: 'provider-network',
+        }),
+        label: 'provider transport failure',
+        message: 'verification is temporarily unavailable',
+        reload: false,
+      },
+      {
+        error: new RpcInternalServerError({ message: 'Unavailable' }),
+        label: 'unexpected failure',
+        message: 'verification is temporarily unavailable',
+        reload: false,
+      },
+    ]) {
+      it(`${action} refetches only for a ${failure.label} and preserves the identifier draft`, async () => {
+        saveCard.mockRejectedValue(failure.error);
+        refreshCard.mockRejectedValue(failure.error);
+        const fixture = TestBed.createComponent(UserProfileComponent);
+        const element: unknown = fixture.nativeElement;
+        if (!(element instanceof HTMLElement))
+          throw new Error('Expected profile root');
+        fixture.detectChanges();
+        await vi.waitFor(() => {
+          fixture.detectChanges();
+          expect(element.textContent).toContain(originalCard.identifier);
+        });
+        const input = element.querySelector('input');
+        if (!(input instanceof HTMLInputElement))
+          throw new Error('Expected card input');
+        input.value = 'DRAFT12345';
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        fixture.detectChanges();
+        if (action === 'save') {
+          const form = element.querySelector('form');
+          if (!(form instanceof HTMLFormElement))
+            throw new Error('Expected card form');
+          form.dispatchEvent(
+            new Event('submit', { bubbles: true, cancelable: true }),
+          );
+        } else {
+          const button = element.querySelector('#refresh-card');
+          if (!(button instanceof HTMLButtonElement))
+            throw new Error('Expected check button');
+          button.click();
+        }
+        await vi.waitFor(() => {
+          fixture.detectChanges();
+          expect(element.querySelector('#card-error')?.textContent).toContain(
+            failure.message,
+          );
+        });
+        expect(
+          action === 'save' ? saveCard : refreshCard,
+        ).toHaveBeenCalledOnce();
+        expect(loadCards).toHaveBeenCalledTimes(failure.reload ? 2 : 1);
+        expect(element.textContent).toContain(
+          failure.reload ? replacementCard.identifier : originalCard.identifier,
+        );
+        expect(input.value).toBe('DRAFT12345');
+      });
+    }
+  }
 });

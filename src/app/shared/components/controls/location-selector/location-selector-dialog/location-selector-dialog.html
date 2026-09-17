@@ -50,14 +50,6 @@
       >
         No locations found. Check the spelling or try a broader search.
       </p>
-    } @else if (searchState?.status === "configuration-error") {
-      <div
-        class="bg-error-container text-on-error-container rounded p-3 text-sm"
-        role="alert"
-      >
-        <p>Location search is unavailable.</p>
-        <p class="mt-1">Contact Evorto support before choosing a location.</p>
-      </div>
     } @else if (searchState?.status === "provider-error") {
       <div
         class="bg-error-container text-on-error-container rounded p-3 text-sm"

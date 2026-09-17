@@ -153,7 +153,12 @@ describe('event discount tenant isolation', () => {
         Effect.succeed(
           query.where.tenantId === tenant.id
             ? []
-            : [{ validTo: new Date('2100-01-01T00:00:00.000Z') }],
+            : [
+                {
+                  validFrom: new Date('2000-01-01T00:00:00.000Z'),
+                  validTo: new Date('2100-01-01T00:00:00.000Z'),
+                },
+              ],
         ),
       );
       const select = vi.fn(() => ({

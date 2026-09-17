@@ -32,7 +32,8 @@ import { type Tenant } from '../../../../../types/custom/tenant';
 import { type User } from '../../../../../types/custom/user';
 import { getServerNow } from '../../../../clock';
 import { formatConfigError } from '../../../../config/config-error';
-import { serverConfig } from '../../../../config/server-config';
+import { serverClockConfig } from '../../../../config/server-config';
+import { verifiedDiscountCardCoversEvent } from '../../../../discounts/verified-discount-card';
 import {
   buildCheckoutSessionExpiresAt,
   buildCheckoutSessionIdempotencyKey,
@@ -130,7 +131,7 @@ const expireCheckoutSession = (sessionId: string, stripeAccount: string) =>
 
 type DiscountCardRecord = Pick<
   typeof userDiscountCards.$inferSelect,
-  'type' | 'validTo'
+  'type' | 'validFrom' | 'validTo'
 >;
 
 interface DiscountResolution {
@@ -190,7 +191,7 @@ const resolveDiscount = ({
       (card) =>
         card.type === discount.discountType &&
         enabledTypes.has(card.type) &&
-        (!card.validTo || card.validTo > eventStart),
+        verifiedDiscountCardCoversEvent(card, eventStart),
     ),
   );
 
@@ -1259,7 +1260,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
           tenantId: tenant.id,
         });
         const configProvider = yield* ConfigProvider.ConfigProvider;
-        const serverEnvironment = yield* serverConfig
+        const serverEnvironment = yield* serverClockConfig
           .parse(configProvider)
           .pipe(
             Effect.mapError(
@@ -1471,6 +1472,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
           database.query.userDiscountCards.findMany({
             columns: {
               type: true,
+              validFrom: true,
               validTo: true,
             },
             where: {
@@ -2577,7 +2579,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
         user,
       }: RegisterForEventArguments) {
         const configProvider = yield* ConfigProvider.ConfigProvider;
-        const serverEnvironment = yield* serverConfig
+        const serverEnvironment = yield* serverClockConfig
           .parse(configProvider)
           .pipe(
             Effect.mapError(
@@ -2933,6 +2935,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
             database.query.userDiscountCards.findMany({
               columns: {
                 type: true,
+                validFrom: true,
                 validTo: true,
               },
               where: {
@@ -3564,7 +3567,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
           user,
         }: JoinWaitlistArguments) {
           const configProvider = yield* ConfigProvider.ConfigProvider;
-          const serverEnvironment = yield* serverConfig
+          const serverEnvironment = yield* serverClockConfig
             .parse(configProvider)
             .pipe(
               Effect.mapError(

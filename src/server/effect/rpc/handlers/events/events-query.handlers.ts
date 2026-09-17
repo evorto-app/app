@@ -35,6 +35,7 @@ import {
   eventRegistrations,
   tenantStripeTaxRates,
 } from '../../../../../db/schema';
+import { verifiedDiscountCardCoversEvent } from '../../../../discounts/verified-discount-card';
 import { RpcAccess } from '../shared/rpc-access.service';
 import { loadEventGraphDetail } from './event-graph.loader';
 import {
@@ -738,6 +739,7 @@ export const eventQueryHandlers = {
         const cards = yield* databaseEffect((database) =>
           database.query.userDiscountCards.findMany({
             columns: {
+              validFrom: true,
               validTo: true,
             },
             where: {
@@ -748,8 +750,8 @@ export const eventQueryHandlers = {
             },
           }),
         );
-        isUserCanUseEsnCardDiscount = cards.some(
-          (card) => !card.validTo || card.validTo > event.start,
+        isUserCanUseEsnCardDiscount = cards.some((card) =>
+          verifiedDiscountCardCoversEvent(card, event.start),
         );
       }
 

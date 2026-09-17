@@ -24,7 +24,13 @@ describe('registration transfer pricing', () => {
     expect(
       resolveRegistrationTransferPrice({
         basePrice: 2500,
-        cards: [{ type: 'esnCard', validFrom: null, validTo: null }],
+        cards: [
+          {
+            type: 'esnCard',
+            validFrom: new Date('2026-01-01T00:00:00.000Z'),
+            validTo: new Date('2026-12-31T00:00:00.000Z'),
+          },
+        ],
         discounts: [
           { discountedPrice: 1800, discountType: 'esnCard' },
           { discountedPrice: 1500, discountType: 'esnCard' },
@@ -132,7 +138,7 @@ describe('registration transfer pricing', () => {
           {
             type: 'esnCard',
             validFrom: new Date('2026-09-02T00:00:00.000Z'),
-            validTo: null,
+            validTo: new Date('2026-12-31T00:00:00.000Z'),
           },
         ],
         discounts,
