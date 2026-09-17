@@ -99,21 +99,59 @@ const waitForBlockedRecipientLocks = (pool: Pool, minimumCount: number) =>
     return Number(blocked.rows[0]?.count ?? 0) >= minimumCount;
   }, `Timed out waiting for ${minimumCount} blocked recipient locks`);
 
+const recordFailure = (failures: unknown[], error: unknown) => {
+  if (!failures.includes(error)) failures.push(error);
+};
+
+const trackFixtureOperation = <T>(
+  operation: Promise<T>,
+  settledOperations: Promise<void>[],
+  failures: unknown[],
+) => {
+  settledOperations.push(
+    (async () => {
+      try {
+        await operation;
+      } catch (error) {
+        recordFailure(failures, error);
+      }
+    })(),
+  );
+  return operation;
+};
+
+const throwCleanupFailures = (failures: unknown[]) => {
+  if (failures.length === 1) throw failures[0];
+  if (failures.length > 1) {
+    throw new AggregateError(
+      failures,
+      'PostgreSQL fixture and cleanup failures',
+    );
+  }
+};
+
 const lockRecipientMembership = async (
   pool: Pool,
   fixture: TransferLimitFixture,
 ) => {
   const client = await pool.connect();
-  await client.query('BEGIN');
   try {
+    await client.query('BEGIN');
     await client.query(
       'SELECT id FROM users_to_tenants WHERE id = $1 FOR UPDATE',
       [fixture.membershipId],
     );
     return client;
   } catch (error) {
-    await client.query('ROLLBACK');
-    client.release();
+    try {
+      client.release(true);
+    } catch (releaseError) {
+      throw new AggregateError(
+        [error, releaseError],
+        'Transaction setup and release failed',
+        { cause: releaseError },
+      );
+    }
     throw error;
   }
 };
@@ -464,10 +502,20 @@ describe('registration transfer finalization tenant limit', () => {
   });
 
   afterAll(async () => {
+    const failures: unknown[] = [];
     for (const fixture of fixtures.toReversed()) {
-      await cleanTransferLimitFixture(database, fixture);
+      try {
+        await cleanTransferLimitFixture(database, fixture);
+      } catch (error) {
+        recordFailure(failures, error);
+      }
     }
-    await pool.end();
+    try {
+      await pool.end();
+    } catch (error) {
+      recordFailure(failures, error);
+    }
+    throwCleanupFailures(failures);
   });
 
   it('allows only one concurrent paid transfer across future events at a limit of one', async () => {
@@ -478,10 +526,17 @@ describe('registration transfer finalization tenant limit', () => {
       fixture,
     );
     let membershipLockCommitted = false;
+    let discardMembershipLock = false;
+    const failures: unknown[] = [];
+    const settledOperations: Promise<void>[] = [];
 
     try {
       const finalizations = fixture.candidates.map((candidate) =>
-        finalizeCandidate(layer, fixture.tenantId, candidate),
+        trackFixtureOperation(
+          finalizeCandidate(layer, fixture.tenantId, candidate),
+          settledOperations,
+          failures,
+        ),
       );
       await waitForBlockedRecipientLocks(pool, 2);
       await membershipLock.query('COMMIT');
@@ -527,15 +582,25 @@ describe('registration transfer finalization tenant limit', () => {
           ),
         );
       expect(compensationClaims).toEqual([{ amount: -1000 }]);
+    } catch (error) {
+      recordFailure(failures, error);
     } finally {
       try {
         if (!membershipLockCommitted) {
           await membershipLock.query('ROLLBACK');
         }
-      } finally {
-        membershipLock.release();
+      } catch (error) {
+        discardMembershipLock = true;
+        recordFailure(failures, error);
       }
+      try {
+        membershipLock.release(discardMembershipLock);
+      } catch (error) {
+        recordFailure(failures, error);
+      }
+      await Promise.all(settledOperations);
     }
+    throwCleanupFailures(failures);
   }, 30_000);
 
   it('compensates when the recipient loses a required role during Checkout', async () => {

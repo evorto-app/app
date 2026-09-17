@@ -14,7 +14,7 @@ import {
 import * as Headers from 'effect/unstable/http/Headers';
 import { Rpc, RpcMessage } from 'effect/unstable/rpc';
 import { randomUUID } from 'node:crypto';
-import { Pool } from 'pg';
+import { Pool, type PoolClient } from 'pg';
 import Stripe from 'stripe';
 
 import {
@@ -91,6 +91,55 @@ interface RegistrationAnswerFixture {
 }
 
 type TestDatabase = NodePgDatabase<typeof relations>;
+
+const recordFailure = (failures: unknown[], error: unknown) => {
+  if (!failures.includes(error)) failures.push(error);
+};
+
+const trackFixtureOperation = <T>(
+  operation: Promise<T>,
+  settledOperations: Promise<void>[],
+  failures: unknown[],
+) => {
+  settledOperations.push(
+    (async () => {
+      try {
+        await operation;
+      } catch (error) {
+        recordFailure(failures, error);
+      }
+    })(),
+  );
+  return operation;
+};
+
+const throwCleanupFailures = (failures: unknown[]) => {
+  if (failures.length === 1) throw failures[0];
+  if (failures.length > 1) {
+    throw new AggregateError(
+      failures,
+      'PostgreSQL fixture and cleanup failures',
+    );
+  }
+};
+
+const rollbackAndReleaseClient = async (
+  client: PoolClient,
+  failures: unknown[],
+) => {
+  let discard = false;
+  try {
+    await client.query('ROLLBACK');
+  } catch (error) {
+    discard = true;
+    recordFailure(failures, error);
+  }
+  try {
+    client.release(discard);
+  } catch (error) {
+    recordFailure(failures, error);
+  }
+};
 
 const makeFixture = (): RegistrationAnswerFixture => {
   const suffix = randomUUID().replaceAll('-', '').slice(0, 10);
@@ -516,7 +565,8 @@ describe('question answer history concurrency in PostgreSQL', () => {
         await seedFixture(database, fixture);
         const client = await pool.connect();
         const writer = drizzle({ client, relations });
-        let pending: Promise<unknown> | undefined;
+        const failures: unknown[] = [];
+        const settledOperations: Promise<void>[] = [];
         try {
           const before = await database
             .select()
@@ -608,7 +658,7 @@ describe('question answer history concurrency in PostgreSQL', () => {
               Effect.provide(layer),
             ),
           );
-          pending = result;
+          trackFixtureOperation(result, settledOperations, failures);
           await waitForQuestionRaceLock(pool, pid);
           await client.query('COMMIT');
           expect(await result).toMatchObject({
@@ -641,12 +691,18 @@ describe('question answer history concurrency in PostgreSQL', () => {
                     ),
                   );
           expect(saved).toEqual([{ answer: 'Saved before mutation' }]);
+        } catch (error) {
+          recordFailure(failures, error);
         } finally {
-          await client.query('ROLLBACK');
-          client.release();
-          if (pending) await pending;
-          await cleanFixture(database, fixture);
+          await rollbackAndReleaseClient(client, failures);
+          await Promise.all(settledOperations);
+          try {
+            await cleanFixture(database, fixture);
+          } catch (error) {
+            recordFailure(failures, error);
+          }
         }
+        throwCleanupFailures(failures);
       }, 20_000);
     }
   }
@@ -679,7 +735,8 @@ describe('question answer history concurrency in PostgreSQL', () => {
             .where(eq(eventRegistrationQuestions.id, fixture.questionIds[0]));
         const client = await pool.connect();
         const editor = drizzle({ client, relations });
-        let pending: Promise<unknown> | undefined;
+        const failures: unknown[] = [];
+        const settledOperations: Promise<void>[] = [];
         try {
           await client.query('BEGIN');
           const pidResult = await client.query<{ pid: number }>(
@@ -747,7 +804,7 @@ describe('question answer history concurrency in PostgreSQL', () => {
               Effect.provide(layer),
             ),
           );
-          pending = result;
+          trackFixtureOperation(result, settledOperations, failures);
           await waitForQuestionRaceLock(pool, pid);
           await client.query('COMMIT');
           expect(await result).toMatchObject({
@@ -792,12 +849,18 @@ describe('question answer history concurrency in PostgreSQL', () => {
               waitlist: 0,
             },
           ]);
+        } catch (error) {
+          recordFailure(failures, error);
         } finally {
-          await client.query('ROLLBACK');
-          client.release();
-          if (pending) await pending;
-          await cleanFixture(database, fixture);
+          await rollbackAndReleaseClient(client, failures);
+          await Promise.all(settledOperations);
+          try {
+            await cleanFixture(database, fixture);
+          } catch (error) {
+            recordFailure(failures, error);
+          }
         }
+        throwCleanupFailures(failures);
       }, 20_000);
     }
   }
@@ -810,7 +873,8 @@ describe('question answer history concurrency in PostgreSQL', () => {
       .where(eq(eventInstances.id, fixture.eventIds[0]));
     const client = await pool.connect();
     const writer = drizzle({ client, relations });
-    let pending: Promise<unknown> | undefined;
+    const failures: unknown[] = [];
+    const settledOperations: Promise<void>[] = [];
     try {
       await client.query('BEGIN');
       await client.query("SET LOCAL lock_timeout = '1000ms'");
@@ -860,7 +924,7 @@ describe('question answer history concurrency in PostgreSQL', () => {
           Effect.provide(layer),
         ),
       );
-      pending = result;
+      trackFixtureOperation(result, settledOperations, failures);
       await waitForQuestionRaceLock(pool, pid);
       await writer
         .update(eventRegistrationOptions)
@@ -876,12 +940,18 @@ describe('question answer history concurrency in PostgreSQL', () => {
             'Registration payment ownership is not initialized for the current owner.',
         },
       });
+    } catch (error) {
+      recordFailure(failures, error);
     } finally {
-      await client.query('ROLLBACK');
-      client.release();
-      if (pending) await pending;
-      await cleanFixture(database, fixture);
+      await rollbackAndReleaseClient(client, failures);
+      await Promise.all(settledOperations);
+      try {
+        await cleanFixture(database, fixture);
+      } catch (error) {
+        recordFailure(failures, error);
+      }
     }
+    throwCleanupFailures(failures);
   }, 20_000);
 });
 
@@ -1490,6 +1560,7 @@ describe('registration admission snapshots in PostgreSQL', () => {
   for (const { mutation, writer } of cases) {
     it(`rejects stale ${writer} without side effects when ${mutation} changes before admission locks`, async () => {
       const fixture = makeFixture();
+      const failures: unknown[] = [];
       try {
         const { addOns, stripeAccountId, stripeTaxRateId } =
           await seedAdmissionSnapshotFixture(
@@ -1519,7 +1590,7 @@ describe('registration admission snapshots in PostgreSQL', () => {
         };
         const client = await pool.connect();
         const editor = drizzle({ client, relations });
-        let pending: Promise<unknown> | undefined;
+        const settledOperations: Promise<void>[] = [];
         let approvalHookCalls = 0;
         let cardInvalidation:
           | Awaited<ReturnType<typeof startAdmissionCardInvalidation>>
@@ -1648,7 +1719,7 @@ describe('registration admission snapshots in PostgreSQL', () => {
               Effect.provide(layer),
             ),
           );
-          pending = result;
+          trackFixtureOperation(result, settledOperations, failures);
           await waitForQuestionRaceLock(pool, admissionBlockerPid);
           await client.query('COMMIT');
           if (cardInvalidation) await cardInvalidation.complete();
@@ -1678,21 +1749,27 @@ describe('registration admission snapshots in PostgreSQL', () => {
           }
           expect(stripeHttpClient.requestCount).toBe(0);
           expect(approvalHookCalls).toBe(0);
+        } catch (error) {
+          recordFailure(failures, error);
         } finally {
+          await rollbackAndReleaseClient(client, failures);
           try {
-            await client.query('ROLLBACK');
-          } finally {
-            client.release();
-            try {
-              if (pending) await pending;
-            } finally {
-              if (cardInvalidation) await cardInvalidation.cleanup();
-            }
+            if (cardInvalidation) await cardInvalidation.cleanup();
+          } catch (error) {
+            recordFailure(failures, error);
           }
+          await Promise.all(settledOperations);
         }
+      } catch (error) {
+        recordFailure(failures, error);
       } finally {
-        await cleanFixture(database, fixture);
+        try {
+          await cleanFixture(database, fixture);
+        } catch (error) {
+          recordFailure(failures, error);
+        }
       }
+      throwCleanupFailures(failures);
     }, 20_000);
   }
 
@@ -1700,6 +1777,8 @@ describe('registration admission snapshots in PostgreSQL', () => {
     const fixture = makeFixture();
     const otherUserId = `new-${fixture.userId}`;
     const originalAdapter = Adapters.esnCard;
+    const failures: unknown[] = [];
+    const settledOperations: Promise<void>[] = [];
     try {
       await seedAdmissionSnapshotFixture(
         database,
@@ -1748,31 +1827,37 @@ describe('registration admission snapshots in PostgreSQL', () => {
         },
       };
       const saveCard = (userId: string) =>
-        Effect.runPromise(
-          discountHandlers['discounts.upsertMyCard'](
-            { identifier, type: 'esnCard' },
-            {
-              client: new Rpc.ServerClient(1),
-              headers: Headers.empty,
-              requestId: RpcMessage.RequestId(1),
-              rpc: DiscountsUpsertMyCard.middleware(
-                RpcRequestContextMiddleware,
+        trackFixtureOperation(
+          Effect.runPromise(
+            discountHandlers['discounts.upsertMyCard'](
+              { identifier, type: 'esnCard' },
+              {
+                client: new Rpc.ServerClient(1),
+                headers: Headers.empty,
+                requestId: RpcMessage.RequestId(1),
+                rpc: DiscountsUpsertMyCard.middleware(
+                  RpcRequestContextMiddleware,
+                ),
+              },
+            ).pipe(
+              Effect.result,
+              Effect.exit,
+              Effect.provide(RpcAccess.Default),
+              Effect.provideService(
+                RpcRequestContext,
+                admissionCardRequestContext(tenant, userId),
               ),
-            },
-          ).pipe(
-            Effect.result,
-            Effect.exit,
-            Effect.provide(RpcAccess.Default),
-            Effect.provideService(
-              RpcRequestContext,
-              admissionCardRequestContext(tenant, userId),
+              Effect.provide(layer),
             ),
-            Effect.provide(layer),
-          ),
+          ).then((exit) => {
+            if (Exit.isFailure(exit)) throw new Error(Cause.pretty(exit.cause));
+            return exit.value;
+          }),
+          settledOperations,
+          failures,
         );
       const client = await pool.connect();
       const editor = drizzle({ client, relations });
-      let pending: readonly ReturnType<typeof saveCard>[] = [];
       try {
         await client.query('BEGIN');
         const pidResult = await client.query<{ pid: number }>(
@@ -1787,10 +1872,8 @@ describe('registration admission snapshots in PostgreSQL', () => {
           .where(eq(tenants.id, fixture.tenantIds[0]))
           .for('update');
         const initialSave = saveCard(otherUserId);
-        pending = [initialSave];
         const initialSavePid = await waitForQuestionRaceLock(pool, pid);
         const replacementSave = saveCard(fixture.userId);
-        pending = [initialSave, replacementSave];
         const waitingWriters = await waitForCardSaveLockChain(
           pool,
           pid,
@@ -1813,16 +1896,10 @@ describe('registration admission snapshots in PostgreSQL', () => {
         }
         await client.query('COMMIT');
 
-        const [initialExit, replacementExit] = await Promise.all([
+        const [initialResult, replacementResult] = await Promise.all([
           initialSave,
           replacementSave,
         ]);
-        if (Exit.isFailure(initialExit))
-          throw new Error(Cause.pretty(initialExit.cause));
-        if (Exit.isFailure(replacementExit))
-          throw new Error(Cause.pretty(replacementExit.cause));
-        const initialResult = initialExit.value;
-        const replacementResult = replacementExit.value;
         const results = [initialResult, replacementResult];
         expect(
           results.filter((result) => Result.isSuccess(result)),
@@ -1851,32 +1928,35 @@ describe('registration admission snapshots in PostgreSQL', () => {
             ),
         ).toEqual([{ status: 'verified', userId: winnerUserId }]);
         expect(stripeHttpClient.requestCount).toBe(0);
+      } catch (error) {
+        recordFailure(failures, error);
       } finally {
-        try {
-          await client.query('ROLLBACK');
-        } finally {
-          client.release();
-          const exits = await Promise.all(pending);
-          for (const exit of exits) {
-            expect(
-              Exit.isSuccess(exit),
-              Exit.isFailure(exit)
-                ? Cause.pretty(exit.cause)
-                : 'Card save completed',
-            ).toBe(true);
-          }
-        }
+        await rollbackAndReleaseClient(client, failures);
+        await Promise.all(settledOperations);
       }
+    } catch (error) {
+      recordFailure(failures, error);
     } finally {
+      await Promise.all(settledOperations);
       Adapters.esnCard = originalAdapter;
-      await database
-        .delete(usersToTenants)
-        .where(eq(usersToTenants.userId, otherUserId));
+      try {
+        await database
+          .delete(usersToTenants)
+          .where(eq(usersToTenants.userId, otherUserId));
+      } catch (error) {
+        recordFailure(failures, error);
+      }
       try {
         await cleanFixture(database, fixture);
-      } finally {
+      } catch (error) {
+        recordFailure(failures, error);
+      }
+      try {
         await database.delete(users).where(eq(users.id, otherUserId));
+      } catch (error) {
+        recordFailure(failures, error);
       }
     }
+    throwCleanupFailures(failures);
   }, 20_000);
 });

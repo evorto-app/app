@@ -175,21 +175,59 @@ const waitForBlockedRegistrationLocks = (pool: Pool, minimumCount: number) =>
     return Number(blocked.rows[0]?.count ?? 0) >= minimumCount;
   }, `Timed out waiting for ${minimumCount} blocked registration locks`);
 
+const recordFailure = (failures: unknown[], error: unknown) => {
+  if (!failures.includes(error)) failures.push(error);
+};
+
+const trackCleanupWorker = <T>(
+  operation: Promise<T>,
+  settledWorkers: Promise<void>[],
+  failures: unknown[],
+) => {
+  settledWorkers.push(
+    (async () => {
+      try {
+        await operation;
+      } catch (error) {
+        recordFailure(failures, error);
+      }
+    })(),
+  );
+  return operation;
+};
+
+const throwCleanupFailures = (failures: unknown[]) => {
+  if (failures.length === 1) throw failures[0];
+  if (failures.length > 1) {
+    throw new AggregateError(
+      failures,
+      'PostgreSQL fixture and cleanup failures',
+    );
+  }
+};
+
 const lockRegistration = async (
   pool: Pool,
   registrationId: string,
 ): Promise<PoolClient> => {
   const client = await pool.connect();
-  await client.query('BEGIN');
   try {
+    await client.query('BEGIN');
     await client.query(
       'SELECT id FROM event_registrations WHERE id = $1 FOR UPDATE',
       [registrationId],
     );
     return client;
   } catch (error) {
-    await client.query('ROLLBACK');
-    client.release();
+    try {
+      client.release(true);
+    } catch (releaseError) {
+      throw new AggregateError(
+        [error, releaseError],
+        'Transaction setup and release failed',
+        { cause: releaseError },
+      );
+    }
     throw error;
   }
 };
@@ -504,10 +542,19 @@ describe('expired unbound checkout cleanup concurrency', () => {
     let registrationLockCommitted = false;
     let discardRegistrationLock = false;
     const failures: unknown[] = [];
+    const settledWorkers: Promise<void>[] = [];
 
     try {
-      const firstCleanup = runCleanup(databaseUrl, expiresAt);
-      const secondCleanup = runCleanup(databaseUrl, expiresAt);
+      const firstCleanup = trackCleanupWorker(
+        runCleanup(databaseUrl, expiresAt),
+        settledWorkers,
+        failures,
+      );
+      const secondCleanup = trackCleanupWorker(
+        runCleanup(databaseUrl, expiresAt),
+        settledWorkers,
+        failures,
+      );
       await waitForBlockedRegistrationLocks(pool, 2);
       await registrationLock.query('COMMIT');
       registrationLockCommitted = true;
@@ -532,7 +579,7 @@ describe('expired unbound checkout cleanup concurrency', () => {
         }),
       );
     } catch (error) {
-      failures.push(error);
+      recordFailure(failures, error);
     } finally {
       try {
         if (!registrationLockCommitted) {
@@ -540,13 +587,14 @@ describe('expired unbound checkout cleanup concurrency', () => {
         }
       } catch (error) {
         discardRegistrationLock = true;
-        failures.push(error);
+        recordFailure(failures, error);
       }
       try {
         registrationLock.release(discardRegistrationLock);
       } catch (error) {
-        failures.push(error);
+        recordFailure(failures, error);
       }
+      await Promise.all(settledWorkers);
     }
     if (failures.length === 1) {
       throw failures[0];
@@ -570,10 +618,15 @@ describe('expired unbound checkout cleanup concurrency', () => {
     let registrationLockCommitted = false;
     let discardRegistrationLock = false;
     const failures: unknown[] = [];
+    const settledWorkers: Promise<void>[] = [];
     const stripeCheckoutSessionId = `cs_test_${fixture.transactionId}`;
 
     try {
-      const cleanup = runCleanup(databaseUrl, expiresAt);
+      const cleanup = trackCleanupWorker(
+        runCleanup(databaseUrl, expiresAt),
+        settledWorkers,
+        failures,
+      );
       await waitForBlockedRegistrationLocks(pool, 1);
       await registrationLock.query(
         `
@@ -608,7 +661,7 @@ describe('expired unbound checkout cleanup concurrency', () => {
         }),
       );
     } catch (error) {
-      failures.push(error);
+      recordFailure(failures, error);
     } finally {
       try {
         if (!registrationLockCommitted) {
@@ -616,13 +669,14 @@ describe('expired unbound checkout cleanup concurrency', () => {
         }
       } catch (error) {
         discardRegistrationLock = true;
-        failures.push(error);
+        recordFailure(failures, error);
       }
       try {
         registrationLock.release(discardRegistrationLock);
       } catch (error) {
-        failures.push(error);
+        recordFailure(failures, error);
       }
+      await Promise.all(settledWorkers);
     }
     if (failures.length === 1) {
       throw failures[0];
@@ -654,6 +708,7 @@ describe('expired unbound checkout cleanup concurrency', () => {
     let registrationLockCommitted = false;
     let discardRegistrationLock = false;
     const failures: unknown[] = [];
+    const settledWorkers: Promise<void>[] = [];
     const candidate = {
       registrationId: fixture.registrationId,
       stripeAccountId: fixture.stripeAccountId,
@@ -663,15 +718,15 @@ describe('expired unbound checkout cleanup concurrency', () => {
     };
 
     try {
-      const firstReconciliation = runBoundCancellation(
-        databaseUrl,
-        candidate,
-        expiresAt,
+      const firstReconciliation = trackCleanupWorker(
+        runBoundCancellation(databaseUrl, candidate, expiresAt),
+        settledWorkers,
+        failures,
       );
-      const secondReconciliation = runBoundCancellation(
-        databaseUrl,
-        candidate,
-        expiresAt,
+      const secondReconciliation = trackCleanupWorker(
+        runBoundCancellation(databaseUrl, candidate, expiresAt),
+        settledWorkers,
+        failures,
       );
       await waitForBlockedRegistrationLocks(pool, 2);
       await registrationLock.query('COMMIT');
@@ -695,7 +750,7 @@ describe('expired unbound checkout cleanup concurrency', () => {
         }),
       );
     } catch (error) {
-      failures.push(error);
+      recordFailure(failures, error);
     } finally {
       try {
         if (!registrationLockCommitted) {
@@ -703,13 +758,14 @@ describe('expired unbound checkout cleanup concurrency', () => {
         }
       } catch (error) {
         discardRegistrationLock = true;
-        failures.push(error);
+        recordFailure(failures, error);
       }
       try {
         registrationLock.release(discardRegistrationLock);
       } catch (error) {
-        failures.push(error);
+        recordFailure(failures, error);
       }
+      await Promise.all(settledWorkers);
     }
     if (failures.length === 1) {
       throw failures[0];
