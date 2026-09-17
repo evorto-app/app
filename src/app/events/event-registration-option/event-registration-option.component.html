@@ -124,7 +124,7 @@
           Registration questions
         </p>
         @for (question of registrationOption().questions; track question.id) {
-          <mat-form-field appearance="outline">
+          <mat-form-field appearance="outline" subscriptSizing="dynamic">
             <mat-label>{{ question.title }}</mat-label>
             <textarea
               matInput
@@ -144,6 +144,9 @@
             @if (question.description) {
               <mat-hint>{{ question.description }}</mat-hint>
             }
+            <mat-hint align="end">
+              {{ maxRegistrationAnswerLength }} characters maximum
+            </mat-hint>
           </mat-form-field>
         }
         @if (registrationQuestionAnswersTooLong()) {

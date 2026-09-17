@@ -758,17 +758,56 @@ describe('EventRegistrationOptionComponent input limits', () => {
     });
   });
 
-  it.each([false, true])(
-    'blocks an overlong answer and accepts the boundary for waitlist=%s',
-    async (waitlist) => {
+  it.each([
+    { description: null, waitlist: false },
+    { description: 'Share any food allergies.', waitlist: false },
+    { description: null, waitlist: true },
+    { description: 'Share any food allergies.', waitlist: true },
+  ])(
+    'explains the answer limit and preserves validation for $waitlist with $description',
+    async ({ description, waitlist }) => {
       const option = boundedRegistrationOption({
         confirmedSpots: waitlist ? 50 : 0,
       });
+      option.questions = option.questions.map((question) => ({
+        ...question,
+        description,
+      }));
       const { element, fixture } = await render(option);
       const answer = element.querySelector('textarea');
       if (!(answer instanceof HTMLTextAreaElement))
         throw new Error('Expected an answer textarea');
       expect(answer.maxLength).toBe(MAX_REGISTRATION_ANSWER_LENGTH);
+      const limitHint = [...element.querySelectorAll('mat-hint')].find(
+        (hint) =>
+          hint.textContent?.trim() ===
+          `${MAX_REGISTRATION_ANSWER_LENGTH} characters maximum`,
+      );
+      if (!(limitHint instanceof HTMLElement))
+        throw new Error('Expected a persistent answer limit hint');
+      const expectLimitHint = () => {
+        expect(limitHint.textContent?.trim()).toBe(
+          `${MAX_REGISTRATION_ANSWER_LENGTH} characters maximum`,
+        );
+        expect(answer.getAttribute('aria-describedby')?.split(' ')).toContain(
+          limitHint.id,
+        );
+      };
+      expect(answer.value).toBe('');
+      expectLimitHint();
+      if (description) {
+        const descriptionHint = [...element.querySelectorAll('mat-hint')].find(
+          (hint) => hint.textContent?.trim() === description,
+        );
+        expect(descriptionHint).toBeDefined();
+        expect(answer.getAttribute('aria-describedby')?.split(' ')).toContain(
+          descriptionHint?.id,
+        );
+      }
+      answer.value = 'A short answer';
+      answer.dispatchEvent(new Event('input', { bubbles: true }));
+      fixture.detectChanges();
+      expectLimitHint();
       answer.value = 'a'.repeat(MAX_REGISTRATION_ANSWER_LENGTH + 1);
       answer.dispatchEvent(new Event('input', { bubbles: true }));
       fixture.detectChanges();
@@ -778,6 +817,7 @@ describe('EventRegistrationOptionComponent input limits', () => {
       expect(answer.getAttribute('aria-describedby')?.split(' ')).toContain(
         option.id + '-answer-length-error',
       );
+      expectLimitHint();
       const button = element.querySelector('button');
       if (!(button instanceof HTMLButtonElement))
         throw new Error('Expected a sign-up button');
@@ -789,6 +829,7 @@ describe('EventRegistrationOptionComponent input limits', () => {
       answer.value = 'a'.repeat(MAX_REGISTRATION_ANSWER_LENGTH);
       answer.dispatchEvent(new Event('input', { bubbles: true }));
       fixture.detectChanges();
+      expectLimitHint();
       expect(button.disabled).toBe(false);
       button.click();
       await fixture.whenStable();
