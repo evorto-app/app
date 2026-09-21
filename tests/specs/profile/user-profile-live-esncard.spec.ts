@@ -112,9 +112,10 @@ test('verifies active and expired ESN cards through the live provider @needs-liv
         name: 'Discount cards',
       }),
     ).toBeVisible({ timeout: 15_000 });
+    // The heading can render before the initial client-side card read finishes.
     await expect(
       profileDiscounts.getByText('No discount cards added.'),
-    ).toBeVisible();
+    ).toBeVisible({ timeout: 20_000 });
 
     const saveEsnCard = profileDiscounts.getByRole('button', {
       name: 'Save ESNcard',
