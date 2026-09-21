@@ -34,6 +34,19 @@ const makeRetryFixture = (environment: 'production' | 'staging') => {
   temporaryDirectories.push(directory);
   const scriptsDirectory = path.join(directory, 'ops/scaleway');
   fs.mkdirSync(scriptsDirectory, { recursive: true });
+  fs.writeFileSync(
+    path.join(directory, 'gh'),
+    String.raw`#!/usr/bin/env bash
+set -euo pipefail
+if [ "$*" != 'api repos/evorto-app/app/commits/main --jq .sha' ]; then
+  echo 'Unexpected fake GitHub request' >&2
+  exit 90
+fi
+printf 'main:read\n' >> "$CALL_LOG"
+printf '%s\n' "$REVISION"
+`,
+    { mode: 0o700 },
+  );
   const callLog = path.join(directory, 'calls.log');
   fs.writeFileSync(callLog, '');
   fs.writeFileSync(
@@ -101,7 +114,9 @@ esac
             DIGEST: `sha256:${'a'.repeat(64)}`,
             FAIL_SCHEMA_APPLY: String(failSchemaApply),
             IMAGE_REFERENCE: `example.invalid/evorto@sha256:${'a'.repeat(64)}`,
-            PATH: process.env.PATH,
+            PATH: `${directory}:${process.env.PATH ?? ''}`,
+            GITHUB_REPOSITORY: 'evorto-app/app',
+            GITHUB_SHA: 'b'.repeat(40),
             REVISION: 'b'.repeat(40),
             RUNNER_TEMP: directory,
             SCHEMA_HASH: 'c'.repeat(64),
@@ -119,6 +134,7 @@ describe('Scaleway schema reconciliation retries', () => {
       const failed = fixture.run(true);
       expect(failed.status, failed.stderr).not.toBe(0);
       const reconciliationCalls = [
+        ...(environment === 'production' ? ['main:read'] : []),
         'deploy:ops',
         '/internal/ops/schema-explain',
         '/internal/ops/schema-apply',
