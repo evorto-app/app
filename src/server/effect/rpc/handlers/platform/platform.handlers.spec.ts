@@ -3,6 +3,7 @@ import type * as SqlConnection from 'effect/unstable/sql/SqlConnection';
 import * as PgClient from '@effect/sql-pg/PgClient';
 import { describe, expect, it } from '@effect/vitest';
 import { createDatabaseTestLayer } from '@server/testing/database-test-layer';
+import { makePgTestClient } from '@server/testing/pg-test-client';
 import {
   EventCheckInUnavailableError,
   EventRegistrationInternalError,
@@ -377,10 +378,8 @@ const checkInTimingDatabaseFixture = () => {
   ).pipe(
     Layer.provide(
       PgClient.layerFrom(
-        PgClient.makeWith({
+        makePgTestClient({
           acquirer: Effect.succeed(connection),
-          config: {},
-          listenAcquirer: Effect.die(new Error('Unexpected database listen')),
           transactionAcquirer: Effect.succeed(connection),
         }),
       ),

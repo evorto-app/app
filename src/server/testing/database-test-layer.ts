@@ -1,6 +1,7 @@
 import type * as SqlConnection from 'effect/unstable/sql/SqlConnection';
 
 import * as PgClient from '@effect/sql-pg/PgClient';
+import { makePgTestClient } from '@server/testing/pg-test-client';
 import * as PgDrizzle from 'drizzle-orm/effect-postgres';
 import { Effect, Layer, Stream } from 'effect';
 
@@ -27,10 +28,8 @@ export const createDatabaseTestLayer = (
   return Layer.effect(Database, PgDrizzle.makeWithDefaults({ relations })).pipe(
     Layer.provide(
       PgClient.layerFrom(
-        PgClient.makeWith({
+        makePgTestClient({
           acquirer: Effect.succeed(connection),
-          config: {},
-          listenAcquirer: unexpectedOperation,
           transactionAcquirer: unexpectedOperation,
         }),
       ),

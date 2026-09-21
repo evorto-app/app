@@ -79,6 +79,47 @@ const databaseConnectionUrl = (databaseUrl: string): string => {
   return parsedUrl.toString();
 };
 
+const nativeDatabaseConnectionUrl = (databaseUrl: string): string => {
+  if (databaseUrl.startsWith('/')) {
+    const [host, database] = databaseUrl.split(' ', 2);
+    const url = new URL('postgresql:///');
+    url.searchParams.set('host', host);
+    if (database) url.pathname = `/${encodeURIComponent(database)}`;
+    return url.toString();
+  }
+
+  const normalizedUrl = databaseConnectionUrl(databaseUrl);
+  const url = new URL(normalizedUrl);
+  if (
+    [...url.searchParams.keys()].some(
+      (name) =>
+        (name.startsWith('ssl') && name !== 'sslmode') ||
+        name === 'uselibpqcompat',
+    )
+  ) {
+    throw new Error(
+      'The native PostgreSQL driver supports only sslmode URL options; use DATABASE_TLS_CA_CERTIFICATE for a custom CA',
+    );
+  }
+
+  // node-pg falls back to the authority when the last override is empty.
+  // The native parser otherwise treats an empty host/user as an actual value.
+  let changed = false;
+  for (const name of ['host', 'port', 'user', 'password']) {
+    const overrides = url.searchParams.getAll(name);
+    const last = overrides.at(-1);
+    if (last === '') {
+      url.searchParams.delete(name);
+      changed = true;
+    } else if (last !== undefined && overrides.length > 1) {
+      // Validate only the effective value, including the effective port.
+      url.searchParams.set(name, last);
+      changed = true;
+    }
+  }
+  return changed ? url.toString() : normalizedUrl;
+};
+
 const databaseServerIdentity = (
   databaseUrl: string,
   tlsServerName?: string,
@@ -155,8 +196,7 @@ export const createPgClientConfig = ({
     maxConnections: boundedPool.max,
     minConnections: boundedPool.min,
     ...(ssl && { ssl }),
-    types: pgTypes,
-    url: Redacted.make(databaseConnectionUrl(databaseUrl)),
+    url: Redacted.make(nativeDatabaseConnectionUrl(databaseUrl)),
   };
 };
 

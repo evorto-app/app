@@ -1,5 +1,6 @@
 import * as PgClient from '@effect/sql-pg/PgClient';
 import { describe, expect, it, layer } from '@effect/vitest';
+import { makePgTestClient } from '@server/testing/pg-test-client';
 import * as PgDrizzle from 'drizzle-orm/effect-postgres';
 import { Effect, Layer, Schema } from 'effect';
 
@@ -27,10 +28,8 @@ const noDatabaseAccessLayer = Layer.effect(
 ).pipe(
   Layer.provide(
     PgClient.layerFrom(
-      PgClient.makeWith({
+      makePgTestClient({
         acquirer: unexpectedDatabaseAccess,
-        config: {},
-        listenAcquirer: unexpectedDatabaseAccess,
         transactionAcquirer: unexpectedDatabaseAccess,
       }),
     ),

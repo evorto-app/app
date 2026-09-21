@@ -4,7 +4,7 @@ import { optionalTrimmedString } from './config-string';
 import { applicationEnvironmentConfig } from './deployment-config';
 
 const optionalRedactedString = (name: string) =>
-  Config.option(Config.redacted(name)).pipe(
+  Config.option(Config.Redacted(name)).pipe(
     Config.map(
       Option.map((value) => Redacted.make(Redacted.value(value).trim())),
     ),
@@ -13,14 +13,14 @@ const optionalRedactedString = (name: string) =>
 
 export const emailDeliveryConfigState = Config.all({
   APP_ENVIRONMENT: applicationEnvironmentConfig,
-  EMAIL_DELIVERY_PROVIDER: Config.literals(
+  EMAIL_DELIVERY_PROVIDER: Config.Literals(
     ['mailpit', 'tem'],
     'EMAIL_DELIVERY_PROVIDER',
   ).pipe(Config.withDefault('mailpit')),
-  MAILPIT_API_URL: Config.url('MAILPIT_API_URL').pipe(
+  MAILPIT_API_URL: Config.URL('MAILPIT_API_URL').pipe(
     Config.withDefault(new URL('http://mailpit:8025/api/v1/send')),
   ),
-  STAGING_EMAIL_ALLOWLIST: Config.string('STAGING_EMAIL_ALLOWLIST').pipe(
+  STAGING_EMAIL_ALLOWLIST: Config.String('STAGING_EMAIL_ALLOWLIST').pipe(
     Config.withDefault(''),
     Config.map(
       (value) =>

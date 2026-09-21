@@ -150,7 +150,7 @@ const assertKnownProjectNames = (
 const selectedProjectNamesConfig = optionalTrimmedString(
   SELECTED_PLAYWRIGHT_PROJECTS_ENV,
 ).pipe(
-  Config.mapOrFail((value) =>
+  Config.mapEffect((value) =>
     Option.match(value, {
       onNone: () => Effect.succeed([]),
       onSome: (projectNames) =>
@@ -167,7 +167,7 @@ export const testRuntimeConfigState = Config.all({
     'AUTH0_MANAGEMENT_CLIENT_SECRET',
   ),
   BASE_URL: optionalTrimmedString('BASE_URL'),
-  CI: Config.boolean('CI').pipe(Config.withDefault(false)),
+  CI: Config.Boolean('CI').pipe(Config.withDefault(false)),
   CLIENT_ID: optionalTrimmedString('CLIENT_ID'),
   CLIENT_SECRET: optionalTrimmedString('CLIENT_SECRET'),
   DATABASE_URL: nonEmptyTrimmedString('DATABASE_URL'),
@@ -205,11 +205,11 @@ export const testRuntimeConfigState = Config.all({
     ),
   ),
   E2E_SELECTED_PROJECTS: selectedProjectNamesConfig,
-  E2E_USE_DOCKER_STACK: Config.boolean('E2E_USE_DOCKER_STACK').pipe(
+  E2E_USE_DOCKER_STACK: Config.Boolean('E2E_USE_DOCKER_STACK').pipe(
     Config.withDefault(true),
   ),
   ISSUER_BASE_URL: optionalTrimmedString('ISSUER_BASE_URL'),
-  NO_WEBSERVER: Config.boolean('NO_WEBSERVER').pipe(Config.withDefault(false)),
+  NO_WEBSERVER: Config.Boolean('NO_WEBSERVER').pipe(Config.withDefault(false)),
   PUBLIC_GOOGLE_MAPS_API_KEY: optionalTrimmedString(
     'PUBLIC_GOOGLE_MAPS_API_KEY',
   ),

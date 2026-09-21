@@ -10,9 +10,9 @@ const boundedInteger = (
   minimum: number,
   maximum: number,
 ) =>
-  Config.int(name).pipe(
+  Config.Int(name).pipe(
     Config.withDefault(fallback),
-    Config.mapOrFail((value) =>
+    Config.mapEffect((value) =>
       value >= minimum && value <= maximum
         ? Effect.succeed(value)
         : Effect.fail(
@@ -41,9 +41,9 @@ const databaseConfigValues = Config.all({
   DATABASE_POOL_MAX: boundedInteger('DATABASE_POOL_MAX', 5, 1, 20),
   DATABASE_POOL_MIN: boundedInteger('DATABASE_POOL_MIN', 0, 0, 5),
   DATABASE_TLS_CA_CERTIFICATE: Config.option(
-    Config.redacted('DATABASE_TLS_CA_CERTIFICATE'),
+    Config.Redacted('DATABASE_TLS_CA_CERTIFICATE'),
   ).pipe(
-    Config.mapOrFail((certificate) =>
+    Config.mapEffect((certificate) =>
       Option.isSome(certificate) &&
       Redacted.value(certificate.value).trim().length === 0
         ? Effect.fail(
@@ -56,13 +56,13 @@ const databaseConfigValues = Config.all({
         : Effect.succeed(certificate),
     ),
   ),
-  DATABASE_TLS_REQUIRED: Config.boolean('DATABASE_TLS_REQUIRED'),
+  DATABASE_TLS_REQUIRED: Config.Boolean('DATABASE_TLS_REQUIRED'),
   DATABASE_TLS_SERVER_NAME: optionalTrimmedString('DATABASE_TLS_SERVER_NAME'),
   DATABASE_URL: nonEmptyTrimmedString('DATABASE_URL'),
 });
 
 export const databaseConfig = databaseConfigValues.pipe(
-  Config.mapOrFail((config) =>
+  Config.mapEffect((config) =>
     config.DATABASE_TLS_REQUIRED &&
     Option.isNone(config.DATABASE_TLS_CA_CERTIFICATE)
       ? Effect.fail(

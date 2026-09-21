@@ -237,38 +237,60 @@ export const AdminTenantListStripeTaxRates = asRpcQuery(
   }),
 );
 
-export const AdminTenantUpdateAppearanceSettingsInput = Schema.Struct({
+const strictSettingsInput = <const Fields extends Schema.Struct.Fields>(
+  fields: Fields,
+) => {
+  const payload = Schema.Struct(fields);
+  const jsonCodec = Schema.toCodecJson(payload);
+  return Schema.Json.pipe(
+    Schema.decodeTo(
+      Schema.toType(payload),
+      SchemaTransformation.transformEffect({
+        decode: (input) =>
+          Schema.decodeUnknownEffect(jsonCodec)(input, {
+            onExcessProperty: 'error',
+          }).pipe(Effect.mapError((error) => error.issue)),
+        encode: (value) =>
+          Schema.encodeEffect(jsonCodec)(value).pipe(
+            Effect.mapError((error) => error.issue),
+          ),
+      }),
+    ),
+  );
+};
+
+export const AdminTenantUpdateAppearanceSettingsInput = strictSettingsInput({
   expectedSettings: AdminTenantAppearanceSettingsSnapshot,
   faviconUrl: Schema.optional(TenantBrandAssetUrlString),
   logoUrl: Schema.optional(TenantBrandAssetUrlString),
   seoDescription: Schema.optional(Schema.String),
   seoTitle: Schema.optional(Schema.String),
   theme: Tenant.fields.theme,
-}).annotate({ parseOptions: { onExcessProperty: 'error' } });
+});
 
 export type AdminTenantUpdateAppearanceSettingsInput = Schema.Schema.Type<
   typeof AdminTenantUpdateAppearanceSettingsInput
 >;
 
-export const AdminTenantUpdateLegalSettingsInput = Schema.Struct({
+export const AdminTenantUpdateLegalSettingsInput = strictSettingsInput({
   expectedSettings: AdminTenantLegalSettingsSnapshot,
   legalNoticeText: Schema.optional(Schema.String),
   legalNoticeUrl: Schema.optional(UrlString),
   termsText: Schema.optional(Schema.String),
   termsUrl: Schema.optional(UrlString),
-}).annotate({ parseOptions: { onExcessProperty: 'error' } });
+});
 
 export type AdminTenantUpdateLegalSettingsInput = Schema.Schema.Type<
   typeof AdminTenantUpdateLegalSettingsInput
 >;
 
-export const AdminTenantUpdateOrganizationSettingsInput = Schema.Struct({
+export const AdminTenantUpdateOrganizationSettingsInput = strictSettingsInput({
   defaultLocation: Schema.NullOr(GoogleLocation),
   emailSenderEmail: Schema.optional(OptionalSenderEmail),
   emailSenderName: Schema.optional(Schema.NonEmptyString),
   expectedSettings: AdminTenantOrganizationSettingsSnapshot,
   timezone: Tenant.fields.timezone,
-}).annotate({ parseOptions: { onExcessProperty: 'error' } });
+});
 
 export type AdminTenantUpdateOrganizationSettingsInput = Schema.Schema.Type<
   typeof AdminTenantUpdateOrganizationSettingsInput
@@ -287,7 +309,7 @@ const AdminTenantUpdatePaymentProviderSettingsPayload = Schema.Struct({
 export const AdminTenantUpdatePaymentProviderSettingsInput = Schema.Json.pipe(
   Schema.decodeTo(
     AdminTenantUpdatePaymentProviderSettingsPayload,
-    SchemaTransformation.transformOrFail({
+    SchemaTransformation.transformEffect({
       decode: (input) =>
         Schema.decodeUnknownEffect(
           AdminTenantUpdatePaymentProviderSettingsPayload,
@@ -314,12 +336,12 @@ export type AdminTenantUpdatePaymentProviderSettingsInput = Schema.Schema.Type<
   typeof AdminTenantUpdatePaymentProviderSettingsInput
 >;
 
-export const AdminTenantUpdateRegistrationSettingsInput = Schema.Struct({
+export const AdminTenantUpdateRegistrationSettingsInput = strictSettingsInput({
   cancellationDeadlineHoursBeforeStart: nonNegativePostgresInteger,
   expectedSettings: AdminTenantRegistrationSettingsSnapshot,
   maxActiveRegistrationsPerUser: nonNegativePostgresInteger,
   transferDeadlineHoursBeforeStart: nonNegativePostgresInteger,
-}).annotate({ parseOptions: { onExcessProperty: 'error' } });
+});
 
 export type AdminTenantUpdateRegistrationSettingsInput = Schema.Schema.Type<
   typeof AdminTenantUpdateRegistrationSettingsInput
