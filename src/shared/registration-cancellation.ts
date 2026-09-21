@@ -58,16 +58,16 @@ export const registrationCancellationFailureMessage = (
 ): string => {
   switch (kind) {
     case 'application': {
-      return 'The application could not be withdrawn. Check its current status and try again.';
+      return 'Evorto could not confirm whether the application was withdrawn. Load the page again to check its current status before trying again.';
     }
     case 'pendingSignUp': {
-      return 'The pending sign-up could not be cancelled. Check its current status and try again.';
+      return 'Evorto could not confirm whether the pending sign-up was cancelled. Load the page again to check its current status before trying again.';
     }
     case 'ticket': {
-      return 'The ticket could not be cancelled. Check its current status and try again.';
+      return 'Evorto could not confirm whether the ticket was cancelled. Load the page again to check its current status before trying again.';
     }
     case 'waitlist': {
-      return 'The waitlist place could not be removed. Check its current status and try again.';
+      return 'Evorto could not confirm whether the waitlist place was removed. Load the page again to check its current status before trying again.';
     }
   }
 };

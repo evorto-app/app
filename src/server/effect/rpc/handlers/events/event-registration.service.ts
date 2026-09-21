@@ -38,7 +38,6 @@ import {
   type RegistrationCheckoutLineItemSnapshot,
   type RegistrationCheckoutSnapshot,
   RegistrationCheckoutSnapshotSchema,
-  registrationTransfers,
   tenants,
   tenantStripeTaxRates,
   transactions,
@@ -1710,12 +1709,6 @@ export const ensureCurrentRegistrationSnapshot = Effect.fn(
   }
   return current;
 });
-
-interface RetryRegistrationCheckoutArguments {
-  registrationId: string;
-  tenantId: string;
-  userId: string;
-}
 
 const registrationTaxConfigurationChanged = () =>
   new EventRegistrationConflictError({
@@ -4193,80 +4186,6 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
         });
       });
 
-      const retryRegistrationCheckout = Effect.fn(
-        'EventRegistrationService.retryRegistrationCheckout',
-      )(function* ({
-        registrationId,
-        tenantId,
-        userId,
-      }: RetryRegistrationCheckoutArguments) {
-        const registration = yield* databaseEffect((database) =>
-          database.query.eventRegistrations.findFirst({
-            columns: {
-              eventId: true,
-              id: true,
-            },
-            where: {
-              id: registrationId,
-              status: 'PENDING',
-              tenantId,
-              userId,
-            },
-          }),
-        );
-        if (!registration) {
-          return yield* Effect.fail(
-            new EventRegistrationNotFoundError({
-              message:
-                'This ticket is no longer waiting for payment. No payment was taken. Reopen the ticket and review its current payment status.',
-            }),
-          );
-        }
-
-        const paymentClaims = yield* databaseEffect((database) =>
-          database
-            .select(registrationPaymentClaimSelection)
-            .from(transactions)
-            .leftJoin(
-              registrationTransfers,
-              and(
-                eq(
-                  registrationTransfers.recipientCheckoutTransactionId,
-                  transactions.id,
-                ),
-                eq(registrationTransfers.tenantId, transactions.tenantId),
-              ),
-            )
-            .where(
-              and(
-                eq(transactions.eventRegistrationId, registration.id),
-                eq(transactions.method, 'stripe'),
-                eq(transactions.status, 'pending'),
-                eq(transactions.tenantId, tenantId),
-                eq(transactions.type, 'registration'),
-                isNull(transactions.stripeCheckoutCancellationRequestedAt),
-                isNull(registrationTransfers.id),
-              ),
-            ),
-        );
-        if (paymentClaims.length !== 1) {
-          return yield* Effect.fail(
-            new EventRegistrationConflictError({
-              message:
-                'Payment cannot be started for this ticket. No payment was taken. Reopen the ticket and review its current payment status.',
-            }),
-          );
-        }
-
-        return yield* resumeRegistrationCheckout({
-          allowSessionCreation: false,
-          eventId: registration.eventId,
-          paymentClaim: paymentClaims[0],
-          registrationId: registration.id,
-          tenantId,
-        });
-      });
-
       const joinWaitlist = Effect.fn('EventRegistrationService.joinWaitlist')(
         function* ({
           answers,
@@ -4635,7 +4554,6 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
         approveManualRegistration,
         joinWaitlist,
         registerForEvent,
-        retryRegistrationCheckout,
       } as const;
     }),
   },
@@ -4657,11 +4575,4 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
 
   static readonly registerForEvent = (input: RegisterForEventArguments) =>
     EventRegistrationService.use((service) => service.registerForEvent(input));
-
-  static readonly retryRegistrationCheckout = (
-    input: RetryRegistrationCheckoutArguments,
-  ) =>
-    EventRegistrationService.use((service) =>
-      service.retryRegistrationCheckout(input),
-    );
 }

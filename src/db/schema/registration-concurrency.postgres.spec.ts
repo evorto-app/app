@@ -422,9 +422,6 @@ const makeServiceLayer = (url: string, stripe: Stripe) => {
 type ApprovalInput = Parameters<
   typeof EventRegistrationService.approveManualRegistration
 >[0];
-type RegistrationCheckoutRetryInput = Parameters<
-  typeof EventRegistrationService.retryRegistrationCheckout
->[0];
 type RegistrationInput = Parameters<
   typeof EventRegistrationService.registerForEvent
 >[0];
@@ -450,21 +447,6 @@ const runRegistration = (
 ) =>
   Effect.runPromise(
     EventRegistrationService.registerForEvent(input).pipe(
-      Effect.match({
-        onFailure: (error) => ({ error, status: 'failure' as const }),
-        onSuccess: () => ({ status: 'success' as const }),
-      }),
-      Effect.provide(EventRegistrationService.Default),
-      Effect.provide(serviceLayer),
-    ),
-  );
-
-const runRegistrationCheckoutRetry = (
-  input: RegistrationCheckoutRetryInput,
-  serviceLayer: ReturnType<typeof makeServiceLayer>,
-) =>
-  Effect.runPromise(
-    EventRegistrationService.retryRegistrationCheckout(input).pipe(
       Effect.match({
         onFailure: (error) => ({ error, status: 'failure' as const }),
         onSuccess: () => ({ status: 'success' as const }),
@@ -2322,16 +2304,7 @@ describe('direct paid registration concurrency', () => {
         'Expected one pending registration after failed payment start',
       );
     }
-    expect(
-      await runRegistrationCheckoutRetry(
-        {
-          registrationId: pendingRegistration.id,
-          tenantId: fixture.tenantId,
-          userId: fixture.userId,
-        },
-        serviceLayer,
-      ),
-    ).toMatchObject({
+    expect(await runRegistration(input, serviceLayer)).toMatchObject({
       error: { _tag: 'EventRegistrationConflictError' },
       status: 'failure',
     });

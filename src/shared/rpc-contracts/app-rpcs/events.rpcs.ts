@@ -719,16 +719,6 @@ export const EventsRegisterForEvent = asRpcMutation(
   }),
 );
 
-export const EventsRetryRegistrationCheckout = asRpcMutation(
-  Rpc.make('events.retryRegistrationCheckout', {
-    error: EventsRegisterForEventError,
-    payload: Schema.Struct({
-      registrationId: Schema.NonEmptyString,
-    }),
-    success: Schema.Void,
-  }),
-);
-
 export const EventsJoinWaitlistPayload = Schema.Struct({
   answers: Schema.optional(
     Schema.Array(EventsRegistrationQuestionAnswerInput).check(
@@ -1091,7 +1081,6 @@ export class EventsRpcs extends RpcGroup.make(
   EventsJoinWaitlist,
   EventsPurchaseRegistrationAddon,
   EventsRegisterForEvent,
-  EventsRetryRegistrationCheckout,
   EventsRedeemRegistrationAddon,
   EventsRegistrationScanned,
   EventsReviewEvent,

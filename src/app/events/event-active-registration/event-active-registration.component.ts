@@ -20,6 +20,10 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+import {
+  registrationCancellationFailureMessage,
+  registrationCancellationKind,
+} from '@shared/registration-cancellation';
 import { RegistrationTransfersRpcError } from '@shared/rpc-contracts/app-rpcs/registration-transfers.errors';
 import {
   injectMutation,
@@ -703,9 +707,18 @@ export class EventActiveRegistrationComponent {
   }
 
   protected cancellationErrorMessage(): string {
+    const submitted = this.cancelRegistrationMutation.variables();
+    const recoveryMessage = submitted
+      ? registrationCancellationFailureMessage(
+          registrationCancellationKind({
+            paymentPending: submitted.expectedPaymentPending,
+            status: submitted.expectedStatus,
+          }),
+        )
+      : 'The cancellation outcome could not be confirmed. Load the page again to check the current sign-up status before trying again.';
     return getErrorMessage(
       this.cancelRegistrationMutation.error(),
-      'The cancellation outcome could not be confirmed. Load the page again to check the current sign-up status before trying again.',
+      recoveryMessage,
       ['EventRegistrationConflictError', 'EventRegistrationNotFoundError'],
     );
   }

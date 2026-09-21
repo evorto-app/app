@@ -761,7 +761,6 @@ describe('eventHandlers composition', () => {
       'events.redeemRegistrationAddon',
       'events.registerForEvent',
       'events.registrationScanned',
-      'events.retryRegistrationCheckout',
       'events.reviewEvent',
       'events.submitForReview',
       'events.undoRegistrationAddonRedemption',
