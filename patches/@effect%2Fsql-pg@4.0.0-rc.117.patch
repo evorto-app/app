@@ -1,6 +1,3 @@
-diff --git a/node_modules/@effect/sql-pg/.bun-tag-213129796516bab0 b/.bun-tag-213129796516bab0
-new file mode 100644
-index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
 diff --git a/dist/PgConnection.d.ts b/dist/PgConnection.d.ts
 index a90e1c609154ae8db437e676910833035b510536..0d8d96060948061e1a6839342315ef91ba25e7a7 100644
 --- a/dist/PgConnection.d.ts
