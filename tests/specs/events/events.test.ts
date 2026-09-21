@@ -59,6 +59,13 @@ test.describe('Unavailable event links', () => {
     await expect(
       errorPanel.getByRole('heading', { exact: true, name: 'Event not found' }),
     ).toBeVisible();
+    await expect(
+      page.getByRole('heading', {
+        exact: true,
+        level: 1,
+        name: 'Event not found',
+      }),
+    ).toBeVisible();
     await expect(errorPanel).toContainText(
       'This event could not be found or is not available to you.',
     );

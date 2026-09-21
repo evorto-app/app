@@ -1052,10 +1052,14 @@ describe('EventDetailsComponent load recovery', () => {
       registrations: [],
     });
     const fixture = render();
+    const root: HTMLElement = fixture.nativeElement;
 
     await vi.waitFor(() => {
       fixture.detectChanges();
       const text = normalizeText(fixture);
+      expect(root.querySelector('h1')?.textContent?.trim()).toBe(
+        'Event not found',
+      );
       expect(text).toContain('Event not found');
       expect(text).toContain(
         'This event could not be found or is not available to you.',
@@ -1083,9 +1087,13 @@ describe('EventDetailsComponent load recovery', () => {
     });
 
     const fixture = render();
+    const root: HTMLElement = fixture.nativeElement;
 
     await vi.waitFor(() => {
       fixture.detectChanges();
+      expect(root.querySelector('h1')?.textContent?.trim()).toBe(
+        'Event unavailable',
+      );
       expect(normalizeText(fixture)).toContain('Event could not be loaded');
     });
     const alert: HTMLElement | null =
@@ -1158,7 +1166,9 @@ describe('EventDetailsComponent load recovery', () => {
       expect(
         queryClient.getQueryState(['pending-event-reviews'])?.isInvalidated,
       ).toBe(true);
-      expect(normalizeText(fixture)).toContain('Event unavailable');
+      expect(root.querySelector('h1')?.textContent?.trim()).toBe(
+        'Event not found',
+      );
       expect(normalizeText(fixture)).toContain('Event not found');
       expect(normalizeText(fixture)).not.toContain('Check your connection');
       expect(normalizeText(fixture)).not.toContain('Recovery workshop');

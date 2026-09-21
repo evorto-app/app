@@ -43,6 +43,8 @@
           {{ eventQuery.data().title }}
         } @else if (eventQuery.isPending()) {
           Loading event…
+        } @else if (eventLoadErrorTag() === "EventNotFoundError") {
+          Event not found
         } @else {
           Event unavailable
         }
