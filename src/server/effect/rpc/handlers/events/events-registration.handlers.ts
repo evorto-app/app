@@ -1965,7 +1965,7 @@ export const cancelRegistrationForTenant = Effect.fn(
                   ]),
                 );
             }
-            // eslint-disable-next-line unicorn/prefer-set-methods -- the project TypeScript lib intentionally remains below ES2025
+
             const noMonetaryRefundEventIds = [...cancellationEventIds].filter(
               (eventId) => !monetaryCancellationEventIds.has(eventId),
             );
