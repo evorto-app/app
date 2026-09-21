@@ -113,6 +113,12 @@ describe('filterGlobalAdminTenants', () => {
       tenant,
     ]);
     expect(
+      filterGlobalAdminTenants([tenant, secondTenant], ' Europe/Berlin '),
+    ).toEqual([tenant]);
+    expect(
+      filterGlobalAdminTenants([tenant, secondTenant], 'australia/brisbane'),
+    ).toEqual([secondTenant]);
+    expect(
       filterGlobalAdminTenants([tenant, secondTenant], 'need attention'),
     ).toEqual([secondTenant]);
     expect(

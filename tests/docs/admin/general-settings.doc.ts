@@ -133,6 +133,15 @@ Changes apply to the organization currently shown in Evorto. They do not change 
       .getByRole('button', { name: 'Save organization settings' })
       .click();
     await expect(page.getByText('Organization settings updated')).toBeVisible();
+    await expect(settings.getByPlaceholder('Example Section')).toHaveValue(
+      documentedEmailSenderName,
+    );
+    await expect(
+      settings.getByPlaceholder('events@section.example.org'),
+    ).toHaveValue(documentedEmailSenderEmail);
+    await expect(
+      settings.getByRole('button', { name: 'Save organization settings' }),
+    ).toBeEnabled();
   });
 
   await test.step('Save sign-up rules', async () => {

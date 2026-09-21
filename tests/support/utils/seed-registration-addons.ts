@@ -16,12 +16,14 @@ export const seedFreeRegistrationAddon = async ({
   addonId,
   database,
   eventId,
+  includedQuantity = 0,
   registrationOptionId,
   title = 'Snack voucher',
 }: {
   addonId: string;
   database: TestDatabase;
   eventId: string;
+  includedQuantity?: number;
   registrationOptionId: string;
   title?: string;
 }) => {
@@ -44,8 +46,8 @@ export const seedFreeRegistrationAddon = async ({
   await database.insert(schema.addonToEventRegistrationOptions).values({
     addonId,
     eventId,
-    includedQuantity: 0,
-    optionalPurchaseQuantity: 3,
+    includedQuantity,
+    optionalPurchaseQuantity: 3 - includedQuantity,
     registrationOptionId,
   });
 };

@@ -60,7 +60,7 @@ describe('Scaleway hosting source', () => {
   const digestHash = 'a'.repeat(64);
 
   it.each([
-    { name: 'current accepted revision', expected: [0, 0] },
+    { name: 'current accepted revision', expected: [0, 0, 0] },
     {
       name: 'non-main dispatch',
       workflowRef: 'refs/heads/release',
@@ -84,61 +84,85 @@ describe('Scaleway hosting source', () => {
       expected: [0, 1],
     },
     { name: 'failed final main read', failSecond: true, expected: [0, 1] },
-  ])('checks both production revision snapshots: $name', (scenario) => {
-    const context = {
-      workflowRef: 'refs/heads/main',
-      workflowRevision: revision,
-      firstMain: revision,
-      secondMain: revision,
-      selectedRevision: revision,
-      failFirst: false,
-      failSecond: false,
-      ...scenario,
-    };
-    const workflow = source('.github/workflows/scaleway-production.yml');
-    const firstStep = between(
-      workflow,
-      '- name: Require the current main production workflow',
-      '- name: Fetch and validate the accepted staging manifest',
-    );
-    const finalStep = between(
-      workflow,
-      '- name: Recheck current main before production writes',
-      '- name: Reconcile production role-scoped Secret Manager values',
-    );
-    const writeGuard = workflow.indexOf(
-      '- name: Recheck current main before production writes',
-    );
-    expect(writeGuard).toBeGreaterThan(
-      workflow.indexOf(
-        '- name: Verify production infrastructure has no pending changes',
-      ),
-    );
-    for (const mutation of [
-      '- name: Reconcile production role-scoped Secret Manager values',
-      '- name: Deploy production ops and apply only a stable safe schema plan',
-      '- name: Deploy production worker and web at the accepted digest',
-    ])
-      expect(writeGuard).toBeLessThan(workflow.indexOf(mutation));
-    const runBody = (step: string) => {
-      const marker = '        run: |\n';
-      const offset = step.indexOf(marker);
-      if (offset < 0) throw new Error('Missing actual production guard script');
-      return step
-        .slice(offset + marker.length)
-        .split('\n')
-        .map((line) => (line.startsWith('          ') ? line.slice(10) : line))
-        .join('\n');
-    };
-    const directory = mkdtempSync(
-      path.join(tmpdir(), 'evorto-production-forward-'),
-    );
-    const output = path.join(directory, 'output');
-    const calls = path.join(directory, 'gh-calls');
-    try {
-      writeFileSync(
-        path.join(directory, 'gh'),
-        String.raw`#!/usr/bin/env bash
+    {
+      name: 'main advances during secret synchronization or evidence copy',
+      thirdMain: 'b'.repeat(40),
+      expected: [0, 0, 1],
+    },
+    {
+      name: 'failed main read immediately before ops deployment',
+      failThird: true,
+      expected: [0, 0, 1],
+    },
+  ])(
+    'checks production revision snapshots through ops deployment: $name',
+    (scenario) => {
+      const context = {
+        workflowRef: 'refs/heads/main',
+        workflowRevision: revision,
+        firstMain: revision,
+        secondMain: revision,
+        thirdMain: revision,
+        selectedRevision: revision,
+        failFirst: false,
+        failSecond: false,
+        failThird: false,
+        ...scenario,
+      };
+      const workflow = source('.github/workflows/scaleway-production.yml');
+      const firstStep = between(
+        workflow,
+        '- name: Require the current main production workflow',
+        '- name: Fetch and validate the accepted staging manifest',
+      );
+      const finalStep = between(
+        workflow,
+        '- name: Recheck current main before production writes',
+        '- name: Reconcile production role-scoped Secret Manager values',
+      );
+      const opsGuard = between(
+        workflow,
+        '- name: Deploy production ops and apply only a stable safe schema plan',
+        '          ops/scaleway/deploy-role.sh',
+      );
+      expect(opsGuard.trim().endsWith('fi')).toBe(true);
+      expect(opsGuard).toContain('GH_TOKEN: ${{ github.token }}');
+      const writeGuard = workflow.indexOf(
+        '- name: Recheck current main before production writes',
+      );
+      expect(writeGuard).toBeGreaterThan(
+        workflow.indexOf(
+          '- name: Verify production infrastructure has no pending changes',
+        ),
+      );
+      for (const mutation of [
+        '- name: Reconcile production role-scoped Secret Manager values',
+        '- name: Deploy production ops and apply only a stable safe schema plan',
+        '- name: Deploy production worker and web at the accepted digest',
+      ])
+        expect(writeGuard).toBeLessThan(workflow.indexOf(mutation));
+      const runBody = (step: string) => {
+        const marker = '        run: |\n';
+        const offset = step.indexOf(marker);
+        if (offset < 0)
+          throw new Error('Missing actual production guard script');
+        return step
+          .slice(offset + marker.length)
+          .split('\n')
+          .map((line) =>
+            line.startsWith('          ') ? line.slice(10) : line,
+          )
+          .join('\n');
+      };
+      const directory = mkdtempSync(
+        path.join(tmpdir(), 'evorto-production-forward-'),
+      );
+      const output = path.join(directory, 'output');
+      const calls = path.join(directory, 'gh-calls');
+      try {
+        writeFileSync(
+          path.join(directory, 'gh'),
+          String.raw`#!/usr/bin/env bash
 set -euo pipefail
 printf '%s\n' "$*" >> "$FAKE_GH_LOG"
 if [ "$*" != 'api repos/evorto-app/app/commits/main --jq .sha' ]; then
@@ -151,63 +175,74 @@ if [ "$FAKE_GH_FAILURE" = 'true' ]; then
 fi
 printf '%s\n' "$FAKE_MAIN_REVISION"
 `,
-        { mode: 0o700 },
-      );
-      const invoke = (step: string, currentMain: string, fail: boolean) =>
-        spawnSync(
-          'bash',
-          [
-            '--noprofile',
-            '--norc',
-            '-e',
-            '-o',
-            'pipefail',
-            '-c',
-            runBody(step) + '\nprintf "guard-passed\\n"',
-          ],
-          {
-            encoding: 'utf8',
-            timeout: 2000,
-            env: {
-              PATH: `${directory}:${process.env['PATH'] ?? ''}`,
-              GH_TOKEN: 'test-token',
-              GITHUB_REPOSITORY: 'evorto-app/app',
-              GITHUB_REF: context.workflowRef,
-              GITHUB_SHA: context.workflowRevision,
-              GITHUB_OUTPUT: output,
-              REVISION: context.selectedRevision,
-              FAKE_MAIN_REVISION: currentMain,
-              FAKE_GH_LOG: calls,
-              FAKE_GH_FAILURE: String(fail),
-            },
-          },
+          { mode: 0o700 },
         );
-      const first = invoke(firstStep, context.firstMain, context.failFirst);
-      expect(first.error).toBeUndefined();
-      expect(first.signal).toBeNull();
-      expect(first.status).toBe(context.expected[0]);
-      if (first.status !== 0) {
-        expect(first.stdout).not.toContain('guard-passed');
-        expect(existsSync(output)).toBe(false);
-        if (context.workflowRef !== 'refs/heads/main')
-          expect(existsSync(calls)).toBe(false);
-        return;
+        const invoke = (step: string, currentMain: string, fail: boolean) =>
+          spawnSync(
+            'bash',
+            [
+              '--noprofile',
+              '--norc',
+              '-e',
+              '-o',
+              'pipefail',
+              '-c',
+              runBody(step) + '\nprintf "guard-passed\\n"',
+            ],
+            {
+              encoding: 'utf8',
+              timeout: 2000,
+              env: {
+                PATH: `${directory}:${process.env['PATH'] ?? ''}`,
+                GH_TOKEN: 'test-token',
+                GITHUB_REPOSITORY: 'evorto-app/app',
+                GITHUB_REF: context.workflowRef,
+                GITHUB_SHA: context.workflowRevision,
+                GITHUB_OUTPUT: output,
+                REVISION: context.selectedRevision,
+                FAKE_MAIN_REVISION: currentMain,
+                FAKE_GH_LOG: calls,
+                FAKE_GH_FAILURE: String(fail),
+              },
+            },
+          );
+        const first = invoke(firstStep, context.firstMain, context.failFirst);
+        expect(first.error).toBeUndefined();
+        expect(first.signal).toBeNull();
+        expect(first.status).toBe(context.expected[0]);
+        if (first.status !== 0) {
+          expect(first.stdout).not.toContain('guard-passed');
+          expect(existsSync(output)).toBe(false);
+          if (context.workflowRef !== 'refs/heads/main')
+            expect(existsSync(calls)).toBe(false);
+          return;
+        }
+        expect(readFileSync(output, 'utf8')).toBe(`revision=${revision}\n`);
+        const final = invoke(finalStep, context.secondMain, context.failSecond);
+        expect(final.error).toBeUndefined();
+        expect(final.signal).toBeNull();
+        expect(final.status).toBe(context.expected[1]);
+        if (final.status === 0) expect(final.stdout).toBe('guard-passed\n');
+        else expect(final.stdout).not.toContain('guard-passed');
+        if (final.status === 0) {
+          const ops = invoke(opsGuard, context.thirdMain, context.failThird);
+          expect(ops.error).toBeUndefined();
+          expect(ops.signal).toBeNull();
+          expect(ops.status).toBe(context.expected[2]);
+          if (ops.status === 0) expect(ops.stdout).toBe('guard-passed\n');
+          else expect(ops.stdout).not.toContain('guard-passed');
+        }
+        expect(readFileSync(calls, 'utf8').trim().split('\n')).toEqual(
+          Array.from(
+            { length: final.status === 0 ? 3 : 2 },
+            () => 'api repos/evorto-app/app/commits/main --jq .sha',
+          ),
+        );
+      } finally {
+        rmSync(directory, { force: true, recursive: true });
       }
-      expect(readFileSync(output, 'utf8')).toBe(`revision=${revision}\n`);
-      const final = invoke(finalStep, context.secondMain, context.failSecond);
-      expect(final.error).toBeUndefined();
-      expect(final.signal).toBeNull();
-      expect(final.status).toBe(context.expected[1]);
-      if (final.status === 0) expect(final.stdout).toBe('guard-passed\n');
-      else expect(final.stdout).not.toContain('guard-passed');
-      expect(readFileSync(calls, 'utf8').trim().split('\n')).toEqual([
-        'api repos/evorto-app/app/commits/main --jq .sha',
-        'api repos/evorto-app/app/commits/main --jq .sha',
-      ]);
-    } finally {
-      rmSync(directory, { force: true, recursive: true });
-    }
-  });
+    },
+  );
 
   it.each([
     {

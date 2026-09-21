@@ -466,7 +466,7 @@ The same **Events** list is used on a small screen. Selecting a card opens the e
     body: `
 ## Browse before signing in
 
-Before signing in, visitors may see published events that are open to new members. Open an event to read its start and end dates, times, and location above the description. Dates and times follow the organization’s timezone, which is named beside the schedule. The page shows only public event details and asks the visitor to sign in before signing up. A shared link to another published event still opens its public details, while sign-up choices remain hidden until the visitor signs in. Announcements do not appear before sign-in, but their public details still open from a shared link.
+Before signing in, visitors may see published events that are open to new members. Open an event to read its start and end dates, times, and location above the description. Dates and times follow the organization’s timezone, which is named beside the schedule. The page shows public event details and may show sign-up choices open to everyone or to new members. These choices ask visitors to sign in before signing up. Choices restricted to other roles remain hidden. A shared link to another published event still opens its public details and explains when signing in is needed to see more choices. Announcements do not appear before sign-in, but their public details still open from a shared link.
 `,
   });
   await page.goto(`/events/${ineligibleEventId}`);

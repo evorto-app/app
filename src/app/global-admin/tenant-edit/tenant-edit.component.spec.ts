@@ -149,6 +149,34 @@ describe('platform tenant stale-edit recovery', () => {
     );
   };
 
+  it('shows and preserves a saved time zone outside the standard choices', async () => {
+    initialTenant = { ...initialTenant, timezone: 'America/New_York' };
+    loadTenant.mockResolvedValue(initialTenant);
+    save.mockResolvedValue(initialTenant);
+    const rendered = await render();
+    const root: unknown = rendered.nativeElement;
+    if (!(root instanceof HTMLElement)) throw new Error('Expected tenant form');
+    const field = [...root.querySelectorAll('mat-form-field')].find(
+      (element) =>
+        element.querySelector('mat-label')?.textContent?.trim() === 'Time zone',
+    );
+    await vi.waitFor(() => {
+      rendered.detectChanges();
+      expect(field?.querySelector('mat-select')?.textContent).toContain(
+        'New York time',
+      );
+    });
+    const { form, reason } = editForm(rendered);
+    enter(reason, 'Verify existing settings');
+    submitForm(form);
+    await vi.waitFor(() => expect(save).toHaveBeenCalledOnce());
+    expect(save.mock.calls[0]?.[0]).toMatchObject({
+      expectedSettings: platformTenantSettingsSnapshot(initialTenant),
+      tenant: { timezone: 'America/New_York' },
+    });
+    await rendered.whenStable();
+  });
+
   it('keeps Save disabled through both refreshes and navigation, then advances the next save snapshot', async () => {
     const saved = { ...initialTenant, name: 'Saved organization' };
     const mutation = hold(saved);

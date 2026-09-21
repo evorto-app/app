@@ -356,6 +356,7 @@ jobs:
 
       - name: Deploy production ops and apply only a stable safe schema plan
         env:
+          GH_TOKEN: ${{ github.token }}
           DIGEST: ${{ steps.image.outputs.digest }}
           IMAGE_REFERENCE: ${{ steps.image.outputs.reference }}
           REVISION: ${{ steps.staging.outputs.revision }}
@@ -363,6 +364,11 @@ jobs:
           SCW_ACCESS_KEY: ${{ secrets.SCW_ACCESS_KEY }}
           SCW_SECRET_KEY: ${{ secrets.SCW_SECRET_KEY }}
         run: |
+          current_revision="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
+          if [ "${REVISION}" != "${GITHUB_SHA}" ] || [ "${REVISION}" != "${current_revision}" ]; then
+            echo "::error::Main changed during deployment preparation. Accept the current revision in staging and start a new promotion."
+            exit 1
+          fi
           ops/scaleway/deploy-role.sh \
             deployment/platform.json ops \
             "${IMAGE_REFERENCE}" "${REVISION}" "${DIGEST}" "${SCHEMA_HASH}"

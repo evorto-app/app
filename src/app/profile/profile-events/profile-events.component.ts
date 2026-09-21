@@ -38,6 +38,17 @@ export const profileEventGuestLabel = (guestCount: number): null | string => {
     : `Includes ${guestCount} guests`;
 };
 
+export const profileEventAddonIncludedLabel = (addOnPurchase: {
+  purchasedQuantity: number;
+  quantity: number;
+}): null | string => {
+  const included = addOnPurchase.quantity - addOnPurchase.purchasedQuantity;
+  if (included <= 0) return null;
+  return addOnPurchase.purchasedQuantity > 0
+    ? `${included} included, ${addOnPurchase.purchasedQuantity} added`
+    : `${included} included`;
+};
+
 export const profileEventAddonPaidAmount = (addOnPurchase: {
   purchasedQuantity: number;
   unitPrice: number;
@@ -257,6 +268,8 @@ export const registrationRefundSourceLabel = (
 export class ProfileEventsComponent {
   protected readonly faCalendarDays = faCalendarDays;
   protected readonly profileEventActionNote = profileEventActionNote;
+  protected readonly profileEventAddonIncludedLabel =
+    profileEventAddonIncludedLabel;
   protected readonly profileEventAddonPaidAmount = profileEventAddonPaidAmount;
   protected readonly profileEventAudienceLabel = profileEventAudienceLabel;
   protected readonly profileEventContinuePaymentUrl =

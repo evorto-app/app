@@ -40,8 +40,9 @@ test('profile event cards show implemented registration actions', async ({
       confirmedCard.getByText('Confirmed', { exact: true }),
     ).toBeVisible();
     await expect(confirmedCard.getByText('Includes 1 guest')).toBeVisible();
+    await expect(confirmedCard).toContainText('1 included, 2 added');
     await expect(
-      confirmedCard.getByText(`2 x ${profileEventCards.confirmed.addOnTitle}`),
+      confirmedCard.getByText(`3 x ${profileEventCards.confirmed.addOnTitle}`),
     ).toBeVisible();
     await expect(
       confirmedCard.getByText('Available on the event page.'),
@@ -144,7 +145,7 @@ test('profile event cards show implemented registration actions', async ({
     expect(confirmedAddonPurchase).toEqual(
       expect.objectContaining({
         addonId: profileEventCards.confirmed.addonId,
-        quantity: 2,
+        quantity: 3,
       }),
     );
 

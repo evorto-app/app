@@ -7,6 +7,7 @@ const searchableTenantFields = (tenant: GlobalAdminTenantRecord): string[] => [
   tenant.domain,
   tenant.name,
   tenant.theme,
+  tenant.timezone,
   tenantTimezoneLabel(tenant.timezone),
   tenant.paymentsConfigured
     ? 'paid sign-ups ready'
