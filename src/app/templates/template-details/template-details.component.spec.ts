@@ -11,8 +11,6 @@ import {
   provideTanStackQuery,
   QueryClient,
 } from '@tanstack/angular-query-experimental';
-import { readFileSync } from 'node:fs';
-import nodePath from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { APP_RPC_CLIENT } from '../../core/effect-rpc-angular-client';
@@ -62,19 +60,6 @@ const createTemplate = (): TemplateFindOneRecord => ({
 });
 
 describe('template detail add-on helpers', () => {
-  it('uses sign-up wording in the template overview', () => {
-    const template = readFileSync(
-      nodePath.join(
-        process.cwd(),
-        'src/app/templates/template-details/template-details.component.html',
-      ),
-      'utf8',
-    );
-
-    expect(template).toContain('Sign-up questions');
-    expect(template).not.toContain('Registration questions');
-  });
-
   it('shows registration-time purchase timing only', () => {
     expect(
       templateAddonPurchaseTiming({
@@ -159,7 +144,7 @@ describe('template detail add-on helpers', () => {
   });
 });
 
-describe('template detail error state', () => {
+describe('template detail query states', () => {
   const loadTemplate = vi.fn();
   let queryClient: QueryClient;
 
@@ -205,6 +190,52 @@ describe('template detail error state', () => {
   afterEach(() => {
     queryClient.clear();
     TestBed.resetTestingModule();
+  });
+
+  it('shows the sign-up questions heading when the loaded template has a question', async () => {
+    const template: TemplateFindOneRecord = {
+      ...createTemplate(),
+      questions: [
+        {
+          description: null,
+          id: 'question-1',
+          registrationOptionId: 'template-option-1',
+          required: true,
+          sortOrder: 0,
+          title: 'Do you have any dietary requirements?',
+        },
+      ],
+    };
+    loadTemplate.mockResolvedValueOnce(template);
+    const fixture = TestBed.createComponent(TemplateDetailsComponent);
+    fixture.componentRef.setInput('templateId', template.id);
+    fixture.detectChanges();
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      const root: unknown = fixture.nativeElement;
+      if (!(root instanceof HTMLElement))
+        throw new Error('Expected the template detail root');
+      expect(root.isConnected).toBe(true);
+      const heading = [...root.querySelectorAll('h3')].find(
+        (element) => element.textContent?.trim() === 'Sign-up questions',
+      );
+      if (!heading) throw new Error('Expected the sign-up questions heading');
+      for (
+        let element: HTMLElement | null = heading;
+        element;
+        element = element.parentElement
+      ) {
+        const style = getComputedStyle(element);
+        expect(element.hidden).toBe(false);
+        expect(element.getAttribute('aria-hidden')).not.toBe('true');
+        expect(style.display).not.toBe('none');
+        expect(['hidden', 'collapse']).not.toContain(style.visibility);
+        expect(style.opacity).not.toBe('0');
+      }
+      expect(heading.parentElement?.textContent).toContain(
+        'Do you have any dietary requirements?',
+      );
+    });
   });
 
   it.each([

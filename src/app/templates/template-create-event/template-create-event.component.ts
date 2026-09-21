@@ -91,7 +91,7 @@ export const templateCreateEventSubmitDisabled = ({
 
 export const templateAddOnCopyNotice = (addOnCount: number): null | string =>
   addOnCount > 0
-    ? `This template includes ${addOnCount} add-on${addOnCount === 1 ? '' : 's'}. They will be available when people sign up for the new event.`
+    ? `This template includes ${addOnCount} add-on${addOnCount === 1 ? '' : 's'}.`
     : null;
 
 export const templateCreateEventErrorMessage = (error: unknown): string =>

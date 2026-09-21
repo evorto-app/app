@@ -108,14 +108,11 @@ describe('templateAddOnCopyNotice', () => {
     expect(templateAddOnCopyNotice(0)).toBeNull();
   });
 
-  it('keeps the create-event add-on boundary explicit', () => {
-    expect(templateAddOnCopyNotice(1)).toContain(
-      'This template includes 1 add-on.',
+  it('counts included add-ons without promising purchase availability', () => {
+    expect(templateAddOnCopyNotice(1)).toBe('This template includes 1 add-on.');
+    expect(templateAddOnCopyNotice(2)).toBe(
+      'This template includes 2 add-ons.',
     );
-    expect(templateAddOnCopyNotice(2)).toContain(
-      'They will be available when people sign up for the new event.',
-    );
-    expect(templateAddOnCopyNotice(2)).toContain('sign up for the new event');
   });
 });
 
