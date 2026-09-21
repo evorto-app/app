@@ -1039,6 +1039,39 @@ describe('EventDetailsComponent load recovery', () => {
     expect(findEvent).toHaveBeenCalledTimes(1);
   });
 
+  it('offers event-list navigation for an unavailable event without suggesting a connection retry', async () => {
+    findEvent.mockRejectedValue(
+      new EventNotFoundError({
+        id: 'event-1',
+        message: 'Internal event lookup details must not be shown',
+      }),
+    );
+    findRegistrationStatus.mockResolvedValue({
+      isRegistered: false,
+      outgoingTransfers: [],
+      registrations: [],
+    });
+    const fixture = render();
+
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      const text = normalizeText(fixture);
+      expect(text).toContain('Event not found');
+      expect(text).toContain(
+        'This event could not be found or is not available to you.',
+      );
+      expect(text).not.toContain('Check your connection');
+      expect(text).not.toContain('Internal event lookup details');
+    });
+    const alert: HTMLElement | null =
+      fixture.nativeElement.querySelector('[role="alert"]');
+    const backLink = alert?.querySelector('a');
+    expect(backLink?.textContent?.trim()).toBe('Back to events');
+    expect(backLink?.getAttribute('href')).toBe('/events');
+    expect(alert?.querySelector('button')).toBeNull();
+    expect(findEvent).toHaveBeenCalledTimes(1);
+  });
+
   it('retries a failed event load and recovers the event details', async () => {
     findEvent
       .mockRejectedValueOnce(new Error('Event unavailable'))
@@ -1126,7 +1159,8 @@ describe('EventDetailsComponent load recovery', () => {
         queryClient.getQueryState(['pending-event-reviews'])?.isInvalidated,
       ).toBe(true);
       expect(normalizeText(fixture)).toContain('Event unavailable');
-      expect(normalizeText(fixture)).toContain('Event could not be loaded');
+      expect(normalizeText(fixture)).toContain('Event not found');
+      expect(normalizeText(fixture)).not.toContain('Check your connection');
       expect(normalizeText(fixture)).not.toContain('Recovery workshop');
       expect(
         [...root.querySelectorAll('button')].some(

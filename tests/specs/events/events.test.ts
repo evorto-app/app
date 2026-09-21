@@ -1,3 +1,4 @@
+import { getId } from '../../../helpers/get-id';
 import { organizerStateFile } from '../../../helpers/user-data';
 import type { Locator, Page } from '@playwright/test';
 import { DateTime } from 'luxon';
@@ -44,6 +45,47 @@ const eventOptionEditorByTitle = async (
 
   return editors.nth(matchingIndex);
 };
+
+test.describe('Unavailable event links', () => {
+  test.use({ storageState: { cookies: [], origins: [] } });
+
+  test('offers an accessible route back to events for a missing event', async ({
+    makeAxeBuilder,
+    page,
+  }) => {
+    await page.goto(`/events/${getId()}`);
+
+    const errorPanel = page.locator('app-event-details [role="alert"]');
+    await expect(
+      errorPanel.getByRole('heading', { exact: true, name: 'Event not found' }),
+    ).toBeVisible();
+    await expect(errorPanel).toContainText(
+      'This event could not be found or is not available to you.',
+    );
+    await expect(errorPanel).not.toContainText('Check your connection');
+    await expect(
+      errorPanel.getByRole('button', { name: 'Try again' }),
+    ).toHaveCount(0);
+
+    const backLink = errorPanel.getByRole('link', {
+      exact: true,
+      name: 'Back to events',
+    });
+    await expect(backLink).toHaveAttribute('href', '/events');
+    const accessibilityScan = await makeAxeBuilder()
+      .include('app-event-details [role="alert"]')
+      .analyze();
+    expect(accessibilityScan.violations).toEqual([]);
+
+    await backLink.focus();
+    await expect(backLink).toBeFocused();
+    await backLink.press('Enter');
+    await expect(page).toHaveURL(/\/events$/);
+    await expect(
+      page.getByRole('heading', { exact: true, level: 1, name: 'Events' }),
+    ).toBeVisible();
+  });
+});
 
 test('event list icon actions are named and keyboard operable', async ({
   makeAxeBuilder,

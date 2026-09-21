@@ -2,7 +2,7 @@
 
 Scope: Current Playwright tests and documentation journeys.
 
-Updated: 2026-09-17
+Updated: 2026-09-21
 
 ## How to Use This Inventory
 
@@ -24,6 +24,11 @@ or inventory.
 Browser/manual exploration is still the right discovery tool for flows that are
 being stabilized. Once a flow decision is confirmed, persist the learning here
 by adding or tightening a spec/doc journey instead of leaving only manual notes.
+
+Event-detail recovery distinguishes missing or inaccessible events from
+temporary loading failures. The functional suite checks the anonymous missing
+event message, error-panel accessibility, and keyboard navigation back to Events;
+component regressions retain retry recovery for temporary failures.
 
 ## Active Files
 
