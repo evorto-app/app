@@ -117,7 +117,7 @@ silently disappear behind a stale hand-maintained file list.
 | Suite   | Files | Top-level categories                                                                                                                                                                  |
 | ------- | ----: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `docs`  |    29 | `admin`, `events`, `finance`, `profile`, `roles`, `scanning`, `template-categories`, `templates`, `users`                                                                             |
-| `specs` |    47 | `admin`, `auth`, `discounts`, `events`, `finance`, `permissions`, `profile`, `reporting`, `resilience`, `scanning`, `screenshot`, `seed`, `smoke`, `template-categories`, `templates` |
+| `specs` |    48 | `admin`, `auth`, `discounts`, `events`, `finance`, `permissions`, `profile`, `reporting`, `resilience`, `scanning`, `screenshot`, `seed`, `smoke`, `template-categories`, `templates` |
 
 ## Suite Ownership
 
