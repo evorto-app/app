@@ -503,6 +503,9 @@ Return to **Admin Tools** → **Members**, search for the member, and select the
         name: 'Members Hub',
       });
       await expect(membersHubLink).toBeVisible();
+      await expect(memberSession.page.locator('[ngh]')).toHaveCount(0, {
+        timeout: 20_000,
+      });
       await membersHubLink.click();
       await expect(memberSession.page).toHaveURL(/\/internal\/members-hub$/u);
       await expect(

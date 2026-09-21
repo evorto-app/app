@@ -119,10 +119,10 @@ test('a tenant admin publishes a version and is immediately required to re-accep
       name: 'New member setup',
     }),
   ).toBeVisible();
+  await expect(settings).not.toHaveAttribute('ngh', /.*/);
   await expect(settings.getByRole('note')).toContainText(
     'When you publish a policy change, every member, including you, must accept it before continuing in this organization.',
   );
-  await expect(settings).not.toHaveAttribute('ngh', /.*/);
   const privacyPolicyText = settings.getByRole('textbox', {
     name: 'Privacy policy text',
   });
