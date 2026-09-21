@@ -64,7 +64,7 @@ test.describe('Template Tax Rate Validation', () => {
       title: `Paid tax required ${getId().slice(0, 6)}`,
     });
 
-    const saveButton = page.getByRole('button', { name: 'Save template' });
+    const saveButton = page.getByTestId('save-template-graph');
     await expect(
       page.getByLabel('Tax included in the shown price'),
     ).toHaveCount(0);
@@ -136,7 +136,7 @@ test.describe('Template Tax Rate Validation', () => {
     ).toBeVisible();
     await page.getByRole('option', { exact: true, name: taxRateLabel }).click();
 
-    const saveButton = page.getByRole('button', { name: 'Save template' });
+    const saveButton = page.getByTestId('save-template-graph');
     await expect(saveButton).toBeEnabled();
     await saveButton.click();
     await expect(page).toHaveURL(/\/templates\/(?!create(?:\/|$))[^/]+$/, {
