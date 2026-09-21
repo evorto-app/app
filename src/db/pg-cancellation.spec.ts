@@ -476,6 +476,59 @@ describe('native PostgreSQL cancellation ownership', () => {
       ),
     ));
 
+  for (const ordering of ['target-first', 'control-first'] as const) {
+    it(`retires the target once when socket failure races cancellation: ${ordering}`, () =>
+      run(
+        withFixture((fixture) =>
+          Effect.gen(function* () {
+            const sql = yield* makeClient(fixture);
+            const query = yield* Effect.forkChild(
+              sql.unsafe('SELECT original'),
+            );
+            yield* fixture.waitForQuery('SELECT original');
+            const target = fixture.sessions[0];
+            if (!target) throw new Error('Expected the active target session');
+            const closed = Deferred.makeUnsafe<undefined>();
+            let closeCount = 0;
+            target.socket.on('close', () => {
+              closeCount += 1;
+              Deferred.doneUnsafe(closed, Effect.succeed(undefined));
+            });
+            const interruption = yield* Effect.forkChild(
+              Fiber.interrupt(query),
+            );
+            yield* fixture.cancellationStarted;
+            const failTarget = () => {
+              target.socket.destroy(
+                new Error('Target connection failed during cancellation'),
+              );
+            };
+            // Both terminal events are queued in the same turn. Do not add an
+            // error listener here: the native connection must handle its error.
+            if (ordering === 'target-first') {
+              failTarget();
+              fixture.acknowledgeCancel();
+            } else {
+              fixture.acknowledgeCancel();
+              failTarget();
+            }
+            yield* Fiber.join(interruption);
+            yield* Deferred.await(closed);
+            yield* successor(fixture, sql);
+            expect(closeCount).toBe(1);
+            expect(fixture.controls).toHaveLength(1);
+            expect(fixture.controls[0]?.socket.destroyed).toBe(true);
+            expect(fixture.sessions).toHaveLength(2);
+            expect(fixture.queries.map((entry) => entry.text)).toEqual([
+              'SELECT original',
+              'SELECT successor',
+            ]);
+            expect(fixture.queries.at(-1)?.backend).not.toBe(target.backend);
+          }),
+        ),
+      ));
+  }
+
   it(
     'bounds cancellation cleanup when the control connection never closes',
     { timeout: 15_000 },
