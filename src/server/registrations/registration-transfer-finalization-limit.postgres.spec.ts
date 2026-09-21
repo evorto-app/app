@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from '@effect/vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from '@effect/vitest';
 import { and, eq, sql } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { Cause, ConfigProvider, Effect, Exit, Layer } from 'effect';
@@ -31,7 +31,17 @@ import {
 } from '../../db/schema';
 import { RegistrationTransferConflictError } from '../../shared/rpc-contracts/app-rpcs/registration-transfers.errors';
 import { EventRegistrationService } from '../effect/rpc/handlers/events/event-registration.service';
+import { createRegistrationRefundClaim } from '../payments/registration-refund';
 import { StripeClient } from '../stripe-client';
+import {
+  createRejectingStripeClient,
+  stripeBalanceTransactionResponse,
+  stripeChargeResponse,
+  stripeCheckoutSessionResponse,
+  stripePaymentIntentResponse,
+} from '../testing/stripe-test-fixtures';
+import { completePaidRegistrationCheckout } from './registration-checkout-completion';
+import { registrationEligibilityCompensationRefundOperationKey } from './registration-eligibility';
 import {
   createRegistrationTransferClaimCode,
   hashRegistrationTransferClaimCode,
@@ -897,6 +907,132 @@ describe('registration transfer finalization tenant limit', () => {
       recordFailure(failures, error);
     }
     throwCleanupFailures(failures);
+  });
+
+  it('replays a cancelled paid transfer with its existing full compensation claim', async () => {
+    const fixture = await seedTransferLimitFixture(database);
+    fixtures.push(fixture);
+    const candidate = fixture.candidates[0];
+    if (!candidate) throw new Error('Expected transfer candidate');
+    const sessionId = `cs_${candidate.transactionId}`;
+    const chargeId = `ch_${candidate.transactionId}`;
+    const paymentIntentId = `pi_${candidate.transactionId}`;
+    await database
+      .update(eventRegistrations)
+      .set({ status: 'CANCELLED' })
+      .where(eq(eventRegistrations.id, candidate.registrationId));
+    await database
+      .update(transactions)
+      .set({ stripeCheckoutSessionId: sessionId })
+      .where(eq(transactions.id, candidate.transactionId));
+    const claim = await Effect.runPromise(
+      Database.use((db) =>
+        db.transaction((tx) =>
+          createRegistrationRefundClaim(tx, {
+            amount: 1000,
+            applicationFeeRefunded: true,
+            currency: 'EUR',
+            eventId: candidate.eventId,
+            eventRegistrationId: candidate.registrationId,
+            operationKey: registrationEligibilityCompensationRefundOperationKey(
+              candidate.transactionId,
+            ),
+            sourceTransactionId: candidate.transactionId,
+            stripeAccountId: 'acct_transfer_limit',
+            targetUserId: fixture.recipientUserId,
+            tenantId: fixture.tenantId,
+          }),
+        ),
+      ).pipe(Effect.provide(layer)),
+    );
+    const stripe = createRejectingStripeClient();
+    vi.spyOn(stripe.charges, 'retrieve').mockResolvedValue(
+      stripeChargeResponse({
+        amount: 1000,
+        balance_transaction: stripeBalanceTransactionResponse({
+          amount: 1000,
+          fee: 50,
+          fee_details: [
+            {
+              amount: 35,
+              application: null,
+              currency: 'eur',
+              description: null,
+              type: 'application_fee',
+            },
+            {
+              amount: 15,
+              application: null,
+              currency: 'eur',
+              description: null,
+              type: 'stripe_fee',
+            },
+          ],
+          net: 950,
+          source: chargeId,
+        }),
+        id: chargeId,
+        payment_intent: paymentIntentId,
+      }),
+    );
+    const session = stripeCheckoutSessionResponse({
+      amount_total: 1000,
+      id: sessionId,
+      metadata: {
+        registrationId: candidate.registrationId,
+        tenantId: fixture.tenantId,
+        transactionId: candidate.transactionId,
+        transferId: candidate.transferId,
+      },
+      payment_intent: stripePaymentIntentResponse({
+        amount: 1000,
+        id: paymentIntentId,
+        latest_charge: chargeId,
+      }),
+    });
+    const readRefunds = () =>
+      database.query.transactions.findMany({
+        where: { tenantId: fixture.tenantId, type: 'refund' },
+      });
+    const beforeRefunds = await readRefunds();
+    const beforeTransfer = await database.query.registrationTransfers.findFirst(
+      { where: { id: candidate.transferId } },
+    );
+    expect(beforeRefunds.map((refund) => refund.id)).toEqual([claim.id]);
+    for (let replay = 0; replay < 2; replay += 1) {
+      const outcome = await Effect.runPromise(
+        completePaidRegistrationCheckout(
+          {
+            registrationId: candidate.registrationId,
+            stripeAccountId: 'acct_transfer_limit',
+            stripeCheckoutSessionId: sessionId,
+            tenantId: fixture.tenantId,
+            transactionId: candidate.transactionId,
+          },
+          session,
+        ).pipe(
+          Effect.provideService(StripeClient, stripe),
+          Effect.provide(layer),
+        ),
+      );
+      expect(outcome).toBe('alreadyFinalized');
+    }
+    expect(await readRefunds()).toEqual(beforeRefunds);
+    expect(
+      await database.query.registrationTransfers.findFirst({
+        where: { id: candidate.transferId },
+      }),
+    ).toEqual(beforeTransfer);
+    expect(
+      await database.query.registrationTransferEvents.findMany({
+        where: { transferId: candidate.transferId },
+      }),
+    ).toEqual([]);
+    expect(
+      await database.query.eventRegistrations.findFirst({
+        where: { id: candidate.registrationId },
+      }),
+    ).toMatchObject({ status: 'CANCELLED', userId: candidate.sourceUserId });
   });
 
   it('replaces an expired open offer when current tenant policy reopens the transfer window', async () => {

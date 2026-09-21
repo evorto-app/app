@@ -686,11 +686,6 @@ export const processDueBoundRegistrationCheckouts = Effect.fn(
     if (Result.isFailure(outcome)) {
       failed += 1;
       const error = checkoutReconcileFailureMessage(outcome.failure);
-      yield* rescheduleBoundRegistrationCheckout(candidate, {
-        error,
-        noLaterThanExpiry: false,
-        now,
-      });
       yield* Effect.logError(
         'Failed to reconcile bound registration Checkout',
       ).pipe(
@@ -703,6 +698,11 @@ export const processDueBoundRegistrationCheckouts = Effect.fn(
           transactionId: candidate.transactionId,
         }),
       );
+      yield* rescheduleBoundRegistrationCheckout(candidate, {
+        error,
+        noLaterThanExpiry: false,
+        now,
+      });
       continue;
     }
     if (outcome.success === 'cancelled') {
@@ -1220,11 +1220,6 @@ export const processDueAddonPurchaseCheckouts = Effect.fn(
     if (Result.isFailure(outcome)) {
       failed += 1;
       const error = checkoutReconcileFailureMessage(outcome.failure);
-      yield* rescheduleAddonPurchaseCheckout(candidate, {
-        error,
-        noLaterThanExpiry: false,
-        now,
-      });
       yield* Effect.logError(
         'Failed to reconcile participant add-on Checkout',
       ).pipe(
@@ -1234,6 +1229,11 @@ export const processDueAddonPurchaseCheckouts = Effect.fn(
           transactionId: candidate.transactionId,
         }),
       );
+      yield* rescheduleAddonPurchaseCheckout(candidate, {
+        error,
+        noLaterThanExpiry: false,
+        now,
+      });
     } else if (outcome.success === 'expired') {
       cancelled += 1;
     } else {

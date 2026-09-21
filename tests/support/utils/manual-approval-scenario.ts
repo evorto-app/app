@@ -305,7 +305,7 @@ export const seedManualApprovalScenario = async ({
           .update(schema.eventRegistrationOptions)
           .set({ reservedSpots: 1 })
           .where(eq(schema.eventRegistrationOptions.id, option.id));
-        await transaction
+        const updatedRegistrations = await transaction
           .update(schema.eventRegistrations)
           .set({
             appliedDiscountedPrice: null,
@@ -319,7 +319,19 @@ export const seedManualApprovalScenario = async ({
               taxRatePercentage: selectedTaxRate.percentage,
             }),
           })
-          .where(eq(schema.eventRegistrations.id, registrationId));
+          .where(
+            and(
+              eq(schema.eventRegistrations.id, registrationId),
+              eq(schema.eventRegistrations.registrationOptionId, option.id),
+              eq(schema.eventRegistrations.tenantId, tenant.id),
+            ),
+          )
+          .returning({ id: schema.eventRegistrations.id });
+        if (updatedRegistrations.length !== 1) {
+          throw new Error(
+            'Payment retry fixture registration must match its option and tenant',
+          );
+        }
         await transaction.insert(schema.transactions).values({
           amount: option.price,
           appFee: Math.round(option.price * 0.035),
