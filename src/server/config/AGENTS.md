@@ -68,12 +68,12 @@
   domain-specific names (`optionalAuthStringConfig`) unless the helper genuinely
   encodes a domain rule.
 
-## `Config.nonEmptyString` vs trim-then-validate
+## `Config.NonEmptyString` vs trim-then-validate
 
 `Config.NonEmptyString(name)` validates `text.length > 0` against the **raw,
 untrimmed** value from the provider. This means:
 
-- `"   "` (whitespace only) **passes** `Config.nonEmptyString` and would be returned
+- `"   "` (whitespace only) **passes** `Config.NonEmptyString` and would be returned
   as `"   "` if you trim afterwards.
 - `Config.NonEmptyString(name).pipe(Config.map((s) => s.trim()))` is therefore **not**
   equivalent to "trim then reject empty" — it accepts whitespace-only input.
@@ -101,7 +101,7 @@ Config.String(name).pipe(
 Config.NonEmptyString(name).pipe(Config.map((s) => s.trim()));
 ```
 
-Use `Config.nonEmptyString` only when you trust the provider to not supply
+Use `Config.NonEmptyString` only when you trust the provider to not supply
 whitespace-only values (e.g. structured JSON providers, test maps).
 
 ## Helpers Policy
