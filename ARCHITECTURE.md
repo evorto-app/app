@@ -148,7 +148,10 @@ Agents should:
 
 - derive types from Drizzle where possible
 - avoid duplicate handwritten DB model types
-- keep migrations explicit and committed
+- develop against the new relaunch schema without incremental migrations
+- keep old-to-new data transfer in a separate TypeScript job with read-only
+  access to the legacy source; validate imported values against the new
+  contracts and make date/time-zone conversion policies explicit
 - define real database constraints where needed
 - keep relation optionality accurate
 - be careful with event/registration/payment archival model changes
