@@ -20,8 +20,6 @@ import { MatInputModule } from '@angular/material/input';
 import { Router } from '@angular/router';
 import {
   registrationCancellationActionLabel,
-  registrationCancellationCompletedLabel,
-  registrationCancellationFailureMessage,
   registrationCancellationKind,
 } from '@shared/registration-cancellation';
 import {
@@ -29,6 +27,7 @@ import {
   injectQuery,
   QueryClient,
 } from '@tanstack/angular-query-experimental';
+import consola from 'consola/browser';
 import { firstValueFrom } from 'rxjs';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
@@ -326,9 +325,7 @@ export class PlatformScannerComponent {
           registrationId,
           targetTenantId: this.tenantId(),
         });
-        await this.refreshRegistration();
-        this.resetActionState();
-        this.notifications.showSuccess('Sign-up approved');
+        await this.refreshAfterAction('Sign-up approved');
       } catch (error) {
         this.notifications.showError(
           getErrorMessage(
@@ -354,10 +351,8 @@ export class PlatformScannerComponent {
     }
     const registration = this.registrationQuery.data();
     if (registration.status === 'CANCELLED') return;
-    const cancellationKind = registrationCancellationKind({
-      paymentPending: registration.paymentPending,
-      status: registration.status,
-    });
+    const expectedPaymentPending = registration.paymentPending;
+    const expectedStatus = registration.status;
 
     void (async () => {
       const confirmed = await firstValueFrom(
@@ -376,20 +371,18 @@ export class PlatformScannerComponent {
 
       try {
         await this.cancelMutation.mutateAsync({
+          expectedPaymentPending,
+          expectedStatus,
           reason,
           registrationId,
           targetTenantId: this.tenantId(),
         });
-        await this.refreshRegistration();
-        this.resetActionState();
-        this.notifications.showSuccess(
-          registrationCancellationCompletedLabel(cancellationKind),
-        );
+        await this.refreshAfterAction('Cancellation confirmed');
       } catch (error) {
         this.notifications.showError(
           getErrorMessage(
             error,
-            registrationCancellationFailureMessage(cancellationKind),
+            'The cancellation outcome could not be confirmed. Reload the page to check the current sign-up status before trying again.',
             ['RpcBadRequestError'],
           ),
         );
@@ -416,9 +409,7 @@ export class PlatformScannerComponent {
           registrationId,
           targetTenantId: this.tenantId(),
         });
-        await this.refreshRegistration();
-        this.resetActionState();
-        this.notifications.showSuccess('Ticket checked in');
+        await this.refreshAfterAction('Ticket checked in');
       } catch (error) {
         this.notifications.showError(
           getErrorMessage(
@@ -524,11 +515,27 @@ export class PlatformScannerComponent {
     }
   }
 
-  private async refreshRegistration(): Promise<void> {
-    await this.queryClient.invalidateQueries(
-      this.operations.registrationFilter(),
-    );
-    await this.registrationQuery.refetch();
+  private async refreshAfterAction(completedMessage: string): Promise<void> {
+    this.resetActionState();
+    try {
+      await this.queryClient.invalidateQueries(
+        this.operations.registrationFilter(),
+        { throwOnError: true },
+      );
+      await this.registrationQuery.refetch({ throwOnError: true });
+    } catch (error) {
+      consola
+        .withTag('app/platform-scanner')
+        .error(
+          'Action completed but the registration details could not refresh',
+          error,
+        );
+      this.notifications.showError(
+        `${completedMessage}. Current sign-up details could not be loaded. Reload the page before making another change.`,
+      );
+      return;
+    }
+    this.notifications.showSuccess(completedMessage);
   }
 
   private resetActionState(): void {

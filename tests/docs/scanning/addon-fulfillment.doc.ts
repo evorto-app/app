@@ -32,7 +32,7 @@ test('Hand out add-ons from a scanned ticket', async ({
   const eventId = seeded.scenario.events.past.eventId;
   const event = seeded.events.find((candidate) => candidate.id === eventId);
   const participantOption = event?.registrationOptions.find(
-    (option) => !option.organizingRegistration,
+    (option) => !option.organizingRegistration && !option.isPaid,
   );
   const attendee = usersToAuthenticate.find(
     (user) => user.stateFile === emptyStateFile,

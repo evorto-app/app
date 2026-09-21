@@ -112,7 +112,7 @@ const requireScannerFixture = async ({
   }
 
   const registrationOption = event.registrationOptions.find(
-    (option) => !option.organizingRegistration,
+    (option) => !option.organizingRegistration && !option.isPaid,
   );
   if (!registrationOption) {
     throw new Error(

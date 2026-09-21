@@ -584,7 +584,7 @@ This action records a decision and schedules a receipt-review notification; it d
 
 Return to the organization and choose **Ticket support**. Paste either the ticket number or its attendee ticket link, then select **Open ticket**. Evorto confirms that the sign-up belongs to this organization before showing it.
 
-Check-in opens one hour before the event starts and closes two hours after it ends. For a confirmed ticket inside that window, enter the number of guests arriving now, add a **Reason for this action**, and select **Check in**. This walkthrough checks in the attendee and one guest, then confirms the updated attendee and guest totals. It does not approve or cancel a sign-up.
+Check-in opens one hour before the event starts and closes two hours after it ends. For a confirmed ticket inside that window, enter the number of guests arriving now, add a **Reason for this action**, and select **Check in**. This walkthrough checks in the attendee and one guest, then confirms the updated attendee and guest totals. It does not approve or cancel a sign-up. Cancellation is bound to the sign-up and payment state shown in its confirmation. If either changes before it can be cancelled, Evorto makes no cancellation or refund and asks you to review the current state. After a completed action, a failed details refresh preserves the confirmed result and asks you to reload before another change.
 `,
   });
   const guestCheckInCount = registrationDetail.getByLabel(

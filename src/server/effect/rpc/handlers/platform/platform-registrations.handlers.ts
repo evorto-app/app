@@ -1100,6 +1100,8 @@ export const platformRegistrationHandlers = {
             cancelledBy: 'platformAdministrator',
             enforceParticipantDeadline: false,
             executiveUserId: null,
+            expectedPaymentPending: input.expectedPaymentPending,
+            expectedStatus: input.expectedStatus,
             onCancelled: (transaction, transition) => {
               const snapshots =
                 platformRegistrationCancellationAuditSnapshots(transition);

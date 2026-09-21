@@ -6,6 +6,7 @@ import { createDatabaseTestLayer } from '@server/testing/database-test-layer';
 import { makePgTestClient } from '@server/testing/pg-test-client';
 import {
   EventCheckInUnavailableError,
+  EventRegistrationConflictError,
   EventRegistrationInternalError,
 } from '@shared/rpc-contracts/app-rpcs/events.errors';
 import { PlatformEventsUpdateInput } from '@shared/rpc-contracts/app-rpcs/platform-events.rpcs';
@@ -36,6 +37,7 @@ import { Tenant } from '../../../../../types/custom/tenant';
 import { RegistrationTransferMutationConflict } from '../../../../registrations/registration-transfer-mutation-guard';
 import { StripeClient } from '../../../../stripe-client';
 import { EventRegistrationService } from '../events/event-registration.service';
+import * as registrationCancellation from '../events/events-registration.handlers';
 import {
   providePlatformOperation,
   type ResolvedPlatformOperation,
@@ -864,6 +866,56 @@ describe('platform event, template, and registration handlers', () => {
     }),
   );
 
+  it.effect(
+    'binds platform cancellation to its confirmed state and preserves conflicts',
+    () =>
+      Effect.gen(function* () {
+        const cancellation = vi
+          .spyOn(registrationCancellation, 'cancelRegistrationForTenant')
+          .mockImplementation(() =>
+            Effect.fail(
+              new EventRegistrationConflictError({
+                message:
+                  'The sign-up changed after confirmation. Nothing was cancelled.',
+              }),
+            ),
+          );
+        try {
+          const error = yield* platformHandlers[
+            'platform.registrations.cancel'
+          ](
+            {
+              expectedPaymentPending: true,
+              expectedStatus: 'PENDING',
+              reason: 'Withdraw the target application',
+              registrationId: registrationRecord.id,
+              targetTenantId: targetTenant.id,
+            },
+            undefined,
+          ).pipe(
+            Effect.provide(platformRegistrationInternalFailureLayer),
+            Effect.flip,
+          );
+          expect(cancellation).toHaveBeenCalledWith(
+            expect.objectContaining({
+              cancelledBy: 'platformAdministrator',
+              expectedPaymentPending: true,
+              expectedStatus: 'PENDING',
+              registrationId: registrationRecord.id,
+            }),
+          );
+          expect(error).toMatchObject({
+            _tag: 'RpcBadRequestError',
+            message:
+              'The sign-up changed after confirmation. Nothing was cancelled.',
+            reason: 'registrationStateConflict',
+          });
+        } finally {
+          cancellation.mockRestore();
+        }
+      }),
+  );
+
   it.effect('preserves platform approval internal failures as defects', () =>
     Effect.gen(function* () {
       const exit = yield* platformHandlers['platform.registrations.approve'](
@@ -902,6 +954,8 @@ describe('platform event, template, and registration handlers', () => {
         });
         const exit = yield* platformHandlers['platform.registrations.cancel'](
           {
+            expectedPaymentPending: false,
+            expectedStatus: 'CONFIRMED',
             reason: 'Cancel the target registration',
             registrationId: registrationRecord.id,
             targetTenantId: targetTenant.id,

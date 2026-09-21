@@ -222,7 +222,11 @@ silently disappear behind a stale hand-maintained file list.
     approval/cancellation, or reimbursement operations.
   - `specs/admin/platform-tenant-operations.spec.ts` follows the discoverable
     target-operation links, opens the refund-recovery tab, and resolves an
-    attendee ticket URL through the target-scoped platform scanner route.
+    attendee ticket URL through the target-scoped platform scanner route. It also
+    cancels an owned free ticket and blocks the follow-up detail read, proving
+    that the confirmed result remains visible without a duplicate cancellation
+    or a refund claim. Platform cancellation carries the status and payment
+    snapshot confirmed by the administrator.
   - global-admin unit/source coverage pins explicit platform authority,
     application/API append-only tenant action audit records, full event graph
     writes, bounded
