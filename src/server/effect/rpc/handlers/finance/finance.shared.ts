@@ -38,28 +38,13 @@ interface ReceiptCountryConfigTenant {
 
 const requireReceiptCountrySettings = (tenant: ReceiptCountryConfigTenant) => {
   const settings = tenant.receiptSettings;
-  if (
-    !settings ||
-    typeof settings.allowOther !== 'boolean' ||
-    settings.receiptCountries === undefined ||
-    settings.receiptCountries.length === 0
-  ) {
+  if (!settings || settings.receiptCountries === undefined) {
     throw new Error('Tenant receipt settings are unavailable');
-  }
-
-  const receiptCountries = [...settings.receiptCountries];
-  if (
-    receiptCountries.some(
-      (country) => normalizeReceiptCountryCode(country) !== country,
-    ) ||
-    new Set(receiptCountries).size !== receiptCountries.length
-  ) {
-    throw new Error('Tenant receipt settings are invalid');
   }
 
   return {
     allowOther: settings.allowOther,
-    receiptCountries,
+    receiptCountries: [...settings.receiptCountries],
   };
 };
 
