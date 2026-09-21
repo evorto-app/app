@@ -997,6 +997,10 @@ describe('TemplateCreateComponent save outcomes', () => {
     await expectMessage(navigationMessage);
     expectMutationStatus('success');
     expectRetainedEntries();
+    expect(saveButton().disabled).toBe(true);
+    submitForm();
+    await fixture.whenStable();
+    expect(save).toHaveBeenCalledOnce();
     expect(navigate).toHaveBeenCalledExactlyOnceWith([
       '/templates',
       'template-1',
@@ -1016,6 +1020,10 @@ describe('TemplateCreateComponent save outcomes', () => {
     await expectMessage(navigationMessage);
     expectMutationStatus('success');
     expectRetainedEntries();
+    expect(saveButton().disabled).toBe(true);
+    submitForm();
+    await fixture.whenStable();
+    expect(save).toHaveBeenCalledOnce();
     expect(navigate).toHaveBeenCalledExactlyOnceWith([
       '/templates',
       'template-1',
@@ -1052,8 +1060,11 @@ describe('TemplateCreateComponent save outcomes', () => {
     expectRetainedEntries();
     await vi.waitFor(() => {
       fixture.detectChanges();
-      expect(saveButton().disabled).toBe(false);
+      expect(saveButton().disabled).toBe(true);
     });
+    submitForm();
+    await fixture.whenStable();
+    expect(save).toHaveBeenCalledOnce();
     expect(navigate).toHaveBeenCalledExactlyOnceWith([
       '/templates',
       'template-1',

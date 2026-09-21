@@ -9,7 +9,7 @@ import type { IconValue } from '@shared/types/icon';
 import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
 import { Component, input, output } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { FormField } from '@angular/forms/signals';
+import { FieldTree, FormField } from '@angular/forms/signals';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSelect } from '@angular/material/select';
 import { MatSelectHarness } from '@angular/material/select/testing';
@@ -55,7 +55,7 @@ import { platformTemplateUnsavedChangesGuard } from './platform-template-unsaved
 
 @Component({ selector: 'app-editor', template: '' })
 class EditorStub {
-  readonly control = input<unknown>();
+  readonly control = input<FieldTree<string>>();
 }
 
 @Component({ selector: 'app-icon', template: '' })
@@ -929,6 +929,64 @@ describe('PlatformTemplateEditorComponent recovery', () => {
       ).not.toHaveBeenCalled();
       expect(title.value).toBe('Submitted trip');
       expect(reason.value).toBe('Update the advertised trip');
+    },
+  );
+
+  it.each(['rejected', 'cancelled'] as const)(
+    'keeps a confirmed new template locked after %s navigation',
+    async (outcome) => {
+      const navigate = vi.mocked(TestBed.inject(Router).navigate);
+      if (outcome === 'rejected')
+        navigate.mockRejectedValueOnce(new Error('Navigation failed'));
+      else navigate.mockResolvedValueOnce(false);
+      const fixture = render();
+      const root: unknown = fixture.nativeElement;
+      if (!(root instanceof HTMLElement))
+        throw new Error('Expected template editor');
+      await vi.waitFor(async () => {
+        await fixture.whenStable();
+        expect(root.querySelector('form')).not.toBeNull();
+      });
+      const title = root.querySelector('input');
+      const reason = [...root.querySelectorAll('mat-form-field')]
+        .find(
+          (field) =>
+            field.querySelector('mat-label')?.textContent?.trim() ===
+            'Reason for this change',
+        )
+        ?.querySelector('textarea');
+      const editor = fixture.debugElement
+        .query(By.directive(EditorStub))
+        .injector.get(EditorStub);
+      const description = editor.control();
+      const save = root.querySelector<HTMLButtonElement>(
+        'button[type="submit"]',
+      );
+      if (!title || !reason || !description || !save)
+        throw new Error('Expected new template fields');
+      title.value = 'New confirmed template';
+      title.dispatchEvent(new Event('input', { bubbles: true }));
+      reason.value = 'Prepare a new trip';
+      reason.dispatchEvent(new Event('input', { bubbles: true }));
+      description().value.set('<p>A new trip</p>');
+      await vi.waitFor(async () => {
+        await fixture.whenStable();
+        expect(save.disabled).toBe(false);
+      });
+      await submitTemplate(fixture);
+      await vi.waitFor(async () => {
+        await fixture.whenStable();
+        expect(
+          TestBed.inject(NotificationService).showError,
+        ).toHaveBeenCalledWith(
+          'The template was saved, but its page could not be opened. Open it from the template list before making further changes.',
+        );
+        expect(save.disabled).toBe(true);
+      });
+      await submitTemplate(fixture);
+      expect(createTemplate).toHaveBeenCalledOnce();
+      expect(updateTemplate).not.toHaveBeenCalled();
+      expect(title.value).toBe('New confirmed template');
     },
   );
 

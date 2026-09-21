@@ -521,6 +521,14 @@ describe('TemplateCreateEventComponent load recovery', () => {
           'The event was created, but its page could not be opened.',
         );
       });
+      expect(
+        root.querySelector<HTMLButtonElement>('button[type="submit"]')
+          ?.disabled,
+      ).toBe(true);
+      form.dispatchEvent(
+        new Event('submit', { bubbles: true, cancelable: true }),
+      );
+      await fixture.whenStable();
       expect(createEvent).toHaveBeenCalledOnce();
       expect(navigate).toHaveBeenCalledExactlyOnceWith(['/events', 'event-1']);
       expect(title.value).toBe('My retained event');
@@ -980,7 +988,7 @@ describe('TemplateCreateEventComponent load recovery', () => {
       finishSibling(['related-event']);
       await submission;
       fixture.detectChanges();
-      expect(createButton.disabled).toBe(false);
+      expect(createButton.disabled).toBe(true);
       expect(form.getAttribute('aria-busy')).toBe('false');
       expect(root.querySelector('[role="alert"]')?.textContent).toContain(
         'The event was created, but the event list could not be updated. Open the event list and load the page again to see it.',
@@ -1073,7 +1081,7 @@ describe('TemplateCreateEventComponent load recovery', () => {
       const createButton = root.querySelector('button[type="submit"]');
       if (!(createButton instanceof HTMLButtonElement))
         throw new TypeError('Expected create button');
-      expect(createButton.disabled).toBe(false);
+      expect(createButton.disabled).toBe(true);
       expect(form.getAttribute('aria-busy')).toBe('false');
       expect(root.querySelector('[role="alert"]')).toBeNull();
       expect(queryClient.getQueryState(inactiveKey)?.fetchStatus).toBe(

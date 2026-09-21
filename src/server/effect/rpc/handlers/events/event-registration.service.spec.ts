@@ -2393,6 +2393,7 @@ const createManualApprovalDatabase = ({
   lockedEventStatus = 'APPROVED',
   lockedOptionRoleIds = ['role-1'],
   lockedStripeAccountId = 'acct_123',
+  notificationTenantAvailable = true,
   operationOrder = [],
   persistCommittedEmail = true,
   registration = paidManualApprovalRegistration,
@@ -2409,6 +2410,7 @@ const createManualApprovalDatabase = ({
   lockedEventStatus?: 'APPROVED' | 'DRAFT' | 'PENDING_REVIEW';
   lockedOptionRoleIds?: readonly string[];
   lockedStripeAccountId?: null | string;
+  notificationTenantAvailable?: boolean;
   operationOrder?: string[];
   persistCommittedEmail?: boolean;
   registration?: ManualApprovalRegistrationFixture;
@@ -2418,6 +2420,7 @@ const createManualApprovalDatabase = ({
   Effect.gen(function* () {
     let bindingUpdateCount = 0;
     let tenantSettingsReadCount = 0;
+    let tenantLockObserved = false;
     let acquisitionComponentInsertValues:
       | readonly Pick<
           typeof registrationAcquisitionComponents.$inferSelect,
@@ -2473,6 +2476,23 @@ const createManualApprovalDatabase = ({
     const databaseLayer = createRegistrationDatabaseTestLayer({
       executeValues: (statement, parameters) =>
         Effect.sync(() => {
+          if (
+            statement ===
+            'select "id" from "tenants" where "tenants"."id" = $1 for update'
+          )
+            tenantLockObserved = true;
+          if (
+            statement.startsWith(
+              'select "email_sender_email", "email_sender_name", "id", "name", "timezone" from "tenants"',
+            )
+          ) {
+            expect(transactionOpen).toBe(true);
+            expect(tenantLockObserved).toBe(true);
+            expect(parameters).toEqual(['tenant-1']);
+            return notificationTenantAvailable
+              ? [[null, null, 'tenant-1', 'Tenant', 'Europe/Amsterdam']]
+              : [];
+          }
           const questionSetRows = readQuestionSetLockFixture({
             parameters,
             statement,
@@ -5308,6 +5328,28 @@ describe('EventRegistrationService', () => {
         expect(approvalDatabase.claimInsertCount()).toBe(0);
         expect(approvalDatabase.reservationUpdateCount()).toBe(0);
         expect(createSession).not.toHaveBeenCalled();
+      }),
+  );
+
+  it.effect(
+    'does not approve or create payment when the locked organization email context is missing',
+    () =>
+      Effect.gen(function* () {
+        const fixture = yield* createManualApprovalDatabase({
+          notificationTenantAvailable: false,
+        });
+        const stripe = createStripeTestClient();
+        const error = yield* runManualApproval({
+          database: fixture.database,
+          stripe,
+        }).pipe(Effect.flip);
+        expect(error).toBeInstanceOf(EventRegistrationInternalError);
+        expect(error.message).toContain(
+          'organization email settings could not be verified',
+        );
+        expect(fixture.claimInsertCount()).toBe(0);
+        expect(fixture.emailInsertCount()).toBe(0);
+        expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
       }),
   );
 

@@ -1065,7 +1065,8 @@
             !paymentSettingsReady() ||
             paidGraphBlocked() ||
             !taxRatesReady() ||
-            mutationPending()
+            mutationPending() ||
+            (!templateId() && createMutation.isSuccess())
           "
         >
           {{ mutationPending() ? "Saving…" : "Save template" }}

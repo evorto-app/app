@@ -828,6 +828,7 @@ export class PlatformTemplateEditorComponent {
     event.preventDefault();
     if (
       this.mutationPending() ||
+      (!this.templateId() && this.createMutation.isSuccess()) ||
       this.templateForm().submitting() ||
       this.editorLoadError() ||
       !this.editorDataReady() ||

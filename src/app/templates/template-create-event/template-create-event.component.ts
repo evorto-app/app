@@ -273,6 +273,7 @@ export class TemplateCreateEventComponent {
   async onSubmit(event: Event) {
     event.preventDefault();
     if (
+      this.createEventMutation.isSuccess() ||
       templateCreateEventSubmitDisabled({
         discountProvidersReady: this.discountProvidersReady(),
         formInvalid: this.createEventForm().invalid(),

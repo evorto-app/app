@@ -435,6 +435,24 @@ describe('TemplateGraphService structural validation', () => {
     },
   );
 
+  it.each(['registrationOptions', 'addOns', 'questions'] as const)(
+    'identifies persisted %s IDs in a new template without claiming a concurrent edit',
+    (collection) => {
+      const input = validGraph();
+      const [entry] = input[collection];
+      if (!entry) throw new Error('Expected a graph entry');
+      entry.id = 'already-persisted';
+      expect(
+        validateTemplateGraphStructure({ esnCardEnabled: false, input }),
+      ).toMatchObject({
+        _tag: 'RpcBadRequestError',
+        message:
+          'A new template contains entries from an existing template. Nothing was saved. Start a new template and add its sign-up choices, add-ons, and questions again.',
+        reason: 'unexpectedTemplateGraphId',
+      });
+    },
+  );
+
   it('retains stale-template recovery for an ID absent from the persisted graph', () => {
     const before = persistedGraph(false);
     const input = updateInputFrom(before);

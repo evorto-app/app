@@ -230,15 +230,26 @@ const seedPrerequisites = async (database: TestDatabase) => {
     })
     .returning();
   if (!template) throw new Error('Expected scenario template');
-  await database.insert(schema.tenantStripeTaxRates).values({
-    active: true,
-    displayName: 'VAT',
-    inclusive: true,
-    percentage: '19',
-    stripeAccountId,
-    stripeTaxRateId,
-    tenantId,
-  });
+  await database.insert(schema.tenantStripeTaxRates).values([
+    {
+      active: true,
+      displayName: 'VAT',
+      inclusive: true,
+      percentage: '19',
+      stripeAccountId,
+      stripeTaxRateId,
+      tenantId,
+    },
+    {
+      active: true,
+      displayName: 'Zero rate',
+      inclusive: true,
+      percentage: '0',
+      stripeAccountId,
+      stripeTaxRateId: `${stripeTaxRateId}_zero`,
+      tenantId,
+    },
+  ]);
 
   const atDay = (offset: number) =>
     new Date(seedDate.getTime() + offset * 24 * 60 * 60 * 1000);

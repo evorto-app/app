@@ -2486,6 +2486,27 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                   );
                 }
 
+                // Eligibility already holds the tenant update lock. Capture the
+                // current sender and time zone for this approval before provider work.
+                const [notificationTenant] = yield* tx
+                  .select({
+                    emailSenderEmail: tenants.emailSenderEmail,
+                    emailSenderName: tenants.emailSenderName,
+                    id: tenants.id,
+                    name: tenants.name,
+                    timezone: tenants.timezone,
+                  })
+                  .from(tenants)
+                  .where(eq(tenants.id, tenant.id));
+                if (!notificationTenant) {
+                  return yield* Effect.fail(
+                    new EventRegistrationInternalError({
+                      message:
+                        'The organization email settings could not be verified. No approval or payment was started. Reopen the request and try again.',
+                    }),
+                  );
+                }
+
                 const lockedStripeAccount = mustLockStripeAccount
                   ? yield* lockTenantStripeAccount(tx, tenant.id)
                   : undefined;
@@ -2563,6 +2584,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                     _tag: 'PaymentClaim' as const,
                     claim: existingClaim,
                     created: false,
+                    notificationTenant,
                   };
                 }
 
@@ -2624,6 +2646,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                         _tag: 'PaymentClaim' as const,
                         claim: conflictingClaim,
                         created: false,
+                        notificationTenant,
                       };
                     }
                     return yield* Effect.fail(
@@ -2843,7 +2866,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                     eventUrl,
                     paymentDeadline: null,
                     registrationId: registration.id,
-                    tenant,
+                    tenant: notificationTenant,
                     to: notificationEmail,
                   });
                   yield* onApproved(tx, approvalTransition('CONFIRMED', null));
@@ -2870,6 +2893,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                   _tag: 'PaymentClaim' as const,
                   claim: paymentClaim,
                   created: true,
+                  notificationTenant,
                 };
               }),
             )
@@ -3065,7 +3089,10 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
         yield* resumeRegistrationCheckout({
           allowSessionCreation: approvalResult.created,
           eventId,
-          manualApproval: { releaseClaim: releaseApprovalClaim, tenant },
+          manualApproval: {
+            releaseClaim: releaseApprovalClaim,
+            tenant: approvalResult.notificationTenant,
+          },
           paymentClaim,
           registrationId: registration.id,
           tenantId: tenant.id,
