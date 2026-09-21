@@ -78,9 +78,11 @@
                   </caption>
                   <thead>
                     <tr class="border-outline-variant border-b">
-                      <th class="label-medium py-2 pr-4">Changed item</th>
-                      <th class="label-medium px-4 py-2">Before</th>
-                      <th class="label-medium py-2 pl-4">After</th>
+                      <th scope="col" class="label-medium py-2 pr-4">
+                        Changed item
+                      </th>
+                      <th scope="col" class="label-medium px-4 py-2">Before</th>
+                      <th scope="col" class="label-medium py-2 pl-4">After</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -88,7 +90,10 @@
                       <tr
                         class="border-outline-variant border-b last:border-b-0"
                       >
-                        <th class="body-medium py-2 pr-4 font-medium">
+                        <th
+                          scope="row"
+                          class="body-medium py-2 pr-4 font-medium"
+                        >
                           {{ row.label }}
                         </th>
                         <td class="body-medium px-4 py-2">{{ row.before }}</td>
