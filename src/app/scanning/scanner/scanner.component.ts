@@ -235,9 +235,7 @@ export class ScannerComponent implements OnDestroy {
         this.navigationErrorMessage.set(scannerNavigationErrorMessage);
       }
     } catch (error) {
-      consola
-        .withTag('app/scanning')
-        .warn('Failed to open scanned registration', error);
+      logger.warn('Failed to open scanned registration', error);
       this.navigationErrorMessage.set(scannerNavigationErrorMessage);
     } finally {
       this.navigationPending.set(false);
@@ -264,9 +262,7 @@ export class ScannerComponent implements OnDestroy {
       this.scanner = scanner;
       await this.startScanner({ clearErrorOnSuccess: true });
     } catch (error) {
-      consola
-        .withTag('app/scanning')
-        .warn('Failed to initialize QR scanner camera', error);
+      logger.warn('Failed to initialize QR scanner camera', error);
       this.cameraReady.set(false);
       this.ticketFeedbackMessage.set('');
       this.cameraErrorMessage.set(scannerCameraErrorMessage(error));
@@ -305,9 +301,7 @@ export class ScannerComponent implements OnDestroy {
       ) {
         return;
       }
-      consola
-        .withTag('app/scanning')
-        .warn('Failed to start QR scanner camera', error);
+      logger.warn('Failed to start QR scanner camera', error);
       this.cameraReady.set(false);
       this.ticketFeedbackMessage.set('');
       this.cameraErrorMessage.set(scannerCameraErrorMessage(error));
