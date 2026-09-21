@@ -21,6 +21,7 @@ import {
   eventRegistrations,
   roles,
   rolesToTenantUsers,
+  tenants,
   users,
   usersToTenants,
 } from '../../../../db/schema';
@@ -687,6 +688,13 @@ export const userHandlers = {
         database
           .transaction((tx) =>
             Effect.gen(function* () {
+              // Registration locks tenant before membership. Acquire the home
+              // tenant's FK lock first so the later user update cannot reverse it.
+              yield* tx
+                .select({ id: tenants.id })
+                .from(tenants)
+                .where(eq(tenants.id, tenant.id))
+                .for('key share');
               const memberships = yield* tx
                 .select({ id: usersToTenants.id })
                 .from(usersToTenants)

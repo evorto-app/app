@@ -14,6 +14,9 @@ completion and cleanup. Transfer behavior remains in the transfer modules.
   update immediately, without upgrading a shared lock. Eligibility takes the
   event update lock up front so compensation never upgrades an event share lock.
   Keep provider calls outside reservation transactions.
+- Home-organization changes also take the destination tenant key-share lock
+  before membership. The later global-user home-tenant foreign-key check must
+  not reverse registration's tenant-before-membership lock order.
 - A newly created claim owns one provider-create attempt. An uncertain create
   result or an interrupted attempt keeps the claim and reservation for review;
   another request must not create a second Checkout from that claim. A local UI
