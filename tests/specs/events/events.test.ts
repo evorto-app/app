@@ -55,7 +55,7 @@ test.describe('Unavailable event links', () => {
   }) => {
     await page.goto(`/events/${getId()}`);
 
-    const errorPanel = page.locator('app-event-details [role="alert"]');
+    const errorPanel = page.getByRole('alert');
     await expect(
       errorPanel.getByRole('heading', { exact: true, name: 'Event not found' }),
     ).toBeVisible();
@@ -73,7 +73,7 @@ test.describe('Unavailable event links', () => {
     });
     await expect(backLink).toHaveAttribute('href', '/events');
     const accessibilityScan = await makeAxeBuilder()
-      .include('app-event-details [role="alert"]')
+      .include('[role="alert"]')
       .analyze();
     expect(accessibilityScan.violations).toEqual([]);
 
