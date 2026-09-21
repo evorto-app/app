@@ -237,7 +237,13 @@ export class PlatformTemplateEditorComponent {
     this.taxRatesQuery.isSuccess() && !this.taxRatesQuery.isFetching()
       ? this.taxRatesQuery
           .data()
-          .filter((rate) => rate.active && rate.imported && rate.inclusive)
+          .filter(
+            (rate) =>
+              rate.active &&
+              rate.imported &&
+              rate.inclusive &&
+              rate.percentage !== null,
+          )
       : undefined,
   );
 
@@ -393,6 +399,17 @@ export class PlatformTemplateEditorComponent {
 
     applyEach(template.registrationOptions, (registration) => {
       apply(registration, templateGraphRegistrationOptionFormSchema);
+      validate(registration.stripeTaxRateId, ({ value, valueOf }) => {
+        const taxRateId = value();
+        if (!valueOf(registration.isPaid) || !taxRateId) return;
+        return this.taxRateIsAvailable(taxRateId) === false
+          ? {
+              kind: 'taxRateUnavailable',
+              message:
+                'This tax rate is no longer available. Choose another inclusive tax rate.',
+            }
+          : undefined;
+      });
       validate(registration.roleIds, ({ value }) => {
         if (value().length === 0) return;
         if (
@@ -435,6 +452,17 @@ export class PlatformTemplateEditorComponent {
     );
     applyEach(template.addOns, (addOn) => {
       apply(addOn, templateGraphAddonFormSchema);
+      validate(addOn.stripeTaxRateId, ({ value, valueOf }) => {
+        const taxRateId = value();
+        if (!valueOf(addOn.isPaid) || !taxRateId) return;
+        return this.taxRateIsAvailable(taxRateId) === false
+          ? {
+              kind: 'taxRateUnavailable',
+              message:
+                'This tax rate is no longer available. Choose another inclusive tax rate.',
+            }
+          : undefined;
+      });
       disabled(addOn.isPaid, () => !this.stripeConnected());
       disabled(addOn.price, () => !this.stripeConnected());
       disabled(addOn.stripeTaxRateId, () => !this.stripeConnected());

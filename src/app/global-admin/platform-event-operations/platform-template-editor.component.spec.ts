@@ -201,6 +201,28 @@ describe('PlatformTemplateEditorComponent recovery', () => {
   });
 
   const createTemplate = vi.fn(async () => ({ id: 'template-1' }));
+  const templateTaxRates: readonly PlatformStripeTaxRateRecord[] = [
+    {
+      active: true,
+      country: null,
+      displayName: 'Registration VAT',
+      id: 'txr-organizer',
+      imported: true,
+      inclusive: true,
+      percentage: 19,
+      state: null,
+    },
+    {
+      active: true,
+      country: null,
+      displayName: 'Add-on VAT',
+      id: 'txr-addon',
+      imported: true,
+      inclusive: true,
+      percentage: 7,
+      state: null,
+    },
+  ];
   let taxRateFailuresRemaining = 0;
   const loadTaxRates = vi.fn(
     async (): Promise<readonly PlatformStripeTaxRateRecord[]> => {
@@ -208,7 +230,7 @@ describe('PlatformTemplateEditorComponent recovery', () => {
         taxRateFailuresRemaining -= 1;
         throw new Error('Tax catalog unavailable');
       }
-      return [];
+      return templateTaxRates;
     },
   );
 
@@ -308,8 +330,10 @@ describe('PlatformTemplateEditorComponent recovery', () => {
     return fixture;
   };
 
-  const renderExistingTemplate = async (roleIds: string[]) => {
-    const source = completeTemplate();
+  const renderExistingTemplate = async (
+    roleIds: string[],
+    source = completeTemplate(),
+  ) => {
     loadTemplate.mockResolvedValue({
       ...source,
       registrationOptions: source.registrationOptions.map((option, index) => ({
@@ -1240,6 +1264,186 @@ describe('PlatformTemplateEditorComponent recovery', () => {
     button('Add add-on').click();
     fixture.detectChanges();
     expect(addOnSection?.querySelectorAll('legend')).toHaveLength(2);
+  });
+
+  const renderedTaxSelects = (
+    fixture: ComponentFixture<PlatformTemplateEditorComponent>,
+  ) =>
+    fixture.debugElement
+      .queryAll(By.css('mat-select'))
+      .filter((binding) => {
+        const element: unknown = binding.nativeElement;
+        return (
+          element instanceof HTMLElement &&
+          element
+            .closest('mat-form-field')
+            ?.querySelector('mat-label')
+            ?.textContent?.trim() === 'Tax rate included in price'
+        );
+      })
+      .map((binding) => binding.injector.get(MatSelect));
+
+  it('explains import recovery in both empty platform template tax selectors while retaining saved selections', async () => {
+    loadTaxRates.mockResolvedValueOnce([]);
+    const { fixture, root } = await renderExistingTemplate(['role-1']);
+    const selects = renderedTaxSelects(fixture);
+    expect(selects).toHaveLength(2);
+    for (const select of selects) {
+      select.open();
+      fixture.detectChanges();
+      await vi.waitFor(() => {
+        fixture.detectChanges();
+        const guidance = select.options.find(
+          (option) =>
+            option.viewValue.replaceAll(/\s+/g, ' ').trim() ===
+            'No tax rates are available. Ask someone who manages payments to import a tax rate.',
+        );
+        expect(guidance?.disabled).toBe(true);
+        expect(
+          select.options.filter((option) => !option.disabled),
+        ).toHaveLength(0);
+      });
+      select.close();
+      fixture.detectChanges();
+    }
+    expect(selects.map((select) => select.value)).toEqual([
+      'txr-organizer',
+      'txr-addon',
+    ]);
+    expect(
+      root.querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled,
+    ).toBe(true);
+    await submitTemplate(fixture);
+    expect(updateTemplate).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { field: 'registration', id: 'txr-organizer', missing: false },
+    { field: 'registration', id: 'txr-organizer', missing: true },
+    { field: 'add-on', id: 'txr-addon', missing: false },
+    { field: 'add-on', id: 'txr-addon', missing: true },
+  ])(
+    'blocks the paid $field with unavailable rate data (missing=$missing) until a usable zero-percent rate arrives',
+    async ({ id, missing }) => {
+      loadTaxRates.mockResolvedValueOnce(
+        missing
+          ? templateTaxRates.filter((rate) => rate.id !== id)
+          : templateTaxRates.map((rate) =>
+              rate.id === id ? { ...rate, percentage: null } : rate,
+            ),
+      );
+      const { fixture, root } = await renderExistingTemplate(['role-1']);
+      const selects = renderedTaxSelects(fixture);
+      const unavailable = selects.find((select) => select.value === id);
+      if (!unavailable)
+        throw new Error('Expected the selected unavailable tax rate');
+      unavailable.open();
+      fixture.detectChanges();
+      await vi.waitFor(() => {
+        fixture.detectChanges();
+        const matching = unavailable.options.filter(
+          (option) => option.value === id,
+        );
+        expect(matching).toHaveLength(1);
+        expect(matching[0]?.disabled).toBe(true);
+        expect(matching[0]?.viewValue).toBe(
+          'Previously selected tax rate (no longer available)',
+        );
+      });
+      unavailable.close();
+      fixture.detectChanges();
+      expect(
+        root.querySelector<HTMLButtonElement>('button[type="submit"]')
+          ?.disabled,
+      ).toBe(true);
+      await submitTemplate(fixture);
+      expect(updateTemplate).not.toHaveBeenCalled();
+      expect(root.textContent?.replaceAll(/\s+/g, ' ')).toContain(
+        'This tax rate is no longer available. Choose another inclusive tax rate.',
+      );
+      expect(selects.map((select) => select.value)).toEqual([
+        'txr-organizer',
+        'txr-addon',
+      ]);
+
+      queryClient.setQueryData(
+        ['platform-template', 'tax-rates'],
+        templateTaxRates.map((rate) =>
+          rate.id === id ? { ...rate, percentage: 0 } : rate,
+        ),
+      );
+      await vi.waitFor(async () => {
+        await fixture.whenStable();
+        expect(
+          root.querySelector<HTMLButtonElement>('button[type="submit"]')
+            ?.disabled,
+        ).toBe(false);
+      });
+      expect(selects.map((select) => select.value)).toEqual([
+        'txr-organizer',
+        'txr-addon',
+      ]);
+      expect(unavailable.triggerValue).toContain('0%');
+      await submitTemplate(fixture);
+      expect(updateTemplate).toHaveBeenCalledOnce();
+      expect(updateTemplate.mock.calls[0]?.[0]).toMatchObject({
+        addOns: [
+          expect.objectContaining({
+            isPaid: true,
+            stripeTaxRateId: 'txr-addon',
+          }),
+        ],
+        registrationOptions: expect.arrayContaining([
+          expect.objectContaining({
+            isPaid: true,
+            stripeTaxRateId: 'txr-organizer',
+          }),
+          expect.objectContaining({ isPaid: false, stripeTaxRateId: null }),
+        ]),
+      });
+    },
+  );
+
+  it('saves free registration choices and add-ons without imported tax rates', async () => {
+    loadTaxRates.mockResolvedValueOnce([]);
+    const source = completeTemplate();
+    const freeTemplate = {
+      ...source,
+      addOns: source.addOns.map((addOn) => ({
+        ...addOn,
+        isPaid: false,
+        price: 0,
+        stripeTaxRateId: null,
+      })),
+      registrationOptions: source.registrationOptions.map((option) => ({
+        ...option,
+        esnCardDiscountedPrice: null,
+        isPaid: false,
+        price: 0,
+        stripeTaxRateId: null,
+      })),
+    };
+    const { fixture, root } = await renderExistingTemplate(
+      ['role-1'],
+      freeTemplate,
+    );
+    expect(renderedTaxSelects(fixture)).toHaveLength(0);
+    expect(
+      root.querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled,
+    ).toBe(false);
+    await submitTemplate(fixture);
+    expect(updateTemplate).toHaveBeenCalledOnce();
+    const payload = updateTemplate.mock.calls[0]?.[0];
+    expect(
+      payload?.registrationOptions.every(
+        (option) => !option.isPaid && option.stripeTaxRateId === null,
+      ),
+    ).toBe(true);
+    expect(
+      payload?.addOns.every(
+        (addOn) => !addOn.isPaid && addOn.stripeTaxRateId === null,
+      ),
+    ).toBe(true);
   });
 
   it.each(['success', 'error'])(

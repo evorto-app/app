@@ -104,14 +104,11 @@ describe('EmailDelivery', () => {
       }),
   );
 
-  it.effect(
-    'marks provider overload responses as an ambiguous delivery outcome',
-    () =>
+  for (const status of [408, 503]) {
+    it.effect(`marks HTTP ${status} as an ambiguous delivery outcome`, () =>
       Effect.gen(function* () {
-        vi.stubGlobal(
-          'fetch',
-          vi.fn(async () => new Response('{}', { status: 503 })),
-        );
+        const fetchMock = vi.fn(async () => new Response('{}', { status }));
+        vi.stubGlobal('fetch', fetchMock);
 
         const error = yield* EmailDelivery.deliver(request).pipe(
           Effect.provide(EmailDelivery.Default),
@@ -121,10 +118,12 @@ describe('EmailDelivery', () => {
 
         expect(error).toBeInstanceOf(EmailDeliveryUnknownError);
         expect(error.message).toBe(
-          'tem email request failed with HTTP 503; delivery outcome is unknown',
+          `tem email request failed with HTTP ${status}; delivery outcome is unknown`,
         );
+        expect(fetchMock).toHaveBeenCalledOnce();
       }),
-  );
+    );
+  }
 
   it.effect('marks an explicit provider rejection as terminal', () =>
     Effect.gen(function* () {
