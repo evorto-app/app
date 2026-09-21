@@ -85,7 +85,7 @@ export const eventReviewHandlers = {
       if (!decision) {
         return yield* Effect.fail(
           new RpcBadRequestError({
-            message: 'Add feedback before returning this event to its creator.',
+            message: 'Add feedback before returning this event to draft.',
             reason: 'reviewFeedbackRequired',
           }),
         );
