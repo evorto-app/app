@@ -38,6 +38,7 @@ import {
   QueryClient,
   type QueryFilters,
 } from '@tanstack/angular-query-experimental';
+import { consola } from 'consola/browser';
 import { firstValueFrom } from 'rxjs';
 
 import { ConfigService } from '../../core/config.service';
@@ -449,15 +450,27 @@ export class EventOrganize {
           }
         },
         onSuccess: async () => {
-          await this.invalidateOrganizerState();
-          this.notifications.showSuccess(
-            registrationCancellationCompletedLabel(
-              registrationCancellationKind({
-                paymentPending: expectedPaymentPending,
-                status: expectedStatus,
-              }),
-            ),
+          const completedMessage = registrationCancellationCompletedLabel(
+            registrationCancellationKind({
+              paymentPending: expectedPaymentPending,
+              status: expectedStatus,
+            }),
           );
+          try {
+            await this.invalidateOrganizerState();
+          } catch (error) {
+            consola
+              .withTag('app/event-organize')
+              .error(
+                'Cancellation succeeded but the organizer view could not refresh',
+                error,
+              );
+            this.notifications.showError(
+              `${completedMessage}. The page could not be updated. Load the page again to check the current sign-up details.`,
+            );
+            return;
+          }
+          this.notifications.showSuccess(completedMessage);
         },
       },
     );

@@ -814,6 +814,62 @@ describe('organizer cancellation outcome feedback', () => {
 
   it.each([
     {
+      expectedPaymentPending: false,
+      expectedStatus: 'WAITLIST',
+      message: 'Waitlist place removed',
+    },
+    {
+      expectedPaymentPending: false,
+      expectedStatus: 'PENDING',
+      message: 'Application withdrawn',
+    },
+    {
+      expectedPaymentPending: true,
+      expectedStatus: 'PENDING',
+      message: 'Sign-up cancelled',
+    },
+    {
+      expectedPaymentPending: false,
+      expectedStatus: 'CONFIRMED',
+      message: 'Ticket cancelled',
+    },
+  ] satisfies (OrganizerCancellationState & { message: string })[])(
+    'preserves the confirmed $expectedStatus outcome when refreshing the organizer view fails',
+    async ({ expectedPaymentPending, expectedStatus, message }) => {
+      cancelOrganizerRegistration.mockResolvedValue(undefined);
+      vi.mocked(queryClient.invalidateQueries).mockRejectedValue(
+        new Error('Private organizer readback diagnostic'),
+      );
+      const fixture = TestBed.createComponent(
+        OrganizerCancellationTestComponent,
+      );
+      fixture.componentRef.setInput('eventId', 'event-1');
+      fixture.detectChanges();
+      await fixture.componentInstance.cancelForTest({
+        expectedPaymentPending,
+        expectedStatus,
+      });
+      await vi.waitFor(() => {
+        expect(showCancellationError).toHaveBeenCalledExactlyOnceWith(
+          `${message}. The page could not be updated. Load the page again to check the current sign-up details.`,
+        );
+      });
+      expect(cancelOrganizerRegistration).toHaveBeenCalledOnce();
+      expect(showCancellationSuccess).not.toHaveBeenCalled();
+      expect(
+        queryClient
+          .getMutationCache()
+          .getAll()
+          .find(
+            (mutation) =>
+              mutation.options.mutationKey?.[0] === 'organizer-cancel',
+          )?.state.status,
+      ).toBe('success');
+    },
+  );
+
+  it.each([
+    {
       commits: true,
       error: new Error('Connection closed before the response arrived'),
       expected: cancellationFallback,
