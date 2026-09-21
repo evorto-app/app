@@ -3530,7 +3530,8 @@ export const eventRegistrationHandlers = {
       ) {
         return yield* Effect.fail(
           new EventRegistrationNotFoundError({
-            message: 'Registration not found',
+            message:
+              'Ticket not found. Check the QR code or ask an organizer for help.',
           }),
         );
       }

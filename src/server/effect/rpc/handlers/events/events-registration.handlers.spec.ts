@@ -367,7 +367,7 @@ type ScannedRegistrationRead = Pick<
 const createScanReadDatabaseLayer = ({
   registration,
 }: {
-  readonly registration: ScannedRegistrationRead;
+  readonly registration: null | ScannedRegistrationRead;
 }) =>
   createRegistrationDatabaseTestLayer({
     executeValues: (statement, parameters) =>
@@ -386,6 +386,7 @@ const createScanReadDatabaseLayer = ({
             'tenant-1',
             1,
           ]);
+          if (registration === null) return [];
           return [
             [
               registration.appliedDiscountedPrice,
@@ -5654,6 +5655,30 @@ describe('event registration cancellation handlers', () => {
 });
 
 describe('event registration scan handlers', () => {
+  it.effect('gives scanner-specific recovery for a missing ticket', () =>
+    Effect.gen(function* () {
+      const databaseLayer = createScanReadDatabaseLayer({ registration: null });
+      const error = yield* eventRegistrationHandlers[
+        'events.registrationScanned'
+      ](
+        { registrationId: 'registration-1' },
+        handlerOptions('events.registrationScanned'),
+      ).pipe(
+        Effect.flip,
+        Effect.provide(
+          createSqlContextLayer({
+            databaseLayer,
+            user: createUser({ permissions: ['events:organizeAll'] }),
+          }),
+        ),
+      );
+      expect(error['_tag']).toBe('EventRegistrationNotFoundError');
+      expect(error.message).toBe(
+        'Ticket not found. Check the QR code or ask an organizer for help.',
+      );
+    }),
+  );
+
   it.effect('rejects scan reads for users who cannot check in this event', () =>
     Effect.gen(function* () {
       const databaseLayer = createScanReadDatabaseLayer({
