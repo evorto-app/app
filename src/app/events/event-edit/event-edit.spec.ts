@@ -202,15 +202,9 @@ describe('eventEditSubmitDisabled', () => {
       nodePath.join(process.cwd(), 'src/app/events/event-edit/event-edit.ts'),
       'utf8',
     );
-    const template = readFileSync(
-      nodePath.join(process.cwd(), 'src/app/events/event-edit/event-edit.html'),
-      'utf8',
-    );
     expect(source).toContain('paymentsConfigured');
     expect(source).not.toContain('stripeAccountId');
     expect(source).not.toContain('resetEventGraphPayments');
-    expect(template).toContain('They remain unchanged');
-    expect(template).toContain('cannot save changes until');
   });
 });
 
@@ -844,6 +838,11 @@ describe('EventEdit save outcomes', () => {
     expect(button.disabled).toBe(true);
     expect(eventEditRoot(fixture).textContent).toContain(
       'They remain unchanged',
+    );
+    expect(
+      eventEditRoot(fixture).textContent?.replaceAll(/\s+/g, ' '),
+    ).toContain(
+      'you cannot save changes because this organization has no connected Stripe account.',
     );
     await component['saveEvent'](new Event('submit'));
     expect(updateEvent).not.toHaveBeenCalled();

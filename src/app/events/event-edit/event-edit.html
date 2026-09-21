@@ -177,13 +177,13 @@
             @if (paidGraphBlocked()) {
               <p class="text-error mt-3 text-sm" role="alert">
                 This existing event includes paid sign-up choices or add-ons.
-                They remain unchanged, but you cannot save changes until paid
-                sign-ups are ready again.
+                They remain unchanged, but you cannot save changes because this
+                organization has no connected Stripe account.
               </p>
             } @else {
               <p class="text-on-surface-variant mt-3 text-sm" role="status">
-                Paid choices are unavailable because paid sign-ups are not ready
-                for this organization.
+                Paid choices are unavailable because this organization has no
+                connected Stripe account.
               </p>
             }
           }

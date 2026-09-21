@@ -186,7 +186,8 @@
             @if (paidGraphBlocked()) {
               <p class="body-small text-error" role="alert">
                 Existing paid sign-ups and add-ons are preserved. This event
-                cannot be saved until paid sign-ups are ready again.
+                cannot be saved because the organization has no connected Stripe
+                account.
               </p>
             } @else {
               <p class="body-small text-on-surface-variant" role="status">
