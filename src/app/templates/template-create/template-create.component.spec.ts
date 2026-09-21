@@ -10,6 +10,7 @@ import {
 import { ClientTenantConfig } from '@shared/rpc-contracts/app-rpcs/config.rpcs';
 import { RoleLookupNotFoundError } from '@shared/rpc-contracts/app-rpcs/roles.errors';
 import { RoleLookupRecord } from '@shared/rpc-contracts/app-rpcs/roles.rpcs';
+import { TaxRatesListActiveRecord } from '@shared/rpc-contracts/app-rpcs/tax-rates.rpcs';
 import { TemplateGraphRecord } from '@shared/rpc-contracts/app-rpcs/templates.rpcs';
 import {
   provideTanStackQuery,
@@ -69,7 +70,8 @@ const roleCatalog: readonly RoleLookupRecord[] = [
   },
 ];
 const rolesKey = [['roles', 'findMany'], { input: {}, type: 'query' }] as const;
-const findTaxRates = vi.fn(async () => []);
+const findTaxRates =
+  vi.fn<() => Promise<readonly TaxRatesListActiveRecord[]>>();
 const findRoles = vi.fn<() => Promise<readonly RoleLookupRecord[]>>();
 const roleQueryOptions = vi.fn(
   (input: Parameters<RoleQueryOptions>[0]): ReturnType<RoleQueryOptions> => ({
@@ -489,6 +491,32 @@ describe('TemplateCreateComponent role catalog defaults', () => {
     TestBed.inject(ConfigService).tenantSignal.set(
       new ClientTenantConfig({ ...tenant, paymentsConfigured: true }),
     );
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(
+        root.querySelector<HTMLButtonElement>(
+          '[data-testid="save-template-graph"]',
+        )?.disabled,
+      ).toBe(true);
+    });
+    expect(editor.graphForm()().errorSummary()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: 'unavailableTaxRate' }),
+      ]),
+    );
+    findTaxRates.mockResolvedValue([
+      {
+        country: 'DE',
+        displayName: 'Retained tax rate',
+        id: 'retained-rate',
+        percentage: '19',
+        state: null,
+        stripeTaxRateId: 'txr-retained',
+      },
+    ]);
+    await queryClient.refetchQueries({
+      queryKey: [['taxRates', 'listActive']],
+    });
     await vi.waitFor(() => {
       fixture.detectChanges();
       expect(

@@ -1,3 +1,5 @@
+import type { TaxRatesListActiveRecord } from '@shared/rpc-contracts/app-rpcs/tax-rates.rpcs';
+
 import {
   apply,
   applyEach,
@@ -201,18 +203,36 @@ export const ordinaryTemplateGraphFormSchema =
 
 export const ordinaryTemplateGraphFormSchemaWithPaymentAvailability = (
   paymentAllowed: () => boolean,
-) =>
-  schema<OrdinaryTemplateGraphFormModel>((form) => {
+  availableTaxRates: () => readonly TaxRatesListActiveRecord[] | undefined,
+) => {
+  const selectedTaxRateSchema = schema<string>((rateId) => {
+    validate(rateId, ({ value }) => {
+      const rates = availableTaxRates();
+      if (!paymentAllowed() || rates === undefined || !value()) return;
+      return rates.some(
+        (rate) => rate.stripeTaxRateId === value() && rate.percentage !== null,
+      )
+        ? undefined
+        : {
+            kind: 'unavailableTaxRate',
+            message: 'Choose an available tax rate with a percentage.',
+          };
+    });
+  });
+  return schema<OrdinaryTemplateGraphFormModel>((form) => {
     apply(form, ordinaryTemplateGraphFormSchema);
     applyEach(form.registrationOptions, (option) => {
       disabled(option.isPaid, () => !paymentAllowed());
       disabled(option.price, () => !paymentAllowed());
       disabled(option.esnCardDiscountedPrice, () => !paymentAllowed());
       disabled(option.stripeTaxRateId, () => !paymentAllowed());
+      apply(option.stripeTaxRateId, selectedTaxRateSchema);
     });
     applyEach(form.addOns, (addOn) => {
       disabled(addOn.isPaid, () => !paymentAllowed());
       disabled(addOn.price, () => !paymentAllowed());
       disabled(addOn.stripeTaxRateId, () => !paymentAllowed());
+      apply(addOn.stripeTaxRateId, selectedTaxRateSchema);
     });
   });
+};

@@ -117,8 +117,9 @@ export class TemplateCreateComponent {
   );
   protected readonly templateForm = form(
     this.templateModel,
-    ordinaryTemplateGraphFormSchemaWithPaymentAvailability(() =>
-      this.stripeConnected(),
+    ordinaryTemplateGraphFormSchemaWithPaymentAvailability(
+      () => this.stripeConnected(),
+      () => this.availableTaxRates(),
     ),
   );
   protected readonly canSubmit = computed(

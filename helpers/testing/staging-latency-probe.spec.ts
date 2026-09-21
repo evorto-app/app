@@ -217,6 +217,7 @@ describe('staging latency observability', () => {
     let eventRequestCount = 0;
     let eventUpstreamServiceMs = 200;
     let transportFailureAtEventRequest: number | undefined;
+    let missingUpstreamAtEventRequest: number | undefined;
     const server = createServer((request, response) => {
       if (request.url === '/version') {
         response.setHeader('Content-Type', 'application/json');
@@ -240,10 +241,12 @@ describe('staging latency observability', () => {
           request.socket.destroy();
           return;
         }
-        response.setHeader(
-          'X-Envoy-Upstream-Service-Time',
-          String(eventUpstreamServiceMs),
-        );
+        if (eventRequestCount !== missingUpstreamAtEventRequest) {
+          response.setHeader(
+            'X-Envoy-Upstream-Service-Time',
+            String(eventUpstreamServiceMs),
+          );
+        }
         response.setHeader('X-Request-Id', `request-${eventRequestCount}`);
         response.end('<html><app-root></app-root></html>');
         return;
@@ -305,6 +308,7 @@ describe('staging latency observability', () => {
           overallStatus: 'within_budget',
           upstreamServiceMs: {
             max: 200,
+            measuredCount: 4,
             p50: 200,
             p95: 200,
             status: 'within_budget',
@@ -317,6 +321,55 @@ describe('staging latency observability', () => {
       expect(await readFile(summaryPath, 'utf8')).toContain(
         '| Upstream service | 200 ms | 200 ms | 200 ms | within_budget |',
       );
+
+      for (const mode of ['report-only', 'enforce-critical']) {
+        missingUpstreamAtEventRequest = eventRequestCount + 2;
+        const partialReportPath = path.join(
+          temporaryDirectory,
+          `partial-${mode}.json`,
+        );
+        const partialSummaryPath = path.join(
+          temporaryDirectory,
+          `partial-${mode}.md`,
+        );
+        const operation = executeFile('bash', [
+          probeScript,
+          '--origin',
+          origin,
+          '--output',
+          partialReportPath,
+          '--summary-output',
+          partialSummaryPath,
+          '--warm-samples',
+          '4',
+          '--mode',
+          mode,
+        ]);
+        if (mode === 'enforce-critical') {
+          await expect(operation).rejects.toMatchObject({ code: 3 });
+        } else {
+          await operation;
+        }
+        const partialReport: unknown = JSON.parse(
+          await readFile(partialReportPath, 'utf8'),
+        );
+        expect(partialReport).toMatchObject({
+          summary: {
+            contentFailures: 0,
+            expectedWarmCandidateCount: 4,
+            warmCandidateCount: 4,
+            overallStatus: 'insufficient',
+            upstreamServiceMs: {
+              measuredCount: 3,
+              p95: 200,
+              status: 'insufficient',
+            },
+          },
+        });
+        expect(await readFile(partialSummaryPath, 'utf8')).toContain(
+          '- Upstream timing samples: 3/4',
+        );
+      }
 
       transportFailureAtEventRequest = eventRequestCount + 2;
       const transportReportPath = path.join(
@@ -375,6 +428,7 @@ describe('staging latency observability', () => {
       );
 
       eventUpstreamServiceMs = 1601;
+      missingUpstreamAtEventRequest = eventRequestCount + 2;
       const criticalReportPath = path.join(temporaryDirectory, 'critical.json');
       await expect(
         executeFile('bash', [
@@ -384,7 +438,7 @@ describe('staging latency observability', () => {
           '--output',
           criticalReportPath,
           '--warm-samples',
-          '1',
+          '2',
           '--mode',
           'enforce-critical',
           '--vantage',
@@ -398,6 +452,7 @@ describe('staging latency observability', () => {
         summary: {
           overallStatus: 'critical',
           upstreamServiceMs: {
+            measuredCount: 1,
             p95: 1601,
             status: 'critical',
           },

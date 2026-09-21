@@ -250,6 +250,8 @@ Each sign-up choice includes:
   await testInfo.attach('markdown', {
     body: `
 When **Enable payment** is on, the price and tax-rate fields appear for that sign-up choice. Organizations with ESNcard discounts enabled also see the optional ESNcard price field.
+
+A paid sign-up choice or add-on needs an available tax rate with a percentage. If a saved rate is no longer available, its previous selection remains visible and saving is blocked until you choose an available rate. If the list is empty, ask someone who manages payments to import a rate.
 `,
   });
   const paymentToggle = page

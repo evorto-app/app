@@ -157,6 +157,11 @@
           } @else if (taxRateState() === "error") {
             <mat-option disabled>Failed to load tax rates</mat-option>
           } @else {
+            @if (retainedTaxRateUnavailable()) {
+              <mat-option disabled [value]="option.stripeTaxRateId().value()">
+                Previously selected tax rate (no longer available)
+              </mat-option>
+            }
             @for (rate of taxRates(); track rate.id) {
               <mat-option
                 [value]="rate.stripeTaxRateId"

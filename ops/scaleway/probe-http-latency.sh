@@ -403,14 +403,20 @@ jq --slurp \
     | distribution($upstream) as $upstream_distribution
     | distribution($ttfb) as $ttfb_distribution
     | distribution($total) as $total_distribution
-    | classify($upstream_distribution.p95; 500; 750; 1500) as $upstream_status
+    | classify($upstream_distribution.p95; 500; 750; 1500) as $measured_upstream_status
+    | (
+        if $measured_upstream_status == "critical" then "critical"
+        elif ($upstream | length) != $warm_samples then "insufficient"
+        else $measured_upstream_status
+        end
+      ) as $upstream_status
     | classify($ttfb_distribution.p95; 750; 1000; 2000) as $ttfb_status
     | (
         if $sample_failures > 0 then "critical"
         elif [$upstream_status, $ttfb_status] | any(. == "critical") then "critical"
+        elif [$upstream_status, $ttfb_status] | any(. == "insufficient") then "insufficient"
         elif [$upstream_status, $ttfb_status] | any(. == "warning") then "warning"
         elif [$upstream_status, $ttfb_status] | any(. == "above_target") then "above_target"
-        elif [$upstream_status, $ttfb_status] | any(. == "insufficient") then "insufficient"
         else "within_budget"
         end
       ) as $overall_status
@@ -450,7 +456,7 @@ jq --slurp \
           warmCandidateCount: ($warm | length),
           expectedWarmCandidateCount: $warm_samples,
           upstreamServiceMs: (
-            $upstream_distribution + { status: $upstream_status }
+            $upstream_distribution + { measuredCount: ($upstream | length), status: $upstream_status }
           ),
           ttfbMs: (
             $ttfb_distribution + { status: $ttfb_status }
@@ -475,6 +481,8 @@ if [[ -n "${summary_output}" ]]; then
     printf -- "- Overall status: \`%s\`\n" "$(
       jq --raw-output '.summary.overallStatus' "${output}"
     )"
+    echo
+    jq --raw-output '"- Upstream timing samples: \(.summary.upstreamServiceMs.measuredCount)/\(.summary.expectedWarmCandidateCount)"' "${output}"
     echo
     echo '| Warm-candidate signal | p50 | p95 | max | status |'
     echo '| --- | ---: | ---: | ---: | --- |'
@@ -521,4 +529,9 @@ fi
 if [[ "${mode}" == 'enforce-critical' && "${overall_status}" == 'critical' ]]; then
   echo "Warm-path latency exceeded a critical threshold" >&2
   exit 2
+fi
+
+if [[ "${mode}" == 'enforce-critical' && "${overall_status}" == 'insufficient' ]]; then
+  echo "Warm-path latency evidence is incomplete" >&2
+  exit 3
 fi

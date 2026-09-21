@@ -120,8 +120,9 @@ export class TemplateEditComponent {
   );
   protected readonly templateForm = form(
     this.templateModel,
-    ordinaryTemplateGraphFormSchemaWithPaymentAvailability(() =>
-      this.stripeConnected(),
+    ordinaryTemplateGraphFormSchemaWithPaymentAvailability(
+      () => this.stripeConnected(),
+      () => this.availableTaxRates(),
     ),
   );
   protected readonly templateId = input.required<string>();

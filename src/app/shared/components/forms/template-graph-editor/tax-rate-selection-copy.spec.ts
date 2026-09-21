@@ -395,6 +395,7 @@ describe('rendered tax-rate selector recovery', () => {
   const expectPanelMessage = async (
     select: MatSelectHarness,
     expected: string,
+    retainedUnavailable = false,
   ) => {
     await manualChangeDetection(async () => {
       await vi.waitFor(async () => {
@@ -407,8 +408,17 @@ describe('rendered tax-rate selector recovery', () => {
         await vi.waitFor(async () => {
           detectChanges();
           const options = await select.getOptions();
-          expect(options, expected).toHaveLength(1);
-          const option = options[0];
+          expect(options, expected).toHaveLength(retainedUnavailable ? 2 : 1);
+          if (retainedUnavailable) {
+            const retained = options[0];
+            if (!retained) throw new Error('Expected the retained tax rate');
+            expect(normalizeText(await retained.getText())).toBe(
+              'Previously selected tax rate (no longer available)',
+            );
+            expect(await retained.isDisabled()).toBe(true);
+            expect(await retained.isSelected()).toBe(true);
+          }
+          const option = options.at(-1);
           if (!option) throw new Error('Expected a diagnostic tax-rate option');
           expect(normalizeText(await option.getText())).toBe(expected);
           expect(await option.isDisabled()).toBe(true);
@@ -544,7 +554,17 @@ describe('rendered tax-rate selector recovery', () => {
 
       initialRead.resolve([]);
       await waitForQuery('success');
-      await expectPanelMessage(select, emptyMessage);
+      await expectPanelMessage(
+        select,
+        emptyMessage,
+        surface.startsWith('template-'),
+      );
+      if (surface.startsWith('template-')) {
+        await expectSelectedRate(
+          select,
+          'Previously selected tax rate (no longer available)',
+        );
+      }
       expect(fixture.componentInstance.selectedTaxRate()).toBe('txr-standard');
 
       readRates.mockResolvedValueOnce(rates);
@@ -591,7 +611,17 @@ describe('rendered tax-rate selector recovery', () => {
         { status: 'fulfilled', value: undefined },
       ]);
       await waitForQuery('success');
-      await expectPanelMessage(select, emptyMessage);
+      await expectPanelMessage(
+        select,
+        emptyMessage,
+        surface.startsWith('template-'),
+      );
+      if (surface.startsWith('template-')) {
+        await expectSelectedRate(
+          select,
+          'Previously selected tax rate (no longer available)',
+        );
+      }
       expect(fixture.componentInstance.selectedTaxRate()).toBe('txr-reduced');
 
       const successfulRefresh = holdRates();

@@ -1,3 +1,5 @@
+import type { TaxRatesListActiveRecord } from '@shared/rpc-contracts/app-rpcs/tax-rates.rpcs';
+
 import { Injector, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { form } from '@angular/forms/signals';
@@ -221,8 +223,9 @@ describe('ordinaryTemplateGraphFormSchema', () => {
           addOns: [createTemplateGraphAddonFormModel()],
         }),
       ),
-      ordinaryTemplateGraphFormSchemaWithPaymentAvailability(() =>
-        paymentAllowed(),
+      ordinaryTemplateGraphFormSchemaWithPaymentAvailability(
+        () => paymentAllowed(),
+        () => [],
       ),
       { injector: TestBed.inject(Injector) },
     );
@@ -239,6 +242,62 @@ describe('ordinaryTemplateGraphFormSchema', () => {
     expect(graph.addOns[0].isPaid().disabled()).toBe(false);
     expect(graph.addOns[0].price().disabled()).toBe(false);
   });
+
+  it.each(['registration', 'addon'] as const)(
+    'revalidates a retained paid %s tax rate against the usable catalog without clearing it',
+    (kind) => {
+      const rates = signal<readonly TaxRatesListActiveRecord[] | undefined>(
+        undefined,
+      );
+      const model = createOrdinaryTemplateGraphFormModel({
+        addOns: [
+          {
+            ...createTemplateGraphAddonFormModel(),
+            isPaid: true,
+            price: 100,
+            stripeTaxRateId: 'txr-retained',
+          },
+        ],
+      });
+      const option = model.registrationOptions[0];
+      if (!option) throw new Error('Expected a registration option');
+      option.isPaid = true;
+      option.price = 100;
+      option.stripeTaxRateId = 'txr-retained';
+      const graph = form(
+        signal(model),
+        ordinaryTemplateGraphFormSchemaWithPaymentAvailability(
+          () => true,
+          rates,
+        ),
+        { injector: TestBed.inject(Injector) },
+      );
+      const selected =
+        kind === 'addon' ? graph.addOns[0] : graph.registrationOptions[0];
+      expect(selected.stripeTaxRateId().errors()).toEqual([]);
+      rates.set([]);
+      expect(selected.stripeTaxRateId().errors()).toEqual([
+        expect.objectContaining({ kind: 'unavailableTaxRate' }),
+      ]);
+      const rate: TaxRatesListActiveRecord = {
+        country: 'DE',
+        displayName: 'Standard',
+        id: 'retained',
+        percentage: null,
+        state: null,
+        stripeTaxRateId: 'txr-retained',
+      };
+      rates.set([rate]);
+      expect(selected.stripeTaxRateId().invalid()).toBe(true);
+      rates.set([{ ...rate, percentage: '19' }]);
+      expect(selected.stripeTaxRateId().valid()).toBe(true);
+      rates.set([]);
+      expect(selected.stripeTaxRateId().invalid()).toBe(true);
+      selected.isPaid().value.set(false);
+      expect(selected.stripeTaxRateId().errors()).toEqual([]);
+      expect(selected.stripeTaxRateId().value()).toBe('txr-retained');
+    },
+  );
 
   it('accepts add-on quantity caps and rejects cap plus one', () => {
     const model = createOrdinaryTemplateGraphFormModel();

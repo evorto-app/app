@@ -3,6 +3,7 @@ import type { TaxRatesListActiveRecord } from '@shared/rpc-contracts/app-rpcs/ta
 import {
   ChangeDetectionStrategy,
   Component,
+  computed,
   input,
   output,
 } from '@angular/core';
@@ -51,6 +52,14 @@ export class TemplateAddonEditorComponent {
   readonly removeMapping = output<number>();
   readonly taxRates = input<readonly TaxRatesListActiveRecord[]>([]);
   readonly taxRateState = input<TemplateTaxRateLoadState>('loading');
+  protected readonly retainedTaxRateUnavailable = computed(() => {
+    const selectedId = this.addOnForm().stripeTaxRateId().value();
+    return (
+      this.taxRateState() === 'ready' &&
+      !!selectedId &&
+      this.taxRates().every((rate) => rate.stripeTaxRateId !== selectedId)
+    );
+  });
   protected readonly faPlus = faPlus;
 
   protected readonly faTrashCan = faTrashCan;

@@ -1,3 +1,5 @@
+import { and, eq } from 'drizzle-orm';
+import { tenantStripeTaxRates } from '../../../src/db/schema';
 import { organizerStateFile } from '../../../helpers/user-data';
 import { getId } from '../../../helpers/get-id';
 import { expect, test } from '../../support/fixtures/parallel-test';
@@ -84,6 +86,7 @@ test.describe('Template Tax Rate Validation', () => {
   test('creator can save paid registration option with a seeded inclusive tax rate', async ({
     database,
     page,
+    permissionOverride,
     roles,
     templateCategories,
     tenant,
@@ -140,5 +143,44 @@ test.describe('Template Tax Rate Validation', () => {
       timeout: 15_000,
     });
     await expect(page.getByRole('link', { name: templateTitle })).toBeVisible();
+
+    // The fixture grants editing only after proving an ordinary organizer can create it.
+    await permissionOverride({
+      add: ['templates:editAll'],
+      roleName: 'Section member',
+    });
+    await database
+      .update(tenantStripeTaxRates)
+      .set({ active: false })
+      .where(
+        and(
+          eq(tenantStripeTaxRates.id, taxRate.id),
+          eq(tenantStripeTaxRates.tenantId, tenant.id),
+        ),
+      );
+    const templateUrl = page.url();
+    await page.goto(`${templateUrl}/edit`);
+    await expect(taxRateSelect).toHaveText(
+      'Previously selected tax rate (no longer available)',
+    );
+    await expect(saveButton).toBeDisabled();
+    const replacement = (
+      await database.query.tenantStripeTaxRates.findMany({
+        where: { active: true, inclusive: true, tenantId: tenant.id },
+      })
+    ).find((rate) => rate.percentage !== null);
+    if (!replacement)
+      throw new Error('Expected another usable seeded tax rate');
+    const replacementLabel = `${replacement.displayName || 'Tax rate name unavailable'} — ${replacement.percentage}%`;
+    await taxRateSelect.press('Enter');
+    await page
+      .getByRole('option', { exact: true, name: replacementLabel })
+      .click();
+    await expect(saveButton).toBeEnabled();
+    await saveButton.click();
+    await expect(page).toHaveURL(templateUrl);
+    await page.goto(`${templateUrl}/edit`);
+    await expect(taxRateSelect).toHaveText(replacementLabel);
+    await expect(saveButton).toBeEnabled();
   });
 });
