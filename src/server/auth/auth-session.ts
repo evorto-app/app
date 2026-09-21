@@ -48,7 +48,7 @@ interface LoginAppState {
   redirectUrl: string;
 }
 
-export class InvalidAuthSessionError extends Schema.TaggedErrorClass<InvalidAuthSessionError>()(
+export class InvalidAuthSessionError extends Schema.TaggedError<InvalidAuthSessionError>()(
   'InvalidAuthSessionError',
   {
     message: Schema.String,

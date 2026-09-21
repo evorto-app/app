@@ -40,7 +40,7 @@ interface RegistrationTransferSourcePayment {
   readonly stripeNetAmount: null | number;
 }
 
-export class RegistrationTransferStateError extends Schema.TaggedErrorClass<RegistrationTransferStateError>()(
+export class RegistrationTransferStateError extends Schema.TaggedError<RegistrationTransferStateError>()(
   'RegistrationTransferStateError',
   {
     message: Schema.String,

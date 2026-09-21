@@ -5,14 +5,14 @@ import {
   RpcUnauthorizedError,
 } from '../../errors/rpc-errors';
 
-export class IconSourceBusyError extends Schema.TaggedErrorClass<IconSourceBusyError>()(
+export class IconSourceBusyError extends Schema.TaggedError<IconSourceBusyError>()(
   'IconSourceBusyError',
   {
     message: Schema.String,
   },
 ) {}
 
-export class IconSourceUnavailableError extends Schema.TaggedErrorClass<IconSourceUnavailableError>()(
+export class IconSourceUnavailableError extends Schema.TaggedError<IconSourceUnavailableError>()(
   'IconSourceUnavailableError',
   {
     iconName: Schema.String,
@@ -20,7 +20,7 @@ export class IconSourceUnavailableError extends Schema.TaggedErrorClass<IconSour
   },
 ) {}
 
-export class InvalidIconNameError extends Schema.TaggedErrorClass<InvalidIconNameError>()(
+export class InvalidIconNameError extends Schema.TaggedError<InvalidIconNameError>()(
   'InvalidIconNameError',
   {
     iconName: Schema.String,

@@ -4,21 +4,21 @@ import * as BunStream from '@effect/platform-bun/BunStream';
 import { Effect, Schema, Stream } from 'effect';
 import { finished } from 'node:stream/promises';
 
-export class RequestBodyInvalidContentLengthError extends Schema.TaggedErrorClass<RequestBodyInvalidContentLengthError>()(
+export class RequestBodyInvalidContentLengthError extends Schema.TaggedError<RequestBodyInvalidContentLengthError>()(
   'RequestBodyInvalidContentLengthError',
   {
     contentLength: Schema.String,
   },
 ) {}
 
-export class RequestBodyReadError extends Schema.TaggedErrorClass<RequestBodyReadError>()(
+export class RequestBodyReadError extends Schema.TaggedError<RequestBodyReadError>()(
   'RequestBodyReadError',
   {
     cause: Schema.Defect(),
   },
 ) {}
 
-export class RequestBodyTooLargeError extends Schema.TaggedErrorClass<RequestBodyTooLargeError>()(
+export class RequestBodyTooLargeError extends Schema.TaggedError<RequestBodyTooLargeError>()(
   'RequestBodyTooLargeError',
   {
     maxBytes: Schema.Number,

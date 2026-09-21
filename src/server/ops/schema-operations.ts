@@ -32,7 +32,7 @@ export interface OpsCommandRunner {
   ) => Effect.Effect<OpsCommandResult, OpsCommandError>;
 }
 
-export class OpsCommandError extends Schema.TaggedErrorClass<OpsCommandError>()(
+export class OpsCommandError extends Schema.TaggedError<OpsCommandError>()(
   'OpsCommandError',
   {
     cause: Schema.optional(Schema.Defect()),

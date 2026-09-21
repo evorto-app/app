@@ -15,7 +15,7 @@ export const registrationTransferMutationBlockingStatuses = [
   'checkout_pending',
 ] as const satisfies readonly (typeof activeRegistrationTransferStatuses)[number][];
 
-export class RegistrationTransferMutationConflict extends Schema.TaggedErrorClass<RegistrationTransferMutationConflict>()(
+export class RegistrationTransferMutationConflict extends Schema.TaggedError<RegistrationTransferMutationConflict>()(
   'RegistrationTransferMutationConflict',
   {
     message: Schema.String,

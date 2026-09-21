@@ -15,7 +15,7 @@ export const RoleWriteInput = Schema.Struct({
 
 export type RoleWriteInput = Schema.Schema.Type<typeof RoleWriteInput>;
 
-export class RoleNameAlreadyExistsError extends Schema.TaggedErrorClass<RoleNameAlreadyExistsError>()(
+export class RoleNameAlreadyExistsError extends Schema.TaggedError<RoleNameAlreadyExistsError>()(
   'RoleNameAlreadyExistsError',
   {
     message: Schema.String,
@@ -23,7 +23,7 @@ export class RoleNameAlreadyExistsError extends Schema.TaggedErrorClass<RoleName
   },
 ) {}
 
-export class RoleWriteValidationError extends Schema.TaggedErrorClass<RoleWriteValidationError>()(
+export class RoleWriteValidationError extends Schema.TaggedError<RoleWriteValidationError>()(
   'RoleWriteValidationError',
   {
     field: Schema.Literals(['description', 'name', 'permissions']),

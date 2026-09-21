@@ -14,7 +14,7 @@ export type EventRegistrationError =
   | EventRegistrationInternalError
   | EventRegistrationNotFoundError;
 
-export class EventCheckInUnavailableError extends Schema.TaggedErrorClass<EventCheckInUnavailableError>()(
+export class EventCheckInUnavailableError extends Schema.TaggedError<EventCheckInUnavailableError>()(
   'EventCheckInUnavailableError',
   {
     message: Schema.String,
@@ -22,14 +22,14 @@ export class EventCheckInUnavailableError extends Schema.TaggedErrorClass<EventC
   },
 ) {}
 
-export class EventConflictError extends Schema.TaggedErrorClass<EventConflictError>()(
+export class EventConflictError extends Schema.TaggedError<EventConflictError>()(
   'EventConflictError',
   {
     message: Schema.String,
   },
 ) {}
 
-export class EventNotFoundError extends Schema.TaggedErrorClass<EventNotFoundError>()(
+export class EventNotFoundError extends Schema.TaggedError<EventNotFoundError>()(
   'EventNotFoundError',
   {
     id: Schema.optional(Schema.String),
@@ -37,21 +37,21 @@ export class EventNotFoundError extends Schema.TaggedErrorClass<EventNotFoundErr
   },
 ) {}
 
-export class EventRegistrationConflictError extends Schema.TaggedErrorClass<EventRegistrationConflictError>()(
+export class EventRegistrationConflictError extends Schema.TaggedError<EventRegistrationConflictError>()(
   'EventRegistrationConflictError',
   {
     message: Schema.String,
   },
 ) {}
 
-export class EventRegistrationInternalError extends Schema.TaggedErrorClass<EventRegistrationInternalError>()(
+export class EventRegistrationInternalError extends Schema.TaggedError<EventRegistrationInternalError>()(
   'EventRegistrationInternalError',
   {
     message: Schema.String,
   },
 ) {}
 
-export class EventRegistrationNotFoundError extends Schema.TaggedErrorClass<EventRegistrationNotFoundError>()(
+export class EventRegistrationNotFoundError extends Schema.TaggedError<EventRegistrationNotFoundError>()(
   'EventRegistrationNotFoundError',
   {
     message: Schema.String,

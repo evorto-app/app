@@ -77,7 +77,7 @@ type AcquisitionPaymentType = Extract<
 
 type AcquisitionTransaction = Pick<DatabaseClient, 'insert' | 'select'>;
 
-export class RegistrationAcquisitionWriteError extends Schema.TaggedErrorClass<RegistrationAcquisitionWriteError>()(
+export class RegistrationAcquisitionWriteError extends Schema.TaggedError<RegistrationAcquisitionWriteError>()(
   'RegistrationAcquisitionWriteError',
   {
     cause: Schema.optional(Schema.Defect()),

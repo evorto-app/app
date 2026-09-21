@@ -6,7 +6,7 @@ import { Effect, Schema } from 'effect';
 import { finalizeAddonPaymentAllocations } from './addon-payment-allocation';
 import { ensureRegistrationPaymentFeeSnapshot } from './registration-payment-fee-snapshot';
 
-export class AddonPaymentAllocationReconciliationError extends Schema.TaggedErrorClass<AddonPaymentAllocationReconciliationError>()(
+export class AddonPaymentAllocationReconciliationError extends Schema.TaggedError<AddonPaymentAllocationReconciliationError>()(
   'AddonPaymentAllocationReconciliationError',
   {
     cause: Schema.optional(Schema.Defect()),

@@ -44,7 +44,7 @@ export interface AddonPurchaseCheckoutIdentity {
   readonly transactionId: string;
 }
 
-export class AddonPurchaseCheckoutError extends Schema.TaggedErrorClass<AddonPurchaseCheckoutError>()(
+export class AddonPurchaseCheckoutError extends Schema.TaggedError<AddonPurchaseCheckoutError>()(
   'AddonPurchaseCheckoutError',
   {
     cause: Schema.optional(Schema.Defect()),

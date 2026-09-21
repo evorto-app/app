@@ -5,7 +5,7 @@ import {
   RpcUnauthorizedError,
 } from '../../errors/rpc-errors';
 
-export class RoleLookupNotFoundError extends Schema.TaggedErrorClass<RoleLookupNotFoundError>()(
+export class RoleLookupNotFoundError extends Schema.TaggedError<RoleLookupNotFoundError>()(
   'RoleLookupNotFoundError',
   {
     id: Schema.optional(Schema.String),

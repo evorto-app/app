@@ -114,6 +114,7 @@
     "@heddendorp/effect-angular-query@0.1.4": "patches/heddendorp-effect-angular-query-0.1.4-angular22.patch",
     "@effect/sql-pg@4.0.0-beta.107": "patches/@effect%2Fsql-pg@4.0.0-beta.107.patch",
     "@heddendorp/effect-platform-angular@0.0.9": "patches/heddendorp-effect-platform-angular-0.0.9-angular22.patch",
+    "drizzle-orm@1.0.0-rc.4": "patches/drizzle-orm@1.0.0-rc.4.patch",
   },
   "overrides": {
     "@effect/platform-node-shared": "4.0.0-beta.107",

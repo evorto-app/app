@@ -55,7 +55,7 @@ export interface RegistrationCheckoutCompletionIdentity {
 export type RegistrationCheckoutCompletionStatus =
   'alreadyCompleted' | 'alreadyFinalized' | 'compensationQueued' | 'finalized';
 
-export class RegistrationCheckoutCompletionError extends Schema.TaggedErrorClass<RegistrationCheckoutCompletionError>()(
+export class RegistrationCheckoutCompletionError extends Schema.TaggedError<RegistrationCheckoutCompletionError>()(
   'RegistrationCheckoutCompletionError',
   {
     cause: Schema.optional(Schema.Defect()),

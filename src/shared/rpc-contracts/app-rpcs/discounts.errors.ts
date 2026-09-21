@@ -8,21 +8,21 @@ import {
   UnauthorizedRpcError,
 } from '../../errors/rpc-errors';
 
-export class DiscountCardChangedError extends Schema.TaggedErrorClass<DiscountCardChangedError>()(
+export class DiscountCardChangedError extends Schema.TaggedError<DiscountCardChangedError>()(
   'DiscountCardChangedError',
   {
     message: Schema.String,
   },
 ) {}
 
-export class DiscountCardConflictError extends Schema.TaggedErrorClass<DiscountCardConflictError>()(
+export class DiscountCardConflictError extends Schema.TaggedError<DiscountCardConflictError>()(
   'DiscountCardConflictError',
   {
     message: Schema.String,
   },
 ) {}
 
-export class DiscountCardNotFoundError extends Schema.TaggedErrorClass<DiscountCardNotFoundError>()(
+export class DiscountCardNotFoundError extends Schema.TaggedError<DiscountCardNotFoundError>()(
   'DiscountCardNotFoundError',
   {
     message: Schema.String,

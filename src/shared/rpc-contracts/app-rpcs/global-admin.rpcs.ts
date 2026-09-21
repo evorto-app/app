@@ -17,7 +17,7 @@ import {
 } from '../../platform-audit';
 import { PlatformOperationReason } from './platform-operations.shared';
 
-export class GlobalAdminTenantUrlMigrationBlockedError extends Schema.TaggedErrorClass<GlobalAdminTenantUrlMigrationBlockedError>()(
+export class GlobalAdminTenantUrlMigrationBlockedError extends Schema.TaggedError<GlobalAdminTenantUrlMigrationBlockedError>()(
   'GlobalAdminTenantUrlMigrationBlockedError',
   {
     activeRegistrationTransfers: Schema.Boolean,

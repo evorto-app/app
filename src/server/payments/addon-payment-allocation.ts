@@ -23,7 +23,7 @@ export interface FinalizedAddonPaymentAllocation {
   readonly taxAmount: number;
 }
 
-export class AddonPaymentAllocationError extends Schema.TaggedErrorClass<AddonPaymentAllocationError>()(
+export class AddonPaymentAllocationError extends Schema.TaggedError<AddonPaymentAllocationError>()(
   'AddonPaymentAllocationError',
   { message: Schema.String },
 ) {}

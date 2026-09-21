@@ -15,7 +15,7 @@ export interface RegistrationPaymentFeeSnapshot {
   readonly stripeNetAmount: number;
 }
 
-export class RegistrationPaymentFeeSnapshotRetryableError extends Schema.TaggedErrorClass<RegistrationPaymentFeeSnapshotRetryableError>()(
+export class RegistrationPaymentFeeSnapshotRetryableError extends Schema.TaggedError<RegistrationPaymentFeeSnapshotRetryableError>()(
   'RegistrationPaymentFeeSnapshotRetryableError',
   {
     cause: Schema.optional(Schema.Defect()),

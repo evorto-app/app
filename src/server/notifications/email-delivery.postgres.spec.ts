@@ -133,6 +133,13 @@ describe('email outbox single-dispatch state transitions', () => {
       Effect.gen(function* () {
         const { baseEmail, database, ownedIds, tenantId } =
           yield* acquireOutboxFixture();
+        const existingRows = yield* Effect.promise(() =>
+          database.select({ id: emailOutbox.id }).from(emailOutbox).limit(1),
+        );
+        expect(
+          existingRows,
+          'Global overview fixture requires an empty email outbox',
+        ).toEqual([]);
         const fixtureSuffix = tenantId.slice(-8);
         const insertRows = (rows: (typeof emailOutbox.$inferInsert)[]) => {
           for (const row of rows) {

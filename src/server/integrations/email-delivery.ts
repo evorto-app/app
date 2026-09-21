@@ -55,7 +55,7 @@ interface EmailDeliveryShape {
 
 const EmailDeliveryProviderSchema = Schema.Literals(['fake', 'mailpit', 'tem']);
 
-export class EmailDeliveryRejectedError extends Schema.TaggedErrorClass<EmailDeliveryRejectedError>()(
+export class EmailDeliveryRejectedError extends Schema.TaggedError<EmailDeliveryRejectedError>()(
   'EmailDeliveryRejectedError',
   {
     message: Schema.String,
@@ -63,7 +63,7 @@ export class EmailDeliveryRejectedError extends Schema.TaggedErrorClass<EmailDel
   },
 ) {}
 
-export class EmailDeliveryUnknownError extends Schema.TaggedErrorClass<EmailDeliveryUnknownError>()(
+export class EmailDeliveryUnknownError extends Schema.TaggedError<EmailDeliveryUnknownError>()(
   'EmailDeliveryUnknownError',
   {
     cause: Schema.optional(Schema.Defect()),

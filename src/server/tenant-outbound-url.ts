@@ -12,7 +12,7 @@ export interface TenantOutboundUrlTenant {
   readonly id?: string | undefined;
 }
 
-export class TenantOutboundUrlError extends Schema.TaggedErrorClass<TenantOutboundUrlError>()(
+export class TenantOutboundUrlError extends Schema.TaggedError<TenantOutboundUrlError>()(
   'TenantOutboundUrlError',
   {
     cause: Schema.optional(Schema.Defect()),

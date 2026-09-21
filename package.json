@@ -160,6 +160,7 @@
     "@material/material-color-utilities@0.4.0": "patches/@material-material-color-utilities-npm-0.4.0-9d48ca70b8.patch",
     "@heddendorp/effect-angular-query@0.1.4": "patches/heddendorp-effect-angular-query-0.1.4-angular22.patch",
     "@heddendorp/effect-platform-angular@0.0.9": "patches/heddendorp-effect-platform-angular-0.0.9-angular22.patch",
+    "drizzle-orm@1.0.0-rc.4": "patches/drizzle-orm@1.0.0-rc.4.patch",
     "@effect/sql-pg@4.0.0-beta.107": "patches/@effect%2Fsql-pg@4.0.0-beta.107.patch"
   },
   "overrides": {
