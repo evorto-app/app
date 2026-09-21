@@ -346,6 +346,11 @@ silently disappear behind a stale hand-maintained file list.
   parallel multi-user registration insert. It proves the point-in-time email
   read completes without a global user-row write lock, releases the blocked
   insert, and commits both registrations under a bounded lock timeout.
+- `src/server/effect/rpc/handlers/platform/platform-event-creation.postgres.spec.ts`
+  creates paid events through the platform handler with ESNcard enabled and
+  disabled after the template was saved. It verifies the copied discount,
+  unchanged template and ticket price, and the creation audit entry, then rolls
+  back all fixture rows.
 - `specs/events/negative-registration-states.spec.ts` adds page-backed waitlist
   coverage for full first-come-first-served options with explicit required
   answer gating, persisted waitlist registration readback, and persisted

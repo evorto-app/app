@@ -25,6 +25,13 @@ test('Manage one organization and review change history', async ({
   // persisted readbacks in one continuous organization-scoped journey.
   test.setTimeout(300_000);
 
+  const storedTenant = await database.query.tenants.findFirst({
+    columns: { timezone: true },
+    where: { id: tenant.id },
+  });
+  if (!storedTenant) {
+    throw new Error('Expected the organization used by this guide');
+  }
   const draftEvent = events.find(
     (event) => event.id === seeded.scenario.events.draft.eventId,
   );
@@ -313,7 +320,16 @@ Every change in this guide requires a reason for the change. Evorto saves the we
     has: page.getByText(draftEvent.title, { exact: true }),
   });
   await expect(eventRow.locator('app-event-status')).toHaveText('Draft');
-  await eventRow.getByRole('link', { name: 'Review event' }).click();
+  await expect(eventRow).toContainText(storedTenant.timezone);
+  const reviewEvent = eventRow.getByRole('link', { name: 'Review event' });
+  await expect(reviewEvent).toHaveAttribute(
+    'href',
+    `/global-admin/tenants/${tenant.id}/events/${draftEvent.id}`,
+  );
+  await expect(reviewEvent).not.toHaveAttribute('jsaction', /click/, {
+    timeout: 20_000,
+  });
+  await reviewEvent.click();
   await expect(page).toHaveURL(
     new RegExp(`/global-admin/tenants/${tenant.id}/events/${draftEvent.id}$`),
   );
