@@ -677,6 +677,9 @@ The privacy policy stays on **New member setup** with required member questions.
     publicPage.getByText(legalNoticeText, { exact: true }),
   ).toBeVisible();
 
+  await expect(
+    publicPage.getByRole('link', { name: 'Back to events' }),
+  ).not.toHaveAttribute('jsaction', /click/);
   await publicPage.getByRole('link', { name: 'Back to events' }).click();
   await expect(publicPage).toHaveURL(/\/events$/u);
   await expect(
@@ -693,6 +696,9 @@ The privacy policy stays on **New member setup** with required member questions.
     publicPage.getByText(privacyPolicyText, { exact: true }),
   ).toBeVisible();
 
+  await expect(
+    publicPage.getByRole('link', { name: 'Back to events' }),
+  ).not.toHaveAttribute('jsaction', /click/);
   await publicPage.getByRole('link', { name: 'Back to events' }).click();
   await expect(publicPage).toHaveURL(/\/events$/u);
   await expect(

@@ -127,6 +127,7 @@ class ProductionAddonPurchaseStripeHttpClient
     private readonly expectedEventUrl: string,
     private readonly expectedRegistrationId: string,
     private readonly expectedStripeAccountId: string,
+    private readonly expectedStripeTaxRateId: string,
     private readonly expectedTenantId: string,
     private readonly expectedUserEmail: string,
     private readonly expectedUserId: string,
@@ -268,6 +269,7 @@ class ProductionAddonPurchaseStripeHttpClient
       ],
       ['line_items[0][price_data][unit_amount]', String(paidUnitPrice)],
       ['line_items[0][quantity]', String(this.expectedQuantity)],
+      ['line_items[0][tax_rates][0]', this.expectedStripeTaxRateId],
       ['metadata[addonPurchaseOrderId]', orderId],
       ['metadata[registrationId]', this.expectedRegistrationId],
       ['metadata[tenantId]', this.expectedTenantId],
@@ -525,6 +527,21 @@ export const seedPostRegistrationAddonPurchaseScenario = async (
     );
   }
   const stripeAccountId = tenant.stripeAccountId;
+  const taxRate = await input.database.query.tenantStripeTaxRates.findFirst({
+    columns: { stripeTaxRateId: true },
+    where: {
+      active: true,
+      inclusive: true,
+      percentage: '0',
+      stripeAccountId,
+      tenantId: input.tenant.id,
+    },
+  });
+  if (!taxRate) {
+    throw new Error(
+      'Expected a current zero-percent inclusive tax rate for the paid add-on scenario',
+    );
+  }
 
   const template = await input.database.query.eventTemplates.findFirst({
     columns: { id: true },
@@ -580,6 +597,7 @@ export const seedPostRegistrationAddonPurchaseScenario = async (
     expectedEventUrl,
     registrationId,
     stripeAccountId,
+    taxRate.stripeTaxRateId,
     input.tenant.id,
     user.communicationEmail ?? user.email,
     user.id,
@@ -709,7 +727,7 @@ export const seedPostRegistrationAddonPurchaseScenario = async (
         isPaid: true,
         maxQuantityPerUser: optionalPurchaseQuantity,
         price: paidUnitPrice,
-        stripeTaxRateId: null,
+        stripeTaxRateId: taxRate.stripeTaxRateId,
         title: paidAddOn.title,
         totalAvailableQuantity: initialStock - paidIncludedQuantity,
         updatedAt: nowDate,

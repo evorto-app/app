@@ -308,6 +308,22 @@ export const seedPaidRegistrationTransferScenario = async (
     throw new Error('Expected paid transfer scenario payment account');
   }
   const stripeAccountId = originalTenant.stripeAccountId;
+  const taxRate = await input.database.query.tenantStripeTaxRates.findFirst({
+    columns: { stripeTaxRateId: true },
+    where: {
+      active: true,
+      inclusive: true,
+      percentage: '0',
+      stripeAccountId,
+      tenantId: input.tenant.id,
+    },
+  });
+  if (!taxRate) {
+    throw new Error(
+      'Expected a current zero-percent inclusive tax rate for the paid transfer guide',
+    );
+  }
+
   const sourceStripeAccountId = stripeAccountId;
 
   const paidTransferStripeHttpClient = new PaidTransferStripeHttpClient();
@@ -363,6 +379,7 @@ export const seedPaidRegistrationTransferScenario = async (
       registrationMode: 'fcfs',
       roleIds: [],
       spots: 10,
+      stripeTaxRateId: taxRate.stripeTaxRateId,
       title: 'Paid attendee',
       transferDeadlineHoursBeforeStart: 0,
     });
@@ -394,7 +411,7 @@ export const seedPaidRegistrationTransferScenario = async (
         isPaid: true,
         maxQuantityPerUser: 3,
         price: recipientPaidAddonUnitPrice,
-        stripeTaxRateId: null,
+        stripeTaxRateId: taxRate.stripeTaxRateId,
         title: 'Transfer workshop kit',
         totalAvailableQuantity: 18,
       },
