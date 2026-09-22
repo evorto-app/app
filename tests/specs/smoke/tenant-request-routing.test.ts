@@ -737,6 +737,133 @@ for (const { cleanupMode, method } of [
 }
 
 for (const cleanupMode of ['pages', 'context'] as const) {
+  test(`does not send a canceled POST when its headers arrive during cleanup (${cleanupMode})`, async ({
+    browser,
+  }) => {
+    const headersReady = Promise.withResolvers<void>();
+    const releaseHeaders = Promise.withResolvers<void>();
+    const errors: unknown[] = [];
+    const pageErrors: Error[] = [];
+    let canceledRequests = 0;
+    let context: BrowserContext | undefined;
+    let closing: Promise<PromiseSettledResult<void>[]> | undefined;
+    let evaluation: Promise<PromiseSettledResult<string>[]> | undefined;
+    const local = await listen((request, response) => {
+      if (request.url === '/headers-pending-request') canceledRequests += 1;
+      response.setHeader('content-type', 'text/html');
+      response.end(
+        '<!doctype html><link rel="icon" href="data:,"><body>Pending request headers</body>',
+      );
+    });
+    try {
+      context = await browser.newContext();
+      await routeLocalTenantRequests({
+        baseUrl: local.origin,
+        context,
+        tenantDomain: 'north-river.evorto.app',
+      });
+      await context.route(
+        `${local.origin}/headers-pending-request`,
+        async (route) => {
+          const request = route.request();
+          const originalHeaders = request.allHeaders.bind(request);
+          request.allHeaders = async () => {
+            const headers = await originalHeaders();
+            headersReady.resolve();
+            await releaseHeaders.promise;
+            return headers;
+          };
+          await route.fallback();
+        },
+      );
+      const page = await context.newPage();
+      page.on('pageerror', (error) => pageErrors.push(error));
+      await page.goto(local.origin);
+      evaluation = Promise.allSettled([
+        page.evaluate(async () => {
+          try {
+            await fetch('/headers-pending-request', {
+              method: 'POST',
+              body: 'canceled tenant mutation',
+            });
+          } catch (error) {
+            if (!(error instanceof TypeError)) throw error;
+          }
+          return new Promise<string>(() => {});
+        }),
+      ]);
+      await headersReady.promise;
+      expect(canceledRequests).toBe(0);
+      const failed = page.waitForEvent('requestfailed', {
+        predicate: (request) =>
+          request.url() === `${local.origin}/headers-pending-request`,
+        timeout: 10_000,
+      });
+      const pageClosed = page.waitForEvent('close', { timeout: 10_000 });
+      closing = Promise.allSettled([
+        cleanupMode === 'pages'
+          ? closeTenantRequestPages(context)
+          : closeTenantRequestContext(context),
+      ]);
+      expect((await failed).failure()?.errorText).toBe('net::ERR_ABORTED');
+      await pageClosed;
+      expect(page.isClosed()).toBe(true);
+      expect(context.isClosed()).toBe(false);
+      releaseHeaders.resolve();
+      const [result] = await closing;
+      if (!result) throw new Error('Missing pending-header cleanup result');
+      if (result.status === 'rejected') throw result.reason;
+      expect(context.isClosed()).toBe(cleanupMode === 'context');
+    } catch (error) {
+      errors.push(error);
+    } finally {
+      releaseHeaders.resolve();
+      if (closing) {
+        for (const result of await closing) {
+          if (result.status === 'rejected' && !errors.includes(result.reason))
+            errors.push(result.reason);
+        }
+      }
+      try {
+        if (context && !context.isClosed())
+          await closeTenantRequestContext(context);
+      } catch (error) {
+        errors.push(error);
+      }
+      if (evaluation) {
+        for (const result of await evaluation) {
+          if (result.status !== 'rejected') {
+            errors.push(
+              new Error('Pending-header observer outlived page closure'),
+            );
+          } else if (
+            !(result.reason instanceof Error) ||
+            !result.reason.message.includes(
+              'Target page, context or browser has been closed',
+            )
+          ) {
+            errors.push(result.reason);
+          }
+        }
+      }
+      try {
+        await local.close();
+      } catch (error) {
+        errors.push(error);
+      }
+      errors.push(...pageErrors);
+    }
+    try {
+      expect(canceledRequests).toBe(0);
+    } catch (error) {
+      errors.push(error);
+    }
+    if (errors.length)
+      throw new AggregateError(errors, 'Pending-header cleanup failed');
+  });
+}
+
+for (const cleanupMode of ['pages', 'context'] as const) {
   test(`settles a late POST before closing its page (${cleanupMode})`, async ({
     browser,
   }) => {

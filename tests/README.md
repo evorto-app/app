@@ -78,6 +78,8 @@ Cleanup checks settlements again before each page and context closes, including
 callbacks arriving while an earlier page closes. It attempts cancellation before
 reading the page inventory, so an inventory failure cannot bypass that step or
 discard an earlier cancellation failure.
+If cleanup starts while a request is still reading its headers, that request
+is canceled without starting an upstream fetch when the headers arrive.
 Do not replace the scoped drain with
 `unrouteAll`, which can release other active requests before their handlers
 finish.

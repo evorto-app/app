@@ -99,11 +99,13 @@ export const routeLocalTenantRequests = async ({
             await cancel();
             return;
           }
+          const headers = await route.request().allHeaders();
+          if (state.closing) {
+            await cancel();
+            return;
+          }
           const response = await route.fetch({
-            headers: localTenantRequestHeaders(
-              await route.request().allHeaders(),
-              tenantDomain,
-            ),
+            headers: localTenantRequestHeaders(headers, tenantDomain),
             maxRedirects: 0,
           });
           await settle(() => route.fulfill({ response }));

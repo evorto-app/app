@@ -694,6 +694,86 @@ describe('tenant request page lifetime', () => {
 });
 
 describe('owned tenant context lifetime', () => {
+  it.each(['pages', 'context', 'stop'] as const)(
+    'does not start an upstream request when headers resolve after cleanup starts (%s)',
+    async (cleanupMode) => {
+      const readingHeaders = Promise.withResolvers<void>();
+      const releaseHeaders = Promise.withResolvers<void>();
+      const pageClosing = Promise.withResolvers<void>();
+      const installed: { handler?: Parameters<BrowserContext['route']>[1] } =
+        {};
+      let pageClosed = false;
+      let contextClosed = false;
+      const page = {
+        close: async () => {
+          pageClosed = true;
+          pageClosing.resolve();
+        },
+        isClosed: () => pageClosed,
+      };
+      const context = {
+        close: vi.fn(async () => {
+          contextClosed = true;
+        }),
+        grantPermissions: async () => {},
+        isClosed: () => contextClosed,
+        pages: () => (pageClosed ? [] : [page]),
+        route: vi.fn<BrowserContext['route']>(async (_, handler) => {
+          installed.handler = handler;
+          return registerRoute();
+        }),
+        unroute: vi.fn(async () => {}),
+      };
+      const request: Request = {
+        ...createTeardownRequest(),
+        allHeaders: async () => {
+          readingHeaders.resolve();
+          await releaseHeaders.promise;
+          return { authorization: 'Bearer synthetic-authority' };
+        },
+      };
+      const fetch = vi.fn(async () => {
+        throw new Error('A canceled request must not start upstream');
+      });
+      const route: Route = {
+        abort: vi.fn(async () => {}),
+        continue: unusedRequestOperation,
+        fallback: unusedRequestOperation,
+        fetch,
+        fulfill: unusedRequestOperation,
+        request: () => request,
+      };
+      await routeLocalTenantRequests({
+        baseUrl: 'http://localhost:4200',
+        context,
+        tenantDomain: 'north-river.evorto.app',
+      });
+      const handler = installed.handler;
+      if (!handler) throw new Error('Tenant route handler was not installed');
+      const callback = handler(route, request);
+      await readingHeaders.promise;
+      const closing = Promise.allSettled([
+        cleanupMode === 'pages'
+          ? closeTenantRequestPages(context)
+          : cleanupMode === 'context'
+            ? closeTenantRequestContext(context)
+            : stopTenantRequestRouting(context),
+      ]);
+      try {
+        if (cleanupMode !== 'stop') await pageClosing.promise;
+      } finally {
+        releaseHeaders.resolve();
+      }
+      const [result] = await closing;
+      await callback;
+      expect(fetch).not.toHaveBeenCalled();
+      expect(route.abort).toHaveBeenCalledExactlyOnceWith('aborted');
+      expect(result?.status).toBe('fulfilled');
+      expect(pageClosed).toBe(cleanupMode !== 'stop');
+      expect(contextClosed).toBe(cleanupMode === 'context');
+    },
+  );
+
   it('settles a request admitted while the first page closes before closing the next page', async () => {
     const installed: { handler?: Parameters<BrowserContext['route']>[1] } = {};
     const abortStarted = Promise.withResolvers<void>();
