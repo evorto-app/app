@@ -640,6 +640,33 @@ describe('PlatformScannerComponent', () => {
     expect(notifications.showSuccess).toHaveBeenCalledWith('Ticket checked in');
   });
 
+  it('loads fresh ticket details once after a successful check-in', async () => {
+    const fixture = await render();
+    const notifications = TestBed.inject(NotificationService);
+    findRegistration
+      .mockReset()
+      .mockResolvedValueOnce({
+        ...inspectedRegistration,
+        attendeeCheckedIn: true,
+        checkInTime: '2030-01-02T00:00:00.000Z',
+      })
+      .mockRejectedValue(new Error('Unexpected duplicate registration read'));
+
+    findButton(fixture, 'Check in')?.click();
+
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(notifications.showSuccess).toHaveBeenCalledWith(
+        'Ticket checked in',
+      );
+    });
+    expect(findRegistration).toHaveBeenCalledOnce();
+    expect(notifications.showError).not.toHaveBeenCalled();
+    expect(
+      queryClient.getQueryData(['platform-scanner', 'registration']),
+    ).toMatchObject({ attendeeCheckedIn: true });
+  });
+
   it('shows an expected approval outcome', async () => {
     findRegistration.mockResolvedValue({
       ...inspectedRegistration,

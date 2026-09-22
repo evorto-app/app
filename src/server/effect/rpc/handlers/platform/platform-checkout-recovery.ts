@@ -22,6 +22,7 @@ import { Effect, Schema } from 'effect';
 import { createHash } from 'node:crypto';
 import Stripe from 'stripe';
 
+import { Tenant } from '../../../../../types/custom/tenant';
 import { enqueueManualApprovalEmail } from '../../../../notifications/email-delivery';
 import { registrationCheckoutInitialReconcileAt } from '../../../../registrations/registration-checkout-completion';
 import { directRegistrationCheckoutMetadataOwnsIdentity } from '../../../../registrations/registration-checkout-metadata';
@@ -33,6 +34,29 @@ import {
   writePlatformAudit,
 } from '../shared/platform-operation.service';
 import { RpcAccess } from '../shared/rpc-access.service';
+
+const PlatformCheckoutRecoveryAuditState = Schema.Struct({
+  amount: Schema.Number,
+  appFee: Schema.Number,
+  currency: Tenant.fields.currency,
+  registrationId: Schema.NonEmptyString,
+  requestDigest: Schema.String.check(Schema.isPattern(/^[a-f\d]{64}$/u)),
+  status: Schema.Literal('pending'),
+  stripeAccountId: Schema.NonEmptyString,
+  transactionId: Schema.NonEmptyString,
+});
+const PlatformCheckoutRecoveryBeforeAuditState = Schema.Struct({
+  ...PlatformCheckoutRecoveryAuditState.fields,
+  incidentSessionId: Schema.NullOr(Schema.NonEmptyString),
+  lastError: Schema.NullOr(Schema.String),
+  sessionId: Schema.Null,
+});
+const PlatformCheckoutRecoveryAfterAuditState = Schema.Struct({
+  ...PlatformCheckoutRecoveryAuditState.fields,
+  incidentSessionId: Schema.Null,
+  sessionId: Schema.NonEmptyString,
+  sessionState: PlatformFinanceRecoveredCheckoutState,
+});
 
 const recoveryError = (reason: string, message: string) =>
   new RpcBadRequestError({ message, reason });
@@ -545,7 +569,9 @@ export const recoverCheckout = Effect.fn('PlatformCheckoutRecovery.recover')(
                   to: claim.snapshot.notificationEmail,
                 });
               }
-              const auditState = {
+              const auditState = yield* Schema.decodeUnknownEffect(
+                PlatformCheckoutRecoveryAuditState,
+              )({
                 amount: current.claim.amount,
                 appFee: current.claim.appFee,
                 currency: current.claim.currency,
@@ -556,29 +582,33 @@ export const recoverCheckout = Effect.fn('PlatformCheckoutRecovery.recover')(
                 status: current.claim.status,
                 stripeAccountId: claim.stripeAccountId,
                 transactionId: current.claim.id,
-              };
+              }).pipe(Effect.orDie);
               yield* writePlatformAudit(transaction, {
                 action: 'registration.recoverCheckout',
                 after: {
                   resourceId: current.registration.id,
                   resourceType: 'registration',
-                  state: {
+                  state: yield* Schema.decodeUnknownEffect(
+                    PlatformCheckoutRecoveryAfterAuditState,
+                  )({
                     ...auditState,
                     incidentSessionId: null,
                     sessionId: session.sessionId,
                     sessionState: session.sessionState,
-                  },
+                  }).pipe(Effect.orDie),
                 },
                 before: {
                   resourceId: current.registration.id,
                   resourceType: 'registration',
-                  state: {
+                  state: yield* Schema.decodeUnknownEffect(
+                    PlatformCheckoutRecoveryBeforeAuditState,
+                  )({
                     ...auditState,
                     incidentSessionId:
                       current.claim.stripeCheckoutIncidentSessionId,
                     lastError: current.claim.stripeCheckoutReconcileLastError,
                     sessionId: null,
-                  },
+                  }).pipe(Effect.orDie),
                 },
               });
               return {

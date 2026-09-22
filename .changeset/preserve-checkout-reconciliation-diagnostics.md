@@ -17,5 +17,7 @@ mismatched payments held without creating another Checkout. Preserve approval
 notification delivery history and use normal reconciliation for completion or
 expiry.
 
+Validate the complete private recovery audit snapshots before persisting their original incident history and restored session state.
+
 Keep organization finance within the available page width and adapt its columns
 to the panel size, so recovery controls remain reachable on narrow screens.

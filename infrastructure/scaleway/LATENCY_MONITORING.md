@@ -64,9 +64,10 @@ described in `LATENCY_IMPROVEMENT.md` is implemented.
 
 ## External warm-path synthetic
 
-Run the synthetic from outside Scaleway every 15 minutes. Do not poll every
-minute: that would keep a scale-to-zero service warm and make the cold and warm
-populations indistinguishable.
+When Scaleway operational work resumes, run the synthetic from outside Scaleway
+by manually dispatching the workflow for an investigation. No recurring schedule
+is configured. Avoid frequent repeated probes: they would keep a scale-to-zero
+service warm and make the cold and warm populations indistinguishable.
 
 Each check must:
 
@@ -102,8 +103,8 @@ Use its status for availability, not as the primary latency signal: it is
 deliberately untraced and its probe semantics differ from a user navigation.
 
 The temporary implementation is
-`.github/workflows/staging-latency.yml`. It runs at minutes 7, 22, 37, and 52
-of every hour, calls `ops/scaleway/probe-http-latency.sh`, writes the full JSON
+`.github/workflows/staging-latency.yml`. It runs only on manual dispatch,
+calls `ops/scaleway/probe-http-latency.sh`, writes the full JSON
 sample set plus a Markdown summary, and retains the workflow artifact for seven
 days. It runs independently from deployment reconciliation and records the
 GitHub runner class as its vantage because GitHub does not expose a stable

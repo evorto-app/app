@@ -46,6 +46,145 @@ class FixtureRollback extends Schema.TaggedError<FixtureRollback>()(
 layer(testLayer)(
   'platform event creation with stored ESNcard discounts',
   (it) => {
+    it.effect(
+      'offers only usable inclusive tax rates from the target account',
+      () =>
+        Effect.gen(function* () {
+          const database = yield* Database;
+          const tenantId = createId();
+          const otherTenantId = createId();
+          const stripeAccountId = `acct_${tenantId}`;
+          yield* database
+            .transaction((transaction) =>
+              Effect.gen(function* () {
+                const [tenantRecord] = yield* transaction
+                  .insert(tenants)
+                  .values([
+                    {
+                      domain: `${tenantId}.form-options.example`,
+                      id: tenantId,
+                      name: 'Form options',
+                      stripeAccountId,
+                    },
+                    {
+                      domain: `${otherTenantId}.form-options.example`,
+                      id: otherTenantId,
+                      name: 'Other organization',
+                      stripeAccountId,
+                    },
+                  ])
+                  .returning();
+                if (!tenantRecord) throw new Error('Missing fixture tenant');
+                const tenant =
+                  yield* Schema.decodeUnknownEffect(Tenant)(tenantRecord);
+                const rates = [
+                  {
+                    displayName: 'Standard',
+                    key: 'standard',
+                    percentage: '19',
+                  },
+                  { displayName: 'Zero', key: 'zero', percentage: '0' },
+                  { displayName: 'Missing', key: 'null', percentage: null },
+                  { displayName: 'Empty', key: 'empty', percentage: '' },
+                  {
+                    displayName: 'Whitespace',
+                    key: 'whitespace',
+                    percentage: ' \t\n ',
+                  },
+                ];
+                yield* transaction.insert(tenantStripeTaxRates).values([
+                  ...rates.map((rate) => ({
+                    active: true,
+                    displayName: rate.displayName,
+                    inclusive: true,
+                    percentage: rate.percentage,
+                    stripeAccountId,
+                    stripeTaxRateId: `txr_${rate.key}_${tenantId}`,
+                    tenantId,
+                  })),
+                  {
+                    active: false,
+                    inclusive: true,
+                    percentage: '19',
+                    stripeAccountId,
+                    stripeTaxRateId: `txr_inactive_${tenantId}`,
+                    tenantId,
+                  },
+                  {
+                    active: true,
+                    inclusive: false,
+                    percentage: '19',
+                    stripeAccountId,
+                    stripeTaxRateId: `txr_exclusive_${tenantId}`,
+                    tenantId,
+                  },
+                  {
+                    active: true,
+                    inclusive: true,
+                    percentage: '19',
+                    stripeAccountId: `acct_other_${tenantId}`,
+                    stripeTaxRateId: `txr_account_${tenantId}`,
+                    tenantId,
+                  },
+                  {
+                    active: true,
+                    inclusive: true,
+                    percentage: '19',
+                    stripeAccountId,
+                    stripeTaxRateId: `txr_tenant_${tenantId}`,
+                    tenantId: otherTenantId,
+                  },
+                ]);
+                const options = yield* platformEventHandlers[
+                  'platform.events.formOptions'
+                ]({ targetTenantId: tenantId }, undefined).pipe(
+                  Effect.provideService(
+                    Database,
+                    Object.assign(transaction, { $client: database.$client }),
+                  ),
+                  Effect.provideService(RpcRequestContext, {
+                    authData: {},
+                    authenticated: true,
+                    permissions: [],
+                    platformAuthority: PlatformAdministratorAuthority.make({
+                      actorEmail: 'platform@example.org',
+                      actorId: 'auth0|platform-event-creation',
+                      kind: 'platformAdministrator',
+                    }),
+                    tenant,
+                    user: null,
+                    userAssigned: false,
+                  }),
+                );
+                expect(options.taxRates).toEqual([
+                  {
+                    displayName: 'Standard',
+                    percentage: '19',
+                    stripeTaxRateId: `txr_standard_${tenantId}`,
+                  },
+                  {
+                    displayName: 'Zero',
+                    percentage: '0',
+                    stripeTaxRateId: `txr_zero_${tenantId}`,
+                  },
+                ]);
+                return yield* Effect.fail(new FixtureRollback({}));
+              }),
+            )
+            .pipe(Effect.catchTag('FixtureRollback', () => Effect.void));
+          expect(
+            yield* database.query.tenants.findFirst({
+              where: { id: tenantId },
+            }),
+          ).toBeUndefined();
+          expect(
+            yield* database.query.tenants.findFirst({
+              where: { id: otherTenantId },
+            }),
+          ).toBeUndefined();
+        }),
+    );
+
     for (const providerStatus of ['disabled', 'enabled'] as const) {
       it.effect(
         `creates a paid event while the target provider is ${providerStatus}`,

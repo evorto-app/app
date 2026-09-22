@@ -519,7 +519,7 @@ export class PlatformScannerComponent {
     this.resetActionState();
     try {
       await this.queryClient.invalidateQueries(
-        this.operations.registrationFilter(),
+        { ...this.operations.registrationFilter(), refetchType: 'none' },
         { throwOnError: true },
       );
       await this.registrationQuery.refetch({ throwOnError: true });

@@ -1332,6 +1332,11 @@ export const platformEventHandlers = {
               .orderBy(
                 asc(tenantStripeTaxRates.displayName),
                 asc(tenantStripeTaxRates.stripeTaxRateId),
+              )
+              .pipe(
+                Effect.map((rates) =>
+                  rates.filter((rate) => Boolean(rate.percentage?.trim())),
+                ),
               ),
             templates: database
               .select({ id: eventTemplates.id, title: eventTemplates.title })

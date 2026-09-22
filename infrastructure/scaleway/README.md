@@ -241,9 +241,10 @@ Use [LATENCY_MONITORING.md](LATENCY_MONITORING.md) for warm-path objectives,
 external synthetic checks, trace dashboards, alert thresholds, and latency
 incident response. Application-side improvement work is ordered in
 [../../LATENCY_IMPROVEMENT.md](../../LATENCY_IMPROVEMENT.md).
-The temporary `Monitor staging latency` workflow runs independently every 15
-minutes, while successful staging deployments retain a separate 10-sample
-report-only baseline in their deployment evidence.
+The temporary `Monitor staging latency` workflow has a manual trigger only.
+Scaleway operational work is deferred; resume these checks only when that work
+is explicitly resumed. Successful staging deployments retain a separate
+10-sample report-only baseline in their deployment evidence.
 
 ## DNS and Transactional Email
 
