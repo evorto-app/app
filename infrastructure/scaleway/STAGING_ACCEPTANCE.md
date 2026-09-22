@@ -74,9 +74,10 @@ and the result transition either way.
       Reply-To.
 - [ ] A recipient outside the allowlist becomes terminal `suppressed` without a
       provider request.
-- [ ] Explicit retryable provider failures back off; an ambiguous
-      post-dispatch failure becomes terminal `deliveryUnknown`; exhausted and
-      unknown rows remain read-only.
+- [ ] An explicit provider rejection becomes terminal `failed`; an ambiguous
+      post-dispatch outcome becomes terminal `deliveryUnknown`. Both remain
+      read-only without retry or resend. An abandoned sending claim becomes
+      `deliveryUnknown` without another dispatch.
 - [ ] Signed receipt policies expire after five minutes, bind exact key/type/
       size, reject wrong tenant/user/event, MIME spoofing, oversize and public
       ACL, promote the validated bytes to a server-only content-addressed key,

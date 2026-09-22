@@ -735,8 +735,6 @@ fi
     ).toHaveLength(3);
     expect(web).toContain('privacy                = "public"');
     expect(web).toContain('max_scale              = 3');
-    expect(web.match(/path = "\/readyz"/gu)).toHaveLength(1);
-    expect(web.match(/path = "\/healthz"/gu)).toHaveLength(1);
     expect(containers).toContain(
       'SSR_RPC_ORIGIN        = "http://127.0.0.1:4200"',
     );
@@ -744,7 +742,18 @@ fi
       expect(privateRole).toContain('privacy                = "private"');
       expect(privateRole).toContain('min_scale              = 0');
       expect(privateRole).toContain('max_scale              = 1');
-      expect(privateRole.match(/path = "\/healthz"/gu)).toHaveLength(2);
+    }
+    for (const [role, startupPath] of [
+      [web, '/readyz'],
+      [worker, '/readyz'],
+      [ops, '/healthz'],
+    ]) {
+      expect(between(role, 'startup_probe {', 'liveness_probe {')).toContain(
+        `path = "${startupPath}"`,
+      );
+      expect(between(role, 'liveness_probe {', '\n}')).toContain(
+        'path = "/healthz"',
+      );
     }
     expect(mainMinScale(source('infrastructure/scaleway/main.tf'))).toEqual({
       production: 1,

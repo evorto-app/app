@@ -1,15 +1,16 @@
 import { afterEach, describe, expect, it, vi } from '@effect/vitest';
-import { ConfigProvider, Effect } from 'effect';
+import { ConfigProvider, Effect, Fiber } from 'effect';
+import { TestClock } from 'effect/testing';
 
 import {
+  EMAIL_DELIVERY_REQUEST_TIMEOUT_MS,
   EmailDelivery,
-  EmailDeliveryRetryableError,
+  EmailDeliveryRejectedError,
   EmailDeliveryUnknownError,
 } from './email-delivery';
 
 const request = {
   html: '<p>Hello</p>',
-  idempotencyKey: 'registration-confirmed/tenant-1/registration-1',
   replyTo: {
     email: 'board@example.org',
     name: 'Example Section',
@@ -38,8 +39,9 @@ describe('EmailDelivery', () => {
 
   it.effect('sends through TEM with the fixed sender and tenant reply-to', () =>
     Effect.gen(function* () {
-      const fetchMock = vi.fn(async () =>
-        Response.json({ emails: [{ id: 'tem-message-1' }] }),
+      const fetchMock = vi.fn(
+        async (_input: Request | string | URL, _init?: RequestInit) =>
+          Response.json({ emails: [{ id: 'tem-message-1' }] }),
       );
       vi.stubGlobal('fetch', fetchMock);
 
@@ -72,18 +74,12 @@ describe('EmailDelivery', () => {
           to: [{ email: 'member@example.org' }],
         }),
       );
-      expect(body.additional_headers).toEqual(
-        expect.arrayContaining([
-          {
-            key: 'Reply-To',
-            value: 'Example Section <board@example.org>',
-          },
-          {
-            key: 'X-Evorto-Idempotency-Key',
-            value: request.idempotencyKey,
-          },
-        ]),
-      );
+      expect(body.additional_headers).toEqual([
+        {
+          key: 'Reply-To',
+          value: 'Example Section <board@example.org>',
+        },
+      ]);
     }),
   );
 
@@ -109,7 +105,7 @@ describe('EmailDelivery', () => {
   );
 
   it.effect(
-    'classifies explicit provider overload responses as retryable',
+    'marks provider overload responses as an ambiguous delivery outcome',
     () =>
       Effect.gen(function* () {
         vi.stubGlobal(
@@ -123,9 +119,29 @@ describe('EmailDelivery', () => {
           Effect.flip,
         );
 
-        expect(error).toBeInstanceOf(EmailDeliveryRetryableError);
-        expect(error.message).toBe('tem email request failed with HTTP 503');
+        expect(error).toBeInstanceOf(EmailDeliveryUnknownError);
+        expect(error.message).toBe(
+          'tem email request failed with HTTP 503; delivery outcome is unknown',
+        );
       }),
+  );
+
+  it.effect('marks an explicit provider rejection as terminal', () =>
+    Effect.gen(function* () {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () => new Response('{}', { status: 400 })),
+      );
+
+      const error = yield* EmailDelivery.deliver(request).pipe(
+        Effect.provide(EmailDelivery.Default),
+        Effect.provide(temLayer()),
+        Effect.flip,
+      );
+
+      expect(error).toBeInstanceOf(EmailDeliveryRejectedError);
+      expect(error.message).toBe('tem email request failed with HTTP 400');
+    }),
   );
 
   it.effect('marks network failures as an ambiguous delivery outcome', () =>
@@ -168,9 +184,89 @@ describe('EmailDelivery', () => {
       }),
   );
 
+  it.effect('bounds a slow provider request below the outbox claim lease', () =>
+    Effect.gen(function* () {
+      const fetchMock = vi.fn(
+        (_input: Request | string | URL, init?: RequestInit) =>
+          new Promise<Response>((_resolve, reject) => {
+            init?.signal?.addEventListener(
+              'abort',
+              () => reject(new Error('provider request aborted')),
+              { once: true },
+            );
+          }),
+      );
+      vi.stubGlobal('fetch', fetchMock);
+
+      const fiber = yield* EmailDelivery.deliver(request).pipe(
+        Effect.provide(EmailDelivery.Default),
+        Effect.provide(temLayer()),
+        Effect.forkChild,
+      );
+      yield* Effect.yieldNow;
+      yield* TestClock.adjust(EMAIL_DELIVERY_REQUEST_TIMEOUT_MS);
+      const error = yield* Fiber.join(fiber).pipe(Effect.flip);
+
+      expect(error).toBeInstanceOf(EmailDeliveryUnknownError);
+      expect(error.message).toContain('provider request exceeded');
+      expect(fetchMock).toHaveBeenCalledOnce();
+    }),
+  );
+
+  it.effect('aborts a stalled response body after headers have arrived', () =>
+    Effect.gen(function* () {
+      const bodyStarted = Promise.withResolvers<undefined>();
+      const abortBody = vi.fn();
+      const fetchMock = vi.fn(
+        async (_input: Request | string | URL, init?: RequestInit) => {
+          const signal = init?.signal;
+          if (!signal)
+            throw new Error('Expected a request-scoped abort signal');
+          return new Response(
+            new ReadableStream<Uint8Array>(
+              {
+                pull: () => bodyStarted.resolve(undefined),
+                start: (controller) => {
+                  signal.addEventListener(
+                    'abort',
+                    () => {
+                      abortBody();
+                      controller.error(new Error('response body aborted'));
+                    },
+                    { once: true },
+                  );
+                },
+              },
+              { highWaterMark: 0 },
+            ),
+            { headers: { 'Content-Type': 'application/json' } },
+          );
+        },
+      );
+      vi.stubGlobal('fetch', fetchMock);
+      const fiber = yield* EmailDelivery.deliver(request).pipe(
+        Effect.provide(EmailDelivery.Default),
+        Effect.provide(temLayer()),
+        Effect.forkChild,
+      );
+      yield* Effect.promise(() => bodyStarted.promise);
+      expect(fetchMock.mock.calls[0]?.[1]?.signal?.aborted).toBe(false);
+      yield* TestClock.adjust(EMAIL_DELIVERY_REQUEST_TIMEOUT_MS);
+      const error = yield* Fiber.join(fiber).pipe(Effect.flip);
+      expect(error).toBeInstanceOf(EmailDeliveryUnknownError);
+      expect(error.message).toContain('provider request exceeded');
+      expect(fetchMock).toHaveBeenCalledOnce();
+      expect(abortBody).toHaveBeenCalledOnce();
+      expect(fetchMock.mock.calls[0]?.[1]?.signal?.aborted).toBe(true);
+    }),
+  );
+
   it.effect('uses the Mailpit HTTP API for local delivery', () =>
     Effect.gen(function* () {
-      const fetchMock = vi.fn(async () => Response.json({ ID: 'mailpit-1' }));
+      const fetchMock = vi.fn(
+        async (_input: Request | string | URL, _init?: RequestInit) =>
+          Response.json({ ID: 'mailpit-1' }),
+      );
       vi.stubGlobal('fetch', fetchMock);
 
       const result = yield* EmailDelivery.deliver(request).pipe(

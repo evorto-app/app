@@ -95,6 +95,7 @@ import { createVersionWebResponse } from './server/http/version.web-handler';
 import {
   handleWorkerTrigger,
   WORKER_EMAIL_DELIVERY_PATH,
+  workerEmailDeliveryReadinessRouteLayer,
   workerEmailDeliveryRouteLayer,
 } from './server/http/worker-email-delivery.route';
 import {
@@ -120,6 +121,7 @@ import {
   processExpiredRegistrationCheckouts,
   runExpiredRegistrationCheckoutCleanupWorker,
 } from './server/registrations/expired-checkout-cleanup';
+import { supervisePollingWorkers } from './server/runtime/polling-worker-supervision';
 import { validateRuntimeRoleConfiguration } from './server/runtime/runtime-role';
 import { stripeClientLayer } from './server/stripe-client';
 import { sanitizeRelativeRedirectPath } from './shared/auth-redirect';
@@ -738,6 +740,7 @@ const workerRoutesLayer = Layer.mergeAll(
   healthRouteLayer,
   versionRouteLayer,
   workerEmailDeliveryRouteLayer,
+  workerEmailDeliveryReadinessRouteLayer,
   workerPaymentSetupRouteLayer,
   workerExpiredCheckoutCleanupRouteLayer,
   workerReceiptOrphanCleanupRouteLayer,
@@ -987,33 +990,36 @@ const serveEffect = Effect.gen(function* () {
           EmailDelivery.Default.pipe(Layer.provide(configProviderLayer)),
         );
 
-        yield* runEmailOutboxProcessor.pipe(
+        const emailWorker = runEmailOutboxProcessor.pipe(
           Effect.provide(databaseContext),
           Effect.provide(emailDeliveryContext),
-          Effect.forkScoped,
         );
-        yield* runExpiredRegistrationCheckoutCleanupWorker.pipe(
-          Effect.provide(databaseContext),
-          Effect.provide(stripeClientContext),
-          Effect.forkScoped,
-        );
-        yield* launchRegistrationRefundWorker(
+        const checkoutCleanupWorker =
+          runExpiredRegistrationCheckoutCleanupWorker.pipe(
+            Effect.provide(databaseContext),
+            Effect.provide(stripeClientContext),
+          );
+        const refundWorker = launchRegistrationRefundWorker(
           registrationRefundWorkerMode,
           runRegistrationRefundWorker.pipe(
             Effect.provide(databaseContext),
             Effect.provide(stripeClientContext),
           ),
         );
-        yield* runReceiptOrphanCleanupWorker.pipe(
+        const receiptCleanupWorker = runReceiptOrphanCleanupWorker.pipe(
           Effect.provide(databaseContext),
           Effect.provide(ObjectStorage.Default),
           Effect.provide(configProviderLayer),
-          Effect.forkScoped,
         );
         yield* Effect.logInfo('Polling worker started').pipe(
           Effect.annotateLogs({ role: runtimeRole.role }),
         );
-        return yield* Effect.never;
+        return yield* supervisePollingWorkers([
+          emailWorker.pipe(Effect.asVoid),
+          checkoutCleanupWorker.pipe(Effect.asVoid),
+          refundWorker.pipe(Effect.asVoid),
+          receiptCleanupWorker.pipe(Effect.asVoid),
+        ]);
       }),
     );
   }

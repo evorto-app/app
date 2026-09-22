@@ -140,7 +140,7 @@ resource "scaleway_container" "worker" {
     interval          = "5s"
     timeout           = "1s"
     http {
-      path = "/healthz"
+      path = "/readyz"
     }
   }
 

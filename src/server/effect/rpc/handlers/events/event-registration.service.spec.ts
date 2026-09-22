@@ -878,15 +878,15 @@ const createManualApprovalDatabase = ({
             expect(statement).toContain(
               'on conflict ("idempotency_key") do nothing',
             );
-            expect(parameters).toHaveLength(12);
+            expect(parameters).toHaveLength(10);
             expect(parameters[1]).toBe('tenant-1');
-            expect(parameters[5]).toBe(
+            expect(parameters[3]).toBe(
               `manual-approval/tenant-1/registration-1/${claim?.id ?? 'confirmed'}`,
             );
-            expect(parameters[6]).toBe('manualApproval');
+            expect(parameters[4]).toBe('manualApproval');
             emailInsertCount += 1;
             persistedEmail = persistCommittedEmail;
-            emailKinds.push(string(parameters[6]));
+            emailKinds.push(string(parameters[4]));
             operationOrder.push('email');
             return [];
           }
@@ -1635,8 +1635,6 @@ const createDirectCheckoutDatabase = ({
         expect(parameters).toEqual([
           expect.any(String),
           'tenant-1',
-          'no-reply@notifications.evorto.app',
-          'Evorto',
           expect.any(String),
           `registration-confirmed/tenant-1/${requireRegistration().id}`,
           'registrationConfirmed',
@@ -2782,16 +2780,11 @@ const createCurrentReservationWriteFixtures = ({
           'claim_lease_expires_at',
           'claim_lease_id',
           'delivery_unknown_at',
-          'exhausted_at',
-          'from_email',
-          'from_name',
           'html',
           'idempotency_key',
           'kind',
           'last_attempt_at',
           'last_error',
-          'max_attempts',
-          'next_attempt_at',
           'provider',
           'provider_message_id',
           'reply_to_email',
@@ -2813,33 +2806,28 @@ const createCurrentReservationWriteFixtures = ({
             'default',
             'default',
             'default',
-            'default',
             '$3',
             '$4',
             '$5',
+            'default',
+            'default',
+            'default',
+            'default',
             '$6',
             '$7',
             'default',
             'default',
-            'default',
-            'default',
-            'default',
-            'default',
             '$8',
+            'default',
             '$9',
-            'default',
-            'default',
             '$10',
-            'default',
-            '$11',
-            '$12',
           ],
         ],
         ' on conflict ("idempotency_key") do nothing',
       );
       const id = requireString(parameters[0]);
-      const html = requireString(parameters[4]);
-      const text = requireString(parameters[10]);
+      const html = requireString(parameters[2]);
+      const text = requireString(parameters[8]);
       const replyToEmail = emailSenderEmail?.trim() || null;
       const replyToName = replyToEmail
         ? emailSenderName?.trim() || 'Tenant'
@@ -2847,8 +2835,6 @@ const createCurrentReservationWriteFixtures = ({
       expect(parameters).toEqual([
         id,
         'tenant-1',
-        'no-reply@notifications.evorto.app',
-        'Evorto',
         html,
         `registration-confirmed/tenant-1/${registrationId}`,
         'registrationConfirmed',
