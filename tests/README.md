@@ -74,6 +74,10 @@ by owned context closure. It still attempts that closure if page cleanup fails,
 and joins remaining callbacks only after confirming the context is closed.
 Normal and emergency cleanup share one context-close attempt; a rejected or
 unproven closure is not retried, and all known failures remain visible.
+Cleanup checks settlements again before each page and context closes, including
+callbacks arriving while an earlier page closes. It attempts cancellation before
+reading the page inventory, so an inventory failure cannot bypass that step or
+discard an earlier cancellation failure.
 Do not replace the scoped drain with
 `unrouteAll`, which can release other active requests before their handlers
 finish.

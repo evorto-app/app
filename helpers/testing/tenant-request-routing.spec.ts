@@ -694,6 +694,153 @@ describe('tenant request page lifetime', () => {
 });
 
 describe('owned tenant context lifetime', () => {
+  it('settles a request admitted while the first page closes before closing the next page', async () => {
+    const installed: { handler?: Parameters<BrowserContext['route']>[1] } = {};
+    const abortStarted = Promise.withResolvers<void>();
+    const releaseAbort = Promise.withResolvers<void>();
+    let callback: Promise<void> | undefined;
+    let firstClosed = false;
+    let secondClosed = false;
+    let contextClosed = false;
+    const request = createTeardownRequest();
+    const route: Route = {
+      abort: vi.fn(async () => {
+        abortStarted.resolve();
+        await releaseAbort.promise;
+      }),
+      continue: unusedRequestOperation,
+      fallback: unusedRequestOperation,
+      fetch: unusedRequestOperation,
+      fulfill: unusedRequestOperation,
+      request: () => request,
+    };
+    const first = {
+      close: async () => {
+        const handler = installed.handler;
+        if (!handler) throw new Error('Tenant route handler was not installed');
+        callback = (async () => {
+          await handler(route, request);
+        })();
+        firstClosed = true;
+      },
+      isClosed: () => firstClosed,
+    };
+    const second = {
+      close: vi.fn(async () => {
+        secondClosed = true;
+      }),
+      isClosed: () => secondClosed,
+    };
+    const context = {
+      close: vi.fn(async () => {
+        contextClosed = true;
+      }),
+      grantPermissions: async () => {},
+      isClosed: () => contextClosed,
+      pages: () => [first, second].filter((page) => !page.isClosed()),
+      route: vi.fn<BrowserContext['route']>(async (_, handler) => {
+        installed.handler = handler;
+        return registerRoute();
+      }),
+      unroute: vi.fn(async () => {}),
+    };
+    await routeLocalTenantRequests({
+      baseUrl: 'http://localhost:4200',
+      context,
+      tenantDomain: 'north-river.evorto.app',
+    });
+    const closing = Promise.allSettled([closeTenantRequestContext(context)]);
+    try {
+      await abortStarted.promise;
+      expect(firstClosed).toBe(true);
+      expect(second.close).not.toHaveBeenCalled();
+      expect(context.close).not.toHaveBeenCalled();
+    } finally {
+      releaseAbort.resolve();
+      await closing;
+      await callback;
+    }
+    expect((await closing)[0]?.status).toBe('fulfilled');
+    expect(route.abort).toHaveBeenCalledExactlyOnceWith('aborted');
+    expect(second.close).toHaveBeenCalledOnce();
+    expect(context.close).toHaveBeenCalledOnce();
+  });
+
+  it.each([false, true])(
+    'cancels before page inventory fails and retains every failure (abort fails: %s)',
+    async (abortFails) => {
+      const events: string[] = [];
+      const inventoryFailure = new Error('Page inventory failed');
+      const abortFailure = new Error('Browser cancellation failed');
+      const upstreamFailure = new Error('Upstream failed during disposal');
+      const fetched = Promise.withResolvers<void>();
+      const disposed = Promise.withResolvers<void>();
+      const installed: { handler?: Parameters<BrowserContext['route']>[1] } =
+        {};
+      let contextClosed = false;
+      const context = {
+        close: vi.fn(async () => {
+          events.push('context close');
+          contextClosed = true;
+          disposed.resolve();
+        }),
+        grantPermissions: async () => {},
+        isClosed: () => contextClosed,
+        pages: () => {
+          events.push('inventory');
+          throw inventoryFailure;
+        },
+        route: vi.fn<BrowserContext['route']>(async (_, handler) => {
+          installed.handler = handler;
+          return registerRoute();
+        }),
+        unroute: vi.fn(async () => {}),
+      };
+      const request = createTeardownRequest();
+      const route: Route = {
+        abort: vi.fn(async () => {
+          events.push('cancel');
+          if (abortFails) throw abortFailure;
+        }),
+        continue: unusedRequestOperation,
+        fallback: unusedRequestOperation,
+        fetch: async () => {
+          fetched.resolve();
+          await disposed.promise;
+          throw upstreamFailure;
+        },
+        fulfill: unusedRequestOperation,
+        request: () => request,
+      };
+      await routeLocalTenantRequests({
+        baseUrl: 'http://localhost:4200',
+        context,
+        tenantDomain: 'north-river.evorto.app',
+      });
+      const handler = installed.handler;
+      if (!handler) throw new Error('Tenant route handler was not installed');
+      const callback = handler(route, request);
+      await fetched.promise;
+      const [result] = await Promise.allSettled([
+        closeTenantRequestContext(context),
+      ]);
+      await callback;
+      expect(events).toEqual(['cancel', 'inventory', 'context close']);
+      expect(route.abort).toHaveBeenCalledExactlyOnceWith('aborted');
+      expect(context.close).toHaveBeenCalledOnce();
+      if (result?.status !== 'rejected')
+        throw new Error('Expected failed cleanup');
+      if (!(result.reason instanceof AggregateError)) throw result.reason;
+      const failures: unknown[] = result.reason.errors.flatMap(
+        (error: unknown) =>
+          error instanceof AggregateError ? error.errors : [error],
+      );
+      expect(failures).toContain(inventoryFailure);
+      expect(failures).toContain(upstreamFailure);
+      if (abortFails) expect(failures).toContain(abortFailure);
+    },
+  );
+
   it('settles the browser request before closing pages and keeps its upstream fetch alive through a concurrent stop', async () => {
     const events: string[] = [];
     const fetched = Promise.withResolvers<void>();

@@ -736,6 +736,161 @@ for (const { cleanupMode, method } of [
   });
 }
 
+for (const cleanupMode of ['pages', 'context'] as const) {
+  test(`settles a late POST before closing its page (${cleanupMode})`, async ({
+    browser,
+  }) => {
+    const firstCloseStarted = Promise.withResolvers<void>();
+    const firstCloseFinished = Promise.withResolvers<void>();
+    const releaseFirstClose = Promise.withResolvers<void>();
+    const abortStarted = Promise.withResolvers<void>();
+    const releaseAbort = Promise.withResolvers<void>();
+    const errors: unknown[] = [];
+    const pageErrors: Error[] = [];
+    let lateRequests = 0;
+    let secondCloseStarted = false;
+    let context: BrowserContext | undefined;
+    let restorePageClosers: (() => void) | undefined;
+    let closing: Promise<PromiseSettledResult<void>[]> | undefined;
+    let evaluation: Promise<PromiseSettledResult<string>[]> | undefined;
+    const local = await listen((request, response) => {
+      if (request.url === '/late-cleanup-request') lateRequests += 1;
+      response.setHeader('content-type', 'text/html');
+      response.end(
+        '<!doctype html><link rel="icon" href="data:,"><body>Late request cleanup</body>',
+      );
+    });
+    try {
+      context = await browser.newContext();
+      await routeLocalTenantRequests({
+        baseUrl: local.origin,
+        context,
+        tenantDomain: 'north-river.evorto.app',
+      });
+      await context.route(
+        `${local.origin}/late-cleanup-request`,
+        async (route) => {
+          const originalAbort = route.abort.bind(route);
+          route.abort = async (reason) => {
+            abortStarted.resolve();
+            await releaseAbort.promise;
+            await originalAbort(reason);
+          };
+          await route.fallback();
+        },
+      );
+      const first = await context.newPage();
+      const second = await context.newPage();
+      for (const page of [first, second]) {
+        page.on('pageerror', (error) => pageErrors.push(error));
+        await page.goto(local.origin);
+      }
+      const originalFirstClose = first.close.bind(first);
+      const originalSecondClose = second.close.bind(second);
+      restorePageClosers = () => {
+        first.close = originalFirstClose;
+        second.close = originalSecondClose;
+      };
+      first.close = async (options) => {
+        firstCloseStarted.resolve();
+        await releaseFirstClose.promise;
+        await originalFirstClose(options);
+        firstCloseFinished.resolve();
+      };
+      second.close = async (options) => {
+        secondCloseStarted = true;
+        await originalSecondClose(options);
+      };
+      closing = Promise.allSettled([
+        cleanupMode === 'pages'
+          ? closeTenantRequestPages(context)
+          : closeTenantRequestContext(context),
+      ]);
+      await firstCloseStarted.promise;
+      evaluation = Promise.allSettled([
+        second.evaluate(async () => {
+          try {
+            await fetch('/late-cleanup-request', {
+              method: 'POST',
+              body: 'late tenant mutation',
+            });
+          } catch (error) {
+            if (!(error instanceof TypeError)) throw error;
+          }
+          return new Promise<string>(() => {});
+        }),
+      ]);
+      await abortStarted.promise;
+      releaseFirstClose.resolve();
+      await firstCloseFinished.promise;
+      // Drain queued close continuations while the actual protocol abort is
+      // held. This is an explicit barrier, not a request timing assumption.
+      await setImmediate();
+      expect(secondCloseStarted).toBe(false);
+      expect(second.isClosed()).toBe(false);
+      const failed = second.waitForEvent('requestfailed', {
+        predicate: (request) =>
+          request.url() === `${local.origin}/late-cleanup-request`,
+        timeout: 10_000,
+      });
+      releaseAbort.resolve();
+      expect((await failed).failure()?.errorText).toBe('net::ERR_ABORTED');
+      const [result] = await closing;
+      if (!result) throw new Error('Missing late-request cleanup result');
+      if (result.status === 'rejected') throw result.reason;
+      expect(second.isClosed()).toBe(true);
+      expect(context.isClosed()).toBe(cleanupMode === 'context');
+    } catch (error) {
+      errors.push(error);
+    } finally {
+      releaseFirstClose.resolve();
+      releaseAbort.resolve();
+      if (closing) {
+        for (const result of await closing) {
+          if (result.status === 'rejected' && !errors.includes(result.reason))
+            errors.push(result.reason);
+        }
+      }
+      restorePageClosers?.();
+      try {
+        if (context && !context.isClosed())
+          await closeTenantRequestContext(context);
+      } catch (error) {
+        errors.push(error);
+      }
+      if (evaluation) {
+        for (const result of await evaluation) {
+          if (result.status !== 'rejected') {
+            errors.push(
+              new Error('Late request observer outlived page closure'),
+            );
+          } else if (
+            !(result.reason instanceof Error) ||
+            !result.reason.message.includes(
+              'Target page, context or browser has been closed',
+            )
+          ) {
+            errors.push(result.reason);
+          }
+        }
+      }
+      try {
+        await local.close();
+      } catch (error) {
+        errors.push(error);
+      }
+      errors.push(...pageErrors);
+    }
+    try {
+      expect(lateRequests).toBe(0);
+    } catch (error) {
+      errors.push(error);
+    }
+    if (errors.length)
+      throw new AggregateError(errors, 'Late request cleanup failed');
+  });
+}
+
 test('uses fresh upstream connections for tenant requests across owned contexts', async ({
   browser,
 }) => {
