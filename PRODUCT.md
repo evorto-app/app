@@ -16,7 +16,9 @@ The relaunch target is a full production replacement, not a prototype. Core work
   - Example: the default event setup UI can show "participant signup settings" and "organizer signup settings" while creating separate registration options internally.
 - **Tenant-first**: associations/sections own their events, templates, roles, registrations, settings, branding, and configuration.
 - **Role-based eligibility**: access to registration options should be modeled through tenant roles and capabilities, not scattered special-case flags.
-- **Account-required registration**: anonymous users may browse eligible listed events, but registration requires an account.
+- **Account-required registration**: people who are not signed in may discover a
+  published event when one of its sign-up choices is open to a role that every
+  new member receives, but signing up requires an account.
 - **Stripe is the payment source of truth**: local state may mirror payment details for app behavior, but payment lifecycle changes must respect Stripe state and webhooks.
 - **Paid event activity is Stripe-only**: event registrations and add-ons may
   charge money only through the tenant's connected Stripe account. Without
@@ -92,7 +94,9 @@ A tenant may model different organizer categories, such as main organizer and he
 
 ### Participants
 
-People who browse public/listed events, register, pay if required, attend events, transfer registrations where supported, and receive registration/check-in information.
+People who discover published events, register, pay if required, attend events,
+transfer registrations where supported, and receive registration/check-in
+information.
 
 ### Platform administrators
 
@@ -132,7 +136,7 @@ The core product lifecycle is:
 
 Other important workflows:
 
-- browse listed events
+- discover published events
 - manage templates
 - manage tenant roles and capabilities
 - manage tenant branding/legal settings
@@ -159,16 +163,34 @@ permission does not grant event-edit permission; a reviewer may edit an event
 only when they also have the relevant event-edit capability or are otherwise
 authorized as its editor.
 
-Publishing is the approval act. There is no separate "approved but not published" state for now.
+Publishing is the approval act. There is no separate "approved but not
+published" state for now.
 
-Listing is separate from publishing. A published event may be:
+Ordinary events with sign-up choices do not have a separately chosen audience.
+The choices on the published event decide who discovers it:
 
-- listed for participants
-- listed for organizers
-- listed for both
-- unlisted for both, reachable only by direct link
+- a signed-in member discovers the event when at least one choice is currently
+  available to them;
+- a person who is not signed in discovers the event when at least one choice is
+  available to a role that every new member receives by default.
 
-Anonymous users may see events when those events have registration options available to roles that every new user receives by default in that tenant. Anonymous visibility should not show events that a user would lose access to immediately after signing in.
+People who are not signed in see only the public event information and must sign
+in before registering. Discovery never grants access. The server checks current
+eligibility and every other sign-up condition again whenever a registration is
+created or changed.
+
+A person who follows a direct link still sees a clear outcome. Someone who is
+not signed in is asked to sign in without seeing restricted choices. A signed-in
+member who cannot use any choice is told that they are not eligible. The app
+must not hide either outcome or quietly substitute another audience.
+
+Information-only announcements intentionally follow a different rule because
+they have no sign-up choices. Organizers choose which organization roles see an
+announcement in the event list. Choosing no roles makes it link-only. This
+choice only controls where the announcement appears: it does not give anyone a
+role or access, and it does not send a message. Announcement visibility and
+sign-up-based event discovery stay separate; neither acts as a fallback for the
+other.
 
 ## Registration Model
 
@@ -319,6 +341,12 @@ They do not behave like a reservation queue. Waitlist messages are informative
 only: receiving one never reserves capacity, creates a checkout hold, or
 guarantees a place.
 
+Waitlist entries do not consume the tenant's active-registration limit. Before
+a waitlisted user receives a real registration, the normal registration
+boundary must recheck the current limit and surface an unavailable outcome if
+the user is no longer eligible. Joining a waitlist never reserves limit
+capacity.
+
 Users should intentionally join a waitlist through a distinct action when an option is full. Do not silently add a user to a waitlist as a side effect of failed registration.
 
 ## Transfers and Resale
@@ -350,10 +378,20 @@ The intended workflow:
    and purchased-add-on payment after prior successful refunds.
 
 Previous participant-question answers are never part of the transfer bundle.
-Every transfer uses the recipient's private claim, including a free bundle with
-no refund or questions. Organizers cannot reassign someone else's ticket around
-that review. The recipient answers current questions before ownership changes;
-a wholly free bundle with no refund obligation then completes immediately.
+Every transfer uses one private offer-and-claim flow. A wholly free,
+questionless claim with no source refund completes immediately. Questions alone
+do not require Stripe: when no payment or refund is involved, the recipient
+reviews the fixed bundle, provides their own answers, and the claim completes.
+Transfers involving a recipient payment or source refund remain asynchronous
+through Stripe. The recipient opens the payment page only when a new payment is
+due, and ownership changes only after that payment succeeds. Any source refund
+must already be durably queued for reconciliation, but it may still be pending
+or need attention after the ticket moves. There is no separate
+direct-reassignment path.
+
+A recipient who is already on the event's waitlist must leave it before
+accepting a transferred ticket. Reject that claim before changing the transfer
+offer, source ticket, waitlist place, or any payment or refund work.
 
 The goal is to let users transfer spots without trusting each other directly.
 
@@ -410,6 +448,11 @@ retroactively alter existing events. Some duplication between templates and
 event instances is acceptable if it keeps event instances stable and
 understandable.
 
+Templates define reusable event structure only. They do not decide who can find
+an event or provide a default audience. Ordinary discovery comes from the
+created event's sign-up choices. Roles selected for an information-only
+announcement belong to that event and are not part of its template.
+
 ## Roles, Capabilities, and Eligibility
 
 Tenants can define their own roles. There is no single system-defined default role.
@@ -428,7 +471,6 @@ The exact capability list may evolve with the product, but these areas are expec
 - create events
 - submit events for review
 - publish events
-- manage event listing/visibility
 - manage templates
 - manage roles
 - manage tenant settings
@@ -474,6 +516,16 @@ Each tenant owns its payments through its configured Stripe Connect account.
 Checkout, customer, payment-intent, expiry, and refund calls must execute for
 that connected account. Evorto adds its application fee but does not own or
 silently replace the tenant's other payment configuration.
+
+One payment account may serve more than one organization. This does not join
+those organizations or share their members, events, settings, or records. Every
+action remains scoped to the organization in which it started.
+
+Application and generated-documentation pages show payment readiness only,
+never the connected-account identifier or setup mechanics. The first account
+attachment is a private, explicitly confirmed operations action for a fresh
+organization. The product does not support changing or disconnecting that
+account through organization or platform administration.
 
 Users should receive registration confirmation and an authenticated link to
 their ticket only after registration is successful. For paid events, that means
@@ -554,7 +606,7 @@ Tenants should be able to customize:
 - registration limits
 - enabled complexity where applicable
 - email sender name, likely derived from tenant config
-- Stripe Connect account and tenant payment/cancellation defaults
+- payment readiness and tenant payment/cancellation defaults
 
 Evorto uses the fixed `de-DE` formatting locale for all tenants. This affects
 date, number, and money formatting only; the interface, emails, generated
@@ -570,8 +622,7 @@ administrator cannot change either after event or payment data exists; a
 platform-administrator override must be explicit and auditable. Because event
 and template prices are stored as minor units under the tenant currency, an
 in-place platform currency override is rejected once template, event, receipt,
-or transaction data exists until a dedicated currency migration workflow is
-available.
+or transaction data exists.
 
 Stripe branding is handled in Stripe where possible.
 

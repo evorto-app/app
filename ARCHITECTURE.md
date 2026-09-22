@@ -175,7 +175,9 @@ High-risk data areas:
 
 Auth0 is the current auth provider.
 
-The product does not require anonymous registration. Users need an account to register, but anonymous users may browse eligible listed events.
+The product does not require anonymous registration. Users need an account to
+register, but people who are not signed in may discover eligible published
+events through the public event view.
 
 Auth-related changes should preserve:
 
@@ -185,6 +187,13 @@ Auth-related changes should preserve:
 - tenant-scoped role assignments
 - home tenant support
 - social login / lightweight account creation where available
+
+Persisted tenant-role grants must decode against the current tenant permission
+schema before a request receives its user context. Invalid or retired grants
+fail request resolution instead of being silently ignored. Platform authority
+comes only from the explicit platform principal, never a tenant role. The
+current tax permission is `admin:tax`; the retired `admin:manageTaxes` alias is
+not accepted by role forms or request resolution.
 
 Tenant onboarding is part of the auth boundary. A cross-tenant join records
 acceptance of the tenant's current privacy policy and answers to required
@@ -253,6 +262,10 @@ The current owner creates a code; its hash is persisted and the raw code is neve
 included in a page URL. There is no direct organizer or participant reassignment.
 The source registration ID remains the identity throughout payment and handoff;
 no separate recipient-registration alias or direct-transfer acquisition exists.
+
+A recipient's existing waitlist place is a claim conflict: reject it before
+changing the offer, registrations, acquisition history, payment, or refund
+state.
 
 Transfer ownership and refund provenance use an application-append-only
 acquisition ledger. Production server code inserts ownership epochs,
@@ -370,7 +383,7 @@ in `infrastructure/scaleway/README.md`.
 
 Agents should usually start in these areas when working on related changes:
 
-- event browsing and listing
+- event discovery
 - event creation/editing
 - template management
 - review and publishing workflow
@@ -453,6 +466,35 @@ with an explicit organizing flag. Missing organizer or participant options are
 diagnostic warnings, not persistence blockers, because optionless operational
 events are valid. Mode changes require explicit confirmation; advanced-to-simple
 conversion additionally requires exactly one option of each kind.
+
+### Event discovery
+
+Ordinary published events store no separate discovery audience. A signed-in
+member sees an event in the normal event list when at least one sign-up choice
+accepts one of their current organization roles, or has no role restriction.
+Whether a choice is for participants or organizers does not create a second
+audience setting.
+
+For a person who is not signed in, the server checks whether at least one
+sign-up choice is available to any role assigned by default to new members. A
+choice without a role restriction is shown this way only when the organization
+has at least one such default role. The public event view excludes private
+management details and still requires sign-in before registration. Every
+sign-up attempt checks current eligibility and all other conditions again on
+the server.
+
+Following a direct link keeps failures visible. A person who is not signed in
+gets a clear sign-in state without restricted choices. A signed-in member with
+no available choice gets the explicit ineligible state. Neither path may hide
+the event or use a fallback audience.
+
+Information-only announcements use a separate rule because they have no sign-up
+choices. They store the organization roles selected by an organizer. A
+signed-in member sees the announcement in the event list when they hold at
+least one selected role. People who are not signed in never borrow default
+roles for announcements, and no selected roles means link-only. This selection
+does not grant access, assign roles, or send messages. Templates store neither
+event discovery settings nor announcement roles.
 
 Add-ons are reusable event/template entities with explicit many-to-many option
 attachments. Each attachment must keep included entitlement quantity separate

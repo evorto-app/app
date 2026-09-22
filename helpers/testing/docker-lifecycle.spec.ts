@@ -133,6 +133,16 @@ fi
     executablePath,
     String.raw`#!/usr/bin/env bash
 ${upSignalTrap}printf '%s\n' "$*" >> "$DOCKER_LOG"
+if [[ "$*" == 'compose ps --all --quiet minio' ]]; then
+  if [[ "$FAKE_HOST_MINIO_STATE" != missing || -f "$DOCKER_LOG.host-created" ]]; then
+    printf '%s\n' minio-container
+  fi
+  exit 0
+fi
+if [[ "$*" == 'compose up --detach --no-deps minio' ]]; then
+  printf '%s' created > "$DOCKER_LOG.host-created"
+  exit 0
+fi
 if [[ "$1" == 'compose' && "$2" == 'ps' && "$3" == '--all' && "$4" == '-q' ]]; then
   service="$5"
   if [[ "$service" == "$FAKE_PS_FAILURE_SERVICE" ]]; then
@@ -211,6 +221,12 @@ if [[ "$1" == 'inspect' ]]; then
       printf 'exited 1\n'
     else
       printf 'exited 0\n'
+    fi
+  elif [[ "$format" == *'.State.Running'* ]]; then
+    if [[ "$FAKE_HOST_MINIO_STATE" == running ]]; then
+      printf 'true\n'
+    else
+      printf 'false\n'
     fi
   elif [[ "$format" == *'.State.Health'* ]]; then
     if [[ "$service" == "$FAKE_MISSING_HEALTHCHECK_SERVICE" ]]; then
@@ -1201,6 +1217,121 @@ if (errors.length) throw new AggregateError(errors, 'Private IPC fixture failed'
       'volume ls --quiet --filter label=com.docker.compose.project=evorto-test-project',
     ]);
   });
+
+  it.each([
+    { state: 'missing', restoration: 'rm --force minio-container' },
+    { state: 'stopped', restoration: 'stop --time 10 minio-container' },
+    { state: 'running', restoration: undefined },
+  ])(
+    'finishes host app cleanup before restoring $state MinIO after repeated shutdown signals',
+    async ({ state, restoration }) => {
+      const { environment, logPath } = createFakeDocker();
+      const directory = path.dirname(logPath);
+      const releasePath = path.join(directory, 'release-app');
+      const descendantPath = path.join(directory, 'app-descendant.cjs');
+      fs.writeFileSync(
+        descendantPath,
+        `
+const fs = require('node:fs');
+process.once('SIGTERM', () => {
+  fs.appendFileSync(process.env.DOCKER_LOG, 'descendant-cleanup-started\\n');
+  const timer = setInterval(() => {
+    if (!fs.existsSync(process.env.HOST_APP_RELEASE)) return;
+    clearInterval(timer);
+    fs.appendFileSync(process.env.DOCKER_LOG, 'descendant-stopped\\n');
+    process.exit(0);
+  }, 10);
+});
+setInterval(() => {}, 1000);
+fs.writeFileSync(process.env.HOST_DESCENDANT_PID, String(process.pid));
+`,
+      );
+      fs.writeFileSync(
+        path.join(directory, 'bun'),
+        `#!${process.execPath}
+const fs = require('node:fs');
+const { spawn } = require('node:child_process');
+if (JSON.stringify(process.argv.slice(2)) !== JSON.stringify(['run', 'dev:ng', 'serve', '--port', '4301', '--allowed-hosts'])) process.exit(64);
+const descendant = spawn(process.execPath, [process.env.HOST_DESCENDANT_SCRIPT], { stdio: 'inherit' });
+process.once('SIGTERM', () => {
+  fs.appendFileSync(process.env.DOCKER_LOG, 'app-cleanup-started\\n');
+  descendant.kill('SIGTERM');
+});
+descendant.once('close', () => {
+  fs.appendFileSync(process.env.DOCKER_LOG, 'app-stopped\\n');
+  process.exit(0);
+});
+fs.writeFileSync(process.env.HOST_APP_PID, String(process.pid));
+`,
+        { mode: 0o700 },
+      );
+      fs.writeFileSync(path.join(directory, 'curl'), '#!/bin/sh\nexit 0\n', {
+        mode: 0o700,
+      });
+      const appPidPath = path.join(directory, 'app-pid');
+      const descendantPidPath = path.join(directory, 'descendant-pid');
+      const child = spawn(
+        'bash',
+        [path.join(process.cwd(), 'helpers/testing/host-e2e-webserver.sh')],
+        {
+          env: {
+            ...environment,
+            APP_HOST_PORT: '4301',
+            MINIO_HOST_PORT: '9101',
+            FAKE_HOST_MINIO_STATE: state,
+            HOST_APP_RELEASE: releasePath,
+            HOST_APP_PID: appPidPath,
+            HOST_DESCENDANT_PID: descendantPidPath,
+            HOST_DESCENDANT_SCRIPT: descendantPath,
+          },
+          stdio: 'pipe',
+        },
+      );
+      const closed = trackChild(child);
+      const exited = new Promise<{
+        code: number | null;
+        signal: NodeJS.Signals | null;
+      }>((resolve) => {
+        child.once('exit', (code, signal) => resolve({ code, signal }));
+      });
+      let appPid: number | undefined;
+      let descendantPid: number | undefined;
+      try {
+        appPid = Number(await waitForFileContents(appPidPath));
+        descendantPid = Number(await waitForFileContents(descendantPidPath));
+        expect(child.kill('SIGINT')).toBe(true);
+        await waitForText(logPath, 'descendant-cleanup-started');
+        expect(child.kill('SIGTERM')).toBe(true);
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        expect(child.exitCode).toBeNull();
+        expect(child.signalCode).toBeNull();
+        expect(process.kill(appPid, 0)).toBe(true);
+        expect(process.kill(descendantPid, 0)).toBe(true);
+        const duringCleanup = fs.readFileSync(logPath, 'utf8');
+        expect(duringCleanup).not.toContain('app-stopped');
+        expect(duringCleanup).not.toContain('rm --force minio-container');
+        expect(duringCleanup).not.toContain('stop --time 10 minio-container');
+      } finally {
+        fs.writeFileSync(releasePath, 'release');
+        await closed;
+      }
+      expect(await exited).toEqual({ code: 130, signal: null });
+      if (appPid === undefined || descendantPid === undefined)
+        throw new Error('Missing owned app process IDs');
+      await waitForProcessExit(appPid);
+      await waitForProcessExit(descendantPid);
+      const lifecycleLog = fs.readFileSync(logPath, 'utf8').trim().split('\n');
+      expect(
+        lifecycleLog.slice(lifecycleLog.indexOf('app-cleanup-started')),
+      ).toEqual([
+        'app-cleanup-started',
+        'descendant-cleanup-started',
+        'descendant-stopped',
+        'app-stopped',
+        ...(restoration ? [restoration] : []),
+      ]);
+    },
+  );
 
   it('surfaces a failed teardown without retrying', async () => {
     const { environment, logPath } = createFakeDocker({

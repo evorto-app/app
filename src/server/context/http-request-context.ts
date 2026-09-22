@@ -36,7 +36,7 @@ const resolveRequestHeader = (
   return;
 };
 
-export const resolveHttpRequestContext = (
+const resolveHttpRequestContextEffect = (
   request: HttpServerRequest.HttpServerRequest,
   authSession: AuthSession | undefined,
   routing: {
@@ -52,6 +52,10 @@ export const resolveHttpRequestContext = (
     const requestOrigin = resolveRequestOrigin(request);
     const authentication = resolveAuthenticationContext({
       isAuthenticated: isAuthenticated(authSession),
+    });
+    yield* Effect.annotateCurrentSpan({
+      'evorto.authenticated': authentication.isAuthenticated,
+      'evorto.user_context_resolved': false,
     });
 
     const { cause, tenant } = yield* resolveTenantContext({
@@ -92,6 +96,9 @@ export const resolveHttpRequestContext = (
       platformAuthority,
       user: tenantUser,
     });
+    yield* Effect.annotateCurrentSpan({
+      'evorto.user_context_resolved': tenantUser !== undefined,
+    });
 
     return Schema.decodeUnknownSync(RequestContext)({
       authentication,
@@ -101,3 +108,7 @@ export const resolveHttpRequestContext = (
       user: tenantUser,
     });
   });
+
+export const resolveHttpRequestContext = Effect.fn(
+  'Server.resolveHttpRequestContext',
+)(resolveHttpRequestContextEffect);
