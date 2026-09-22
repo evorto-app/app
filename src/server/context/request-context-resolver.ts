@@ -27,34 +27,14 @@ const normalizePermissions = (permissions: readonly Permission[]) =>
     permissions.flatMap((permission) => expandPermissionAliases(permission)),
   );
 
-const configuredLocalEndToEndGlobalAdminAuth0Ids = () =>
-  (process.env['E2E_GLOBAL_ADMIN_AUTH0_IDS'] ?? '')
-    .split(',')
-    .map((auth0Id) => auth0Id.trim())
-    .filter((auth0Id) => auth0Id.length > 0);
-
-const localEndToEndGlobalAdminOverrideEnabled = (): boolean =>
-  process.env['NODE_ENV'] === 'development' ||
-  process.env['NODE_ENV'] === 'test';
-
 export const resolvePlatformAuthority = (
   oidcUser: unknown,
 ): PlatformAdministratorAuthority | undefined => {
   const user = asRecord(oidcUser);
-  const appMetadata =
-    asRecord(user?.['evorto.app/app_metadata']) ??
-    asRecord(user?.['https://evorto.app/app_metadata']) ??
-    asRecord(user?.['app_metadata']);
+  const appMetadata = asRecord(user?.['evorto.app/app_metadata']);
   const auth0Id = asString(user?.['sub']);
-  const configuredLocalEndToEndGlobalAdmin =
-    localEndToEndGlobalAdminOverrideEnabled() &&
-    auth0Id !== undefined &&
-    configuredLocalEndToEndGlobalAdminAuth0Ids().includes(auth0Id);
-
   const isPlatformAdministrator =
-    appMetadata?.['platformAdministrator'] === true ||
-    appMetadata?.['globalAdmin'] === true ||
-    configuredLocalEndToEndGlobalAdmin;
+    appMetadata?.['platformAdministrator'] === true;
 
   return isPlatformAdministrator && auth0Id
     ? PlatformAdministratorAuthority.make({
@@ -66,7 +46,7 @@ export const resolvePlatformAuthority = (
 };
 
 export const resolveRequestPermissions = (input: {
-  oidcUser: unknown;
+  platformAuthority: PlatformAdministratorAuthority | undefined;
   user:
     | undefined
     | {
@@ -78,7 +58,7 @@ export const resolveRequestPermissions = (input: {
   ).accepted;
 
   return normalizePermissions([
-    ...(resolvePlatformAuthority(input.oidcUser)
+    ...(input.platformAuthority
       ? (['globalAdmin:manageTenants'] as const)
       : []),
     ...tenantPermissions,
@@ -204,7 +184,9 @@ export const resolveUserContext = (
     const oidcUser = asRecord(input.oidcUser);
     const auth0Id = asString(oidcUser?.['sub']);
     if (!auth0Id) {
-      return;
+      throw new Error(
+        'Authenticated request context is missing its Auth0 user subject',
+      );
     }
 
     const user = yield* databaseEffect((database) =>

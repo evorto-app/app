@@ -7,7 +7,6 @@ import {
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
-import { getErrorMessage } from '../../core/error-message';
 
 @Injectable({ providedIn: 'root' })
 export class MembersHubQueries {
@@ -30,8 +29,4 @@ export class MembersHubQueries {
 export class MembersHubComponent {
   private readonly queries = inject(MembersHubQueries);
   protected readonly rolesQuery = injectQuery(() => this.queries.hubRoles());
-
-  protected errorMessage(error: unknown): string {
-    return getErrorMessage(error, 'Unknown error');
-  }
 }

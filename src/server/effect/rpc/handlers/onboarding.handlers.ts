@@ -48,6 +48,19 @@ const authDataString = (
   return typeof value === 'string' ? value.trim() || undefined : undefined;
 };
 
+const requireOnboardingAuth0Id = Effect.fn(
+  'onboarding.requireOnboardingAuth0Id',
+)(function* (authData: Record<string, unknown>) {
+  const auth0Id = authDataString(authData, 'sub');
+  if (!auth0Id) {
+    return yield* new RpcUnauthorizedError({
+      message:
+        'Your sign-in details are incomplete. Sign out and sign in again.',
+    });
+  }
+  return auth0Id;
+});
+
 const failValidation = (field: string, message: string) =>
   Effect.fail(new TenantOnboardingValidationError({ field, message }));
 
@@ -189,7 +202,7 @@ export const onboardingHandlers = {
       if (!identity) {
         return yield* failValidation(
           'authentication',
-          'Your authenticated account must have a stable identifier and a verified email address.',
+          'Your sign-in details are incomplete or your email address is not verified. Sign out and sign in with a verified email address.',
         );
       }
       const profile = yield* normalizeOnboardingProfile(input);
@@ -519,13 +532,7 @@ export const onboardingHandlers = {
     Effect.gen(function* () {
       yield* RpcAccess.ensureAuthenticated();
       const context = yield* RpcAccess.current();
-      const auth0Id = authDataString(context.authData, 'sub');
-      if (!auth0Id) {
-        return yield* new RpcUnauthorizedError({
-          message:
-            'Your authenticated account is missing a stable identifier. Log out and sign in again.',
-        });
-      }
+      const auth0Id = yield* requireOnboardingAuth0Id(context.authData);
       const requirements = yield* Database.use((database) =>
         resolveTenantOnboardingRequirements(database, {
           auth0Id,
@@ -551,10 +558,7 @@ export const onboardingHandlers = {
     Effect.gen(function* () {
       yield* RpcAccess.ensureAuthenticated();
       const context = yield* RpcAccess.current();
-      const auth0Id = authDataString(context.authData, 'sub');
-      if (!auth0Id) {
-        return { complete: false };
-      }
+      const auth0Id = yield* requireOnboardingAuth0Id(context.authData);
       const requirements = yield* Database.use((database) =>
         resolveTenantOnboardingRequirements(database, {
           auth0Id,

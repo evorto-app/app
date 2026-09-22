@@ -39,6 +39,7 @@ services:
       db:
         condition: service_healthy
     environment:
+      DATABASE_TLS_REQUIRED: "false"
       DATABASE_URL: "${DOCKER_DATABASE_URL:?Run Docker through a supported bun package command}"
       E2E_NOW_ISO:
       E2E_SEED_KEY:
@@ -127,8 +128,8 @@ services:
       CLIENT_ID:
       CLIENT_SECRET:
       DATABASE_POOL_MAX: "20"
+      DATABASE_TLS_REQUIRED: "false"
       DATABASE_URL: "${DOCKER_DATABASE_URL:?Run Docker through a supported bun package command}"
-      E2E_GLOBAL_ADMIN_AUTH0_IDS:
       E2E_NOW_ISO:
       E2E_RUNTIME_MODE:
       E2E_SEED_KEY:
@@ -149,6 +150,7 @@ services:
       STRIPE_TEST_ACCOUNT_ID:
       STRIPE_WEBHOOK_SECRET:
       STRIPE_WEBHOOK_SECRET_FILE: /run/stripe-webhook/signing-secret
+      WORKER_TRIGGER_MODE: poll
     ports:
       - "${APP_HOST_PORT:-4200}:4200"
     volumes:
@@ -176,6 +178,7 @@ services:
       APP_ENVIRONMENT: local
       APP_ROLE: worker
       DATABASE_POOL_MAX: "5"
+      DATABASE_TLS_REQUIRED: "false"
       DATABASE_URL: "${DOCKER_DATABASE_URL:?Run Docker through a supported bun package command}"
       E2E_NOW_ISO:
       E2E_RUNTIME_MODE:

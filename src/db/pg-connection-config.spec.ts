@@ -1,10 +1,31 @@
-import { describe, expect, it } from '@effect/vitest';
-import { Redacted } from 'effect';
+import type { PeerCertificate } from 'node:tls';
 
+import { describe, expect, it, vi } from '@effect/vitest';
+import { ConfigProvider, Effect, Option, Redacted } from 'effect';
+import { Client } from 'pg';
+
+import { databaseConfig } from './database-config';
 import {
   createNodePgPoolConfig,
   createPgClientConfig,
 } from './pg-connection-config';
+
+const identityCertificate = (subjectaltname: string): PeerCertificate => {
+  const distinguishedName = { C: '', CN: '', L: '', O: '', OU: '', ST: '' };
+  return {
+    ca: false,
+    fingerprint: '',
+    fingerprint256: '',
+    fingerprint512: '',
+    issuer: distinguishedName,
+    raw: Buffer.alloc(0),
+    serialNumber: '01',
+    subject: distinguishedName,
+    subjectaltname,
+    valid_from: 'Jan 1 00:00:00 2026 GMT',
+    valid_to: 'Jan 1 00:00:00 2036 GMT',
+  };
+};
 
 const expectVerifiedTlsOptions = (
   ssl: unknown,
@@ -25,9 +46,225 @@ const expectVerifiedTlsOptions = (
 
 describe('pg-connection-config', () => {
   const databaseUrl =
-    'postgresql://evorto:local@localhost:55432/appdb?sslmode=disable';
+    'postgresql://evorto:local@localhost:55432/appdb?application_name=evorto';
+
+  for (const [name, create] of [
+    ['node', createNodePgPoolConfig],
+    ['effect', createPgClientConfig],
+  ] as const) {
+    it.each(['', '  ', '\n\t'])(
+      `rejects a defined blank CA before constructing ${name} client options: %j`,
+      (caCertificate) => {
+        expect(() => create({ caCertificate, databaseUrl })).toThrow(
+          'DATABASE_TLS_CA_CERTIFICATE must not be blank',
+        );
+      },
+    );
+  }
+
+  for (const [name, create] of [
+    ['node', createNodePgPoolConfig],
+    ['effect', createPgClientConfig],
+  ] as const) {
+    it.each([
+      '[db.example.test]',
+      'db.example.test]',
+      '[db.example.test',
+      '[[2001:db8::2]]',
+      '  [db.example.test]  ',
+      '  db.example.test]  ',
+    ])(
+      `rejects malformed or non-IP bracketed TLS identities in ${name}: %s`,
+      (tlsServerName) => {
+        expect(() =>
+          create({ caCertificate: 'fixture-ca', databaseUrl, tlsServerName }),
+        ).toThrow(
+          'Database TLS identity brackets must contain one valid IPv6 address',
+        );
+      },
+    );
+  }
+
+  for (const tlsRequired of ['true', 'false']) {
+    it.effect.each([
+      {
+        normalized: 'database.example',
+        raw: ' \tdatabase.example\n ',
+        san: 'DNS:database.example',
+        servername: 'database.example',
+      },
+      {
+        normalized: '127.0.0.2',
+        raw: ' \t127.0.0.2\n ',
+        san: 'IP Address:127.0.0.2',
+        servername: undefined,
+      },
+      {
+        normalized: '2001:db8::2',
+        raw: ' \t2001:db8::2\n ',
+        san: 'IP Address:2001:db8:0:0:0:0:0:2',
+        servername: undefined,
+      },
+      {
+        normalized: '[2001:db8::2]',
+        raw: ' \t[2001:db8::2]\n ',
+        san: 'IP Address:2001:db8:0:0:0:0:0:2',
+        servername: undefined,
+      },
+      {
+        normalized: undefined,
+        raw: ' \n\t',
+        san: 'DNS:localhost',
+        servername: undefined,
+      },
+      {
+        normalized: undefined,
+        raw: '',
+        san: 'DNS:localhost',
+        servername: undefined,
+      },
+    ])(
+      `matches app normalization for raw TLS name $raw with TLS_REQUIRED=${tlsRequired}`,
+      ({ normalized, raw, san, servername }) =>
+        Effect.gen(function* () {
+          const caCertificate =
+            '\n-----BEGIN CERTIFICATE-----\nca\n-----END CERTIFICATE-----\n';
+          const configured = yield* databaseConfig.parse(
+            ConfigProvider.fromEnv({
+              env: {
+                DATABASE_TLS_CA_CERTIFICATE: caCertificate,
+                DATABASE_TLS_REQUIRED: tlsRequired,
+                DATABASE_TLS_SERVER_NAME: raw,
+                DATABASE_URL: databaseUrl,
+              },
+              preserveEmptyStrings: true,
+            }),
+          );
+          expect(
+            Option.getOrUndefined(configured.DATABASE_TLS_SERVER_NAME),
+          ).toBe(normalized);
+          for (const create of [createNodePgPoolConfig, createPgClientConfig]) {
+            const ssl = create({
+              caCertificate,
+              databaseUrl,
+              tlsServerName: raw,
+            }).ssl;
+            if (
+              typeof ssl !== 'object' ||
+              ssl === null ||
+              !ssl.checkServerIdentity
+            ) {
+              throw new Error('Expected verified PostgreSQL TLS options');
+            }
+            expect(ssl.ca).toBe(caCertificate);
+            expect(ssl.rejectUnauthorized).toBe(true);
+            expect(ssl.servername).toBe(servername);
+            expect(
+              ssl.checkServerIdentity(
+                'untrusted-driver-name',
+                identityCertificate(san),
+              ),
+            ).toBeUndefined();
+            expect(
+              ssl.checkServerIdentity(
+                'untrusted-driver-name',
+                identityCertificate('DNS:wrong.example'),
+              ),
+            ).toBeInstanceOf(Error);
+          }
+        }),
+    );
+  }
+
+  it('preserves every nonblank CA byte in both shared constructors', () => {
+    const caCertificate =
+      '\n-----BEGIN CERTIFICATE-----\nca\n-----END CERTIFICATE-----\n';
+    expect(createNodePgPoolConfig({ caCertificate, databaseUrl }).ssl).toEqual(
+      expect.objectContaining({ ca: caCertificate }),
+    );
+    expect(createPgClientConfig({ caCertificate, databaseUrl }).ssl).toEqual(
+      expect.objectContaining({ ca: caCertificate }),
+    );
+  });
+
+  for (const driver of [
+    {
+      connectionString: (databaseUrl: string) =>
+        createNodePgPoolConfig({ databaseUrl }).connectionString,
+      name: 'node',
+    },
+    {
+      connectionString: (databaseUrl: string) => {
+        const config = createPgClientConfig({ databaseUrl });
+        return config.url ? Redacted.value(config.url) : undefined;
+      },
+      name: 'effect',
+    },
+  ]) {
+    it.each([
+      { database: 'fixture-user', databaseUrl: '/var/run/postgresql' },
+      {
+        database: 'appdb',
+        databaseUrl:
+          'postgresql://fixture:fixture@ignored/appdb?host=%2Fvar%2Frun%2Fpostgresql',
+      },
+      {
+        database: 'socket-database',
+        databaseUrl: '/var/run/postgresql socket-database',
+      },
+    ])(
+      `preserves supported raw socket paths without a CA for ${driver.name}: $databaseUrl`,
+      ({ database, databaseUrl }) => {
+        vi.stubEnv('PGDATABASE', undefined);
+        try {
+          const connectionString = driver.connectionString(databaseUrl);
+          expect(connectionString).toBe(databaseUrl);
+          const client = new Client({
+            connectionString,
+            ssl: false,
+            user: 'fixture-user',
+          });
+          expect(client.host).toBe('/var/run/postgresql');
+          expect(client.database).toBe(database);
+        } finally {
+          vi.unstubAllEnvs();
+        }
+      },
+    );
+  }
+
+  for (const [name, create] of [
+    ['node', createNodePgPoolConfig],
+    ['effect', createPgClientConfig],
+  ] as const) {
+    it.each([
+      '/var/run/postgresql',
+      '/var/run/postgresql socket-database',
+      'postgresql://fixture:fixture@localhost/appdb?host=%2Fvar%2Frun%2Fpostgresql',
+      'postgresql:///appdb?host=ignored.example&host=%2Fvar%2Frun%2Fpostgresql',
+      'postgresql://fixture:fixture@%2Fvar%2Frun%2Fpostgresql/appdb',
+      'postgresql:///appdb',
+    ])(
+      `rejects raw socket paths with a configured CA for ${name}: %s`,
+      (databaseUrl) => {
+        for (const tlsServerName of [undefined, 'database.example']) {
+          expect(() =>
+            create({ caCertificate: 'fixture-ca', databaseUrl, tlsServerName }),
+          ).toThrow();
+        }
+      },
+    );
+    it.each(['not-a-url', 'relative/socket', 'postgresql://[invalid]/app'])(
+      `does not treat malformed connection strings as raw socket paths for ${name}: %s`,
+      (databaseUrl) => {
+        expect(() => create({ databaseUrl })).toThrow();
+      },
+    );
+  }
 
   it('uses the URL SSL mode and bounded pool settings for both clients', () => {
+    const databaseUrl =
+      'postgresql://evorto:local@localhost:55432/appdb?sslmode=disable';
     expect(
       createNodePgPoolConfig({
         databaseUrl,
@@ -120,6 +357,202 @@ describe('pg-connection-config', () => {
         databaseUrl: ipDatabaseUrl,
       }).ssl,
     );
+  });
+
+  it('rejects URL SSL settings that can override an explicit CA configuration', () => {
+    const caCertificate =
+      '-----BEGIN CERTIFICATE-----\nca\n-----END CERTIFICATE-----';
+    for (const parameter of [
+      'ssl',
+      'sslmode',
+      'sslcert',
+      'sslkey',
+      'sslrootcert',
+      'sslnegotiation',
+      'uselibpqcompat',
+    ]) {
+      for (const buildConfig of [
+        createNodePgPoolConfig,
+        createPgClientConfig,
+      ]) {
+        expect(() =>
+          buildConfig({
+            caCertificate,
+            databaseUrl: `${databaseUrl}&${parameter}=configured`,
+          }),
+        ).toThrowError(
+          'DATABASE_URL must not include SSL options when DATABASE_TLS_CA_CERTIFICATE is configured',
+        );
+      }
+    }
+  });
+
+  it.each([
+    {
+      identity: 'the IPv6 connection host',
+      servername: undefined,
+      subjectaltname: 'IP Address:0:0:0:0:0:0:0:1',
+      tlsServerName: undefined,
+    },
+    {
+      identity: 'an explicit DNS identity and SNI',
+      servername: 'database.example',
+      subjectaltname: 'DNS:database.example',
+      tlsServerName: 'database.example',
+    },
+    {
+      identity: 'an explicit IPv6 identity without SNI',
+      servername: undefined,
+      subjectaltname: 'IP Address:2001:db8:0:0:0:0:0:2',
+      tlsServerName: '2001:db8::2',
+    },
+    {
+      identity: 'a bracketed IPv6 override without SNI',
+      servername: undefined,
+      subjectaltname: 'IP Address:2001:db8:0:0:0:0:0:2',
+      tlsServerName: '[2001:db8::2]',
+    },
+  ])(
+    'verifies IP-SAN connections against $identity',
+    ({ servername, subjectaltname, tlsServerName }) => {
+      const caCertificate =
+        '\n-----BEGIN CERTIFICATE-----\nca\n-----END CERTIFICATE-----\n';
+      for (const buildConfig of [
+        createNodePgPoolConfig,
+        createPgClientConfig,
+      ]) {
+        const ssl = buildConfig({
+          caCertificate,
+          databaseUrl: 'postgresql://evorto:local@[::1]:5432/appdb',
+          tlsServerName,
+        }).ssl;
+        if (
+          typeof ssl !== 'object' ||
+          ssl === null ||
+          !ssl.checkServerIdentity
+        ) {
+          throw new Error('Expected PostgreSQL TLS identity verification');
+        }
+
+        expect(ssl.ca).toBe(caCertificate);
+        expect(ssl.rejectUnauthorized).toBe(true);
+        expect(ssl.servername).toBe(servername);
+        expect(
+          ssl.checkServerIdentity(
+            'ignored-driver-host.example',
+            identityCertificate(subjectaltname),
+          ),
+        ).toBeUndefined();
+        expect(
+          ssl.checkServerIdentity(
+            '::1',
+            identityCertificate('IP Address:2001:db8:0:0:0:0:0:3'),
+          ),
+        ).toBeInstanceOf(Error);
+      }
+    },
+  );
+
+  it.each([
+    {
+      databaseUrl: 'postgresql:///appdb?host=database.example',
+      host: 'database.example',
+      san: 'DNS:database.example',
+    },
+    {
+      databaseUrl: 'postgresql:///appdb?host=%2Ftmp&host=database.example',
+      host: 'database.example',
+      san: 'DNS:database.example',
+    },
+    {
+      databaseUrl: 'postgresql:///appdb?host=%5B2001%3Adb8%3A%3A2%5D',
+      host: '2001:db8::2',
+      san: 'IP Address:2001:db8:0:0:0:0:0:2',
+    },
+    {
+      databaseUrl: 'postgresql://fixture:fixture@data%62ase.example:5432/appdb',
+      host: 'database.example',
+      san: 'DNS:database.example',
+    },
+    {
+      databaseUrl:
+        'postgresql://fixture:fixture@localhost:5432/appdb?host=%5B2001%3Adb8%3A%3A2%5D',
+      host: '2001:db8::2',
+      san: 'IP Address:2001:db8:0:0:0:0:0:2',
+    },
+  ])(
+    'connects and verifies the same normalized host $host in both clients',
+    ({ databaseUrl, host, san }) => {
+      const node = createNodePgPoolConfig({
+        caCertificate: 'fixture-ca',
+        databaseUrl,
+      });
+      const effect = createPgClientConfig({
+        caCertificate: 'fixture-ca',
+        databaseUrl,
+      });
+      if (!effect.url) throw new Error('Expected the Effect PostgreSQL URL');
+      const clients = [
+        { client: new Client(node), ssl: node.ssl },
+        {
+          client: new Client({
+            connectionString: Redacted.value(effect.url),
+            ssl: effect.ssl,
+          }),
+          ssl: effect.ssl,
+        },
+      ];
+      for (const { client, ssl } of clients) {
+        expect(client.host).toBe(host);
+        expect(client.ssl).toBe(ssl);
+        if (
+          typeof ssl !== 'object' ||
+          ssl === null ||
+          !ssl.checkServerIdentity
+        ) {
+          throw new Error('Expected PostgreSQL TLS identity verification');
+        }
+        expect(ssl.servername).toBeUndefined();
+        expect(
+          ssl.checkServerIdentity('ignored', identityCertificate(san)),
+        ).toBeUndefined();
+        expect(
+          ssl.checkServerIdentity(
+            host,
+            identityCertificate('DNS:wrong.example'),
+          ),
+        ).toBeInstanceOf(Error);
+      }
+    },
+  );
+
+  it('retains verified TLS after the PostgreSQL driver parses each client configuration', () => {
+    const caCertificate =
+      '-----BEGIN CERTIFICATE-----\nca\n-----END CERTIFICATE-----';
+    const tlsServerName = 'rw-database.rdb.fr-par.scw.cloud';
+    const nodeConfig = createNodePgPoolConfig({
+      caCertificate,
+      databaseUrl,
+      tlsServerName,
+    });
+    const effectConfig = createPgClientConfig({
+      caCertificate,
+      databaseUrl,
+      tlsServerName,
+    });
+    if (!effectConfig.url)
+      throw new Error('Expected the Effect PostgreSQL URL');
+
+    // Construction parses the final configuration without opening a connection.
+    const nodeClient = new Client(nodeConfig);
+    const effectClient = new Client({
+      connectionString: Redacted.value(effectConfig.url),
+      ssl: effectConfig.ssl,
+    });
+    expectVerifiedTlsOptions(nodeClient.ssl, tlsServerName);
+    expectVerifiedTlsOptions(effectClient.ssl, tlsServerName);
+    expect(nodeConfig.connectionString).toBe(databaseUrl);
+    expect(Redacted.value(effectConfig.url)).toBe(databaseUrl);
   });
 
   it('rejects an inverted pool range', () => {

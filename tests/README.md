@@ -467,11 +467,14 @@ Playwright separates external-service coverage with dedicated projects:
 - live-provider certification:
   - `local-chrome-live-esncard`
 
-CI infers whether integration-only credentials are required from the selected Playwright projects.
-If you select `local-chrome-integration` or `docs-integration`, CI/runtime validation demands the extra external-service credentials.
-UI mode is intentionally baseline-only: it omits protected-input provider and
-account-creation tests and does not require their integration credentials at
-startup.
+CI infers whether Google Maps credentials are required from the selected
+Playwright projects. Authenticated setup always requires the Auth0 Management
+test client so it can verify the dedicated administrator identity already has
+the real production claim before login. It never changes shared metadata. If you
+select `local-chrome-integration` or `docs-integration`, CI/runtime validation
+also demands the Google Maps credential. UI mode is intentionally baseline-only:
+it omits protected-input provider and account-creation tests, but its initial
+authenticated setup still verifies the dedicated administrator identity.
 CI baseline jobs set `E2E_SELECTED_PROJECTS` so Playwright worker processes
 that no longer expose the original CLI `--project` flags still use the
 baseline credential contract.
@@ -488,6 +491,8 @@ requiring unrelated integration credentials.
 
 Required for full Playwright flows:
 
+- `AUTH0_MANAGEMENT_CLIENT_ID`
+- `AUTH0_MANAGEMENT_CLIENT_SECRET`
 - `DATABASE_URL`
 - `BASE_URL`
 - `CLIENT_ID`
@@ -504,6 +509,16 @@ Required for full Playwright flows:
 - `STRIPE_TEST_ACCOUNT_ID`
 - `STRIPE_WEBHOOK_SECRET` for CI webhook replay coverage, or the
   Docker-provided `STRIPE_WEBHOOK_SECRET_FILE` path for app webhook verification
+
+The Auth0 test tenant's post-login action must copy `event.user.app_metadata`
+into the `evorto.app/app_metadata` ID-token claim. The dedicated administrator
+account must already have an owner-approved `platformAdministrator: true`
+app-metadata field. Setup checks that field, signs in, and proves the resulting
+session can open an administrator page. Missing or non-boolean claims fail
+closed; tests never grant, revoke, or restore administrator access. This keeps
+overlapping CI workflows and local processes independent. Before provisioning
+the claim, drain older test runs that still mutate and restore this account's
+metadata. There is no local identity allowlist.
 
 The Docker stack can use `STRIPE_WEBHOOK_SECRET_FILE` for the app container
 instead of a static `STRIPE_WEBHOOK_SECRET`; the Compose-managed Stripe CLI
@@ -548,9 +563,12 @@ artifact uploads.
 
 The ordinary `test:e2e`, `test:e2e:ui`, `test:e2e:integration`, and
 `test:e2e:docs` scripts run `test:e2e:check` first. That Playwright preflight
-requires all six passwords before Docker-backed test startup. `docker:check`
-does not require them, so starting the development stack remains independent of
-test-account custody.
+requires all six passwords and the Auth0 Management test client before
+Docker-backed test startup. `docker:check` does not require them, so starting
+the development stack remains independent of test-account custody. The
+management client needs `read:users` for the administrator identity check.
+Account-creation integration
+tests additionally need permission to create and delete their temporary users.
 
 Required in CI baseline docs/functional jobs:
 
@@ -562,8 +580,6 @@ Required in CI baseline docs/functional jobs:
 
 Required only for integration-tagged Playwright projects:
 
-- `AUTH0_MANAGEMENT_CLIENT_ID`
-- `AUTH0_MANAGEMENT_CLIENT_SECRET`
 - `PUBLIC_GOOGLE_MAPS_API_KEY`
 
 Required for every live-provider run (but not for local Docker startup):
@@ -575,7 +591,8 @@ Required for every live-provider run (but not for local Docker startup):
   `E2E_LIVE_ESN_CARD_IDENTIFIER=... E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER=... bun run test:e2e:live-esncard`.
   Its credential preflight fails closed before Playwright starts when either
   identifier is absent. The dedicated `local-chrome-live-esncard` project does
-  not require unrelated Auth0 Management or Google Maps provider credentials.
+  not require Google Maps credentials; its shared authenticated setup still
+  verifies the dedicated Auth0 administrator identity.
 
 ### Production provider certification credential ownership and rotation
 

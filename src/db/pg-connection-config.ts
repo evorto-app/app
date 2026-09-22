@@ -44,34 +44,91 @@ const validatePoolSettings = (
   return pool;
 };
 
+const normalizeDatabaseHostname = (hostname: string): string => {
+  if (!hostname.includes('[') && !hostname.includes(']')) return hostname;
+  const unbracketed = hostname.slice(1, -1);
+  if (
+    hostname.startsWith('[') &&
+    hostname.endsWith(']') &&
+    isIP(unbracketed) === 6
+  ) {
+    return unbracketed;
+  }
+  throw new Error(
+    'Database TLS identity brackets must contain one valid IPv6 address',
+  );
+};
+
+const databaseConnectionUrl = (databaseUrl: string): string => {
+  // pg accepts raw Unix socket paths, with an optional database suffix.
+  if (databaseUrl.startsWith('/')) return databaseUrl;
+
+  const parsedUrl = new URL(databaseUrl);
+  const host =
+    parsedUrl.searchParams.getAll('host').at(-1) || parsedUrl.hostname;
+  if (
+    !host.startsWith('[') ||
+    !host.endsWith(']') ||
+    isIP(host.slice(1, -1)) !== 6
+  ) {
+    return databaseUrl;
+  }
+
+  // pg preserves URL brackets but honors an explicit host query parameter.
+  parsedUrl.searchParams.set('host', host.slice(1, -1));
+  return parsedUrl.toString();
+};
+
 const databaseServerIdentity = (
   databaseUrl: string,
   tlsServerName?: string,
 ): string => {
   const parsedUrl = new URL(databaseUrl);
   if (
-    (parsedUrl.protocol !== 'postgresql:' &&
-      parsedUrl.protocol !== 'postgres:') ||
-    !parsedUrl.hostname
+    parsedUrl.protocol !== 'postgresql:' &&
+    parsedUrl.protocol !== 'postgres:'
   ) {
     throw new Error('DATABASE_URL must identify a PostgreSQL host');
   }
-  return tlsServerName || parsedUrl.hostname;
+  if (
+    [...parsedUrl.searchParams.keys()].some(
+      (name) => name.startsWith('ssl') || name === 'uselibpqcompat',
+    )
+  ) {
+    throw new Error(
+      'DATABASE_URL must not include SSL options when DATABASE_TLS_CA_CERTIFICATE is configured',
+    );
+  }
+
+  const host =
+    parsedUrl.searchParams.getAll('host').at(-1) ||
+    decodeURIComponent(parsedUrl.hostname);
+  if (!host || host.startsWith('/')) {
+    throw new Error(
+      'DATABASE_URL must identify a TCP PostgreSQL host when a CA is configured',
+    );
+  }
+  return normalizeDatabaseHostname(tlsServerName || host);
 };
 
 const createDatabaseTlsOptions = (
-  caCertificate: string,
+  caCertificate: string | undefined,
   databaseUrl: string,
   tlsServerName?: string,
-): ConnectionOptions => {
-  const identity = databaseServerIdentity(databaseUrl, tlsServerName);
+): ConnectionOptions | undefined => {
+  if (caCertificate === undefined) return;
+  if (caCertificate.trim().length === 0) {
+    throw new Error('DATABASE_TLS_CA_CERTIFICATE must not be blank');
+  }
+  const normalizedServerName = tlsServerName?.trim() || undefined;
+  const identity = databaseServerIdentity(databaseUrl, normalizedServerName);
   return {
     ca: caCertificate,
     checkServerIdentity: (_hostname, certificate) =>
       checkServerIdentity(identity, certificate),
     rejectUnauthorized: true,
-    ...(tlsServerName &&
-      isIP(tlsServerName) === 0 && { servername: tlsServerName }),
+    ...(normalizedServerName &&
+      isIP(identity) === 0 && { servername: identity }),
   };
 };
 
@@ -87,16 +144,19 @@ export const createPgClientConfig = ({
   tlsServerName?: string | undefined;
 }): PgPoolConfig => {
   const boundedPool = validatePoolSettings(pool);
+  const ssl = createDatabaseTlsOptions(
+    caCertificate,
+    databaseUrl,
+    tlsServerName,
+  );
   return {
     connectTimeout: boundedPool.connectTimeoutMs,
     idleTimeout: boundedPool.idleTimeoutMs,
     maxConnections: boundedPool.max,
     minConnections: boundedPool.min,
-    ...(caCertificate && {
-      ssl: createDatabaseTlsOptions(caCertificate, databaseUrl, tlsServerName),
-    }),
+    ...(ssl && { ssl }),
     types: pgTypes,
-    url: Redacted.make(databaseUrl),
+    url: Redacted.make(databaseConnectionUrl(databaseUrl)),
   };
 };
 
@@ -112,15 +172,18 @@ export const createNodePgPoolConfig = ({
   tlsServerName?: string | undefined;
 }): PoolConfig => {
   const boundedPool = validatePoolSettings(pool);
+  const ssl = createDatabaseTlsOptions(
+    caCertificate,
+    databaseUrl,
+    tlsServerName,
+  );
   return {
-    connectionString: databaseUrl,
+    connectionString: databaseConnectionUrl(databaseUrl),
     connectionTimeoutMillis: boundedPool.connectTimeoutMs,
     idleTimeoutMillis: boundedPool.idleTimeoutMs,
     max: boundedPool.max,
     min: boundedPool.min,
-    ...(caCertificate && {
-      ssl: createDatabaseTlsOptions(caCertificate, databaseUrl, tlsServerName),
-    }),
+    ...(ssl && { ssl }),
     types: pgTypes,
   };
 };

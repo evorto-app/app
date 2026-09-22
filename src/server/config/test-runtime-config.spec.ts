@@ -40,12 +40,9 @@ const requiredPlaywrightEntries = [
   ['STRIPE_WEBHOOK_SECRET', 'whsec_123'],
 ] as const;
 
-const requiredPlaywrightEntriesWithoutIntegrationCredentials =
+const requiredPlaywrightEntriesWithoutGoogleMaps =
   requiredPlaywrightEntries.filter(
-    ([name]) =>
-      name !== 'AUTH0_MANAGEMENT_CLIENT_ID' &&
-      name !== 'AUTH0_MANAGEMENT_CLIENT_SECRET' &&
-      name !== 'PUBLIC_GOOGLE_MAPS_API_KEY',
+    ([name]) => name !== 'PUBLIC_GOOGLE_MAPS_API_KEY',
   );
 
 const localPlaywrightEntriesWithoutStaticWebhookSecret =
@@ -301,11 +298,11 @@ describe('test-runtime-config', () => {
   );
 
   it.effect(
-    'does not require Auth0 Management or Google Maps in CI when only baseline projects are selected',
+    'does not require Google Maps in CI when only baseline projects are selected',
     () =>
       Effect.gen(function* () {
         const provider = providerFromEntries([
-          ...requiredPlaywrightEntriesWithoutIntegrationCredentials,
+          ...requiredPlaywrightEntriesWithoutGoogleMaps,
           ['BASE_URL', 'http://localhost:4200'],
           ['CI', 'true'],
           ['S3_ACCESS_KEY_ID', 'access-key'],
@@ -326,11 +323,37 @@ describe('test-runtime-config', () => {
   );
 
   it.effect(
+    'requires Auth0 Management credentials for authenticated setup',
+    () =>
+      Effect.gen(function* () {
+        const provider = providerFromEntries([
+          ...requiredPlaywrightEntries.filter(
+            ([name]) =>
+              name !== 'AUTH0_MANAGEMENT_CLIENT_ID' &&
+              name !== 'AUTH0_MANAGEMENT_CLIENT_SECRET',
+          ),
+          ['BASE_URL', 'http://localhost:4200'],
+        ]);
+
+        for (const argv of [
+          ['node', 'playwright', 'test', '--project=local-chrome-baseline'],
+          ['node', 'playwright', 'test', '--ui'],
+        ]) {
+          const error = yield* Effect.flip(
+            readPlaywrightEnvironment(provider, argv),
+          );
+          expect(error.message).toMatch(/AUTH0_MANAGEMENT_CLIENT_ID/);
+          expect(error.message).toMatch(/AUTH0_MANAGEMENT_CLIENT_SECRET/);
+        }
+      }),
+  );
+
+  it.effect(
     'does not require unrelated provider credentials for live ESNcard certification',
     () =>
       Effect.gen(function* () {
         const provider = providerFromEntries([
-          ...requiredPlaywrightEntriesWithoutIntegrationCredentials,
+          ...requiredPlaywrightEntriesWithoutGoogleMaps,
           ['BASE_URL', 'http://localhost:4200'],
           ['CI', 'true'],
           ['S3_ACCESS_KEY_ID', 'access-key'],
@@ -376,11 +399,11 @@ describe('test-runtime-config', () => {
   );
 
   it.effect(
-    'requires Auth0 Management and Google Maps whenever an integration project is selected',
+    'requires Google Maps whenever an integration project is selected',
     () =>
       Effect.gen(function* () {
         const provider = providerFromEntries([
-          ...requiredPlaywrightEntriesWithoutIntegrationCredentials,
+          ...requiredPlaywrightEntriesWithoutGoogleMaps,
           ['BASE_URL', 'http://localhost:4200'],
         ]);
 
@@ -392,9 +415,7 @@ describe('test-runtime-config', () => {
             '--project=docs-integration',
           ]),
         );
-        expect(error.message).toMatch(
-          /AUTH0_MANAGEMENT_CLIENT_ID[\s\S]*PUBLIC_GOOGLE_MAPS_API_KEY|PUBLIC_GOOGLE_MAPS_API_KEY[\s\S]*AUTH0_MANAGEMENT_CLIENT_ID/,
-        );
+        expect(error.message).toMatch(/PUBLIC_GOOGLE_MAPS_API_KEY/);
       }),
   );
 });

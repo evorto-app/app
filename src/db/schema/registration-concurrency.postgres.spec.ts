@@ -265,6 +265,7 @@ const makeConfigLayer = (url: string) =>
         ['BASE_URL', 'https://concurrency.example'],
         ['CLIENT_ID', 'client-id'],
         ['CLIENT_SECRET', 'client-secret'],
+        ['DATABASE_TLS_REQUIRED', 'false'],
         ['DATABASE_URL', url],
         ['ISSUER_BASE_URL', 'https://issuer.example'],
         ['SECRET', 'test-secret'],

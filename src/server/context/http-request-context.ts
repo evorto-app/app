@@ -73,7 +73,7 @@ export const resolveHttpRequestContext = (
     });
     const platformAuthority = resolvePlatformAuthority(authSession?.authData);
     const permissions = resolveRequestPermissions({
-      oidcUser: authSession?.authData,
+      platformAuthority,
       user: tenantUser,
     });
 

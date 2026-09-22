@@ -8,11 +8,17 @@ if (!databaseUrl) {
   throw new Error('DATABASE_URL must be configured for database prerequisites');
 }
 
-const tlsRequired = process.env['DATABASE_TLS_REQUIRED'] === 'true';
+const tlsRequiredValue = (process.env['DATABASE_TLS_REQUIRED'] ?? '').trim();
+if (tlsRequiredValue !== 'true' && tlsRequiredValue !== 'false') {
+  throw new Error(
+    'DATABASE_TLS_REQUIRED must be explicitly configured as true or false',
+  );
+}
+const tlsRequired = tlsRequiredValue === 'true';
 const caCertificate = process.env['DATABASE_TLS_CA_CERTIFICATE'];
 const tlsServerName = process.env['DATABASE_TLS_SERVER_NAME'];
 const runtimeRole = process.env['DATABASE_RUNTIME_ROLE'];
-if (tlsRequired && !caCertificate) {
+if (tlsRequired && !caCertificate?.trim()) {
   throw new Error(
     'DATABASE_TLS_CA_CERTIFICATE is required when DATABASE_TLS_REQUIRED=true',
   );
