@@ -22,7 +22,6 @@ export const AdminTenantSettingsSnapshot = Schema.Struct({
   refundFeesOnCancellation: Tenant.fields.refundFeesOnCancellation,
   seoDescription: Schema.NullOr(Schema.String),
   seoTitle: Schema.NullOr(Schema.String),
-  stripeAccountId: Schema.NullOr(Schema.String),
   termsText: Schema.NullOr(Schema.String),
   termsUrl: Schema.NullOr(Schema.String),
   theme: Tenant.fields.theme,
@@ -53,7 +52,6 @@ export const adminTenantSettingsSnapshot = (
   refundFeesOnCancellation: tenant.refundFeesOnCancellation,
   seoDescription: tenant.seoDescription ?? null,
   seoTitle: tenant.seoTitle ?? null,
-  stripeAccountId: tenant.stripeAccountId ?? null,
   termsText: tenant.termsText ?? null,
   termsUrl: tenant.termsUrl ?? null,
   theme: tenant.theme,
@@ -65,7 +63,6 @@ export const PlatformTenantSettingsSnapshot = Schema.Struct({
   currency: Tenant.fields.currency,
   domain: Tenant.fields.domain,
   name: Tenant.fields.name,
-  stripeAccountId: Schema.NullOr(Schema.String),
   theme: Tenant.fields.theme,
   timezone: Tenant.fields.timezone,
 });
@@ -79,7 +76,6 @@ export const platformTenantSettingsSnapshot = (
   currency: tenant.currency,
   domain: tenant.domain,
   name: tenant.name,
-  stripeAccountId: tenant.stripeAccountId ?? null,
   theme: tenant.theme,
   timezone: tenant.timezone,
 });

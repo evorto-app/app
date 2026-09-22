@@ -29,6 +29,7 @@ import {
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
+import { taxRateRegionLabel } from '../../core/geography-labels';
 import { NotificationService } from '../../core/notification.service';
 import { PlatformTenantPageHeaderComponent } from './platform-tenant-page-header.component';
 
@@ -98,6 +99,7 @@ export class PlatformTaxRatesComponent {
   protected readonly ratesQuery = injectQuery(() =>
     this.operations.list(this.tenantId()),
   );
+  protected readonly taxRateRegionLabel = taxRateRegionLabel;
   private readonly initializedTenantId = signal<null | string>(null);
   private readonly notifications = inject(NotificationService);
   private readonly queryClient = inject(QueryClient);
@@ -134,11 +136,21 @@ export class PlatformTaxRatesComponent {
         this.importForm().reset();
       } catch (error) {
         this.notifications.showError(
-          getErrorMessage(error, 'Failed to import tax rates', [
-            'RpcBadRequestError',
-          ]),
+          getErrorMessage(
+            error,
+            'The tax rates could not be added. Try again.',
+            ['RpcBadRequestError'],
+          ),
         );
       }
     });
+  }
+
+  protected loadErrorMessage(): string {
+    return getErrorMessage(
+      this.ratesQuery.error(),
+      'Tax rates could not be loaded. Try again.',
+      ['RpcBadRequestError'],
+    );
   }
 }

@@ -30,23 +30,9 @@ export const eventConfigurationHasPaidItems = ({
 export const stripeRequiredForPaidEventConfigurationError = () =>
   new RpcBadRequestError({
     message:
-      'Connect Stripe before configuring paid registration options or add-ons',
-    reason: 'stripeRequiredForPaidEventConfiguration',
+      'Paid sign-ups are not available for this organization yet. Contact Evorto support before adding prices, then try again.',
+    reason: 'paymentSetupRequired',
   });
-
-export const stripeAccountRemovalBlockedByPaidConfigurationErrorDetails = {
-  message:
-    'Stripe account cannot be disconnected while paid event configuration exists',
-  reason:
-    'Make every event and template registration option and add-on free before disconnecting Stripe.',
-} as const;
-
-export const stripeAccountRemovalBlockedByTaxConfigurationErrorDetails = {
-  message:
-    'Stripe account cannot be disconnected while tax rates remain assigned',
-  reason:
-    'Remove every tax-rate assignment from event and template registration options and add-ons before disconnecting Stripe.',
-} as const;
 
 export const paidEventConfigurationPredicates = (tenantId: string) => ({
   eventAddon: and(
@@ -160,11 +146,7 @@ export const ensureStripeForStoredEventConfiguration = Effect.fn(
   }
 });
 
-/**
- * A tenant may disconnect Stripe only after every event and template price is
- * free. Call this after locking the tenant row so paid configuration writes
- * and account removal share the same serialization boundary.
- */
+/** Checks whether the organization already has stored paid configuration. */
 export const tenantHasPaidEventConfiguration = Effect.fn(
   'tenantHasPaidEventConfiguration',
 )(function* (database: Pick<DatabaseClient, 'select'>, tenantId: string) {
@@ -216,12 +198,7 @@ export const tenantHasPaidEventConfiguration = Effect.fn(
   return templateAddon.length > 0;
 });
 
-/**
- * Stripe tax-rate IDs belong to one Connect account. A true disconnect
- * requires every mutable event/template binding to be cleared explicitly.
- * Rotation uses the semantic remap planner instead. Call this after locking
- * the tenant row so configuration writes and disconnect share one boundary.
- */
+/** Checks whether the organization already has stored tax-rate assignments. */
 export const tenantHasStripeTaxRateConfiguration = Effect.fn(
   'tenantHasStripeTaxRateConfiguration',
 )(function* (database: Pick<DatabaseClient, 'select'>, tenantId: string) {

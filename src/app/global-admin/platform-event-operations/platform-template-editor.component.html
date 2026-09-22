@@ -272,12 +272,12 @@
               add-ons free.
             </p>
           }
-          @if (stripeConnected() && taxRatesQuery.isPending()) {
+          @if (paymentsConfigured() && taxRatesQuery.isPending()) {
             <p class="body-small text-on-surface-variant mt-2" role="status">
               Loading the organization's tax rates. Paid prices cannot be
               configured yet.
             </p>
-          } @else if (stripeConnected() && taxRatesQuery.isError()) {
+          } @else if (paymentsConfigured() && taxRatesQuery.isError()) {
             <div class="mt-2" role="alert">
               <p class="body-small text-error">
                 Tax rates could not be loaded. Paid prices cannot be configured
@@ -535,35 +535,43 @@
                 />
 
                 <mat-form-field>
-                  <mat-label>Inclusive tax rate</mat-label>
+                  <mat-label>Tax rate included in price</mat-label>
                   <mat-select [formField]="registration.stripeTaxRateId">
                     @if (
                       registration.stripeTaxRateId().value();
                       as selectedTaxRateId
                     ) {
-                      @if (!taxRateIsAvailable(selectedTaxRateId)) {
+                      @if (taxRateIsAvailable(selectedTaxRateId) === false) {
                         <mat-option [value]="selectedTaxRateId">
                           Previously selected tax rate (no longer available)
                         </mat-option>
                       }
                     }
                     @if (taxRatesQuery.isPending()) {
-                      <mat-option disabled>Loading tax rates...</mat-option>
+                      <mat-option disabled>Loading tax rates…</mat-option>
                     } @else if (taxRatesQuery.isError()) {
                       <mat-option disabled>
-                        Stripe tax rates are unavailable
+                        Tax rates could not be loaded
                       </mat-option>
-                    } @else {
-                      @for (rate of availableTaxRates(); track rate.id) {
-                        <mat-option [value]="rate.id">
+                    } @else if (availableTaxRates(); as resolvedTaxRates) {
+                      @for (rate of resolvedTaxRates; track rate.id) {
+                        <mat-option
+                          [value]="rate.id"
+                          [disabled]="rate.percentage === null"
+                        >
                           {{ taxRateLabel(rate) }}
                         </mat-option>
                       }
+                    } @else {
+                      <mat-option disabled>
+                        Tax rates could not be loaded. Paid prices cannot be
+                        saved until they are available.
+                      </mat-option>
                     }
                   </mat-select>
                   <mat-hint>
-                    Only active inclusive tax rates from this organization are
-                    available.
+                    Only available tax rates that are already included in the
+                    price are shown.
                   </mat-hint>
                   @for (
                     error of registration.stripeTaxRateId().errors();
@@ -849,30 +857,38 @@
                     [minimumMinorUnits]="1"
                   />
                   <mat-form-field>
-                    <mat-label>Inclusive tax rate</mat-label>
+                    <mat-label>Tax rate included in price</mat-label>
                     <mat-select [formField]="addOn.stripeTaxRateId">
                       @if (
                         addOn.stripeTaxRateId().value();
                         as selectedTaxRateId
                       ) {
-                        @if (!taxRateIsAvailable(selectedTaxRateId)) {
+                        @if (taxRateIsAvailable(selectedTaxRateId) === false) {
                           <mat-option [value]="selectedTaxRateId">
                             Previously selected tax rate (no longer available)
                           </mat-option>
                         }
                       }
                       @if (taxRatesQuery.isPending()) {
-                        <mat-option disabled>Loading tax rates...</mat-option>
+                        <mat-option disabled>Loading tax rates…</mat-option>
                       } @else if (taxRatesQuery.isError()) {
                         <mat-option disabled>
-                          Stripe tax rates are unavailable
+                          Tax rates could not be loaded
                         </mat-option>
-                      } @else {
-                        @for (rate of availableTaxRates(); track rate.id) {
-                          <mat-option [value]="rate.id">
+                      } @else if (availableTaxRates(); as resolvedTaxRates) {
+                        @for (rate of resolvedTaxRates; track rate.id) {
+                          <mat-option
+                            [value]="rate.id"
+                            [disabled]="rate.percentage === null"
+                          >
                             {{ taxRateLabel(rate) }}
                           </mat-option>
                         }
+                      } @else {
+                        <mat-option disabled>
+                          Tax rates could not be loaded. Paid prices cannot be
+                          saved until they are available.
+                        </mat-option>
                       }
                     </mat-select>
                     @for (

@@ -90,7 +90,13 @@ test('tenant admin updates general settings @admin', async ({
     await page
       .getByPlaceholder('events@section.example.org')
       .fill(` ${emailSenderEmail} `);
-    await page.getByPlaceholder('acct_...').fill(` ${stripeAccountId} `);
+    await expect(generalSettings.getByLabel('Stripe account ID')).toHaveCount(
+      0,
+    );
+    await expect(generalSettings.getByPlaceholder('acct_...')).toHaveCount(0);
+    await expect(
+      generalSettings.getByText('Paid sign-ups are ready.', { exact: true }),
+    ).toBeVisible();
     await page
       .getByRole('spinbutton', { name: 'Active registration limit' })
       .fill(String(maxActiveRegistrationsPerUser));
@@ -227,9 +233,13 @@ test('tenant admin updates general settings @admin', async ({
     await expect(
       page.getByPlaceholder('events@section.example.org'),
     ).toHaveValue(emailSenderEmail);
-    await expect(page.getByPlaceholder('acct_...')).toHaveValue(
-      stripeAccountId,
+    await expect(generalSettings.getByLabel('Stripe account ID')).toHaveCount(
+      0,
     );
+    await expect(generalSettings.getByPlaceholder('acct_...')).toHaveCount(0);
+    await expect(
+      generalSettings.getByText('Paid sign-ups are ready.', { exact: true }),
+    ).toBeVisible();
     await expect(
       page.getByRole('spinbutton', { name: 'Active registration limit' }),
     ).toHaveValue(String(maxActiveRegistrationsPerUser));

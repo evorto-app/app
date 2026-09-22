@@ -165,7 +165,6 @@ export const createGeneralSettingsFormModel = (): GeneralSettingsModel => ({
   refundFeesOnCancellation: true,
   seoDescription: '',
   seoTitle: '',
-  stripeAccountId: '',
   termsText: '',
   termsUrl: '',
   theme: 'evorto',
@@ -226,6 +225,13 @@ export class GeneralSettingsComponent {
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly faUpload = faUpload;
   protected readonly generalSettingsSaveDisabled = generalSettingsSaveDisabled;
+  private readonly configService = inject(ConfigService);
+  private readonly currentTenant = computed(
+    () => this.configService.tenantSignal() ?? this.configService.tenant,
+  );
+  protected readonly paymentsConfigured = computed(
+    () => this.currentTenant()?.paymentsConfigured ?? false,
+  );
   protected readonly receiptCountryOptions = RECEIPT_COUNTRY_OPTIONS;
   protected readonly settingsModel = signal(createGeneralSettingsFormModel());
   protected readonly expectedSettings =
@@ -235,10 +241,6 @@ export class GeneralSettingsComponent {
   protected readonly settingsForm = form(
     this.settingsModel,
     generalSettingsFormSchema,
-  );
-  private readonly configService = inject(ConfigService);
-  private readonly currentTenant = computed(
-    () => this.configService.tenantSignal() ?? this.configService.tenant,
   );
   protected readonly tenantIdentityRows = computed(() => {
     const tenant = this.currentTenant();
@@ -282,7 +284,6 @@ export class GeneralSettingsComponent {
           refundFeesOnCancellation: currentTenant.refundFeesOnCancellation,
           seoDescription: currentTenant.seoDescription ?? '',
           seoTitle: currentTenant.seoTitle ?? '',
-          stripeAccountId: currentTenant.stripeAccountId ?? '',
           termsText: currentTenant.termsText ?? '',
           termsUrl: currentTenant.termsUrl ?? '',
           theme: currentTenant.theme,

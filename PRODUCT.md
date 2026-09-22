@@ -356,24 +356,21 @@ ownership changes.
 
 The goal is to let users transfer spots without trusting each other directly.
 
-New payments for a tenant use its currently configured Stripe Connect account.
-Every refund uses the persisted owning Connect account of its original Stripe
-payment, even if the tenant rotated accounts afterward. The application submits
-that payment-owning account with each Stripe request and adds only the platform
-application fee; all other payment and cancellation configuration belongs to
-the tenant, subject to the registration-option override rules. The ordinary
-cancellation fee policy does not reduce a transfer refund: each source
-registration or add-on payment is refunded until its total refunds equal the
-exact original Stripe amount.
+New payments for a tenant use its configured Stripe Connect account. Every
+refund uses the account that owns its original Stripe payment. Evorto adds only
+the platform application fee; all other payment and cancellation configuration
+belongs to the tenant, subject to the registration-option override rules. The
+ordinary cancellation fee policy does not reduce a transfer refund: each
+source registration or add-on payment is refunded until its total refunds equal
+the exact original Stripe amount.
 
-Stripe tax-rate IDs are account-owned configuration. Disconnecting remains
-blocked while paid event or template configuration exists. For an account
-rotation, the replacement Stripe account must already contain exactly one
-active, inclusive rate with the same normalized percentage, display name,
-country, and state as each assigned source rate. Evorto rejects a missing or
-ambiguous match; otherwise it atomically imports the replacement metadata and
-remaps every event and template registration-option and add-on binding without
-changing its tax semantics.
+The application shows only whether paid sign-ups are ready. It never shows or
+edits the connected-account identifier. A private operations action may attach
+the first account only after explicit confirmation and only while the tenant
+has no payment history, unfinished payment work, paid event or template
+configuration, or tax-rate configuration. Changing and disconnecting an
+attached account are intentionally unsupported; do not add remapping, fallback,
+or compatibility flows for them.
 
 ## Check-in
 

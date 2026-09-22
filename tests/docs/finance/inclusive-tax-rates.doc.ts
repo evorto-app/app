@@ -2,16 +2,17 @@ import { and, eq, inArray } from 'drizzle-orm';
 import { DateTime } from 'luxon';
 
 import { adminStateFile } from '../../../helpers/user-data';
+import { taxRateRegionLabel } from '../../../src/app/core/geography-labels';
 import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 
 test.describe.configure({ mode: 'default' });
 
-test.describe('Inclusive tax rates documentation (admin)', () => {
+test.describe('Manage tax rates', () => {
   test.use({ storageState: adminStateFile });
 
-  test('Import a Stripe tax rate and verify it', async ({
+  test('Add a tax rate included in the shown price', async ({
     database,
     page,
     tenant,
@@ -23,16 +24,19 @@ test.describe('Inclusive tax rates documentation (admin)', () => {
     if (!tenantRecord?.stripeAccountId) {
       throw new Error('Expected the tax-rate docs tenant to use Stripe');
     }
+    const stripeAccountId = tenantRecord.stripeAccountId;
     const documentedRate = await database.query.tenantStripeTaxRates.findFirst({
       where: {
         active: true,
         inclusive: true,
-        stripeAccountId: tenantRecord.stripeAccountId,
+        stripeAccountId,
         tenantId: tenant.id,
       },
     });
-    if (!documentedRate) {
-      throw new Error('Expected an inclusive Stripe tax rate to document');
+    if (!documentedRate?.displayName || documentedRate.percentage === null) {
+      throw new Error(
+        'Expected a named Stripe tax rate with a percentage included in the price',
+      );
     }
     await database
       .delete(schema.tenantStripeTaxRates)
@@ -42,13 +46,12 @@ test.describe('Inclusive tax rates documentation (admin)', () => {
 
     await testInfo.attach('markdown', {
       body: `
-{% callout type="note" title="Before you begin" %}
-Sign in as an organization administrator with **Manage tax rates** access. The organization must have a connected Stripe account, and the inclusive tax rate must already exist in that connected account. Importing never copies a rate from another organization or Stripe account.
+{% callout type="note" title="Who can do this" %}
+Sign in as an organization administrator with **Manage tax rates** access. Paid sign-ups must be ready. The rate you want to add must already exist in this organization's payment settings, be active, and include tax in the shown price. Rates from other organizations are not available.
 {% /callout %}
 
-# Manage Inclusive Tax Rates
 
-Inclusive (VAT-style) tax rates are configured under **Admin Tools** → **Tax Rates**. Start from **Events** and open the admin area.
+Tax rates such as VAT are managed under **Admin Tools** → **Tax rates**. Start from **Events** and open the admin area.
 `,
     });
 
@@ -59,65 +62,54 @@ Inclusive (VAT-style) tax rates are configured under **Admin Tools** → **Tax R
 
     await testInfo.attach('markdown', {
       body: `
-The admin overview links to all configuration areas. Select **Tax Rates** to manage the rates imported from Stripe.
+The admin overview links to each settings page. Select **Tax rates** to manage the rates available for paid sign-ups.
 `,
     });
 
-    await page.getByRole('link', { name: 'Tax Rates' }).click();
+    await page.getByRole('link', { name: 'Tax rates' }).click();
     await expect(
       page
         .locator('app-tax-rates-settings')
-        .getByRole('heading', { level: 1, name: 'Tax Rates' }),
+        .getByRole('heading', { level: 1, name: 'Tax rates' }),
     ).toBeVisible();
+    await expect(page.locator('[ngh]')).toHaveCount(0, { timeout: 20_000 });
+    await expect(
+      page.getByRole('button', { name: 'Add tax rates' }).first(),
+    ).toBeEnabled();
 
     await takeScreenshot(
       testInfo,
       page.locator('app-tax-rates-settings'),
       page,
-      'Tax rates overview',
+      'Available and unavailable tax rates for paid sign-ups',
     );
 
     await testInfo.attach('markdown', {
       body: `
-## Imported tax rates
+## Available and unavailable tax rates
 
-- **Compatible Tax Rates** lists inclusive & active rates that event creators can select.
-- **Incompatible Rates** (exclusive/archived) are shown for context and stay disabled.
-- Use the floating **Import Tax Rates** button to sync additional rates from Stripe.
+- **Available tax rates** lists active rates with tax included in the shown price. These can be selected for paid sign-ups.
+- **Unavailable tax rates** lists rates that are archived or add tax when paying.
+- Use **Add tax rates** to add rates that already exist in the organization's payment settings. To create or change a rate, select **Open tax rate settings**; this opens those settings in a new tab and requires access to the organization's payment account.
 `,
     });
 
     const importButton = page
-      .getByRole('button', { name: 'Import Tax Rates' })
+      .getByRole('button', { name: 'Add tax rates' })
       .first();
     await expect(importButton).toBeVisible();
     await importButton.click();
 
     await expect(
-      page.getByRole('heading', { name: 'Import Stripe tax rates' }),
+      page.getByRole('heading', { name: 'Add tax rates' }),
     ).toBeVisible();
 
-    await takeScreenshot(
-      testInfo,
-      page.locator('mat-dialog-container'),
-      page,
-      'Import Stripe tax rates dialog',
-    );
-
-    await testInfo.attach('markdown', {
-      body: `
-The import dialog loads tax rates directly from the organization's connected Stripe account:
-
-- Inclusive & active rates are selectable.
-- Exclusive or archived rates remain blocked with clear chips.
-- Already-imported rates show the **imported** badge.
-
-Select the rates you need and choose **Import selected**. Review the name, percentage, and region before committing: this action makes the selected rate available to paid event and template registration options, but it does not change prices or assign the rate automatically.
-`,
-    });
-
-    const documentedRateName = documentedRate.displayName || 'Unnamed Rate';
-    const documentedRatePercentage = documentedRate.percentage ?? '?';
+    const documentedRateName = documentedRate.displayName;
+    const documentedRatePercentage = documentedRate.percentage;
+    const documentedRateDisplay =
+      documentedRatePercentage === '0'
+        ? 'Tax-free'
+        : `${documentedRatePercentage}%`;
     const rateCheckbox = page.getByRole('checkbox', {
       name: new RegExp(
         `${documentedRateName}.*${documentedRatePercentage}%`,
@@ -126,28 +118,64 @@ Select the rates you need and choose **Import selected**. Review the name, perce
     });
     await expect(rateCheckbox).toBeVisible();
     await expect(rateCheckbox).toBeEnabled();
+
+    await takeScreenshot(
+      testInfo,
+      page.locator('mat-dialog-container'),
+      page,
+      'Add tax rates',
+    );
+
+    await testInfo.attach('markdown', {
+      body: `
+The dialog shows tax rates that can be added:
+
+- Rates marked **Tax included in the shown price** can be selected.
+- Rates marked **Tax added when paying** or **Archived** remain unavailable.
+- Rates that have already been added show **Already added**.
+
+Select the rates you need and choose **Add selected**. Review the name, percentage, and region first. Adding a rate makes it available to paid event and template sign-up choices, but does not change prices or select the rate for you.
+`,
+    });
+
     await rateCheckbox.check();
-    await page.getByRole('button', { name: 'Import selected' }).click();
+    await page.getByRole('button', { name: 'Add selected' }).click();
     await expect(
-      page.getByRole('heading', { name: 'Import Stripe tax rates' }),
+      page.getByRole('heading', { name: 'Add tax rates' }),
     ).not.toBeVisible();
 
     const compatibleRates = page.locator('app-tax-rates-settings').filter({
       has: page.getByRole('heading', {
         level: 2,
-        name: 'Compatible Tax Rates',
+        name: 'Available tax rates',
       }),
     });
+    const availableRateRow = compatibleRates
+      .getByRole('row')
+      .filter({
+        has: page.getByRole('cell', {
+          exact: true,
+          name: documentedRateName,
+        }),
+      })
+      .filter({
+        has: page.getByRole('cell', {
+          exact: true,
+          name: documentedRateDisplay,
+        }),
+      });
+    await expect(availableRateRow).toBeVisible();
     await expect(
-      compatibleRates.getByText(documentedRate.stripeTaxRateId, {
+      availableRateRow.getByRole('cell', {
         exact: true,
+        name: taxRateRegionLabel(documentedRate.country, documentedRate.state),
       }),
     ).toBeVisible();
     await takeScreenshot(
       testInfo,
       compatibleRates,
       page,
-      'Imported compatible Stripe tax rate',
+      'Added tax rate available for sign-ups',
     );
 
     await expect
@@ -160,7 +188,7 @@ Select the rates you need and choose **Import selected**. Review the name, perce
             stripeTaxRateId: true,
           },
           where: {
-            stripeAccountId: tenantRecord.stripeAccountId,
+            stripeAccountId,
             stripeTaxRateId: documentedRate.stripeTaxRateId,
             tenantId: tenant.id,
           },
@@ -169,7 +197,7 @@ Select the rates you need and choose **Import selected**. Review the name, perce
       .toEqual({
         active: true,
         inclusive: true,
-        stripeAccountId: tenantRecord.stripeAccountId,
+        stripeAccountId,
         stripeTaxRateId: documentedRate.stripeTaxRateId,
       });
 
@@ -177,7 +205,7 @@ Select the rates you need and choose **Import selected**. Review the name, perce
     const reopenedDialog = page.locator('mat-dialog-container');
     await expect(
       reopenedDialog.getByRole('heading', {
-        name: 'Import Stripe tax rates',
+        name: 'Add tax rates',
       }),
     ).toBeVisible();
     const importedRateCheckboxMatcher = page.getByRole('checkbox', {
@@ -198,34 +226,32 @@ Select the rates you need and choose **Import selected**. Review the name, perce
     await expect(importedRateCheckbox).toBeChecked();
     await expect(importedRateCheckbox).toBeDisabled();
     await expect(
-      importedRateRow.getByText('imported', { exact: true }),
+      importedRateRow.getByText('Already added', { exact: true }),
     ).toBeVisible();
     await expect(
-      reopenedDialog.getByRole('button', { name: 'Import selected' }),
+      reopenedDialog.getByRole('button', { name: 'Add selected' }),
     ).toBeDisabled();
     await takeScreenshot(
       testInfo,
       importedRateRow,
       page,
-      'Imported Stripe tax rate cannot be selected twice',
+      'A tax rate already added cannot be selected twice',
     );
     await reopenedDialog.getByRole('button', { name: 'Cancel' }).click();
 
     await testInfo.attach('markdown', {
       body: `
-## Completion and recovery
+## After adding a rate
 
-The dialog closes after Stripe and Evorto accept the import. The rate must appear under **Compatible Tax Rates**, confirming that it is available to the organization. Opening **Import Tax Rates** again shows it as **imported** and prevents a duplicate selection.
+After the rate is added, it appears under **Available tax rates** and can be used for paid events. Opening **Add tax rates** again marks it as **Already added**, so it cannot be selected twice.
 
-If Stripe cannot be reached, Evorto shows **Failed to load rates from Stripe** and imports nothing. Retry when Stripe is available again. If a rate is exclusive or archived, manage or replace it in Stripe; Evorto deliberately keeps it unavailable for new paid event configuration. If the connected Stripe account changes while the dialog is open, reload the page and import only from the current account.
-
-Stripe tax rates belong to the connected account. Before switching accounts, create one active inclusive replacement for every rate used by an event or template, matching its percentage, name, country, and state. Evorto updates every use together. If a rate is missing or matches more than once, nothing changes; correct the replacement account and try again.
+If rates cannot be loaded, select **Try again**; nothing is added until the list loads and you confirm a selection. Use **Open tax rate settings** to create or change an unsuitable rate, then return and add an active rate marked **Tax included in the shown price**.
 `,
     });
   });
 });
 
-test.describe('Inclusive tax rates documentation (creators)', () => {
+test.describe('Tax included in the shown prices documentation (creators)', () => {
   test.use({ storageState: adminStateFile });
 
   test('Assign compatible tax rates to paid registrations', async ({
@@ -438,7 +464,9 @@ Each paid registration displays the final price together with its inclusive tax 
         }),
       })
       .filter({
-        has: page.getByRole('combobox', { name: 'Inclusive tax rate' }),
+        has: page.getByRole('combobox', {
+          name: 'Tax included in the shown price',
+        }),
       })
       .first();
     await expect(
@@ -447,7 +475,7 @@ Each paid registration displays the final price together with its inclusive tax 
       }),
     ).toHaveValue('Organizer');
     const templateTaxRateSelect = organizerSection.getByRole('combobox', {
-      name: 'Inclusive tax rate',
+      name: 'Tax included in the shown price',
     });
     await expect(templateTaxRateSelect).toBeVisible();
     await templateTaxRateSelect.click();
@@ -497,10 +525,9 @@ Paid organizer registrations require a compatible inclusive tax rate. Select the
       .getByRole('heading', { exact: true, level: 3, name: 'Organizer' })
       .locator('../..');
     await expect(
-      savedOrganizerCard.getByText(
-        `Incl. ${templateTaxRate.percentage ?? '?'}% VAT`,
-        { exact: true },
-      ),
+      savedOrganizerCard.getByText(`Incl. ${templateTaxRate.percentage}% VAT`, {
+        exact: true,
+      }),
     ).toBeVisible();
 
     await page.getByRole('link', { name: 'Create event' }).click();

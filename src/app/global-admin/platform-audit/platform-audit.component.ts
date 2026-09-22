@@ -107,7 +107,7 @@ const safeAuditFields: readonly SafeAuditField[] = [
   ['theme', 'Theme', themeValue],
   ['timezone', 'Time zone', timezoneValue],
   ['currency', 'Currency', textValue],
-  ['stripeConnected', 'Paid sign-ups', paymentReadinessValue],
+  ['paymentsConfigured', 'Paid sign-ups', paymentReadinessValue],
   ['locationName', 'Location', textValue],
   ['status', 'Status', statusValue],
   ['registrationOptionCount', 'Sign-up choices', numberValue],

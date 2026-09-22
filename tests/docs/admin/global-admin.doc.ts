@@ -42,15 +42,25 @@ const expectGlobalAdminTenantRows = async (
   await expect(page.getByText('Theme').first()).toBeVisible();
   await expect(page.getByText('Currency').first()).toBeVisible();
   await expect(page.getByText('Timezone').first()).toBeVisible();
-  await expect(page.getByText('Stripe account').first()).toBeVisible();
+  await expect(
+    page.getByText('Payments', { exact: true }).first(),
+  ).toBeVisible();
   await expect(page.getByText(tenant.domain).first()).toBeVisible();
   await expect(page.getByText(tenant.theme).first()).toBeVisible();
   await expect(page.getByText(tenant.currency).first()).toBeVisible();
   await expect(page.getByText(tenant.timezone).first()).toBeVisible();
+  await expect(
+    page
+      .getByText(
+        tenant.stripeAccountId
+          ? 'Paid sign-ups ready'
+          : 'Paid sign-ups need attention',
+        { exact: true },
+      )
+      .first(),
+  ).toBeVisible();
   if (tenant.stripeAccountId) {
-    await expect(page.getByText(tenant.stripeAccountId).first()).toBeVisible();
-  } else {
-    await expect(page.getByText('Not connected').first()).toBeVisible();
+    await expect(page.getByText(tenant.stripeAccountId)).toHaveCount(0);
   }
 };
 
@@ -65,9 +75,6 @@ const tenantNameInput = (page: Page) =>
 const tenantPrimaryDomainInput = (page: Page) =>
   tenantForm(page).locator('input').nth(1);
 
-const tenantStripeAccountInput = (page: Page) =>
-  tenantForm(page).locator('input').nth(2);
-
 const expectGlobalAdminTenantFormSurface = async (
   page: Page,
   options: { create?: boolean; publicUrlMigrationGuidance?: boolean } = {},
@@ -75,11 +82,11 @@ const expectGlobalAdminTenantFormSurface = async (
   await expect(page.getByLabel('Organization name')).toBeVisible();
   await expect(page.getByLabel('Primary domain')).toBeVisible();
   await expect(page.getByLabel('Theme')).toBeVisible();
-  await expect(page.getByLabel('Stripe account ID')).toBeVisible();
+  await expect(page.getByLabel('Stripe account ID')).toHaveCount(0);
+  await expect(page.getByPlaceholder('acct_...')).toHaveCount(0);
   await expect(page.getByLabel('Currency')).toBeVisible();
   await expect(page.getByLabel('Timezone')).toBeVisible();
   await expect(tenantForm(page).getByRole('combobox')).toHaveCount(3);
-  await expect(tenantStripeAccountInput(page)).toBeVisible();
   await expect(page.getByLabel('Reason for platform change')).toBeVisible();
   if (options.create) {
     await expect(page.getByLabel('Privacy policy text')).toBeVisible();
@@ -194,8 +201,10 @@ Platform administrators can review, create, and edit organizations from **Platfo
   if (documentedTenant.stripeAccountId) {
     await fillTenantSearch(page, documentedTenant.stripeAccountId);
     await expect(
-      page.getByText(documentedTenant.stripeAccountId).first(),
+      page.getByRole('heading', { name: 'No organizations match this search' }),
     ).toBeVisible();
+    await fillTenantSearch(page, primaryDomain);
+    await expectGlobalAdminTenantRows(page, documentedTenant);
   }
   await takeScreenshot(
     testInfo,
@@ -321,9 +330,6 @@ Platform administrators can review, create, and edit organizations from **Platfo
   });
   await expect(tenantNameInput(page)).toHaveValue(createdTenant.name);
   await expect(tenantPrimaryDomainInput(page)).toHaveValue(createdTenantDomain);
-  await expect(tenantStripeAccountInput(page)).toHaveValue(
-    createdTenant.stripeAccountId ?? '',
-  );
   await expect(
     page.getByRole('button', { name: 'Save organization' }),
   ).toBeDisabled();
@@ -354,6 +360,7 @@ Platform administrators can review, create, and edit organizations from **Platfo
       domain: createdTenant.domain,
       id: createdTenant.id,
       name: updatedTenantName,
+      stripeAccountId: createdTenant.stripeAccountId,
     }),
   );
   await page.goto('/global-admin');
@@ -396,9 +403,9 @@ Platform administrators can review, create, and edit organizations from **Platfo
     body: `
 ## Organization settings and safeguards
 
-The platform administration page lists organizations and supports creating, reviewing, and editing them. Each entry shows the organization name, primary domain, theme, currency, timezone, and Stripe connection. The detail page repeats these settings, links to the edit form, and can open the organization's public site.
+The platform administration page lists organizations and supports creating, reviewing, and editing them. Each entry shows the organization name, primary domain, theme, currency, timezone, and **Payments** status: **Paid sign-ups ready** or **Paid sign-ups need attention**. Account identifiers are not displayed or searchable. The detail page repeats these settings, links to the edit form, and can open the organization's public site.
 
-Create and edit manage the primary domain, name, theme, currency, timezone, and connected Stripe account. Paid event registrations and add-ons are Stripe-only, so a connected Stripe account cannot be removed while a paid template, event option, or add-on still exists. Convert those configurations to free first. Domains must be unique host names without paths, queries, fragments, credentials, or custom ports.
+Create and edit manage the primary domain, name, theme, currency, and timezone. New organizations have no attached payment account and show **Paid sign-ups need attention**. Contact Evorto support for the first Stripe account attachment before adding prices. Once attached, the account cannot be changed or removed. Account identifiers are not entered in organization or platform settings. Domains must be unique host names without paths, queries, fragments, credentials, or custom ports.
 
 A public-domain change is rejected while pending payments, refunds, or registration transfers still depend on existing links. Keep the old domain redirecting to the new one so issued links and QR codes continue to work.
 

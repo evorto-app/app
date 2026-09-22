@@ -63,7 +63,7 @@ export class TemplateCreateComponent {
   );
   private readonly config = inject(ConfigService);
   protected readonly stripeConnected = computed(() =>
-    Boolean(this.config.tenantSignal()?.stripeAccountId),
+    Boolean(this.config.tenantSignal()?.paymentsConfigured),
   );
   private readonly templateModel = signal(
     createOrdinaryTemplateGraphFormModel(),

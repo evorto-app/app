@@ -5,15 +5,11 @@
 
 @if (ratesQuery.isPending()) {
   <p role="status" aria-live="polite" class="body-medium">
-    Loading Stripe tax rates...
+    Loading online payment tax rates…
   </p>
 } @else if (ratesQuery.isError()) {
   <div role="alert" class="bg-error-container text-on-error-container p-4">
-    <p class="body-medium">Stripe tax rates could not be loaded.</p>
-    <p class="body-small mt-1">
-      The organization needs a connected Stripe account before rates can be
-      imported.
-    </p>
+    <p class="body-medium">{{ loadErrorMessage() }}</p>
     <button mat-stroked-button type="button" (click)="ratesQuery.refetch()">
       Try again
     </button>
@@ -24,25 +20,33 @@
       <ng-container matColumnDef="name">
         <th mat-header-cell *matHeaderCellDef>Tax rate</th>
         <td mat-cell *matCellDef="let rate">
-          <div>{{ rate.displayName || "Unnamed rate" }}</div>
-          <div class="body-small text-on-surface-variant font-mono">
-            {{ rate.id }}
-          </div>
+          <div>{{ rate.displayName || "Tax rate name unavailable" }}</div>
+          @if (!rate.displayName) {
+            <div class="body-small text-on-surface-variant">
+              The payment account did not provide a name for this rate.
+            </div>
+          }
+          @if (rate.percentage === null) {
+            <div class="body-small text-on-surface-variant">
+              The percentage is missing and this rate cannot be imported.
+            </div>
+          }
         </td>
       </ng-container>
       <ng-container matColumnDef="percentage">
         <th mat-header-cell *matHeaderCellDef>Rate</th>
         <td mat-cell *matCellDef="let rate">
-          {{ rate.percentage === null ? "—" : rate.percentage + "%" }}
+          {{
+            rate.percentage === null
+              ? "Percentage unavailable"
+              : rate.percentage + "%"
+          }}
         </td>
       </ng-container>
       <ng-container matColumnDef="jurisdiction">
-        <th mat-header-cell *matHeaderCellDef>Jurisdiction</th>
+        <th mat-header-cell *matHeaderCellDef>Country or region</th>
         <td mat-cell *matCellDef="let rate">
-          {{ rate.country || "—" }}
-          @if (rate.state) {
-            · {{ rate.state }}
-          }
+          {{ taxRateRegionLabel(rate.country, rate.state) }}
         </td>
       </ng-container>
       <ng-container matColumnDef="imported">
@@ -62,10 +66,15 @@
       <mat-label>Tax rates</mat-label>
       <mat-select multiple [formField]="importForm.ids">
         @for (rate of ratesQuery.data(); track rate.id) {
-          <mat-option [value]="rate.id" [disabled]="rate.imported">
-            {{ rate.displayName || rate.id }} ·
+          <mat-option
+            [value]="rate.id"
+            [disabled]="rate.imported || rate.percentage === null"
+          >
+            {{ rate.displayName || "Tax rate name unavailable" }} ·
             {{
-              rate.percentage === null ? "Unknown rate" : rate.percentage + "%"
+              rate.percentage === null
+                ? "Percentage unavailable; this rate cannot be imported"
+                : rate.percentage + "%"
             }}
           </mat-option>
         }
@@ -87,7 +96,7 @@
         type="submit"
         [disabled]="importForm().invalid() || importMutation.isPending()"
       >
-        {{ importMutation.isPending() ? "Importing..." : "Import selected" }}
+        {{ importMutation.isPending() ? "Importing…" : "Import selected" }}
       </button>
     </div>
   </form>

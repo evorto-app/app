@@ -170,11 +170,11 @@ describe('platformAuditChangedRows', () => {
       platformAuditChangedRows({
         after: {
           resourceType: 'tenant',
-          state: { stripeConnected: true },
+          state: { paymentsConfigured: true },
         },
         before: {
           resourceType: 'tenant',
-          state: { stripeConnected: false },
+          state: { paymentsConfigured: false },
         },
       }),
     ).toEqual([

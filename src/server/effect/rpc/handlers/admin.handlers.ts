@@ -23,25 +23,22 @@ import type { AppRpcHandlers } from './shared/handler-types';
 import { Database, type DatabaseClient } from '../../../../db';
 import { roles, tenants, tenantStripeTaxRates } from '../../../../db/schema';
 import { AdminRoleRecord } from '../../../../shared/rpc-contracts/app-rpcs/admin.rpcs';
+import {
+  ClientTenantConfig,
+  toClientTenantConfig,
+} from '../../../../shared/rpc-contracts/app-rpcs/config.rpcs';
 import { Tenant } from '../../../../types/custom/tenant';
 import { normalizeEsnCardConfig } from '../../../discounts/discount-provider-config';
+import { lockTenantStripeAccount } from '../../../payments/pending-stripe-obligations';
 import {
-  stripeAccountRemovalBlockedByPaidConfigurationErrorDetails,
-  stripeAccountRemovalBlockedByTaxConfigurationErrorDetails,
-  tenantHasPaidEventConfiguration,
-  tenantHasStripeTaxRateConfiguration,
-} from '../../../payments/paid-event-configuration';
-import {
-  lockTenantStripeAccount,
-  tenantHasPendingStripeObligations,
-} from '../../../payments/pending-stripe-obligations';
-import {
-  applyStripeTaxRateAccountRotation,
-  fetchStripeTaxRateAccountRotationTargetRates,
-  planStripeTaxRateAccountRotation,
-  type StripeTaxRateAccountRotationPlan,
-  type StripeTaxRateAccountRotationTargetRate,
-} from '../../../payments/stripe-tax-rate-account-rotation';
+  ensureStripeAccountUnchanged,
+  listStripeTaxRates,
+  loadStripeTaxRatesForImport,
+  requireTenantStripeAccount,
+  stripeTaxRateAccountConflict,
+  type StripeTaxRateSource,
+  toTenantStripeTaxRateValues,
+} from '../../../payments/stripe-tax-rate.service';
 import {
   normalizeRoleWrite,
   roleNameConflictFromDatabase,
@@ -590,28 +587,13 @@ export const adminHandlers = {
       yield* RpcAccess.ensurePermission('admin:tax');
       const stripe = yield* StripeClient;
       const { tenant } = yield* RpcAccess.current();
-      const stripeAccount = tenant.stripeAccountId;
-      if (!stripeAccount) {
-        return;
-      }
-
-      const stripeRates = yield* Effect.all(
-        ids.map((id) =>
-          Effect.promise(() =>
-            stripe.taxRates.retrieve(id, undefined, { stripeAccount }),
-          ).pipe(
-            Effect.flatMap((stripeRate) =>
-              stripeRate.inclusive
-                ? Effect.succeed(stripeRate)
-                : Effect.fail(
-                    new RpcBadRequestError({
-                      message: 'Stripe tax rate must be inclusive',
-                      reason: 'nonInclusiveTaxRate',
-                    }),
-                  ),
-            ),
-          ),
-        ),
+      const stripeAccount = yield* requireTenantStripeAccount(
+        tenant.stripeAccountId ?? null,
+      );
+      const { rates: stripeRates } = yield* loadStripeTaxRatesForImport(
+        stripe.taxRates,
+        stripeAccount,
+        ids,
       );
 
       yield* databaseBadRequestEffect((database) =>
@@ -621,16 +603,14 @@ export const adminHandlers = {
               tx,
               tenant.id,
             );
-            if (lockedStripeAccount !== stripeAccount) {
-              return yield* new RpcBadRequestError({
-                message: 'Stripe account changed while tax rates were loading',
-                reason:
-                  'Reload the page and import rates from the current account.',
-              });
-            }
+            yield* ensureStripeAccountUnchanged(
+              stripeAccount,
+              lockedStripeAccount,
+            );
 
-            yield* Effect.all(
-              stripeRates.map((stripeRate) =>
+            yield* Effect.forEach(
+              stripeRates,
+              (stripeRate) =>
                 Effect.gen(function* () {
                   const existingRate =
                     yield* tx.query.tenantStripeTaxRates.findFirst({
@@ -647,32 +627,13 @@ export const adminHandlers = {
                     existingRate &&
                     existingRate.stripeAccountId !== stripeAccount
                   ) {
-                    return yield* new RpcBadRequestError({
-                      message:
-                        'Imported tax-rate metadata belongs to a different Stripe account',
-                      reason:
-                        'Change or disconnect the Stripe account before importing this rate.',
-                    });
+                    return yield* stripeTaxRateAccountConflict();
                   }
 
-                  const values: Omit<
-                    typeof tenantStripeTaxRates.$inferInsert,
-                    'id'
-                  > = {
-                    active: !!stripeRate.active,
-                    country: stripeRate.country ?? null,
-                    displayName: stripeRate.display_name ?? null,
-                    inclusive: !!stripeRate.inclusive,
-                    percentage:
-                      stripeRate.percentage !== null &&
-                      stripeRate.percentage !== undefined
-                        ? String(stripeRate.percentage)
-                        : undefined,
-                    state: stripeRate.state ?? null,
+                  const values = toTenantStripeTaxRateValues(stripeRate, {
                     stripeAccountId: stripeAccount,
-                    stripeTaxRateId: stripeRate.id,
                     tenantId: tenant.id,
-                  };
+                  });
 
                   yield* existingRate
                     ? tx
@@ -681,8 +642,8 @@ export const adminHandlers = {
                         .where(eq(tenantStripeTaxRates.id, existingRate.id))
                     : tx.insert(tenantStripeTaxRates).values(values);
                 }),
-              ),
-            ).pipe(Effect.asVoid);
+              { concurrency: 1, discard: true },
+            );
           }),
         ),
       );
@@ -720,21 +681,14 @@ export const adminHandlers = {
       yield* RpcAccess.ensurePermission('admin:tax');
       const stripe = yield* StripeClient;
       const { tenant } = yield* RpcAccess.current();
-      const stripeAccount = tenant.stripeAccountId;
-      if (!stripeAccount) {
-        return [];
-      }
-
-      const [activeRates, archivedRates] = yield* Effect.promise(() =>
-        Promise.all([
-          stripe.taxRates.list({ active: true, limit: 100 }, { stripeAccount }),
-          stripe.taxRates.list(
-            { active: false, limit: 100 },
-            { stripeAccount },
-          ),
-        ]),
+      const stripeAccount = yield* requireTenantStripeAccount(
+        tenant.stripeAccountId ?? null,
       );
-      const mapRate = (rate: (typeof activeRates)['data'][number]) => ({
+      const [activeRates, archivedRates] = yield* Effect.all([
+        listStripeTaxRates(stripe.taxRates, stripeAccount, { active: true }),
+        listStripeTaxRates(stripe.taxRates, stripeAccount, { active: false }),
+      ]);
+      const mapRate = (rate: StripeTaxRateSource) => ({
         active: !!rate.active,
         country: rate.country ?? null,
         displayName: rate.display_name ?? null,
@@ -745,8 +699,8 @@ export const adminHandlers = {
       });
 
       return [
-        ...activeRates.data.map((rate) => mapRate(rate)),
-        ...archivedRates.data.map((rate) => mapRate(rate)),
+        ...activeRates.map((rate) => mapRate(rate)),
+        ...archivedRates.map((rate) => mapRate(rate)),
       ];
     }),
   'admin.tenant.updateSettings': (input, _options) =>
@@ -801,7 +755,6 @@ export const adminHandlers = {
         refundFeesOnCancellation: input.refundFeesOnCancellation,
         seoDescription: input.seoDescription?.trim() || null,
         seoTitle: input.seoTitle?.trim() || null,
-        stripeAccountId: input.stripeAccountId?.trim() || null,
         theme: input.theme,
         timezone: input.timezone,
         transferDeadlineHoursBeforeStart:
@@ -832,65 +785,11 @@ export const adminHandlers = {
         refundFeesOnCancellation: input.refundFeesOnCancellation,
         seoDescription: input.seoDescription?.trim() || null,
         seoTitle: input.seoTitle?.trim() || null,
-        stripeAccountId: input.stripeAccountId?.trim() || null,
         theme: input.theme,
         timezone: input.timezone,
         transferDeadlineHoursBeforeStart:
           input.transferDeadlineHoursBeforeStart,
       };
-      let stripeTaxRateRotationTargets: readonly StripeTaxRateAccountRotationTargetRate[] =
-        [];
-      if (
-        tenant.stripeAccountId &&
-        tenantUpdate.stripeAccountId &&
-        tenant.stripeAccountId !== tenantUpdate.stripeAccountId
-      ) {
-        // Reject stale edits before contacting the destination account. Release
-        // this lock before external I/O; the write transaction checks again.
-        yield* Database.use((database) =>
-          database
-            .transaction((tx) =>
-              Effect.gen(function* () {
-                const lockedTenants = yield* tx
-                  .select()
-                  .from(tenants)
-                  .where(eq(tenants.id, tenant.id))
-                  .for('update');
-                const lockedTenant = lockedTenants[0];
-                if (!lockedTenant) {
-                  return yield* new AdminTenantNotFoundError({
-                    id: tenant.id,
-                    message: 'Tenant not found or stale',
-                  });
-                }
-                if (
-                  !Schema.toEquivalence(AdminTenantSettingsSnapshot)(
-                    input.expectedSettings,
-                    adminTenantSettingsSnapshot(
-                      Schema.decodeUnknownSync(Tenant)(lockedTenant),
-                    ),
-                  )
-                ) {
-                  return yield* tenantSettingsConflict();
-                }
-              }),
-            )
-            .pipe(
-              Effect.catch((error) =>
-                error instanceof TenantSettingsConflictError ||
-                error instanceof AdminTenantNotFoundError
-                  ? Effect.fail(error)
-                  : Effect.die(error),
-              ),
-            ),
-        );
-        const stripe = yield* StripeClient;
-        stripeTaxRateRotationTargets =
-          yield* fetchStripeTaxRateAccountRotationTargetRates(
-            stripe,
-            tenantUpdate.stripeAccountId,
-          );
-      }
       const updatedTenants = yield* Database.use((database) =>
         database
           .transaction((tx) =>
@@ -915,58 +814,6 @@ export const adminHandlers = {
                 )
               ) {
                 return yield* tenantSettingsConflict();
-              }
-
-              let rotationPlan: StripeTaxRateAccountRotationPlan | undefined;
-              if (
-                lockedTenant.stripeAccountId !== tenantUpdate.stripeAccountId
-              ) {
-                const hasPendingStripeObligations =
-                  yield* tenantHasPendingStripeObligations(tx, tenant.id);
-                if (hasPendingStripeObligations) {
-                  return yield* new RpcBadRequestError({
-                    message:
-                      'Stripe account cannot change while registration Checkouts or refunds are pending',
-                    reason:
-                      'Complete or cancel every pending Checkout and refund before changing the connected account.',
-                  });
-                }
-
-                if (tenantUpdate.stripeAccountId === null) {
-                  const hasPaidEventConfiguration =
-                    yield* tenantHasPaidEventConfiguration(tx, tenant.id);
-                  if (hasPaidEventConfiguration) {
-                    return yield* new RpcBadRequestError(
-                      stripeAccountRemovalBlockedByPaidConfigurationErrorDetails,
-                    );
-                  }
-                  const hasStripeTaxRateConfiguration =
-                    yield* tenantHasStripeTaxRateConfiguration(tx, tenant.id);
-                  if (hasStripeTaxRateConfiguration) {
-                    return yield* new RpcBadRequestError(
-                      stripeAccountRemovalBlockedByTaxConfigurationErrorDetails,
-                    );
-                  }
-                } else if (lockedTenant.stripeAccountId) {
-                  rotationPlan = yield* planStripeTaxRateAccountRotation(tx, {
-                    sourceStripeAccountId: lockedTenant.stripeAccountId,
-                    targetRates: stripeTaxRateRotationTargets,
-                    targetStripeAccountId: tenantUpdate.stripeAccountId,
-                    tenantId: tenant.id,
-                  });
-                } else {
-                  const hasStripeTaxRateConfiguration =
-                    yield* tenantHasStripeTaxRateConfiguration(tx, tenant.id);
-                  if (hasStripeTaxRateConfiguration) {
-                    return yield* new RpcBadRequestError(
-                      stripeAccountRemovalBlockedByTaxConfigurationErrorDetails,
-                    );
-                  }
-                }
-
-                yield* tx
-                  .delete(tenantStripeTaxRates)
-                  .where(eq(tenantStripeTaxRates.tenantId, tenant.id));
               }
 
               if (lockedTenant.currency !== input.currency) {
@@ -995,12 +842,8 @@ export const adminHandlers = {
                 .where(eq(tenants.id, tenant.id))
                 .returning({
                   id: tenants.id,
+                  stripeAccountId: tenants.stripeAccountId,
                 });
-              if (rotationPlan) {
-                // Source metadata was removed with the old account; restore
-                // only the provider-verified target-account matches.
-                yield* applyStripeTaxRateAccountRotation(tx, rotationPlan);
-              }
               return updatedRows;
             }),
           )
@@ -1023,7 +866,10 @@ export const adminHandlers = {
         );
       }
 
-      return validatedTenant;
+      return new ClientTenantConfig({
+        ...toClientTenantConfig(validatedTenant),
+        paymentsConfigured: Boolean(updatedTenant.stripeAccountId),
+      });
     }),
   'admin.tenant.uploadBrandAsset': (input, _options) =>
     Effect.gen(function* () {

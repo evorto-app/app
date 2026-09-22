@@ -13,9 +13,8 @@ export const pendingStripeObligationPredicate = (tenantId: string) =>
   );
 
 /**
- * A pending registration/add-on Checkout or registration refund is owned by
- * its persisted Connect account. Account changes stay blocked until every
- * such obligation reaches a durable terminal outcome.
+ * Unfinished paid work blocks the first account attachment and organization
+ * address changes. Each payment operation continues to use its saved account.
  */
 export const tenantHasPendingStripeObligations = Effect.fn(
   'tenantHasPendingStripeObligations',
