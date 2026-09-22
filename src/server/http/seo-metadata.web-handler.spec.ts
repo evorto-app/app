@@ -10,7 +10,7 @@ import { ConnectionError, SqlError } from 'effect/unstable/sql/SqlError';
 
 import { Database } from '../../db';
 import { relations } from '../../db/relations';
-import { tenants } from '../../db/schema';
+import { tenantPrivacyPolicyVersions, tenants } from '../../db/schema';
 import { localTestTenantDomainHeader } from '../../shared/request-routing';
 import * as authSession from '../auth/auth-session';
 import { RuntimeConfig } from '../config/runtime-config';
@@ -108,6 +108,13 @@ it.effect.each(['/robots.txt', '/sitemap.xml'])(
     }),
 );
 
+type TenantReadResult = typeof tenants.$inferSelect & {
+  privacyPolicyVersions: Pick<
+    typeof tenantPrivacyPolicyVersions.$inferSelect,
+    'privacyPolicyText' | 'privacyPolicyUrl'
+  >[];
+};
+
 const createTenant = (domain: string) =>
   ({
     cancellationDeadlineHoursBeforeStart: 120,
@@ -122,12 +129,15 @@ const createTenant = (domain: string) =>
     id: 'tenant-fixture',
     legalNoticeText: null,
     legalNoticeUrl: null,
-    locale: 'de-DE',
     logoUrl: null,
     maxActiveRegistrationsPerUser: 0,
     name: domain,
-    privacyPolicyText: null,
-    privacyPolicyUrl: null,
+    privacyPolicyVersions: [
+      {
+        privacyPolicyText: 'Current organization privacy policy',
+        privacyPolicyUrl: null,
+      },
+    ],
     receiptSettings: { allowOther: false, receiptCountries: ['DE'] },
     refundFeesOnCancellation: true,
     seoDescription: null,
@@ -139,12 +149,12 @@ const createTenant = (domain: string) =>
     timezone: 'Europe/Berlin',
     transferDeadlineHoursBeforeStart: 0,
     updatedAt: new Date('2026-07-01T12:00:00.000Z'),
-  }) satisfies typeof tenants.$inferSelect;
+  }) satisfies TenantReadResult;
 
 const tenantDatabaseLayer = (
   findTenant: (
     domain: string,
-  ) => Effect.Effect<typeof tenants.$inferSelect | undefined, SqlError>,
+  ) => Effect.Effect<TenantReadResult | undefined, SqlError>,
 ) => {
   const unexpected = Effect.die(
     new Error(
@@ -157,19 +167,30 @@ const tenantDatabaseLayer = (
   ) =>
     Effect.gen(function* () {
       expect(statement).toContain('from "tenants"');
-      expect(statement).toContain('"domain" = $1');
-      const domain = parameters[0];
+      expect(statement).toContain('tenant_privacy_policy_versions');
+      expect(statement).toContain('"version" desc');
+      const domainBinding = statement.match(/"d0"\."domain" = \$(\d+)/u)?.[1];
+      expect(domainBinding).toBeDefined();
+      const domain = domainBinding
+        ? parameters[Number(domainBinding) - 1]
+        : undefined;
       if (typeof domain !== 'string')
         return yield* Effect.die(new Error('Expected tenant domain parameter'));
       const tenant = yield* findTenant(domain);
       if (!tenant) return [];
-      expect(Object.keys(tenant)).toEqual(
+      const { privacyPolicyVersions, ...tenantFields } = tenant;
+      expect(Object.keys(tenantFields)).toEqual(
         Object.keys(getTableColumns(tenants)),
       );
       return [
-        Object.values(tenant).map((value) =>
-          value instanceof Date ? value.toISOString().replace('Z', '') : value,
-        ),
+        [
+          ...Object.values(tenantFields).map((value) =>
+            value instanceof Date
+              ? value.toISOString().replace('Z', '')
+              : value,
+          ),
+          privacyPolicyVersions.map((policy) => ({ ...policy })),
+        ],
       ];
     });
   const connection = {
@@ -199,7 +220,7 @@ const makeSeoHandler = (input: {
   baseUrl?: string;
   findTenant: (
     domain: string,
-  ) => Effect.Effect<typeof tenants.$inferSelect | undefined, SqlError>;
+  ) => Effect.Effect<TenantReadResult | undefined, SqlError>;
   nodeEnvironment?: string;
   onFailure?: (cause: Cause.Cause<unknown>) => void;
   tenantDomain?: string;

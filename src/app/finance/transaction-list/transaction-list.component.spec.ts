@@ -7,6 +7,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { TENANT_DATE_PIPE_TIMEZONE } from '../../core/tenant-date.pipe';
 import {
   TransactionListComponent,
   TransactionListQueries,
@@ -82,6 +83,10 @@ describe('TransactionListComponent load recovery', () => {
       imports: [TransactionListComponent],
       providers: [
         provideTanStackQuery(queryClient),
+        {
+          provide: TENANT_DATE_PIPE_TIMEZONE,
+          useValue: 'Europe/Berlin',
+        },
         {
           provide: TransactionListQueries,
           useValue: {

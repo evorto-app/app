@@ -1,16 +1,25 @@
 import { getTableConfig } from 'drizzle-orm/pg-core';
 import { describe, expect, it } from 'vitest';
 
-import { localeEnum, tenants } from './tenants';
+import { tenants } from './tenants';
 
 describe('tenant runtime settings schema', () => {
-  it('defaults new tenants to the fixed formatting locale', () => {
-    const localeColumn = getTableConfig(tenants).columns.find(
-      (column) => column.name === 'locale',
-    );
+  it('does not persist an organization-specific formatting locale', () => {
+    expect(
+      getTableConfig(tenants).columns.map((column) => column.name),
+    ).not.toContain('locale');
+  });
 
-    expect(localeEnum.enumValues).toContain('de-DE');
-    expect(localeColumn?.default).toBe('de-DE');
+  it('keeps registration policy counts nonnegative', () => {
+    expect(
+      getTableConfig(tenants).checks.map((constraint) => constraint.name),
+    ).toEqual(
+      expect.arrayContaining([
+        'tenants_cancellation_deadline_hours_nonnegative',
+        'tenants_max_active_registrations_per_user_nonnegative',
+        'tenants_transfer_deadline_hours_nonnegative',
+      ]),
+    );
   });
 
   it('stores arbitrary validated IANA timezone names with the Berlin default', () => {

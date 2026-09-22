@@ -12,6 +12,7 @@ import { and, eq, inArray } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { ConfigProvider, Effect, Layer } from 'effect';
 import * as Headers from 'effect/unstable/http/Headers';
+import { Rpc, RpcMessage } from 'effect/unstable/rpc';
 import { randomUUID } from 'node:crypto';
 import { Pool, type PoolClient } from 'pg';
 import StripeClientLibrary from 'stripe';
@@ -21,7 +22,9 @@ import { eventRegistrationHandlers } from '../../server/effect/rpc/handlers/even
 import { RpcAccess } from '../../server/effect/rpc/handlers/shared/rpc-access.service';
 import { StripeClient } from '../../server/stripe-client';
 import {
+  AppRpcs,
   RpcRequestContext,
+  RpcRequestContextMiddleware,
   type RpcRequestContextShape,
 } from '../../shared/rpc-contracts/app-rpcs';
 import { databaseLayer } from '../database.layer';
@@ -242,19 +245,67 @@ const waitForBlockedQueries = (
     return Number(blocked.rows[0]?.count ?? 0) >= minimumCount;
   }, `Timed out waiting for ${minimumCount} blocked ${queryFragment} queries`);
 
+const runWithCleanup = async <A>(
+  use: () => Promise<A>,
+  cleanups: readonly (() => Promise<void> | void)[],
+) => {
+  const failures: unknown[] = [];
+  let outcome: { error: unknown } | { value: A };
+  try {
+    outcome = { value: await use() };
+  } catch (error) {
+    outcome = { error };
+    failures.push(error);
+  }
+  for (const cleanup of cleanups) {
+    try {
+      await cleanup();
+    } catch (error) {
+      failures.push(error);
+    }
+  }
+  if (failures.length > 1) {
+    throw new AggregateError(failures, 'Test operation and cleanup failed', {
+      cause: failures[0],
+    });
+  }
+  if (failures.length === 1) throw failures[0];
+  if ('error' in outcome) throw outcome.error;
+  return outcome.value;
+};
+
+const releaseRowLock = (
+  client: Pick<PoolClient, 'query' | 'release'>,
+  transactionOpen: boolean,
+  discard = false,
+) => {
+  let discardClient = discard;
+  return runWithCleanup(async () => {
+    if (!transactionOpen) return;
+    try {
+      await client.query('ROLLBACK');
+    } catch (error) {
+      discardClient = true;
+      throw error;
+    }
+  }, [() => client.release(discardClient)]);
+};
 const withRowLock = async (
   pool: Pool,
   lock: (client: PoolClient) => Promise<void>,
 ) => {
   const client = await pool.connect();
-  await client.query('BEGIN');
+  let transactionOpen = false;
   try {
+    await client.query('BEGIN');
+    transactionOpen = true;
     await lock(client);
+
     return client;
   } catch (error) {
-    await client.query('ROLLBACK');
-    client.release();
-    throw error;
+    return runWithCleanup(async () => {
+      throw error;
+    }, [() => releaseRowLock(client, transactionOpen, !transactionOpen)]);
   }
 };
 
@@ -319,6 +370,19 @@ const runRegistration = (
     ),
   );
 
+const cancellationRpc = [...AppRpcs.requests.values()].find(
+  (rpc) => rpc._tag === 'events.cancelRegistration',
+);
+if (!cancellationRpc) throw new Error('Cancellation RPC is missing');
+const cancellationOptions: Parameters<
+  (typeof eventRegistrationHandlers)['events.cancelRegistration']
+>[1] = {
+  client: new Rpc.ServerClient(1),
+  headers: Headers.empty,
+  requestId: RpcMessage.RequestId(1),
+  rpc: cancellationRpc.middleware(RpcRequestContextMiddleware),
+};
+
 const runCancellation = ({
   expectedPaymentPending = false,
   fixture,
@@ -334,6 +398,7 @@ const runCancellation = ({
     authenticated: true,
     permissions,
     tenant: {
+      cancellationDeadlineHoursBeforeStart: 120,
       currency: 'EUR',
       defaultLocation: undefined,
       discountProviders: {
@@ -349,7 +414,6 @@ const runCancellation = ({
       id: fixture.tenantId,
       legalNoticeText: undefined,
       legalNoticeUrl: undefined,
-      locale: 'en-GB',
       logoUrl: undefined,
       maxActiveRegistrationsPerUser: 0,
       name: 'Concurrency test',
@@ -359,6 +423,7 @@ const runCancellation = ({
         allowOther: false,
         receiptCountries: ['DE'],
       },
+      refundFeesOnCancellation: true,
       seoDescription: undefined,
       seoTitle: undefined,
       stripeAccountId: `acct_${fixture.tenantId.replace('tenant-', '')}`,
@@ -366,6 +431,7 @@ const runCancellation = ({
       termsUrl: undefined,
       theme: 'evorto',
       timezone: 'Europe/Berlin',
+      transferDeadlineHoursBeforeStart: 0,
     },
     user: {
       attributes: [],
@@ -373,6 +439,8 @@ const runCancellation = ({
       communicationEmail: undefined,
       email: `${fixture.userId}@example.com`,
       firstName: 'Concurrent',
+      homeTenantId: undefined,
+      homeTenantName: undefined,
       iban: undefined,
       id: fixture.userId,
       lastName: 'Tester',
@@ -390,7 +458,7 @@ const runCancellation = ({
         expectedStatus: 'PENDING',
         registrationId: fixture.registrationId,
       },
-      { headers: Headers.empty },
+      cancellationOptions,
     ).pipe(
       Effect.match({
         onFailure: (error) => ({ error, status: 'failure' as const }),
@@ -909,14 +977,16 @@ describe('database registration concurrency invariants', () => {
         [fixture.tenantId, fixture.userId],
       );
     });
+    let membershipTransactionOpen = true;
 
-    try {
+    await runWithCleanup(async () => {
       const input = directRegistrationInput(fixture);
       const first = runRegistration(input, serviceLayer);
       const second = runRegistration(input, serviceLayer);
 
       await waitForBlockedQueries(pool, 'users_to_tenants', 2);
       await membershipLock.query('COMMIT');
+      membershipTransactionOpen = false;
 
       const outcomes = await Promise.all([first, second]);
       expect(
@@ -945,12 +1015,7 @@ describe('database registration concurrency invariants', () => {
       expect(state.purchases).toEqual([
         expect.objectContaining({ quantity: 2, unitPrice: 0 }),
       ]);
-    } finally {
-      if (!membershipLock.released) {
-        await membershipLock.query('ROLLBACK').catch(() => null);
-      }
-      membershipLock.release();
-    }
+    }, [() => releaseRowLock(membershipLock, membershipTransactionOpen)]);
   }, 30_000);
 
   it('keeps transfer notification reads out of inverse shared-user lock cycles', async () => {
@@ -977,11 +1042,18 @@ describe('database registration concurrency invariants', () => {
     });
 
     const transferClient = await pool.connect();
-    const registrationClient = await pool.connect();
+    let registrationClient: PoolClient;
+    try {
+      registrationClient = await pool.connect();
+    } catch (error) {
+      return runWithCleanup(async () => {
+        throw error;
+      }, [() => transferClient.release()]);
+    }
     let registrationTransactionOpen = false;
     let transferTransactionOpen = false;
 
-    try {
+    await runWithCleanup(async () => {
       await transferClient.query('BEGIN');
       transferTransactionOpen = true;
       await transferClient.query("SET LOCAL lock_timeout = '5s'");
@@ -1035,28 +1107,28 @@ describe('database registration concurrency invariants', () => {
           },
         });
       expect(insertedRegistrations).toHaveLength(2);
-    } finally {
-      if (registrationTransactionOpen) {
-        await registrationClient.query('ROLLBACK').catch(() => null);
-      }
-      if (transferTransactionOpen) {
-        await transferClient.query('ROLLBACK').catch(() => null);
-      }
-      registrationClient.release();
-      transferClient.release();
-      await database
-        .delete(eventRegistrations)
-        .where(
-          inArray(eventRegistrations.id, [
-            sourceRegistrationId,
-            recipientRegistrationId,
-          ]),
-        );
-      await database
-        .delete(usersToTenants)
-        .where(eq(usersToTenants.id, recipientMembershipId));
-      await database.delete(users).where(eq(users.id, recipientUserId));
-    }
+    }, [
+      () => releaseRowLock(transferClient, transferTransactionOpen),
+      () => releaseRowLock(registrationClient, registrationTransactionOpen),
+      async () => {
+        await database
+          .delete(eventRegistrations)
+          .where(
+            inArray(eventRegistrations.id, [
+              sourceRegistrationId,
+              recipientRegistrationId,
+            ]),
+          );
+      },
+      async () => {
+        await database
+          .delete(usersToTenants)
+          .where(eq(usersToTenants.id, recipientMembershipId));
+      },
+      async () => {
+        await database.delete(users).where(eq(users.id, recipientUserId));
+      },
+    ]);
   }, 30_000);
 });
 
@@ -1099,13 +1171,15 @@ describe('paid manual approval concurrency', () => {
         [fixture.registrationId],
       );
     });
+    let registrationTransactionOpen = true;
 
-    try {
+    await runWithCleanup(async () => {
       const first = runApproval(approvalInput(fixture), serviceLayer);
       const second = runApproval(approvalInput(fixture), serviceLayer);
 
       await waitForBlockedQueries(pool, 'event_registrations', 2);
       await registrationLock.query('COMMIT');
+      registrationTransactionOpen = false;
       await waitFor(
         () => fakeHttpClient.createRequests.length === 2,
         'Timed out waiting for both idempotent Stripe requests',
@@ -1138,13 +1212,12 @@ describe('paid manual approval concurrency', () => {
       expect(state.option?.confirmedSpots).toBe(0);
       expect(state.addOn?.totalAvailableQuantity).toBe(3);
       expect(state.emails).toHaveLength(1);
-    } finally {
-      releaseCreates(true);
-      if (!registrationLock.released) {
-        await registrationLock.query('ROLLBACK').catch(() => null);
-      }
-      registrationLock.release();
-    }
+    }, [
+      async () => {
+        releaseCreates(true);
+      },
+      () => releaseRowLock(registrationLock, registrationTransactionOpen),
+    ]);
   }, 30_000);
 
   it('reuses the original claim and checkout snapshot after an ambiguous Stripe failure', async () => {
@@ -1232,13 +1305,15 @@ describe('paid manual approval concurrency', () => {
         [fixture.registrationId],
       );
     });
+    let registrationTransactionOpen = true;
 
-    try {
+    await runWithCleanup(async () => {
       const approval = runApproval(approvalInput(fixture), serviceLayer);
       await waitForBlockedQueries(pool, 'event_registrations', 1);
       const cancellation = runCancellation({ fixture, serviceLayer });
       await waitForBlockedQueries(pool, 'event_registrations', 2);
       await registrationLock.query('COMMIT');
+      registrationTransactionOpen = false;
 
       await waitFor(
         () => fakeHttpClient.createRequests.length === 1,
@@ -1284,13 +1359,12 @@ describe('paid manual approval concurrency', () => {
       expect(state.option?.confirmedSpots).toBe(0);
       expect(state.addOn?.totalAvailableQuantity).toBe(5);
       expect(state.emails).toHaveLength(2);
-    } finally {
-      releaseCreates(true);
-      if (!registrationLock.released) {
-        await registrationLock.query('ROLLBACK').catch(() => null);
-      }
-      registrationLock.release();
-    }
+    }, [
+      async () => {
+        releaseCreates(true);
+      },
+      () => releaseRowLock(registrationLock, registrationTransactionOpen),
+    ]);
   }, 30_000);
 });
 
@@ -1332,14 +1406,16 @@ describe('direct paid registration concurrency', () => {
         fixture.tenantId,
       ]);
     });
+    let tenantTransactionOpen = true;
 
-    try {
+    await runWithCleanup(async () => {
       const input = directRegistrationInput(fixture);
       const first = runRegistration(input, serviceLayer);
       const second = runRegistration(input, serviceLayer);
 
       await waitForBlockedQueries(pool, 'tenants', 2);
       await tenantLock.query('COMMIT');
+      tenantTransactionOpen = false;
       await waitFor(
         () => fakeHttpClient.createRequests.length === 1,
         'Timed out waiting for the winning registration to create its Stripe session',
@@ -1392,13 +1468,12 @@ describe('direct paid registration concurrency', () => {
           registrationId: registration?.id,
         }),
       ]);
-    } finally {
-      releaseCreates(true);
-      if (!tenantLock.released) {
-        await tenantLock.query('ROLLBACK').catch(() => null);
-      }
-      tenantLock.release();
-    }
+    }, [
+      async () => {
+        releaseCreates(true);
+      },
+      () => releaseRowLock(tenantLock, tenantTransactionOpen),
+    ]);
   }, 30_000);
 
   it('retries an ambiguous direct Checkout attempt with the same claim and request snapshot', async () => {

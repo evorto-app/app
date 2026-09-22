@@ -1,6 +1,13 @@
 import { describe, expect, it, vi } from '@effect/vitest';
+import * as EventsRpcs from '@shared/rpc-contracts/app-rpcs/events.rpcs';
+import {
+  createDefaultTenantDiscountProviders,
+  DEFAULT_TENANT_RECEIPT_ALLOW_OTHER,
+  DEFAULT_TENANT_RECEIPT_COUNTRIES,
+} from '@shared/tenant-config';
 import { Effect, Layer } from 'effect';
 import * as Headers from 'effect/unstable/http/Headers';
+import { Rpc, RpcMessage } from 'effect/unstable/rpc';
 
 import { Database, type DatabaseClient } from '../../../../../db';
 import {
@@ -14,26 +21,38 @@ import {
 import { type Permission } from '../../../../../shared/permissions/permissions';
 import {
   RpcRequestContext,
+  RpcRequestContextMiddleware,
   type RpcRequestContextShape,
 } from '../../../../../shared/rpc-contracts/app-rpcs';
 import { RpcAccess } from '../shared/rpc-access.service';
 import { eventQueryHandlers } from './events-query.handlers';
 import { eventHandlers } from './events.handlers';
 
-const emptyHandlerOptions = { headers: Headers.fromInput({}) };
+const createRpcOptions = <R extends Rpc.Any>(rpc: R) => ({
+  client: new Rpc.ServerClient(1),
+  headers: Headers.empty,
+  requestId: RpcMessage.RequestId(1),
+  rpc,
+});
 
 const tenant = {
+  cancellationDeadlineHoursBeforeStart: 120,
   currency: 'EUR' as const,
-  defaultLocation: null,
-  discountProviders: null,
+  defaultLocation: undefined,
+  discountProviders: createDefaultTenantDiscountProviders(),
   domain: 'tenant.example.com',
   id: 'tenant-1',
-  locale: 'en',
+  maxActiveRegistrationsPerUser: 0,
   name: 'Tenant',
-  receiptSettings: null,
+  receiptSettings: {
+    allowOther: DEFAULT_TENANT_RECEIPT_ALLOW_OTHER,
+    receiptCountries: [...DEFAULT_TENANT_RECEIPT_COUNTRIES],
+  },
+  refundFeesOnCancellation: true,
   stripeAccountId: null,
   theme: 'evorto' as const,
   timezone: 'Europe/Amsterdam',
+  transferDeadlineHoursBeforeStart: 0,
 };
 
 const createUser = (permissions: readonly Permission[] = []) => ({
@@ -42,6 +61,8 @@ const createUser = (permissions: readonly Permission[] = []) => ({
   communicationEmail: undefined,
   email: 'member@example.com',
   firstName: 'Tenant',
+  homeTenantId: undefined,
+  homeTenantName: undefined,
   iban: undefined,
   id: 'user-1',
   lastName: 'Member',
@@ -215,7 +236,9 @@ describe('event discount tenant isolation', () => {
 
       const event = yield* eventQueryHandlers['events.findOne'](
         { id: 'event-1' },
-        emptyHandlerOptions,
+        createRpcOptions(
+          EventsRpcs.EventsFindOne.middleware(RpcRequestContextMiddleware),
+        ),
       ).pipe(
         Effect.provide(
           createContextLayer({
@@ -295,11 +318,15 @@ describe('organizer overview authorization', () => {
 
       const error = yield* eventQueryHandlers['events.getOrganizeOverview'](
         { eventId: 'event-1' },
-        emptyHandlerOptions,
+        createRpcOptions(
+          EventsRpcs.EventsGetOrganizeOverview.middleware(
+            RpcRequestContextMiddleware,
+          ),
+        ),
       ).pipe(Effect.flip, Effect.provide(createContextLayer({ database })));
 
       expect(error._tag).toBe('RpcForbiddenError');
-      expect(error.permission).toBe('events:organizeAll');
+      expect(error).toMatchObject({ permission: 'events:organizeAll' });
       expect(attendeeQuery).not.toHaveBeenCalled();
     }),
   );
@@ -313,11 +340,17 @@ describe('organizer overview authorization', () => {
 
       const canOrganize = yield* eventQueryHandlers['events.canOrganize'](
         { eventId: 'event-1' },
-        emptyHandlerOptions,
+        createRpcOptions(
+          EventsRpcs.EventsCanOrganize.middleware(RpcRequestContextMiddleware),
+        ),
       ).pipe(Effect.provide(layer));
       const overview = yield* eventQueryHandlers['events.getOrganizeOverview'](
         { eventId: 'event-1' },
-        emptyHandlerOptions,
+        createRpcOptions(
+          EventsRpcs.EventsGetOrganizeOverview.middleware(
+            RpcRequestContextMiddleware,
+          ),
+        ),
       ).pipe(Effect.provide(layer));
 
       expect(canOrganize).toBe(true);
@@ -339,7 +372,11 @@ describe('organizer overview authorization', () => {
 
       const overview = yield* eventQueryHandlers['events.getOrganizeOverview'](
         { eventId: 'event-1' },
-        emptyHandlerOptions,
+        createRpcOptions(
+          EventsRpcs.EventsGetOrganizeOverview.middleware(
+            RpcRequestContextMiddleware,
+          ),
+        ),
       ).pipe(
         Effect.provide(
           createContextLayer({
@@ -371,7 +408,14 @@ describe('organizer overview authorization', () => {
 
         const overview = yield* eventQueryHandlers[
           'events.getOrganizeOverview'
-        ]({ eventId: 'event-1' }, emptyHandlerOptions).pipe(
+        ](
+          { eventId: 'event-1' },
+          createRpcOptions(
+            EventsRpcs.EventsGetOrganizeOverview.middleware(
+              RpcRequestContextMiddleware,
+            ),
+          ),
+        ).pipe(
           Effect.provide(
             createContextLayer({
               database,

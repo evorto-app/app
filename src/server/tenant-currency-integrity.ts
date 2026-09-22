@@ -25,15 +25,15 @@ export const lockTenantCurrencyForFinancialConfiguration = Effect.fn(
   const tenant = tenantRows[0];
   if (!tenant) {
     return yield* new RpcBadRequestError({
-      message: 'Tenant was not found while saving financial configuration',
-      reason: 'tenantNotFoundForCurrencyLock',
+      message: 'The organization could not be found while saving.',
+      reason:
+        'Nothing was saved. Return to the organization list and choose an existing organization.',
     });
   }
   if (tenant.currency !== expectedCurrency) {
     return yield* new RpcBadRequestError({
-      message:
-        'Tenant currency changed while this financial configuration was being prepared',
-      reason: `Refresh and review every amount in ${tenant.currency} before retrying.`,
+      message: "The organization's currency changed while you were editing.",
+      reason: `Nothing was saved. Open the form again and review every amount in ${tenant.currency} before saving.`,
     });
   }
 
@@ -81,7 +81,8 @@ export const tenantHasCurrencyDependentData = Effect.fn(
 });
 
 export const tenantCurrencyChangeBlockedErrorDetails = {
-  message: 'Tenant currency is locked by existing financial configuration',
+  message:
+    'Currency cannot be changed after financial information has been added.',
   reason:
-    'Currency cannot change after template, event, receipt, or transaction data exists. A dedicated currency migration is required.',
+    'This organization already has templates, events, receipts, or payments. Keep the current currency to save these settings.',
 } as const;

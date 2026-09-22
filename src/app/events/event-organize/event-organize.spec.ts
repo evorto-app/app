@@ -111,7 +111,12 @@ describe('event organizer error notifications', () => {
         {
           provide: ConfigService,
           useValue: {
-            tenant: { receiptSettings: undefined },
+            tenant: {
+              receiptSettings: {
+                allowOther: false,
+                receiptCountries: ['DE', 'NL'],
+              },
+            },
             updateTitle: vi.fn(),
           },
         },

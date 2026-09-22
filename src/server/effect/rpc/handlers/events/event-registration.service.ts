@@ -1489,8 +1489,13 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
               where: { id: tenant.id },
             }),
           );
+          if (!tenantRecord) {
+            return yield* new EventRegistrationNotFoundError({
+              message: 'Registration not found',
+            });
+          }
           const providerConfig: TenantDiscountProviders =
-            resolveTenantDiscountProviders(tenantRecord?.discountProviders);
+            resolveTenantDiscountProviders(tenantRecord.discountProviders);
           const enabledTypes = new Set(
             Object.entries(providerConfig)
               .filter(([, provider]) => provider?.status === 'enabled')
@@ -2946,8 +2951,13 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                 where: { id: tenant.id },
               }),
             );
+            if (!tenantRecord) {
+              return yield* new EventRegistrationNotFoundError({
+                message: 'Registration option not found',
+              });
+            }
             const providerConfig: TenantDiscountProviders =
-              resolveTenantDiscountProviders(tenantRecord?.discountProviders);
+              resolveTenantDiscountProviders(tenantRecord.discountProviders);
             const enabledTypes = new Set(
               Object.entries(providerConfig)
                 .filter(([, provider]) => provider?.status === 'enabled')

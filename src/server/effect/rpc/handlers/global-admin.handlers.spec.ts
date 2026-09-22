@@ -1,10 +1,19 @@
+import type * as SqlConnection from 'effect/unstable/sql/SqlConnection';
+
+import * as PgClient from '@effect/sql-pg/PgClient';
 import { describe, expect, it, vi } from '@effect/vitest';
-import { Effect, Layer, Schema } from 'effect';
+import {
+  PlatformTenantSettingsSnapshot,
+  platformTenantSettingsSnapshot,
+} from '@shared/tenant-settings-snapshot';
+import * as PgDrizzle from 'drizzle-orm/effect-postgres';
+import { Effect, Layer, Schema, Stream } from 'effect';
 import * as Headers from 'effect/unstable/http/Headers';
 import { Rpc, RpcMessage } from 'effect/unstable/rpc';
 import Stripe from 'stripe';
 
 import { Database, type DatabaseClient } from '../../../../db';
+import { relations } from '../../../../db/relations';
 import {
   platformAuditEntries,
   tenantPrivacyPolicyVersions,
@@ -43,14 +52,19 @@ const createRequestContext = (
     platformAuthority:
       options.platformAdministrator === false ? null : platformAuthority,
     tenant: Schema.decodeUnknownSync(Tenant)({
+      cancellationDeadlineHoursBeforeStart: 120,
       currency: 'EUR',
+      discountProviders: { esnCard: { config: {}, status: 'disabled' } },
       domain: 'tenant.example.com',
       id: 'tenant-1',
-      locale: 'de-DE',
+      maxActiveRegistrationsPerUser: 0,
       name: 'Tenant',
+      receiptSettings: { allowOther: false, receiptCountries: ['DE'] },
+      refundFeesOnCancellation: true,
       stripeAccountId: null,
       theme: 'evorto',
       timezone: 'Europe/Berlin',
+      transferDeadlineHoursBeforeStart: 0,
     }),
     user: null,
     userAssigned: false,
@@ -70,6 +84,10 @@ const provideDatabaseOnly = (database: object) =>
   Layer.succeed(Database, database as DatabaseClient);
 
 class RotationStripeHttpClient extends Stripe.HttpClient {
+  constructor(private readonly onRequest?: () => void) {
+    super();
+  }
+
   override getClientName(): string {
     return 'evorto-global-admin-rotation-test';
   }
@@ -89,14 +107,15 @@ class RotationStripeHttpClient extends Stripe.HttpClient {
         new Error(`Unexpected Stripe request: ${method} ${host}${path}`),
       );
     }
-    return Promise.resolve(
-      new RotationStripeResponse({
+    return Promise.try(() => {
+      this.onRequest?.();
+      return new RotationStripeResponse({
         data: [],
         has_more: false,
         object: 'list',
         url: '/v1/tax_rates',
-      }),
-    );
+      });
+    });
   }
 }
 
@@ -174,7 +193,6 @@ const createStripeAccountChangeDatabase = ({
     currency: 'EUR',
     domain: 'tenant.example.com',
     id: 'tenant-1',
-    locale: 'de-DE',
     name: 'Tenant',
     stripeAccountId: 'acct_current',
     theme: 'evorto',
@@ -292,7 +310,102 @@ const createStripeAccountChangeDatabase = ({
   };
 };
 
+const createStripeRotationConflictFixture = (
+  initialSettings: PlatformTenantSettingsSnapshot,
+) => {
+  let currentSettings = initialSettings;
+  let transactionActive = false;
+  const operations: string[] = [];
+  const unexpectedDatabaseAccess = Effect.die(
+    new Error('Unexpected database access in rotation conflict fixture'),
+  );
+  const writes = vi.fn<SqlConnection.Connection['executeRaw']>(
+    () => unexpectedDatabaseAccess,
+  );
+  const connection = {
+    execute: () => unexpectedDatabaseAccess,
+    executeRaw: writes,
+    executeStream: () => Stream.die(new Error('Unexpected database stream')),
+    executeUnprepared: (statement, parameters) =>
+      Effect.sync(() => {
+        expect(['BEGIN', 'COMMIT', 'ROLLBACK']).toContain(statement);
+        expect(parameters).toEqual([]);
+        transactionActive = statement === 'BEGIN';
+        operations.push(statement);
+        return [];
+      }),
+    executeValues: (statement, parameters) =>
+      Effect.sync(() => {
+        expect(statement).toMatch(/^select /u);
+        expect(statement).toContain('from "tenants"');
+        if (statement.endsWith('for update')) {
+          expect(transactionActive).toBe(true);
+          expect(parameters).toEqual(['tenant-1']);
+          operations.push('tenant-lock');
+          return [
+            [
+              currentSettings.currency,
+              currentSettings.domain,
+              'tenant-1',
+              currentSettings.name,
+              currentSettings.stripeAccountId,
+              currentSettings.theme,
+              currentSettings.timezone,
+            ],
+          ];
+        }
+        expect(transactionActive).toBe(false);
+        if (parameters.includes(initialSettings.domain)) {
+          return [['tenant-1']];
+        }
+        expect(parameters).toContain('tenant-1');
+        return [['tenant-1', currentSettings.stripeAccountId]];
+      }),
+    executeValuesUnprepared: () => unexpectedDatabaseAccess,
+  } satisfies SqlConnection.Connection;
+  const databaseLayer = Layer.effect(
+    Database,
+    PgDrizzle.makeWithDefaults({ relations }),
+  ).pipe(
+    Layer.provide(
+      PgClient.layerFrom(
+        PgClient.makeWith({
+          acquirer: Effect.succeed(connection),
+          config: {},
+          listenAcquirer: unexpectedDatabaseAccess,
+          transactionAcquirer: Effect.succeed(connection),
+        }),
+      ),
+    ),
+  );
+  const providerRequest = vi.fn(() => {
+    expect(transactionActive).toBe(false);
+    operations.push('provider-request');
+    currentSettings = { ...currentSettings, name: 'Concurrent editor name' };
+  });
+
+  return {
+    layer: Layer.mergeAll(
+      databaseLayer,
+      Layer.succeed(
+        StripeClient,
+        new Stripe('sk_test_global_admin_rotation_conflict', {
+          httpClient: new RotationStripeHttpClient(providerRequest),
+          maxNetworkRetries: 0,
+        }),
+      ),
+    ),
+    operations,
+    providerRequest,
+    writes,
+  };
+};
+
 const createStripeAccountUpdateInput = (stripeAccountId?: string) => ({
+  expectedSettings: {
+    ...platformTenantSettingsSnapshot(createRequestContext([]).tenant),
+    stripeAccountId: 'acct_current',
+  },
   id: 'tenant-1',
   reason: 'Change the connected Stripe account',
   tenant: {
@@ -350,7 +463,6 @@ describe('globalAdminHandlers', () => {
                   currency: 'EUR',
                   domain: 'tenant.example.com',
                   id: 'tenant-1',
-                  locale: 'de-DE',
                   name: 'Tenant',
                   stripeAccountId: 'acct_123',
                   theme: 'esn',
@@ -379,7 +491,6 @@ describe('globalAdminHandlers', () => {
           currency: 'EUR',
           domain: 'tenant.example.com',
           id: 'tenant-1',
-          locale: 'de-DE',
           name: 'Tenant',
           stripeAccountId: 'acct_123',
           stripeConnected: true,
@@ -402,7 +513,6 @@ describe('globalAdminHandlers', () => {
                       currency: 'EUR',
                       domain: 'tenant.example.com',
                       id: 'tenant-1',
-                      locale: 'de-DE',
                       name: 'Tenant',
                       stripeAccountId: null,
                       theme: 'evorto',
@@ -435,7 +545,6 @@ describe('globalAdminHandlers', () => {
         currency: 'EUR',
         domain: 'tenant.example.com',
         id: 'tenant-1',
-        locale: 'de-DE',
         name: 'Tenant',
         stripeAccountId: null,
         stripeConnected: false,
@@ -659,7 +768,6 @@ describe('globalAdminHandlers', () => {
           currency: 'EUR',
           domain: 'section.example.org',
           id: 'tenant-1',
-          locale: 'de-DE',
           name: 'Section',
           stripeAccountId: null,
           stripeConnected: false,
@@ -761,7 +869,6 @@ describe('globalAdminHandlers', () => {
               currency: 'CZK',
               domain: 'section.example.org',
               id: 'tenant-1',
-              locale: 'de-DE',
               name: 'Example Section',
               stripeAccountId: 'acct_123',
               theme: 'esn',
@@ -840,10 +947,7 @@ describe('globalAdminHandlers', () => {
       expect(capturedInsert).toMatchObject({
         currency: 'CZK',
         domain: 'section.example.org',
-        locale: 'de-DE',
         name: 'Example Section',
-        privacyPolicyText: 'Section privacy policy',
-        privacyPolicyUrl: null,
         stripeAccountId: 'acct_123',
         theme: 'esn',
         timezone: 'Europe/Prague',
@@ -995,7 +1099,6 @@ describe('globalAdminHandlers', () => {
         currency: 'EUR',
         domain: 'tenant.example.com',
         id: 'tenant-1',
-        locale: 'de-DE',
         name: 'Tenant before update',
         stripeAccountId: 'acct_previous',
         theme: 'evorto',
@@ -1008,7 +1111,6 @@ describe('globalAdminHandlers', () => {
               currency: 'EUR',
               domain: 'tenant.example.com',
               id: 'tenant-1',
-              locale: 'de-DE',
               name: 'Tenant',
               stripeAccountId: null,
               theme: 'evorto',
@@ -1061,6 +1163,9 @@ describe('globalAdminHandlers', () => {
 
       const tenant = yield* globalAdminHandlers['globalAdmin.tenants.update'](
         {
+          expectedSettings: Schema.decodeUnknownSync(
+            PlatformTenantSettingsSnapshot,
+          )(beforeTenant),
           id: 'tenant-1',
           reason: ' Tenant requested a support correction ',
           tenant: {
@@ -1089,7 +1194,6 @@ describe('globalAdminHandlers', () => {
 
       expect(capturedUpdate).toMatchObject({
         domain: 'tenant.example.com',
-        locale: 'de-DE',
         name: 'Tenant',
         stripeAccountId: null,
       });
@@ -1113,7 +1217,6 @@ describe('globalAdminHandlers', () => {
         resourceId: 'tenant-1',
         resourceType: 'tenant',
         state: {
-          locale: 'de-DE',
           name: 'Tenant',
           stripeAccountId: null,
         },
@@ -1131,7 +1234,6 @@ describe('globalAdminHandlers', () => {
               currency: 'EUR',
               domain: 'tenant.example.com',
               id: 'tenant-1',
-              locale: 'de-DE',
               name: 'Tenant',
               stripeAccountId: 'acct_current',
               theme: 'evorto',
@@ -1168,6 +1270,10 @@ describe('globalAdminHandlers', () => {
 
       const error = yield* globalAdminHandlers['globalAdmin.tenants.update'](
         {
+          expectedSettings: {
+            ...platformTenantSettingsSnapshot(createRequestContext([]).tenant),
+            stripeAccountId: 'acct_current',
+          },
           id: 'tenant-1',
           reason: 'Migrate the connected Stripe account',
           tenant: {
@@ -1198,6 +1304,75 @@ describe('globalAdminHandlers', () => {
   );
 
   it.effect(
+    'rejects stale Stripe rotation settings before any provider request',
+    () =>
+      Effect.gen(function* () {
+        const input = createStripeAccountUpdateInput('acct_next');
+        const fixture = createStripeRotationConflictFixture({
+          ...input.expectedSettings,
+          name: 'Saved by another editor',
+        });
+        const error = yield* globalAdminHandlers['globalAdmin.tenants.update'](
+          input,
+          createRpcOptions(
+            GlobalAdminRpcs.GlobalAdminTenantsUpdate.middleware(
+              RpcRequestContextMiddleware,
+            ),
+          ),
+        ).pipe(
+          Effect.provide(requestContextLayer(createRequestContext([]))),
+          Effect.provide(fixture.layer),
+          Effect.flip,
+        );
+
+        expect(error._tag).toBe('TenantSettingsConflictError');
+        expect(fixture.providerRequest).not.toHaveBeenCalled();
+        expect(fixture.writes).not.toHaveBeenCalled();
+        expect(fixture.operations).toEqual([
+          'BEGIN',
+          'tenant-lock',
+          'ROLLBACK',
+        ]);
+      }),
+  );
+
+  it.effect(
+    'rechecks Stripe rotation settings after provider work without writing or auditing a concurrent edit',
+    () =>
+      Effect.gen(function* () {
+        const input = createStripeAccountUpdateInput('acct_next');
+        const fixture = createStripeRotationConflictFixture(
+          input.expectedSettings,
+        );
+        const error = yield* globalAdminHandlers['globalAdmin.tenants.update'](
+          input,
+          createRpcOptions(
+            GlobalAdminRpcs.GlobalAdminTenantsUpdate.middleware(
+              RpcRequestContextMiddleware,
+            ),
+          ),
+        ).pipe(
+          Effect.provide(requestContextLayer(createRequestContext([]))),
+          Effect.provide(fixture.layer),
+          Effect.flip,
+        );
+
+        expect(error._tag).toBe('TenantSettingsConflictError');
+        expect(fixture.providerRequest).toHaveBeenCalledOnce();
+        expect(fixture.writes).not.toHaveBeenCalled();
+        expect(fixture.operations).toEqual([
+          'BEGIN',
+          'tenant-lock',
+          'COMMIT',
+          'provider-request',
+          'BEGIN',
+          'tenant-lock',
+          'ROLLBACK',
+        ]);
+      }),
+  );
+
+  it.effect(
     'allows Stripe account rotation after locking when no tax-rate bindings exist',
     () =>
       Effect.gen(function* () {
@@ -1220,6 +1395,7 @@ describe('globalAdminHandlers', () => {
         expect(fixture.capturedUpdate()?.['stripeAccountId']).toBe('acct_next');
         expect(tenant.stripeAccountId).toBe('acct_next');
         expect(fixture.operations).toEqual([
+          'tenant-lock',
           'tenant-lock',
           'pending-obligation-check',
           'tax-rate-rotation-binding-check',
@@ -1324,7 +1500,6 @@ describe('globalAdminHandlers', () => {
             currency: 'EUR' as const,
             domain: 'tenant.example.com',
             id: 'tenant-1',
-            locale: 'de-DE',
             name: 'Tenant',
             stripeAccountId: 'acct_current',
             theme: 'evorto' as const,
@@ -1387,6 +1562,9 @@ describe('globalAdminHandlers', () => {
             'globalAdmin.tenants.update'
           ](
             {
+              expectedSettings: Schema.decodeUnknownSync(
+                PlatformTenantSettingsSnapshot,
+              )(beforeTenant),
               id: 'tenant-1',
               reason: 'Move the tenant to its verified replacement domain',
               tenant: {
@@ -1435,7 +1613,6 @@ describe('globalAdminHandlers', () => {
           currency: 'EUR' as const,
           domain: 'tenant.example.com',
           id: 'tenant-1',
-          locale: 'de-DE',
           name: 'Tenant',
           stripeAccountId: null,
           theme: 'evorto',
@@ -1491,6 +1668,9 @@ describe('globalAdminHandlers', () => {
 
         const error = yield* globalAdminHandlers['globalAdmin.tenants.update'](
           {
+            expectedSettings: Schema.decodeUnknownSync(
+              PlatformTenantSettingsSnapshot,
+            )(beforeTenant),
             id: 'tenant-1',
             reason: 'Switch the tenant to Australian dollars',
             tenant: {
@@ -1512,14 +1692,16 @@ describe('globalAdminHandlers', () => {
 
         expect(error['_tag']).toBe('RpcBadRequestError');
         expect(error.message).toBe(
-          'Tenant currency is locked by existing financial configuration',
+          'Currency cannot be changed after financial information has been added.',
         );
         if (error._tag !== 'RpcBadRequestError') {
           return yield* Effect.die(
             new Error('Expected a typed bad-request error'),
           );
         }
-        expect(error.reason).toContain('dedicated currency migration');
+        expect(error.reason).toContain(
+          'Keep the current currency to save these settings.',
+        );
         expect(update).not.toHaveBeenCalled();
         expect(insert).not.toHaveBeenCalled();
       }),
@@ -1533,7 +1715,6 @@ describe('globalAdminHandlers', () => {
           currency: 'EUR',
           domain: 'tenant.example.com',
           id: 'tenant-1',
-          locale: 'de-DE',
           name: 'Tenant before update',
           stripeAccountId: 'acct_current',
           theme: 'evorto',
@@ -1566,6 +1747,9 @@ describe('globalAdminHandlers', () => {
 
         const tenant = yield* globalAdminHandlers['globalAdmin.tenants.update'](
           {
+            expectedSettings: Schema.decodeUnknownSync(
+              PlatformTenantSettingsSnapshot,
+            )(beforeTenant),
             id: 'tenant-1',
             reason: 'Correct the tenant display name',
             tenant: {
@@ -1608,6 +1792,9 @@ describe('globalAdminHandlers', () => {
 
         const error = yield* globalAdminHandlers['globalAdmin.tenants.update'](
           {
+            expectedSettings: platformTenantSettingsSnapshot(
+              createRequestContext([]).tenant,
+            ),
             id: 'tenant-1',
             reason: 'Tenant requested a domain correction',
             tenant: {
@@ -1743,6 +1930,52 @@ describe('globalAdminHandlers', () => {
         expect(error.reason).toBe(
           'Enter the main website address only, for example section.example.org.',
         );
+      }),
+  );
+  it.effect(
+    'rejects stale platform settings against the locked row without an audit or write',
+    () =>
+      Effect.gen(function* () {
+        const original = platformTenantSettingsSnapshot(
+          createRequestContext([]).tenant,
+        );
+        const current = { ...original, id: 'tenant-1', theme: 'esn' as const };
+        const write = vi.fn(() => {
+          throw new Error('stale form must not write');
+        });
+        const lockedSelect = {
+          for: vi.fn(() => Effect.succeed([current])),
+          from: () => lockedSelect,
+          where: () => lockedSelect,
+        };
+        const database = {
+          insert: write,
+          query: { tenants: { findFirst: () => Effect.succeed(current) } },
+          select: () => lockedSelect,
+          transaction: (operation: (transaction: object) => unknown) =>
+            operation(database),
+          update: write,
+        };
+        const error = yield* globalAdminHandlers['globalAdmin.tenants.update'](
+          {
+            expectedSettings: original,
+            id: current.id,
+            reason: 'Second editor correction',
+            tenant: { ...original, name: 'Second editor name' },
+          },
+          createRpcOptions(
+            GlobalAdminRpcs.GlobalAdminTenantsUpdate.middleware(
+              RpcRequestContextMiddleware,
+            ),
+          ),
+        ).pipe(
+          Effect.provide(requestContextLayer(createRequestContext([]))),
+          Effect.provide(provideDatabase(database)),
+          Effect.flip,
+        );
+        expect(error._tag).toBe('TenantSettingsConflictError');
+        expect(lockedSelect.for).toHaveBeenCalledWith('update');
+        expect(write).not.toHaveBeenCalled();
       }),
   );
 });

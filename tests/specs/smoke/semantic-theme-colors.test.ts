@@ -1,6 +1,6 @@
 import { expect, type Page, test } from '@playwright/test';
 
-const themes = ['theme-evorto', 'theme-esn'] as const;
+const themes = ['theme-evorto', 'theme-classic', 'theme-esn'] as const;
 const colorSchemes = ['light', 'dark'] as const;
 const semanticPairs = [
   {
@@ -48,6 +48,16 @@ const materialPairs = [
 ] as const;
 
 const expectedPrimaryChannels = {
+  'theme-classic': {
+    dark: {
+      increased: [219, 244, 255],
+      standard: [108, 211, 247],
+    },
+    light: {
+      increased: [0, 49, 62],
+      standard: [0, 103, 128],
+    },
+  },
   'theme-evorto': {
     dark: {
       increased: [240, 238, 255],
@@ -148,11 +158,17 @@ test('success and warning roles stay legible across all themes and contrast mode
   page,
 }) => {
   await page.goto('/events');
-  await expect(page.locator('html')).toHaveClass(/theme-(?:esn|evorto)/);
+  await expect(page.locator('html')).toHaveClass(
+    /theme-(?:classic|esn|evorto)/,
+  );
 
   for (const theme of themes) {
     await page.evaluate((selectedTheme) => {
-      document.documentElement.classList.remove('theme-evorto', 'theme-esn');
+      document.documentElement.classList.remove(
+        'theme-evorto',
+        'theme-classic',
+        'theme-esn',
+      );
       document.documentElement.classList.add(selectedTheme);
     }, theme);
 
@@ -215,7 +231,9 @@ test('browser chrome follows the tenant surface in light and dark color schemes'
   page,
 }) => {
   await page.goto('/events');
-  await expect(page.locator('html')).toHaveClass(/theme-(?:esn|evorto)/);
+  await expect(page.locator('html')).toHaveClass(
+    /theme-(?:classic|esn|evorto)/,
+  );
   await expect(page.locator('meta[name="theme-color"]')).toHaveCount(2);
 
   for (const colorScheme of colorSchemes) {

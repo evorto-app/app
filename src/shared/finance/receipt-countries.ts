@@ -70,33 +70,42 @@ export const normalizeReceiptCountryCode = (value: string): null | string => {
   return normalized;
 };
 
-export const resolveAllowedReceiptCountries = (
-  configuredCountries: readonly string[] | undefined,
-): string[] => {
-  const normalized = (configuredCountries ?? [])
-    .map((country) => normalizeReceiptCountryCode(country))
-    .filter((country): country is string => country !== null);
+export const isCanonicalReceiptCountryCode = (value: string): boolean =>
+  normalizeReceiptCountryCode(value) === value;
 
-  if (normalized.length > 0) {
-    return [...new Set(normalized)];
+export const resolveReceiptCountrySettings = (configuredSettings: {
+  allowOther: unknown;
+  receiptCountries: readonly string[];
+}): ReceiptCountrySettings => {
+  const { allowOther } = configuredSettings;
+  if (typeof allowOther !== 'boolean') {
+    throw new TypeError('Receipt country allowOther setting must be a boolean');
   }
 
-  return [...DEFAULT_RECEIPT_COUNTRIES];
-};
+  if (configuredSettings.receiptCountries.length === 0) {
+    throw new Error('At least one receipt country must be configured');
+  }
 
-export const resolveReceiptCountrySettings = (
-  configuredSettings:
-    | undefined
-    | {
-        allowOther?: boolean | undefined;
-        receiptCountries?: readonly string[] | undefined;
-      },
-): ReceiptCountrySettings => ({
-  allowOther: configuredSettings?.allowOther === true,
-  receiptCountries: resolveAllowedReceiptCountries(
-    configuredSettings?.receiptCountries,
-  ),
-});
+  const receiptCountries = configuredSettings.receiptCountries.map(
+    (country) => {
+      if (!isCanonicalReceiptCountryCode(country)) {
+        throw new Error(
+          'Receipt countries must use supported uppercase two-letter codes',
+        );
+      }
+      return country;
+    },
+  );
+
+  if (new Set(receiptCountries).size !== receiptCountries.length) {
+    throw new Error('Receipt countries must not contain duplicates');
+  }
+
+  return {
+    allowOther,
+    receiptCountries,
+  };
+};
 
 export const buildSelectableReceiptCountries = (
   settings: ReceiptCountrySettings,

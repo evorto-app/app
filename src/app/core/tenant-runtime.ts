@@ -1,21 +1,43 @@
 import { DateTime } from 'luxon';
 
 import {
-  DEFAULT_TENANT_TIMEZONE,
   type SupportedTenantCurrency,
   type SupportedTenantTimezone,
 } from '../../types/custom/tenant';
 
 interface TenantRuntimeConfig {
   tenantSignal(): null | {
-    currency?: SupportedTenantCurrency;
-    timezone?: string;
+    currency: SupportedTenantCurrency;
+    timezone: SupportedTenantTimezone;
   };
 }
 
+type TenantRuntimeConfigurationField = 'currency' | 'timezone';
+
+export class TenantRuntimeConfigurationUnavailableError extends Error {
+  public constructor(field: TenantRuntimeConfigurationField) {
+    super(
+      `The organization ${field} is unavailable because the organization settings did not load.`,
+    );
+    this.name = 'TenantRuntimeConfigurationUnavailableError';
+  }
+}
+
+const requireTenantRuntimeValue = <Value>(
+  field: TenantRuntimeConfigurationField,
+  value: null | undefined | Value,
+): Value => {
+  if (value === null || value === undefined) {
+    throw new TenantRuntimeConfigurationUnavailableError(field);
+  }
+
+  return value;
+};
+
 export const resolveTenantRuntimeTimezone = (
-  configuredTimezone: null | string | undefined,
-): SupportedTenantTimezone => configuredTimezone ?? DEFAULT_TENANT_TIMEZONE;
+  configuredTimezone: null | SupportedTenantTimezone | undefined,
+): SupportedTenantTimezone =>
+  requireTenantRuntimeValue('timezone', configuredTimezone);
 
 export const tenantDatePipeTimezone = (
   config: TenantRuntimeConfig,
@@ -24,7 +46,8 @@ export const tenantDatePipeTimezone = (
 
 export const tenantCurrencyCode = (
   config: TenantRuntimeConfig,
-): SupportedTenantCurrency => config.tenantSignal()?.currency ?? 'EUR';
+): SupportedTenantCurrency =>
+  requireTenantRuntimeValue('currency', config.tenantSignal()?.currency);
 
 export const toTenantDateTime = (
   value: Date | DateTime,

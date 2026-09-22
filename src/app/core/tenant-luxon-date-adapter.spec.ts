@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { ConfigService } from './config.service';
 import { TenantLuxonDateAdapter } from './tenant-luxon-date-adapter';
+import { TenantRuntimeConfigurationUnavailableError } from './tenant-runtime';
 
 describe('TenantLuxonDateAdapter', () => {
   let adapter: TenantLuxonDateAdapter;
@@ -49,5 +50,26 @@ describe('TenantLuxonDateAdapter', () => {
     adapter.deserialize('2026-07-10T12:00:00.000Z');
 
     expect(Settings.defaultZone).toBe(originalZone);
+  });
+
+  it('surfaces a missing organization timezone', () => {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        TenantLuxonDateAdapter,
+        {
+          provide: ConfigService,
+          useValue: {
+            tenantSignal: signal(null),
+          },
+        },
+        { provide: MAT_DATE_LOCALE, useValue: 'de-DE' },
+      ],
+    });
+    const unconfiguredAdapter = TestBed.inject(TenantLuxonDateAdapter);
+
+    expect(() => unconfiguredAdapter.today()).toThrowError(
+      TenantRuntimeConfigurationUnavailableError,
+    );
   });
 });

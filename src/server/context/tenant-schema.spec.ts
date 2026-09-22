@@ -4,23 +4,36 @@ import { Schema } from 'effect';
 import { Tenant } from '../../types/custom/tenant';
 
 const tenantInput = {
+  cancellationDeadlineHoursBeforeStart: 120,
   currency: 'EUR',
+  discountProviders: {
+    esnCard: {
+      config: {},
+      status: 'disabled',
+    },
+  },
   domain: 'tenant.example.com',
   id: 'tenant-1',
-  locale: 'de-DE',
+  maxActiveRegistrationsPerUser: 0,
   name: 'Tenant',
+  receiptSettings: {
+    allowOther: false,
+    receiptCountries: ['DE', 'CZ'],
+  },
+  refundFeesOnCancellation: true,
   stripeAccountId: null,
   theme: 'evorto',
   timezone: 'Europe/Berlin',
+  transferDeadlineHoursBeforeStart: 0,
 };
 
-const omitUndefinedValues = (value: Record<string, unknown>) =>
+const omitUndefinedValues = (value: object) =>
   Object.fromEntries(
     Object.entries(value).filter(([, entryValue]) => entryValue !== undefined),
   );
 
 describe('Tenant schema', () => {
-  it('applies secure tenant registration policy defaults', () => {
+  it('retains explicit tenant registration policies', () => {
     const tenant = Schema.decodeUnknownSync(Tenant)(tenantInput);
 
     expect(tenant).toMatchObject({
@@ -30,19 +43,35 @@ describe('Tenant schema', () => {
     });
   });
 
-  it('rejects negative tenant registration policy deadlines', () => {
-    expect(() =>
-      Schema.decodeUnknownSync(Tenant)({
-        ...tenantInput,
-        cancellationDeadlineHoursBeforeStart: -1,
-      }),
-    ).toThrow();
-    expect(() =>
-      Schema.decodeUnknownSync(Tenant)({
-        ...tenantInput,
-        transferDeadlineHoursBeforeStart: -1,
-      }),
-    ).toThrow();
+  it('requires every persisted tenant registration policy', () => {
+    for (const field of [
+      'cancellationDeadlineHoursBeforeStart',
+      'maxActiveRegistrationsPerUser',
+      'refundFeesOnCancellation',
+      'transferDeadlineHoursBeforeStart',
+    ] as const) {
+      const { [field]: _omitted, ...incompleteTenant } = tenantInput;
+      expect(() =>
+        Schema.decodeUnknownSync(Tenant)(incompleteTenant),
+      ).toThrow();
+    }
+  });
+
+  it('requires persisted tenant policy counts to fit PostgreSQL integers', () => {
+    for (const field of [
+      'cancellationDeadlineHoursBeforeStart',
+      'maxActiveRegistrationsPerUser',
+      'transferDeadlineHoursBeforeStart',
+    ] as const) {
+      for (const value of [-1, 1.5, 2_147_483_648]) {
+        expect(() =>
+          Schema.decodeUnknownSync(Tenant)({
+            ...tenantInput,
+            [field]: value,
+          }),
+        ).toThrow();
+      }
+    }
   });
 
   it('accepts tenant context after an undefined default location is omitted from JSON', () => {
@@ -115,21 +144,6 @@ describe('Tenant schema', () => {
     expect(Schema.encodeSync(Tenant)(tenant)).toMatchObject({
       faviconUrl: 'https://tenant.example.com/favicon.ico',
       logoUrl: 'https://tenant.example.com/logo.svg',
-    });
-  });
-
-  it('normalizes a legacy context locale while retaining a valid IANA timezone', () => {
-    const tenant = Schema.decodeUnknownSync(Tenant)({
-      ...tenantInput,
-      locale: 'en',
-      timezone: 'Europe/Amsterdam',
-    });
-
-    expect(tenant.locale).toBe('de-DE');
-    expect(tenant.timezone).toBe('Europe/Amsterdam');
-    expect(Schema.encodeSync(Tenant)(tenant)).toMatchObject({
-      locale: 'de-DE',
-      timezone: 'Europe/Amsterdam',
     });
   });
 

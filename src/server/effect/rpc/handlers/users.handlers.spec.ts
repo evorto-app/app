@@ -38,6 +38,7 @@ import {
 
 const createTenant = () =>
   Schema.decodeUnknownSync(Tenant)({
+    cancellationDeadlineHoursBeforeStart: 120,
     currency: 'EUR',
     defaultLocation: null,
     discountProviders: {
@@ -48,15 +49,17 @@ const createTenant = () =>
     },
     domain: 'tenant.example.com',
     id: 'tenant-1',
-    locale: 'en',
+    maxActiveRegistrationsPerUser: 0,
     name: 'Tenant',
     receiptSettings: {
       allowOther: false,
       receiptCountries: ['NL'],
     },
+    refundFeesOnCancellation: true,
     stripeAccountId: null,
     theme: 'evorto',
     timezone: 'Europe/Amsterdam',
+    transferDeadlineHoursBeforeStart: 0,
   });
 
 const createUser = () =>

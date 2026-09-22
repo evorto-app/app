@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
 const readSource = (relativePath: string): string =>
@@ -15,7 +16,49 @@ const expectAtomicAccountRotation = (
   const targetFetch = handler.indexOf(
     'fetchStripeTaxRateAccountRotationTargetRates(',
   );
-  const transaction = handler.indexOf(transactionMarker);
+  const preflight = handler.indexOf(transactionMarker);
+  const preflightLock = handler.indexOf(".for('update')", preflight);
+  const preflightConflict = handler.indexOf(
+    'tenantSettingsConflict()',
+    preflightLock,
+  );
+  const parsed = ts.createSourceFile(
+    'handler.ts',
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+  );
+  let preflightCall: ts.CallExpression | undefined;
+  const visit = (node: ts.Node): void => {
+    if (
+      ts.isCallExpression(node) &&
+      ts.isPropertyAccessExpression(node.expression) &&
+      node.expression.name.text === 'transaction' &&
+      node.getStart(parsed) <= start + preflight &&
+      node.end > start + preflight
+    ) {
+      preflightCall = node;
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(parsed);
+  let preflightYield: ts.Node | undefined = preflightCall;
+  while (preflightYield && !ts.isYieldExpression(preflightYield)) {
+    preflightYield = preflightYield.parent;
+  }
+  if (!preflightYield || !ts.isYieldExpression(preflightYield)) {
+    throw new Error('Expected the preflight transaction to be yielded');
+  }
+  expect(preflightYield.asteriskToken).toBeDefined();
+  expect(preflight).toBeGreaterThanOrEqual(0);
+  expect(preflightLock).toBeGreaterThan(preflight);
+  expect(preflightConflict).toBeGreaterThan(preflightLock);
+  expect(start + preflightConflict).toBeLessThan(preflightYield.end);
+  // The complete yielded transaction must end before any provider call, not
+  // merely place its lock text before that call inside a still-open callback.
+  expect(preflightYield.end).toBeLessThan(start + targetFetch);
+
+  const transaction = handler.indexOf(transactionMarker, targetFetch);
   const tenantLock = handler.indexOf(".for('update')", transaction);
   const plan = handler.indexOf('planStripeTaxRateAccountRotation(', tenantLock);
   const metadataDelete = handler.indexOf('.delete(tenantStripeTaxRates)', plan);
@@ -213,6 +256,25 @@ describe('Stripe tax-rate account scope source guards', () => {
       "'globalAdmin.tenants.update':",
       'database.transaction((transaction)',
     );
+  });
+
+  it('rejects provider work moved inside the preliminary transaction', () => {
+    const source = readSource('../effect/rpc/handlers/admin.handlers.ts');
+    const marker = "'admin.tenant.updateSettings':";
+    const lockEnd =
+      source.indexOf(".for('update');", source.indexOf(marker)) +
+      ".for('update');".length;
+    const providerInsideLock =
+      source.slice(0, lockEnd) +
+      '\n yield* fetchStripeTaxRateAccountRotationTargetRates(stripe, account);' +
+      source.slice(lockEnd);
+    expect(() =>
+      expectAtomicAccountRotation(
+        providerInsideLock,
+        marker,
+        '.transaction((tx) =>',
+      ),
+    ).toThrow();
   });
 
   it('keeps every binding remap tenant-scoped and compare-and-set', () => {

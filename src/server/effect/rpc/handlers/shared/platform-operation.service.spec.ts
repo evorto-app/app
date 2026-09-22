@@ -29,7 +29,6 @@ const targetTenant = Tenant.make({
   id: 'tenant-target',
   legalNoticeText: undefined,
   legalNoticeUrl: undefined,
-  locale: 'de-DE',
   logoUrl: undefined,
   maxActiveRegistrationsPerUser: 0,
   name: 'Target tenant',

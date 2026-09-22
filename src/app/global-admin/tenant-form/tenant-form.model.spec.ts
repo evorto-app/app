@@ -1,4 +1,5 @@
 import { TenantDomainValidationError } from '@shared/tenant-origin';
+import { platformTenantSettingsSnapshot } from '@shared/tenant-settings-snapshot';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -31,7 +32,6 @@ describe('global admin tenant form model', () => {
         currency: 'AUD',
         domain: 'tenant.example.com',
         id: 'tenant-1',
-        locale: 'de-DE',
         name: 'Tenant',
         stripeAccountId: 'acct_123',
         stripeConnected: true,
@@ -54,7 +54,6 @@ describe('global admin tenant form model', () => {
       currency: 'EUR' as const,
       domain: 'tenant.example.com',
       id: 'tenant-1',
-      locale: 'de-DE' as const,
       name: 'Tenant',
       stripeAccountId: null,
       stripeConnected: false,
@@ -64,12 +63,16 @@ describe('global admin tenant form model', () => {
     const editedModel = {
       ...globalAdminTenantFormModelFromRecord(tenant),
       domain: 'next.tenant.example.com',
+      expectedSettings: platformTenantSettingsSnapshot(tenant),
       reason: 'Move the public URL',
     };
 
     expect(
       resolveGlobalAdminTenantEditFormModel(
-        { tenant: { ...tenant }, tenantId: tenant.id },
+        {
+          tenant: { ...tenant, name: 'Changed elsewhere' },
+          tenantId: tenant.id,
+        },
         {
           source: { tenant, tenantId: tenant.id },
           value: editedModel,
@@ -83,7 +86,6 @@ describe('global admin tenant form model', () => {
       currency: 'EUR' as const,
       domain: 'tenant.example.com',
       id: 'tenant-1',
-      locale: 'de-DE' as const,
       name: 'Tenant',
       stripeAccountId: null,
       stripeConnected: false,
@@ -96,10 +98,16 @@ describe('global admin tenant form model', () => {
         { tenant, tenantId: tenant.id },
         {
           source: { tenant: undefined, tenantId: tenant.id },
-          value: createGlobalAdminTenantFormModel(),
+          value: {
+            ...createGlobalAdminTenantFormModel(),
+            expectedSettings: null,
+          },
         },
       ),
-    ).toEqual(globalAdminTenantFormModelFromRecord(tenant));
+    ).toEqual({
+      ...globalAdminTenantFormModelFromRecord(tenant),
+      expectedSettings: platformTenantSettingsSnapshot(tenant),
+    });
   });
 
   it('resets the edit form when navigation selects another tenant', () => {
@@ -107,7 +115,6 @@ describe('global admin tenant form model', () => {
       currency: 'EUR' as const,
       domain: 'first.example.com',
       id: 'tenant-1',
-      locale: 'de-DE' as const,
       name: 'First tenant',
       stripeAccountId: null,
       stripeConnected: false,
@@ -131,11 +138,58 @@ describe('global admin tenant form model', () => {
           },
           value: {
             ...globalAdminTenantFormModelFromRecord(previousTenant),
+            expectedSettings: platformTenantSettingsSnapshot(previousTenant),
             name: 'Unsaved edit',
           },
         },
       ),
-    ).toEqual(globalAdminTenantFormModelFromRecord(nextTenant));
+    ).toEqual({
+      ...globalAdminTenantFormModelFromRecord(nextTenant),
+      expectedSettings: platformTenantSettingsSnapshot(nextTenant),
+    });
+  });
+
+  it('keeps the original snapshot and edits through a failed query refresh and recovery', () => {
+    const tenant = {
+      currency: 'EUR' as const,
+      domain: 'tenant.example.com',
+      id: 'tenant-1',
+      name: 'Tenant',
+      stripeAccountId: null,
+      stripeConnected: false,
+      theme: 'evorto' as const,
+      timezone: 'Europe/Berlin',
+    };
+    const source = { tenant, tenantId: tenant.id };
+    const initial = resolveGlobalAdminTenantEditFormModel(source);
+    const edited = {
+      ...initial,
+      name: 'Unsaved name',
+      reason: 'Correct the name',
+    };
+    const unavailable = { tenant: undefined, tenantId: tenant.id };
+    const duringFailure = resolveGlobalAdminTenantEditFormModel(unavailable, {
+      source,
+      value: edited,
+    });
+    const latest = { ...tenant, name: 'Changed elsewhere' };
+    const recovered = resolveGlobalAdminTenantEditFormModel(
+      { tenant: latest, tenantId: tenant.id },
+      { source: unavailable, value: duringFailure },
+    );
+
+    expect(recovered).toBe(edited);
+    expect(recovered.expectedSettings).toEqual(
+      platformTenantSettingsSnapshot(tenant),
+    );
+    const reloaded = resolveGlobalAdminTenantEditFormModel({
+      tenant: latest,
+      tenantId: tenant.id,
+    });
+    expect(reloaded.name).toBe('Changed elsewhere');
+    expect(reloaded.expectedSettings).toEqual(
+      platformTenantSettingsSnapshot(latest),
+    );
   });
 
   it('trims tenant create/edit payloads and clears blank Stripe account IDs', () => {
@@ -214,6 +268,37 @@ describe('global admin tenant form model', () => {
     ).toThrow(
       'Enter the main website address only, for example section.example.org.',
     );
+  });
+
+  it('shows the typed website-address correction produced by the form payload', () => {
+    let validationMessage: string | undefined;
+    try {
+      globalAdminTenantPayloadFromForm({
+        ...createGlobalAdminTenantFormModel(),
+        domain: 'section.example.org/path',
+        name: 'Section',
+        reason: 'Create a production tenant',
+      });
+    } catch (error) {
+      expect(error).toBeInstanceOf(TenantDomainValidationError);
+      validationMessage = globalAdminTenantDomainValidationMessage(error);
+    }
+
+    expect(validationMessage).toBe(
+      'Enter the main website address only, for example section.example.org.',
+    );
+  });
+
+  it('propagates the original unexpected form-boundary error', () => {
+    const unexpected = new Error('Unexpected parser failure');
+    let propagated: unknown;
+    try {
+      globalAdminTenantDomainValidationMessage(unexpected);
+    } catch (error) {
+      propagated = error;
+    }
+
+    expect(propagated).toBe(unexpected);
   });
 
   it('preserves a typed organization validation reason', () => {

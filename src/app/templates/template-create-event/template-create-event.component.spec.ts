@@ -7,8 +7,7 @@ import {
 } from '@tanstack/angular-query-experimental';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { Tenant } from '../../../types/custom/tenant';
-
+import { Tenant } from '../../../types/custom/tenant';
 import { ConfigService } from '../../core/config.service';
 import { EventGeneralForm } from '../../shared/components/forms/event-general-form/event-general-form';
 import {
@@ -129,6 +128,30 @@ describe('templateCreateEventErrorMessage', () => {
 const createEvent = vi.fn();
 const findTemplate = vi.fn();
 
+const tenantConfig = new Tenant({
+  cancellationDeadlineHoursBeforeStart: 24,
+  currency: 'EUR',
+  defaultLocation: undefined,
+  discountProviders: {
+    esnCard: {
+      config: {},
+      status: 'disabled',
+    },
+  },
+  domain: 'tenant.example.test',
+  id: 'tenant-1',
+  maxActiveRegistrationsPerUser: 3,
+  name: 'Tenant',
+  receiptSettings: {
+    allowOther: false,
+    receiptCountries: ['DE'],
+  },
+  refundFeesOnCancellation: false,
+  theme: 'evorto',
+  timezone: 'Europe/Berlin',
+  transferDeadlineHoursBeforeStart: 24,
+});
+
 const normalizeText = (
   fixture: ComponentFixture<TemplateCreateEventComponent>,
 ) => fixture.nativeElement.textContent.replaceAll(/\s+/g, ' ').trim();
@@ -163,7 +186,7 @@ describe('TemplateCreateEventComponent load recovery', () => {
         {
           provide: ConfigService,
           useValue: {
-            tenantSignal: signal<null | Tenant>(null),
+            tenantSignal: signal<null | Tenant>(tenantConfig),
           } satisfies Pick<ConfigService, 'tenantSignal'>,
         },
         {

@@ -65,4 +65,15 @@ describe('TenantDatePipe', () => {
     expect(pipe.transform('2026-01-16T00:30:00', 'shortTime')).toBe('00:30');
     expect(pipe.transform('2026-01-16', 'mediumDate')).toBe('16.01.2026');
   });
+
+  it('requires an explicit organization timezone', () => {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [TenantDatePipe, { provide: LOCALE_ID, useValue: 'de-DE' }],
+    });
+
+    expect(() => TestBed.inject(TenantDatePipe)).toThrowError(
+      /TENANT_DATE_PIPE_TIMEZONE/,
+    );
+  });
 });

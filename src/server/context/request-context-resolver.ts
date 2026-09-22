@@ -161,6 +161,24 @@ const findTenantByDomain = (domain: string) =>
     }),
   );
 
+const tenantContextRecord = (
+  tenant: NonNullable<Effect.Success<ReturnType<typeof findTenantByDomain>>>,
+) => {
+  const { privacyPolicyVersions, ...tenantFields } = tenant;
+  const currentPrivacyPolicy = privacyPolicyVersions[0];
+  if (!currentPrivacyPolicy) {
+    throw new Error(
+      `Tenant ${tenant.id} is missing its required privacy policy version`,
+    );
+  }
+
+  return {
+    ...tenantFields,
+    privacyPolicyText: currentPrivacyPolicy.privacyPolicyText,
+    privacyPolicyUrl: currentPrivacyPolicy.privacyPolicyUrl,
+  };
+};
+
 export const resolveAuthenticationContext = (input: {
   isAuthenticated: boolean;
 }): Authentication => ({
@@ -199,7 +217,7 @@ export const resolveTenantContext = (input: {
     return {
       cause: { domain },
       tenant: tenantRecord
-        ? Schema.decodeUnknownSync(Tenant)(tenantRecord)
+        ? Schema.decodeUnknownSync(Tenant)(tenantContextRecord(tenantRecord))
         : undefined,
     };
   });

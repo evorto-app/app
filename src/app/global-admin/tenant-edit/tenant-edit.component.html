@@ -22,6 +22,17 @@
   @if (tenant) {
     <section class="bg-surface text-on-surface rounded-2xl p-4">
       <form class="grid grid-cols-1 gap-3" (submit)="updateTenant($event)">
+        @if (settingsConflict()) {
+          <div role="alert">
+            <p class="text-error mb-2">
+              These settings changed while you were editing. Your changes have
+              not been saved. Copy any edits you want to keep before reloading.
+            </p>
+            <button mat-stroked-button type="button" (click)="reloadSettings()">
+              Reload latest settings
+            </button>
+          </div>
+        }
         <aside
           class="border-outline-variant bg-surface-container-low text-on-surface rounded-lg border p-4"
           aria-labelledby="public-url-migration-title"
@@ -60,6 +71,7 @@
             <mat-label>Theme</mat-label>
             <mat-select [formField]="tenantForm.theme">
               <mat-option value="evorto">Default theme</mat-option>
+              <mat-option value="classic">Classic theme</mat-option>
               <mat-option value="esn">ESN theme</mat-option>
             </mat-select>
           </mat-form-field>
@@ -116,6 +128,8 @@
             mat-flat-button
             type="submit"
             [disabled]="
+              settingsConflict() ||
+              !tenantModel().expectedSettings ||
               tenantSubmitDisabled({
                 formInvalid: tenantForm().invalid(),
                 formSubmitting: tenantForm().submitting(),

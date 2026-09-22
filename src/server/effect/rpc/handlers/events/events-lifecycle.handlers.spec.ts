@@ -1,4 +1,5 @@
 import { describe, expect, it } from '@effect/vitest';
+import { createDatabaseTestLayer } from '@server/testing/database-test-layer';
 import { RpcBadRequestError } from '@shared/errors/rpc-errors';
 import { TransactionRollbackError } from 'drizzle-orm';
 import { Effect, Layer } from 'effect';
@@ -28,8 +29,9 @@ import {
 } from './events-lifecycle.handlers';
 
 const tenant = {
+  cancellationDeadlineHoursBeforeStart: 120,
   currency: 'EUR' as const,
-  defaultLocation: null,
+  defaultLocation: undefined,
   discountProviders: {
     esnCard: {
       config: {},
@@ -38,27 +40,32 @@ const tenant = {
   },
   domain: 'tenant.example.com',
   id: 'tenant-1',
-  locale: 'en',
+  maxActiveRegistrationsPerUser: 0,
   name: 'Tenant',
   receiptSettings: {
     allowOther: false,
     receiptCountries: ['NL'],
   },
+  refundFeesOnCancellation: true,
   stripeAccountId: null,
   theme: 'evorto' as const,
   timezone: 'Europe/Amsterdam',
+  transferDeadlineHoursBeforeStart: 0,
 };
 
 const user = {
   attributes: [],
   auth0Id: 'auth0|user-1',
+  communicationEmail: undefined,
   email: 'alice@example.com',
   firstName: 'Alice',
-  iban: null,
+  homeTenantId: undefined,
+  homeTenantName: undefined,
+  iban: undefined,
   id: 'user-1',
   lastName: 'Doe',
-  paypalEmail: null,
-  permissions: ['events:create'],
+  paypalEmail: undefined,
+  permissions: ['events:create'] as const,
   roleIds: [],
 };
 
@@ -173,8 +180,8 @@ const withTransaction = <DatabaseMock extends object>(
         };
       }
       if (
-        selection.simpleModeEnabled !== undefined &&
-        selection.unlisted !== undefined
+        selection['simpleModeEnabled'] !== undefined &&
+        selection['unlisted'] !== undefined
       ) {
         return {
           from: vi.fn(() => ({
@@ -195,7 +202,7 @@ const withTransaction = <DatabaseMock extends object>(
           })),
         };
       }
-      if (selection.id === roles.id) {
+      if (selection['id'] === roles.id) {
         return {
           from: vi.fn(() => ({
             where: vi.fn(() => Effect.succeed([{ id: 'role-1' }])),
@@ -280,10 +287,15 @@ describe('eventLifecycleHandlers', () => {
           end: '2026-09-20T09:00:00.000Z',
         },
         { headers: {} } as never,
-      ).pipe(Effect.flip, Effect.provide(requestContextLayer));
+      ).pipe(
+        Effect.flip,
+        Effect.provide(
+          Layer.mergeAll(requestContextLayer, createDatabaseTestLayer()),
+        ),
+      );
 
       expect(error['_tag']).toBe('RpcBadRequestError');
-      expect(error.reason).toBe('invalidDates');
+      expect(error).toMatchObject({ reason: 'invalidDates' });
     }),
   );
 
@@ -303,10 +315,17 @@ describe('eventLifecycleHandlers', () => {
             ],
           },
           { headers: {} } as never,
-        ).pipe(Effect.flip, Effect.provide(requestContextLayer));
+        ).pipe(
+          Effect.flip,
+          Effect.provide(
+            Layer.mergeAll(requestContextLayer, createDatabaseTestLayer()),
+          ),
+        );
 
         expect(error['_tag']).toBe('RpcBadRequestError');
-        expect(error.reason).toBe('invalidRegistrationOptionTimes');
+        expect(error).toMatchObject({
+          reason: 'invalidRegistrationOptionTimes',
+        });
       }),
   );
 
@@ -351,10 +370,15 @@ describe('eventLifecycleHandlers', () => {
             end: '2026-09-20T09:00:00.000Z',
           },
           { headers: {} } as never,
-        ).pipe(Effect.flip, Effect.provide(requestContextLayer));
+        ).pipe(
+          Effect.flip,
+          Effect.provide(
+            Layer.mergeAll(requestContextLayer, createDatabaseTestLayer()),
+          ),
+        );
 
         expect(error['_tag']).toBe('RpcBadRequestError');
-        expect(error.reason).toBe('invalidDates');
+        expect(error).toMatchObject({ reason: 'invalidDates' });
       }),
   );
 
@@ -374,10 +398,17 @@ describe('eventLifecycleHandlers', () => {
             ],
           },
           { headers: {} } as never,
-        ).pipe(Effect.flip, Effect.provide(requestContextLayer));
+        ).pipe(
+          Effect.flip,
+          Effect.provide(
+            Layer.mergeAll(requestContextLayer, createDatabaseTestLayer()),
+          ),
+        );
 
         expect(error['_tag']).toBe('RpcBadRequestError');
-        expect(error.reason).toBe('invalidRegistrationOptionTimes');
+        expect(error).toMatchObject({
+          reason: 'invalidRegistrationOptionTimes',
+        });
       }),
   );
 
@@ -597,7 +628,7 @@ describe('eventLifecycleHandlers', () => {
             ]),
           ),
         }));
-        const insertedDiscountValues = vi.fn(() => Effect.succeed());
+        const insertedDiscountValues = vi.fn(() => Effect.succeed(undefined));
         const insertedRegistrationOptionValues = vi.fn(() => ({
           returning: vi.fn(() =>
             Effect.succeed([
@@ -746,7 +777,7 @@ describe('eventLifecycleHandlers', () => {
     'events.create skips copied ESNcard discounts when the tenant provider is disabled',
     () =>
       Effect.gen(function* () {
-        const insertedDiscountValues = vi.fn(() => Effect.succeed());
+        const insertedDiscountValues = vi.fn(() => Effect.succeed(undefined));
         const database = {
           insert: vi.fn((table) => {
             if (table === eventInstances) {
@@ -938,7 +969,7 @@ describe('eventLifecycleHandlers', () => {
         ).pipe(Effect.flip, Effect.provide(layer));
 
         expect(error['_tag']).toBe('RpcBadRequestError');
-        expect(error.reason).toBe('esnDiscountExceedsPrice');
+        expect(error).toMatchObject({ reason: 'esnDiscountExceedsPrice' });
         expect(insert).not.toHaveBeenCalled();
       }),
   );
@@ -1078,7 +1109,9 @@ describe('eventLifecycleHandlers', () => {
         const insertedEventAddonValues = vi.fn(() => ({
           returning: vi.fn(() => Effect.succeed([{ id: 'event-addon-1' }])),
         }));
-        const insertedEventAddonOptionValues = vi.fn(() => Effect.succeed());
+        const insertedEventAddonOptionValues = vi.fn(() =>
+          Effect.succeed(undefined),
+        );
         const database = {
           insert: vi.fn((table) => {
             if (table === eventInstances) {
@@ -1273,7 +1306,9 @@ describe('eventLifecycleHandlers', () => {
             Effect.succeed([{ id: 'event-addon-unmapped' }]),
           ),
         }));
-        const insertedEventAddonOptionValues = vi.fn(() => Effect.succeed());
+        const insertedEventAddonOptionValues = vi.fn(() =>
+          Effect.succeed(undefined),
+        );
         const insertedRegistrationOptionValues = vi.fn(() => ({
           returning: vi.fn(() => Effect.succeed([])),
         }));
@@ -1369,7 +1404,9 @@ describe('eventLifecycleHandlers', () => {
     'events.create copies template questions to matching event registration options',
     () =>
       Effect.gen(function* () {
-        const insertedEventQuestionValues = vi.fn(() => Effect.succeed());
+        const insertedEventQuestionValues = vi.fn(() =>
+          Effect.succeed(undefined),
+        );
         const database = {
           insert: vi.fn((table) => {
             if (table === eventInstances) {

@@ -1,5 +1,6 @@
 @use "@angular/material" as mat;
 @use "./theme-colors" as theme-colors;
+@use "./classic_theme-colors" as classic-theme-colors;
 @use "./esn_theme-colors" as esn-theme-colors;
 @use "./semantic-state-colors" as semantic-state-colors;
 //@use "inter-ui/default" with (
@@ -62,7 +63,8 @@
   --fa-display: block;
 }
 
-.theme-evorto {
+.theme-evorto,
+.theme-classic {
   color-scheme: light dark;
   @include semantic-state-colors.theme(
     $success: (
@@ -98,6 +100,9 @@
       #ffdf9f,
     )
   );
+}
+
+.theme-evorto {
   @include mat.theme(
     (
       color: (
@@ -113,6 +118,25 @@
   );
   @media (prefers-contrast: more) {
     @include theme-colors.high-contrast-overrides(color-scheme);
+  }
+}
+
+.theme-classic {
+  @include mat.theme(
+    (
+      color: (
+        primary: classic-theme-colors.$primary-palette,
+        tertiary: classic-theme-colors.$tertiary-palette,
+      ),
+      typography: (
+        plain-family: var(--font-body),
+        brand-family: var(--font-display),
+      ),
+      density: 0,
+    )
+  );
+  @media (prefers-contrast: more) {
+    @include classic-theme-colors.high-contrast-overrides(color-scheme);
   }
 }
 

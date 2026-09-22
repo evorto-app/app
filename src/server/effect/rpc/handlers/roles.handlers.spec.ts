@@ -11,8 +11,9 @@ import { roleHandlers } from './roles.handlers';
 import { RpcAccess } from './shared/rpc-access.service';
 
 const tenant = {
+  cancellationDeadlineHoursBeforeStart: 120,
   currency: 'EUR' as const,
-  defaultLocation: null,
+  defaultLocation: undefined,
   discountProviders: {
     esnCard: {
       config: {},
@@ -21,26 +22,31 @@ const tenant = {
   },
   domain: 'tenant.example.com',
   id: 'tenant-1',
-  locale: 'en',
+  maxActiveRegistrationsPerUser: 0,
   name: 'Tenant',
   receiptSettings: {
     allowOther: false,
     receiptCountries: ['NL'],
   },
+  refundFeesOnCancellation: true,
   stripeAccountId: null,
   theme: 'evorto' as const,
   timezone: 'Europe/Amsterdam',
+  transferDeadlineHoursBeforeStart: 0,
 };
 
 const createUser = (permissions: readonly Permission[]) => ({
   attributes: [],
   auth0Id: 'auth0|user-1',
+  communicationEmail: undefined,
   email: 'alice@example.com',
   firstName: 'Alice',
-  iban: null,
+  homeTenantId: undefined,
+  homeTenantName: undefined,
+  iban: undefined,
   id: 'user-1',
   lastName: 'Doe',
-  paypalEmail: null,
+  paypalEmail: undefined,
   permissions,
   roleIds: [],
 });
@@ -90,10 +96,9 @@ describe('roleHandlers lookup permissions', () => {
           },
         };
 
-        const result = yield* roleHandlers['roles.findMany'](
-          { search: 'organizer' },
-          { headers: {} } as never,
-        ).pipe(
+        const result = yield* roleHandlers['roles.findMany']({
+          search: 'organizer',
+        }).pipe(
           Effect.provide(createContextLayer(['templates:create'], database)),
         );
 
@@ -128,14 +133,11 @@ describe('roleHandlers lookup permissions', () => {
         },
       };
 
-      yield* roleHandlers['roles.findMany'](
-        {
-          defaultOrganizerRole: true,
-          defaultUserRole: false,
-          search: 'mentor',
-        },
-        { headers: {} } as never,
-      ).pipe(Effect.provide(createContextLayer(['events:create'], database)));
+      yield* roleHandlers['roles.findMany']({
+        defaultOrganizerRole: true,
+        defaultUserRole: false,
+        search: 'mentor',
+      }).pipe(Effect.provide(createContextLayer(['events:create'], database)));
 
       expect(queryInput).toEqual({
         columns: {
@@ -175,11 +177,9 @@ describe('roleHandlers lookup permissions', () => {
         },
       };
 
-      const result = yield* roleHandlers['roles.findOne']({ id: 'role-1' }, {
-        headers: {},
-      } as never).pipe(
-        Effect.provide(createContextLayer(['events:create'], database)),
-      );
+      const result = yield* roleHandlers['roles.findOne']({
+        id: 'role-1',
+      }).pipe(Effect.provide(createContextLayer(['events:create'], database)));
 
       expect(queryInput).toEqual({
         columns: {
@@ -219,11 +219,9 @@ describe('roleHandlers lookup permissions', () => {
         },
       };
 
-      const result = yield* roleHandlers['roles.findOne']({ id: 'role-1' }, {
-        headers: {},
-      } as never).pipe(
-        Effect.provide(createContextLayer(['events:create'], database)),
-      );
+      const result = yield* roleHandlers['roles.findOne']({
+        id: 'role-1',
+      }).pipe(Effect.provide(createContextLayer(['events:create'], database)));
 
       expect(result).toEqual({
         defaultOrganizerRole: false,
@@ -238,9 +236,7 @@ describe('roleHandlers lookup permissions', () => {
     'findMany rejects users without event or template authoring access',
     () =>
       Effect.gen(function* () {
-        const error = yield* roleHandlers['roles.findMany']({}, {
-          headers: {},
-        } as never).pipe(
+        const error = yield* roleHandlers['roles.findMany']({}).pipe(
           Effect.flip,
           Effect.provide(createContextLayer(['templates:view'], {})),
         );
@@ -254,21 +250,20 @@ describe('roleHandlers lookup permissions', () => {
       const database = {
         query: {
           roles: {
-            findFirst: () => Effect.succeed(),
+            findFirst: () => Effect.succeed(undefined),
           },
         },
       };
 
-      const error = yield* roleHandlers['roles.findOne'](
-        { id: 'missing-role' },
-        { headers: {} } as never,
-      ).pipe(
+      const error = yield* roleHandlers['roles.findOne']({
+        id: 'missing-role',
+      }).pipe(
         Effect.flip,
         Effect.provide(createContextLayer(['events:create'], database)),
       );
 
       expect(error['_tag']).toBe('RoleLookupNotFoundError');
-      expect(error.id).toBe('missing-role');
+      expect(error).toMatchObject({ id: 'missing-role' });
     }),
   );
 });

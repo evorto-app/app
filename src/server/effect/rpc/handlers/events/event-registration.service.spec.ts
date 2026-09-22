@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from '@effect/vitest';
 import { EffectDrizzleQueryError } from 'drizzle-orm/effect-core';
-import { Cause, ConfigProvider, Effect, Layer, Schema } from 'effect';
+import { Cause, ConfigProvider, Effect, Exit, Layer, Schema } from 'effect';
 import { SqlError, UniqueViolation } from 'effect/unstable/sql/SqlError';
 import Stripe from 'stripe';
 
@@ -36,6 +36,7 @@ import {
 import {
   EventRegistrationConflictError,
   EventRegistrationInternalError,
+  EventRegistrationNotFoundError,
 } from './events.errors';
 
 const createStripeTestClient = (): Stripe => {
@@ -910,6 +911,98 @@ const approveManualRegistrationForTest = ({
   });
 
 describe('EventRegistrationService', () => {
+  for (const flow of ['manual approval', 'direct registration']) {
+    for (const scenario of [
+      { name: 'missing tenant', tenantRecord: undefined },
+      {
+        name: 'null provider settings',
+        tenantRecord: { discountProviders: null },
+      },
+      {
+        name: 'incomplete provider settings',
+        tenantRecord: { discountProviders: {} },
+      },
+    ]) {
+      it.effect(
+        `${flow} rejects ${scenario.name} before claiming capacity or creating Checkout`,
+        () =>
+          Effect.gen(function* () {
+            const fixture =
+              flow === 'manual approval'
+                ? createManualApprovalDatabase()
+                : createDirectCheckoutDatabase();
+            const findTenant = vi.fn(() =>
+              Effect.succeed(scenario.tenantRecord),
+            );
+            const database = {
+              ...fixture.database,
+              query: {
+                ...fixture.database.query,
+                tenants: { findFirst: findTenant },
+                userDiscountCards: {
+                  findMany: () =>
+                    Effect.succeed([
+                      {
+                        type: 'esnCard',
+                        validTo: new Date('2026-12-31T00:00:00.000Z'),
+                      },
+                    ]),
+                },
+              },
+            };
+            const stripe = createStripeTestClient();
+            const exit = yield* Effect.exit(
+              Effect.gen(function* () {
+                if (flow === 'manual approval') {
+                  yield* runManualApproval({ database, stripe });
+                } else {
+                  yield* runDirectCheckout({ database, stripe });
+                }
+              }),
+            );
+            expect(Exit.isFailure(exit)).toBe(true);
+            if (Exit.isSuccess(exit))
+              throw new Error(
+                'Expected unavailable tenant settings to reject registration',
+              );
+            if (scenario.tenantRecord === undefined) {
+              expect(Cause.hasDies(exit.cause)).toBe(false);
+              const failure = exit.cause.reasons.find((reason) =>
+                Cause.isFailReason(reason),
+              );
+              expect(failure).toBeDefined();
+              if (!failure)
+                throw new Error('Expected a typed missing registration error');
+              expect(failure.error).toBeInstanceOf(
+                EventRegistrationNotFoundError,
+              );
+            } else {
+              expect(Cause.hasDies(exit.cause)).toBe(true);
+              const defect = exit.cause.reasons.find((reason) =>
+                Cause.isDieReason(reason),
+              );
+              expect(defect).toBeDefined();
+              if (!defect)
+                throw new Error(
+                  'Expected a schema defect for persisted settings',
+                );
+              expect(Schema.isSchemaError(defect.defect)).toBe(true);
+            }
+            expect(findTenant).toHaveBeenCalledWith({
+              columns: { discountProviders: true },
+              where: { id: 'tenant-1' },
+            });
+            expect(fixture.operationOrder).toEqual([]);
+            expect(fixture.claimInsertCount()).toBe(0);
+            expect(fixture.reservationUpdateCount()).toBe(0);
+            expect(fixture.bindingUpdateCount()).toBe(0);
+            expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
+            expect(stripe.checkout.sessions.expire).not.toHaveBeenCalled();
+          }),
+      );
+    }
+  }
+
   describe('decodeRegistrationCheckoutSnapshot', () => {
     const validSnapshot = {
       customerEmail: 'checkout@example.com',
