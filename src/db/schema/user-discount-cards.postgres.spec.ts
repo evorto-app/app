@@ -269,6 +269,108 @@ const saveCard = (tenant: Tenant, userId: string, identifier: string) =>
     }),
   );
 
+describe('global discount card ownership across organizations', () => {
+  for (const scenario of ['same owner', 'different owner'] as const) {
+    it.live(
+      `preserves global ownership for a ${scenario} in another organization`,
+      () =>
+        withCardFixture(({ card, database, otherUserId }) =>
+          Effect.acquireUseRelease(
+            Effect.sync(createId),
+            (otherTenantId) =>
+              Effect.gen(function* () {
+                const discountProviders = {
+                  esnCard: { config: {}, status: 'enabled' as const },
+                };
+                yield* database
+                  .update(tenants)
+                  .set({ discountProviders })
+                  .where(eq(tenants.id, card.tenantId));
+                yield* database.insert(tenants).values({
+                  discountProviders,
+                  domain: `${otherTenantId}.global-card.example`,
+                  id: otherTenantId,
+                  name: 'Another card organization',
+                });
+                const tenant = Schema.decodeUnknownSync(Tenant)(
+                  yield* database.query.tenants.findFirst({
+                    where: { id: card.tenantId },
+                  }),
+                );
+                const otherTenant = Schema.decodeUnknownSync(Tenant)(
+                  yield* database.query.tenants.findFirst({
+                    where: { id: otherTenantId },
+                  }),
+                );
+                yield* withEsnCardAdapter(
+                  () =>
+                    Promise.resolve({
+                      metadata: { provider: 'synthetic' },
+                      status: 'verified',
+                      validFrom,
+                      validTo,
+                    }),
+                  Effect.gen(function* () {
+                    const original = yield* saveCard(
+                      tenant,
+                      card.userId,
+                      card.identifier,
+                    );
+                    const sameOwner = scenario === 'same owner';
+                    const nextIdentifier = sameOwner
+                      ? `${card.identifier}-replacement`
+                      : card.identifier;
+                    const result = yield* saveCard(
+                      otherTenant,
+                      sameOwner ? card.userId : otherUserId,
+                      nextIdentifier,
+                    ).pipe(Effect.result);
+                    if (sameOwner) {
+                      expect(Result.isSuccess(result)).toBe(true);
+                      if (!Result.isSuccess(result)) return;
+                      expect(result.success).toMatchObject({
+                        id: original.id,
+                        identifier: nextIdentifier,
+                      });
+                    } else {
+                      expect(Result.isFailure(result)).toBe(true);
+                      if (!Result.isFailure(result)) return;
+                      expect(result.failure).toMatchObject({
+                        _tag: 'DiscountCardConflictError',
+                      });
+                    }
+                    const saved =
+                      yield* database.query.userDiscountCards.findMany({
+                        where: { userId: card.userId },
+                      });
+                    expect(saved).toHaveLength(1);
+                    expect(saved[0]).toMatchObject({
+                      id: original.id,
+                      identifier: nextIdentifier,
+                      userId: card.userId,
+                    });
+                  }),
+                );
+              }),
+            (otherTenantId) =>
+              database
+                .delete(userDiscountCards)
+                .where(eq(userDiscountCards.tenantId, otherTenantId))
+                .pipe(
+                  Effect.ensuring(
+                    database
+                      .delete(tenants)
+                      .where(eq(tenants.id, otherTenantId))
+                      .pipe(Effect.orDie),
+                  ),
+                  Effect.orDie,
+                ),
+          ),
+        ).pipe(Effect.provide(testDatabaseLayer)),
+    );
+  }
+});
+
 describe('concurrent discount card saves', () => {
   for (const scenario of [
     'existing identifier',
