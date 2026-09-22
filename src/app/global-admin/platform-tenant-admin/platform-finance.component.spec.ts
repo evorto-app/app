@@ -4,15 +4,28 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MatDialog } from '@angular/material/dialog';
 import { MatTabGroupHarness } from '@angular/material/tabs/testing';
 import {
+  createRpcQueryFilter,
+  createRpcQueryKey,
+} from '@heddendorp/effect-angular-query';
+import {
+  onlineManager,
   provideTanStackQuery,
   QueryClient,
+  QueryObserver,
 } from '@tanstack/angular-query-experimental';
 import { readFileSync } from 'node:fs';
 import nodePath from 'node:path';
-import { of } from 'rxjs';
+import { of, Subject } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  RpcBadRequestError,
+  RpcForbiddenError,
+  RpcInternalServerError,
+  RpcUnauthorizedError,
+} from '../../../shared/errors/rpc-errors';
+import {
+  PlatformFinanceReceiptApprovalDetailRecord,
   PlatformFinanceReceiptWithSubmitterRecord,
   PlatformFinanceRefundLifecycleSummary,
   PlatformFinanceRefundRecoveryRecord,
@@ -23,6 +36,10 @@ import {
 import { NotificationService } from '../../core/notification.service';
 import { TENANT_DATE_PIPE_TIMEZONE } from '../../core/tenant-date.pipe';
 import {
+  type ReimbursementConfirmationData,
+  ReimbursementConfirmationDialogComponent,
+} from '../../finance/shared/reimbursement-confirmation-dialog/reimbursement-confirmation-dialog.component';
+import {
   PlatformFinanceComponent,
   PlatformFinanceOperations,
   platformReceiptEvidenceUnavailableNotice,
@@ -31,10 +48,6 @@ import {
   platformTransactionMethodLabel,
   platformTransactionStatusLabel,
 } from './platform-finance.component';
-import {
-  type PlatformReimbursementConfirmationData,
-  PlatformReimbursementConfirmationDialogComponent,
-} from './platform-reimbursement-confirmation-dialog.component';
 import { PlatformTenantPageHeaderComponent } from './platform-tenant-page-header.component';
 
 @Component({
@@ -49,7 +62,7 @@ class PlatformTenantPageHeaderStub {
 describe('platform receipt review evidence gating', () => {
   it('explains that unavailable evidence blocks only approval', () => {
     expect(platformReceiptEvidenceUnavailableNotice).toBe(
-      'Receipt evidence is unavailable. Approval is disabled until the uploaded file can be verified. You can still reject this receipt.',
+      'The uploaded receipt file is unavailable. Approval is disabled until it can be checked. You can still reject this receipt.',
     );
 
     expect(
@@ -93,12 +106,12 @@ describe('platform receipt review evidence gating', () => {
 describe('platform transaction labels', () => {
   it('turns stored payment values into finance language', () => {
     expect(platformTransactionStatusLabel('cancelled')).toBe('Cancelled');
-    expect(platformTransactionStatusLabel('pending')).toBe('Pending');
-    expect(platformTransactionStatusLabel('successful')).toBe('Successful');
+    expect(platformTransactionStatusLabel('pending')).toBe('In progress');
+    expect(platformTransactionStatusLabel('successful')).toBe('Completed');
 
     expect(platformTransactionMethodLabel('cash')).toBe('Cash');
     expect(platformTransactionMethodLabel('paypal')).toBe('PayPal');
-    expect(platformTransactionMethodLabel('stripe')).toBe('Stripe');
+    expect(platformTransactionMethodLabel('stripe')).toBe('Online payment');
     expect(platformTransactionMethodLabel('transfer')).toBe('Bank transfer');
   });
 });
@@ -116,7 +129,7 @@ describe('platform refund lifecycle copy', () => {
 
     expect(copy).toEqual({
       detail:
-        'Automatic refund processing stopped. Open Refund recovery to review the safe next step.',
+        'This refund did not finish. Open Refunds needing attention to review what can be done.',
       label: 'Needs attention',
     });
     expect(JSON.stringify(copy)).not.toContain('Stripe');
@@ -135,7 +148,7 @@ describe('platform refund lifecycle copy', () => {
 
     expect(copy).toEqual({
       detail:
-        'Evorto cannot safely retry this refund. Compare it with the connected Stripe account before making a manual change.',
+        "This refund did not finish. Check it in the organization's payment account, then contact Evorto support before changing its status in Evorto.",
       label: 'Needs attention',
     });
   });
@@ -158,13 +171,15 @@ describe('platform refund lifecycle copy', () => {
       }),
     );
 
-    expect(scheduled.detail).toContain(
-      'Evorto will keep checking automatically',
+    expect(scheduled.detail).toBe(
+      "Complete the required step in the organization's payment account, then select Show latest status. This shows any update Evorto has received.",
     );
-    expect(scheduled.detail).toContain('connected Stripe account');
-    expect(scheduled.detail).not.toContain('provider-side');
-    expect(scheduled.detail).not.toContain('open Refund recovery');
-    expect(stopped.detail).toContain('open Refund recovery');
+    expect(stopped.detail).toBe(
+      "Complete the required step in the organization's payment account, then open Refunds needing attention to continue.",
+    );
+    expect(scheduled.detail).not.toContain('Stripe');
+    expect(stopped.detail).not.toContain('Stripe');
+    expect(scheduled.detail).not.toContain('when possible');
   });
 
   it('distinguishes all non-attention states', () => {
@@ -172,10 +187,10 @@ describe('platform refund lifecycle copy', () => {
       PlatformFinanceRefundLifecycleSummary['status'],
       string,
     ])[] = [
-      ['action-required', 'Action required in Stripe'],
-      ['pending', 'Pending'],
-      ['retrying', 'Retrying'],
-      ['succeeded', 'Succeeded'],
+      ['action-required', 'Payment action needed'],
+      ['pending', 'Waiting'],
+      ['retrying', 'Trying again'],
+      ['succeeded', 'Refunded'],
     ];
 
     for (const [status, label] of expectedLabels) {
@@ -202,14 +217,32 @@ describe('platform refund lifecycle copy', () => {
     );
 
     expect(template).toContain(
-      'Required. This reason is saved with the recovery action.',
+      'Required. This reason is saved with the action.',
     );
-    expect(template).toContain('Retry failed refund');
-    expect(template).toContain('Automatic refund checks stopped');
-    expect(template).toContain('No refunds currently need manual recovery.');
+    expect(template).toContain('Try failed refund again');
+    expect(template).toContain('This refund did not finish and needs review.');
+    expect(template).toContain('No refunds currently need attention.');
+    expect(template).toContain(
+      'Separate from the rejection reason shown to the attendee.',
+    );
+    expect(template).toContain('Select a recipient to record a reimbursement.');
+    expect(template).not.toContain('attendee-facing rejection reason');
+    expect(template).not.toContain('Select a recipient group');
+    expect(template).not.toContain('Automatic refund checks');
+    expect(template).not.toContain('Resume refund checks');
     expect(template).not.toContain('Terminal refund');
     expect(template).not.toContain('Stopped refund processing');
     expect(template).not.toContain('application append-only platform audit');
+
+    const source = readFileSync(
+      nodePath.join(
+        process.cwd(),
+        'src/app/global-admin/platform-tenant-admin/platform-finance.component.ts',
+      ),
+      'utf8',
+    );
+    expect(source).toContain('The refund will be tried again');
+    expect(source).not.toContain('Failed refund will be tried again');
   });
 
   it('edits receipt values as ordinary amounts in the receipt currency', () => {
@@ -228,10 +261,33 @@ describe('platform refund lifecycle copy', () => {
 });
 
 const loadRecoveryQueue = vi.fn();
+const loadApprovalDetail = vi.fn();
+const loadApprovalQueue = vi.fn();
 const loadReimbursementQueue = vi.fn();
 const loadTransactions = vi.fn();
 const openDialog = vi.fn();
-const recordReimbursementMutation = vi.fn();
+type ReimbursementMutation = NonNullable<
+  ReturnType<PlatformFinanceOperations['recordReimbursement']>['mutationFn']
+>;
+type ReimbursementResult = Awaited<ReturnType<ReimbursementMutation>>;
+const recordedReimbursement: ReimbursementResult = {
+  receiptCount: 2,
+  totalAmount: 2900,
+  transactionId: 'reimbursement-transaction',
+};
+const recordReimbursementMutation = vi.fn<ReimbursementMutation>();
+const requeueRefundMutation =
+  vi.fn<
+    NonNullable<
+      ReturnType<PlatformFinanceOperations['requeueRefundClaim']>['mutationFn']
+    >
+  >();
+const reviewReceiptMutation =
+  vi.fn<
+    NonNullable<
+      ReturnType<PlatformFinanceOperations['reviewReceipt']>['mutationFn']
+    >
+  >();
 
 const tenantContext = PlatformFinanceTenantContext.make({
   currency: 'EUR',
@@ -239,6 +295,43 @@ const tenantContext = PlatformFinanceTenantContext.make({
   targetTenantId: 'tenant-1',
   timezone: 'Australia/Brisbane',
 });
+
+const approvalQueueReceipt = (id: string) =>
+  PlatformFinanceReceiptWithSubmitterRecord.make({
+    alcoholAmount: 0,
+    attachmentFileName: `${id}.pdf`,
+    attachmentMimeType: 'application/pdf',
+    createdAt: '2026-07-10T10:00:00.000Z',
+    currency: 'EUR',
+    depositAmount: 0,
+    eventId: `event-${id}`,
+    hasAlcohol: false,
+    hasDeposit: false,
+    id,
+    purchaseCountry: 'DE',
+    receiptDate: '2026-07-09',
+    refundedAt: null,
+    refundTransactionId: null,
+    rejectionReason: null,
+    reviewedAt: null,
+    status: 'submitted',
+    submittedByEmail: 'participant@example.test',
+    submittedByFirstName: 'Pat',
+    submittedByLastName: 'Example',
+    submittedByUserId: 'user-participant',
+    taxAmount: 190,
+    totalAmount: 1190,
+    updatedAt: '2026-07-10T10:00:00.000Z',
+  });
+
+const approvalDetailReceipt = (id: string) =>
+  PlatformFinanceReceiptApprovalDetailRecord.make({
+    ...approvalQueueReceipt(id),
+    eventStart: '2026-07-20T10:00:00.000Z',
+    eventTitle: 'Approval event',
+    previewImageUrl: `https://example.test/${id}.pdf`,
+    receiptEvidenceAvailable: true,
+  });
 
 const reimbursementReceipt = (
   id: string,
@@ -258,10 +351,8 @@ const reimbursementReceipt = (
     hasAlcohol: false,
     hasDeposit: false,
     id,
-    previewImageUrl: `https://example.test/${id}.pdf`,
     purchaseCountry: 'DE',
     receiptDate: '2026-07-09',
-    receiptEvidenceAvailable: true,
     refundedAt: null,
     refundTransactionId: null,
     rejectionReason: null,
@@ -322,8 +413,42 @@ const normalizeText = (fixture: ComponentFixture<PlatformFinanceComponent>) =>
 
 describe('PlatformFinanceComponent refund lifecycle table', () => {
   let queryClient: QueryClient;
+  let acquiredQueryClient: QueryClient | undefined;
+
+  const settleFinanceFixture = async (
+    check: () => Promise<void>,
+    cleanup: readonly ((() => Promise<void>) | (() => void))[],
+  ) => {
+    const failures: unknown[] = [];
+    try {
+      await check();
+    } catch (error) {
+      failures.push(error);
+    }
+    for (const release of cleanup) {
+      try {
+        await release();
+      } catch (error) {
+        failures.push(error);
+      }
+    }
+    if (failures.length === 1) throw failures[0];
+    if (failures.length > 1)
+      throw new AggregateError(
+        failures,
+        'Finance assertions and fixture cleanup failed',
+      );
+  };
 
   beforeEach(async () => {
+    acquiredQueryClient = undefined;
+    loadApprovalDetail.mockImplementation(
+      async (_targetTenantId: string, id: string) => ({
+        receipt: approvalDetailReceipt(id),
+        tenantContext,
+      }),
+    );
+    loadApprovalQueue.mockResolvedValue({ groups: [], tenantContext });
     loadRecoveryQueue.mockResolvedValue({ claims: [], tenantContext });
     loadReimbursementQueue.mockResolvedValue({ groups: [], tenantContext });
     loadTransactions.mockResolvedValue({
@@ -332,13 +457,24 @@ describe('PlatformFinanceComponent refund lifecycle table', () => {
       total: 0,
     });
     openDialog.mockReturnValue({ afterClosed: () => of(false) });
-    recordReimbursementMutation.mockResolvedValue({ receiptCount: 2 });
+    recordReimbursementMutation.mockResolvedValue(recordedReimbursement);
+    requeueRefundMutation.mockResolvedValue({
+      mode: 'newGeneration',
+      refundClaimId: 'refund-claim',
+      transferRecovery: 'notTransfer',
+    });
+    reviewReceiptMutation.mockResolvedValue({
+      id: 'reviewed-receipt',
+      status: 'approved',
+    });
     queryClient = new QueryClient({
       defaultOptions: {
         mutations: { retry: false },
         queries: { gcTime: 0, retry: false },
       },
     });
+
+    acquiredQueryClient = queryClient;
 
     TestBed.overrideComponent(PlatformFinanceComponent, {
       add: { imports: [PlatformTenantPageHeaderStub] },
@@ -364,36 +500,91 @@ describe('PlatformFinanceComponent refund lifecycle table', () => {
         {
           provide: PlatformFinanceOperations,
           useValue: {
-            approvalQueue: () => ({
-              queryFn: async () => ({ groups: [], tenantContext }),
-              queryKey: ['platform-finance', 'approval'],
+            approvalDetail: (targetTenantId: string, id: string) => ({
+              queryFn: () => loadApprovalDetail(targetTenantId, id),
+              queryKey: createRpcQueryKey(
+                ['platform', 'finance', 'receipts', 'approvalDetail'],
+                {
+                  input: { id, targetTenantId },
+                  keyPrefix: 'rpc',
+                  type: 'query',
+                },
+              ),
             }),
-            financeFilter: () => ({
-              queryKey: ['platform', 'finance'],
+            approvalQueue: (targetTenantId: string) => ({
+              queryFn: loadApprovalQueue,
+              queryKey: createRpcQueryKey(
+                ['platform', 'finance', 'receipts', 'approvalQueue'],
+                { input: { targetTenantId }, keyPrefix: 'rpc', type: 'query' },
+              ),
             }),
+            financeFilter: () =>
+              createRpcQueryFilter(['platform', 'finance'], {
+                keyPrefix: 'rpc',
+              }),
             recordReimbursement: () => ({
+              meta: {
+                rpc: {
+                  path: [
+                    'platform',
+                    'finance',
+                    'receipts',
+                    'recordReimbursement',
+                  ],
+                },
+              },
               mutationFn: recordReimbursementMutation,
-              mutationKey: ['platform-finance', 'record-reimbursement'],
+              mutationKey: createRpcQueryKey<undefined>(
+                ['platform', 'finance', 'receipts', 'recordReimbursement'],
+                { keyPrefix: 'rpc', type: 'mutation' },
+              ),
             }),
-            recoveryQueue: () => ({
+            recoveryQueue: (targetTenantId: string) => ({
               queryFn: loadRecoveryQueue,
-              queryKey: ['platform-finance', 'recovery'],
+              queryKey: createRpcQueryKey(
+                ['platform', 'finance', 'refundClaims', 'recoveryQueue'],
+                { input: { targetTenantId }, keyPrefix: 'rpc', type: 'query' },
+              ),
             }),
-            reimbursementQueue: () => ({
+            reimbursementQueue: (targetTenantId: string) => ({
               queryFn: loadReimbursementQueue,
-              queryKey: ['platform-finance', 'reimbursement'],
+              queryKey: createRpcQueryKey(
+                ['platform', 'finance', 'receipts', 'reimbursementQueue'],
+                { input: { targetTenantId }, keyPrefix: 'rpc', type: 'query' },
+              ),
             }),
             requeueRefundClaim: () => ({
-              mutationFn: vi.fn(),
-              mutationKey: ['platform-finance', 'requeue'],
+              meta: {
+                rpc: {
+                  path: ['platform', 'finance', 'refundClaims', 'requeue'],
+                },
+              },
+              mutationFn: requeueRefundMutation,
+              mutationKey: createRpcQueryKey<undefined>(
+                ['platform', 'finance', 'refundClaims', 'requeue'],
+                { keyPrefix: 'rpc', type: 'mutation' },
+              ),
             }),
             reviewReceipt: () => ({
-              mutationFn: vi.fn(),
-              mutationKey: ['platform-finance', 'review'],
+              meta: {
+                rpc: { path: ['platform', 'finance', 'receipts', 'review'] },
+              },
+              mutationFn: reviewReceiptMutation,
+              mutationKey: createRpcQueryKey<undefined>(
+                ['platform', 'finance', 'receipts', 'review'],
+                { keyPrefix: 'rpc', type: 'mutation' },
+              ),
             }),
-            transactions: () => ({
+            transactions: (input: {
+              limit: number;
+              offset: number;
+              targetTenantId: string;
+            }) => ({
               queryFn: loadTransactions,
-              queryKey: ['platform-finance', 'transactions'],
+              queryKey: createRpcQueryKey(
+                ['platform', 'finance', 'transactions', 'findMany'],
+                { input, keyPrefix: 'rpc', type: 'query' },
+              ),
             }),
           },
         },
@@ -401,10 +592,21 @@ describe('PlatformFinanceComponent refund lifecycle table', () => {
     }).compileComponents();
   });
 
-  afterEach(() => {
-    queryClient.clear();
-    vi.clearAllMocks();
-    TestBed.resetTestingModule();
+  afterEach(async () => {
+    const client = acquiredQueryClient;
+    acquiredQueryClient = undefined;
+    await settleFinanceFixture(
+      () => Promise.resolve(),
+      [
+        () => client?.clear(),
+        () => {
+          vi.clearAllMocks();
+        },
+        () => {
+          TestBed.resetTestingModule();
+        },
+      ],
+    );
   });
 
   it('renders every refund lifecycle as restrained, safe table copy', async () => {
@@ -450,18 +652,31 @@ describe('PlatformFinanceComponent refund lifecycle table', () => {
       fixture.detectChanges();
       const text = normalizeText(fixture);
       for (const label of [
-        'Action required in Stripe',
-        'Pending',
-        'Retrying',
-        'Succeeded',
+        'Payment action needed',
+        'Waiting',
+        'Trying again',
+        'Refunded',
         'Needs attention',
       ]) {
         expect(text).toContain(label);
       }
       expect(text).toContain(
-        'Open Refund recovery to review the safe next step.',
+        'Open Refunds needing attention to review what can be done.',
       );
+      expect(text).toContain('Show latest status');
       expect(text).not.toContain('Provider secret must never render');
+    });
+
+    const checkStatusButton = [
+      ...fixture.nativeElement.querySelectorAll('button'),
+    ].find((button) => button.textContent?.includes('Show latest status'));
+    expect(checkStatusButton).toBeInstanceOf(HTMLButtonElement);
+    if (!(checkStatusButton instanceof HTMLButtonElement))
+      throw new Error('Expected the latest-status button');
+    checkStatusButton.click();
+
+    await vi.waitFor(() => {
+      expect(loadTransactions).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -542,7 +757,7 @@ describe('PlatformFinanceComponent refund lifecycle table', () => {
       await TestbedHarnessEnvironment.loader(fixture).getHarness(
         MatTabGroupHarness,
       );
-    await tabs.selectTab({ label: 'Refund recovery' });
+    await tabs.selectTab({ label: 'Refunds needing attention' });
 
     await vi.waitFor(() => {
       fixture.detectChanges();
@@ -608,7 +823,7 @@ describe('PlatformFinanceComponent refund lifecycle table', () => {
 
     await vi.waitFor(() => {
       expect(openDialog).toHaveBeenCalledWith(
-        PlatformReimbursementConfirmationDialogComponent,
+        ReimbursementConfirmationDialogComponent,
         {
           data: {
             currency: 'EUR',
@@ -617,7 +832,7 @@ describe('PlatformFinanceComponent refund lifecycle table', () => {
             receiptCount: 2,
             recipient: 'Ada Lovelace',
             totalAmount: 2900,
-          } satisfies PlatformReimbursementConfirmationData,
+          } satisfies ReimbursementConfirmationData,
           width: 'min(38rem, calc(100vw - 2rem))',
         },
       );
@@ -660,39 +875,59 @@ describe('PlatformFinanceComponent refund lifecycle table', () => {
     }));
     await fixture.whenStable();
 
-    component['recordReimbursement'](new Event('submit'));
+    await settleFinanceFixture(async () => {
+      component['recordReimbursement'](new Event('submit'));
 
-    await vi.waitFor(() => {
-      expect(recordReimbursementMutation).toHaveBeenCalledTimes(1);
-    });
-    expect(recordReimbursementMutation.mock.calls[0]?.[0]).toEqual({
-      payoutType: 'iban',
-      payoutVersion: 'iban-version-1',
-      reason: 'Paid by bank transfer',
-      receiptIds: ['receipt-1', 'receipt-2'],
-      targetTenantId: 'tenant-1',
-    });
+      await vi.waitFor(() => {
+        expect(recordReimbursementMutation).toHaveBeenCalledTimes(1);
+        expect(refresh).toHaveBeenCalledOnce();
+      });
+      expect(recordReimbursementMutation.mock.calls[0]?.[0]).toEqual({
+        payoutType: 'iban',
+        payoutVersion: 'iban-version-1',
+        reason: 'Paid by bank transfer',
+        receiptIds: ['receipt-1', 'receipt-2'],
+        targetTenantId: 'tenant-1',
+      });
+      expect(refresh).toHaveBeenCalledWith(
+        createRpcQueryFilter(['platform', 'finance'], { keyPrefix: 'rpc' }),
+        { throwOnError: true },
+      );
+      expect(component['selectedReimbursement']()?.group).toBe(
+        reimbursementConfirmationGroup,
+      );
+      expect(component['reimbursementForm'].receiptIds().value()).toEqual([
+        'receipt-1',
+        'receipt-2',
+      ]);
+      expect(component['financeActionBusy']()).toBe(true);
+      expect(
+        TestBed.inject(NotificationService).showSuccess,
+      ).not.toHaveBeenCalled();
+    }, [
+      () => resolveRefresh?.(),
+      () => pendingRefresh,
+      () => {
+        refresh.mockRestore();
+      },
+      () =>
+        vi.waitFor(() => expect(component['financeActionBusy']()).toBe(false)),
+    ]);
     await vi.waitFor(() => {
       expect(component['selectedReimbursement']()).toBeNull();
       expect(component['reimbursementForm'].receiptIds().value()).toEqual([]);
+      expect(component['financeActionBusy']()).toBe(false);
     });
-    expect(refresh).toHaveBeenCalledOnce();
-    if (!resolveRefresh) {
-      throw new Error('Expected the pending finance refresh to be registered');
-    }
-    resolveRefresh();
   });
 
   it('locks recipient selection and preserves a newer batch when an older write completes', async () => {
     let resolveReimbursement:
-      ((result: { receiptCount: number }) => void) | undefined;
+      ((result: ReimbursementResult) => void) | undefined;
     // Angular's browser library target does not expose Promise.withResolvers.
     // eslint-disable-next-line unicorn/prefer-promise-with-resolvers
-    const pendingReimbursement = new Promise<{ receiptCount: number }>(
-      (resolve) => {
-        resolveReimbursement = resolve;
-      },
-    );
+    const pendingReimbursement = new Promise<ReimbursementResult>((resolve) => {
+      resolveReimbursement = resolve;
+    });
     loadReimbursementQueue.mockResolvedValue({
       groups: [reimbursementConfirmationGroup, newerReimbursementGroup],
       tenantContext,
@@ -732,9 +967,7 @@ describe('PlatformFinanceComponent refund lifecycle table', () => {
       ),
       'utf8',
     );
-    expect(template).toContain(
-      '[disabled]="reimbursementMutation.isPending()"',
-    );
+    expect(template).toContain('[disabled]="financeActionsDisabled()"');
 
     component['chooseReimbursement'](newerReimbursementGroup);
     expect(component['selectedReimbursement']()?.group).toBe(
@@ -753,7 +986,7 @@ describe('PlatformFinanceComponent refund lifecycle table', () => {
     if (!resolveReimbursement) {
       throw new Error('Expected the reimbursement mutation to be pending');
     }
-    resolveReimbursement({ receiptCount: 2 });
+    resolveReimbursement(recordedReimbursement);
 
     await vi.waitFor(() => {
       expect(component['reimbursementMutation'].isPending()).toBe(false);
@@ -772,14 +1005,12 @@ describe('PlatformFinanceComponent refund lifecycle table', () => {
 
   it('locks batch edits while a reimbursement write is pending', async () => {
     let resolveReimbursement:
-      ((result: { receiptCount: number }) => void) | undefined;
+      ((result: ReimbursementResult) => void) | undefined;
     // Angular's browser library target does not expose Promise.withResolvers.
     // eslint-disable-next-line unicorn/prefer-promise-with-resolvers
-    const pendingReimbursement = new Promise<{ receiptCount: number }>(
-      (resolve) => {
-        resolveReimbursement = resolve;
-      },
-    );
+    const pendingReimbursement = new Promise<ReimbursementResult>((resolve) => {
+      resolveReimbursement = resolve;
+    });
     loadReimbursementQueue.mockResolvedValue({
       groups: [reimbursementConfirmationGroup],
       tenantContext,
@@ -825,7 +1056,7 @@ describe('PlatformFinanceComponent refund lifecycle table', () => {
     if (!resolveReimbursement) {
       throw new Error('Expected the reimbursement mutation to be pending');
     }
-    resolveReimbursement({ receiptCount: 2 });
+    resolveReimbursement(recordedReimbursement);
 
     await vi.waitFor(() => {
       expect(component['reimbursementMutation'].isPending()).toBe(false);
@@ -834,35 +1065,50 @@ describe('PlatformFinanceComponent refund lifecycle table', () => {
     });
   });
 
-  it('clears tenant-scoped selections and form models when the tenant changes', async () => {
-    const receipt = PlatformFinanceReceiptWithSubmitterRecord.make({
-      alcoholAmount: 0,
-      attachmentFileName: 'tenant-a-receipt.pdf',
-      attachmentMimeType: 'application/pdf',
-      createdAt: '2026-07-10T10:00:00.000Z',
-      currency: 'EUR',
-      depositAmount: 0,
-      eventId: 'tenant-a-event',
-      hasAlcohol: false,
-      hasDeposit: false,
-      id: 'tenant-a-receipt',
-      previewImageUrl: 'https://example.test/tenant-a-receipt.pdf',
-      purchaseCountry: 'DE',
-      receiptDate: '2026-07-09',
-      receiptEvidenceAvailable: true,
-      refundedAt: null,
-      refundTransactionId: null,
-      rejectionReason: null,
-      reviewedAt: null,
-      status: 'submitted',
-      submittedByEmail: 'tenant-a-participant@example.test',
-      submittedByFirstName: 'Tenant A',
-      submittedByLastName: 'Participant',
-      submittedByUserId: 'tenant-a-user',
-      taxAmount: 190,
-      totalAmount: 1190,
-      updatedAt: '2026-07-10T10:00:00.000Z',
+  it('ignores an in-flight receipt detail after the tenant changes', async () => {
+    interface ApprovalDetailResult {
+      receipt: PlatformFinanceReceiptApprovalDetailRecord;
+      tenantContext: PlatformFinanceTenantContext;
+    }
+    let resolveDetail: ((detail: ApprovalDetailResult) => void) | undefined;
+    // Angular's browser library target does not expose Promise.withResolvers.
+    // eslint-disable-next-line unicorn/prefer-promise-with-resolvers
+    const pendingDetail = new Promise<ApprovalDetailResult>((resolve) => {
+      resolveDetail = resolve;
     });
+    loadApprovalDetail.mockImplementationOnce(() => pendingDetail);
+
+    const fixture = TestBed.createComponent(PlatformFinanceComponent);
+    fixture.componentRef.setInput('tenantId', 'tenant-1');
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    const detailPromise = component['chooseReceipt'](
+      approvalQueueReceipt('stale-receipt'),
+    );
+
+    await vi.waitFor(() => {
+      expect(component['receiptDetailPending']()).toBe(true);
+    });
+
+    fixture.componentRef.setInput('tenantId', 'tenant-2');
+    fixture.detectChanges();
+    expect(component['receiptDetailPending']()).toBe(false);
+
+    if (!resolveDetail) {
+      throw new Error('Expected the receipt detail request to be pending');
+    }
+    resolveDetail({
+      receipt: approvalDetailReceipt('stale-receipt'),
+      tenantContext,
+    });
+    await detailPromise;
+
+    expect(component['selectedReceipt']()).toBeNull();
+    expect(component['reviewForm'].id().value()).toBe('');
+  });
+
+  it('clears tenant-scoped selections and form models when the tenant changes', async () => {
+    const receipt = approvalQueueReceipt('tenant-a-receipt');
     const reimbursementGroup = PlatformFinanceReimbursementGroup.make({
       currency: 'EUR',
       payout: {
@@ -914,11 +1160,7 @@ describe('PlatformFinanceComponent refund lifecycle table', () => {
       expect(component['reimbursementQueueQuery'].isSuccess()).toBe(true);
     });
 
-    component['chooseReceipt'](
-      receipt,
-      'Tenant A event',
-      '2026-07-20T10:00:00.000Z',
-    );
+    await component['chooseReceipt'](receipt);
     component['chooseReimbursement'](reimbursementGroup);
     component['chooseRefundClaim'](refundClaim);
     component['reviewModel'].update((model) => ({
@@ -936,6 +1178,13 @@ describe('PlatformFinanceComponent refund lifecycle table', () => {
     component['transactionPageIndex'].set(4);
 
     expect(component['selectedReceipt']()).not.toBeNull();
+    expect(loadApprovalDetail).toHaveBeenCalledWith(
+      'tenant-1',
+      'tenant-a-receipt',
+    );
+    expect(component['selectedReceipt']()?.receipt.previewImageUrl).toBe(
+      'https://example.test/tenant-a-receipt.pdf',
+    );
     expect(component['selectedReimbursement']()).not.toBeNull();
     expect(component['selectedRefundClaim']()).not.toBeNull();
 
@@ -955,5 +1204,802 @@ describe('PlatformFinanceComponent refund lifecycle table', () => {
     expect(component['refundRecoveryForm'].refundClaimId().value()).toBe('');
     expect(component['refundRecoveryForm'].reason().value()).toBe('');
     expect(component['transactionPageIndex']()).toBe(0);
+  });
+
+  const actions = [
+    {
+      action: 'review',
+      mutation: reviewReceiptMutation,
+      path: ['platform', 'finance', 'receipts', 'review'],
+      payload: {
+        alcoholAmount: 0,
+        depositAmount: 0,
+        hasAlcohol: false,
+        hasDeposit: false,
+        id: 'reviewed-receipt',
+        purchaseCountry: 'DE',
+        reason: 'Checked receipt evidence',
+        receiptDate: '2026-07-09',
+        rejectionReason: null,
+        status: 'approved',
+        targetTenantId: 'tenant-1',
+        taxAmount: 190,
+        totalAmount: 1190,
+      },
+      summary: 'Receipt approved',
+    },
+    {
+      action: 'reimbursement',
+      mutation: recordReimbursementMutation,
+      path: ['platform', 'finance', 'receipts', 'recordReimbursement'],
+      payload: {
+        payoutType: 'iban',
+        payoutVersion: 'iban-version-1',
+        reason: 'Paid by bank transfer',
+        receiptIds: ['receipt-1', 'receipt-2'],
+        targetTenantId: 'tenant-1',
+      },
+      summary: 'Recorded reimbursement for 2 receipts',
+    },
+    {
+      action: 'refund',
+      mutation: requeueRefundMutation,
+      path: ['platform', 'finance', 'refundClaims', 'requeue'],
+      payload: {
+        reason: 'Checked refund eligibility',
+        refundClaimId: 'refund-claim',
+        targetTenantId: 'tenant-1',
+      },
+      summary: 'The refund will be tried again',
+    },
+  ] as const;
+  type FinanceAction = (typeof actions)[number]['action'];
+
+  const startAction = (
+    component: PlatformFinanceComponent,
+    action: FinanceAction,
+  ) => {
+    switch (action) {
+      case 'refund': {
+        component['requeueRefundClaim'](new Event('submit'));
+        break;
+      }
+      case 'reimbursement': {
+        component['recordReimbursement'](new Event('submit'));
+        break;
+      }
+      case 'review': {
+        component['reviewReceipt'](new Event('submit'));
+        break;
+      }
+    }
+  };
+
+  const selections = (component: PlatformFinanceComponent) => ({
+    receipt: component['selectedReceipt'](),
+    refund: component['selectedRefundClaim'](),
+    refundModel: component['refundRecoveryModel'](),
+    reimbursement: component['selectedReimbursement'](),
+    reimbursementModel: component['reimbursementModel'](),
+    reviewModel: component['reviewModel'](),
+  });
+
+  const held = <T>() => {
+    let complete: ((value: T) => void) | undefined;
+    // Angular's browser library target does not expose Promise.withResolvers.
+    // eslint-disable-next-line unicorn/prefer-promise-with-resolvers
+    const promise = new Promise<T>((resolve) => {
+      complete = resolve;
+    });
+    return {
+      promise,
+      resolve(value: T) {
+        if (!complete) throw new Error('Expected a registered completion');
+        complete(value);
+      },
+    };
+  };
+
+  it.each(['success', 'rejection'] as const)(
+    'settles a held receipt detail %s without updating a destroyed page',
+    async (outcome) => {
+      const fixture = TestBed.createComponent(PlatformFinanceComponent);
+      const component = fixture.componentInstance;
+      const notifications = TestBed.inject(NotificationService);
+      const detailOptions = TestBed.inject(
+        PlatformFinanceOperations,
+      ).approvalDetail('tenant-1', 'destroyed-receipt');
+      const detail = {
+        receipt: approvalDetailReceipt('destroyed-receipt'),
+        tenantContext,
+      };
+      const failure = new Error('Held receipt detail failed after destruction');
+      const gate = held<undefined>();
+      const nativeRead = gate.promise.then(() => {
+        if (outcome === 'rejection') throw failure;
+        return detail;
+      });
+      let nativeSettled = false;
+      const nativeSettlement = nativeRead.then(
+        () => {
+          nativeSettled = true;
+        },
+        () => {
+          nativeSettled = true;
+        },
+      );
+      loadApprovalDetail.mockReturnValueOnce(nativeRead);
+      let detailOperation: Promise<void> | undefined;
+      let detailSettlement: Promise<void> | undefined;
+      let detailFailure: undefined | { cause: unknown };
+
+      await settleFinanceFixture(async () => {
+        fixture.componentRef.setInput('tenantId', 'tenant-1');
+        fixture.detectChanges();
+        detailOperation = component['chooseReceipt'](
+          approvalQueueReceipt('destroyed-receipt'),
+        );
+        detailSettlement = detailOperation.then(
+          () => {
+            // The operation settled without an unexpected rejection.
+          },
+          (error: unknown) => {
+            detailFailure = { cause: error };
+          },
+        );
+        await vi.waitFor(() => {
+          expect(loadApprovalDetail).toHaveBeenCalledExactlyOnceWith(
+            'tenant-1',
+            'destroyed-receipt',
+          );
+          expect(component['receiptDetailPending']()).toBe(true);
+        });
+
+        const cachedDetail = queryClient.getQueryCache().find({
+          exact: true,
+          queryKey: detailOptions.queryKey,
+        });
+        if (!cachedDetail) {
+          throw new Error('Expected the held receipt detail in the cache');
+        }
+        const reviewBeforeDestruction = component['reviewModel']();
+        expect(nativeSettled).toBe(false);
+        fixture.destroy();
+        expect(fixture.componentRef.hostView.destroyed).toBe(true);
+        expect(nativeSettled).toBe(false);
+        expect(cachedDetail.state.fetchStatus).toBe('fetching');
+
+        gate.resolve(undefined);
+        await detailOperation;
+        await nativeSettlement;
+
+        expect(nativeSettled).toBe(true);
+        expect(cachedDetail.state.fetchStatus).toBe('idle');
+        if (outcome === 'success') {
+          expect(cachedDetail.state.status).toBe('success');
+          expect(cachedDetail.state.data).toEqual(detail);
+        } else {
+          expect(cachedDetail.state.status).toBe('error');
+          expect(cachedDetail.state.error).toBe(failure);
+        }
+        expect(component['selectedReceipt']()).toBeNull();
+        expect(component['reviewModel']()).toBe(reviewBeforeDestruction);
+        expect(notifications.showError).not.toHaveBeenCalled();
+        expect(notifications.showSuccess).not.toHaveBeenCalled();
+        expect(reviewReceiptMutation).not.toHaveBeenCalled();
+        expect(recordReimbursementMutation).not.toHaveBeenCalled();
+        expect(requeueRefundMutation).not.toHaveBeenCalled();
+      }, [
+        () => gate.resolve(undefined),
+        async () => {
+          await nativeSettlement;
+        },
+        async () => {
+          await detailSettlement;
+          if (detailFailure) throw detailFailure.cause;
+        },
+        () => {
+          loadApprovalDetail.mockReset();
+        },
+        () => fixture.destroy(),
+      ]);
+    },
+  );
+
+  const prepareFinance = async () => {
+    openDialog.mockReturnValue({ afterClosed: () => of(true) });
+    const fixture = TestBed.createComponent(PlatformFinanceComponent);
+    fixture.componentRef.setInput('tenantId', 'tenant-1');
+    await fixture.whenStable();
+    const component = fixture.componentInstance;
+    await vi.waitFor(() => {
+      expect(component['approvalQueueQuery'].isSuccess()).toBe(true);
+      expect(component['reimbursementQueueQuery'].isSuccess()).toBe(true);
+      expect(component['recoveryQueueQuery'].isSuccess()).toBe(true);
+      expect(component['transactionsQuery'].isSuccess()).toBe(true);
+      expect(queryClient.isFetching()).toBe(0);
+    });
+    await component['chooseReceipt'](approvalQueueReceipt('reviewed-receipt'));
+    component['reviewModel'].update((model) => ({
+      ...model,
+      reason: 'Checked receipt evidence',
+    }));
+    component['chooseReimbursement'](reimbursementConfirmationGroup);
+    component['reimbursementModel'].update((model) => ({
+      ...model,
+      reason: 'Paid by bank transfer',
+    }));
+    component['chooseRefundClaim'](
+      PlatformFinanceRefundRecoveryRecord.make({
+        amount: 1190,
+        attendeeFirstName: 'Pat',
+        attendeeLastName: 'Example',
+        createdAt: '2026-07-10T10:00:00.000Z',
+        currency: 'EUR',
+        eventId: 'event-refund',
+        eventRegistrationId: 'registration-refund',
+        eventTitle: 'Refund event',
+        id: 'refund-claim',
+        lastError: null,
+        mode: 'newGeneration',
+        sourceTransactionId: 'source-transaction',
+        stripeRefundAttempts: 1,
+        stripeRefundGeneration: 0,
+        stripeRefundMaxAttempts: 8,
+        stripeRefundStatus: 'failed',
+        transfer: null,
+        updatedAt: '2026-07-10T10:05:00.000Z',
+      }),
+    );
+    component['refundRecoveryModel'].update((model) => ({
+      ...model,
+      reason: 'Checked refund eligibility',
+    }));
+    await fixture.whenStable();
+    expect(component['reviewForm']().invalid()).toBe(false);
+    expect(component['reimbursementForm']().invalid()).toBe(false);
+    expect(component['refundRecoveryForm']().invalid()).toBe(false);
+    return { component, fixture };
+  };
+
+  it.each(actions)(
+    'holds $action after the first failed read until its active sibling settles, then checks current state without repeating the write',
+    async ({ action, mutation, path, payload, summary }) => {
+      const { component, fixture } = await prepareFinance();
+      const selected = selections(component);
+      const transactionRead = held<{
+        data: never[];
+        tenantContext: PlatformFinanceTenantContext;
+        total: number;
+      }>();
+      loadApprovalQueue.mockRejectedValueOnce(
+        new Error('Approval read failed'),
+      );
+      loadTransactions.mockReturnValueOnce(transactionRead.promise);
+      await settleFinanceFixture(async () => {
+        startAction(component, action);
+        await vi.waitFor(() => {
+          expect(mutation).toHaveBeenCalledTimes(1);
+          expect(component['approvalQueueQuery'].isError()).toBe(true);
+          expect(component['transactionsQuery'].isFetching()).toBe(true);
+        });
+        expect(mutation).toHaveBeenCalledExactlyOnceWith(payload, {
+          client: queryClient,
+          meta: { rpc: { path } },
+          mutationKey: createRpcQueryKey<undefined>(path, {
+            keyPrefix: 'rpc',
+            type: 'mutation',
+          }),
+        });
+        expect(component['financeActionBusy']()).toBe(true);
+        expect(component['financeOutcome']()).toBeNull();
+        expect(selections(component)).toEqual(selected);
+        expect(component['reviewForm'].reason().disabled()).toBe(true);
+        expect(component['reimbursementForm'].reason().disabled()).toBe(true);
+        expect(component['refundRecoveryForm'].reason().disabled()).toBe(true);
+        for (const candidate of actions)
+          startAction(component, candidate.action);
+        component['chooseReimbursement'](newerReimbursementGroup);
+        component['toggleReimbursementReceipt']('receipt-1', false);
+        expect(selections(component)).toEqual(selected);
+        expect(
+          TestBed.inject(NotificationService).showSuccess,
+        ).not.toHaveBeenCalled();
+      }, [
+        () => transactionRead.resolve({ data: [], tenantContext, total: 0 }),
+        () => transactionRead.promise,
+        () =>
+          vi.waitFor(() =>
+            expect(component['financeActionBusy']()).toBe(false),
+          ),
+      ]);
+      await vi.waitFor(() => {
+        expect(component['financeActionBusy']()).toBe(false);
+        expect(component['financeOutcome']()).toEqual({
+          kind: 'confirmed',
+          readState: 'failed',
+          summary,
+        });
+      });
+      fixture.detectChanges();
+      expect(normalizeText(fixture)).toContain(summary);
+      expect(normalizeText(fixture)).toContain(
+        'The latest finance information could not be loaded.',
+      );
+      expect(normalizeText(fixture)).toContain(
+        'This only loads information; it does not repeat the previous action.',
+      );
+      expect(component['financeActionsDisabled']()).toBe(true);
+      expect(selections(component)).toEqual(selected);
+      for (const candidate of actions) {
+        startAction(component, candidate.action);
+        expect(candidate.mutation).toHaveBeenCalledTimes(
+          candidate.action === action ? 1 : 0,
+        );
+      }
+      await component['showLatestFinance']();
+      expect(component['financeOutcome']()).toBeNull();
+      expect(component['financeActionsDisabled']()).toBe(false);
+      expect(component['selectedReceipt']()).toBeNull();
+      expect(component['selectedReimbursement']()).toBeNull();
+      expect(component['selectedRefundClaim']()).toBeNull();
+      expect(
+        TestBed.inject(NotificationService).showSuccess,
+      ).toHaveBeenCalledExactlyOnceWith(
+        'Latest finance information loaded. Select a record to continue.',
+      );
+      for (const candidate of actions) {
+        expect(candidate.mutation).toHaveBeenCalledTimes(
+          candidate.action === action ? 1 : 0,
+        );
+      }
+    },
+  );
+
+  it.each(
+    actions.flatMap((action) => [
+      {
+        ...action,
+        error: new Error('Response interrupted with private details'),
+        fault: 'transport',
+      },
+      {
+        ...action,
+        error: new RpcInternalServerError({
+          message: 'Response interrupted with private details',
+        }),
+        fault: 'internal',
+      },
+    ]),
+  )(
+    'keeps an unknown $fault $action response locked with the original selection and reason until an explicit read',
+    async ({ action, error, mutation }) => {
+      const { component, fixture } = await prepareFinance();
+      const selected = selections(component);
+      mutation.mockRejectedValueOnce(error);
+      startAction(component, action);
+      await vi.waitFor(() => {
+        expect(mutation).toHaveBeenCalledTimes(1);
+        expect(component['financeOutcome']()?.kind).toBe('unknown');
+        expect(component['financeActionBusy']()).toBe(false);
+      });
+      fixture.detectChanges();
+      expect(component['financeOutcome']()?.readState).toBe('unchecked');
+      expect(normalizeText(fixture)).toContain("We couldn't confirm whether");
+      expect(normalizeText(fixture)).toContain(
+        'Your selection and reason are still here.',
+      );
+      expect(normalizeText(fixture)).not.toContain('private details');
+      expect(
+        TestBed.inject(NotificationService).showSuccess,
+      ).not.toHaveBeenCalled();
+      expect(
+        TestBed.inject(NotificationService).showError,
+      ).not.toHaveBeenCalled();
+      expect(selections(component)).toEqual(selected);
+      for (const candidate of actions) startAction(component, candidate.action);
+      expect(mutation).toHaveBeenCalledTimes(1);
+      loadApprovalQueue.mockRejectedValueOnce(new Error('Read unavailable'));
+      await component['showLatestFinance']();
+      expect(component['financeOutcome']()?.kind).toBe('unknown');
+      expect(component['financeOutcome']()?.readState).toBe('failed');
+      expect(component['financeActionsDisabled']()).toBe(true);
+      expect(selections(component)).toEqual(selected);
+      await component['showLatestFinance']();
+      expect(component['financeOutcome']()).toBeNull();
+      expect(component['financeActionsDisabled']()).toBe(false);
+      for (const candidate of actions) {
+        expect(candidate.mutation).toHaveBeenCalledTimes(
+          candidate.action === action ? 1 : 0,
+        );
+      }
+    },
+  );
+
+  it.each(actions)(
+    'keeps a typed $action denial correctable without clearing its values',
+    async ({ action, mutation }) => {
+      const { component } = await prepareFinance();
+      const selected = selections(component);
+      mutation.mockRejectedValueOnce(
+        new RpcBadRequestError({
+          message: 'This record changed. Check its current status.',
+        }),
+      );
+      startAction(component, action);
+      await vi.waitFor(() => {
+        expect(mutation).toHaveBeenCalledTimes(1);
+        expect(component['financeActionBusy']()).toBe(false);
+        expect(
+          TestBed.inject(NotificationService).showError,
+        ).toHaveBeenCalledExactlyOnceWith(
+          'This record changed. Check its current status.',
+        );
+      });
+      expect(component['financeOutcome']()).toBeNull();
+      expect(component['financeActionsDisabled']()).toBe(false);
+      expect(selections(component)).toEqual(selected);
+      expect(
+        TestBed.inject(NotificationService).showSuccess,
+      ).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(
+    actions.flatMap((action) => [
+      {
+        ...action,
+        error: new RpcUnauthorizedError({
+          message: 'Private authorization context',
+        }),
+        message:
+          'Sign in again, then check the latest finance information before continuing.',
+        tag: 'unauthorized',
+      },
+      {
+        ...action,
+        error: new RpcForbiddenError({
+          message: 'Private authorization context',
+          permission: 'private-permission',
+        }),
+        message:
+          'Your account does not have access to this finance action. Ask an administrator to check your access.',
+        tag: 'forbidden',
+      },
+    ]),
+  )(
+    'shows safe $tag guidance for $action without treating the denial as an uncertain write',
+    async ({ action, error, message, mutation }) => {
+      const { component } = await prepareFinance();
+      const selected = selections(component);
+      mutation.mockRejectedValueOnce(error);
+      startAction(component, action);
+      await vi.waitFor(() => {
+        expect(
+          TestBed.inject(NotificationService).showError,
+        ).toHaveBeenCalledExactlyOnceWith(message);
+        expect(component['financeActionBusy']()).toBe(false);
+      });
+      expect(component['financeOutcome']()).toBeNull();
+      expect(component['financeActionsDisabled']()).toBe(false);
+      expect(selections(component)).toEqual(selected);
+      expect(
+        TestBed.inject(NotificationService).showSuccess,
+      ).not.toHaveBeenCalled();
+    },
+  );
+
+  it('owns all finance controls while reimbursement confirmation is open and releases them on cancellation', async () => {
+    const { component } = await prepareFinance();
+    const selected = selections(component);
+    const confirmation = new Subject<boolean>();
+    openDialog.mockReturnValueOnce({ afterClosed: () => confirmation });
+    await settleFinanceFixture(async () => {
+      startAction(component, 'reimbursement');
+      await vi.waitFor(() =>
+        expect(component['financePhase']()).toBe('confirming'),
+      );
+      for (const candidate of actions) startAction(component, candidate.action);
+      component['chooseReimbursement'](newerReimbursementGroup);
+      component['toggleReimbursementReceipt']('receipt-1', false);
+      expect(component['reimbursementForm'].payoutType().disabled()).toBe(true);
+      expect(component['reviewForm'].reason().disabled()).toBe(true);
+      expect(component['refundRecoveryForm'].reason().disabled()).toBe(true);
+      expect(selections(component)).toEqual(selected);
+      expect(openDialog).toHaveBeenCalledTimes(1);
+      for (const candidate of actions)
+        expect(candidate.mutation).not.toHaveBeenCalled();
+    }, [
+      () => confirmation.next(false),
+      () => confirmation.complete(),
+      () =>
+        vi.waitFor(() => expect(component['financeActionBusy']()).toBe(false)),
+    ]);
+    await vi.waitFor(() =>
+      expect(component['financeActionBusy']()).toBe(false),
+    );
+    expect(component['financeOutcome']()).toBeNull();
+    expect(component['financeActionsDisabled']()).toBe(false);
+    expect(selections(component)).toEqual(selected);
+  });
+
+  it('does not await inactive work or start disabled and static reads during a successful finance update', async () => {
+    const { component } = await prepareFinance();
+    const inactive = held<string>();
+    const disabledRead = vi.fn(async () => 'disabled');
+    const staticRead = vi.fn(async () => 'static');
+    const inactiveRead = queryClient.fetchQuery({
+      queryFn: () => inactive.promise,
+      queryKey: createRpcQueryKey(
+        ['platform', 'finance', 'transactions', 'findMany'],
+        {
+          input: { targetTenantId: 'tenant-1', view: 'inactive' },
+          keyPrefix: 'rpc',
+          type: 'query',
+        },
+      ),
+    });
+    const inactiveResult = inactiveRead.then(
+      () => ({ status: 'fulfilled' as const }),
+      (error: unknown) => ({ error, status: 'rejected' as const }),
+    );
+    const disabledObserver = new QueryObserver(queryClient, {
+      enabled: false,
+      queryFn: disabledRead,
+      queryKey: createRpcQueryKey(
+        ['platform', 'finance', 'transactions', 'findMany'],
+        {
+          input: { targetTenantId: 'tenant-1', view: 'disabled' },
+          keyPrefix: 'rpc',
+          type: 'query',
+        },
+      ),
+    });
+    const staticObserver = new QueryObserver(queryClient, {
+      initialData: 'static',
+      queryFn: staticRead,
+      queryKey: createRpcQueryKey(
+        ['platform', 'finance', 'transactions', 'findMany'],
+        {
+          input: { targetTenantId: 'tenant-1', view: 'static' },
+          keyPrefix: 'rpc',
+          type: 'query',
+        },
+      ),
+      staleTime: 'static',
+    });
+    const unsubscribeDisabled = disabledObserver.subscribe(() => {
+      // Keep this observer attached to verify the disabled query is excluded.
+    });
+    const unsubscribeStatic = staticObserver.subscribe(() => {
+      // Keep this observer attached to verify the static query is excluded.
+    });
+    await settleFinanceFixture(async () => {
+      startAction(component, 'review');
+      await vi.waitFor(() => {
+        expect(reviewReceiptMutation).toHaveBeenCalledTimes(1);
+        expect(component['financeActionBusy']()).toBe(false);
+        expect(component['selectedReceipt']()).toBeNull();
+      });
+      expect(
+        queryClient.getQueryState(
+          createRpcQueryKey(
+            ['platform', 'finance', 'transactions', 'findMany'],
+            {
+              input: { targetTenantId: 'tenant-1', view: 'inactive' },
+              keyPrefix: 'rpc',
+              type: 'query',
+            },
+          ),
+        )?.fetchStatus,
+      ).toBe('fetching');
+      expect(disabledRead).not.toHaveBeenCalled();
+      expect(staticRead).not.toHaveBeenCalled();
+      expect(
+        TestBed.inject(NotificationService).showSuccess,
+      ).toHaveBeenCalledExactlyOnceWith('Receipt approved');
+      expect(component['financeOutcome']()).toBeNull();
+      expect(reviewReceiptMutation.mock.calls[0]?.[0]).toEqual({
+        alcoholAmount: 0,
+        depositAmount: 0,
+        hasAlcohol: false,
+        hasDeposit: false,
+        id: 'reviewed-receipt',
+        purchaseCountry: 'DE',
+        reason: 'Checked receipt evidence',
+        receiptDate: '2026-07-09',
+        rejectionReason: null,
+        status: 'approved',
+        targetTenantId: 'tenant-1',
+        taxAmount: 190,
+        totalAmount: 1190,
+      });
+    }, [
+      () => inactive.resolve('done'),
+      async () => {
+        const result = await inactiveResult;
+        if (result.status === 'rejected') throw result.error;
+      },
+      unsubscribeDisabled,
+      unsubscribeStatic,
+      () =>
+        vi.waitFor(() => expect(component['financeActionBusy']()).toBe(false)),
+    ]);
+  });
+
+  it('retains a confirmed reimbursement while its follow-up reads are paused and only unlocks after an explicit successful read', async () => {
+    const { component, fixture } = await prepareFinance();
+    const selected = selections(component);
+    const originallyOnline = onlineManager.isOnline();
+    recordReimbursementMutation.mockImplementationOnce(async () => {
+      onlineManager.setOnline(false);
+      return recordedReimbursement;
+    });
+    await settleFinanceFixture(async () => {
+      startAction(component, 'reimbursement');
+      await vi.waitFor(() => {
+        expect(component['financeActionBusy']()).toBe(false);
+        expect(component['financeOutcome']()?.readState).toBe('paused');
+      });
+      expect(component['financeOutcome']()?.kind).toBe('confirmed');
+      fixture.detectChanges();
+      expect(normalizeText(fixture)).toContain(
+        'The latest finance information is waiting for a connection.',
+      );
+      expect(normalizeText(fixture)).not.toContain(
+        'The latest finance information could not be loaded.',
+      );
+      expect(component['financeActionsDisabled']()).toBe(true);
+      expect(selections(component)).toEqual(selected);
+      expect(
+        TestBed.inject(NotificationService).showSuccess,
+      ).not.toHaveBeenCalled();
+      for (const candidate of actions) startAction(component, candidate.action);
+      expect(recordReimbursementMutation).toHaveBeenCalledTimes(1);
+    }, [
+      () => onlineManager.setOnline(true),
+      () =>
+        vi.waitFor(() => {
+          const reads = queryClient.getQueryCache().findAll(
+            createRpcQueryFilter(['platform', 'finance'], {
+              keyPrefix: 'rpc',
+            }),
+          );
+          expect(
+            reads.every((query) => query.state.fetchStatus === 'idle'),
+          ).toBe(true);
+        }),
+      () => onlineManager.setOnline(originallyOnline),
+      () =>
+        vi.waitFor(() => expect(component['financeActionBusy']()).toBe(false)),
+    ]);
+    expect(component['financeOutcome']()?.readState).toBe('paused');
+    await component['showLatestFinance']();
+    expect(component['financeOutcome']()).toBeNull();
+    expect(component['selectedReimbursement']()).toBeNull();
+    expect(recordReimbursementMutation).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the outcome when an admitted read is cancelled instead of accepting stale cached data', async () => {
+    const { component } = await prepareFinance();
+    const selected = selections(component);
+    const transactionRead = held<{
+      data: never[];
+      tenantContext: PlatformFinanceTenantContext;
+      total: number;
+    }>();
+    loadTransactions.mockReturnValueOnce(transactionRead.promise);
+    await settleFinanceFixture(async () => {
+      startAction(component, 'review');
+      await vi.waitFor(() =>
+        expect(component['transactionsQuery'].isFetching()).toBe(true),
+      );
+      await queryClient.cancelQueries({
+        queryKey: createRpcQueryKey(
+          ['platform', 'finance', 'transactions', 'findMany'],
+          {
+            input: { limit: 100, offset: 0, targetTenantId: 'tenant-1' },
+            keyPrefix: 'rpc',
+            type: 'query',
+          },
+        ),
+      });
+      await vi.waitFor(() => {
+        expect(component['financeActionBusy']()).toBe(false);
+        expect(component['financeOutcome']()?.readState).toBe('failed');
+      });
+      expect(component['financeOutcome']()?.kind).toBe('confirmed');
+      expect(selections(component)).toEqual(selected);
+      expect(component['financeActionsDisabled']()).toBe(true);
+      expect(
+        TestBed.inject(NotificationService).showSuccess,
+      ).not.toHaveBeenCalled();
+    }, [
+      () => transactionRead.resolve({ data: [], tenantContext, total: 0 }),
+      () => transactionRead.promise,
+      () =>
+        vi.waitFor(() => expect(component['financeActionBusy']()).toBe(false)),
+    ]);
+    await component['showLatestFinance']();
+    expect(component['financeOutcome']()).toBeNull();
+    expect(reviewReceiptMutation).toHaveBeenCalledTimes(1);
+  });
+
+  it('holds an old tenant action through its owned read and does not carry its outcome into the new tenant', async () => {
+    const { component, fixture } = await prepareFinance();
+    const transactionRead = held<{
+      data: never[];
+      tenantContext: PlatformFinanceTenantContext;
+      total: number;
+    }>();
+    loadTransactions.mockReturnValueOnce(transactionRead.promise);
+    await settleFinanceFixture(async () => {
+      startAction(component, 'refund');
+      await vi.waitFor(() => {
+        expect(requeueRefundMutation).toHaveBeenCalledTimes(1);
+        expect(component['transactionsQuery'].isFetching()).toBe(true);
+      });
+      const nextTenantContext = PlatformFinanceTenantContext.make({
+        ...tenantContext,
+        targetTenantId: 'tenant-2',
+      });
+      loadApprovalQueue.mockResolvedValue({
+        groups: [],
+        tenantContext: nextTenantContext,
+      });
+      loadReimbursementQueue.mockResolvedValue({
+        groups: [],
+        tenantContext: nextTenantContext,
+      });
+      loadRecoveryQueue.mockResolvedValue({
+        claims: [],
+        tenantContext: nextTenantContext,
+      });
+      loadTransactions.mockResolvedValue({
+        data: [],
+        tenantContext: nextTenantContext,
+        total: 0,
+      });
+      fixture.componentRef.setInput('tenantId', 'tenant-2');
+      fixture.detectChanges();
+      expect(component['selectedReceipt']()).toBeNull();
+      expect(component['selectedReimbursement']()).toBeNull();
+      expect(component['selectedRefundClaim']()).toBeNull();
+      expect(component['financeActionBusy']()).toBe(true);
+      expect(component['financeOutcome']()).toBeNull();
+      for (const candidate of actions) startAction(component, candidate.action);
+      expect(requeueRefundMutation.mock.calls[0]?.[0]).toEqual({
+        reason: 'Checked refund eligibility',
+        refundClaimId: 'refund-claim',
+        targetTenantId: 'tenant-1',
+      });
+    }, [
+      () => transactionRead.resolve({ data: [], tenantContext, total: 0 }),
+      () => transactionRead.promise,
+      () =>
+        vi.waitFor(() => expect(component['financeActionBusy']()).toBe(false)),
+    ]);
+    await vi.waitFor(() =>
+      expect(component['financeActionBusy']()).toBe(false),
+    );
+    await vi.waitFor(() => {
+      expect(
+        component['transactionsQuery'].data()?.tenantContext.targetTenantId,
+      ).toBe('tenant-2');
+    });
+    expect(component['financeOutcome']()).toBeNull();
+    expect(component['refundRecoveryModel']()).toEqual({
+      reason: '',
+      refundClaimId: '',
+    });
+    expect(
+      TestBed.inject(NotificationService).showSuccess,
+    ).not.toHaveBeenCalled();
+    expect(
+      TestBed.inject(NotificationService).showError,
+    ).not.toHaveBeenCalled();
+    expect(requeueRefundMutation).toHaveBeenCalledTimes(1);
+    expect(reviewReceiptMutation).not.toHaveBeenCalled();
+    expect(recordReimbursementMutation).not.toHaveBeenCalled();
   });
 });

@@ -574,10 +574,10 @@ ESNcard provider credential path.
     mutation is pending, and that finance receipt contact details prefer the
     submitter's notification email with login email fallback.
     `docs/finance/receipt-review-reimbursement.doc.ts` now follows the exact
-    seeded receipt through a real MinIO-backed preview, approval, and
+    owned receipt through a real MinIO-backed preview, approval, and
     reimbursement by id/file name, reads the approved/refunded state back, and
-    restores the seeded receipt plus generated reimbursement transaction after
-    the documentation journey. The functional finance flow also seeds a scoped
+    removes the owned receipt, upload, recipient, and generated reimbursement
+    transaction after the documentation journey. The functional finance flow also seeds a scoped
     upload row with no object and proves approval is disabled while rejection
     still succeeds.
   - Keep event-organizer receipt submission action coverage aligned with the

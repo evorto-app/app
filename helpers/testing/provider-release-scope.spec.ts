@@ -151,6 +151,9 @@ describe('production provider scope', () => {
     const receiptMedia = source(
       'src/server/effect/rpc/handlers/finance/receipt-media.service.ts',
     );
+    const receiptMediaHandlers = source(
+      'src/server/effect/rpc/handlers/finance/finance-media.handlers.ts',
+    );
     const tenantBrandAssets = source('src/server/tenant-brand-assets.ts');
     const tenantBrandAssetHandler = source(
       'src/server/http/tenant-brand-asset.web-handler.ts',
@@ -195,9 +198,26 @@ describe('production provider scope', () => {
       "from '../../../../integrations/object-storage';",
     );
     expect(receiptMedia).toContain('.presignPost({');
-    expect(receiptMedia).toContain('objectStorage.get(input.storageKey)');
-    expect(receiptMedia).toContain('const stored = yield* objectStorage');
-    expect(receiptMedia).toContain('.put({');
+    const inspectionStart = receiptMedia.indexOf(
+      "const inspectUpload = Effect.fn('ReceiptMediaService.inspectUpload')",
+    );
+    const promotionStart = receiptMedia.indexOf(
+      "const promoteUpload = Effect.fn('ReceiptMediaService.promoteUpload')",
+    );
+    expect(inspectionStart).toBeGreaterThanOrEqual(0);
+    expect(promotionStart).toBeGreaterThan(inspectionStart);
+    const inspection = receiptMedia.slice(inspectionStart, promotionStart);
+    const promotion = receiptMedia.slice(promotionStart);
+    expect(inspection).toContain('objectStorage.get(input.storageKey)');
+    expect(inspection).not.toContain('.put(');
+    expect(promotion).toContain('yield* objectStorage');
+    expect(promotion).toContain('.put({');
+    expect(promotion).toContain('body: input.body,');
+    expect(promotion).toContain('contentType: input.mimeType,');
+    expect(promotion).toContain('key: input.storageKey,');
+    expect(receiptMediaHandlers).toContain(
+      'yield* ReceiptMediaService.promoteUpload(inspected);',
+    );
     expect(receiptMedia).toContain('.presignGet(');
     expect(receiptMedia).toContain('export const buildReceiptUploadStorageKey');
     expect(receiptMedia).toContain('export const buildReceiptStorageKey');
@@ -210,7 +230,7 @@ describe('production provider scope', () => {
     );
     expect(tenantBrandAssets).toContain('yield* ObjectStorage.put({');
     expect(tenantBrandAssetHandler).toContain(
-      "import { ObjectStorage } from '../integrations/object-storage';",
+      "from '../integrations/object-storage';",
     );
     expect(tenantBrandAssetHandler).toContain(
       'const storageKey = tenantBrandAssetStorageKey({',

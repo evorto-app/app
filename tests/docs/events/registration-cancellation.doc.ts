@@ -1349,7 +1349,7 @@ Switch to an organizer account with access to check-in and add-on fulfillment fo
 
 A Stripe **requires action** update keeps the registration cancelled and links the update to the same Stripe refund. The profile asks the participant to **Contact organizer for refund update**, while the organizer scanner shows **Refund needs review**. The participant should not register, pay, or cancel again. The organizer can explain that the connected Stripe account needs action before a platform administrator resumes status checks for this exact refund.
 
-When the safe automatic checks have stopped, open the organization's **Review finance** page. The **Transactions** tab shows **Action required in Stripe**. In **Refund recovery**, match the event and refund amount, then choose **Review recovery**. The review shows the safe next step without exposing internal payment identifiers or raw Stripe errors. **Resume refund checks** continues checking the same Stripe refund; it does not issue another refund.
+When the safe automatic checks have stopped, open the organization's **Review finance** page. The **Payment history** tab shows **Payment action needed**. In **Refunds needing attention**, match the event and refund amount, then choose **Review refund**. The review shows the safe next step without exposing internal payment identifiers or raw Stripe errors. **Continue refund** continues checking the same Stripe refund; it does not issue another refund.
 `,
     });
 
@@ -1373,44 +1373,42 @@ When the safe automatic checks have stopped, open the organization's **Review fi
     const providerActionTransactionRow = recoveryPage.page
       .getByRole('row')
       .filter({ hasText: refundAmountLabel })
-      .filter({ hasText: 'Action required in Stripe' });
+      .filter({ hasText: 'Payment action needed' });
     await expect(providerActionTransactionRow).toBeVisible({ timeout: 20_000 });
     await expect(providerActionTransactionRow).toContainText(
-      'Complete the required action in the connected Stripe account, then open Refund recovery to resume checks.',
+      "Complete the required step in the organization's payment account, then open Refunds needing attention to continue.",
     );
     await recoveryPage.page
-      .getByRole('tab', { name: 'Refund recovery' })
+      .getByRole('tab', { name: 'Refunds needing attention' })
       .click();
     const stoppedRecoveryRow = recoveryPage.page
       .locator('div.border-b')
       .filter({
-        hasText: 'Automatic refund checks stopped before completion.',
+        hasText: 'This refund did not finish and needs review.',
       });
     await expect(stoppedRecoveryRow).toBeVisible({ timeout: 20_000 });
     await expect(stoppedRecoveryRow).toContainText(scenario.title);
     await expect(stoppedRecoveryRow).toContainText(refundAmountLabel);
     await stoppedRecoveryRow
-      .getByRole('button', { name: 'Review recovery' })
+      .getByRole('button', { name: 'Review refund' })
       .click();
     const resumeRecoveryForm = recoveryPage.page
       .getByRole('heading', {
         level: 2,
-        name: 'Resume refund checks',
+        name: 'Continue refund',
       })
       .locator('..');
     await expect(resumeRecoveryForm).toBeVisible();
     await expect(resumeRecoveryForm).toContainText(scenario.title);
     await expect(resumeRecoveryForm).toContainText(refundAmountLabel);
-    await expect(resumeRecoveryForm).toContainText(
-      'Resume checks for this refund',
-    );
+    await expect(resumeRecoveryForm).toContainText('Continue this refund');
     await expect(resumeRecoveryForm).not.toContainText(refundClaim.id);
     await expect(resumeRecoveryForm).not.toContainText(scenario.registrationId);
     await expect(resumeRecoveryForm).not.toContainText(
       settledCheckout.transactionId,
     );
     await recoveryPage.page
-      .getByLabel('Operational recovery reason')
+      .getByLabel('Reason for this action')
       .fill(resumeReason);
     await takeScreenshot(
       testInfo,
@@ -1419,10 +1417,10 @@ When the safe automatic checks have stopped, open the organization's **Review fi
       'Review and resume the exact stopped Stripe refund',
     );
     await recoveryPage.page
-      .getByRole('button', { name: 'Resume refund checks' })
+      .getByRole('button', { name: 'Continue refund' })
       .click();
     await expect(
-      recoveryPage.page.getByText('Refund checks resumed', {
+      recoveryPage.page.getByText('Refund continued', {
         exact: true,
       }),
     ).toBeVisible({ timeout: 20_000 });
@@ -1536,7 +1534,7 @@ When the safe automatic checks have stopped, open the organization's **Review fi
 
 After status checks resume, a Stripe **failed** update for the same refund asks the participant to **Contact organizer for refund update** and changes the organizer result to **Refund needs attention**. It does not create a second refund.
 
-Switch to a platform administrator account; an organization Admin role is not sufficient. Open the affected organization, select **Review finance**, open **Refund recovery**, and review the event, attendee, refund amount, failed state, and safe next step. Internal payment identifiers and raw Stripe errors remain hidden. Enter a specific **Operational recovery reason**, then choose **Retry failed refund**. Evorto keeps the failed Stripe refund in payment history, starts a new attempt for the same amount, and includes the reason in change history. It does not create a second refund.
+Switch to a platform administrator account; an organization Admin role is not sufficient. Open the affected organization, select **Review finance**, open **Refunds needing attention**, and review the event, attendee, refund amount, failed state, and safe next step. Internal payment identifiers and raw Stripe errors remain hidden. Enter a specific **Reason for this action**, then choose **Try failed refund again**. Evorto keeps the failed Stripe refund in payment history, starts a new attempt for the same amount, and includes the reason in change history. It does not create a second refund.
 `,
     });
     await takeScreenshot(
@@ -1553,34 +1551,34 @@ Switch to a platform administrator account; an organization Admin role is not su
       }),
     ).toBeVisible();
     await recoveryPage.page
-      .getByRole('tab', { name: 'Refund recovery' })
+      .getByRole('tab', { name: 'Refunds needing attention' })
       .click();
     const terminalRecoveryRow = recoveryPage.page
       .locator('div.border-b')
-      .filter({ hasText: 'Stripe marked the previous refund as failed.' });
+      .filter({ hasText: 'The previous refund failed.' });
     await expect(terminalRecoveryRow).toBeVisible({ timeout: 20_000 });
     await expect(terminalRecoveryRow).toContainText(scenario.title);
     await expect(terminalRecoveryRow).toContainText(refundAmountLabel);
     await terminalRecoveryRow
-      .getByRole('button', { name: 'Review recovery' })
+      .getByRole('button', { name: 'Review refund' })
       .click();
     const retryRecoveryForm = recoveryPage.page
       .getByRole('heading', {
         level: 2,
-        name: 'Retry failed refund',
+        name: 'Try failed refund again',
       })
       .locator('..');
     await expect(retryRecoveryForm).toBeVisible();
     await expect(retryRecoveryForm).toContainText(scenario.title);
     await expect(retryRecoveryForm).toContainText(refundAmountLabel);
-    await expect(retryRecoveryForm).toContainText('Retry this failed refund');
+    await expect(retryRecoveryForm).toContainText('Try this refund again');
     await expect(retryRecoveryForm).not.toContainText(refundClaim.id);
     await expect(retryRecoveryForm).not.toContainText(scenario.registrationId);
     await expect(retryRecoveryForm).not.toContainText(
       settledCheckout.transactionId,
     );
     await recoveryPage.page
-      .getByLabel('Operational recovery reason')
+      .getByLabel('Reason for this action')
       .fill(newGenerationReason);
     await takeScreenshot(
       testInfo,
@@ -1589,10 +1587,10 @@ Switch to a platform administrator account; an organization Admin role is not su
       'Review and schedule the terminal add-on refund',
     );
     await recoveryPage.page
-      .getByRole('button', { name: 'Retry failed refund' })
+      .getByRole('button', { name: 'Try failed refund again' })
       .click();
     await expect(
-      recoveryPage.page.getByText('Failed refund scheduled for retry', {
+      recoveryPage.page.getByText('The refund will be tried again', {
         exact: true,
       }),
     ).toBeVisible({ timeout: 20_000 });

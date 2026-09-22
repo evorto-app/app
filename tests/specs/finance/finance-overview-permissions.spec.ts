@@ -14,7 +14,7 @@ const financePermissions = [
 
 const financeLinks = [
   {
-    name: 'Transactions',
+    name: 'Payment history',
     permission: 'finance:viewTransactions',
   },
   {

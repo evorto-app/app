@@ -10,12 +10,15 @@ import { ConfigProvider, Effect, Layer } from 'effect';
 
 import { ObjectStorage } from './integrations/object-storage';
 import {
+  detectTenantBrandAssetFileType,
   sanitizeTenantBrandAssetFileName,
   tenantBrandAssetContentTypeFromFileName,
   tenantBrandAssetStorageKey,
   tenantBrandAssetUrl,
   uploadTenantBrandAsset,
 } from './tenant-brand-assets';
+
+const pngBytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
 const runtimeGlobal = globalThis as typeof globalThis & {
   Bun?: {
@@ -98,7 +101,7 @@ describe('tenant brand assets', () => {
 
   it.effect('uploads a logo and returns an app-origin tenant asset URL', () =>
     Effect.gen(function* () {
-      const write = vi.fn(async () => 3);
+      const write = vi.fn(async () => pngBytes.byteLength);
       const captured = {
         key: '',
       };
@@ -117,9 +120,9 @@ describe('tenant brand assets', () => {
       bunRuntime.S3Client = FakeS3Client;
 
       const result = yield* uploadTenantBrandAsset({
-        fileBase64: Buffer.from([1, 2, 3]).toString('base64'),
+        fileBase64: pngBytes.toString('base64'),
         fileName: 'Section Logo.png',
-        fileSizeBytes: 3,
+        fileSizeBytes: pngBytes.byteLength,
         kind: 'logo',
         mimeType: 'image/png',
         tenantId: 'tenant-1',
@@ -129,15 +132,55 @@ describe('tenant brand assets', () => {
         /^tenant-assets\/tenant-1\/logo\/[0-9a-f-]{36}-Section-Logo\.png$/,
       );
       expect(new Uint8Array(write.mock.calls[0]?.[0] as Uint8Array)).toEqual(
-        new Uint8Array([1, 2, 3]),
+        new Uint8Array(pngBytes),
       );
       expect(write.mock.calls[0]?.[1]).toEqual({ type: 'image/png' });
       expect(result).toEqual({
         assetUrl: `/${captured.key}`,
-        sizeBytes: 3,
+        sizeBytes: pngBytes.byteLength,
         storageKey: captured.key,
       });
     }),
+  );
+
+  it('detects only the supported brand-asset signatures', () => {
+    expect(detectTenantBrandAssetFileType(pngBytes)).toBe('png');
+    expect(
+      detectTenantBrandAssetFileType(
+        Buffer.from([0x47, 0x49, 0x46, 0x38, 0x39, 0x61]),
+      ),
+    ).toBe('gif');
+    expect(
+      detectTenantBrandAssetFileType(
+        Buffer.from([
+          0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50,
+        ]),
+      ),
+    ).toBe('webp');
+    expect(detectTenantBrandAssetFileType(Buffer.from('<html>'))).toBe(
+      undefined,
+    );
+  });
+
+  it.effect(
+    'rejects a payload whose bytes do not match its image MIME type',
+    () =>
+      Effect.gen(function* () {
+        const body = Buffer.from('<html>not an image</html>');
+        const error = yield* uploadTenantBrandAsset({
+          fileBase64: body.toString('base64'),
+          fileName: 'logo.png',
+          fileSizeBytes: body.byteLength,
+          kind: 'logo',
+          mimeType: 'image/png',
+          tenantId: 'tenant-1',
+        }).pipe(Effect.flip);
+
+        expect(error['_tag']).toBe('RpcBadRequestError');
+        expect(error.message).toBe(
+          'This file could not be used as an image. Choose another image.',
+        );
+      }),
   );
 
   it.effect('rejects SVG uploads for tenant brand assets', () =>
@@ -152,15 +195,18 @@ describe('tenant brand assets', () => {
       }).pipe(Effect.flip);
 
       expect(error['_tag']).toBe('RpcBadRequestError');
+      expect(error.message).toBe(
+        'This image type cannot be used. Choose another image.',
+      );
     }),
   );
 
   it.effect('rejects payloads that do not match the declared file size', () =>
     Effect.gen(function* () {
       const error = yield* uploadTenantBrandAsset({
-        fileBase64: Buffer.from([1, 2, 3]).toString('base64'),
+        fileBase64: pngBytes.toString('base64'),
         fileName: 'logo.png',
-        fileSizeBytes: 4,
+        fileSizeBytes: pngBytes.byteLength + 1,
         kind: 'logo',
         mimeType: 'image/png',
         tenantId: 'tenant-1',
@@ -168,7 +214,7 @@ describe('tenant brand assets', () => {
 
       expect(error['_tag']).toBe('RpcBadRequestError');
       expect(error.message).toBe(
-        'Uploaded file size does not match payload metadata',
+        'This image could not be verified. Choose the file again.',
       );
     }),
   );

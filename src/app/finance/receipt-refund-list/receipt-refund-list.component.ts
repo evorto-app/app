@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  computed,
   effect,
   inject,
   signal,
@@ -11,10 +12,16 @@ import { MatDialog } from '@angular/material/dialog';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTableModule } from '@angular/material/table';
 import {
+  RpcForbiddenError,
+  RpcUnauthorizedError,
+} from '@shared/errors/rpc-errors';
+import { maximumFinanceReimbursementReceiptCount } from '@shared/finance/reimbursement';
+import {
   injectMutation,
   injectQuery,
   QueryClient,
 } from '@tanstack/angular-query-experimental';
+import { firstValueFrom } from 'rxjs';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
@@ -25,6 +32,10 @@ import {
   isSafeReceiptPreviewUrl,
   ReceiptPreviewDialogComponent,
 } from '../shared/receipt-preview-dialog/receipt-preview-dialog.component';
+import {
+  type ReimbursementConfirmationData,
+  ReimbursementConfirmationDialogComponent,
+} from '../shared/reimbursement-confirmation-dialog/reimbursement-confirmation-dialog.component';
 
 export type ReceiptReimbursementPayoutType = 'iban' | 'paypal';
 type ReceiptCurrency = 'AUD' | 'CZK' | 'EUR';
@@ -35,7 +46,7 @@ interface ReceiptReimbursementPayoutDetails {
 }
 
 export const receiptReimbursementManualNotice =
-  'Recording a reimbursement creates the Evorto finance transaction only. Transfer the money manually through the selected payout method.';
+  'This only records that you paid the reimbursement. Evorto does not transfer the money.';
 
 export const receiptReimbursementMissingPayoutNotice =
   'This person has no payout details. Ask them to add an IBAN or PayPal address to their profile before recording a reimbursement.';
@@ -46,6 +57,9 @@ export function receiptReimbursementCanRecord(
   payoutType: ReceiptReimbursementPayoutType,
 ): boolean {
   if (selectedReceiptIds.length === 0) {
+    return false;
+  }
+  if (selectedReceiptIds.length > maximumFinanceReimbursementReceiptCount) {
     return false;
   }
 
@@ -105,6 +119,26 @@ export const receiptReimbursementGroupKey = (group: {
   submittedByUserId: string;
 }): string => `${group.submittedByUserId}:${group.currency}`;
 
+export const receiptReimbursementConfirmationData = (input: {
+  currency: ReceiptCurrency;
+  payoutDestination: string;
+  payoutType: ReceiptReimbursementPayoutType;
+  receiptCount: number;
+  recipientEmail: string;
+  recipientFirstName: string;
+  recipientLastName: string;
+  totalAmount: number;
+}): ReimbursementConfirmationData => ({
+  currency: input.currency,
+  payoutDestination: input.payoutDestination,
+  payoutMethod: input.payoutType === 'paypal' ? 'PayPal' : 'Bank transfer',
+  receiptCount: input.receiptCount,
+  recipient:
+    `${input.recipientFirstName} ${input.recipientLastName}`.trim() ||
+    input.recipientEmail,
+  totalAmount: input.totalAmount,
+});
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
@@ -128,6 +162,8 @@ export class ReceiptRefundListComponent {
     'totalAmount',
     'preview',
   ];
+  protected readonly maximumFinanceReimbursementReceiptCount =
+    maximumFinanceReimbursementReceiptCount;
   protected readonly receiptReimbursementHasPayoutDetails =
     receiptReimbursementHasPayoutDetails;
   protected readonly receiptReimbursementManualNotice =
@@ -146,9 +182,20 @@ export class ReceiptRefundListComponent {
   protected readonly refundableReceiptsQuery = injectQuery(() =>
     this.rpc.finance.receipts.refundableGroupedByRecipient.queryOptions(),
   );
-  protected readonly refundMutation = injectMutation(() =>
-    this.rpc.finance.receipts.createRefund.mutationOptions(),
+  protected readonly refundGroups = signal<
+    NonNullable<ReturnType<typeof this.refundableReceiptsQuery.data>>
+  >([]);
+  protected readonly refundPhase = signal<
+    'confirming' | 'idle' | 'refreshing' | 'saved' | 'saving' | 'unknown'
+  >('idle');
+  protected readonly refundLocked = computed(
+    () => this.refundPhase() !== 'idle',
   );
+  protected readonly refundMessage = signal<null | string>(null);
+  protected readonly refundMutation = injectMutation(() => ({
+    ...this.rpc.finance.receipts.createRefund.mutationOptions(),
+    retry: false,
+  }));
 
   protected readonly reimbursementGroupKey = receiptReimbursementGroupKey;
   private readonly dialog = inject(MatDialog);
@@ -165,12 +212,13 @@ export class ReceiptRefundListComponent {
 
   constructor() {
     effect(() => {
+      if (this.refundLocked()) return;
       const groups = this.refundableReceiptsQuery.isSuccess()
         ? this.refundableReceiptsQuery.data()
-        : [];
-      if (groups.length === 0) {
-        return;
-      }
+        : undefined;
+      if (!groups) return;
+      this.refundGroups.set(groups);
+      if (groups.length === 0) return;
 
       this.payoutTypeByRecipient.update((current) => {
         let hasChanges = false;
@@ -275,8 +323,14 @@ export class ReceiptRefundListComponent {
   protected async refundRecipient(group: {
     currency: ReceiptCurrency;
     payout: { iban: null | string; paypalEmail: null | string };
+    receipts: readonly { id: string; totalAmount: number }[];
+    submittedByEmail: string;
+    submittedByFirstName: string;
+    submittedByLastName: string;
     submittedByUserId: string;
   }): Promise<void> {
+    if (this.refundLocked() || this.refundMutation.isPending()) return;
+    this.refundMessage.set(null);
     const groupKey = receiptReimbursementGroupKey(group);
     const receiptIds = this.selectedReceiptIds(groupKey);
     const payoutType = this.getPayoutType(groupKey, group.payout);
@@ -308,55 +362,96 @@ export class ReceiptRefundListComponent {
       return;
     }
 
+    this.refundPhase.set('confirming');
+    let confirmed: boolean | undefined;
     try {
-      const firstReceiptId = receiptIds[0];
-      if (!firstReceiptId) {
-        this.notifications.showError('Select at least one receipt');
-        return;
-      }
-      const otherReceiptIds = receiptIds.slice(1);
-      await this.refundMutation.mutateAsync(
-        {
-          payoutReference,
-          payoutType,
-          receiptIds: [firstReceiptId, ...otherReceiptIds],
-        },
-        {
-          onSuccess: async () => {
-            await this.queryClient.invalidateQueries(
-              this.rpc.queryFilter([
-                'finance',
-                'receipts.refundableGroupedByRecipient',
-              ]),
-            );
-            await this.queryClient.invalidateQueries(
-              this.rpc.queryFilter([
-                'finance',
-                'receipts.pendingApprovalGrouped',
-              ]),
-            );
-            await this.queryClient.invalidateQueries(
-              this.rpc.queryFilter(['finance', 'transactions.findMany']),
-            );
-          },
-        },
+      confirmed = await firstValueFrom(
+        this.dialog
+          .open<
+            ReimbursementConfirmationDialogComponent,
+            ReimbursementConfirmationData,
+            boolean
+          >(ReimbursementConfirmationDialogComponent, {
+            data: receiptReimbursementConfirmationData({
+              currency: group.currency,
+              payoutDestination: payoutReference,
+              payoutType,
+              receiptCount: receiptIds.length,
+              recipientEmail: group.submittedByEmail,
+              recipientFirstName: group.submittedByFirstName,
+              recipientLastName: group.submittedByLastName,
+              totalAmount: receiptReimbursementSelectedTotal(
+                group.receipts,
+                receiptIds,
+              ),
+            }),
+            width: 'min(38rem, calc(100vw - 2rem))',
+          })
+          .afterClosed(),
       );
-      this.notifications.showSuccess('Reimbursement transaction recorded');
-      this.selectionByRecipient.update((current) => ({
-        ...current,
-        [groupKey]: {},
-      }));
-    } catch (error) {
-      this.notifications.showError(
-        getErrorMessage(error, 'Failed to record reimbursement', [
-          'RpcBadRequestError',
-          'FinanceReceiptNotFoundError',
-          'FinanceResourceNotFoundError',
-          'ReceiptMediaBadRequestError',
-          'ReceiptMediaServiceUnavailableError',
-        ]),
+    } catch {
+      this.refundPhase.set('idle');
+      this.showRefundError(
+        'The confirmation could not be completed. No reimbursement was submitted. Try again.',
       );
+      return;
     }
+    if (confirmed !== true) {
+      this.refundPhase.set('idle');
+      return;
+    }
+
+    const firstReceiptId = receiptIds[0];
+    if (!firstReceiptId) {
+      this.refundPhase.set('idle');
+      this.notifications.showError('Select at least one receipt');
+      return;
+    }
+    const otherReceiptIds = receiptIds.slice(1);
+    this.refundPhase.set('saving');
+    try {
+      await this.refundMutation.mutateAsync({
+        payoutReference,
+        payoutType,
+        receiptIds: [firstReceiptId, ...otherReceiptIds],
+      });
+    } catch (error) {
+      const denial =
+        error instanceof RpcUnauthorizedError
+          ? 'Sign in again before recording this reimbursement.'
+          : error instanceof RpcForbiddenError
+            ? 'You do not have access to record this reimbursement. Check your active section and permissions.'
+            : getErrorMessage(error, '', [
+                'RpcBadRequestError',
+                'FinanceReceiptNotFoundError',
+                'FinanceResourceNotFoundError',
+                'ReceiptMediaBadRequestError',
+                'ReceiptMediaServiceUnavailableError',
+              ]);
+      this.refundPhase.set(denial ? 'idle' : 'unknown');
+      this.showRefundError(
+        denial ||
+          'The reimbursement outcome could not be confirmed. Load the page again and check the current receipts and transactions before recording it again.',
+      );
+      return;
+    }
+
+    this.refundPhase.set('refreshing');
+    try {
+      await this.refreshRefundLists();
+    } catch {
+      this.refundPhase.set('saved');
+      this.showRefundError(
+        'The reimbursement was recorded, but the latest receipts and transactions could not be loaded. Load the page again to see the recorded reimbursement before making another change.',
+      );
+      return;
+    }
+    this.selectionByRecipient.update((current) => ({
+      ...current,
+      [groupKey]: {},
+    }));
+    this.refundPhase.set('idle');
+    this.notifications.showSuccess('Reimbursement recorded');
   }
 
   protected selectedReceiptIds(recipientId: string): string[] {
@@ -380,6 +475,7 @@ export class ReceiptRefundListComponent {
     recipientId: string,
     payoutType: null | string,
   ): void {
+    if (this.refundLocked()) return;
     if (payoutType !== 'iban' && payoutType !== 'paypal') {
       return;
     }
@@ -394,10 +490,15 @@ export class ReceiptRefundListComponent {
     receiptIds: readonly string[],
     checked: boolean,
   ): void {
+    if (this.refundLocked()) return;
+    const boundedReceiptIds = receiptIds.slice(
+      0,
+      maximumFinanceReimbursementReceiptCount,
+    );
     this.selectionByRecipient.update((current) => ({
       ...current,
       [recipientId]: Object.fromEntries(
-        receiptIds.map((receiptId) => [receiptId, checked]),
+        boundedReceiptIds.map((receiptId) => [receiptId, checked]),
       ),
     }));
   }
@@ -407,6 +508,18 @@ export class ReceiptRefundListComponent {
     receiptId: string,
     checked: boolean,
   ): void {
+    if (this.refundLocked()) return;
+    if (
+      checked &&
+      !this.isReceiptSelected(recipientId, receiptId) &&
+      this.selectedReceiptIds(recipientId).length >=
+        maximumFinanceReimbursementReceiptCount
+    ) {
+      this.notifications.showError(
+        `Select at most ${maximumFinanceReimbursementReceiptCount} receipts per reimbursement`,
+      );
+      return;
+    }
     this.selectionByRecipient.update((current) => ({
       ...current,
       [recipientId]: {
@@ -414,5 +527,66 @@ export class ReceiptRefundListComponent {
         [receiptId]: checked,
       },
     }));
+  }
+
+  private async refreshRefundLists(): Promise<void> {
+    const filters = [
+      this.rpc.queryFilter([
+        'finance',
+        'receipts',
+        'refundableGroupedByRecipient',
+      ]),
+      this.rpc.queryFilter(['finance', 'receipts', 'pendingApprovalGrouped']),
+      this.rpc.queryFilter(['finance', 'transactions', 'findMany']),
+    ];
+    const reads = filters.map(async (filter) => {
+      const invalidation = this.queryClient.invalidateQueries(filter, {
+        throwOnError: true,
+      });
+      const activeQueries = this.queryClient
+        .getQueryCache()
+        .findAll({ ...filter, type: 'active' })
+        .filter((query) => !query.isDisabled() && !query.isStatic());
+      const results = await Promise.allSettled([
+        invalidation,
+        ...activeQueries
+          .filter((query) => query.state.fetchStatus === 'fetching')
+          .map((query) => query.promise),
+      ]);
+      const failures: unknown[] = [];
+      for (const result of results) {
+        if (result.status === 'rejected') failures.push(result.reason);
+      }
+      if (failures.length > 0)
+        throw new AggregateError(
+          failures,
+          'Reimbursement follow-up reads failed',
+        );
+      if (
+        activeQueries.some(
+          (query) =>
+            query.state.status !== 'success' ||
+            query.state.fetchStatus !== 'idle' ||
+            query.state.isInvalidated,
+        )
+      ) {
+        throw new Error('Reimbursement follow-up reads did not complete');
+      }
+    });
+    const results = await Promise.allSettled(reads);
+    const failures: unknown[] = [];
+    for (const result of results) {
+      if (result.status === 'rejected') failures.push(result.reason);
+    }
+    if (failures.length > 0)
+      throw new AggregateError(
+        failures,
+        'Reimbursement follow-up reads failed',
+      );
+  }
+
+  private showRefundError(message: string): void {
+    this.refundMessage.set(message);
+    this.notifications.showError(message);
   }
 }

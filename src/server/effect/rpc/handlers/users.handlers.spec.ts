@@ -1215,3 +1215,88 @@ describe('userHandlers', () => {
     }),
   );
 });
+
+describe('profile payout writer guards', () => {
+  it.effect(
+    'rejects non-canonical payout details before accessing persistence',
+    () =>
+      Effect.gen(function* () {
+        const fixture = createUserDatabaseFixture();
+        const cases = [
+          {
+            iban: 'DE88370400440532013000',
+            paypalEmail: 'paypal@example.com',
+            reason: 'invalidIban',
+          },
+          {
+            iban: 'nl91 abna 0417 1643 00',
+            paypalEmail: 'paypal@example.com',
+            reason: 'invalidIban',
+          },
+          {
+            iban: 'NL91ABNA0417164300',
+            paypalEmail: 'payout',
+            reason: 'invalidPaypalEmail',
+          },
+          {
+            iban: 'NL91ABNA0417164300',
+            paypalEmail: 'PayPal@Example.COM',
+            reason: 'invalidPaypalEmail',
+          },
+        ];
+        for (const testCase of cases) {
+          const error = yield* userHandlers['users.updateProfile'](
+            {
+              communicationEmail: 'Events@Example.COM',
+              firstName: 'Alice',
+              iban: testCase.iban,
+              lastName: 'Updated',
+              paypalEmail: testCase.paypalEmail,
+            },
+            userHandlerOptions(
+              UsersUpdateProfile.middleware(RpcRequestContextMiddleware),
+            ),
+          ).pipe(
+            Effect.flip,
+            provideUserHandlerContext(),
+            Effect.provide(fixture.databaseLayer),
+          );
+          expect(error).toMatchObject({
+            _tag: 'RpcBadRequestError',
+            reason: testCase.reason,
+          });
+        }
+        expect(fixture.executeValues).not.toHaveBeenCalled();
+        expect(fixture.deleteWhere).not.toHaveBeenCalled();
+        expect(fixture.insertValues).not.toHaveBeenCalled();
+        expect(fixture.transactionCommands).toEqual([]);
+      }),
+  );
+
+  it.effect('keeps authentication ahead of payout validation', () =>
+    Effect.gen(function* () {
+      const fixture = createUserDatabaseFixture();
+      const error = yield* userHandlers['users.updateProfile'](
+        {
+          communicationEmail: 'events@example.com',
+          firstName: 'Alice',
+          iban: 'invalid',
+          lastName: 'Updated',
+          paypalEmail: 'invalid',
+        },
+        userHandlerOptions(
+          UsersUpdateProfile.middleware(RpcRequestContextMiddleware),
+        ),
+      ).pipe(
+        Effect.flip,
+        provideUserHandlerContext(
+          createUserHandlerContext({ authenticated: false }),
+        ),
+        Effect.provide(fixture.databaseLayer),
+      );
+      expect(error._tag).toBe('RpcUnauthorizedError');
+      expect(fixture.executeValues).not.toHaveBeenCalled();
+      expect(fixture.transactionCommands).toEqual([]);
+    }),
+  );
+});

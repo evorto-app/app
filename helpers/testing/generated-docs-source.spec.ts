@@ -339,11 +339,11 @@ describe('generated docs source current behavior', () => {
     expect(journey).toContain('storageState: gaStateFile');
     expect(journey).toContain("name: 'Review finance'");
     expect(journey).toContain('const providerActionTransactionRow');
-    expect(journey).toContain("hasText: 'Action required in Stripe'");
-    expect(journey).toContain("name: 'Refund recovery'");
-    expect(journey).toContain("name: 'Review recovery'");
-    expect(journey).toContain("name: 'Resume refund checks'");
-    expect(journey).toContain("name: 'Retry failed refund'");
+    expect(journey).toContain("hasText: 'Payment action needed'");
+    expect(journey).toContain("name: 'Refunds needing attention'");
+    expect(journey).toContain("name: 'Review refund'");
+    expect(journey).toContain("name: 'Continue refund'");
+    expect(journey).toContain("name: 'Try failed refund again'");
     expect(journey).toContain(
       'stripeRefundAttempts: refundClaim.stripeRefundMaxAttempts',
     );
@@ -358,8 +358,8 @@ describe('generated docs source current behavior', () => {
     );
     expect(journey).toContain('not.toContainText(refundClaim.id)');
     expect(journey).toContain('not.toContainText(scenario.registrationId)');
-    expect(journey).toContain("getByLabel('Operational recovery reason')");
-    expect(journey).toContain("name: 'Retry failed refund'");
+    expect(journey).toContain("getByLabel('Reason for this action')");
+    expect(journey).toContain("name: 'Try failed refund again'");
     expect(journey.match(/mode: 'resumeGeneration'/gu)).toHaveLength(2);
     expect(journey.match(/mode: 'newGeneration'/gu)).toHaveLength(2);
     expect(journey).toContain('stripeRefundId: generationZeroRefundId');
@@ -909,6 +909,19 @@ describe('generated docs source current behavior', () => {
       'eq(schema.financeReceiptUploads.uploadedByUserId, submitter.id)',
     );
     expect(cleanupSource).not.toMatch(/DeleteObject|S3Client/u);
+    expect(source).toContain('The file and entered values stay visible');
+    expect(source).toContain(
+      'Check the latest receipt lists before starting another submission',
+    );
+    expect(source).toContain('select **Show latest receipts**');
+    expect(source).toContain(
+      '**Add receipt** remains unavailable until these reads succeed',
+    );
+    expect(source).toContain(
+      'a failed or paused read keeps the action unavailable',
+    );
+    expect(source).toContain('it is already saved');
+    expect(source).toContain('do not submit it again');
   });
 
   it('keeps finance receipt docs aligned with email notification and reimbursement scope', () => {
@@ -920,18 +933,20 @@ describe('generated docs source current behavior', () => {
     );
     const combinedSource = `${overviewSource}\n${receiptSource}`;
 
-    expect(combinedSource).toContain('schedules an email to the submitter.');
-    expect(receiptSource).toContain(
-      'delivered+receipt-doc-${receiptId}@notifications.example.test',
-    );
     expect(combinedSource).toContain(
-      'record the manual reimbursement transaction for the selected batch',
+      'Evorto tries to email the submitter. Delivery may take time or fail.',
+    );
+    expect(receiptSource).toContain('organizerCommunicationEmail');
+    expect(receiptSource).toContain('One person may have access to both');
+    expect(receiptSource).not.toContain('One person may have both permissions');
+    expect(combinedSource).toContain(
+      "getByRole('button', { name: 'Record reimbursement' })",
     );
     expect(receiptSource).toContain(
-      "Recording reimbursement updates the receipt to **Reimbursed** and creates a successful manual refund transaction in Evorto using the receipt's recorded currency.",
+      'Recording reimbursement updates the receipt to **Reimbursed**.',
     );
     expect(receiptSource).toContain(
-      'The actual bank or PayPal transfer remains an external finance action.',
+      'This confirms that the bank or PayPal transfer was completed outside Evorto',
     );
     expect(combinedSource).not.toContain(
       'Submitter email notification is still manual',
@@ -939,31 +954,49 @@ describe('generated docs source current behavior', () => {
     expect(combinedSource).not.toContain('automatic email');
     expect(combinedSource).not.toContain('automatically transfer');
     expect(combinedSource).not.toContain('automatic money movement');
+    expect(receiptSource).toContain(
+      'The action stays unavailable until the work finishes',
+    );
+    expect(receiptSource).toContain(
+      'load the finance page again and check the current receipt or reimbursement',
+    );
+    expect(receiptSource).toContain(
+      'The current form remains locked until you reload',
+    );
+    expect(receiptSource).toContain(
+      'An uncertain response does not mean the review or reimbursement record is missing',
+    );
+    expect(receiptSource).toContain(
+      'it is not a reason to transfer money again',
+    );
+    expect(receiptSource).toContain('the change is already saved');
   });
 
   it('keeps finance overview docs aligned with permission-scoped navigation', () => {
     const source = readSource('tests/docs/finance/finance-overview.doc.ts');
 
     expect(source).toContain(
-      'Each child page is guarded by its own finance permission.',
-    );
-    expect(source).toContain('The finance overview is a navigation surface.');
-    expect(source).toContain(
-      'It shows links only for the finance capabilities you have, so users with receipt approval access do not automatically see the transaction list.',
+      'You need the finance access for the page you want to use',
     );
     expect(source).toContain(
-      "- **View transactions** to review the organization's transaction list.",
+      'The finance overview shows links only for the work you are allowed to do.',
+    );
+    expect(source).toContain(
+      'someone who can approve receipts does not automatically see all payments.',
+    );
+    expect(source).toContain(
+      "- **View money received and spent** to review the organization's payment history.",
     );
     expect(source).toContain(
       '- **Approve receipts** to review submitted receipts.',
     );
     expect(source).toContain(
-      '- **Record receipt reimbursements** to record reimbursement batches.',
+      '- **Record receipt reimbursements** to record that approved receipts were paid.',
     );
     expect(source).toContain('visibleTransactionComment');
     expect(source).toContain('cancelledTransactionComment');
     expect(source).toContain(
-      'Cancelled transactions are omitted from this list.',
+      'Cancelled payment attempts are omitted from this list.',
     );
     expect(source).toContain(
       'page.getByText(cancelledTransactionComment)).toHaveCount(0)',
@@ -1420,7 +1453,7 @@ describe('generated docs source current behavior', () => {
       'A platform administrator must retry the failed refund',
     );
     expect(transferSource).toContain(
-      'A platform administrator opens the affected organization, selects **Review finance**, and then opens **Refund recovery**.',
+      'A platform administrator opens the affected organization, selects **Review finance**, and then opens **Refunds needing attention**.',
     );
     expect(transferSource).not.toContain('finance or platform administrator');
     expect(transferSource).toContain(
@@ -1443,11 +1476,11 @@ describe('generated docs source current behavior', () => {
     );
     expect(transferSource).toContain('storageState: gaStateFile');
     expect(transferSource).toContain(
-      "getByRole('tab', { name: 'Refund recovery' })",
+      "getByRole('tab', { name: 'Refunds needing attention' })",
     );
     expect(transferSource).toContain('refundRecoveryForm.getByLabel(');
-    expect(transferSource).toContain("'Operational recovery reason'");
-    expect(transferSource).toContain("name: 'Retry failed refund'");
+    expect(transferSource).toContain("'Reason for this action'");
+    expect(transferSource).toContain("name: 'Try failed refund again'");
     expect(transferSource).toContain("name: 'Payment still required'");
     expect(transferSource).toContain(
       "name: 'Transfer complete — refund processing'",

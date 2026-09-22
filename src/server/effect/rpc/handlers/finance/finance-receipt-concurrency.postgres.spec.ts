@@ -1,7 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from '@effect/vitest';
-import { inArray } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { ConfigProvider, Effect, Layer } from 'effect';
+import { Headers } from 'effect/unstable/http';
+import { Rpc, RpcMessage } from 'effect/unstable/rpc';
 import { createHash, randomUUID } from 'node:crypto';
 import { Pool, type PoolClient } from 'pg';
 
@@ -12,20 +14,34 @@ import {
   eventInstances,
   eventTemplateCategories,
   eventTemplates,
+  financeReceiptAlcoholAmountConsistentCheckName,
+  financeReceiptComponentsWithinTotalCheckName,
+  financeReceiptDepositAmountConsistentCheckName,
   financeReceipts,
+  financeReceiptTaxAmountValidCheckName,
+  financeReceiptTotalAmountPositiveCheckName,
   financeReceiptUploads,
   tenants,
   transactions,
   users,
 } from '../../../../../db/schema';
+import { RpcInternalServerError } from '../../../../../shared/errors/rpc-errors';
 import {
+  AppRpcs,
   RpcRequestContext,
+  RpcRequestContextMiddleware,
   type RpcRequestContextShape,
 } from '../../../../../shared/rpc-contracts/app-rpcs';
+import { processReceiptOrphans } from '../../../../finance/receipt-orphan-cleanup';
+import {
+  ObjectStorage,
+  ObjectStorageNotFoundError,
+} from '../../../../integrations/object-storage';
 import { RpcAccess } from '../shared/rpc-access.service';
 import { financeHandlers } from './finance.handlers';
 import {
   buildReceiptStorageKey,
+  buildReceiptUploadStorageKey,
   ReceiptMediaService,
 } from './receipt-media.service';
 
@@ -216,23 +232,25 @@ describe('receipt review and reimbursement serialization', () => {
         uploadId: receiptUploadId,
         userId,
       }),
-      storageUrl: 'https://storage.example.test/receipt.png',
       tenantId,
       uploadedAt: receiptUploadedAt,
       uploadedByUserId: userId,
     });
     await database.insert(financeReceipts).values({
+      alcoholAmount: 0,
       attachmentFileName: 'receipt.png',
-      attachmentMimeType: 'image/png',
-      attachmentSizeBytes: 7,
       attachmentUploadId: receiptUploadId,
       currency: 'CZK',
+      depositAmount: 0,
       eventId,
+      hasAlcohol: false,
+      hasDeposit: false,
       id: receiptId,
       purchaseCountry: 'NL',
-      receiptDate: new Date('2026-07-31T00:00:00.000Z'),
+      receiptDate: '2026-07-31',
       status,
       submittedByUserId: userId,
+      taxAmount: 0,
       tenantId,
       totalAmount: 100,
     });
@@ -291,6 +309,8 @@ describe('receipt review and reimbursement serialization', () => {
         inspectUpload: () =>
           Effect.die(new Error('Unexpected receipt inspection')),
         objectExists: () => Effect.die(new Error('Unexpected receipt lookup')),
+        promoteUpload: () =>
+          Effect.die(new Error('Unexpected upload promotion')),
         signedPreviewUrl: () =>
           Effect.die(new Error('Unexpected receipt preview')),
       }),
@@ -298,8 +318,214 @@ describe('receipt review and reimbursement serialization', () => {
       makeDatabaseServiceLayer(databaseUrl),
     );
 
-    return { eventId, handlerLayer, receiptId, tenantId, userId };
+    return {
+      eventId,
+      handlerLayer,
+      receiptId,
+      receiptUploadId,
+      requestContext,
+      tenantId,
+      userId,
+    };
   };
+
+  it('cleans a recorded promotion after the storage response is lost and preserves attached evidence', async () => {
+    const fixture = await seedReceipt('submitted');
+    const consumedWitness = await seedReceipt('submitted');
+    const readyWitness = await seedReceipt('submitted');
+    const now = new Date();
+    const body = new TextEncoder().encode('%PDF-1.7');
+    const scope = {
+      eventId: fixture.eventId,
+      fileName: 'receipt.pdf',
+      tenantId: fixture.tenantId,
+      uploadId: fixture.receiptUploadId,
+      userId: fixture.userId,
+    };
+    const temporaryKey = buildReceiptUploadStorageKey(scope);
+    const finalKey = buildReceiptStorageKey({
+      ...scope,
+      contentDigest: createHash('sha256').update(body).digest('hex'),
+    });
+    await database
+      .delete(financeReceipts)
+      .where(
+        inArray(financeReceipts.id, [
+          fixture.receiptId,
+          readyWitness.receiptId,
+        ]),
+      );
+    await database
+      .update(financeReceiptUploads)
+      .set({
+        consumedAt: null,
+        expiresAt: new Date(now.getTime() + 5 * 60 * 1000),
+        fileName: scope.fileName,
+        mimeType: 'application/pdf',
+        sizeBytes: body.byteLength,
+        status: 'pending',
+        storageKey: temporaryKey,
+        uploadedAt: null,
+      })
+      .where(eq(financeReceiptUploads.id, fixture.receiptUploadId));
+    await database
+      .update(financeReceiptUploads)
+      .set({
+        consumedAt: null,
+        status: 'ready',
+        updatedAt: now,
+      })
+      .where(eq(financeReceiptUploads.id, readyWitness.receiptUploadId));
+
+    const deletedKeys: string[] = [];
+    const objects = new Map<string, Uint8Array>([[temporaryKey, body]]);
+    const objectStorageLayer = Layer.succeed(ObjectStorage)({
+      deleteObject: (key) =>
+        Effect.sync(() => {
+          deletedKeys.push(key);
+          objects.delete(key);
+        }),
+      exists: (key) => Effect.sync(() => objects.has(key)),
+      get: (key) =>
+        Effect.suspend(() => {
+          const stored = objects.get(key);
+          return stored
+            ? Effect.succeed(Uint8Array.from(stored))
+            : Effect.fail(new ObjectStorageNotFoundError());
+        }),
+      metadata: () => Effect.die(new Error('Unexpected metadata read')),
+      presignGet: () => Effect.die(new Error('Unexpected signed preview')),
+      presignPost: () => Effect.die(new Error('Unexpected upload policy')),
+      put: (input) =>
+        Effect.sync(() => {
+          objects.set(input.key, input.body);
+        }).pipe(
+          Effect.andThen(
+            Effect.fail(
+              new RpcInternalServerError({
+                message: 'Object was written but the response was lost',
+              }),
+            ),
+          ),
+        ),
+    });
+    const permissions = ['events:organizeAll'] as const;
+    const requestContext = {
+      ...fixture.requestContext,
+      permissions,
+      user: { ...fixture.requestContext.user, permissions },
+    } satisfies RpcRequestContextShape;
+    const uploadRpc = [...AppRpcs.requests.values()].find(
+      (rpc) => rpc._tag === 'finance.receiptMedia.finalizeUpload',
+    );
+    if (!uploadRpc) throw new Error('Receipt finalization RPC is missing');
+
+    const error = await trackHandlerOperation(
+      Effect.runPromise(
+        financeHandlers['finance.receiptMedia.finalizeUpload'](
+          { uploadId: fixture.receiptUploadId },
+          {
+            client: new Rpc.ServerClient(1),
+            headers: Headers.empty,
+            requestId: RpcMessage.RequestId(1),
+            rpc: uploadRpc.middleware(RpcRequestContextMiddleware),
+          },
+        ).pipe(
+          Effect.flip,
+          Effect.provide(
+            Layer.mergeAll(
+              RpcAccess.Default,
+              Layer.succeed(RpcRequestContext, requestContext),
+              makeDatabaseServiceLayer(databaseUrl),
+              ReceiptMediaService.Default.pipe(
+                Layer.provide(objectStorageLayer),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    expect(error._tag).toBe('ReceiptMediaServiceUnavailableError');
+    expect(objects.has(finalKey)).toBe(true);
+    expect(
+      await database.query.financeReceiptUploads.findFirst({
+        columns: { status: true, storageKey: true },
+        where: { id: fixture.receiptUploadId },
+      }),
+    ).toEqual({ status: 'finalizing', storageKey: finalKey });
+
+    const cleaned = await trackHandlerOperation(
+      Effect.runPromise(
+        processReceiptOrphans({
+          now: new Date(now.getTime() + 21 * 60 * 1000),
+        }).pipe(
+          Effect.provide(makeDatabaseServiceLayer(databaseUrl)),
+          Effect.provide(objectStorageLayer),
+        ),
+      ),
+    );
+    expect(cleaned).toEqual({ deleted: 1, scanned: 1 });
+    expect(deletedKeys).toEqual([finalKey]);
+    expect(objects.has(finalKey)).toBe(false);
+    expect(
+      await database.query.financeReceiptUploads.findFirst({
+        columns: { id: true },
+        where: { id: fixture.receiptUploadId },
+      }),
+    ).toBeUndefined();
+    for (const [witness, status] of [
+      [consumedWitness, 'consumed'],
+      [readyWitness, 'ready'],
+    ] as const) {
+      expect(
+        await database.query.financeReceiptUploads.findFirst({
+          columns: { status: true },
+          where: { id: witness.receiptUploadId },
+        }),
+      ).toEqual({ status });
+    }
+  });
+
+  it('stores receipt dates as calendar days and rejects invalid amount states at the database boundary', async () => {
+    const fixture = await seedReceipt('submitted');
+    const stored = await pool.query<{ receiptDate: string }>(
+      'SELECT "receiptDate" FROM finance_receipts WHERE id = $1',
+      [fixture.receiptId],
+    );
+    expect(stored.rows[0]?.receiptDate).toBe('2026-07-31');
+
+    const invalidUpdates = [
+      {
+        constraint: financeReceiptTotalAmountPositiveCheckName,
+        sql: 'UPDATE finance_receipts SET "totalAmount" = 0 WHERE id = $1',
+      },
+      {
+        constraint: financeReceiptTaxAmountValidCheckName,
+        sql: 'UPDATE finance_receipts SET "taxAmount" = 101 WHERE id = $1',
+      },
+      {
+        constraint: financeReceiptDepositAmountConsistentCheckName,
+        sql: 'UPDATE finance_receipts SET "depositAmount" = 1, "hasDeposit" = false WHERE id = $1',
+      },
+      {
+        constraint: financeReceiptAlcoholAmountConsistentCheckName,
+        sql: 'UPDATE finance_receipts SET "alcoholAmount" = 0, "hasAlcohol" = true WHERE id = $1',
+      },
+      {
+        constraint: financeReceiptComponentsWithinTotalCheckName,
+        sql: 'UPDATE finance_receipts SET "depositAmount" = 60, "hasDeposit" = true, "alcoholAmount" = 50, "hasAlcohol" = true WHERE id = $1',
+      },
+    ];
+
+    for (const update of invalidUpdates) {
+      await expect(
+        pool.query(update.sql, [fixture.receiptId]),
+      ).rejects.toMatchObject({
+        code: '23514',
+        constraint: update.constraint,
+      });
+    }
+  });
 
   it(
     're-reads the locked amount and currency before inserting the reimbursement ledger row',

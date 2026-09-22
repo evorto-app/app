@@ -19,7 +19,12 @@ import { RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
 import {
+  RpcForbiddenError,
+  RpcUnauthorizedError,
+} from '@shared/errors/rpc-errors';
+import {
   buildSelectableReceiptCountries,
+  firstReceiptCountry,
   resolveReceiptCountrySettings,
 } from '@shared/finance/receipt-countries';
 import {
@@ -31,6 +36,7 @@ import {
   injectMutation,
   injectQuery,
   QueryClient,
+  type QueryFilters,
 } from '@tanstack/angular-query-experimental';
 import { firstValueFrom } from 'rxjs';
 
@@ -47,7 +53,9 @@ import {
 } from '../registration-cancellation-confirmation-dialog.component';
 import {
   ReceiptSubmitDialogComponent,
+  type ReceiptSubmitDialogData,
   ReceiptSubmitDialogResult,
+  type ReceiptSubmitSaveOutcome,
 } from './receipt-submit-dialog.component';
 
 interface EventOrganizeStatsInput {
@@ -239,9 +247,13 @@ export class EventOrganize {
   protected readonly receiptCreateUploadMutation = injectMutation(() =>
     this.rpc.finance.receiptMedia.createUpload.mutationOptions(),
   );
+  protected readonly receiptDialogOpen = signal(false);
   protected readonly receiptFinalizeUploadMutation = injectMutation(() =>
     this.rpc.finance.receiptMedia.finalizeUpload.mutationOptions(),
   );
+  protected readonly receiptReconciliationMessage = signal<null | string>(null);
+  protected readonly receiptReconciliationPending = signal(false);
+
   protected readonly receiptsByEventQuery = injectQuery(() =>
     this.rpc.finance.receipts.byEvent.queryOptions({
       eventId: this.eventId(),
@@ -250,7 +262,6 @@ export class EventOrganize {
   protected readonly receiptStatusLabel = receiptStatusLabel;
   protected readonly receiptSubmissionActionDisabled =
     receiptSubmissionActionDisabled;
-
   protected readonly receiptSubmissionUnavailableMessage = computed(() => {
     const event = this.event();
     if (!event) {
@@ -263,11 +274,7 @@ export class EventOrganize {
 
     return null;
   });
-  protected readonly receiptUploadPending = computed(
-    () =>
-      this.receiptCreateUploadMutation.isPending() ||
-      this.receiptFinalizeUploadMutation.isPending(),
-  );
+  protected readonly receiptUploadPending = signal(false);
   protected readonly registrationGroups = computed(() =>
     groupEventOrganizeRegistrationOptions(
       this.organizerOverviewQuery.data()?.registrationOptions ?? [],
@@ -276,10 +283,13 @@ export class EventOrganize {
   protected readonly stats = computed(() =>
     computeEventOrganizeStats(this.organizerOverviewQuery.data()?.stats),
   );
-
   protected readonly submitReceiptMutation = injectMutation(() =>
     this.rpc.finance.receipts.submit.mutationOptions(),
   );
+
+  protected readonly uncertainReceiptSubmission = signal<null | {
+    eventId: string;
+  }>(null);
   private readonly approvalPendingRegistrationId = signal<null | string>(null);
   private readonly config = inject(ConfigService);
 
@@ -455,6 +465,9 @@ export class EventOrganize {
 
   protected async openReceiptDialog(): Promise<void> {
     if (
+      this.receiptDialogOpen() ||
+      this.uncertainReceiptSubmission() !== null ||
+      this.receiptReconciliationPending() ||
       receiptSubmissionActionDisabled({
         submissionUnavailable: !!this.receiptSubmissionUnavailableMessage(),
         submitPending: this.submitReceiptMutation.isPending(),
@@ -464,80 +477,122 @@ export class EventOrganize {
       return;
     }
 
+    const eventId = this.eventId();
     const receiptCountrySettings = resolveReceiptCountrySettings(
       this.config.tenant.receiptSettings,
     );
     const countries = buildSelectableReceiptCountries(receiptCountrySettings);
+    this.receiptDialogOpen.set(true);
+    try {
+      const dialogReference = this.dialog.open<
+        ReceiptSubmitDialogComponent,
+        ReceiptSubmitDialogData,
+        ReceiptSubmitDialogResult
+      >(ReceiptSubmitDialogComponent, {
+        data: {
+          countries,
+          defaultCountry: firstReceiptCountry(
+            receiptCountrySettings.receiptCountries,
+          ),
+          save: async (result): Promise<ReceiptSubmitSaveOutcome> => {
+            let attachment: { fileName: string; uploadId: string };
+            try {
+              attachment = await this.prepareAttachment(
+                result.file,
+                result.attachmentName,
+                eventId,
+              );
+            } catch (error) {
+              return {
+                ...this.receiptActionErrorOutcome(
+                  error,
+                  'The receipt file upload outcome could not be confirmed. Receipt submission has not started. Your file and entries are still here.',
+                ),
+                retryAllowed: true,
+              };
+            }
 
-    const dialogReference = this.dialog.open<
-      ReceiptSubmitDialogComponent,
-      { countries: string[]; defaultCountry: string },
-      ReceiptSubmitDialogResult
-    >(ReceiptSubmitDialogComponent, {
-      data: {
-        countries,
-        defaultCountry: receiptCountrySettings.receiptCountries[0] ?? 'DE',
-      },
-      width: '640px',
-    });
+            const pendingSubmission = { eventId };
+            this.uncertainReceiptSubmission.set(pendingSubmission);
+            this.receiptReconciliationMessage.set(null);
+            try {
+              await this.submitReceiptMutation.mutateAsync({
+                attachment,
+                eventId,
+                fields: {
+                  ...result.fields,
+                  receiptDate: result.fields.receiptDate,
+                },
+              });
+            } catch (error) {
+              const outcome = this.receiptActionErrorOutcome(
+                error,
+                'The receipt submission outcome could not be confirmed. Your file and entries are still here. Close this dialog, then select Show latest receipts before adding another receipt.',
+              );
+              if (
+                outcome.retryAllowed &&
+                this.uncertainReceiptSubmission() === pendingSubmission
+              ) {
+                this.uncertainReceiptSubmission.set(null);
+              }
+              return outcome;
+            }
+            if (this.uncertainReceiptSubmission() === pendingSubmission) {
+              this.uncertainReceiptSubmission.set(null);
+            }
 
-    const result = await firstValueFrom(dialogReference.afterClosed());
-    if (!result) {
+            try {
+              await this.refreshReceiptLists(eventId);
+            } catch {
+              return {
+                message:
+                  'The receipt was submitted, but the receipt lists could not be updated. Close this dialog and load the event page again to see it.',
+                submitted: true,
+              };
+            }
+            return { submitted: true };
+          },
+        },
+        width: '640px',
+      });
+      const result = await firstValueFrom(dialogReference.afterClosed());
+      if (result) this.notifications.showSuccess('Receipt submitted');
+    } finally {
+      this.receiptDialogOpen.set(false);
+    }
+  }
+
+  protected async reconcileReceiptSubmission(): Promise<void> {
+    const pendingSubmission = this.uncertainReceiptSubmission();
+    if (
+      !pendingSubmission ||
+      this.receiptDialogOpen() ||
+      this.submitReceiptMutation.isPending() ||
+      this.receiptReconciliationPending()
+    ) {
       return;
     }
 
+    this.receiptReconciliationPending.set(true);
+    this.receiptReconciliationMessage.set(null);
     try {
-      const attachment = await this.prepareAttachment(
-        result.file,
-        result.attachmentName,
-      );
-
-      this.submitReceiptMutation.mutate(
-        {
-          attachment,
-          eventId: this.eventId(),
-          fields: {
-            ...result.fields,
-            receiptDate: result.fields.receiptDate.toISOString(),
-          },
-        },
-        {
-          onError: (error) => {
-            this.notifications.showError(
-              getErrorMessage(error, 'Failed to submit receipt', [
-                'RpcBadRequestError',
-                'FinanceResourceNotFoundError',
-              ]),
-            );
-          },
-          onSuccess: async () => {
-            await this.queryClient.invalidateQueries({
-              queryKey: this.rpc.finance.receipts.byEvent.queryKey({
-                eventId: this.eventId(),
-              }),
-            });
-            await this.queryClient.invalidateQueries(
-              this.rpc.queryFilter(['finance', 'receipts.my']),
-            );
-            await this.queryClient.invalidateQueries(
-              this.rpc.queryFilter([
-                'finance',
-                'receipts.pendingApprovalGrouped',
-              ]),
-            );
-            this.notifications.showSuccess('Receipt submitted');
-          },
-        },
-      );
-    } catch (error) {
-      this.notifications.showError(
-        getErrorMessage(error, 'Failed to upload receipt file', [
-          'RpcBadRequestError',
-          'FinanceResourceNotFoundError',
-          'ReceiptMediaBadRequestError',
-          'ReceiptMediaServiceUnavailableError',
-        ]),
-      );
+      await this.refreshReceiptLists(pendingSubmission.eventId, true);
+      if (this.uncertainReceiptSubmission() === pendingSubmission) {
+        this.uncertainReceiptSubmission.set(null);
+        this.receiptReconciliationMessage.set(
+          pendingSubmission.eventId === this.eventId()
+            ? 'The latest receipt lists have loaded. Check whether the previous submission is listed before adding another receipt for the same expense.'
+            : 'The latest receipt lists for the original event have loaded. Return to that event and check whether the previous submission is listed before adding another receipt for the same expense.',
+        );
+      }
+    } catch {
+      if (this.uncertainReceiptSubmission() === pendingSubmission) {
+        this.receiptReconciliationMessage.set(
+          'The latest receipt lists could not be loaded. Adding another receipt remains unavailable. Select Show latest receipts again, or load the original event page again to check its receipts.',
+        );
+      }
+    } finally {
+      this.receiptReconciliationPending.set(false);
     }
   }
 
@@ -567,8 +622,12 @@ export class EventOrganize {
     });
   }
 
-  private async prepareAttachment(file: File, attachmentName: string) {
-    const originalUpload = await this.uploadReceiptOriginal(file);
+  private async prepareAttachment(
+    file: File,
+    attachmentName: string,
+    eventId: string,
+  ) {
+    const originalUpload = await this.uploadReceiptOriginal(file, eventId);
 
     return {
       fileName: attachmentName,
@@ -576,33 +635,128 @@ export class EventOrganize {
     };
   }
 
+  private receiptActionErrorOutcome(
+    error: unknown,
+    fallback: string,
+  ): Extract<ReceiptSubmitSaveOutcome, { submitted: false }> {
+    if (error instanceof RpcUnauthorizedError) {
+      return {
+        message:
+          'Sign in again and check your membership in this organization before submitting. Your file and entries are still here.',
+        retryAllowed: true,
+        submitted: false,
+      };
+    }
+    if (error instanceof RpcForbiddenError) {
+      return {
+        message:
+          'You do not have permission to add this receipt. Your file and entries are still here.',
+        retryAllowed: true,
+        submitted: false,
+      };
+    }
+    const message = getErrorMessage(error, fallback, [
+      'RpcBadRequestError',
+      'FinanceReceiptNotFoundError',
+      'FinanceResourceNotFoundError',
+      'ReceiptMediaBadRequestError',
+      'ReceiptMediaServiceUnavailableError',
+    ]);
+    return { message, retryAllowed: message !== fallback, submitted: false };
+  }
+
+  private async refreshReceiptLists(
+    eventId: string,
+    reconcile = false,
+  ): Promise<void> {
+    const filters: QueryFilters[] = [
+      { queryKey: this.rpc.finance.receipts.byEvent.queryKey({ eventId }) },
+      this.rpc.queryFilter(['finance', 'receipts', 'my']),
+      this.rpc.queryFilter(['finance', 'receipts', 'pendingApprovalGrouped']),
+    ];
+    const reads = filters.map(async (filter, index) => {
+      const includeInactive = reconcile && index === 0;
+      const invalidation = this.queryClient.invalidateQueries(
+        includeInactive
+          ? { ...filter, exact: true, refetchType: 'all' }
+          : filter,
+        { throwOnError: true },
+      );
+      const admittedQueries = this.queryClient
+        .getQueryCache()
+        .findAll(
+          includeInactive
+            ? { ...filter, exact: true, type: 'all' }
+            : { ...filter, type: 'active' },
+        )
+        .filter((query) => !query.isDisabled() && !query.isStatic());
+      const admittedReads = admittedQueries
+        .filter((query) => query.state.fetchStatus === 'fetching')
+        .map((query) => query.promise);
+      const results = await Promise.allSettled([
+        invalidation,
+        ...admittedReads,
+      ]);
+      const failures: unknown[] = [];
+      for (const settled of results) {
+        if (settled.status === 'rejected') failures.push(settled.reason);
+      }
+      if (
+        (includeInactive && admittedQueries.length === 0) ||
+        admittedQueries.some(
+          (query) =>
+            query.state.fetchStatus !== 'idle' ||
+            query.state.status !== 'success' ||
+            query.state.isInvalidated,
+        )
+      ) {
+        failures.push(new Error('A receipt follow-up read did not complete'));
+      }
+      if (failures.length > 0)
+        throw new AggregateError(failures, 'Receipt follow-up reads failed');
+    });
+    const results = await Promise.allSettled(reads);
+    const failures: unknown[] = [];
+    for (const settled of results) {
+      if (settled.status === 'rejected') failures.push(settled.reason);
+    }
+    if (failures.length > 0)
+      throw new AggregateError(failures, 'Receipt follow-up reads failed');
+  }
+
   private async uploadReceiptOriginal(
     file: File,
+    eventId: string,
   ): Promise<{ uploadId: string }> {
-    const upload = await this.receiptCreateUploadMutation.mutateAsync({
-      eventId: this.eventId(),
-      fileName: file.name,
-      mimeType: file.type,
-      sizeBytes: file.size,
-    });
-    const formData = new FormData();
-    for (const [name, value] of Object.entries(upload.fields)) {
-      formData.append(name, value);
-    }
-    formData.append('file', file, file.name);
+    this.receiptUploadPending.set(true);
+    try {
+      const upload = await this.receiptCreateUploadMutation.mutateAsync({
+        eventId,
+        fileName: file.name,
+        mimeType: file.type,
+        sizeBytes: file.size,
+      });
+      const formData = new FormData();
+      for (const [name, value] of Object.entries(upload.fields)) {
+        formData.append(name, value);
+      }
+      formData.append('file', file, file.name);
 
-    const response = await fetch(upload.url, {
-      body: formData,
-      credentials: 'omit',
-      method: 'POST',
-      mode: 'cors',
-    });
-    if (!response.ok) {
-      throw new Error('Object storage rejected the receipt upload');
-    }
+      const response = await fetch(upload.url, {
+        body: formData,
+        credentials: 'omit',
+        method: 'POST',
+        mode: 'cors',
+      });
+      if (!response.ok) {
+        throw new Error('The receipt file could not be uploaded. Try again.');
+      }
 
-    return this.receiptFinalizeUploadMutation.mutateAsync({
-      uploadId: upload.uploadId,
-    });
+      return await this.receiptFinalizeUploadMutation.mutateAsync({
+        uploadId: upload.uploadId,
+      });
+    } finally {
+      this.receiptUploadPending.set(false);
+    }
   }
 }
