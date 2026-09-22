@@ -84,7 +84,7 @@ test('Understand your ESNcard status', async ({}, testInfo) => {
   await testInfo.attach('markdown', {
     body: `
 
-You can save one ESNcard for your account in each organization that enables ESNcard discounts. Evorto ignores accidental spaces before or after the card number. The save button says **Checking ESNcard…** while Evorto checks the card. Check again and remove show **Checking…** or **Removing…** while they are in progress.
+You can save one ESNcard for your account. The same card is shared across organizations, and each organization decides whether it offers ESNcard discounts. Evorto ignores accidental spaces before or after the card number. The save button says **Checking ESNcard…** while Evorto checks the card. Check again and remove show **Checking…** or **Removing…** while they are in progress.
 
 Evorto shows the card status clearly: **Verified**, **Expired**, **Invalid**, or **Needs verification**. Save, check again, and remove remain unavailable until the current check or change finishes.
 
@@ -164,7 +164,7 @@ test('Manage ESNcard @finance', async ({
   await testInfo.attach('markdown', {
     body: `
 
-Open your profile's **Discounts** page in the organization whose event discounts you want to use. Each organization that enables ESNcard discounts manages its own saved ESNcard. Evorto checks the card with esncard.org, and the discount applies only while the card is valid.
+Open your profile's **Discounts** page in an organization that enables ESNcard discounts. The page shows the card saved to your account, including a card you added through another organization. Evorto checks the card with esncard.org, and the discount applies only while the card is valid.
 `,
   });
 
@@ -449,7 +449,9 @@ Select **Check again** to check the card again. If Evorto rejects the check, it 
         body: `
 ## Remove the active card and check an expired card
 
-Select **Remove** when you no longer want this card on your profile. **No discount cards added** confirms its removal from Evorto; this does not cancel or change the ESNcard itself.
+Select **Remove** when you no longer want this card on your account. **No discount cards added** confirms its removal across all your organizations; this does not cancel or change the ESNcard itself.
+
+Changing or removing the card affects future discounts in every organization. Prices already recorded for sign-ups and payments stay unchanged. Applications awaiting approval may be priced using your current card when they are approved.
 
 An expired card remains visible as **Expired** and no longer grants discounts. Enter a current ESNcard number and select **Save ESNcard** to replace it, or select **Remove** if you no longer want a card on your profile.
 `,
@@ -509,7 +511,7 @@ An expired card remains visible as **Expired** and no longer grants discounts. E
         body: `
 ## Completion
 
-After the final **Remove**, **No discount cards added** confirms that the card is no longer on your profile.
+After the final **Remove**, **No discount cards added** confirms that the card is no longer saved to your account in any organization.
 `,
       });
     }

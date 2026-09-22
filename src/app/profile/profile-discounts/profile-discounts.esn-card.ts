@@ -57,7 +57,7 @@ export const esnCardMutationErrorMessage = (
       return 'Your saved ESNcard changed while it was being checked. Checking your current cards…';
     }
     case 'DiscountCardConflictError': {
-      return 'This ESNcard is already linked to another account in this organization, so it was not saved.';
+      return 'This ESNcard is already linked to another account, so it was not saved.';
     }
     case 'DiscountCardNotFoundError': {
       return 'This ESNcard is no longer saved. Checking your current cards…';

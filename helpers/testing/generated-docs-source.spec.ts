@@ -2710,7 +2710,7 @@ describe('generated docs source current behavior', () => {
     expect(source).toContain('esnCardSubmitPayloadFromIdentifier');
     expect(source).toContain('esnCardMutationErrorMessage');
     expect(source).toContain(
-      'You can save one ESNcard for your account in each organization that enables ESNcard discounts.',
+      'You can save one ESNcard for your account. The same card is shared across organizations, and each organization decides whether it offers ESNcard discounts.',
     );
     expect(source).toContain(
       'Save, check again, and remove remain unavailable until the current check or change finishes.',
