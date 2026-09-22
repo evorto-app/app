@@ -88,7 +88,7 @@ type PersistedStripeRefundStatus = NonNullable<
   typeof transactions.$inferSelect.stripeRefundStatus
 >;
 
-export class RegistrationRefundClaimError extends Schema.TaggedErrorClass<RegistrationRefundClaimError>()(
+export class RegistrationRefundClaimError extends Schema.TaggedError<RegistrationRefundClaimError>()(
   'RegistrationRefundClaimError',
   {
     cause: Schema.optional(Schema.Defect()),
@@ -97,7 +97,7 @@ export class RegistrationRefundClaimError extends Schema.TaggedErrorClass<Regist
   },
 ) {}
 
-export class RegistrationRefundRequeueError extends Schema.TaggedErrorClass<RegistrationRefundRequeueError>()(
+export class RegistrationRefundRequeueError extends Schema.TaggedError<RegistrationRefundRequeueError>()(
   'RegistrationRefundRequeueError',
   {
     message: Schema.String,

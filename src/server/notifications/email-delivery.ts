@@ -133,7 +133,7 @@ const suppressedDeliveryMessage =
 const unknownDeliveryMessage =
   'Evorto could not confirm whether this email was sent. It will not send it again, to avoid sending it twice.';
 
-class EmailTemplateRenderError extends Schema.TaggedErrorClass<EmailTemplateRenderError>()(
+class EmailTemplateRenderError extends Schema.TaggedError<EmailTemplateRenderError>()(
   'EmailTemplateRenderError',
   {
     cause: Schema.Defect(),
@@ -141,7 +141,7 @@ class EmailTemplateRenderError extends Schema.TaggedErrorClass<EmailTemplateRend
   },
 ) {}
 
-export class InvalidTenantEmailTimezoneError extends Schema.TaggedErrorClass<InvalidTenantEmailTimezoneError>()(
+export class InvalidTenantEmailTimezoneError extends Schema.TaggedError<InvalidTenantEmailTimezoneError>()(
   'InvalidTenantEmailTimezoneError',
   {
     message: Schema.String,

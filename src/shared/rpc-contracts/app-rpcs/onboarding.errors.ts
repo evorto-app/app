@@ -5,21 +5,21 @@ import {
   RpcUnauthorizedError,
 } from '../../errors/rpc-errors';
 
-export class TenantOnboardingConfigurationError extends Schema.TaggedErrorClass<TenantOnboardingConfigurationError>()(
+export class TenantOnboardingConfigurationError extends Schema.TaggedError<TenantOnboardingConfigurationError>()(
   'TenantOnboardingConfigurationError',
   {
     message: Schema.String,
   },
 ) {}
 
-export class TenantOnboardingRequirementsChangedError extends Schema.TaggedErrorClass<TenantOnboardingRequirementsChangedError>()(
+export class TenantOnboardingRequirementsChangedError extends Schema.TaggedError<TenantOnboardingRequirementsChangedError>()(
   'TenantOnboardingRequirementsChangedError',
   {
     message: Schema.String,
   },
 ) {}
 
-export class TenantOnboardingValidationError extends Schema.TaggedErrorClass<TenantOnboardingValidationError>()(
+export class TenantOnboardingValidationError extends Schema.TaggedError<TenantOnboardingValidationError>()(
   'TenantOnboardingValidationError',
   {
     field: Schema.String,

@@ -62,7 +62,7 @@ export interface ExpiredCheckoutCleanupSummary {
   readonly skipped: number;
 }
 
-export class ExpiredCheckoutCleanupInvariantError extends Schema.TaggedErrorClass<ExpiredCheckoutCleanupInvariantError>()(
+export class ExpiredCheckoutCleanupInvariantError extends Schema.TaggedError<ExpiredCheckoutCleanupInvariantError>()(
   'ExpiredCheckoutCleanupInvariantError',
   {
     message: Schema.String,

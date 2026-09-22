@@ -5,7 +5,7 @@ import {
   isDatabaseRuntimeRoleName,
 } from '../config/deployment-config';
 
-export class RuntimeRoleConfigurationError extends Schema.TaggedErrorClass<RuntimeRoleConfigurationError>()(
+export class RuntimeRoleConfigurationError extends Schema.TaggedError<RuntimeRoleConfigurationError>()(
   'RuntimeRoleConfigurationError',
   {
     message: Schema.String,

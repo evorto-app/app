@@ -1,27 +1,27 @@
 import { Schema } from 'effect';
 
-export class RegistrationTransferConflictError extends Schema.TaggedErrorClass<RegistrationTransferConflictError>()(
+export class RegistrationTransferConflictError extends Schema.TaggedError<RegistrationTransferConflictError>()(
   'RegistrationTransferConflictError',
   {
     message: Schema.String,
   },
 ) {}
 
-export class RegistrationTransferInternalError extends Schema.TaggedErrorClass<RegistrationTransferInternalError>()(
+export class RegistrationTransferInternalError extends Schema.TaggedError<RegistrationTransferInternalError>()(
   'RegistrationTransferInternalError',
   {
     message: Schema.String,
   },
 ) {}
 
-export class RegistrationTransferNotFoundError extends Schema.TaggedErrorClass<RegistrationTransferNotFoundError>()(
+export class RegistrationTransferNotFoundError extends Schema.TaggedError<RegistrationTransferNotFoundError>()(
   'RegistrationTransferNotFoundError',
   {
     message: Schema.String,
   },
 ) {}
 
-export class RegistrationTransferUnauthorizedError extends Schema.TaggedErrorClass<RegistrationTransferUnauthorizedError>()(
+export class RegistrationTransferUnauthorizedError extends Schema.TaggedError<RegistrationTransferUnauthorizedError>()(
   'RegistrationTransferUnauthorizedError',
   {
     message: Schema.String,

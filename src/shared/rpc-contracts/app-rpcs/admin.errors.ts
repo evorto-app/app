@@ -12,7 +12,7 @@ import {
   RoleWriteValidationError,
 } from './role-write.shared';
 
-export class AdminRoleNotFoundError extends Schema.TaggedErrorClass<AdminRoleNotFoundError>()(
+export class AdminRoleNotFoundError extends Schema.TaggedError<AdminRoleNotFoundError>()(
   'AdminRoleNotFoundError',
   {
     id: Schema.optional(Schema.String),
@@ -37,7 +37,7 @@ export type AdminRoleWriteRpcError = Schema.Schema.Type<
   typeof AdminRoleWriteRpcError
 >;
 
-export class AdminTenantNotFoundError extends Schema.TaggedErrorClass<AdminTenantNotFoundError>()(
+export class AdminTenantNotFoundError extends Schema.TaggedError<AdminTenantNotFoundError>()(
   'AdminTenantNotFoundError',
   {
     id: Schema.optional(Schema.String),

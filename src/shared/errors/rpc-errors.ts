@@ -1,6 +1,6 @@
 import { Schema } from 'effect';
 
-export class RpcBadRequestError extends Schema.TaggedErrorClass<RpcBadRequestError>()(
+export class RpcBadRequestError extends Schema.TaggedError<RpcBadRequestError>()(
   'RpcBadRequestError',
   {
     message: Schema.String,
@@ -8,7 +8,7 @@ export class RpcBadRequestError extends Schema.TaggedErrorClass<RpcBadRequestErr
   },
 ) {}
 
-export class RpcForbiddenError extends Schema.TaggedErrorClass<RpcForbiddenError>()(
+export class RpcForbiddenError extends Schema.TaggedError<RpcForbiddenError>()(
   'RpcForbiddenError',
   {
     message: Schema.String,
@@ -16,14 +16,14 @@ export class RpcForbiddenError extends Schema.TaggedErrorClass<RpcForbiddenError
   },
 ) {}
 
-export class RpcInternalServerError extends Schema.TaggedErrorClass<RpcInternalServerError>()(
+export class RpcInternalServerError extends Schema.TaggedError<RpcInternalServerError>()(
   'RpcInternalServerError',
   {
     message: Schema.String,
   },
 ) {}
 
-export class RpcUnauthorizedError extends Schema.TaggedErrorClass<RpcUnauthorizedError>()(
+export class RpcUnauthorizedError extends Schema.TaggedError<RpcUnauthorizedError>()(
   'RpcUnauthorizedError',
   {
     message: Schema.String,

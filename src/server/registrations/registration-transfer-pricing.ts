@@ -44,7 +44,7 @@ export interface RegistrationTransferPrice<DiscountType extends string> {
   readonly effectivePrice: number;
 }
 
-export class RegistrationTransferPricingError extends Schema.TaggedErrorClass<RegistrationTransferPricingError>()(
+export class RegistrationTransferPricingError extends Schema.TaggedError<RegistrationTransferPricingError>()(
   'RegistrationTransferPricingError',
   {
     message: Schema.String,

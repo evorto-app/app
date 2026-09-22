@@ -33,7 +33,7 @@ const LocationProviderOperation = Schema.Literals([
   'search',
 ]);
 
-export class LocationProviderError extends Schema.TaggedErrorClass<LocationProviderError>()(
+export class LocationProviderError extends Schema.TaggedError<LocationProviderError>()(
   'LocationProviderError',
   {
     cause: Schema.Defect(),

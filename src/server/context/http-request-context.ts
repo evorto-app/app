@@ -19,7 +19,7 @@ import {
   resolveUserContext,
 } from './request-context-resolver';
 
-export class HttpRequestTenantNotFoundError extends Schema.TaggedErrorClass<HttpRequestTenantNotFoundError>()(
+export class HttpRequestTenantNotFoundError extends Schema.TaggedError<HttpRequestTenantNotFoundError>()(
   'HttpRequestTenantNotFoundError',
   {
     domain: Schema.String,

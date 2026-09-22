@@ -46,7 +46,7 @@ export const buildCheckoutSessionIdempotencyKey = (input: {
   transactionId: string;
 }) => `registration:${input.registrationId}:transaction:${input.transactionId}`;
 
-export class StripeCheckoutError extends Schema.TaggedErrorClass<StripeCheckoutError>()(
+export class StripeCheckoutError extends Schema.TaggedError<StripeCheckoutError>()(
   'StripeCheckoutError',
   {
     cause: Schema.Defect(),

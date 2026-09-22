@@ -23,7 +23,7 @@ export interface CheckoutSessionIncidentInput {
   readonly type: 'addon' | 'registration';
 }
 
-export class CheckoutSessionIncidentError extends Schema.TaggedErrorClass<CheckoutSessionIncidentError>()(
+export class CheckoutSessionIncidentError extends Schema.TaggedError<CheckoutSessionIncidentError>()(
   'CheckoutSessionIncidentError',
   {
     message: Schema.String,

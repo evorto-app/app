@@ -5,7 +5,7 @@ import {
   RpcUnauthorizedError,
 } from '../../errors/rpc-errors';
 
-export class TemplateCategoryNotFoundError extends Schema.TaggedErrorClass<TemplateCategoryNotFoundError>()(
+export class TemplateCategoryNotFoundError extends Schema.TaggedError<TemplateCategoryNotFoundError>()(
   'TemplateCategoryNotFoundError',
   {
     id: Schema.optional(Schema.String),

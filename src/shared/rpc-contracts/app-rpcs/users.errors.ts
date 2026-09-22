@@ -6,14 +6,14 @@ import {
   UnauthorizedRpcError,
 } from '../../errors/rpc-errors';
 
-export class UserRoleAssignmentNotFoundError extends Schema.TaggedErrorClass<UserRoleAssignmentNotFoundError>()(
+export class UserRoleAssignmentNotFoundError extends Schema.TaggedError<UserRoleAssignmentNotFoundError>()(
   'UserRoleAssignmentNotFoundError',
   {
     message: Schema.String,
   },
 ) {}
 
-export class UserSelfRoleRemovalError extends Schema.TaggedErrorClass<UserSelfRoleRemovalError>()(
+export class UserSelfRoleRemovalError extends Schema.TaggedError<UserSelfRoleRemovalError>()(
   'UserSelfRoleRemovalError',
   {
     message: Schema.String,

@@ -136,7 +136,7 @@ export const platformTenantSettingsSnapshot = (
   timezone: tenant.timezone,
 });
 
-export class TenantSettingsConflictError extends Schema.TaggedErrorClass<TenantSettingsConflictError>()(
+export class TenantSettingsConflictError extends Schema.TaggedError<TenantSettingsConflictError>()(
   'TenantSettingsConflictError',
   { message: Schema.String },
 ) {}

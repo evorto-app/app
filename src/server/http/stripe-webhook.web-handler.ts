@@ -51,17 +51,17 @@ interface StripeWebhookBodyRequest {
   readonly headers: Pick<Headers, 'get'>;
 }
 
-class StripeWebhookBodyReadError extends Schema.TaggedErrorClass<StripeWebhookBodyReadError>()(
+class StripeWebhookBodyReadError extends Schema.TaggedError<StripeWebhookBodyReadError>()(
   'StripeWebhookBodyReadError',
   { cause: Schema.Defect() },
 ) {}
 
-class StripeWebhookBodyTooLargeError extends Schema.TaggedErrorClass<StripeWebhookBodyTooLargeError>()(
+class StripeWebhookBodyTooLargeError extends Schema.TaggedError<StripeWebhookBodyTooLargeError>()(
   'StripeWebhookBodyTooLargeError',
   {},
 ) {}
 
-class StripeWebhookStateConflictError extends Schema.TaggedErrorClass<StripeWebhookStateConflictError>()(
+class StripeWebhookStateConflictError extends Schema.TaggedError<StripeWebhookStateConflictError>()(
   'StripeWebhookStateConflictError',
   {},
 ) {}

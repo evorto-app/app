@@ -12,7 +12,7 @@ export type ReceiptMediaError =
   | ReceiptMediaInternalError
   | ReceiptMediaServiceUnavailableError;
 
-export class FinanceReceiptNotFoundError extends Schema.TaggedErrorClass<FinanceReceiptNotFoundError>()(
+export class FinanceReceiptNotFoundError extends Schema.TaggedError<FinanceReceiptNotFoundError>()(
   'FinanceReceiptNotFoundError',
   {
     id: Schema.optional(Schema.String),
@@ -21,7 +21,7 @@ export class FinanceReceiptNotFoundError extends Schema.TaggedErrorClass<Finance
   },
 ) {}
 
-export class FinanceResourceNotFoundError extends Schema.TaggedErrorClass<FinanceResourceNotFoundError>()(
+export class FinanceResourceNotFoundError extends Schema.TaggedError<FinanceResourceNotFoundError>()(
   'FinanceResourceNotFoundError',
   {
     id: Schema.optional(Schema.String),
@@ -30,21 +30,21 @@ export class FinanceResourceNotFoundError extends Schema.TaggedErrorClass<Financ
   },
 ) {}
 
-export class ReceiptMediaBadRequestError extends Schema.TaggedErrorClass<ReceiptMediaBadRequestError>()(
+export class ReceiptMediaBadRequestError extends Schema.TaggedError<ReceiptMediaBadRequestError>()(
   'ReceiptMediaBadRequestError',
   {
     message: Schema.String,
   },
 ) {}
 
-export class ReceiptMediaInternalError extends Schema.TaggedErrorClass<ReceiptMediaInternalError>()(
+export class ReceiptMediaInternalError extends Schema.TaggedError<ReceiptMediaInternalError>()(
   'ReceiptMediaInternalError',
   {
     message: Schema.String,
   },
 ) {}
 
-export class ReceiptMediaServiceUnavailableError extends Schema.TaggedErrorClass<ReceiptMediaServiceUnavailableError>()(
+export class ReceiptMediaServiceUnavailableError extends Schema.TaggedError<ReceiptMediaServiceUnavailableError>()(
   'ReceiptMediaServiceUnavailableError',
   {
     message: Schema.String,
