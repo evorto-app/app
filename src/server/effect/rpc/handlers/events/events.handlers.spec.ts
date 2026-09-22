@@ -56,9 +56,8 @@ const tenant = {
 };
 
 const createUser = (permissions: readonly Permission[] = []) => ({
-  attributes: [],
   auth0Id: 'auth0|user-1',
-  communicationEmail: undefined,
+  communicationEmail: 'member@example.com',
   email: 'member@example.com',
   firstName: 'Tenant',
   homeTenantId: undefined,

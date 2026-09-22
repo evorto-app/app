@@ -34,7 +34,7 @@ export const readRequiredE2ETestUserPassword = (
  * Canonical test users and role scope matrix.
  *
  * Intended usage in tests:
- * - `all`: broad legacy fallback user; avoid for new specs.
+ * - `profile`: regular member used by profile documentation that changes shared profile fields.
  * - `admin`: finance/admin capabilities (tax rates, receipts approval, role admin).
  * - `user`: regular attendee flows (registration, profile, discounts).
  * - `organizer`: template/event creation and organizer-level event management.
@@ -54,7 +54,7 @@ export const usersToAuthenticate = [
     id: 'e24014d5fac33d92e11b',
     passwordVariable: 'E2E_DEFAULT_USER_PASSWORD',
     platformAdministrator: false,
-    roles: 'all' as const,
+    roles: 'profile' as const,
     stateFile: defaultStateFile,
   },
   {
@@ -120,6 +120,6 @@ export const usersToAuthenticate = [
   readonly id: string;
   readonly passwordVariable: E2ETestUserPasswordVariable;
   readonly platformAdministrator: boolean;
-  readonly roles: 'admin' | 'all' | 'none' | 'organizer' | 'user';
+  readonly roles: 'admin' | 'none' | 'organizer' | 'profile' | 'user';
   readonly stateFile: string;
 }[];

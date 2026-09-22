@@ -46,7 +46,7 @@
     "test:integration:postgres": "bun helpers/testing/run-postgres-integration.ts",
     "test:integration:postgres:local": "POSTGRES_INTEGRATION_DISPOSABLE=true bun run env:run -- bash helpers/testing/with-docker-project-lease.sh postgres-integration -- bun helpers/testing/run-postgres-integration.ts --local",
     "test:unit": "bun run dev:ng test",
-    "test:unit:esncard-provider-error": "bun run dev:ng test --watch=false --include src/app/profile/user-profile/user-profile.component.spec.ts",
+    "test:unit:esncard-provider-error": "bun run dev:ng test --watch=false --include src/app/profile/profile-discounts/profile-discounts.esn-card.spec.ts",
     "test:unit:server": "bunx vitest run --config vitest.config.ts",
     "ui:theme:generate": "bun run dev:ng generate @angular/material:theme-color --include-high-contrast --primary-color=#4956C8 --secondary-color=#62677A --tertiary-color=#FFB26B --neutral-color=#F7F4ED --neutral-variant-color=#72778A --error-color=#B3261E --interactive=false --directory=src/ --force",
     "ui:theme:generate:classic": "bun run dev:ng generate @angular/material:theme-color --include-high-contrast --primary-color=#0891b2 --interactive=false --directory=src/_classic --force",

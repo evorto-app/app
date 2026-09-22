@@ -142,7 +142,7 @@ Sign in with your existing Evorto account and open a trusted link for the organi
 
 ## Review the new organization's requirements
 
-Opening a protected page for an organization you have not joined sends you to **Complete organization setup**. Check the organization name and policy before entering anything. Your existing name and **Notification email** are prefilled because those profile details belong to your global account.
+Opening a protected page for an organization you have not joined sends you to **Finish setting up your account**. Check the organization name and policy before entering anything. Your existing name and **Email for updates** are prefilled because those profile details belong to your global account.
 `,
   });
 
@@ -150,10 +150,10 @@ Opening a protected page for an organization you have not joined sends you to **
   await expect(member.page).toHaveURL(/\/create-account$/);
   const onboarding = member.page.locator('app-create-account');
   await expect(
-    onboarding.getByRole('heading', { name: 'Complete organization setup' }),
+    onboarding.getByRole('heading', { name: 'Finish setting up your account' }),
   ).toBeVisible();
   await expect(
-    onboarding.getByRole('textbox', { name: 'Notification email' }),
+    onboarding.getByRole('textbox', { name: 'Email for updates' }),
   ).toHaveValue(originalUser.communicationEmail);
   const joinButton = onboarding.getByRole('button', {
     name: 'Join organization',
@@ -204,11 +204,11 @@ Opening a protected page for an organization you have not joined sends you to **
   const profile = member.page.locator('app-user-profile');
   await expect(
     profile.getByRole('heading', {
-      name: 'You are browsing another organization',
+      name: 'You are viewing another organization',
     }),
   ).toBeVisible();
   await expect(profile).toContainText(
-    `Your home organization is ${originalHomeTenant.name}. Joining this organization did not change that preference.`,
+    `Your home organization is ${originalHomeTenant.name}. Joining this organization did not make it your home organization.`,
   );
   const makeHomeTenantButton = profile.getByRole('button', {
     name: 'Make this my home organization',
@@ -261,7 +261,7 @@ Opening a protected page for an organization you have not joined sends you to **
     body: `
 ## Understand the home-organization warning
 
-After the join, Evorto opens your profile in the new organization and shows **You are browsing another organization**. This is confirmation that all of the following were saved for the new organization:
+After the join, Evorto opens your profile in the new organization and shows **You are viewing another organization**. This is confirmation that all of the following were saved for the new organization:
 
 - your membership and its default member role;
 - acceptance of the exact policy version; and
@@ -311,7 +311,7 @@ Evorto confirms the saved organization by name. After a refresh, the cross-organ
   await member.page.reload();
   await expect(
     profile.getByRole('heading', {
-      name: 'You are browsing another organization',
+      name: 'You are viewing another organization',
     }),
   ).toHaveCount(0);
   await expect(
@@ -534,7 +534,7 @@ Use **Add question** for information that every member must provide. **Write an 
     body: `
 ## Finish setup after publishing the changes
 
-After publishing changed requirements, Evorto immediately opens **Complete organization setup**. Existing profile details and earlier answers are already filled in where they still apply. Review the current policy, answer every current question, and select the privacy acceptance checkbox. Completing the form opens your profile. Use **Admin Tools** → **New member setup** to return to the published settings.
+After publishing changed requirements, Evorto immediately opens **Finish setting up your account**. Existing profile details and earlier answers are already filled in where they still apply. Review the current policy, answer every current question, and select the privacy acceptance checkbox. Completing the form returns you to **New member setup**.
 
 For a new member, Evorto creates the organization membership only after they complete the form. Existing members remain in the organization but cannot continue until they accept the current policy and answer the current required questions. If the policy or questions change while the form is open, Evorto asks them to review the latest version before submitting again.
 `,
@@ -542,11 +542,11 @@ For a new member, Evorto creates the organization membership only after they com
 
   const onboarding = admin.page.locator('app-create-account');
   await expect(
-    onboarding.getByRole('heading', { name: 'Complete organization setup' }),
+    onboarding.getByRole('heading', { name: 'Finish setting up your account' }),
   ).toBeVisible();
   await expect(
     onboarding.getByRole('heading', {
-      name: `Privacy policy version ${publishedPolicy.version}`,
+      name: 'Current privacy policy',
     }),
   ).toBeVisible();
   await expect(
@@ -573,14 +573,7 @@ For a new member, Evorto creates the organization membership only after they com
   await onboarding
     .getByRole('checkbox', { name: /I accept .* current privacy policy/ })
     .check();
-  await onboarding
-    .getByRole('button', { name: 'Confirm and continue' })
-    .click();
-  await expect(admin.page).toHaveURL(/\/profile$/);
-  await admin.page.goto('/admin');
-  await admin.page
-    .getByRole('link', { name: 'New member setup', exact: true })
-    .click();
+  await onboarding.getByRole('button', { name: 'Finish setup' }).click();
   await expect(admin.page).toHaveURL(/\/admin\/onboarding$/);
   await expect(
     settings.getByRole('heading', { level: 1, name: 'New member setup' }),

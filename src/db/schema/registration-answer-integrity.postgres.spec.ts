@@ -1663,6 +1663,7 @@ const admissionCardRequestContext = (tenant: Tenant, userId: string) =>
     user: Schema.decodeUnknownSync(User)({
       attributes: [],
       auth0Id: `answer-integrity|${userId}`,
+      communicationEmail: `${userId}@example.com`,
       email: `${userId}@example.com`,
       firstName: 'Answer',
       id: userId,

@@ -26,6 +26,7 @@ import {
 } from '../../../../db/schema';
 import { includesPermission } from '../../../../shared/permissions/permissions';
 import { type UsersEventSummaryRecord } from '../../../../shared/rpc-contracts/app-rpcs/users.rpcs';
+import { isRegistrationEligibilityChangedAfterPaymentRefundOperationKey } from '../../../registrations/registration-eligibility';
 import { lockTenantRoleGraph } from '../../../roles/tenant-role-graph';
 import { RpcAccess } from './shared/rpc-access.service';
 
@@ -106,6 +107,24 @@ const resolvePendingRegistrationCheckoutUrl = (
 
 type ProfileRefundRecord = UsersEventSummaryRecord['refunds'][number];
 type ProfileRefundState = ProfileRefundRecord['state'];
+
+export const resolveProfileCancellationReason = (
+  transactions: readonly {
+    readonly refundOperationKey: null | string;
+    readonly sourceTransactionId: null | string;
+    readonly type: string;
+  }[],
+): UsersEventSummaryRecord['cancellationReason'] =>
+  transactions.some(
+    (transaction) =>
+      transaction.type === 'refund' &&
+      isRegistrationEligibilityChangedAfterPaymentRefundOperationKey(
+        transaction.refundOperationKey,
+        transaction.sourceTransactionId,
+      ),
+  )
+    ? 'eligibilityChangedAfterPayment'
+    : null;
 
 export const resolveProfileRefundState = (refund: {
   readonly method: string;
@@ -417,6 +436,7 @@ export const userHandlers = {
           with: {
             addonPurchases: {
               columns: {
+                purchasedQuantity: true,
                 quantity: true,
                 unitPrice: true,
               },
@@ -448,6 +468,8 @@ export const userHandlers = {
                 amount: true,
                 currency: true,
                 method: true,
+                refundOperationKey: true,
+                sourceTransactionId: true,
                 status: true,
                 stripeCheckoutUrl: true,
                 stripeRefundAttempts: true,
@@ -490,6 +512,8 @@ export const userHandlers = {
             purchase.addOn
               ? [
                   {
+                    currency: tenant.currency,
+                    purchasedQuantity: purchase.purchasedQuantity,
                     quantity: purchase.quantity,
                     title: purchase.addOn.title,
                     unitPrice: purchase.unitPrice,
@@ -497,6 +521,10 @@ export const userHandlers = {
                 ]
               : [],
           ),
+          cancellationReason:
+            registration.status === 'CANCELLED'
+              ? resolveProfileCancellationReason(registration.transactions)
+              : null,
           checkInTime: registration.checkInTime,
           checkoutUrl: resolvePendingRegistrationCheckoutUrl(
             registration.transactions,
@@ -526,6 +554,7 @@ export const userHandlers = {
         )
         .map((registration) => ({
           addonPurchases: registration.addonPurchases,
+          cancellationReason: registration.cancellationReason,
           checkInTime: registration.checkInTime?.toISOString() ?? null,
           checkoutUrl: registration.checkoutUrl,
           description: registration.event.description ?? null,
@@ -698,6 +727,12 @@ export const userHandlers = {
       yield* RpcAccess.ensureAuthenticated();
       const user = yield* RpcAccess.requireUser();
 
+      if (!isCanonicalEmailAddress(input.communicationEmail)) {
+        return yield* new RpcBadRequestError({
+          message: 'Enter a valid email address for updates.',
+          reason: 'invalidCommunicationEmail',
+        });
+      }
       if (
         input.iban !== null &&
         input.iban !== undefined &&

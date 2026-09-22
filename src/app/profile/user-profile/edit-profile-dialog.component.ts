@@ -5,9 +5,9 @@ import {
   signal,
 } from '@angular/core';
 import {
+  disabled,
   form,
   FormField,
-  pattern,
   required,
   submit,
   validate,
@@ -27,7 +27,6 @@ import { isValidIbanInput, normalizeIban } from '@shared/iban';
 import {
   isValidEmailAddressInput,
   normalizeEmailAddress,
-  notificationEmailPattern,
 } from '@shared/notification-email';
 
 export interface EditProfileDialogData {
@@ -36,6 +35,7 @@ export interface EditProfileDialogData {
   iban: null | string;
   lastName: string;
   paypalEmail: null | string;
+  save: (result: EditProfileDialogResult) => Promise<EditProfileSaveOutcome>;
 }
 
 export interface EditProfileDialogResult {
@@ -46,6 +46,9 @@ export interface EditProfileDialogResult {
   paypalEmail: null | string;
 }
 
+export type EditProfileSaveOutcome =
+  { message: string; saved: false } | { message?: string; saved: true };
+
 export const editProfileDialogResultFromFormValue = (formValue: {
   communicationEmail: string;
   firstName: string;
@@ -53,7 +56,7 @@ export const editProfileDialogResultFromFormValue = (formValue: {
   lastName: string;
   paypalEmail: string;
 }): EditProfileDialogResult => ({
-  communicationEmail: formValue.communicationEmail.trim(),
+  communicationEmail: normalizeEmailAddress(formValue.communicationEmail),
   firstName: formValue.firstName.trim(),
   iban: normalizeIban(formValue.iban) || null,
   lastName: formValue.lastName.trim(),
@@ -77,7 +80,7 @@ export const editProfileDialogResultFromFormValue = (formValue: {
   templateUrl: './edit-profile-dialog.component.html',
 })
 export class EditProfileDialogComponent {
-  protected readonly data = inject(MAT_DIALOG_DATA) as EditProfileDialogData;
+  protected readonly data = inject<EditProfileDialogData>(MAT_DIALOG_DATA);
   protected readonly profileModel = signal({
     communicationEmail: this.data.communicationEmail,
     firstName: this.data.firstName ?? '',
@@ -85,9 +88,19 @@ export class EditProfileDialogComponent {
     lastName: this.data.lastName ?? '',
     paypalEmail: this.data.paypalEmail ?? '',
   });
+  protected readonly saveConfirmed = signal(false);
+  protected readonly saving = signal(false);
   protected readonly profileForm = form(this.profileModel, (schemaPath) => {
+    disabled(schemaPath, () => this.saving() || this.saveConfirmed());
     required(schemaPath.communicationEmail);
-    pattern(schemaPath.communicationEmail, notificationEmailPattern);
+    validate(schemaPath.communicationEmail, ({ value }) =>
+      isValidEmailAddressInput(value())
+        ? undefined
+        : {
+            kind: 'email',
+            message: 'Enter a valid email address for updates.',
+          },
+    );
     required(schemaPath.firstName);
     validate(schemaPath.iban, ({ value }) =>
       normalizeIban(value()).length === 0 || isValidIbanInput(value())
@@ -108,14 +121,34 @@ export class EditProfileDialogComponent {
           },
     );
   });
-  private readonly dialogRef = inject(MatDialogRef<EditProfileDialogComponent>);
+  protected readonly saveMessage = signal<null | string>(null);
+  private readonly dialogRef = inject(
+    MatDialogRef<EditProfileDialogComponent, EditProfileDialogResult>,
+  );
 
   async onSubmit(event: Event): Promise<void> {
     event.preventDefault();
+    if (
+      this.saveConfirmed() ||
+      this.saving() ||
+      this.profileForm().submitting()
+    )
+      return;
     await submit(this.profileForm, async (formState) => {
-      this.dialogRef.close(
-        editProfileDialogResultFromFormValue(formState().value()),
-      );
+      const result = editProfileDialogResultFromFormValue(formState().value());
+      this.saveMessage.set(null);
+      this.saving.set(true);
+      const previousDisableClose = this.dialogRef.disableClose;
+      this.dialogRef.disableClose = true;
+      try {
+        const outcome = await this.data.save(result);
+        this.saveConfirmed.set(outcome.saved);
+        this.saveMessage.set(outcome.message ?? null);
+        if (outcome.saved && !outcome.message) this.dialogRef.close(result);
+      } finally {
+        this.saving.set(false);
+        this.dialogRef.disableClose = previousDisableClose;
+      }
     });
   }
 }

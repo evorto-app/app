@@ -11,7 +11,14 @@ import { DateTime } from 'luxon';
 
 import { Database } from '../../../../db';
 import { relations } from '../../../../db/relations';
-import { users } from '../../../../db/schema';
+import {
+  eventAddons,
+  eventInstances,
+  eventRegistrationAddonPurchases,
+  eventRegistrationOptions,
+  eventRegistrations,
+  transactions,
+} from '../../../../db/schema';
 import { type Permission } from '../../../../shared/permissions/permissions';
 import {
   RpcRequestContext,
@@ -28,9 +35,12 @@ import {
 } from '../../../../shared/rpc-contracts/app-rpcs/users.rpcs';
 import { Tenant } from '../../../../types/custom/tenant';
 import { User } from '../../../../types/custom/user';
+import { registrationEligibilityCompensationRefundOperationKey } from '../../../registrations/registration-eligibility';
+import { createRegistrationDatabaseTestLayer } from '../../../testing/registration-database';
 import { RpcAccess } from './shared/rpc-access.service';
 import {
   normalizeUsersFindManySearch,
+  resolveProfileCancellationReason,
   resolveProfileRefundState,
   tenantDayBounds,
   userHandlers,
@@ -64,7 +74,6 @@ const createTenant = () =>
 
 const createUser = () =>
   Schema.decodeUnknownSync(User)({
-    attributes: [],
     auth0Id: 'auth0|user-1',
     communicationEmail: 'notify@example.com',
     email: 'alice@example.com',
@@ -235,9 +244,148 @@ const createUserDatabaseFixture = ({
   };
 };
 
+type ProfileRegistrationFixture = Pick<
+  typeof eventRegistrations.$inferSelect,
+  'checkInTime' | 'eventId' | 'guestCount' | 'id' | 'status'
+> & {
+  addonPurchases: (Pick<
+    typeof eventRegistrationAddonPurchases.$inferSelect,
+    'purchasedQuantity' | 'quantity' | 'unitPrice'
+  > & {
+    addOn: Pick<typeof eventAddons.$inferSelect, 'title'>;
+  })[];
+  event: Pick<
+    typeof eventInstances.$inferSelect,
+    'description' | 'end' | 'id' | 'start' | 'title'
+  >;
+  registrationOption: Pick<
+    typeof eventRegistrationOptions.$inferSelect,
+    'organizingRegistration' | 'title'
+  >;
+  transactions: ProfileTransactionFixture[];
+};
+
+type ProfileTransactionFields = Pick<
+  typeof transactions.$inferSelect,
+  | 'amount'
+  | 'currency'
+  | 'method'
+  | 'refundOperationKey'
+  | 'sourceTransactionId'
+  | 'status'
+  | 'stripeCheckoutUrl'
+  | 'stripeRefundAttempts'
+  | 'stripeRefundClaimLeaseExpiresAt'
+  | 'stripeRefundClaimLeaseId'
+  | 'stripeRefundGeneration'
+  | 'stripeRefundMaxAttempts'
+  | 'stripeRefundNextAttemptAt'
+  | 'stripeRefundRequeuedAt'
+  | 'stripeRefundStatus'
+  | 'type'
+  | 'updatedAt'
+> & {
+  sourceTransaction: null | Pick<typeof transactions.$inferSelect, 'type'>;
+};
+
+type ProfileTransactionFixture = Partial<
+  Omit<ProfileTransactionFields, 'method' | 'status' | 'type'>
+> &
+  Pick<ProfileTransactionFields, 'method' | 'status' | 'type'>;
+
+const profileTimestamp = (value: Date | null) =>
+  value?.toISOString().replace('Z', '') ?? null;
+
+const profileRegistrationRow = (registration: ProfileRegistrationFixture) => [
+  profileTimestamp(registration.checkInTime),
+  registration.eventId,
+  registration.guestCount,
+  registration.id,
+  registration.status,
+  registration.addonPurchases.map((purchase) => ({
+    ...purchase,
+    addOn: { ...purchase.addOn },
+  })),
+  {
+    ...registration.event,
+    end: profileTimestamp(registration.event.end),
+    start: profileTimestamp(registration.event.start),
+  },
+  { ...registration.registrationOption },
+  registration.transactions.map((input) => {
+    const transaction: ProfileTransactionFields = {
+      amount: 0,
+      currency: 'EUR',
+      refundOperationKey: null,
+      sourceTransaction: null,
+      sourceTransactionId: null,
+      stripeCheckoutUrl: null,
+      stripeRefundAttempts: 0,
+      stripeRefundClaimLeaseExpiresAt: null,
+      stripeRefundClaimLeaseId: null,
+      stripeRefundGeneration: 0,
+      stripeRefundMaxAttempts: 8,
+      stripeRefundNextAttemptAt: null,
+      stripeRefundRequeuedAt: null,
+      stripeRefundStatus: null,
+      updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+      ...input,
+    };
+    return {
+      ...transaction,
+      sourceTransaction: transaction.sourceTransaction
+        ? { ...transaction.sourceTransaction }
+        : null,
+      stripeRefundClaimLeaseExpiresAt: profileTimestamp(
+        transaction.stripeRefundClaimLeaseExpiresAt,
+      ),
+      stripeRefundNextAttemptAt: profileTimestamp(
+        transaction.stripeRefundNextAttemptAt,
+      ),
+      stripeRefundRequeuedAt: profileTimestamp(
+        transaction.stripeRefundRequeuedAt,
+      ),
+      updatedAt: profileTimestamp(transaction.updatedAt),
+    };
+  }),
+];
+
 const noDatabaseAccessLayer = createUserDatabaseFixture().databaseLayer;
 
 describe('userHandlers', () => {
+  it('maps only the dedicated eligibility compensation refund operation', () => {
+    expect(
+      resolveProfileCancellationReason([
+        {
+          refundOperationKey:
+            registrationEligibilityCompensationRefundOperationKey(
+              'transaction-1',
+            ),
+          sourceTransactionId: 'transaction-1',
+          type: 'refund',
+        },
+      ]),
+    ).toBe('eligibilityChangedAfterPayment');
+    expect(
+      resolveProfileCancellationReason([
+        {
+          refundOperationKey:
+            'registration-cancellation:registration-1:transaction-1',
+          sourceTransactionId: 'transaction-1',
+          type: 'refund',
+        },
+        {
+          refundOperationKey:
+            registrationEligibilityCompensationRefundOperationKey(
+              'transaction-1',
+            ),
+          sourceTransactionId: 'transaction-1',
+          type: 'registration',
+        },
+      ]),
+    ).toBeNull();
+  });
+
   it('uses tenant-local DST boundaries for scanner business days', () => {
     const now = DateTime.fromISO('2026-03-29T12:00:00.000Z', { zone: 'utc' });
     if (!now.isValid) throw new Error('Expected a valid DST test instant');
@@ -610,235 +758,269 @@ describe('userHandlers', () => {
     Effect.gen(function* () {
       const tenant = createTenant();
       const user = createUser();
-      const findRegistrations = vi.fn(() =>
-        Effect.succeed([
-          {
-            addonPurchases: [],
-            checkInTime: null,
-            event: {
-              description: 'waitlist',
-              end: new Date('2026-01-01T11:00:00.000Z'),
-              id: 'event-waitlist',
-              start: new Date('2026-01-01T10:00:00.000Z'),
-              title: 'Waitlist Event',
-            },
-            eventId: 'event-waitlist',
-            guestCount: 0,
-            id: 'registration-waitlist',
-            registrationOption: {
-              organizingRegistration: false,
-              title: 'Waitlist option',
-            },
-            status: 'WAITLIST',
-            transactions: [],
+      const registrations: ProfileRegistrationFixture[] = [
+        {
+          addonPurchases: [],
+          checkInTime: null,
+          event: {
+            description: 'waitlist',
+            end: new Date('2026-01-01T11:00:00.000Z'),
+            id: 'event-waitlist',
+            start: new Date('2026-01-01T10:00:00.000Z'),
+            title: 'Waitlist Event',
           },
-          {
-            addonPurchases: [],
-            checkInTime: null,
-            event: {
-              description: 'cancelled payment',
-              end: new Date('2026-01-15T11:00:00.000Z'),
-              id: 'event-cancelled-payment',
-              start: new Date('2026-01-15T10:00:00.000Z'),
-              title: 'Cancelled Payment Event',
-            },
-            eventId: 'event-cancelled-payment',
-            guestCount: 0,
-            id: 'registration-cancelled-payment',
-            registrationOption: {
-              organizingRegistration: false,
-              title: 'Participant',
-            },
-            status: 'PENDING',
-            transactions: [
-              {
-                method: 'stripe',
-                status: 'cancelled',
-                stripeCheckoutUrl: null,
-                type: 'registration',
-              },
-            ],
+          eventId: 'event-waitlist',
+          guestCount: 0,
+          id: 'registration-waitlist',
+          registrationOption: {
+            organizingRegistration: false,
+            title: 'Waitlist option',
           },
-          {
-            addonPurchases: [],
-            checkInTime: null,
-            event: {
-              description: 'cancelled with refund',
-              end: new Date('2026-01-20T11:00:00.000Z'),
-              id: 'event-cancelled-refund',
-              start: new Date('2026-01-20T10:00:00.000Z'),
-              title: 'Cancelled Refund Event',
-            },
-            eventId: 'event-cancelled-refund',
-            guestCount: 0,
-            id: 'registration-cancelled-refund',
-            registrationOption: {
-              organizingRegistration: false,
-              title: 'Participant',
-            },
-            status: 'CANCELLED',
-            transactions: [
-              {
-                amount: 2500,
-                currency: 'EUR',
-                method: 'stripe',
-                sourceTransaction: null,
-                status: 'successful',
-                stripeCheckoutUrl: null,
-                stripeRefundAttempts: 0,
-                stripeRefundClaimLeaseExpiresAt: null,
-                stripeRefundClaimLeaseId: null,
-                stripeRefundGeneration: 0,
-                stripeRefundMaxAttempts: 8,
-                stripeRefundNextAttemptAt: null,
-                stripeRefundRequeuedAt: null,
-                stripeRefundStatus: null,
-                type: 'registration',
-                updatedAt: new Date('2026-01-20T09:00:00.000Z'),
-              },
-              {
-                amount: -2500,
-                currency: 'EUR',
-                method: 'stripe',
-                sourceTransaction: { type: 'registration' },
-                status: 'pending',
-                stripeCheckoutUrl: null,
-                stripeRefundAttempts: 2,
-                stripeRefundClaimLeaseExpiresAt: null,
-                stripeRefundClaimLeaseId: null,
-                stripeRefundGeneration: 0,
-                stripeRefundMaxAttempts: 8,
-                stripeRefundNextAttemptAt: new Date('2026-01-20T10:10:00.000Z'),
-                stripeRefundRequeuedAt: null,
-                stripeRefundStatus: null,
-                type: 'refund',
-                updatedAt: new Date('2026-01-20T10:05:00.000Z'),
-              },
-            ],
-          },
-          {
-            addonPurchases: [
-              {
-                addOn: {
-                  title: 'Workshop kit',
-                },
-                quantity: 2,
-                unitPrice: 500,
-              },
-            ],
-            checkInTime: null,
-            event: {
-              description: 'later',
-              end: new Date('2026-03-01T11:00:00.000Z'),
-              id: 'event-2',
-              start: new Date('2026-03-01T10:00:00.000Z'),
-              title: 'Later Event',
-            },
-            eventId: 'event-2',
-            guestCount: 2,
-            id: 'registration-2',
-            registrationOption: {
-              organizingRegistration: false,
-              title: 'Standard',
-            },
-            status: 'PENDING',
-            transactions: [
-              {
-                method: 'stripe',
-                status: 'pending',
-                stripeCheckoutUrl: 'https://checkout.stripe.test/pay',
-                type: 'registration',
-              },
-            ],
-          },
-          {
-            addonPurchases: [],
-            checkInTime: new Date('2026-02-01T10:30:00.000Z'),
-            event: {
-              description: 'earlier',
-              end: new Date('2026-02-01T11:00:00.000Z'),
-              id: 'event-1',
-              start: new Date('2026-02-01T10:00:00.000Z'),
-              title: 'Earlier Event',
-            },
-            eventId: 'event-1',
-            guestCount: 0,
-            id: 'registration-1',
-            registrationOption: {
-              organizingRegistration: false,
-              title: 'Participant',
-            },
-            status: 'CONFIRMED',
-            transactions: [
-              {
-                method: 'stripe',
-                status: 'successful',
-                stripeCheckoutUrl: null,
-                type: 'registration',
-              },
-            ],
-          },
-        ]),
-      );
-      const mockDatabase = {
-        query: {
-          eventRegistrations: {
-            findMany: findRegistrations,
-          },
-          transactions: {
-            findMany: vi.fn(() =>
-              Effect.succeed([
-                {
-                  eventRegistrationId: 'registration-cancelled-refund',
-                },
-              ]),
-            ),
-          },
+          status: 'WAITLIST',
+          transactions: [],
         },
-      };
-
-      const result = yield* userHandlers['users.events'](
-        undefined,
-        userHandlerOptions(
-          UsersEventsFindMany.middleware(RpcRequestContextMiddleware),
-        ),
-      ).pipe(
-        provideUserHandlerContext(
-          createUserHandlerContext({
-            tenant,
-            user,
-          }),
-        ),
-        Effect.provide(Layer.succeed(Database, mockDatabase as never)),
-      );
-
-      expect(findRegistrations).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: {
-            OR: [
-              { status: { NOT: 'CANCELLED' } },
-              {
-                id: { in: ['registration-cancelled-refund'] },
-                status: 'CANCELLED',
-              },
-            ],
-            tenantId: tenant.id,
-            userId: user.id,
+        {
+          addonPurchases: [],
+          checkInTime: null,
+          event: {
+            description: 'cancelled payment',
+            end: new Date('2026-01-15T11:00:00.000Z'),
+            id: 'event-cancelled-payment',
+            start: new Date('2026-01-15T10:00:00.000Z'),
+            title: 'Cancelled Payment Event',
           },
-        }),
-      );
-      expect(findRegistrations).toHaveBeenCalledWith(
-        expect.objectContaining({
-          with: expect.objectContaining({
-            transactions: expect.objectContaining({
-              where: { targetUserId: user.id },
+          eventId: 'event-cancelled-payment',
+          guestCount: 0,
+          id: 'registration-cancelled-payment',
+          registrationOption: {
+            organizingRegistration: false,
+            title: 'Participant',
+          },
+          status: 'PENDING',
+          transactions: [
+            {
+              method: 'stripe',
+              status: 'cancelled',
+              stripeCheckoutUrl: null,
+              type: 'registration',
+            },
+          ],
+        },
+        {
+          addonPurchases: [],
+          checkInTime: null,
+          event: {
+            description: 'cancelled with refund',
+            end: new Date('2026-01-20T11:00:00.000Z'),
+            id: 'event-cancelled-refund',
+            start: new Date('2026-01-20T10:00:00.000Z'),
+            title: 'Cancelled Refund Event',
+          },
+          eventId: 'event-cancelled-refund',
+          guestCount: 0,
+          id: 'registration-cancelled-refund',
+          registrationOption: {
+            organizingRegistration: false,
+            title: 'Participant',
+          },
+          status: 'CANCELLED',
+          transactions: [
+            {
+              amount: 2500,
+              currency: 'EUR',
+              method: 'stripe',
+              sourceTransaction: null,
+              status: 'successful',
+              stripeCheckoutUrl: null,
+              stripeRefundAttempts: 0,
+              stripeRefundClaimLeaseExpiresAt: null,
+              stripeRefundClaimLeaseId: null,
+              stripeRefundGeneration: 0,
+              stripeRefundMaxAttempts: 8,
+              stripeRefundNextAttemptAt: null,
+              stripeRefundRequeuedAt: null,
+              stripeRefundStatus: null,
+              type: 'registration',
+              updatedAt: new Date('2026-01-20T09:00:00.000Z'),
+            },
+            {
+              amount: -2500,
+              currency: 'EUR',
+              method: 'stripe',
+              refundOperationKey:
+                registrationEligibilityCompensationRefundOperationKey(
+                  'registration-payment-1',
+                ),
+              sourceTransaction: { type: 'registration' },
+              sourceTransactionId: 'registration-payment-1',
+              status: 'pending',
+              stripeCheckoutUrl: null,
+              stripeRefundAttempts: 2,
+              stripeRefundClaimLeaseExpiresAt: null,
+              stripeRefundClaimLeaseId: null,
+              stripeRefundGeneration: 0,
+              stripeRefundMaxAttempts: 8,
+              stripeRefundNextAttemptAt: new Date('2026-01-20T10:10:00.000Z'),
+              stripeRefundRequeuedAt: null,
+              stripeRefundStatus: null,
+              type: 'refund',
+              updatedAt: new Date('2026-01-20T10:05:00.000Z'),
+            },
+          ],
+        },
+        {
+          addonPurchases: [
+            {
+              addOn: {
+                title: 'Workshop kit',
+              },
+              purchasedQuantity: 1,
+              quantity: 2,
+              unitPrice: 500,
+            },
+          ],
+          checkInTime: null,
+          event: {
+            description: 'later',
+            end: new Date('2026-03-01T11:00:00.000Z'),
+            id: 'event-2',
+            start: new Date('2026-03-01T10:00:00.000Z'),
+            title: 'Later Event',
+          },
+          eventId: 'event-2',
+          guestCount: 2,
+          id: 'registration-2',
+          registrationOption: {
+            organizingRegistration: false,
+            title: 'Standard',
+          },
+          status: 'PENDING',
+          transactions: [
+            {
+              method: 'stripe',
+              status: 'pending',
+              stripeCheckoutUrl: 'https://checkout.stripe.test/pay',
+              type: 'registration',
+            },
+          ],
+        },
+        {
+          addonPurchases: [],
+          checkInTime: new Date('2026-02-01T10:30:00.000Z'),
+          event: {
+            description: 'earlier',
+            end: new Date('2026-02-01T11:00:00.000Z'),
+            id: 'event-1',
+            start: new Date('2026-02-01T10:00:00.000Z'),
+            title: 'Earlier Event',
+          },
+          eventId: 'event-1',
+          guestCount: 0,
+          id: 'registration-1',
+          registrationOption: {
+            organizingRegistration: false,
+            title: 'Participant',
+          },
+          status: 'CONFIRMED',
+          transactions: [
+            {
+              method: 'stripe',
+              status: 'successful',
+              stripeCheckoutUrl: null,
+              type: 'registration',
+            },
+          ],
+        },
+      ];
+      const executeValues: SqlConnection.Connection['executeValues'] = (
+        statement,
+        parameters,
+      ) =>
+        Effect.sync(() => {
+          if (statement.includes('from "transactions" as "d0"')) {
+            expect(statement).toContain('"d0"."eventRegistrationId"');
+            expect(parameters).toEqual([user.id, tenant.id, 'refund']);
+            return [['registration-cancelled-refund']];
+          }
+          expect(statement).toContain('from "event_registrations" as "d0"');
+          expect(statement).toContain('"d1"."targetUserId" = $5');
+          expect(statement).toContain('"d0"."tenantId" = $9');
+          expect(statement).toContain('"d0"."userId" = $10');
+          expect(statement).toContain('"purchased_quantity"');
+          expect(parameters).toEqual([
+            1,
+            1,
+            1,
+            1,
+            user.id,
+            'CANCELLED',
+            'registration-cancelled-refund',
+            'CANCELLED',
+            tenant.id,
+            user.id,
+          ]);
+          return registrations.map((registration) =>
+            profileRegistrationRow(registration),
+          );
+        });
+      const databaseLayer = createRegistrationDatabaseTestLayer({
+        executeValues,
+      });
+      const result = yield* Effect.gen(function* () {
+        const database = yield* Database;
+        const findRegistrations = vi.spyOn(
+          database.query.eventRegistrations,
+          'findMany',
+        );
+        return yield* Effect.gen(function* () {
+          const result = yield* userHandlers['users.events'](
+            undefined,
+            userHandlerOptions(
+              UsersEventsFindMany.middleware(RpcRequestContextMiddleware),
+            ),
+          ).pipe(
+            provideUserHandlerContext(
+              createUserHandlerContext({
+                tenant,
+                user,
+              }),
+            ),
+          );
+
+          expect(findRegistrations).toHaveBeenCalledWith(
+            expect.objectContaining({
+              where: {
+                OR: [
+                  { status: { NOT: 'CANCELLED' } },
+                  {
+                    id: { in: ['registration-cancelled-refund'] },
+                    status: 'CANCELLED',
+                  },
+                ],
+                tenantId: tenant.id,
+                userId: user.id,
+              },
             }),
-          }),
-        }),
-      );
+          );
+          expect(findRegistrations).toHaveBeenCalledWith(
+            expect.objectContaining({
+              with: expect.objectContaining({
+                transactions: expect.objectContaining({
+                  where: { targetUserId: user.id },
+                }),
+              }),
+            }),
+          );
+          return result;
+        }).pipe(
+          Effect.ensuring(Effect.sync(() => findRegistrations.mockRestore())),
+        );
+      }).pipe(Effect.provide(databaseLayer));
+
       expect(result).toEqual([
         {
           addonPurchases: [],
+          cancellationReason: null,
           checkInTime: null,
           checkoutUrl: null,
           description: 'waitlist',
@@ -856,6 +1038,7 @@ describe('userHandlers', () => {
         },
         {
           addonPurchases: [],
+          cancellationReason: null,
           checkInTime: null,
           checkoutUrl: null,
           description: 'cancelled payment',
@@ -873,6 +1056,7 @@ describe('userHandlers', () => {
         },
         {
           addonPurchases: [],
+          cancellationReason: 'eligibilityChangedAfterPayment',
           checkInTime: null,
           checkoutUrl: null,
           description: 'cancelled with refund',
@@ -898,6 +1082,7 @@ describe('userHandlers', () => {
         },
         {
           addonPurchases: [],
+          cancellationReason: null,
           checkInTime: '2026-02-01T10:30:00.000Z',
           checkoutUrl: null,
           description: 'earlier',
@@ -916,11 +1101,14 @@ describe('userHandlers', () => {
         {
           addonPurchases: [
             {
+              currency: 'EUR',
+              purchasedQuantity: 1,
               quantity: 2,
               title: 'Workshop kit',
               unitPrice: 500,
             },
           ],
+          cancellationReason: null,
           checkInTime: null,
           checkoutUrl: 'https://checkout.stripe.test/pay',
           description: 'later',
@@ -1124,14 +1312,43 @@ describe('userHandlers', () => {
   it.effect('updateProfile updates notification and payout fields', () =>
     Effect.gen(function* () {
       const user = createUser();
-      const updateSet = vi.fn((_value: unknown) => ({
-        where: vi.fn(() => Effect.void),
-      }));
-      const mockDatabase = {
-        update: vi.fn(() => ({
-          set: updateSet,
-        })),
-      };
+      const executeValues = vi.fn<SqlConnection.Connection['executeValues']>(
+        (statement, parameters) =>
+          Effect.sync(() => {
+            expect(statement).toBe(
+              'update "users" set "communicationEmail" = $1, "firstName" = $2, "iban" = $3, "lastName" = $4, "paypalEmail" = $5, "updatedAt" = $6 where "users"."id" = $7',
+            );
+            expect(parameters).toHaveLength(7);
+            const [
+              communicationEmail,
+              firstName,
+              iban,
+              lastName,
+              paypalEmail,
+              updatedAt,
+              userId,
+            ] = parameters;
+            expect({
+              communicationEmail,
+              firstName,
+              iban,
+              lastName,
+              paypalEmail,
+            }).toEqual({
+              communicationEmail: 'events@example.com',
+              firstName: 'Alice',
+              iban: 'NL91ABNA0417164300',
+              lastName: 'Updated',
+              paypalEmail: 'paypal@example.com',
+            });
+            expect(userId).toBe(user.id);
+            expect(updatedAt).toEqual(expect.any(String));
+            return [];
+          }),
+      );
+      const databaseLayer = createRegistrationDatabaseTestLayer({
+        executeValues,
+      });
 
       yield* userHandlers['users.updateProfile'](
         {
@@ -1150,18 +1367,68 @@ describe('userHandlers', () => {
             user,
           }),
         ),
-        Effect.provide(Layer.succeed(Database, mockDatabase as never)),
+        Effect.provide(databaseLayer),
       );
 
-      expect(mockDatabase.update).toHaveBeenCalledWith(users);
-      expect(updateSet).toHaveBeenCalledWith({
-        communicationEmail: 'events@example.com',
-        firstName: 'Alice',
-        iban: 'NL91ABNA0417164300',
-        lastName: 'Updated',
-        paypalEmail: 'paypal@example.com',
-      });
+      expect(executeValues).toHaveBeenCalledOnce();
     }),
+  );
+
+  it.effect(
+    'updateProfile rejects non-canonical contact and payout details',
+    () =>
+      Effect.gen(function* () {
+        const fixture = createUserDatabaseFixture();
+        const cases = [
+          {
+            communicationEmail: ' Events@Example.COM ',
+            iban: 'NL91ABNA0417164300',
+            paypalEmail: 'paypal@example.com',
+            reason: 'invalidCommunicationEmail',
+          },
+          {
+            communicationEmail: 'events@example.com',
+            iban: 'DE88370400440532013000',
+            paypalEmail: 'paypal@example.com',
+            reason: 'invalidIban',
+          },
+          {
+            communicationEmail: 'events@example.com',
+            iban: 'NL91ABNA0417164300',
+            paypalEmail: 'PayPal@Example.COM',
+            reason: 'invalidPaypalEmail',
+          },
+        ] as const;
+
+        for (const testCase of cases) {
+          const error = yield* userHandlers['users.updateProfile'](
+            {
+              communicationEmail: testCase.communicationEmail,
+              firstName: 'Alice',
+              iban: testCase.iban,
+              lastName: 'Updated',
+              paypalEmail: testCase.paypalEmail,
+            },
+            userHandlerOptions(
+              UsersUpdateProfile.middleware(RpcRequestContextMiddleware),
+            ),
+          ).pipe(
+            Effect.flip,
+            provideUserHandlerContext(),
+            Effect.provide(fixture.databaseLayer),
+          );
+
+          expect(error['_tag']).toBe('RpcBadRequestError');
+          expect(error).toHaveProperty('reason', testCase.reason);
+          if (testCase.reason === 'invalidCommunicationEmail') {
+            expect(error).toHaveProperty(
+              'message',
+              'Enter a valid email address for updates.',
+            );
+          }
+        }
+        expect(fixture.executeValues).not.toHaveBeenCalled();
+      }),
   );
 
   it.effect('userAssigned reflects the current tenant assignment context', () =>
@@ -1247,7 +1514,7 @@ describe('profile payout writer guards', () => {
         for (const testCase of cases) {
           const error = yield* userHandlers['users.updateProfile'](
             {
-              communicationEmail: 'Events@Example.COM',
+              communicationEmail: 'events@example.com',
               firstName: 'Alice',
               iban: testCase.iban,
               lastName: 'Updated',

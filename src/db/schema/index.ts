@@ -31,6 +31,5 @@ export * from './tenant-onboarding';
 export * from './tenant-stripe-tax-rates';
 export * from './tenants';
 export * from './transactions';
-export * from './user-attributes';
 export * from './user-discount-cards';
 export * from './users';

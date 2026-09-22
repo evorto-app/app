@@ -47,7 +47,7 @@ describe('platform role permission editing', () => {
     ...storedRole,
     id: 'role-tax',
     name: 'Tax manager',
-    permissions: ['admin:manageTaxes'],
+    permissions: ['admin:tax'],
   });
   const creatorRole = PlatformRoleRecord.make({
     ...storedRole,
@@ -185,7 +185,7 @@ describe('platform role permission editing', () => {
     );
   });
 
-  it('preserves legacy tax authority while another permission is selected', async () => {
+  it('preserves canonical tax authority while another permission is selected', async () => {
     const { permissions, save } = await render('Tax manager');
     expect(await permissions.getValueText()).toContain('Manage tax rates');
     await permissions.clickOptions({ text: 'See draft events' });
@@ -194,7 +194,7 @@ describe('platform role permission editing', () => {
     await vi.waitFor(() =>
       expect(updateRole).toHaveBeenCalledWith(
         expect.objectContaining({
-          permissions: ['admin:manageTaxes', 'events:seeDrafts'],
+          permissions: ['admin:tax', 'events:seeDrafts'],
           roleId: taxRole.id,
         }),
         expect.anything(),
@@ -202,7 +202,7 @@ describe('platform role permission editing', () => {
     );
   });
 
-  it('revokes the legacy grant when its visible tax permission is deselected', async () => {
+  it('revokes the canonical tax grant when its visible permission is deselected', async () => {
     const { permissions, save } = await render('Tax manager');
     await permissions.open();
     const [taxPermission] = await permissions.getOptions({

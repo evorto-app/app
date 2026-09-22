@@ -1,6 +1,7 @@
 import type { TenantOnboardingRequirementsRecord } from '@shared/rpc-contracts/app-rpcs/onboarding.rpcs';
 import type { UsersAuthData } from '@shared/rpc-contracts/app-rpcs/users.rpcs';
 
+import { normalizeEmailAddress } from '@shared/notification-email';
 import { TenantOnboardingRequirementsChangedError } from '@shared/rpc-contracts/app-rpcs/onboarding.errors';
 import { Schema } from 'effect';
 
@@ -84,7 +85,7 @@ export const createAccountPayloadFromModel = (
     questionId: answer.questionId,
     value: answer.value.trim(),
   })),
-  communicationEmail: model.communicationEmail.trim(),
+  communicationEmail: normalizeEmailAddress(model.communicationEmail),
   firstName: model.firstName.trim(),
   lastName: model.lastName.trim(),
   policyVersionId: model.policyVersionId,
@@ -100,8 +101,17 @@ export const createAccountSubmitDisabled = ({
   mutationPending: boolean;
 }): boolean => formInvalid || formSubmitting || mutationPending;
 
-export const createAccountErrorMessage = (error: unknown): string =>
-  getErrorMessage(error, 'Failed to complete organization setup', [
-    'TenantOnboardingRequirementsChangedError',
-    'TenantOnboardingValidationError',
-  ]);
+export const createAccountErrorMessage = (error: unknown): string => {
+  if (isTenantOnboardingRequirementsChangedError(error)) {
+    return 'This organization changed its questions or privacy policy. Review the latest details and try again.';
+  }
+
+  return getErrorMessage(
+    error,
+    "We couldn't finish setting up your account. Try again.",
+    [
+      'TenantOnboardingRequirementsChangedError',
+      'TenantOnboardingValidationError',
+    ],
+  );
+};

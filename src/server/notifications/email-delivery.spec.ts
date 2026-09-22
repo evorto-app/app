@@ -417,6 +417,7 @@ describe('email delivery', () => {
         yield* enqueueReceiptReviewedEmail(database, {
           eventTitle: 'City tour',
           receiptId: 'receipt-1',
+          receiptUrl: 'https://example.org/profile/receipts',
           rejectionReason: null,
           status: 'approved',
           tenant: {
@@ -430,6 +431,9 @@ describe('email delivery', () => {
 
         expect(insertedValues[0]).toEqual(
           expect.objectContaining({
+            html: expect.stringContaining(
+              'href="https://example.org/profile/receipts"',
+            ),
             idempotencyKey: 'receipt-reviewed/tenant-1/receipt-1/approved',
             kind: 'receiptReviewed',
             replyToEmail: 'board@example.org',

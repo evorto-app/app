@@ -356,10 +356,13 @@ Use **Profile** in the main navigation, then choose **Receipts**. This personal 
   });
 
   await page.getByRole('link', { name: 'Profile', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Receipts' })).toBeVisible();
-  await page.getByRole('button', { name: 'Receipts' }).click();
+  const receiptsLink = page
+    .getByRole('navigation', { name: 'Profile sections' })
+    .getByRole('link', { name: 'Receipts' });
+  await expect(receiptsLink).toBeVisible();
+  await receiptsLink.click();
   await expect(
-    page.getByRole('heading', { name: 'Submitted receipts' }),
+    page.getByRole('heading', { name: 'Your receipts' }),
   ).toBeVisible();
   const profileReceipt = page
     .locator('article')
@@ -435,10 +438,13 @@ Organization membership by itself does not provide organizer tools. A regular me
   await sameTenantViewer.page
     .getByRole('link', { name: 'Profile', exact: true })
     .click();
-  await sameTenantViewer.page.getByRole('button', { name: 'Receipts' }).click();
+  await sameTenantViewer.page
+    .getByRole('navigation', { name: 'Profile sections' })
+    .getByRole('link', { name: 'Receipts' })
+    .click();
   await expect(
     sameTenantViewer.page.getByRole('heading', {
-      name: 'Submitted receipts',
+      name: 'Your receipts',
     }),
   ).toBeVisible();
   await expect(sameTenantViewer.page.getByText(receiptName)).toHaveCount(0);

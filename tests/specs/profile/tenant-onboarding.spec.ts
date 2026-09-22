@@ -163,11 +163,11 @@ test('a tenant admin publishes a version and is immediately required to re-accep
 
   const onboarding = admin.page.locator('app-create-account');
   await expect(
-    onboarding.getByRole('heading', { name: 'Complete organization setup' }),
+    onboarding.getByRole('heading', { name: 'Finish setting up your account' }),
   ).toBeVisible();
   await expect(
     onboarding.getByRole('heading', {
-      name: `Privacy policy version ${publishedPolicy?.version}`,
+      name: 'Current privacy policy',
     }),
   ).toBeVisible();
   const onboardingQuestion = onboarding.getByRole('combobox', {
@@ -181,10 +181,8 @@ test('a tenant admin publishes a version and is immediately required to re-accep
   await admin.page
     .getByRole('checkbox', { name: /I accept .* current privacy policy/ })
     .check();
-  await admin.page
-    .getByRole('button', { name: 'Confirm and continue' })
-    .click();
-  await expect(admin.page).toHaveURL(/\/profile$/);
+  await admin.page.getByRole('button', { name: 'Finish setup' }).click();
+  await expect(admin.page).toHaveURL(/\/admin\/onboarding$/);
 
   const adminUser = usersToAuthenticate.find(
     (user) => user.stateFile === adminStateFile,

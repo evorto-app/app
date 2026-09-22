@@ -1,5 +1,5 @@
 import { RpcUnauthorizedError } from '@shared/errors/rpc-errors';
-import { notificationEmailPattern } from '@shared/notification-email';
+import { isCanonicalEmailAddress } from '@shared/notification-email';
 import {
   TenantOnboardingConfigurationError,
   TenantOnboardingRequirementsChangedError,
@@ -78,7 +78,7 @@ export const normalizeOnboardingProfile = (input: {
   firstName: string;
   lastName: string;
 }) => {
-  const communicationEmail = input.communicationEmail.trim();
+  const communicationEmail = input.communicationEmail;
   const firstName = input.firstName.trim();
   const lastName = input.lastName.trim();
 
@@ -94,10 +94,10 @@ export const normalizeOnboardingProfile = (input: {
       'Last name must contain between 1 and 100 characters.',
     );
   }
-  if (!notificationEmailPattern.test(communicationEmail)) {
+  if (!isCanonicalEmailAddress(communicationEmail)) {
     return failValidation(
       'communicationEmail',
-      'Enter a valid notification email address.',
+      'Enter a valid email address for updates.',
     );
   }
 

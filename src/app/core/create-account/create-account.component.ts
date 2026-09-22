@@ -2,9 +2,11 @@ import { DOCUMENT } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
+  computed,
   effect,
   inject,
   Injectable,
+  input,
   signal,
 } from '@angular/core';
 import {
@@ -12,7 +14,6 @@ import {
   form,
   FormField,
   maxLength,
-  pattern,
   required,
   schema,
   submit,
@@ -24,7 +25,8 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { Router } from '@angular/router';
-import { notificationEmailPattern } from '@shared/notification-email';
+import { sanitizeRelativeRedirectPath } from '@shared/auth-redirect';
+import { isValidEmailAddressInput } from '@shared/notification-email';
 import {
   injectMutation,
   injectQuery,
@@ -65,8 +67,8 @@ export class CreateAccountOperations {
     return this.rpc.onboarding.complete.mutationOptions();
   }
 
-  navigateAfterCompletion() {
-    this.document.location.assign('/profile');
+  navigateAfterCompletion(path: string) {
+    this.document.location.assign(path);
   }
 
   onboardingRequirements() {
@@ -89,6 +91,7 @@ export class CreateAccountOperations {
   templateUrl: './create-account.component.html',
 })
 export class CreateAccountComponent {
+  readonly redirectUrl = input<string>();
   protected readonly accountError = signal('');
   private readonly accountModel = signal({
     acceptedPrivacyPolicy: false,
@@ -111,9 +114,14 @@ export class CreateAccountComponent {
     required(formPath.communicationEmail, {
       message: 'Enter the email address where you receive notifications.',
     });
-    pattern(formPath.communicationEmail, notificationEmailPattern, {
-      message: 'Enter a valid email address.',
-    });
+    validate(formPath.communicationEmail, ({ value }) =>
+      isValidEmailAddressInput(value())
+        ? undefined
+        : {
+            kind: 'email',
+            message: 'Enter a valid email address.',
+          },
+    );
     required(formPath.firstName);
     required(formPath.lastName);
     required(formPath.policyVersionId);
@@ -131,6 +139,9 @@ export class CreateAccountComponent {
   protected readonly onboardingRequirementsQuery = injectQuery(() =>
     this.operations.onboardingRequirements(),
   );
+  private readonly completionPath = computed(
+    () => sanitizeRelativeRedirectPath(this.redirectUrl()) ?? '/profile',
+  );
   private requirementsInitialized = false;
   private readonly router = inject(Router);
 
@@ -146,7 +157,7 @@ export class CreateAccountComponent {
       if (!this.onboardingRequirementsQuery.isSuccess()) return;
       const requirements = this.onboardingRequirementsQuery.data();
       if (requirements.complete) {
-        this.router.navigate(['/profile']);
+        this.router.navigateByUrl(this.completionPath());
         return;
       }
       this.accountModel.update((current) =>
@@ -178,7 +189,7 @@ export class CreateAccountComponent {
       this.accountError.set('');
       try {
         await this.completeOnboardingMutation.mutateAsync(payload);
-        this.operations.navigateAfterCompletion();
+        this.operations.navigateAfterCompletion(this.completionPath());
       } catch (error) {
         this.accountError.set(createAccountErrorMessage(error));
         if (isTenantOnboardingRequirementsChangedError(error)) {

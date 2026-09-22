@@ -545,9 +545,8 @@ const runCancellation = ({
       transferDeadlineHoursBeforeStart: 0,
     },
     user: {
-      attributes: [],
       auth0Id: `auth0|${fixture.userId}`,
-      communicationEmail: undefined,
+      communicationEmail: communicationEmailForUser(fixture.userId),
       email: `${fixture.userId}@example.com`,
       firstName: 'Concurrent',
       homeTenantId: undefined,
@@ -636,7 +635,6 @@ const runCheckIn = ({
       transferDeadlineHoursBeforeStart: 0,
     },
     user: {
-      attributes: [],
       auth0Id: `auth0|${scannerUserId}`,
       communicationEmail: communicationEmailForUser(scannerUserId),
       email: loginEmailForUser(scannerUserId),

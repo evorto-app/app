@@ -28,6 +28,7 @@ export interface ManualApprovalEmailProps {
 
 export interface ReceiptReviewedEmailProps {
   readonly eventTitle: string;
+  readonly receiptUrl: string;
   readonly rejectionReason: null | string;
   readonly status: 'approved' | 'rejected';
   readonly tenantName: string;
@@ -230,6 +231,7 @@ ManualApprovalEmail.PreviewProps = {
 
 export const ReceiptReviewedEmail = ({
   eventTitle,
+  receiptUrl,
   rejectionReason,
   status,
   tenantName,
@@ -245,10 +247,17 @@ export const ReceiptReviewedEmail = ({
     body.push(paragraph('reason', `Reason: ${rejectionReason.trim()}`));
   }
   body.push(
-    paragraph('next-step', 'You can review the receipt status in Evorto.'),
+    paragraph(
+      'next-step',
+      'Open Profile → Receipts to see the review and any reason provided.',
+    ),
   );
 
   return TransactionalEmailLayout({
+    action: {
+      href: receiptUrl,
+      label: 'Open your receipt in Evorto',
+    },
     body,
     preview: `Your ${eventTitle} receipt was ${approved ? 'approved' : 'rejected'}.`,
     tenantName,
@@ -258,6 +267,7 @@ export const ReceiptReviewedEmail = ({
 
 ReceiptReviewedEmail.PreviewProps = {
   eventTitle: 'City tour',
+  receiptUrl: 'https://example.org/profile/receipts',
   rejectionReason: null,
   status: 'approved',
   tenantName: 'Example Section',
