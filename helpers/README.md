@@ -88,6 +88,12 @@ interactive confirmation. PostgreSQL data, Mailpit messages, and the Stripe
 signing secret use project-scoped named volumes; MinIO data is container-local
 for the disposable test stack. PostgreSQL startup has no host-file mount.
 
+MinIO server and client images come from the upstream `quay.io/minio`
+repositories, retaining their pinned versions and immutable digests. These
+references support anonymous pulls on clean CI runners. When diagnosing image
+availability, check registry access without saved credentials; an existing
+local image cache can hide a registry access failure.
+
 The runtime resolver derives `DOCKER_DATABASE_URL` from the literal
 `POSTGRES_USER`, `POSTGRES_PASSWORD`, and `POSTGRES_DB` values. Compose uses this
 encoded URL for setup, web, and worker containers; the database healthcheck
