@@ -83,9 +83,6 @@ export const registrationTransfers = pgTable(
     claimCodeHash: varchar('claim_code_hash', { length: 64 })
       .notNull()
       .unique(),
-    claimTokenHash: varchar('claim_token_hash', { length: 64 })
-      .notNull()
-      .unique(),
     compensatedAt: timestamp('compensated_at'),
     compensationRefundTransactionId: varchar(
       'compensation_refund_transaction_id',
@@ -113,10 +110,6 @@ export const registrationTransfers = pgTable(
     ).references(() => transactions.id),
     recipientConfirmedAt: timestamp('recipient_confirmed_at'),
     recipientDiscountAmount: integer('recipient_discount_amount'),
-    recipientRegistrationId: varchar('recipient_registration_id', {
-      length: 20,
-    }).references(() => eventRegistrations.id),
-    recipientSpotCount: integer('recipient_spot_count'),
     recipientStripeTaxRateId: varchar('recipient_tax_rate_id'),
     recipientTaxRateDisplayName: text('recipient_tax_rate_name'),
     recipientTaxRateInclusive: boolean('recipient_tax_rate_inclusive'),
@@ -128,9 +121,6 @@ export const registrationTransfers = pgTable(
     registrationOptionId: varchar('registration_option_id', { length: 20 })
       .notNull()
       .references(() => eventRegistrationOptions.id),
-    reservedAdditionalSpots: integer('reserved_additional_spots')
-      .notNull()
-      .default(0),
     sourceRegistrationId: varchar('source_registration_id', { length: 20 })
       .notNull()
       .references(() => eventRegistrations.id),
@@ -154,13 +144,6 @@ export const registrationTransfers = pgTable(
       table.tenantId,
       table.recipientUserId,
     ),
-    byRecipientRegistration: index(
-      'registration_transfers_recipient_registration_idx',
-    ).on(
-      table.tenantId,
-      table.recipientRegistrationId,
-      table.ownershipTransferredAt,
-    ),
     byTenantEvent: index('registration_transfers_tenant_event_idx').on(
       table.tenantId,
       table.eventId,
@@ -183,27 +166,6 @@ export const registrationTransfers = pgTable(
       foreignColumns: [transactions.id, transactions.tenantId],
       name: 'registration_transfers_recipient_checkout_tenant_fk',
     }),
-    recipientRegistrationTenant: foreignKey({
-      columns: [table.recipientRegistrationId, table.tenantId],
-      foreignColumns: [eventRegistrations.id, eventRegistrations.tenantId],
-      name: 'registration_transfers_recipient_registration_tenant_fk',
-    }),
-    recipientSpotCountPositive: check(
-      'registration_transfers_recipient_spot_count_positive',
-      sql`${table.recipientSpotCount} IS NULL OR ${table.recipientSpotCount} > 0`,
-    ),
-    recipientUsesSourceRegistration: check(
-      'registration_transfers_recipient_is_source_registration',
-      sql`${table.recipientRegistrationId} IS NULL OR ${table.recipientRegistrationId} = ${table.sourceRegistrationId}`,
-    ),
-    recipientUsesSourceSpots: check(
-      'registration_transfers_recipient_preserves_spots',
-      sql`${table.recipientSpotCount} IS NULL OR ${table.recipientSpotCount} = ${table.sourceSpotCount}`,
-    ),
-    reservedAdditionalSpotsNonnegative: check(
-      'registration_transfers_reserved_spots_nonnegative',
-      sql`${table.reservedAdditionalSpots} = 0`,
-    ),
     sourceRegistrationOwner: foreignKey({
       columns: [
         table.sourceRegistrationId,

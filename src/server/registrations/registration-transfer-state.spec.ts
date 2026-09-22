@@ -52,7 +52,9 @@ describe('registration transfer state', () => {
       );
 
       assert.strictEqual(error._tag, 'RegistrationTransferStateError');
-      assert.include(error.message, 'completed to open');
+      assert.strictEqual(error.reason, 'invalidTransition');
+      assert.include(error.message, 'changed unexpectedly');
+      assert.include(error.message, 'Nothing was changed');
     }),
   );
 
@@ -119,10 +121,27 @@ describe('registration transfer state', () => {
       );
 
       assert.strictEqual(error._tag, 'RegistrationTransferStateError');
+      assert.strictEqual(error.reason, 'deadlinePassed');
       assert.strictEqual(
         error.message,
-        'Registration can no longer be transferred',
+        'This ticket can no longer be transferred because the deadline has passed.',
       );
+    }),
+  );
+
+  it.effect('distinguishes an invalid saved deadline policy', () =>
+    Effect.gen(function* () {
+      const error = yield* Effect.flip(
+        resolveRegistrationTransferDeadline({
+          eventStart: new Date('2026-08-20T18:00:00.000Z'),
+          now: new Date('2026-08-01T12:00:00.000Z'),
+          optionHoursBeforeStart: -1,
+          tenantHoursBeforeStart: 0,
+        }),
+      );
+
+      assert.strictEqual(error._tag, 'RegistrationTransferStateError');
+      assert.strictEqual(error.reason, 'invalidDeadlinePolicy');
     }),
   );
 
@@ -165,7 +184,12 @@ describe('registration transfer state', () => {
         ),
       );
 
-      assert.include(error.message, 'Stripe fee reconciliation');
+      assert.include(
+        error.message,
+        'earlier payment is not ready for a refund',
+      );
+      assert.include(error.message, 'review the current payment');
+      assert.strictEqual(error.reason, 'sourcePaymentSettlementPending');
     }),
   );
 });

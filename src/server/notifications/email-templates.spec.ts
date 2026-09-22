@@ -6,6 +6,7 @@ import type { RegistrationCancellationKind } from '../../shared/registration-can
 import {
   type RegistrationCancellationActor,
   RegistrationCancelledEmail,
+  RegistrationTransferredEmail,
 } from './email-templates';
 
 const renderCancellation = async (
@@ -112,6 +113,49 @@ describe('RegistrationCancelledEmail', () => {
       expect(email.text.toLowerCase()).toContain(title.toLowerCase());
       expect(email.text).toContain(body);
       expect(email.text).not.toContain('your ticket');
+    },
+  );
+});
+
+describe('RegistrationTransferredEmail refund outcome', () => {
+  it.each(['pending', 'notStarted'] as const)(
+    'states the previous holder refund outcome %s without promising a new holder refund',
+    async (refundOutcome) => {
+      for (const recipientRole of ['previousOwner', 'newOwner'] as const) {
+        const email = RegistrationTransferredEmail({
+          eventTitle: 'City tour',
+          eventUrl: 'https://example.org/events/event-1',
+          recipientRole,
+          refundOutcome,
+          tenantName: 'Example Section',
+        });
+        const outputs = await Promise.all([
+          render(email),
+          render(email, { plainText: true }),
+        ]);
+        for (const output of outputs) {
+          if (recipientRole === 'previousOwner') {
+            expect(output).toContain(
+              refundOutcome === 'pending'
+                ? 'A refund to your original payment method is in progress.'
+                : 'No refund was started for this transfer.',
+            );
+            expect(output).not.toContain(
+              refundOutcome === 'pending'
+                ? 'No refund was started for this transfer.'
+                : 'A refund to your original payment method is in progress.',
+            );
+          } else {
+            expect(output).not.toContain(
+              'A refund to your original payment method is in progress.',
+            );
+            expect(output).not.toContain(
+              'No refund was started for this transfer.',
+            );
+            expect(output).toContain('Sign in to Evorto');
+          }
+        }
+      }
     },
   );
 });

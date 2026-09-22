@@ -7,6 +7,10 @@ import {
   MAX_REGISTRATION_ANSWER_LENGTH,
   MAX_REGISTRATION_QUESTIONS,
 } from '@shared/registration-question-limits';
+import {
+  RegistrationTransfersClaim,
+  RegistrationTransfersGetClaim,
+} from '@shared/rpc-contracts/app-rpcs/registration-transfers.rpcs';
 import { Schema } from 'effect';
 import { describe, expect, it } from 'vitest';
 
@@ -25,14 +29,12 @@ import {
   EventsGetOrganizeOverviewUser,
   EventsJoinWaitlistPayload,
   EventsOutgoingRegistrationTransferRecord,
-  EventsPreviewEventRegistrationTransfer,
   EventsPurchaseRegistrationAddonPayload,
   EventsPurchaseRegistrationAddonResult,
   EventsRegisterForEventPayload,
   EventsRegistrationAddonRecord,
   EventsRegistrationStatus,
   EventsRegistrationStatusRecord,
-  EventsTransferEventRegistration,
 } from '../../../../../shared/rpc-contracts/app-rpcs/events.rpcs';
 import { EventLocation } from '../../../../../types/location';
 
@@ -352,76 +354,80 @@ describe('events RPC cancellation precondition schema', () => {
   });
 });
 
-describe('events organizer direct-transfer preview schema', () => {
-  it('accepts the authoritative fixed-bundle and zero-payment preview', () => {
-    expect(() =>
-      Schema.decodeUnknownSync(
-        EventsPreviewEventRegistrationTransfer.successSchema,
-      )({
-        bundle: {
-          addOns: [
-            {
-              cancelledQuantity: 0,
-              currentUnitPrice: 0,
-              description: 'Workshop materials',
-              id: 'addon-1',
-              includedQuantity: 1,
-              purchasedQuantity: 1,
-              quantity: 2,
-              redeemedQuantity: 1,
-              remainingQuantity: 1,
-              title: 'Workshop kit',
-            },
-          ],
-          checkedInGuestCount: 1,
-          checkInTime: '2026-07-12T16:00:00.000Z',
-          guestCount: 2,
-          guestUnitPrice: 0,
+describe('private registration transfer claim schema', () => {
+  it('accepts the authoritative fixed bundle and current zero-payment recipient price', () => {
+    const bundle = {
+      addOns: [
+        {
+          cancelledQuantity: 0,
+          currentUnitPrice: 0,
+          description: 'Workshop materials',
+          id: 'addon-1',
+          includedQuantity: 1,
+          purchasedQuantity: 1,
+          quantity: 2,
+          redeemedQuantity: 1,
+          remainingQuantity: 1,
+          title: 'Workshop kit',
         },
-        completionMode: 'databaseOnly',
+      ],
+      checkedInGuestCount: 1,
+      checkInTime: '2026-07-12T16:00:00.000Z',
+      guestCount: 2,
+      guestUnitPrice: 0,
+    };
+    const decoded = Schema.decodeUnknownSync(
+      RegistrationTransfersGetClaim.successSchema,
+    )({
+      bundle,
+      event: {
+        end: '2026-07-12T20:00:00.000Z',
+        id: 'event-1',
+        start: '2026-07-12T16:00:00.000Z',
+        title: 'Workshop',
+      },
+      expiresAt: '2026-07-12T15:00:00.000Z',
+      recipientBundlePrice: 0,
+      refundLifecycle: null,
+      registrationOption: {
+        appliedDiscountType: 'esnCard',
+        basePrice: 1200,
         currency: 'EUR',
-        previewVersion: 'preview-version-1',
-        pricing: {
-          appliedDiscountedPrice: 0,
-          appliedDiscountType: 'esnCard',
-          discountAmount: 1200,
-          recipientBundlePrice: 0,
-          recipientRegistrationPrice: 0,
-          sourceRefundAmountDue: 0,
-        },
-        recipient: {
-          email: 'recipient@example.com',
-          firstName: 'Target',
-          id: 'target-user-1',
-          lastName: 'Recipient',
-        },
-        registrationOption: {
-          currentPrice: 1200,
-          id: 'option-1',
-          title: 'Participant',
-        },
-        source: {
-          email: 'source@example.com',
-          firstName: 'Source',
-          id: 'source-user-1',
-          lastName: 'Owner',
-        },
-      }),
-    ).not.toThrow();
+        currentPrice: 0,
+        description: null,
+        discountAmount: 1200,
+        id: 'option-1',
+        isPaid: true,
+        questions: [],
+        title: 'Participant',
+      },
+      status: 'open',
+      transferId: 'transfer-1',
+    });
+    expect(decoded.bundle).toMatchObject(bundle);
+    expect(decoded.recipientBundlePrice).toBe(0);
+    expect(decoded.registrationOption).toMatchObject({
+      basePrice: 1200,
+      currentPrice: 0,
+      discountAmount: 1200,
+    });
   });
 
-  it('requires the reviewed preview version when confirming', () => {
+  it('requires the private claim code and recipient answers when confirming', () => {
+    const claimCode = 'ABCD-1234-EF56-7890-ABCD-1234-EF56-7890';
+    const decode = Schema.decodeUnknownSync(
+      RegistrationTransfersClaim.payloadSchema,
+    );
+    expect(decode({ answers: [], claimCode })).toMatchObject({
+      answers: [],
+      claimCode,
+    });
+    expect(() => decode({ answers: [] })).toThrow();
+    expect(() => decode({ claimCode })).toThrow();
     expect(() =>
-      Schema.decodeUnknownSync(EventsTransferEventRegistration.payloadSchema)({
+      decode({
         eventId: 'event-1',
         previewVersion: 'preview-version-1',
-        registrationId: 'registration-1',
-        targetUserId: 'target-user-1',
-      }),
-    ).not.toThrow();
-    expect(() =>
-      Schema.decodeUnknownSync(EventsTransferEventRegistration.payloadSchema)({
-        eventId: 'event-1',
         registrationId: 'registration-1',
         targetUserId: 'target-user-1',
       }),

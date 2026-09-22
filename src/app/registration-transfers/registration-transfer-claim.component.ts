@@ -11,6 +11,7 @@ import {
   inject,
   Injectable,
   input,
+  output,
   signal,
   untracked,
 } from '@angular/core';
@@ -30,12 +31,15 @@ import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { RouterLink } from '@angular/router';
 import { MAX_REGISTRATION_ANSWER_LENGTH } from '@shared/registration-question-limits';
+import { RegistrationTransfersRpcError } from '@shared/rpc-contracts/app-rpcs/registration-transfers.errors';
 import {
   injectMutation,
   injectQuery,
 } from '@tanstack/angular-query-experimental';
+import { Schema } from 'effect';
 
 import { AppRpc } from '../core/effect-rpc-angular-client';
+import { normalizeStripeCheckoutUrl } from '../core/stripe-checkout-url';
 import { TenantDatePipe } from '../core/tenant-date.pipe';
 
 interface TransferClaimAnswerModel {
@@ -86,59 +90,153 @@ export const transferClaimFormSchema = schema<TransferClaimFormModel>(
 
 export const registrationTransferClaimPayload = ({
   answers,
-  credential,
+  claimCode,
 }: {
   answers: readonly { answer: string; questionId: string }[];
-  credential: string;
+  claimCode: string;
 }) => ({
   answers: answers.map((answer) => ({
     answer: answer.answer,
     questionId: answer.questionId,
   })),
-  credential,
+  claimCode,
 });
 
-export const registrationTransferCheckoutUrl = (
-  value: string | undefined,
-): string | undefined => {
-  if (!value) return;
-  try {
-    const url = new URL(value);
-    return url.protocol === 'https:' && url.hostname === 'checkout.stripe.com'
-      ? url.toString()
-      : undefined;
-  } catch {
-    return;
-  }
-};
+const isRegistrationTransferRpcError = Schema.is(RegistrationTransfersRpcError);
 
 export const registrationTransferLookupErrorCopy = (
   error: unknown,
 ): {
   body: string;
   retryable: boolean;
+  signInRequired: boolean;
   title: string;
 } => {
-  const tag =
-    typeof error === 'object' && error !== null && '_tag' in error
-      ? error._tag
-      : null;
-  if (
-    tag === 'RegistrationTransferNotFoundError' ||
-    tag === 'RegistrationTransferUnauthorizedError'
-  ) {
+  if (!isRegistrationTransferRpcError(error)) {
     return {
-      body: 'We could not open a transfer with this code. Check the complete code and try again, or ask the sender for the current code.',
-      retryable: false,
-      title: 'Transfer could not be opened',
+      body: 'We could not load the latest transfer details. Nothing changed. Try again, or enter another code.',
+      retryable: true,
+      signInRequired: false,
+      title: 'Transfer is temporarily unavailable',
     };
   }
 
-  return {
-    body: 'We could not load the latest transfer details. Nothing changed. Try again, or enter another code.',
-    retryable: true,
-    title: 'Transfer is temporarily unavailable',
-  };
+  switch (error._tag) {
+    case 'RegistrationTransferConflictError': {
+      return {
+        body: error.message,
+        retryable: false,
+        signInRequired: false,
+        title: 'Transfer could not be opened',
+      };
+    }
+    case 'RegistrationTransferInternalError': {
+      return {
+        body: 'We could not load the latest transfer details. Nothing changed. Try again, or enter another code.',
+        retryable: true,
+        signInRequired: false,
+        title: 'Transfer is temporarily unavailable',
+      };
+    }
+    case 'RegistrationTransferNotFoundError': {
+      return {
+        body: 'We could not open a transfer with this code. Check the complete code and try again, or ask the sender for the current code.',
+        retryable: false,
+        signInRequired: false,
+        title: 'Transfer could not be opened',
+      };
+    }
+    case 'RegistrationTransferUnauthorizedError': {
+      return {
+        body: 'Sign in, then return here and enter the transfer code. Nothing changed.',
+        retryable: false,
+        signInRequired: true,
+        title: 'Sign in to continue',
+      };
+    }
+  }
+};
+
+export const registrationTransferClaimErrorCopy = (
+  error: unknown,
+): {
+  body: string;
+  signInRequired: boolean;
+  title: string;
+} => {
+  if (!isRegistrationTransferRpcError(error)) {
+    return {
+      body: "Do not accept the ticket or pay again until you check the transfer's current status.",
+      signInRequired: false,
+      title: 'Transfer outcome could not be confirmed',
+    };
+  }
+
+  switch (error._tag) {
+    case 'RegistrationTransferConflictError':
+    case 'RegistrationTransferNotFoundError': {
+      return {
+        body: error.message,
+        signInRequired: false,
+        title: 'Ticket could not be accepted',
+      };
+    }
+    case 'RegistrationTransferInternalError': {
+      return {
+        body: "Do not accept the ticket or pay again until you check the transfer's current status.",
+        signInRequired: false,
+        title: 'Transfer outcome could not be confirmed',
+      };
+    }
+    case 'RegistrationTransferUnauthorizedError': {
+      return {
+        body: 'Sign in, then return here and enter the transfer code before accepting the ticket. Nothing changed.',
+        signInRequired: true,
+        title: 'Sign in to continue',
+      };
+    }
+  }
+};
+
+export const registrationTransferRetryErrorCopy = (
+  error: unknown,
+): {
+  body: string;
+  title: string;
+} => {
+  if (!isRegistrationTransferRpcError(error)) {
+    return {
+      body: 'We could not confirm whether payment is still needed. Select Check transfer status once. If payment is still required, ask the sender for a new transfer.',
+      title: 'Payment status could not be confirmed',
+    };
+  }
+
+  switch (error._tag) {
+    case 'RegistrationTransferConflictError': {
+      return {
+        body: error.message,
+        title: 'Payment cannot be continued',
+      };
+    }
+    case 'RegistrationTransferInternalError': {
+      return {
+        body: 'We could not confirm whether payment is still needed. Select Check transfer status once. If payment is still required, ask the sender for a new transfer.',
+        title: 'Payment status could not be confirmed',
+      };
+    }
+    case 'RegistrationTransferNotFoundError': {
+      return {
+        body: error.message,
+        title: 'No payment to continue',
+      };
+    }
+    case 'RegistrationTransferUnauthorizedError': {
+      return {
+        body: 'Sign in, then select Check transfer status before continuing. If payment is still required, ask the sender for a new transfer.',
+        title: 'Sign in to continue',
+      };
+    }
+  }
 };
 
 export const registrationTransferStatusCopy = (
@@ -269,8 +367,8 @@ export class RegistrationTransferClaimOperations {
     return this.rpc.registrationTransfers.claim.mutationOptions();
   }
 
-  getClaim(credential: string) {
-    return this.rpc.registrationTransfers.getClaim.queryOptions({ credential });
+  getClaim(claimCode: string) {
+    return this.rpc.registrationTransfers.getClaim.queryOptions({ claimCode });
   }
 
   retryCheckout() {
@@ -294,7 +392,9 @@ export class RegistrationTransferClaimOperations {
   templateUrl: './registration-transfer-claim.component.html',
 })
 export class RegistrationTransferClaimComponent {
-  public readonly credential = input.required<string>();
+  public readonly claimCode = input.required<string>();
+  public readonly enterAnotherCode = output();
+  protected readonly claimErrorCopy = registrationTransferClaimErrorCopy;
   private readonly claimModel = signal<TransferClaimFormModel>({
     answers: [],
   });
@@ -304,10 +404,11 @@ export class RegistrationTransferClaimComponent {
     this.operations.claim(),
   );
   protected readonly claimQuery = injectQuery(() =>
-    this.operations.getClaim(this.credential()),
+    this.operations.getClaim(this.claimCode()),
   );
   protected readonly lookupErrorCopy = registrationTransferLookupErrorCopy;
   protected readonly maxAnswerLength = MAX_REGISTRATION_ANSWER_LENGTH;
+  protected readonly retryErrorCopy = registrationTransferRetryErrorCopy;
   protected readonly retryMutation = injectMutation(() =>
     this.operations.retryCheckout(),
   );
@@ -319,13 +420,15 @@ export class RegistrationTransferClaimComponent {
 
   constructor() {
     effect(() => {
-      this.credential();
+      this.claimCode();
       this.unsafeCheckout.set(false);
+      this.retryMutation.reset();
     });
     effect(() => {
       const claim = this.claimQuery.data();
       if (claim?.status !== 'checkout_pending') {
         this.unsafeCheckout.set(false);
+        this.retryMutation.reset();
       }
       if (!claim) return;
       const questionsKey = JSON.stringify(
@@ -351,10 +454,25 @@ export class RegistrationTransferClaimComponent {
     });
   }
 
+  protected async checkTransferStatus(): Promise<void> {
+    const result = await this.claimQuery.refetch();
+    if (!result.isError) {
+      this.claimMutation.reset();
+      this.retryMutation.reset();
+      this.unsafeCheckout.set(false);
+    }
+  }
+
   protected async retryCheckout(): Promise<void> {
-    this.unsafeCheckout.set(false);
     const claim = this.claimQuery.data();
-    if (!claim || this.retryMutation.isPending()) return;
+    if (
+      !claim ||
+      this.retryMutation.isPending() ||
+      this.retryMutation.isError() ||
+      this.unsafeCheckout()
+    ) {
+      return;
+    }
     try {
       const result = await this.retryMutation.mutateAsync({
         transferId: claim.transferId,
@@ -383,7 +501,7 @@ export class RegistrationTransferClaimComponent {
         const result = await this.claimMutation.mutateAsync(
           registrationTransferClaimPayload({
             answers: value.answers,
-            credential: this.credential(),
+            claimCode: this.claimCode(),
           }),
         );
         if (!this.openCheckout(result.checkoutUrl)) {
@@ -400,7 +518,7 @@ export class RegistrationTransferClaimComponent {
   private openCheckout(checkoutUrl: string | undefined): boolean {
     this.unsafeCheckout.set(false);
     if (!checkoutUrl) return false;
-    const safeUrl = registrationTransferCheckoutUrl(checkoutUrl);
+    const safeUrl = normalizeStripeCheckoutUrl(checkoutUrl);
     if (!safeUrl) {
       this.unsafeCheckout.set(true);
       return false;
