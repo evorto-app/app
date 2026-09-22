@@ -32,24 +32,13 @@ test('selects and persists a live Google Maps place @needs-google-maps', async (
   await expect(search).toHaveValue('Brandenburg Gate Berlin Germany');
 
   const firstSuggestion = page.getByRole('option').first();
-  const configurationError = dialog.getByRole('alert').filter({
-    hasText: 'Location search is not configured',
-  });
   const providerError = dialog.getByRole('alert').filter({
-    hasText: 'Google Maps is unavailable',
+    hasText: "We couldn't search for locations.",
   });
   const emptyResult = dialog.getByText('No locations found');
   await expect(
-    firstSuggestion
-      .or(configurationError)
-      .or(providerError)
-      .or(emptyResult)
-      .first(),
+    firstSuggestion.or(providerError).or(emptyResult).first(),
   ).toBeVisible({ timeout: 30_000 });
-  await expect(
-    configurationError,
-    'Google Maps is not configured',
-  ).toBeHidden();
   await expect(
     providerError,
     'Google Maps rejected the live search',

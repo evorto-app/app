@@ -7,7 +7,7 @@ import {
   Schema,
 } from 'effect';
 
-import { optionalTrimmedString } from './config-string';
+import { nonEmptyTrimmedString, optionalTrimmedString } from './config-string';
 
 const serverLogLevelNames = [
   'all',
@@ -31,7 +31,7 @@ const pinnedNowIsoConfig = optionalTrimmedString('E2E_NOW_ISO');
 const nodeEnvironmentConfig = optionalTrimmedString('NODE_ENV');
 const packageVersionConfig = optionalTrimmedString('npm_package_version');
 const portConfig = Config.port('PORT').pipe(Config.withDefault(4000));
-const publicGoogleMapsApiKeyConfig = optionalTrimmedString(
+const publicGoogleMapsApiKeyConfig = nonEmptyTrimmedString(
   'PUBLIC_GOOGLE_MAPS_API_KEY',
 );
 

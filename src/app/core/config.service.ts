@@ -50,11 +50,7 @@ export class ConfigService {
     return this._tenant;
   }
 
-  private _publicConfig: {
-    googleMapsApiKey: null | string;
-  } = {
-    googleMapsApiKey: null,
-  };
+  private _publicConfig!: { googleMapsApiKey: string };
   private _tenant!: Tenant;
 
   private readonly rpc = AppRpc.injectClient();

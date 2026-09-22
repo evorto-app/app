@@ -1,5 +1,6 @@
 import { Effect, Schema } from 'effect';
 
+import { verifiedDiscountCardCoversEvent } from '../discounts/verified-discount-card';
 import {
   isPersistableNonNegativeInteger,
   maximumPersistedPaymentAmount,
@@ -92,8 +93,7 @@ export const resolveRegistrationTransferPrice = <DiscountType extends string>({
       (card) =>
         card.type === discount.discountType &&
         enabledDiscountTypes.has(card.type) &&
-        (!card.validFrom || card.validFrom <= eventStart) &&
-        (!card.validTo || card.validTo > eventStart),
+        verifiedDiscountCardCoversEvent(card, eventStart),
     );
     if (
       eligible &&

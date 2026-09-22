@@ -12,7 +12,6 @@ import { GoogleLocationType } from '../../../../../../types/location';
 import { ConfigService } from '../../../../../core/config.service';
 import {
   GooglePlaceReference,
-  LocationConfigurationError,
   LocationProviderError,
   LocationSearch,
   LocationSearchError,
@@ -90,33 +89,6 @@ describe('LocationSelectorDialog', () => {
       expect(search).toHaveBeenCalledWith('Berlin', undefined);
     });
     expect(input.value).toBe('Berlin');
-  });
-
-  it('explains missing provider configuration instead of showing no results', async () => {
-    searchEffect = Effect.fail(
-      new LocationConfigurationError({
-        setting: 'PUBLIC_GOOGLE_MAPS_API_KEY',
-      }),
-    );
-
-    await enterQuery('Berlin');
-
-    await vi.waitFor(() => {
-      fixture.detectChanges();
-      expect(fixture.nativeElement.textContent).toContain(
-        'Location search is unavailable.',
-      );
-    });
-    expect(fixture.nativeElement.textContent).toContain(
-      'Contact Evorto support before choosing a location.',
-    );
-    expect(fixture.nativeElement.textContent).not.toContain('API key');
-    expect(fixture.nativeElement.textContent).not.toContain(
-      'No locations found',
-    );
-    expect(
-      fixture.nativeElement.querySelector('[role="alert"]'),
-    ).not.toBeNull();
   });
 
   it('shows provider failure and retries the same search', async () => {

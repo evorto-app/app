@@ -19,13 +19,14 @@ const readServerConfig = (provider: ConfigProvider.ConfigProvider) =>
 const providerFromEntries = (entries: readonly (readonly [string, string])[]) =>
   ConfigProvider.fromEnv({ env: Object.fromEntries(entries) });
 
-const requiredServerEntries: readonly (readonly [string, string])[] = [];
+const requiredServerEntries: readonly (readonly [string, string])[] = [
+  ['PUBLIC_GOOGLE_MAPS_API_KEY', 'maps-key'],
+];
 
 describe('server-config', () => {
   it.effect('only reads PUBLIC_GOOGLE_MAPS_API_KEY', () =>
     Effect.gen(function* () {
       const legacyProvider = providerFromEntries([
-        ...requiredServerEntries,
         ['GOOGLE_MAPS_API_KEY', 'legacy-key'],
       ]);
       const canonicalProvider = providerFromEntries([
@@ -33,12 +34,11 @@ describe('server-config', () => {
         ['PUBLIC_GOOGLE_MAPS_API_KEY', 'canonical-key'],
       ]);
 
-      expect(
-        (yield* readServerConfig(legacyProvider)).PUBLIC_GOOGLE_MAPS_API_KEY,
-      ).toEqual(Option.none());
+      const legacyError = yield* Effect.flip(readServerConfig(legacyProvider));
+      expect(legacyError.message).toContain('PUBLIC_GOOGLE_MAPS_API_KEY');
       expect(
         (yield* readServerConfig(canonicalProvider)).PUBLIC_GOOGLE_MAPS_API_KEY,
-      ).toEqual(Option.some('canonical-key'));
+      ).toBe('canonical-key');
     }),
   );
 
@@ -81,12 +81,20 @@ describe('server-config', () => {
       }),
   );
 
-  it.effect('does not require provider credentials for web configuration', () =>
+  it.effect('requires the Maps key for web configuration', () =>
     Effect.gen(function* () {
-      const config = yield* readServerConfig(providerFromEntries([]));
-
-      expect(config.PUBLIC_GOOGLE_MAPS_API_KEY).toEqual(Option.none());
-      expect(config.SSR_RPC_ORIGIN).toEqual(Option.none());
+      const missing = yield* Effect.flip(
+        readServerConfig(providerFromEntries([])),
+      );
+      const blank = yield* Effect.flip(
+        readServerConfig(
+          providerFromEntries([['PUBLIC_GOOGLE_MAPS_API_KEY', ' '.repeat(3)]]),
+        ),
+      );
+      expect(missing.message).toContain('PUBLIC_GOOGLE_MAPS_API_KEY');
+      expect(blank.message).toContain(
+        'Expected PUBLIC_GOOGLE_MAPS_API_KEY to be non-empty',
+      );
     }),
   );
 });

@@ -237,6 +237,7 @@ const makeSeoHandler = (input: {
         DATABASE_URL: 'postgresql://fixture:fixture@127.0.0.1:1/unused',
         ISSUER_BASE_URL: 'https://auth.example.test',
         NODE_ENV: input.nodeEnvironment ?? 'production',
+        PUBLIC_GOOGLE_MAPS_API_KEY: 'seo-fixture-maps-key',
         SECRET: 'seo-fixture-session-secret-at-least-32-bytes',
         WORKER_TRIGGER_MODE: 'poll',
         ...(input.tenantDomain !== undefined && {

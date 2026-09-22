@@ -8,6 +8,13 @@ import {
   UnauthorizedRpcError,
 } from '../../errors/rpc-errors';
 
+export class DiscountCardChangedError extends Schema.TaggedErrorClass<DiscountCardChangedError>()(
+  'DiscountCardChangedError',
+  {
+    message: Schema.String,
+  },
+) {}
+
 export class DiscountCardConflictError extends Schema.TaggedErrorClass<DiscountCardConflictError>()(
   'DiscountCardConflictError',
   {
@@ -27,6 +34,7 @@ export type DiscountsRpcError = UnauthorizedRpcError;
 
 export const DiscountsCardMutationError = Schema.Union([
   RpcBadRequestError,
+  DiscountCardChangedError,
   DiscountCardConflictError,
   RpcForbiddenError,
   RpcInternalServerError,
