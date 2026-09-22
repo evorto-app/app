@@ -1031,6 +1031,7 @@ describe('eventLifecycleHandlers', () => {
                   Effect.succeed({
                     active: true,
                     inclusive: true,
+                    percentage: '19',
                   }),
                 ),
               },
@@ -1194,6 +1195,7 @@ describe('eventLifecycleHandlers', () => {
                   Effect.succeed({
                     active: true,
                     inclusive: true,
+                    percentage: '19',
                   }),
                 ),
               },
@@ -1285,6 +1287,7 @@ describe('eventLifecycleHandlers', () => {
                 Effect.succeed({
                   active: true,
                   inclusive: true,
+                  percentage: '19',
                 }),
               ),
             },
@@ -1697,6 +1700,7 @@ describe('eventLifecycleHandlers', () => {
                 Effect.succeed({
                   active: true,
                   inclusive: true,
+                  percentage: '19',
                 }),
               ),
             },
@@ -1966,6 +1970,7 @@ describe('eventLifecycleHandlers', () => {
                 Effect.succeed({
                   active: true,
                   inclusive: true,
+                  percentage: '19',
                 }),
               ),
             },
