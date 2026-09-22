@@ -175,6 +175,7 @@ Open your profile's **Discounts** page in the organization whose event discounts
       name: 'Discount cards',
     }),
   ).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('[ngh]')).toHaveCount(0, { timeout: 20_000 });
   await expect(page.getByText('ESNcard', { exact: true })).toBeVisible();
   await expect(
     page.getByText(seededEsnCardIdentifier, { exact: true }),
