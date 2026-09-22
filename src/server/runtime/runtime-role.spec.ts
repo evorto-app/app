@@ -166,7 +166,7 @@ describe('runtime role configuration', () => {
             cwd: temporaryDirectory,
           });
           expect(
-            yield* Config.string('DATABASE_RUNTIME_ROLE').parse(provider),
+            yield* Config.String('DATABASE_RUNTIME_ROLE').parse(provider),
           ).toBe('file_runtime');
           const config = yield* deploymentConfigSchema.parse(
             ConfigProvider.orElse(

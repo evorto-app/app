@@ -1,552 +1,527 @@
 import * as PgClient from '@effect/sql-pg/PgClient';
-import { afterEach, describe, expect, it, vi } from '@effect/vitest';
-import { Cause, Deferred, Effect, Fiber } from 'effect';
-import * as TestClock from 'effect/testing/TestClock';
+import * as PgPool from '@effect/sql-pg/PgPool';
+import { Cause, Deferred, Effect, Fiber, Result } from 'effect';
 import * as Reactivity from 'effect/unstable/reactivity/Reactivity';
-import { Client, Pool, type PoolClient } from 'pg';
+import { Duplex } from 'node:stream';
+import { describe, expect, it } from 'vitest';
+
+const integer = (value: number) => {
+  const bytes = Buffer.alloc(4);
+  bytes.writeInt32BE(value);
+  return bytes;
+};
+const message = (tag: string, body: Buffer) =>
+  Buffer.concat([Buffer.from(tag), integer(body.length + 4), body]);
+const ready = (inTransaction: boolean) =>
+  message('Z', Buffer.from(inTransaction ? 'T' : 'I'));
 
 interface PendingQuery {
   readonly backend: number;
-  readonly complete: (error?: Error) => void;
+  readonly complete: (cancelled?: boolean) => void;
   completed: boolean;
   readonly text: string;
 }
 
-const createPoolFixture = () => {
-  const pool = new Pool({ max: 2 });
+// A controlled PostgreSQL wire peer. The real native pool, protocol parser,
+// query ownership and cancellation code run unchanged against these streams.
+const createWireFixture = () => {
+  const sessions: { backend: number; socket: Duplex }[] = [];
+  const controls: { backend: number; socket: Duplex }[] = [];
+  const sockets = new Set<Duplex>();
   const queries: PendingQuery[] = [];
-  const releases: { backend: number; destroyed: boolean }[] = [];
-  const clients: {
-    backend: number;
-    client: PoolClient;
-    ended: boolean;
-    leased: boolean;
-  }[] = [];
-  const waiting: (() => void)[] = [];
-  const queryStarted = new Map<string, Deferred.Deferred<undefined>>();
+  const started = new Map<string, Deferred.Deferred<undefined>>();
   const cancellationStarted = Deferred.makeUnsafe<undefined>();
-  const acquisitionHeld = Deferred.makeUnsafe<undefined>();
+  const acquisitionStarted = Deferred.makeUnsafe<undefined>();
+  let holdStartup = false;
+  let releaseStartup: (() => void) | undefined;
+  let failControl = false;
+  let serveSuccessor = false;
+  let failNextStream = false;
   let nextBackend = 4242;
-  let holdNext = false;
-  let heldAcquisition: (() => void) | undefined;
-  let draining = false;
 
-  const queryText = (input: unknown): string => {
-    if (typeof input === 'string') return input;
-    if (
-      typeof input === 'object' &&
-      input !== null &&
-      'text' in input &&
-      typeof input.text === 'string'
-    )
-      return input.text;
-    throw new Error('Expected a PostgreSQL query text');
-  };
-
-  const makeClient = () => {
-    const client = Object.assign(new Client(), {
-      release: (_error?: boolean | Error) => {
-        throw new Error('Client has no active lease');
+  const stream = () => {
+    if (failNextStream) {
+      failNextStream = false;
+      throw new Error('Cancellation connection could not be created');
+    }
+    let first = true;
+    let backend = 0;
+    let inTransaction = false;
+    let sql: string | undefined;
+    const socket: Duplex = new Duplex({
+      final(callback) {
+        socket.push(null);
+        callback();
+      },
+      read() {
+        /* Responses are pushed when the test completes a query. */
+      },
+      write(chunk: Buffer, _encoding, callback) {
+        if (first) {
+          first = false;
+          if (chunk.readInt32BE(4) === 80_877_102) {
+            controls.push({ backend: chunk.readInt32BE(8), socket });
+            Deferred.doneUnsafe(cancellationStarted, Effect.succeed(undefined));
+            callback(
+              failControl
+                ? new Error('Cancellation transport failed')
+                : undefined,
+            );
+            return;
+          }
+          if (chunk.readInt32BE(4) !== 196_608) {
+            callback(new Error('Expected PostgreSQL startup'));
+            return;
+          }
+          backend = nextBackend++;
+          sessions.push({ backend, socket });
+          const reply = () => {
+            if (!socket.destroyed)
+              socket.push(
+                Buffer.concat([
+                  message('R', integer(0)),
+                  message(
+                    'K',
+                    Buffer.concat([integer(backend), integer(5678)]),
+                  ),
+                  ready(false),
+                ]),
+              );
+          };
+          if (holdStartup) {
+            holdStartup = false;
+            releaseStartup = reply;
+            Deferred.doneUnsafe(acquisitionStarted, Effect.succeed(undefined));
+          } else queueMicrotask(reply);
+          callback();
+          return;
+        }
+        let offset = 0;
+        while (offset < chunk.length) {
+          const tag = String.fromCodePoint(chunk[offset]);
+          const length = chunk.readInt32BE(offset + 1);
+          if (tag === 'P') {
+            const nameEnd = chunk.indexOf(0, offset + 5);
+            const sqlEnd = chunk.indexOf(0, nameEnd + 1);
+            sql = chunk.subarray(nameEnd + 1, sqlEnd).toString();
+          } else if (tag === 'S') {
+            if (!sql) throw new Error('Expected a query before Sync');
+            const text = sql;
+            const query: PendingQuery = {
+              backend,
+              complete(cancelled = false) {
+                if (query.completed) throw new Error('Query completed twice');
+                query.completed = true;
+                if (socket.destroyed) return;
+                if (text === 'BEGIN') inTransaction = true;
+                else if (text === 'COMMIT' || text === 'ROLLBACK')
+                  inTransaction = false;
+                socket.push(
+                  cancelled
+                    ? Buffer.concat([
+                        message(
+                          'E',
+                          Buffer.from('SERROR\0C57014\0Mquery cancelled\0\0'),
+                        ),
+                        ready(inTransaction),
+                      ])
+                    : Buffer.concat([
+                        message('1', Buffer.alloc(0)),
+                        message('2', Buffer.alloc(0)),
+                        message('n', Buffer.alloc(0)),
+                        message(
+                          'C',
+                          Buffer.from(
+                            `${text.startsWith('SELECT') ? 'SELECT 0' : text}\0`,
+                          ),
+                        ),
+                        ready(inTransaction),
+                      ]),
+                );
+              },
+              completed: false,
+              text,
+            };
+            queries.push(query);
+            const gate = started.get(text);
+            if (gate) Deferred.doneUnsafe(gate, Effect.succeed(undefined));
+            if (
+              ['BEGIN', 'COMMIT', 'ROLLBACK'].includes(text) ||
+              (serveSuccessor && text === 'SELECT successor')
+            )
+              queueMicrotask(() => query.complete());
+            sql = undefined;
+          }
+          offset += length + 1;
+        }
+        callback();
       },
     });
-    const state = {
-      backend: nextBackend++,
-      client,
-      ended: false,
-      leased: false,
-    };
-    Object.defineProperty(client, 'processID', { value: state.backend });
-    vi.spyOn(client, 'end').mockImplementation((callback) => {
-      state.ended = true;
-      if (callback) Reflect.apply(callback, client, []);
-      return Promise.resolve();
-    });
-    vi.spyOn(client, 'query').mockImplementation((...args: unknown[]) => {
-      const text = queryText(args[0]);
-      const callback = args.at(-1);
-      if (typeof callback !== 'function')
-        throw new Error('Expected a driver callback');
-      const closedAtSubmission = state.ended;
-      const query: PendingQuery = {
-        backend: state.backend,
-        complete: (error) => {
-          if (query.completed)
-            throw new Error('Query callback completed twice');
-          query.completed = true;
-          // node-postgres supplies undefined for successful callback errors.
-          Reflect.apply(callback, client, [
-            error,
-            {
-              command: 'SELECT',
-              fields: [],
-              rowCount: 1,
-              rows: [{ ok: true }],
-            },
-          ]);
-        },
-        completed: false,
-        text,
-      };
-      queries.push(query);
-      const started = queryStarted.get(text);
-      if (started) Deferred.doneUnsafe(started, Effect.succeed(undefined));
-      if (text.startsWith('SELECT pg_cancel_backend('))
-        Deferred.doneUnsafe(cancellationStarted, Effect.succeed(undefined));
-      if (closedAtSubmission)
-        query.complete(new Error('Client was closed and is not queryable'));
-      else if (
-        draining ||
-        text === 'BEGIN' ||
-        text === 'ROLLBACK' ||
-        text === 'COMMIT'
-      )
-        query.complete();
-    });
-    clients.push(state);
-    return state;
+    sockets.add(socket);
+    socket.once('close', () => sockets.delete(socket));
+    return socket;
   };
 
-  vi.spyOn(pool, 'connect').mockImplementation((callback) => {
-    const acquire = () => {
-      let state = clients.find((entry) => !entry.leased && !entry.ended);
-      if (!state && clients.filter((entry) => !entry.ended).length < 2)
-        state = makeClient();
-      if (!state) {
-        waiting.push(acquire);
-        return;
-      }
-      const selected = state;
-      selected.leased = true;
-      let released = false;
-      const release = (error?: boolean | Error) => {
-        if (released) throw new Error('Lease released twice');
-        released = true;
-        selected.leased = false;
-        const destroyed = Boolean(error) || selected.ended;
-        if (destroyed) selected.ended = true;
-        releases.push({ backend: selected.backend, destroyed });
-        const next = waiting.shift();
-        if (next) queueMicrotask(next);
-      };
-      selected.client.release = release;
-      callback(undefined, selected.client, release);
-    };
-    if (holdNext) {
-      holdNext = false;
-      heldAcquisition = acquire;
-      Deferred.doneUnsafe(acquisitionHeld, Effect.succeed(undefined));
-    } else acquire();
-  });
-
-  const complete = (text: string, error?: Error) => {
-    const query = queries.find(
-      (entry) => entry.text === text && !entry.completed,
-    );
-    if (!query) throw new Error(`Expected pending query: ${text}`);
-    query.complete(error);
-  };
-  const acknowledgeCancel = (error?: Error) => {
-    const query = queries.find(
-      (entry) =>
-        entry.text.startsWith('SELECT pg_cancel_backend(') && !entry.completed,
-    );
-    if (!query) throw new Error('Expected pending cancellation');
-    query.complete(error);
-  };
-  const releaseHeldAcquisition = () => {
-    const acquire = heldAcquisition;
-    if (!acquire) throw new Error('Expected held acquisition');
-    heldAcquisition = undefined;
-    acquire();
-  };
   return {
-    acknowledgeCancel,
-    acquisitionHeld: Deferred.await(acquisitionHeld),
+    acknowledgeCancel: () => {
+      const control = controls.at(-1);
+      if (!control) throw new Error('No cancellation request');
+      control.socket.destroy();
+    },
+    acquisitionStarted: Deferred.await(acquisitionStarted),
     cancellationStarted: Deferred.await(cancellationStarted),
-    clients,
-    complete,
-    drain: () => {
-      draining = true;
-      if (heldAcquisition) releaseHeldAcquisition();
-      for (const query of queries) if (!query.completed) query.complete();
+    close: () => {
+      for (const socket of sockets) socket.destroy();
+    },
+    complete: (text: string, cancelled = false) => {
+      const query = queries.find(
+        (query) => query.text === text && !query.completed,
+      );
+      if (!query) throw new Error(`No pending query: ${text}`);
+      query.complete(cancelled);
+    },
+    controls,
+    failControl: () => {
+      failControl = true;
+    },
+    failControlCreation: () => {
+      failNextStream = true;
     },
     holdNextAcquisition: () => {
-      holdNext = true;
+      holdStartup = true;
     },
-    pool,
     queries,
-    releaseHeldAcquisition,
-    releases,
+    releaseAcquisition: () => {
+      if (!releaseStartup) throw new Error('No held acquisition');
+      releaseStartup();
+      releaseStartup = undefined;
+    },
+    replyToSuccessor: () => {
+      serveSuccessor = true;
+    },
+    sessions,
+    stream,
     waitForQuery: (text: string) => {
-      if (queries.some((entry) => entry.text === text)) return Effect.void;
+      if (queries.some((query) => query.text === text)) return Effect.void;
       const gate = Deferred.makeUnsafe<undefined>();
-      queryStarted.set(text, gate);
+      started.set(text, gate);
       return Deferred.await(gate);
     },
   };
 };
 
-const withPool = <E, R>(
-  body: (
-    fixture: ReturnType<typeof createPoolFixture>,
-    sql: PgClient.PgClient,
-  ) => Effect.Effect<void, E, R>,
+type WireFixture = ReturnType<typeof createWireFixture>;
+const withFixture = <A, E, R>(
+  body: (fixture: WireFixture) => Effect.Effect<A, E, R>,
 ) => {
-  const fixture = createPoolFixture();
-  return Effect.gen(function* () {
-    const sql = yield* PgClient.fromPool({
-      acquire: Effect.succeed(fixture.pool),
-    });
-    yield* body(fixture, sql);
-  }).pipe(
-    Effect.ensuring(Effect.sync(fixture.drain)),
-    Effect.scoped,
-    Effect.provide(Reactivity.layer),
+  const fixture = createWireFixture();
+  return Effect.scoped(
+    body(fixture).pipe(Effect.ensuring(Effect.sync(fixture.close))),
   );
 };
-
-const interruptedQueryError = () =>
-  Object.assign(new Error('canceling statement due to user request'), {
-    code: '57014',
+const makeClient = (fixture: WireFixture) =>
+  PgClient.make({
+    maxConnections: 1,
+    prepare: false,
+    stream: fixture.stream,
+    username: 'fixture-user',
+  });
+const run = <A, E>(effect: Effect.Effect<A, E, Reactivity.Reactivity>) =>
+  Effect.runPromise(
+    effect.pipe(Effect.provide(Reactivity.layer), Effect.timeout('12 seconds')),
+  );
+const successor = (fixture: WireFixture, sql: PgClient.PgClient) =>
+  Effect.gen(function* () {
+    const query = yield* Effect.forkChild(sql.unsafe('SELECT successor'));
+    yield* fixture.waitForQuery('SELECT successor');
+    fixture.complete('SELECT successor');
+    yield* Fiber.join(query);
   });
 
-afterEach(() => vi.restoreAllMocks());
-
-describe('PostgreSQL query cancellation ownership', () => {
-  it.effect(
-    'normally completed queries reuse their healthy backend without issuing cancellation',
-    () =>
-      withPool((fixture, sql) =>
+describe('native PostgreSQL cancellation ownership', () => {
+  it('cancels a queued pool acquisition before it can execute', () =>
+    run(
+      withFixture((fixture) =>
         Effect.gen(function* () {
-          const first = yield* Effect.forkChild(sql.unsafe('SELECT original'));
+          const sql = yield* makeClient(fixture);
+          const original = yield* Effect.forkChild(
+            sql.unsafe('SELECT original'),
+          );
+          yield* fixture.waitForQuery('SELECT original');
+          const waiting = yield* Effect.forkChild(
+            sql.unsafe('SELECT canceled-waiter'),
+          );
+          yield* Effect.yieldNow;
+          yield* Fiber.interrupt(waiting);
+          fixture.complete('SELECT original');
+          yield* Fiber.join(original);
+          yield* successor(fixture, sql);
+          expect(fixture.queries.map((query) => query.text)).toEqual([
+            'SELECT original',
+            'SELECT successor',
+          ]);
+          expect(fixture.controls).toHaveLength(0);
+          expect(fixture.sessions).toHaveLength(1);
+        }),
+      ),
+    ));
+
+  it('discards the backend when the cancellation connection cannot be created', () =>
+    run(
+      withFixture((fixture) =>
+        Effect.gen(function* () {
+          const sql = yield* makeClient(fixture);
+          const query = yield* Effect.forkChild(sql.unsafe('SELECT original'));
+          yield* fixture.waitForQuery('SELECT original');
+          fixture.failControlCreation();
+          yield* Fiber.interrupt(query);
+          expect(fixture.controls).toHaveLength(0);
+          expect(fixture.sessions[0]?.socket.destroyed).toBe(true);
+          fixture.complete('SELECT original', true);
+          yield* successor(fixture, sql);
+          expect(fixture.queries.at(-1)?.backend).not.toBe(4242);
+        }),
+      ),
+    ));
+
+  it('reuses normally completed queries without dispatching cancellation', () =>
+    run(
+      withFixture((fixture) =>
+        Effect.gen(function* () {
+          const sql = yield* makeClient(fixture);
+          const query = yield* Effect.forkChild(sql.unsafe('SELECT original'));
           yield* fixture.waitForQuery('SELECT original');
           fixture.complete('SELECT original');
-          yield* Fiber.join(first);
-          yield* Fiber.interrupt(first);
-          const second = yield* Effect.forkChild(
-            sql.unsafe('SELECT successor'),
-          );
-          yield* fixture.waitForQuery('SELECT successor');
-          fixture.complete('SELECT successor');
-          yield* Fiber.join(second);
+          yield* Fiber.join(query);
+          yield* Fiber.interrupt(query);
+          yield* successor(fixture, sql);
+          expect(fixture.controls).toHaveLength(0);
           expect(fixture.queries.map((query) => query.backend)).toEqual([
             4242, 4242,
           ]);
-          expect(fixture.releases).toEqual([
-            { backend: 4242, destroyed: false },
-            { backend: 4242, destroyed: false },
-          ]);
         }),
       ),
-  );
+    ));
 
   for (const ordering of ['query-first', 'cancel-first']) {
-    it.effect(
-      `holds the pooled lease until both callbacks complete: ${ordering}`,
-      () =>
-        withPool((fixture, sql) =>
+    it(`retires the original backend after cancellation: ${ordering}`, () =>
+      run(
+        withFixture((fixture) =>
           Effect.gen(function* () {
-            const first = yield* Effect.forkChild(
+            const sql = yield* makeClient(fixture);
+            const query = yield* Effect.forkChild(
               sql.unsafe('SELECT original'),
             );
             yield* fixture.waitForQuery('SELECT original');
-            const interrupt = yield* Effect.forkChild(Fiber.interrupt(first));
+            const interruption = yield* Effect.forkChild(
+              Fiber.interrupt(query),
+            );
             yield* fixture.cancellationStarted;
-            if (ordering === 'query-first') fixture.complete('SELECT original');
-            else fixture.acknowledgeCancel();
-            expect(first.pollUnsafe()).toBeUndefined();
-            expect(
-              fixture.releases.filter((entry) => entry.backend === 4242),
-            ).toEqual([]);
-            if (ordering === 'query-first') fixture.acknowledgeCancel();
-            else fixture.complete('SELECT original', interruptedQueryError());
-            yield* Fiber.join(interrupt);
-            const exit = yield* Fiber.await(first);
+            if (ordering === 'query-first') {
+              fixture.complete('SELECT original');
+              expect(query.pollUnsafe()).toBeUndefined();
+            }
+            fixture.acknowledgeCancel();
+            yield* Fiber.join(interruption);
+            const exit = yield* Fiber.await(query);
             expect(exit._tag).toBe('Failure');
             if (exit._tag === 'Failure')
               expect(Cause.hasInterruptsOnly(exit.cause)).toBe(true);
-            const successor = yield* Effect.forkChild(
-              sql.unsafe('SELECT successor'),
-            );
-            yield* fixture.waitForQuery('SELECT successor');
-            fixture.complete('SELECT successor');
-            yield* Fiber.join(successor);
-            expect(
-              fixture.releases.filter((entry) => entry.backend === 4242),
-            ).toHaveLength(2);
-            expect(fixture.clients[0]?.client.listenerCount('error')).toBe(0);
+            if (ordering === 'cancel-first')
+              fixture.complete('SELECT original', true);
+            expect(fixture.sessions[0]?.socket.destroyed).toBe(true);
+            yield* successor(fixture, sql);
+            expect(fixture.queries.at(-1)?.backend).not.toBe(4242);
+            expect(fixture.controls.map((control) => control.backend)).toEqual([
+              4242,
+            ]);
           }),
         ),
-    );
+      ));
 
-    it.effect(
-      `keeps transaction rollback behind both callbacks: ${ordering}`,
-      () =>
-        withPool((fixture, sql) =>
+    it(`never sends rollback on a backend with uncertain cancellation: ${ordering}`, () =>
+      run(
+        withFixture((fixture) =>
           Effect.gen(function* () {
+            const sql = yield* makeClient(fixture);
             const transaction = yield* Effect.forkChild(
               sql.withTransaction(sql.unsafe('SELECT original')),
             );
             yield* fixture.waitForQuery('SELECT original');
-            const interrupt = yield* Effect.forkChild(
+            const interruption = yield* Effect.forkChild(
               Fiber.interrupt(transaction),
             );
             yield* fixture.cancellationStarted;
             if (ordering === 'query-first') fixture.complete('SELECT original');
-            else fixture.acknowledgeCancel();
-            expect(
-              fixture.queries.some((query) => query.text === 'ROLLBACK'),
-            ).toBe(false);
-            expect(
-              fixture.releases.filter((entry) => entry.backend === 4242),
-            ).toEqual([]);
-            if (ordering === 'query-first') fixture.acknowledgeCancel();
-            else fixture.complete('SELECT original', interruptedQueryError());
-            yield* Fiber.join(interrupt);
-            const exit = yield* Fiber.await(transaction);
-            expect(exit._tag).toBe('Failure');
-            if (exit._tag === 'Failure')
-              expect(Cause.hasInterruptsOnly(exit.cause)).toBe(true);
-            expect(
-              fixture.queries.filter((query) => query.text === 'ROLLBACK'),
-            ).toHaveLength(1);
-            expect(
-              fixture.releases.filter((entry) => entry.backend === 4242),
-            ).toEqual([{ backend: 4242, destroyed: false }]);
+            fixture.acknowledgeCancel();
+            yield* Fiber.join(interruption);
+            if (ordering === 'cancel-first')
+              fixture.complete('SELECT original', true);
+            expect(fixture.queries.map((query) => query.text)).toEqual([
+              'BEGIN',
+              'SELECT original',
+            ]);
+            expect(fixture.sessions[0]?.socket.destroyed).toBe(true);
+            yield* successor(fixture, sql);
+            expect(fixture.queries.at(-1)?.backend).not.toBe(4242);
           }),
         ),
-    );
+      ));
   }
 
-  it.effect(
-    'does not dispatch a delayed cancellation after its original query has finished',
-    () =>
-      withPool((fixture, sql) =>
+  it('does not dispatch cancellation for an already completed held query', () =>
+    run(
+      withFixture((fixture) =>
         Effect.gen(function* () {
-          const first = yield* Effect.forkChild(sql.unsafe('SELECT original'));
+          const pool = yield* PgPool.make({
+            prepare: false,
+            stream: fixture.stream,
+            username: 'fixture-user',
+          });
+          const connection = yield* pool.get;
+          const query = yield* Effect.forkChild(
+            connection.query('SELECT original'),
+          );
           yield* fixture.waitForQuery('SELECT original');
-          fixture.holdNextAcquisition();
-          const interrupt = yield* Effect.forkChild(Fiber.interrupt(first));
-          yield* fixture.acquisitionHeld;
           fixture.complete('SELECT original');
-          yield* Fiber.join(interrupt);
-          const successor = yield* Effect.forkChild(
-            sql.unsafe('SELECT successor'),
+          yield* Fiber.join(query);
+          yield* connection.interrupt;
+          const next = yield* Effect.forkChild(
+            connection.query('SELECT successor'),
           );
           yield* fixture.waitForQuery('SELECT successor');
-          fixture.releaseHeldAcquisition();
-          expect(
-            fixture.queries.some((query) =>
-              query.text.startsWith('SELECT pg_cancel_backend('),
-            ),
-          ).toBe(false);
           fixture.complete('SELECT successor');
-          yield* Fiber.join(successor);
+          yield* Fiber.join(next);
+          expect(fixture.controls).toHaveLength(0);
+          expect(fixture.queries.map((query) => query.backend)).toEqual([
+            4242, 4242,
+          ]);
         }),
       ),
-  );
+    ));
 
-  it.effect(
-    'releases a late original acquisition without running a canceled query',
-    () =>
-      withPool((fixture, sql) =>
+  it('returns a late healthy acquisition to the pool without executing the canceled query', () =>
+    run(
+      withFixture((fixture) =>
         Effect.gen(function* () {
+          const sql = yield* makeClient(fixture);
           fixture.holdNextAcquisition();
-          const first = yield* Effect.forkChild(sql.unsafe('SELECT original'));
-          yield* fixture.acquisitionHeld;
-          yield* Fiber.interrupt(first);
-          fixture.releaseHeldAcquisition();
-          expect(fixture.queries).toEqual([]);
-          expect(fixture.releases).toEqual([
-            { backend: 4242, destroyed: false },
-          ]);
-          expect(fixture.clients[0]?.client.listenerCount('error')).toBe(0);
+          const query = yield* Effect.forkChild(sql.unsafe('SELECT original'));
+          yield* fixture.acquisitionStarted;
+          yield* Fiber.interrupt(query);
+          fixture.releaseAcquisition();
+          expect(fixture.queries).toHaveLength(0);
+          expect(fixture.controls).toHaveLength(0);
+          // The pool owns connection setup independently of its canceled waiter.
+          yield* successor(fixture, sql);
+          expect(fixture.queries.at(-1)?.backend).toBe(4242);
+          expect(fixture.sessions).toHaveLength(1);
+          expect(fixture.sessions[0]?.socket.destroyed).toBe(false);
         }),
       ),
-  );
+    ));
 
-  for (const dispatched of [false, true]) {
-    it.effect(
-      `retires an uncertain backend on cancellation timeout; dispatched=${dispatched}`,
-      () =>
-        withPool((fixture, sql) =>
+  for (const pinned of [false, true]) {
+    it(`rejects a successor on a retained checkout after unconfirmed cancellation; pinned=${pinned}`, () =>
+      run(
+        withFixture((fixture) =>
           Effect.gen(function* () {
-            const first = yield* Effect.forkChild(
-              sql.unsafe('SELECT original'),
+            const pool = yield* PgPool.make({
+              prepare: false,
+              stream: fixture.stream,
+              username: 'fixture-user',
+            });
+            const connection = yield* pinned ? pool.reserve : pool.get;
+            const query = yield* Effect.forkChild(
+              connection.query('SELECT original'),
             );
             yield* fixture.waitForQuery('SELECT original');
-            if (!dispatched) fixture.holdNextAcquisition();
-            const interrupt = yield* Effect.forkChild(Fiber.interrupt(first));
-            yield* dispatched
-              ? fixture.cancellationStarted
-              : fixture.acquisitionHeld;
-            yield* TestClock.adjust('5 seconds');
-            yield* Fiber.join(interrupt);
-            expect(fixture.clients[0]?.ended).toBe(true);
-            expect(
-              fixture.releases.filter((entry) => entry.backend === 4242),
-            ).toEqual([{ backend: 4242, destroyed: true }]);
-            fixture.complete('SELECT original', interruptedQueryError());
-            if (dispatched) fixture.acknowledgeCancel();
-            else fixture.releaseHeldAcquisition();
-            expect(
-              fixture.releases.filter((entry) => entry.backend === 4242),
-            ).toHaveLength(1);
-            const successor = yield* Effect.forkChild(
-              sql.unsafe('SELECT successor'),
+            const interruption = yield* Effect.forkChild(
+              Fiber.interrupt(query),
             );
-            yield* fixture.waitForQuery('SELECT successor');
-            const successorQuery = fixture.queries.find(
-              (query) => query.text === 'SELECT successor',
-            );
-            expect(successorQuery?.backend).not.toBe(4242);
-            fixture.complete('SELECT successor');
-            yield* Fiber.join(successor);
-            if (!dispatched)
-              expect(
-                fixture.queries.some((query) =>
-                  query.text.startsWith('SELECT pg_cancel_backend('),
-                ),
-              ).toBe(false);
-            expect(fixture.clients[0]?.client.listenerCount('error')).toBe(0);
-          }),
-        ),
-    );
-  }
-
-  it.effect(
-    'fails closed instead of issuing rollback on an uncertain transaction backend',
-    () =>
-      withPool((fixture, sql) =>
-        Effect.gen(function* () {
-          const transaction = yield* Effect.forkChild(
-            sql.withTransaction(sql.unsafe('SELECT original')),
-          );
-          yield* fixture.waitForQuery('SELECT original');
-          const interrupt = yield* Effect.forkChild(
-            Fiber.interrupt(transaction),
-          );
-          yield* fixture.cancellationStarted;
-          yield* TestClock.adjust('5 seconds');
-          yield* Fiber.join(interrupt);
-          const exit = yield* Fiber.await(transaction);
-          expect(exit._tag).toBe('Failure');
-          if (exit._tag === 'Failure') {
-            expect(Cause.hasDies(exit.cause)).toBe(true);
-            expect(Cause.pretty(exit.cause)).toMatch(/cancellation/iu);
-          }
-          expect(
-            fixture.queries.some((query) => query.text === 'ROLLBACK'),
-          ).toBe(false);
-          expect(
-            fixture.releases.filter((entry) => entry.backend === 4242),
-          ).toEqual([{ backend: 4242, destroyed: true }]);
-          fixture.complete('SELECT original', interruptedQueryError());
-          fixture.acknowledgeCancel();
-          expect(
-            fixture.releases.filter((entry) => entry.backend === 4242),
-          ).toHaveLength(1);
-        }),
-      ),
-  );
-
-  it.effect(
-    'releases once when a target error and its delayed query callback race cancellation',
-    () =>
-      withPool((fixture, sql) =>
-        Effect.gen(function* () {
-          const first = yield* Effect.forkChild(sql.unsafe('SELECT original'));
-          yield* fixture.waitForQuery('SELECT original');
-          const interrupt = yield* Effect.forkChild(Fiber.interrupt(first));
-          yield* fixture.cancellationStarted;
-          const target = fixture.clients[0];
-          if (!target) throw new Error('Expected the target backend');
-          target.client.emit('error', new Error('Connection terminated'));
-          fixture.complete(
-            'SELECT original',
-            new Error('Connection terminated'),
-          );
-          fixture.acknowledgeCancel();
-          yield* Fiber.join(interrupt);
-          expect(
-            fixture.releases.filter((entry) => entry.backend === 4242),
-          ).toEqual([{ backend: 4242, destroyed: true }]);
-          expect(target.client.listenerCount('error')).toBe(0);
-        }),
-      ),
-  );
-
-  for (const failure of ['control-error', 'query-error']) {
-    it.effect(
-      `retires both connections when cancellation fails: ${failure}`,
-      () =>
-        withPool((fixture, sql) =>
-          Effect.gen(function* () {
-            const first = yield* Effect.forkChild(
-              sql.unsafe('SELECT original'),
-            );
-            yield* fixture.waitForQuery('SELECT original');
-            const interrupt = yield* Effect.forkChild(Fiber.interrupt(first));
             yield* fixture.cancellationStarted;
-            const control = fixture.clients[1];
-            if (!control) throw new Error('Expected the cancellation backend');
-            const cancellation = fixture.queries.find((query) =>
-              query.text.startsWith('SELECT pg_cancel_backend('),
+            // A completed control transport does not prove server cancellation delivery.
+            fixture.complete('SELECT original');
+            fixture.acknowledgeCancel();
+            yield* Fiber.join(interruption);
+            fixture.replyToSuccessor();
+            const next = yield* Effect.result(
+              connection.query('SELECT successor'),
             );
-            if (!cancellation) throw new Error('Expected cancellation query');
-            const error = new Error('Cancellation connection failed');
-            if (failure === 'control-error')
-              control.client.emit('error', error);
-            else fixture.acknowledgeCancel(error);
-            yield* Fiber.join(interrupt);
-            expect(fixture.clients[0]?.ended).toBe(true);
-            expect(fixture.releases).toEqual([
-              { backend: 4243, destroyed: true },
-              { backend: 4242, destroyed: true },
+            expect(Result.isFailure(next)).toBe(true);
+            expect(fixture.queries.map((query) => query.text)).toEqual([
+              'SELECT original',
             ]);
-            fixture.complete('SELECT original', interruptedQueryError());
-            if (failure === 'control-error') cancellation.complete(error);
-            expect(fixture.releases).toHaveLength(2);
-            expect(control.client.listenerCount('error')).toBe(0);
-            expect(fixture.clients[0]?.client.listenerCount('error')).toBe(0);
-            const successor = yield* Effect.forkChild(
-              sql.unsafe('SELECT successor'),
-            );
-            yield* fixture.waitForQuery('SELECT successor');
-            expect(fixture.queries.at(-1)?.backend).not.toBe(4242);
-            fixture.complete('SELECT successor');
-            yield* Fiber.join(successor);
+            expect(fixture.sessions[0]?.socket.destroyed).toBe(true);
           }),
         ),
-    );
+      ));
   }
 
-  it.effect(
-    'keeps cancellation cleanup safe when the query receives another interrupt',
-    () =>
-      withPool((fixture, sql) =>
+  it('discards the original connection when the cancellation transport fails', () =>
+    run(
+      withFixture((fixture) =>
         Effect.gen(function* () {
-          const first = yield* Effect.forkChild(sql.unsafe('SELECT original'));
+          const sql = yield* makeClient(fixture);
+          const query = yield* Effect.forkChild(sql.unsafe('SELECT original'));
           yield* fixture.waitForQuery('SELECT original');
-          const interrupt = yield* Effect.forkChild(Fiber.interrupt(first));
-          yield* fixture.cancellationStarted;
-          const secondInterrupt = yield* Effect.forkChild(
-            Fiber.interrupt(first),
-          );
-          expect(fixture.releases).toEqual([]);
-          fixture.complete('SELECT original', interruptedQueryError());
-          fixture.acknowledgeCancel();
-          yield* Fiber.join(interrupt);
-          yield* Fiber.join(secondInterrupt);
-          expect(fixture.clients[0]?.ended).toBe(false);
-          expect(fixture.releases).toEqual([
-            { backend: 4243, destroyed: false },
-            { backend: 4242, destroyed: false },
-          ]);
-          expect(fixture.releases).toHaveLength(2);
-          expect(fixture.clients[0]?.client.listenerCount('error')).toBe(0);
-          expect(fixture.clients[1]?.client.listenerCount('error')).toBe(0);
+          fixture.failControl();
+          yield* Fiber.interrupt(query);
+          expect(fixture.sessions[0]?.socket.destroyed).toBe(true);
+          expect(fixture.controls[0]?.socket.destroyed).toBe(true);
+          fixture.complete('SELECT original', true);
+          yield* successor(fixture, sql);
+          expect(fixture.queries.at(-1)?.backend).not.toBe(4242);
         }),
       ),
+    ));
+
+  it(
+    'bounds cancellation cleanup when the control connection never closes',
+    { timeout: 15_000 },
+    () =>
+      run(
+        withFixture((fixture) =>
+          Effect.gen(function* () {
+            const sql = yield* makeClient(fixture);
+            const query = yield* Effect.forkChild(
+              sql.unsafe('SELECT original'),
+            );
+            yield* fixture.waitForQuery('SELECT original');
+            const interruption = yield* Effect.forkChild(
+              Fiber.interrupt(query),
+            );
+            yield* fixture.cancellationStarted;
+            yield* Fiber.join(interruption);
+            expect(fixture.sessions[0]?.socket.destroyed).toBe(true);
+            expect(fixture.controls[0]?.socket.destroyed).toBe(true);
+            fixture.complete('SELECT original', true);
+            yield* successor(fixture, sql);
+            expect(fixture.queries.at(-1)?.backend).not.toBe(4242);
+          }),
+        ),
+      ),
   );
+
+  it('handles repeated interruption with one cancellation request', () =>
+    run(
+      withFixture((fixture) =>
+        Effect.gen(function* () {
+          const sql = yield* makeClient(fixture);
+          const query = yield* Effect.forkChild(sql.unsafe('SELECT original'));
+          yield* fixture.waitForQuery('SELECT original');
+          const first = yield* Effect.forkChild(Fiber.interrupt(query));
+          yield* fixture.cancellationStarted;
+          const second = yield* Effect.forkChild(Fiber.interrupt(query));
+          fixture.acknowledgeCancel();
+          yield* Fiber.join(first);
+          yield* Fiber.join(second);
+          expect(fixture.controls).toHaveLength(1);
+          expect(fixture.sessions[0]?.socket.destroyed).toBe(true);
+          fixture.complete('SELECT original', true);
+          yield* successor(fixture, sql);
+          expect(fixture.queries.at(-1)?.backend).not.toBe(4242);
+        }),
+      ),
+    ));
 });

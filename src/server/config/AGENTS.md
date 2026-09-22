@@ -21,7 +21,7 @@
   slash, with no paths, dot segments, query/fragment markers, backslashes,
   credentials, empty explicit ports, or internal whitespace. Surrounding whitespace
   is trimmed.
-- Without a CA, shared PostgreSQL constructors retain the driver's raw absolute Unix socket path syntax, including its optional database suffix. Supplying a CA still requires a PostgreSQL URL with a host for verified TLS identity; a raw socket path cannot bypass that validation.
+- Without a CA, shared PostgreSQL constructors accept raw absolute Unix socket paths with an optional database suffix. The native Effect adapter translates that syntax to a socket-host URL. It preserves the final host/port/user/password override and falls back to the authority when that final override is empty. Native URL TLS options support only `sslmode`; other SSL query options fail explicitly instead of being ignored. Supplying a CA still requires a PostgreSQL URL with a host for verified TLS identity; a raw socket path cannot bypass that validation.
 - A provided database CA certificate must be nonblank even when
   `DATABASE_TLS_REQUIRED=false`; preserve its PEM bytes. Shared PostgreSQL
   constructors and raw ops entrypoints enforce this before creating a pool.
@@ -68,23 +68,23 @@
   domain-specific names (`optionalAuthStringConfig`) unless the helper genuinely
   encodes a domain rule.
 
-## `Config.nonEmptyString` vs trim-then-validate
+## `Config.NonEmptyString` vs trim-then-validate
 
-`Config.nonEmptyString(name)` validates `text.length > 0` against the **raw,
+`Config.NonEmptyString(name)` validates `text.length > 0` against the **raw,
 untrimmed** value from the provider. This means:
 
-- `"   "` (whitespace only) **passes** `Config.nonEmptyString` and would be returned
+- `"   "` (whitespace only) **passes** `Config.NonEmptyString` and would be returned
   as `"   "` if you trim afterwards.
-- `Config.nonEmptyString(name).pipe(Config.map((s) => s.trim()))` is therefore **not**
+- `Config.NonEmptyString(name).pipe(Config.map((s) => s.trim()))` is therefore **not**
   equivalent to "trim then reject empty" — it accepts whitespace-only input.
 
 When whitespace-only input must be rejected, **trim first, then validate non-empty**:
 
 ```typescript
 // Correct: trim first, then reject empty
-Config.string(name).pipe(
+Config.String(name).pipe(
   Config.map((s) => s.trim()),
-  Config.mapOrFail((s) =>
+  Config.mapEffect((s) =>
     s.length > 0
       ? Effect.succeed(s)
       : Effect.fail(
@@ -98,10 +98,10 @@ Config.string(name).pipe(
 );
 
 // Wrong: validates raw value, whitespace-only strings pass through
-Config.nonEmptyString(name).pipe(Config.map((s) => s.trim()));
+Config.NonEmptyString(name).pipe(Config.map((s) => s.trim()));
 ```
 
-Use `Config.nonEmptyString` only when you trust the provider to not supply
+Use `Config.NonEmptyString` only when you trust the provider to not supply
 whitespace-only values (e.g. structured JSON providers, test maps).
 
 ## Helpers Policy

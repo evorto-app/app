@@ -4,6 +4,7 @@ import type * as SqlConnection from 'effect/unstable/sql/SqlConnection';
 import * as PgClient from '@effect/sql-pg/PgClient';
 import { expect, layer, vi } from '@effect/vitest';
 import { createDatabaseTestLayer } from '@server/testing/database-test-layer';
+import { makePgTestClient } from '@server/testing/pg-test-client';
 import {
   RpcBadRequestError,
   RpcForbiddenError,
@@ -480,10 +481,8 @@ const createDiscountDatabase = ({
   ).pipe(
     Layer.provide(
       PgClient.layerFrom(
-        PgClient.makeWith({
+        makePgTestClient({
           acquirer: Effect.succeed(connection),
-          config: {},
-          listenAcquirer: unexpectedDatabaseAccess,
           transactionAcquirer: Effect.succeed(connection),
         }),
       ),

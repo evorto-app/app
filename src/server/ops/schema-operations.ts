@@ -152,8 +152,9 @@ const DrizzleApplyEnvelope = Schema.Union([
 
 type DrizzleExplainEnvelope = typeof DrizzleExplainEnvelope.Type;
 
+// Classification only projects these fields; the digest retains the original plan.
 const statementParseOptions = {
-  onExcessProperty: 'preserve',
+  onExcessProperty: 'ignore',
 } as const;
 const StatementHeader = Schema.Struct({ type: Schema.String });
 const TableIdentity = Schema.Struct({

@@ -7,9 +7,9 @@ const configFailure = (message: string) =>
   new Config.ConfigError(new ConfigProvider.SourceError({ message }));
 
 const nonEmptyTrimmedRedactedString = (name: string) =>
-  Config.redacted(name).pipe(
+  Config.Redacted(name).pipe(
     Config.map((value) => Redacted.make(Redacted.value(value).trim())),
-    Config.mapOrFail((value) =>
+    Config.mapEffect((value) =>
       Redacted.value(value).length > 0
         ? Effect.succeed(value)
         : Effect.fail(configFailure(`Expected ${name} to be non-empty`)),
@@ -98,7 +98,7 @@ const unvalidatedAuthConfig = Config.all({
 });
 
 export const authConfig = unvalidatedAuthConfig.pipe(
-  Config.mapOrFail((configured) =>
+  Config.mapEffect((configured) =>
     Effect.all({
       BASE_URL: strictAuthOrigin(
         'BASE_URL',

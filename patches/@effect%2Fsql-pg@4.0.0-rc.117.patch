@@ -1,0 +1,88 @@
+diff --git a/dist/PgConnection.d.ts b/dist/PgConnection.d.ts
+index a90e1c609154ae8db437e676910833035b510536..0d8d96060948061e1a6839342315ef91ba25e7a7 100644
+--- a/dist/PgConnection.d.ts
++++ b/dist/PgConnection.d.ts
+@@ -155,12 +155,11 @@ export interface PgConnection {
+      * Runs a query and returns rows keyed by column name. Pass `false` to skip
+      * the prepared statement cache.
+      *
+-     * On interruption, the connection drains to `ReadyForQuery` and sends a
+-     * `CancelRequest` if needed. Unless the backend confirms cancellation with
+-     * `57014`, a pool retires the session before its next checkout. A retained
+-     * checkout and an unpooled session remain exposed to a late cancel.
+-     * `statement_timeout` also reports `57014` and can be mistaken for
+-     * confirmation.
++     * On interruption, an active query sends a `CancelRequest` when needed.
++     * After that attempt settles, the session is discarded, including retained
++     * and transaction-pinned checkouts. A closed control connection or `57014`
++     * does not prove that a delayed cancellation cannot affect a later query.
++     * Completed or idle queries do not dispatch cancellation or retire a session.
+      */
+     readonly query: (sql: string, params?: ReadonlyArray<unknown>, prepare?: boolean) => Effect.Effect<Result, SqlError>;
+     /**
+diff --git a/dist/PgConnection.js b/dist/PgConnection.js
+index eb8fb660ac266978be0f23ec1b3f17c70f116acd..815dfe9b17aafd80d6c184fe3869bc9ae7f12ce5 100644
+--- a/dist/PgConnection.js
++++ b/dist/PgConnection.js
+@@ -392,10 +392,16 @@ class PgConnectionImpl {
+   };
+   /** Sends a `CancelRequest` for this session on a side connection. */
+   cancel = /*#__PURE__*/Effect.suspend(() => {
+-    if (this.deadWith !== undefined) return Effect.void;
++    if (this.deadWith !== undefined || this.consumer === undefined) return Effect.void;
+     this.cancelPending = true;
+-    if (this.consumer === undefined) this.retire();
+-    return sendCancelRequest(this.resolved, this.session);
++    return sendCancelRequest(this.resolved, this.session).pipe(
++      Effect.ensuring(Effect.sync(() => {
++        this.fatal(connectionQueryError(
++          new Error("PostgreSQL connection discarded after query cancellation"),
++          "PgConnection: PostgreSQL connection discarded after query cancellation"
++        ));
++      }))
++    );
+   });
+   pin = /*#__PURE__*/Effect.suspend(() => {
+     const reserve = this[internalsKey].reserve;
+diff --git a/src/PgConnection.ts b/src/PgConnection.ts
+index 4ad47bc336d0d2e2c3aff58a391fb2cb57f8554c..540086bf24a28cf055ca78e93a207af25ad55f67 100644
+--- a/src/PgConnection.ts
++++ b/src/PgConnection.ts
+@@ -203,12 +203,11 @@ export interface PgConnection {
+    * Runs a query and returns rows keyed by column name. Pass `false` to skip
+    * the prepared statement cache.
+    *
+-   * On interruption, the connection drains to `ReadyForQuery` and sends a
+-   * `CancelRequest` if needed. Unless the backend confirms cancellation with
+-   * `57014`, a pool retires the session before its next checkout. A retained
+-   * checkout and an unpooled session remain exposed to a late cancel.
+-   * `statement_timeout` also reports `57014` and can be mistaken for
+-   * confirmation.
++   * On interruption, an active query sends a `CancelRequest` when needed.
++   * After that attempt settles, the session is discarded, including retained
++   * and transaction-pinned checkouts. A closed control connection or `57014`
++   * does not prove that a delayed cancellation cannot affect a later query.
++   * Completed or idle queries do not dispatch cancellation or retire a session.
+    */
+   readonly query: (
+     sql: string,
+@@ -722,10 +721,16 @@ class PgConnectionImpl implements PgConnection {
+ 
+   /** Sends a `CancelRequest` for this session on a side connection. */
+   readonly cancel: Effect.Effect<void> = Effect.suspend(() => {
+-    if (this.deadWith !== undefined) return Effect.void
++    if (this.deadWith !== undefined || this.consumer === undefined) return Effect.void
+     this.cancelPending = true
+-    if (this.consumer === undefined) this.retire()
+-    return sendCancelRequest(this.resolved, this.session)
++    return sendCancelRequest(this.resolved, this.session).pipe(
++      Effect.ensuring(Effect.sync(() => {
++        this.fatal(connectionQueryError(
++          new Error("PostgreSQL connection discarded after query cancellation"),
++          "PgConnection: PostgreSQL connection discarded after query cancellation"
++        ))
++      }))
++    )
+   })
+ 
+   readonly pin: Effect.Effect<PgConnection, never, Scope.Scope> = Effect.suspend(() => {

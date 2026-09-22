@@ -193,13 +193,6 @@ describe('pg-connection-config', () => {
         createNodePgPoolConfig({ databaseUrl }).connectionString,
       name: 'node',
     },
-    {
-      connectionString: (databaseUrl: string) => {
-        const config = createPgClientConfig({ databaseUrl });
-        return config.url ? Redacted.value(config.url) : undefined;
-      },
-      name: 'effect',
-    },
   ]) {
     it.each([
       { database: 'fixture-user', databaseUrl: '/var/run/postgresql' },
@@ -218,7 +211,9 @@ describe('pg-connection-config', () => {
         vi.stubEnv('PGDATABASE', undefined);
         try {
           const connectionString = driver.connectionString(databaseUrl);
-          expect(connectionString).toBe(databaseUrl);
+          if (driver.name === 'node') {
+            expect(connectionString).toBe(databaseUrl);
+          }
           const client = new Client({
             connectionString,
             ssl: false,
@@ -304,6 +299,26 @@ describe('pg-connection-config', () => {
     });
     expect(effectConfig.ssl).toBeUndefined();
   });
+
+  it.each([
+    'ssl',
+    'sslcert',
+    'sslkey',
+    'sslrootcert',
+    'sslnegotiation',
+    'uselibpqcompat',
+  ])(
+    'rejects unsupported native URL TLS option %s instead of silently ignoring it',
+    (name) => {
+      expect(() =>
+        createPgClientConfig({
+          databaseUrl: `${databaseUrl}&${name}=configured`,
+        }),
+      ).toThrow(
+        'The native PostgreSQL driver supports only sslmode URL options',
+      );
+    },
+  );
 
   it('verifies managed database TLS against the connection host by default', () => {
     const caCertificate =

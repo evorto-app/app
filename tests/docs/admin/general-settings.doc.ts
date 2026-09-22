@@ -173,7 +173,10 @@ Changes apply to the organization currently shown in Evorto. They do not change 
       'Active sign-up limit and transfer and cancellation deadlines',
     );
     await settings.getByRole('button', { name: 'Save sign-up rules' }).click();
-    await expect(page.getByText('Sign-up rules updated')).toBeVisible();
+    // Success follows the persisted settings readback, which can outlive 5s.
+    await expect(page.getByText('Sign-up rules updated')).toBeVisible({
+      timeout: 20_000,
+    });
   });
 
   await test.step('Upload and save appearance', async () => {

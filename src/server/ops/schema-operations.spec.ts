@@ -140,6 +140,32 @@ describe('ops schema operations', () => {
     expect(analysis.unsafeReasons).toEqual([]);
   });
 
+  it('binds the plan digest to supplementary statement metadata', () => {
+    const plan = {
+      ...emptyPlan(),
+      statements: [
+        {
+          metadata: { source: 'first' },
+          table: { name: 'new_table', schema: 'public' },
+          type: 'create_table',
+        },
+      ],
+    };
+    const first = analyzeSchemaPlan(plan);
+    const changed = analyzeSchemaPlan({
+      ...plan,
+      statements: plan.statements.map((statement) => ({
+        ...statement,
+        metadata: { source: 'second' },
+      })),
+    });
+
+    expect(first.safe).toBe(true);
+    expect(changed.safe).toBe(true);
+    expect(first.digest).not.toBe(changed.digest);
+    expect(plan.statements[0]?.metadata).toEqual({ source: 'first' });
+  });
+
   it('rejects legacy statement shapes instead of guessing table identity', () => {
     const analysis = analyzeSchemaPlan({
       dialect: 'postgresql',

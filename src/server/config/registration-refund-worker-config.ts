@@ -15,14 +15,14 @@ const disabledForPlaywrightMode: RegistrationRefundWorkerRuntimeMode =
 export const registrationRefundWorkerRuntimeModeConfig = Config.all({
   E2E_NOW_ISO: optionalTrimmedString('E2E_NOW_ISO'),
   E2E_RUNTIME_MODE: Config.option(
-    Config.literal('playwright', 'E2E_RUNTIME_MODE'),
+    Config.Literal('playwright', 'E2E_RUNTIME_MODE'),
   ),
-  LOCAL_DATABASE: Config.boolean('LOCAL_DATABASE').pipe(
+  LOCAL_DATABASE: Config.Boolean('LOCAL_DATABASE').pipe(
     Config.withDefault(false),
   ),
   NODE_ENV: optionalTrimmedString('NODE_ENV'),
 }).pipe(
-  Config.mapOrFail(
+  Config.mapEffect(
     ({ E2E_NOW_ISO, E2E_RUNTIME_MODE, LOCAL_DATABASE, NODE_ENV }) => {
       if (Option.isNone(E2E_RUNTIME_MODE)) {
         return Effect.succeed(enabledMode);

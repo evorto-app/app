@@ -64,8 +64,8 @@ const main = Effect.gen(function* () {
     onSome: Effect.succeed,
   });
   const seedEnvironment = yield* Config.all({
-    E2E_NOW_ISO: Config.option(Config.string('E2E_NOW_ISO')),
-    E2E_SEED_KEY: Config.option(Config.string('E2E_SEED_KEY')),
+    E2E_NOW_ISO: Config.option(Config.String('E2E_NOW_ISO')),
+    E2E_SEED_KEY: Config.option(Config.String('E2E_SEED_KEY')),
   }).parse(
     ConfigProvider.orElse(
       ConfigProvider.fromEnv({ preserveEmptyStrings: true }),

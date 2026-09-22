@@ -15,24 +15,24 @@ export const isDatabaseRuntimeRoleName = Schema.is(
   Schema.String.check(Schema.isPattern(/^[a-z_][a-z0-9_]{0,62}$/u)),
 );
 
-export const applicationEnvironmentConfig = Config.literals(
+export const applicationEnvironmentConfig = Config.Literals(
   ['local', 'staging', 'production'],
   'APP_ENVIRONMENT',
 );
 
-export const applicationRoleConfig = Config.literals(
+export const applicationRoleConfig = Config.Literals(
   ['web', 'worker', 'ops'],
   'APP_ROLE',
 );
 
-export const workerTriggerModeConfig = Config.literals(
+export const workerTriggerModeConfig = Config.Literals(
   ['poll', 'http'],
   'WORKER_TRIGGER_MODE',
 );
 
 const traceSamplingRatioConfig = Config.option(
-  Config.finite('TRACE_SAMPLING_RATIO').pipe(
-    Config.mapOrFail((ratio) =>
+  Config.Finite('TRACE_SAMPLING_RATIO').pipe(
+    Config.mapEffect((ratio) =>
       ratio >= 0 && ratio <= 1
         ? Effect.succeed(ratio)
         : Effect.fail(
@@ -47,7 +47,7 @@ const traceSamplingRatioConfig = Config.option(
 );
 
 const optionalRedactedString = (name: string) =>
-  Config.option(Config.redacted(name)).pipe(
+  Config.option(Config.Redacted(name)).pipe(
     Config.map(
       Option.map((value) => Redacted.make(Redacted.value(value).trim())),
     ),
@@ -59,7 +59,7 @@ const optionalRedactedString = (name: string) =>
   );
 
 export const deploymentConfig = Config.all({
-  APP_BOOTSTRAP: Config.boolean('APP_BOOTSTRAP').pipe(
+  APP_BOOTSTRAP: Config.Boolean('APP_BOOTSTRAP').pipe(
     Config.withDefault(false),
   ),
   APP_ENVIRONMENT: applicationEnvironmentConfig,
@@ -67,11 +67,11 @@ export const deploymentConfig = Config.all({
   APP_REVISION: optionalTrimmedString('APP_REVISION'),
   APP_ROLE: applicationRoleConfig,
   APP_SCHEMA_HASH: optionalTrimmedString('APP_SCHEMA_HASH'),
-  COCKPIT_TRACES_ENDPOINT: Config.option(Config.url('COCKPIT_TRACES_ENDPOINT')),
+  COCKPIT_TRACES_ENDPOINT: Config.option(Config.URL('COCKPIT_TRACES_ENDPOINT')),
   COCKPIT_TRACES_TOKEN: optionalRedactedString('COCKPIT_TRACES_TOKEN'),
   READINESS_TENANT_HOST: optionalTrimmedString('READINESS_TENANT_HOST'),
   TRACE_SAMPLING_RATIO: traceSamplingRatioConfig,
-  TRUST_PLATFORM_PROXY: Config.boolean('TRUST_PLATFORM_PROXY').pipe(
+  TRUST_PLATFORM_PROXY: Config.Boolean('TRUST_PLATFORM_PROXY').pipe(
     Config.withDefault(false),
   ),
   WORKER_TRIGGER_MODE: workerTriggerModeConfig,

@@ -22,15 +22,15 @@ const serverLogLevelNames = [
   'warning',
 ] as const;
 
-const actionsStepDebugConfig = Config.boolean('ACTIONS_STEP_DEBUG').pipe(
+const actionsStepDebugConfig = Config.Boolean('ACTIONS_STEP_DEBUG').pipe(
   Config.withDefault(false),
 );
 const baseUrlConfig = optionalTrimmedString('BASE_URL');
-const ciConfig = Config.boolean('CI').pipe(Config.withDefault(false));
+const ciConfig = Config.Boolean('CI').pipe(Config.withDefault(false));
 const pinnedNowIsoConfig = optionalTrimmedString('E2E_NOW_ISO');
 const nodeEnvironmentConfig = optionalTrimmedString('NODE_ENV');
 const packageVersionConfig = optionalTrimmedString('npm_package_version');
-const portConfig = Config.port('PORT').pipe(Config.withDefault(4000));
+const portConfig = Config.Port('PORT').pipe(Config.withDefault(4000));
 const publicGoogleMapsApiKeyConfig = nonEmptyTrimmedString(
   'PUBLIC_GOOGLE_MAPS_API_KEY',
 );
@@ -66,7 +66,7 @@ const parseServerLogLevel = (configuredLevel: string) =>
   );
 
 const serverLogLevelConfig = optionalTrimmedString('SERVER_LOG_LEVEL').pipe(
-  Config.mapOrFail(
+  Config.mapEffect(
     (
       configuredLevel,
     ): Effect.Effect<Option.Option<LogLevel.LogLevel>, Config.ConfigError> =>

@@ -1070,7 +1070,7 @@ describe('documentation publishing', () => {
       expect(sourceStat.isSymbolicLink()).toBe(false);
     }
   });
-  describe.sequential('publication staging cleanup', () => {
+  describe('publication staging cleanup', { concurrent: false }, () => {
     it('preserves generation and staging cleanup failures together', () => {
       const generationFailure = new Error('Fixture generation failed');
       const cleanupFailure = new Error('Fixture staging removal failed');

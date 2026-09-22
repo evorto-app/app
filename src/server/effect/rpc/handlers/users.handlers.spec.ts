@@ -2,6 +2,7 @@ import type * as SqlConnection from 'effect/unstable/sql/SqlConnection';
 
 import * as PgClient from '@effect/sql-pg/PgClient';
 import { describe, expect, it, vi } from '@effect/vitest';
+import { makePgTestClient } from '@server/testing/pg-test-client';
 import * as PgDrizzle from 'drizzle-orm/effect-postgres';
 import { Effect, Layer, Schema, Stream } from 'effect';
 import * as Headers from 'effect/unstable/http/Headers';
@@ -223,10 +224,8 @@ const createUserDatabaseFixture = ({
   ).pipe(
     Layer.provide(
       PgClient.layerFrom(
-        PgClient.makeWith({
+        makePgTestClient({
           acquirer: Effect.succeed(connection),
-          config: {},
-          listenAcquirer: unexpectedDatabaseAccess,
           transactionAcquirer:
             membershipId === undefined
               ? unexpectedDatabaseAccess

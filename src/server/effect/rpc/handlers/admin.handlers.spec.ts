@@ -1,5 +1,6 @@
 import * as PgClient from '@effect/sql-pg/PgClient';
 import { describe, expect, it, vi } from '@effect/vitest';
+import { makePgTestClient } from '@server/testing/pg-test-client';
 import {
   adminTenantAppearanceSettingsSnapshot,
   adminTenantLegalSettingsSnapshot,
@@ -251,10 +252,8 @@ const unavailableDatabaseLayer = Layer.effect(
 ).pipe(
   Layer.provide(
     PgClient.layerFrom(
-      PgClient.makeWith({
+      makePgTestClient({
         acquirer: unexpectedDatabaseAccess,
-        config: {},
-        listenAcquirer: unexpectedDatabaseAccess,
         transactionAcquirer: unexpectedDatabaseAccess,
       }),
     ),

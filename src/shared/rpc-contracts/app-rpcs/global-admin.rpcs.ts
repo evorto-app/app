@@ -141,7 +141,7 @@ const GlobalAdminTenantCreatePayload = Schema.Struct({
 export const GlobalAdminTenantCreateInput = Schema.Json.pipe(
   Schema.decodeTo(
     GlobalAdminTenantCreatePayload,
-    SchemaTransformation.transformOrFail({
+    SchemaTransformation.transformEffect({
       decode: (input) =>
         Schema.decodeUnknownEffect(GlobalAdminTenantCreatePayload)(input, {
           onExcessProperty: 'error',
@@ -164,7 +164,7 @@ const GlobalAdminTenantUpdatePayload = Schema.Struct({
 export const GlobalAdminTenantUpdateInput = Schema.Json.pipe(
   Schema.decodeTo(
     GlobalAdminTenantUpdatePayload,
-    SchemaTransformation.transformOrFail({
+    SchemaTransformation.transformEffect({
       decode: (input) =>
         Schema.decodeUnknownEffect(GlobalAdminTenantUpdatePayload)(input, {
           onExcessProperty: 'error',

@@ -6,6 +6,7 @@ import {
   HttpServer,
   HttpServerResponse,
 } from 'effect/unstable/http';
+import * as NetAddress from 'effect/unstable/net/NetAddress';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
@@ -103,7 +104,7 @@ BunRuntime.runMain(
       { disableListenLog: true, disableLogger: true },
     ).pipe(Layer.build);
     const { address } = yield* HttpServer.HttpServer;
-    if (address._tag !== 'TcpAddress') {
+    if (!NetAddress.isInetAddress(address)) {
       return yield* Effect.die(new Error('Expected a local TCP test server'));
     }
     const { stderr, stdout } = yield* Effect.tryPromise((signal) =>
