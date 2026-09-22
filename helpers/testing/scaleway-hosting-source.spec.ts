@@ -60,6 +60,156 @@ describe('Scaleway hosting source', () => {
   const digestHash = 'a'.repeat(64);
 
   it.each([
+    { name: 'current accepted revision', expected: [0, 0] },
+    {
+      name: 'non-main dispatch',
+      workflowRef: 'refs/heads/release',
+      expected: [1],
+    },
+    {
+      name: 'old workflow rerun',
+      workflowRevision: 'b'.repeat(40),
+      expected: [1],
+    },
+    { name: 'malformed canonical response', firstMain: 'null', expected: [1] },
+    { name: 'failed initial main read', failFirst: true, expected: [1] },
+    {
+      name: 'main advances during promotion',
+      secondMain: 'b'.repeat(40),
+      expected: [0, 1],
+    },
+    {
+      name: 'selected revision differs from workflow',
+      selectedRevision: 'b'.repeat(40),
+      expected: [0, 1],
+    },
+    { name: 'failed final main read', failSecond: true, expected: [0, 1] },
+  ])('checks both production revision snapshots: $name', (scenario) => {
+    const context = {
+      workflowRef: 'refs/heads/main',
+      workflowRevision: revision,
+      firstMain: revision,
+      secondMain: revision,
+      selectedRevision: revision,
+      failFirst: false,
+      failSecond: false,
+      ...scenario,
+    };
+    const workflow = source('.github/workflows/scaleway-production.yml');
+    const firstStep = between(
+      workflow,
+      '- name: Require the current main production workflow',
+      '- name: Fetch and validate the accepted staging manifest',
+    );
+    const finalStep = between(
+      workflow,
+      '- name: Recheck current main before production writes',
+      '- name: Reconcile production role-scoped Secret Manager values',
+    );
+    const writeGuard = workflow.indexOf(
+      '- name: Recheck current main before production writes',
+    );
+    expect(writeGuard).toBeGreaterThan(
+      workflow.indexOf(
+        '- name: Verify production infrastructure has no pending changes',
+      ),
+    );
+    for (const mutation of [
+      '- name: Reconcile production role-scoped Secret Manager values',
+      '- name: Deploy production ops and apply only a stable safe schema plan',
+      '- name: Deploy production worker and web at the accepted digest',
+    ])
+      expect(writeGuard).toBeLessThan(workflow.indexOf(mutation));
+    const runBody = (step: string) => {
+      const marker = '        run: |\n';
+      const offset = step.indexOf(marker);
+      if (offset < 0) throw new Error('Missing actual production guard script');
+      return step
+        .slice(offset + marker.length)
+        .split('\n')
+        .map((line) => (line.startsWith('          ') ? line.slice(10) : line))
+        .join('\n');
+    };
+    const directory = mkdtempSync(
+      path.join(tmpdir(), 'evorto-production-forward-'),
+    );
+    const output = path.join(directory, 'output');
+    const calls = path.join(directory, 'gh-calls');
+    try {
+      writeFileSync(
+        path.join(directory, 'gh'),
+        String.raw`#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$*" >> "$FAKE_GH_LOG"
+if [ "$*" != 'api repos/evorto-app/app/commits/main --jq .sha' ]; then
+  echo 'Unexpected fake GitHub request' >&2
+  exit 1
+fi
+if [ "$FAKE_GH_FAILURE" = 'true' ]; then
+  echo 'Simulated GitHub read failure' >&2
+  exit 1
+fi
+printf '%s\n' "$FAKE_MAIN_REVISION"
+`,
+        { mode: 0o700 },
+      );
+      const invoke = (step: string, currentMain: string, fail: boolean) =>
+        spawnSync(
+          'bash',
+          [
+            '--noprofile',
+            '--norc',
+            '-e',
+            '-o',
+            'pipefail',
+            '-c',
+            runBody(step) + '\nprintf "guard-passed\\n"',
+          ],
+          {
+            encoding: 'utf8',
+            timeout: 2000,
+            env: {
+              PATH: `${directory}:${process.env['PATH'] ?? ''}`,
+              GH_TOKEN: 'test-token',
+              GITHUB_REPOSITORY: 'evorto-app/app',
+              GITHUB_REF: context.workflowRef,
+              GITHUB_SHA: context.workflowRevision,
+              GITHUB_OUTPUT: output,
+              REVISION: context.selectedRevision,
+              FAKE_MAIN_REVISION: currentMain,
+              FAKE_GH_LOG: calls,
+              FAKE_GH_FAILURE: String(fail),
+            },
+          },
+        );
+      const first = invoke(firstStep, context.firstMain, context.failFirst);
+      expect(first.error).toBeUndefined();
+      expect(first.signal).toBeNull();
+      expect(first.status).toBe(context.expected[0]);
+      if (first.status !== 0) {
+        expect(first.stdout).not.toContain('guard-passed');
+        expect(existsSync(output)).toBe(false);
+        if (context.workflowRef !== 'refs/heads/main')
+          expect(existsSync(calls)).toBe(false);
+        return;
+      }
+      expect(readFileSync(output, 'utf8')).toBe(`revision=${revision}\n`);
+      const final = invoke(finalStep, context.secondMain, context.failSecond);
+      expect(final.error).toBeUndefined();
+      expect(final.signal).toBeNull();
+      expect(final.status).toBe(context.expected[1]);
+      if (final.status === 0) expect(final.stdout).toBe('guard-passed\n');
+      else expect(final.stdout).not.toContain('guard-passed');
+      expect(readFileSync(calls, 'utf8').trim().split('\n')).toEqual([
+        'api repos/evorto-app/app/commits/main --jq .sha',
+        'api repos/evorto-app/app/commits/main --jq .sha',
+      ]);
+    } finally {
+      rmSync(directory, { force: true, recursive: true });
+    }
+  });
+
+  it.each([
     {
       name: 'matching image digest and artifact keys',
       overrides: {},
@@ -193,6 +343,15 @@ describe('Scaleway hosting source', () => {
   it.each([
     { name: 'matching artifact keys', overrides: {}, expectedStatus: 0 },
     {
+      name: 'successful historical revision with internally matching artifacts',
+      overrides: {
+        revision: 'e'.repeat(40),
+        sourceMapsKey: `source-maps/${'e'.repeat(40)}/${digestHash}.tar.gz`,
+        sbomKey: `sbom/${'e'.repeat(40)}/${digestHash}.spdx.json`,
+      },
+      expectedStatus: 1,
+    },
+    {
       name: 'image for a different digest',
       overrides: {
         image: `rg.fr-par.scw.cloud/evorto-staging/evorto@sha256:${'b'.repeat(64)}`,
@@ -234,22 +393,32 @@ describe('Scaleway hosting source', () => {
       if (!predicate) {
         throw new Error('Missing production manifest validation predicate');
       }
+      expect(validation).toContain(
+        'FORWARD_REVISION: ${{ steps.forward.outputs.revision }}',
+      );
+      expect(validation).toContain(
+        '--arg forward_revision "${FORWARD_REVISION}"',
+      );
       const digest = `sha256:${digestHash}`;
-      const result = spawnSync('jq', ['--exit-status', predicate], {
-        encoding: 'utf8',
-        input: JSON.stringify({
-          digest,
-          environment: 'staging',
-          image: `rg.fr-par.scw.cloud/evorto-staging/evorto@${digest}`,
-          revision,
-          sbomKey: `sbom/${revision}/${digestHash}.spdx.json`,
-          schemaHash: 'c'.repeat(64),
-          sourceMapsKey: `source-maps/${revision}/${digestHash}.tar.gz`,
-          status: 'succeeded',
-          ...overrides,
-        }),
-        timeout: 5000,
-      });
+      const result = spawnSync(
+        'jq',
+        ['--exit-status', '--arg', 'forward_revision', revision, predicate],
+        {
+          encoding: 'utf8',
+          input: JSON.stringify({
+            digest,
+            environment: 'staging',
+            image: `rg.fr-par.scw.cloud/evorto-staging/evorto@${digest}`,
+            revision,
+            sbomKey: `sbom/${revision}/${digestHash}.spdx.json`,
+            schemaHash: 'c'.repeat(64),
+            sourceMapsKey: `source-maps/${revision}/${digestHash}.tar.gz`,
+            status: 'succeeded',
+            ...overrides,
+          }),
+          timeout: 5000,
+        },
+      );
       expect(result.error).toBeUndefined();
       expect(result.stderr).toBe('');
       expect(result.status).toBe(expectedStatus);
@@ -512,20 +681,198 @@ fi
     );
   });
 
-  it('keeps production defined but disabled until an explicit protected promotion', () => {
-    const main = source('infrastructure/scaleway/main.tf');
-    const variables = source('infrastructure/scaleway/variables.tf');
-    const staging = source('.github/workflows/scaleway-staging.yml');
-    const production = source('.github/workflows/scaleway-production.yml');
-
-    expect(variables).toContain('variable "production_enabled"');
-    expect(variables).toMatch(
-      /variable "production_enabled" \{[\s\S]*?default\s+= false/u,
+  it('isolates every Terraform root behind its own state identity and bucket', () => {
+    const bootstrap = source('infrastructure/scaleway/bootstrap/versions.tf');
+    const bootstrapIam = source('infrastructure/scaleway/bootstrap/iam.tf');
+    const bootstrapMain = source('infrastructure/scaleway/bootstrap/main.tf');
+    const bootstrapOutputs = source(
+      'infrastructure/scaleway/bootstrap/outputs.tf',
     );
-    expect(main).toContain('count = var.production_enabled ? 1 : 0');
-    expect(main).toMatch(/hostname\s+= "alpha\.evorto\.app"/u);
-    expect(staging).toContain('TF_VAR_production_enabled: "false"');
-    expect(production).toContain("if: vars.PRODUCTION_ENABLED == 'true'");
+    const bootstrapVariables = source(
+      'infrastructure/scaleway/bootstrap/variables.tf',
+    );
+    const stagingVersions = source(
+      'infrastructure/scaleway/staging/versions.tf',
+    );
+    const productionVersions = source(
+      'infrastructure/scaleway/production/versions.tf',
+    );
+    const stagingMain = source('infrastructure/scaleway/staging/main.tf');
+    const productionMain = source('infrastructure/scaleway/production/main.tf');
+    const staging = source('.github/workflows/scaleway-staging.yml');
+    const stagingReset = source('.github/workflows/scaleway-staging-reset.yml');
+    const production = source('.github/workflows/scaleway-production.yml');
+    const quality = source('.github/workflows/pr-quality.yml');
+    const verification = source('ops/scaleway/verify-terraform.sh');
+
+    for (const removedMixedRoot of [
+      'infrastructure/scaleway/main.tf',
+      'infrastructure/scaleway/dns.tf',
+      'infrastructure/scaleway/variables.tf',
+      'infrastructure/scaleway/outputs.tf',
+      'infrastructure/scaleway/versions.tf',
+    ]) {
+      expect(existsSync(path.join(repositoryRoot, removedMixedRoot))).toBe(
+        false,
+      );
+    }
+
+    expect(bootstrap).toContain(
+      'key                         = "evorto/bootstrap.tfstate"',
+    );
+    expect(stagingVersions).toContain(
+      'key                         = "evorto/staging.tfstate"',
+    );
+    expect(productionVersions).toContain(
+      'key                         = "evorto/production.tfstate"',
+    );
+    expect(
+      existsSync(
+        path.join(
+          repositoryRoot,
+          'infrastructure/scaleway/backend.hcl.example',
+        ),
+      ),
+    ).toBe(false);
+    for (const root of ['bootstrap', 'staging', 'production'] as const) {
+      const backendExample = source(
+        `infrastructure/scaleway/${root}/backend.hcl.example`,
+      );
+      expect(backendExample).toContain(
+        `evorto-terraform-state-${root}-replace-with-unique-suffix`,
+      );
+      expect(backendExample).not.toMatch(/^\s*key\s*=/mu);
+      expect(bootstrapMain).toMatch(
+        new RegExp(`bucket_name\\s+= var\\.state_bucket_names\\.${root}`, 'u'),
+      );
+      expect(bootstrapOutputs).toContain(
+        `scaleway_object_bucket.terraform_state["${root}"].name`,
+      );
+      expect(bootstrapIam).toContain(
+        `resource "scaleway_iam_application" "${root}_terraform_state"`,
+      );
+      expect(bootstrapIam).toContain(
+        `resource "scaleway_iam_policy" "${root}_terraform_state"`,
+      );
+    }
+    expect(bootstrapVariables).toContain(
+      'length(toset(values(var.state_bucket_names))) == 3',
+    );
+    expect(bootstrapMain).toContain(
+      'for_each = local.terraform_state_backends',
+    );
+    expect(bootstrapMain).toContain(
+      'SCW = "application_id:${each.value.application_id}"',
+    );
+    expect(
+      between(
+        bootstrapIam,
+        'resource "scaleway_iam_policy" "bootstrap_terraform_state"',
+        'resource "scaleway_iam_policy" "staging_terraform_state"',
+      ),
+    ).toContain('project_ids          = [var.bootstrap_project_id]');
+    expect(
+      between(
+        bootstrapIam,
+        'resource "scaleway_iam_policy" "staging_terraform_state"',
+        'resource "scaleway_iam_policy" "production_terraform_state"',
+      ),
+    ).toContain('project_ids          = [scaleway_account_project.staging.id]');
+    expect(
+      between(
+        bootstrapIam,
+        'resource "scaleway_iam_policy" "production_terraform_state"',
+        'resource "scaleway_iam_application" "staging_deployer"',
+      ),
+    ).toContain(
+      'project_ids          = [scaleway_account_project.production.id]',
+    );
+    expect(stagingMain).toMatch(/environment\s+= "staging"/u);
+    expect(stagingMain).not.toMatch(/environment\s+= "production"/u);
+    expect(stagingMain).not.toContain('alpha.evorto.app');
+    expect(productionMain).toMatch(/environment\s+= "production"/u);
+    expect(productionMain).toMatch(/hostname\s+= "alpha\.evorto\.app"/u);
+    expect(staging).toContain(
+      'terraform -chdir=infrastructure/scaleway/staging',
+    );
+    expect(staging).not.toContain(
+      'terraform -chdir=infrastructure/scaleway/production',
+    );
+    expect(production).toContain(
+      'terraform -chdir=infrastructure/scaleway/production',
+    );
+    expect(production).not.toContain(
+      'terraform -chdir=infrastructure/scaleway/staging',
+    );
+    for (const stagingWorkflow of [staging, stagingReset]) {
+      expect(stagingWorkflow).toContain(
+        '${{ secrets.STAGING_TERRAFORM_STATE_ACCESS_KEY_ID }}',
+      );
+      expect(stagingWorkflow).toContain(
+        '${{ secrets.STAGING_TERRAFORM_STATE_SECRET_ACCESS_KEY }}',
+      );
+      expect(stagingWorkflow).toContain(
+        '${{ vars.STAGING_TERRAFORM_STATE_BUCKET }}',
+      );
+      expect(stagingWorkflow).not.toContain(
+        '${{ secrets.TERRAFORM_STATE_ACCESS_KEY_ID }}',
+      );
+      expect(stagingWorkflow).not.toContain(
+        '${{ secrets.TERRAFORM_STATE_SECRET_ACCESS_KEY }}',
+      );
+      expect(stagingWorkflow).not.toContain(
+        '${{ vars.TERRAFORM_STATE_BUCKET }}',
+      );
+      expect(stagingWorkflow).not.toContain(
+        'PRODUCTION_TERRAFORM_STATE_ACCESS_KEY_ID',
+      );
+    }
+    expect(production).toContain(
+      '${{ secrets.PRODUCTION_TERRAFORM_STATE_ACCESS_KEY_ID }}',
+    );
+    expect(production).toContain(
+      '${{ secrets.PRODUCTION_TERRAFORM_STATE_SECRET_ACCESS_KEY }}',
+    );
+    expect(production).toContain(
+      '${{ vars.PRODUCTION_TERRAFORM_STATE_BUCKET }}',
+    );
+    expect(production).not.toContain(
+      '${{ secrets.TERRAFORM_STATE_ACCESS_KEY_ID }}',
+    );
+    expect(production).not.toContain(
+      '${{ secrets.TERRAFORM_STATE_SECRET_ACCESS_KEY }}',
+    );
+    expect(production).not.toContain('${{ vars.TERRAFORM_STATE_BUCKET }}');
+    expect(production).not.toContain('STAGING_TERRAFORM_STATE_ACCESS_KEY_ID');
+    for (const productionRuntimeVariable of [
+      'TF_VAR_production_enabled',
+      'TF_VAR_production_container_image',
+      'TF_VAR_production_runtime_database_password',
+      'TF_VAR_production_schema_database_password',
+    ]) {
+      expect(staging).not.toContain(productionRuntimeVariable);
+    }
+    expect(production).not.toContain('TF_VAR_staging_');
+    expect(production).not.toContain('STAGING_RUNTIME_DATABASE_PASSWORD');
+    expect(production).not.toContain('STAGING_SCHEMA_DATABASE_PASSWORD');
+    expect(staging).not.toContain('-target=');
+    expect(production).not.toContain('-target=');
+    for (const root of ['bootstrap', 'staging', 'production']) {
+      expect(quality).toContain('for root in bootstrap staging production; do');
+      expect(verification).toContain(`infrastructure/scaleway/${root}`);
+    }
+    for (const root of [bootstrap, stagingVersions, productionVersions]) {
+      expect(root).not.toContain('terraform_remote_state');
+    }
+    for (const root of [stagingMain, productionMain]) {
+      expect(root).not.toContain('count =');
+      expect(root).not.toContain('coalesce(');
+      expect(root).not.toContain('moved {');
+    }
+    expect(between(production, '  promote:', '    steps:')).not.toContain(
+      'PRODUCTION_ENABLED',
+    );
+    expect(production).toContain('environment: scaleway-production');
     expect(production).toContain('CONFIRMATION: ${{ inputs.confirmation }}');
     expect(production).toContain(
       'if [ "${CONFIRMATION}" != "promote-alpha" ]; then',
@@ -533,8 +880,90 @@ fi
     expect(production).not.toContain('pull_request_target:');
   });
 
+  it.each([
+    { name: 'true', value: 'true', expectedStatus: 0 },
+    { name: 'false', value: 'false', expectedStatus: 1 },
+    { name: 'missing', value: undefined, expectedStatus: 1 },
+    { name: 'empty', value: '', expectedStatus: 1 },
+    { name: 'uppercase true', value: 'TRUE', expectedStatus: 1 },
+  ])(
+    'validates protected production enablement with $name',
+    ({ value, expectedStatus }) => {
+      const production = source('.github/workflows/scaleway-production.yml');
+      const steps = between(production, '    steps:\n');
+      expect(steps).toMatch(
+        /^ {4}steps:\n {6}- name: Validate explicit production enablement and protected configuration\n/u,
+      );
+      const validation = between(
+        steps,
+        '- name: Validate explicit production enablement and protected configuration',
+        '      - name: Require the current main production workflow',
+      );
+      expect(validation).toContain(
+        'PRODUCTION_ENABLED: ${{ vars.PRODUCTION_ENABLED }}',
+      );
+      const runBody = validation.split('        run: |\n')[1];
+      if (!runBody) {
+        throw new Error('Missing protected production validation commands');
+      }
+      const result = spawnSync(
+        '/bin/bash',
+        [
+          '--noprofile',
+          '--norc',
+          '-eu',
+          '-c',
+          `aws() { return 99; }
+jq() { printf '%s\\n' 'protected-tool-check' >&2; }
+${runBody.replace(/^ {10}/gmu, '').trim()}`,
+        ],
+        {
+          encoding: 'utf8',
+          env: {
+            AWS_ACCESS_KEY_ID: 'fixture',
+            AWS_SECRET_ACCESS_KEY: 'fixture',
+            CLOUDFLARE_API_TOKEN: 'fixture',
+            CONFIRMATION: 'promote-alpha',
+            PRODUCTION_ENABLED: value,
+            PRODUCTION_TERRAFORM_STATE_BUCKET: 'fixture',
+            PROTECTED_SECRET_VALUES: '{}',
+            RUNTIME_DATABASE_PASSWORD: 'fixture',
+            SCHEMA_DATABASE_PASSWORD: 'fixture',
+            SCW_ACCESS_KEY: 'fixture',
+            SCW_DEFAULT_ORGANIZATION_ID: 'fixture',
+            SCW_DEFAULT_PROJECT_ID: 'fixture',
+            SCW_SECRET_KEY: 'fixture',
+            TF_VAR_alert_email: 'fixture',
+            TF_VAR_bucket_suffix: 'fixture',
+            TF_VAR_cloudflare_zone_id: 'fixture',
+            TF_VAR_deployer_application_id: 'fixture',
+            TF_VAR_project_id: 'fixture',
+            TF_VAR_runtime_database_password_version: 'fixture',
+            TF_VAR_schema_database_password_version: 'fixture',
+            TF_VAR_tem_project_id: 'fixture',
+            TF_VAR_web_application_id: 'fixture',
+            TF_VAR_worker_application_id: 'fixture',
+          },
+          timeout: 5000,
+        },
+      );
+      expect(result.error).toBeUndefined();
+      expect(result.signal).toBeNull();
+      expect(result.status).toBe(expectedStatus);
+      expect(result.stdout).toBe(
+        expectedStatus === 0
+          ? ''
+          : '::error::Production promotion requires PRODUCTION_ENABLED to be exactly true\n',
+      );
+      expect(result.stderr).toBe(
+        expectedStatus === 0 ? 'protected-tool-check\n' : '',
+      );
+    },
+  );
+
   it('provisions private PostgreSQL 17 with separate runtime and schema users', () => {
-    const main = source('infrastructure/scaleway/main.tf');
+    const stagingMain = source('infrastructure/scaleway/staging/main.tf');
+    const productionMain = source('infrastructure/scaleway/production/main.tf');
     const database = source(
       'infrastructure/scaleway/modules/environment/database.tf',
     );
@@ -544,9 +973,12 @@ fi
     const moduleVariables = source(
       'infrastructure/scaleway/modules/environment/variables.tf',
     );
-    const rootVariables = source('infrastructure/scaleway/variables.tf');
+    const stagingVariables = source(
+      'infrastructure/scaleway/staging/variables.tf',
+    );
     const staging = source('.github/workflows/scaleway-staging.yml');
     const production = source('.github/workflows/scaleway-production.yml');
+    const bootstrapIam = source('infrastructure/scaleway/bootstrap/iam.tf');
 
     expect(database).toContain('engine        = "PostgreSQL-17"');
     expect(database).toContain('encryption_at_rest        = true');
@@ -580,36 +1012,48 @@ fi
     expect(moduleVariables).toContain(
       'variable "runtime_database_password_version"',
     );
-    expect(rootVariables).toContain(
-      'variable "staging_schema_database_password_version"',
+    expect(stagingVariables).toContain(
+      'variable "schema_database_password_version"',
     );
-    expect(rootVariables).toContain(
-      'variable "staging_runtime_database_password_version"',
+    expect(stagingVariables).toContain(
+      'variable "runtime_database_password_version"',
     );
-    expect(main).toContain(
-      'schema_database_password_version    = var.staging_schema_database_password_version',
+    expect(stagingMain).toMatch(
+      /schema_database_password_version\s+= var\.schema_database_password_version/u,
     );
-    expect(main).toContain(
-      'runtime_database_password_version   = var.staging_runtime_database_password_version',
-    );
-    expect(staging).toContain(
-      'TF_VAR_staging_schema_database_password_version: ${{ vars.SCHEMA_DATABASE_PASSWORD_VERSION }}',
+    expect(stagingMain).toMatch(
+      /runtime_database_password_version\s+= var\.runtime_database_password_version/u,
     );
     expect(staging).toContain(
-      'TF_VAR_staging_runtime_database_password_version: ${{ vars.RUNTIME_DATABASE_PASSWORD_VERSION }}',
+      'TF_VAR_schema_database_password_version: ${{ vars.SCHEMA_DATABASE_PASSWORD_VERSION }}',
+    );
+    expect(staging).toContain(
+      'TF_VAR_runtime_database_password_version: ${{ vars.RUNTIME_DATABASE_PASSWORD_VERSION }}',
     );
     expect(production).toContain(
-      'TF_VAR_production_schema_database_password_version: ${{ vars.PRODUCTION_SCHEMA_DATABASE_PASSWORD_VERSION }}',
+      'TF_VAR_schema_database_password_version: ${{ vars.PRODUCTION_SCHEMA_DATABASE_PASSWORD_VERSION }}',
     );
     expect(production).toContain(
-      'TF_VAR_production_runtime_database_password_version: ${{ vars.PRODUCTION_RUNTIME_DATABASE_PASSWORD_VERSION }}',
+      'TF_VAR_runtime_database_password_version: ${{ vars.PRODUCTION_RUNTIME_DATABASE_PASSWORD_VERSION }}',
     );
-    expect(main).toMatch(/database_node_type\s+= "DB-DEV-S"/u);
-    expect(main).toMatch(/database_backup_retention_days\s+= 7/u);
-    expect(main).toMatch(/database_node_type\s+= "DB-POP2-2C-8G"/u);
-    expect(main).toMatch(/database_is_ha\s+= true/u);
-    expect(main).toMatch(/database_backup_retention_days\s+= 30/u);
-    expect(main).toContain('"IPAMReadOnly"');
+    expect(stagingMain).toMatch(/database_node_type\s+= "DB-DEV-S"/u);
+    expect(stagingMain).toMatch(/database_backup_retention_days\s+= 7/u);
+    expect(productionMain).toMatch(/database_node_type\s+= "DB-POP2-2C-8G"/u);
+    expect(productionMain).toMatch(/database_is_ha\s+= true/u);
+    expect(productionMain).toMatch(/database_backup_retention_days\s+= 30/u);
+    expect(bootstrapIam).toContain('"IPAMReadOnly"');
+    for (const [resource, nextResource] of [
+      ['scaleway_rdb_instance', 'scaleway_rdb_database'],
+      ['scaleway_rdb_database', 'scaleway_rdb_privilege'],
+    ]) {
+      expect(
+        between(
+          database,
+          `resource "${resource}" "application" {`,
+          `resource "${nextResource}"`,
+        ),
+      ).toMatch(/lifecycle\s*\{\s*prevent_destroy\s*=\s*true\s*\}/u);
+    }
   });
 
   it('verifies managed Drizzle schema connections against the database identity', () => {
@@ -755,10 +1199,12 @@ fi
         'path = "/healthz"',
       );
     }
-    expect(mainMinScale(source('infrastructure/scaleway/main.tf'))).toEqual({
-      production: 1,
-      staging: 0,
-    });
+    expect(source('infrastructure/scaleway/staging/main.tf')).toMatch(
+      /web_min_scale\s+= 0/u,
+    );
+    expect(source('infrastructure/scaleway/production/main.tf')).toMatch(
+      /web_min_scale\s+= 1/u,
+    );
     expect(server).toContain('const webRoutesLayer = Layer.mergeAll(');
     expect(server).toContain('const workerRoutesLayer = Layer.mergeAll(');
     expect(server).toContain('const opsRoutesLayer = Layer.mergeAll(');
@@ -808,12 +1254,14 @@ fi
   });
 
   it('keeps application, deployment, and Terraform state storage private and durable', () => {
-    const main = source('infrastructure/scaleway/main.tf');
+    const stagingMain = source('infrastructure/scaleway/staging/main.tf');
+    const productionMain = source('infrastructure/scaleway/production/main.tf');
     const storage = source(
       'infrastructure/scaleway/modules/environment/storage.tf',
     );
     const bootstrap = source('infrastructure/scaleway/bootstrap/main.tf');
-    const versions = source('infrastructure/scaleway/versions.tf');
+    const bootstrapIam = source('infrastructure/scaleway/bootstrap/iam.tf');
+    const versions = source('infrastructure/scaleway/staging/versions.tf');
 
     expect(storage).toContain('allowed_origins = ["https://${var.hostname}"]');
     expect(storage.match(/versioning \{\n\s+enabled = true/gu)).toHaveLength(2);
@@ -826,68 +1274,133 @@ fi
     expect(storage).toContain(
       'SCW = "application_id:${var.management_application_id}"',
     );
+    expect(storage).toContain('"application_id:${var.web_application_id}"');
+    expect(storage).toContain('"application_id:${var.worker_application_id}"');
+    expect(storage).not.toContain('resource "scaleway_iam_application"');
+    expect(storage).not.toContain('resource "scaleway_iam_policy"');
     expect(storage).toContain('Action = "s3:*"');
-    expect(storage).toContain('Sid    = "ConsoleBucketReadAccess"');
-    expect(storage).toContain('Sid    = "ConsoleObjectReadAccess"');
-    expect(storage).toContain('"user_id:${user_id}"');
+    expect(storage).toContain('Sid    = "PromotionReadAccess"');
+    expect(storage).toContain(
+      'for application_id in var.deployment_metadata_reader_application_ids',
+    );
     expect(storage).toContain('"s3:ListBucket"');
     expect(storage).toContain('"s3:GetObject"');
-    expect(storage).not.toMatch(
-      /Console(?:Bucket|Object)ReadAccess[\s\S]*?"s3:(?:Put|Delete)/u,
-    );
+    expect(storage).not.toContain('user_id:');
     expect(storage).toContain('scaleway_object_bucket_acl.application,');
-    expect(
-      main.match(
-        /management_application_id\s+= scaleway_iam_application\.deployer\.id/gu,
-      ),
-    ).toHaveLength(2);
+    for (const main of [stagingMain, productionMain]) {
+      expect(main).toMatch(
+        /management_application_id\s+= var\.deployer_application_id/u,
+      );
+      expect(main).toMatch(/web_application_id\s+= var\.web_application_id/u);
+      expect(main).toMatch(
+        /worker_application_id\s+= var\.worker_application_id/u,
+      );
+    }
+    expect(bootstrapIam).not.toContain('IAMManager');
+    expect(bootstrapIam).not.toContain('BillingManager');
+    expect(bootstrapIam).not.toContain('scaleway_iam_application" "ops');
+    for (const permissionSet of [
+      'ObjectStorageBucketsRead',
+      'ObjectStorageObjectsDelete',
+      'ObjectStorageObjectsRead',
+      'ObjectStorageObjectsWrite',
+    ]) {
+      expect(bootstrapIam, permissionSet).toContain(`"${permissionSet}"`);
+    }
+    expect(bootstrapIam).toContain('"ContainerRegistryReadOnly"');
+    expect(bootstrapIam).toContain(
+      'project_ids          = [scaleway_account_project.staging.id]',
+    );
     for (const workflow of [
       source('.github/workflows/scaleway-staging.yml'),
       source('.github/workflows/scaleway-production.yml'),
     ]) {
       expect(workflow).toContain(
-        'TF_VAR_application_bucket_console_user_ids: ${{ vars.APPLICATION_BUCKET_CONSOLE_USER_IDS }}',
+        'TF_VAR_deployer_application_id: ${{ vars.SCW_DEPLOYER_APPLICATION_ID }}',
+      );
+      expect(workflow).toContain(
+        'TF_VAR_web_application_id: ${{ vars.SCW_WEB_APPLICATION_ID }}',
+      );
+      expect(workflow).toContain(
+        'TF_VAR_worker_application_id: ${{ vars.SCW_WORKER_APPLICATION_ID }}',
       );
     }
-    expect(bootstrap).toContain('prevent_destroy = true');
+    expect(source('.github/workflows/scaleway-staging.yml')).toContain(
+      'TF_VAR_production_deployer_application_id: ${{ vars.SCW_PRODUCTION_DEPLOYER_APPLICATION_ID }}',
+    );
+    expect(bootstrap.match(/prevent_destroy = true/gu)).toHaveLength(3);
     expect(bootstrap).toContain('acl        = "private"');
     expect(bootstrap).toContain('sse_algorithm = "AES256"');
     expect(versions).toContain('use_lockfile                = true');
+    const moduleOutputs = source(
+      'infrastructure/scaleway/modules/environment/outputs.tf',
+    );
+    expect(moduleOutputs).not.toContain('role_application_ids');
+    expect(moduleOutputs).not.toContain('registry_endpoint');
+    for (const environment of ['staging', 'production']) {
+      const rootOutputs = source(
+        `infrastructure/scaleway/${environment}/outputs.tf`,
+      );
+      expect(rootOutputs).toContain('output "platform"');
+      expect(rootOutputs).toContain('output "database"');
+    }
   });
 
   it('reconciles unproxied Scaleway application and email records through Cloudflare', () => {
-    const dns = source('infrastructure/scaleway/dns.tf');
-    const outputs = source('infrastructure/scaleway/outputs.tf');
+    const bootstrapDns = source('infrastructure/scaleway/bootstrap/dns.tf');
+    const stagingDns = source('infrastructure/scaleway/staging/dns.tf');
+    const productionDns = source('infrastructure/scaleway/production/dns.tf');
+    const bootstrapOutputs = source(
+      'infrastructure/scaleway/bootstrap/outputs.tf',
+    );
+    const stagingOutputs = source('infrastructure/scaleway/staging/outputs.tf');
     const staging = source('.github/workflows/scaleway-staging.yml');
     const production = source('.github/workflows/scaleway-production.yml');
     const transactionalEmail = source(
-      'infrastructure/scaleway/transactional-email.tf',
+      'infrastructure/scaleway/bootstrap/transactional-email.tf',
     );
-    const versions = source('infrastructure/scaleway/versions.tf');
+    const versions = source('infrastructure/scaleway/staging/versions.tf');
 
     expect(versions).toContain('source  = "cloudflare/cloudflare"');
     expect(versions).toContain('version = "= 5.22.0"');
-    expect(dns).toContain('resource "cloudflare_dns_record" "staging"');
-    expect(dns).toContain('resource "cloudflare_dns_record" "production"');
-    expect(dns).toContain('resource "scaleway_container_domain" "staging_web"');
-    expect(dns).toContain(
-      'resource "scaleway_container_domain" "production_web"',
+    expect(stagingDns).toContain('resource "cloudflare_dns_record" "web"');
+    expect(productionDns).toContain('resource "cloudflare_dns_record" "web"');
+    expect(stagingDns).toContain('resource "scaleway_container_domain" "web"');
+    expect(productionDns).toContain(
+      'resource "scaleway_container_domain" "web"',
     );
-    expect(dns).toContain('depends_on = [cloudflare_dns_record.staging]');
-    expect(dns).toContain('depends_on = [cloudflare_dns_record.production]');
-    expect(dns).toContain(
-      'from = module.staging.scaleway_container_domain.web',
-    );
-    expect(dns).toContain(
+    expect(stagingDns).toContain('depends_on = [cloudflare_dns_record.web]');
+    expect(productionDns).toContain('depends_on = [cloudflare_dns_record.web]');
+    expect(bootstrapDns).not.toContain('moved {');
+    expect(stagingDns).not.toContain('moved {');
+    expect(productionDns).not.toContain('moved {');
+    expect(bootstrapDns).toContain(
       'resource "cloudflare_dns_record" "transactional_email"',
     );
-    expect(dns.match(/proxied\s+= false/gu)).toHaveLength(3);
-    expect(dns).toContain('scaleway_tem_domain.notifications.spf_value');
-    expect(dns).not.toContain('scaleway_tem_domain.notifications.spf_config');
-    expect(dns).toContain('content  = trimsuffix(local.tem_mx_parts[1], ".")');
-    expect(dns).toContain('priority = tonumber(local.tem_mx_parts[0])');
-    expect(outputs).toContain('output "managed_dns_records"');
-    expect(outputs).toContain('scaleway_tem_domain.notifications.spf_value');
+    expect(
+      [bootstrapDns, stagingDns, productionDns]
+        .join('\n')
+        .match(/proxied\s+= false/gu),
+    ).toHaveLength(3);
+    expect(bootstrapDns).toContain(
+      'scaleway_tem_domain.notifications.spf_value',
+    );
+    expect(bootstrapDns).not.toContain(
+      'scaleway_tem_domain.notifications.spf_config',
+    );
+    expect(bootstrapDns).toContain(
+      'content  = trimsuffix(local.tem_mx_parts[1], ".")',
+    );
+    expect(bootstrapDns).toContain(
+      'priority = tonumber(local.tem_mx_parts[0])',
+    );
+    expect(bootstrapOutputs).toContain(
+      'output "managed_transactional_email_dns_records"',
+    );
+    expect(bootstrapOutputs).toContain(
+      'scaleway_tem_domain.notifications.spf_value',
+    );
+    expect(stagingOutputs).toContain('output "managed_dns_record"');
     expect(transactionalEmail).toContain(
       'depends_on = [cloudflare_dns_record.transactional_email]',
     );
@@ -956,7 +1469,7 @@ fi
       'infrastructure/scaleway/modules/environment/observability.tf',
     );
     const logger = source('src/server/effect/server-logger.layer.ts');
-    const main = source('infrastructure/scaleway/main.tf');
+    const bootstrap = source('infrastructure/scaleway/bootstrap/main.tf');
 
     expect(observability).toContain('type           = "traces"');
     expect(observability).not.toContain('type           = "logs"');
@@ -969,7 +1482,9 @@ fi
       'preconfigured_alert_ids = toset(data.scaleway_cockpit_preconfigured_alert.available.alerts[*].preconfigured_rule_id)',
     );
     expect(observability).toContain('email = var.alert_email');
-    expect(main).toContain('resource "scaleway_billing_budget" "organization"');
+    expect(bootstrap).toContain(
+      'resource "scaleway_billing_budget" "organization"',
+    );
     for (const annotation of [
       'environment:',
       'imageDigest:',
@@ -993,8 +1508,15 @@ fi
     );
 
     expect(stagingSmoke).toContain('https://staging.evorto.app/events');
-    expect(stagingSmoke).toContain('rpc_body="$(curl');
-    expect(stagingSmoke).toContain('.[0]._tag == "Defect"');
+    expect(stagingSmoke).toContain('rpc_body="$(');
+    expect(stagingSmoke).toContain('curl "${curl_args[@]}"');
+    expect(stagingSmoke).toContain(
+      '"tag":"config.isAuthenticated","payload":null',
+    );
+    expect(stagingSmoke).toContain('.[0]._tag == "Exit"');
+    expect(stagingSmoke).toContain('.[0].exit._tag == "Success"');
+    expect(stagingSmoke).toContain('.[0].exit.value == false');
+    expect(stagingSmoke).not.toContain('._tag == "Defect"');
     expect(stagingSmoke).not.toContain('rpc_status=');
     expect(productionSmoke).toContain('https://alpha.evorto.app/events');
   });
@@ -1002,10 +1524,23 @@ fi
   it('builds once, records immutable evidence, and promotes the exact OCI digest', () => {
     const staging = source('.github/workflows/scaleway-staging.yml');
     const production = source('.github/workflows/scaleway-production.yml');
+    const quality = source('.github/workflows/pr-quality.yml');
     const deployRole = source('ops/scaleway/deploy-role.sh');
+    const localImageSecurity = source('ops/scaleway/verify-image-security.sh');
+    const stagingScan = between(
+      staging,
+      '- name: Scan exact deployed image digest',
+      '- name: Verify staging infrastructure has no pending changes',
+    );
+    const productionScan = between(
+      production,
+      '- name: Scan exact promoted image digest',
+      '- name: Verify production infrastructure has no pending changes',
+    );
 
     expect(staging).toContain('workflow_run:');
-    expect(staging).toContain('cron: "*/30 * * * *"');
+    expect(staging).not.toContain('schedule:');
+    expect(staging).not.toContain('cron:');
     expect(staging).toContain('full_trace_debugging:');
     expect(staging).toContain(
       "TRACE_SAMPLING_RATIO_OVERRIDE: ${{ inputs.full_trace_debugging && '1' || '' }}",
@@ -1017,12 +1552,12 @@ fi
     expect(staging).toContain("--if-none-match '*'");
     expect(staging).toContain('/internal/ops/schema-explain');
     expect(staging).toContain('\'{"mode":"initialize-empty"}\'');
-    expect(staging.indexOf('\'{"mode":"initialize-empty"}\'')).toBeLessThan(
-      staging.indexOf('touch deployment/traffic-changed'),
-    );
-    expect(staging).toContain('OPS_CHANGED: ${{ steps.ops.outputs.changed }}');
-    expect(staging).toContain('[ "${OPS_CHANGED}" = "true" ]');
-    expect(staging).toContain('Roll back traffic roles to the previous digest');
+    expect(staging).toContain('-detailed-exitcode');
+    expect(staging).not.toContain('terraform apply');
+    expect(staging).not.toContain('previous.json');
+    expect(staging).not.toContain('rollback');
+    expect(staging).not.toContain('steps.ops.outputs.changed');
+    expect(staging).not.toContain('steps.traffic.outputs');
     expect(staging).toContain(
       'curl_args=(--connect-timeout 5 --max-time 20 --silent --show-error)',
     );
@@ -1035,9 +1570,10 @@ fi
       'if [ "${target_digest}" != "${SOURCE_DIGEST}" ]; then',
     );
     expect(production).toContain('sourceStagingManifestKey:');
-    expect(production).toContain(
-      'Roll back production traffic roles on failure',
-    );
+    expect(production).toContain('-detailed-exitcode');
+    expect(production).not.toContain('terraform apply');
+    expect(production).not.toContain('previous.json');
+    expect(production).not.toContain('rollback');
     expect(production).toContain(
       'curl_args=(--connect-timeout 5 --max-time 20 --silent --show-error)',
     );
@@ -1055,18 +1591,36 @@ fi
     expect(deployRole).toContain('Failed to update the ${role} container');
     expect(staging).toContain('workflows: [E2E Baseline]');
     expect(staging).not.toContain('workflows: [PR Quality, E2E Baseline]');
-    expect(staging).toContain(
-      'Ops already matches the desired release; skipping schema reconciliation.',
+    expect(stagingScan).toContain(
+      'image-ref: ${{ steps.image.outputs.reference }}',
     );
-    expect(staging).toContain("github.event_name != 'schedule'");
+    expect(stagingScan).not.toContain('if: steps.reuse.outputs.reuse');
+    expect(productionScan).toContain(
+      'image-ref: ${{ steps.image.outputs.reference }}',
+    );
+    expect(production.indexOf('Scan exact promoted image digest')).toBeLessThan(
+      production.indexOf(
+        'Verify production infrastructure has no pending changes',
+      ),
+    );
+    for (const vulnerabilityGate of [
+      stagingScan,
+      productionScan,
+      quality,
+      localImageSecurity,
+    ]) {
+      expect(
+        vulnerabilityGate.replaceAll(/^\s*ignore-unfixed: false\s*$/gmu, ''),
+      ).not.toContain('ignore-unfixed');
+    }
   });
 
   it('rescans the copied production digest before infrastructure and role deployment', () => {
     const production = source('.github/workflows/scaleway-production.yml');
     const scan = between(
       production,
-      '- name: Scan promoted image vulnerabilities',
-      '- name: Reconcile complete production infrastructure',
+      '- name: Scan exact promoted image digest',
+      '- name: Verify production infrastructure has no pending changes',
     );
 
     expect(scan).toContain(
@@ -1085,8 +1639,8 @@ fi
     const requiredSteps = [
       '- name: Login to private Scaleway registry',
       '- name: Copy the accepted digest without rebuilding',
-      '- name: Scan promoted image vulnerabilities',
-      '- name: Reconcile complete production infrastructure',
+      '- name: Scan exact promoted image digest',
+      '- name: Verify production infrastructure has no pending changes',
       '- name: Deploy production ops and apply only a stable safe schema plan',
       '- name: Deploy production worker and web at the accepted digest',
     ];
@@ -1105,6 +1659,22 @@ fi
       'HttpLayerRouter.provideRequest(EmailDelivery.Default)',
     );
     expect(server).not.toContain('Layer.provide(EmailDelivery.Default)');
+  });
+
+  it('bounds private container calls to reviewed role and operation pairs', () => {
+    const invokePrivateContainer = source(
+      'ops/scaleway/invoke-private-container.sh',
+    );
+
+    expect(invokePrivateContainer).toContain(
+      '--connect-timeout "${connect_timeout_seconds}"',
+    );
+    expect(invokePrivateContainer).toContain(
+      '--max-time "${maximum_time_seconds}"',
+    );
+    expect(invokePrivateContainer).toContain(
+      'worker:/internal/worker/payment-setup',
+    );
   });
 
   it('gates ordinary CI and destructive staging reset separately', () => {
@@ -1131,18 +1701,3 @@ fi
     expect(runtimeVerifier).toContain('|@sentry|@neondatabase|resend)');
   });
 });
-
-const mainMinScale = (main: string) => {
-  const staging = between(main, 'module "staging"', 'module "production"');
-  const production = between(
-    main,
-    'module "production"',
-    'resource "scaleway_iam_application" "deployer"',
-  );
-  const scale = (block: string): number => {
-    const match = block.match(/web_min_scale\s+= (\d+)/u);
-    expect(match).not.toBeNull();
-    return Number(match?.[1]);
-  };
-  return { production: scale(production), staging: scale(staging) };
-};

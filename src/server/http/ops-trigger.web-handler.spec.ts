@@ -16,8 +16,8 @@ describe('ops trigger web handler', () => {
         Schema.Struct({}),
         () =>
           Effect.fail(
-            new OpsCommandError({
-              diagnostic: 'database-authentication-failed',
+            OpsCommandError.make({
+              diagnostic: 'command-failed',
               message:
                 'sensitive database URL and provider output must remain private',
             }),
@@ -27,7 +27,7 @@ describe('ops trigger web handler', () => {
       expect(response.status).toBe(500);
       expect(response.headers.get('Cache-Control')).toBe('no-store');
       expect(yield* Effect.promise(() => response.json())).toEqual({
-        detail: 'database-authentication-failed',
+        detail: 'command-failed',
         error: 'ops-command-failed',
       });
     }),

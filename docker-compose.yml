@@ -9,7 +9,7 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
     ports:
-      - "${POSTGRES_HOST_PORT:-55432}:5432"
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-55432}:5432"
     healthcheck:
       test:
         [
@@ -73,8 +73,8 @@ services:
       MINIO_ROOT_PASSWORD: "${MINIO_ROOT_PASSWORD:-minioadmin}"
       MINIO_ROOT_USER: "${MINIO_ROOT_USER:-minioadmin}"
     ports:
-      - "${MINIO_HOST_PORT:-9000}:9000"
-      - "${MINIO_CONSOLE_HOST_PORT:-9001}:9001"
+      - "127.0.0.1:${MINIO_HOST_PORT:-9000}:9000"
+      - "127.0.0.1:${MINIO_CONSOLE_HOST_PORT:-9001}:9001"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://127.0.0.1:9000/minio/health/live"]
       interval: 5s
@@ -152,7 +152,7 @@ services:
       STRIPE_WEBHOOK_SECRET_FILE: /run/stripe-webhook/signing-secret
       WORKER_TRIGGER_MODE: poll
     ports:
-      - "${APP_HOST_PORT:-4200}:4200"
+      - "127.0.0.1:${APP_HOST_PORT:-4200}:4200"
     volumes:
       - stripe-webhook:/run/stripe-webhook:ro
 

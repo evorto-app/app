@@ -1,4 +1,4 @@
-import { Effect, Schema } from 'effect';
+import { Effect, Option, Schema } from 'effect';
 import { createHash } from 'node:crypto';
 
 const maximumCommandOutputBytes = 4 * 1024 * 1024;
@@ -10,32 +10,9 @@ const databasePrerequisitesExecutable =
 const stagingResetExecutable = 'dist/evorto/ops/reset-staging-database.mjs';
 const stagingSeedExecutable = 'dist/evorto/ops/seed-staging.mjs';
 
-export const opsCommandFailureKinds = [
-  'command-failed',
-  'database-authentication-failed',
-  'database-configuration-invalid',
-  'database-host-resolution-failed',
-  'database-not-found',
-  'database-permission-denied',
-  'database-tls-ca-untrusted',
-  'database-tls-certificate-expired',
-  'database-tls-certificate-not-yet-valid',
-  'database-tls-hostname-mismatch',
-  'database-tls-verification-failed',
-  'database-unreachable',
-  'drizzle-cli-incompatible',
-  'runtime-artifact-missing',
-  'staging-seed-configuration-invalid',
-] as const;
-
-export type OpsCommandFailureKind = (typeof opsCommandFailureKinds)[number];
-
 export const opsCommandDiagnostics = [
-  ...opsCommandFailureKinds,
-  'bounded-command-failed',
-  'drizzle-application-unconfirmed',
-  'drizzle-invalid-json',
-  'staging-schema-unconfirmed',
+  'command-failed',
+  'drizzle-output-invalid',
 ] as const;
 
 export type OpsCommandDiagnostic = (typeof opsCommandDiagnostics)[number];
@@ -58,137 +35,34 @@ export interface OpsCommandRunner {
 export class OpsCommandError extends Schema.TaggedErrorClass<OpsCommandError>()(
   'OpsCommandError',
   {
+    cause: Schema.optional(Schema.Defect()),
     diagnostic: Schema.Literals(opsCommandDiagnostics),
     message: Schema.String,
   },
 ) {}
-
-const commandFailurePatterns: readonly {
-  readonly kind: OpsCommandFailureKind;
-  readonly patterns: readonly RegExp[];
-}[] = [
-  {
-    kind: 'staging-seed-configuration-invalid',
-    patterns: [/STRIPE_TEST_ACCOUNT_ID/u, /E2E_NOW_ISO/u],
-  },
-  {
-    kind: 'database-authentication-failed',
-    patterns: [
-      /password authentication failed/iu,
-      /role .* does not exist/iu,
-      /sasl.*authentication/iu,
-      /scram.*authentication/iu,
-    ],
-  },
-  {
-    kind: 'database-host-resolution-failed',
-    patterns: [/eai_again/iu, /enotfound/iu, /getaddrinfo/iu],
-  },
-  {
-    kind: 'database-unreachable',
-    patterns: [
-      /connection terminated unexpectedly/iu,
-      /econnrefused/iu,
-      /ehostunreach/iu,
-      /enetunreach/iu,
-      /etimedout/iu,
-      /timeout expired/iu,
-    ],
-  },
-  {
-    kind: 'database-permission-denied',
-    patterns: [/no pg_hba\.conf entry/iu, /permission denied/iu],
-  },
-  {
-    kind: 'database-not-found',
-    patterns: [/database .* does not exist/iu],
-  },
-  {
-    kind: 'database-tls-hostname-mismatch',
-    patterns: [
-      /err_tls_cert_altname_invalid/iu,
-      /hostname\/ip does not match/iu,
-    ],
-  },
-  {
-    kind: 'database-tls-certificate-expired',
-    patterns: [/cert_has_expired/iu, /certificate has expired/iu],
-  },
-  {
-    kind: 'database-tls-certificate-not-yet-valid',
-    patterns: [/cert_not_yet_valid/iu, /certificate is not yet valid/iu],
-  },
-  {
-    kind: 'database-tls-ca-untrusted',
-    patterns: [
-      /depth_zero_self_signed_cert/iu,
-      /self_signed_cert_in_chain/iu,
-      /self[- ]signed/iu,
-      /unable_to_get_issuer_cert/iu,
-      /unable_to_verify_leaf_signature/iu,
-      /unable to get local issuer/iu,
-      /unable to verify/iu,
-    ],
-  },
-  {
-    kind: 'database-tls-verification-failed',
-    patterns: [
-      /certificate/iu,
-      /err_tls/iu,
-      /ssl (?:connection|error|handshake|routines)/iu,
-      /tls (?:connection|error|handshake)/iu,
-    ],
-  },
-  {
-    kind: 'database-configuration-invalid',
-    patterns: [/database_tls_[a-z_]+ .* required/iu, /database_url must/iu],
-  },
-  {
-    kind: 'runtime-artifact-missing',
-    patterns: [
-      /cannot find module/iu,
-      /enoent/iu,
-      /module not found/iu,
-      /no such file or directory/iu,
-    ],
-  },
-  {
-    kind: 'drizzle-cli-incompatible',
-    patterns: [/unknown option/iu, /unrecognized option/iu],
-  },
-];
-
-export const classifyOpsCommandFailure = (
-  result: Pick<OpsCommandResult, 'stderr' | 'stdout'>,
-): OpsCommandFailureKind => {
-  const output = `${result.stderr}\n${result.stdout}`;
-  return (
-    commandFailurePatterns.find(({ patterns }) =>
-      patterns.some((pattern) => pattern.test(output)),
-    )?.kind ?? 'command-failed'
-  );
-};
 
 const outputByteLength = (output: string) =>
   new TextEncoder().encode(output).byteLength;
 
 const failOpsCommand = Effect.fn('failOpsCommand')(function* (
   operation: string,
+  command: readonly string[],
   result: OpsCommandResult,
 ) {
-  const failureKind = classifyOpsCommandFailure(result);
   yield* Effect.logError('Ops command failed').pipe(
     Effect.annotateLogs({
+      command: command.join(' '),
       exitCode: result.exitCode,
-      failureKind,
       operation,
+      stderr: result.stderr,
       stderrBytes: outputByteLength(result.stderr),
+      stdout: result.stdout,
       stdoutBytes: outputByteLength(result.stdout),
     }),
   );
-  return yield* new OpsCommandError({
-    diagnostic: failureKind,
-    message: `${operation} failed (${failureKind}; exit ${result.exitCode})`,
+  return yield* OpsCommandError.make({
+    diagnostic: 'command-failed',
+    message: `${operation} failed (exit ${result.exitCode})`,
   });
 });
 
@@ -205,10 +79,11 @@ const commandOutput = async (
 export const liveOpsCommandRunner: OpsCommandRunner = {
   run: (command, options) =>
     Effect.tryPromise({
-      catch: () =>
-        new OpsCommandError({
-          diagnostic: 'bounded-command-failed',
-          message: 'The bounded ops command failed',
+      catch: (cause) =>
+        OpsCommandError.make({
+          cause,
+          diagnostic: 'command-failed',
+          message: 'The ops command could not complete',
         }),
       try: async () => {
         const subprocess = Bun.spawn([...command], {
@@ -239,242 +114,400 @@ export const liveOpsCommandRunner: OpsCommandRunner = {
           clearTimeout(timeout);
         }
       },
+    }).pipe(
+      Effect.tapError((error) =>
+        Effect.logError('Ops command process failed').pipe(
+          Effect.annotateLogs({
+            cause: String(error.cause),
+            command: command.join(' '),
+          }),
+        ),
+      ),
+    ),
+};
+
+const PostgresDialect = Schema.Literal('postgresql');
+const DrizzleNoChangesEnvelope = Schema.Struct({
+  dialect: PostgresDialect,
+  status: Schema.Literal('no_changes'),
+});
+const DrizzleHint = Schema.Struct({ hint: Schema.String });
+const DrizzleExplainPlanEnvelope = Schema.Struct({
+  dialect: PostgresDialect,
+  hints: Schema.Array(DrizzleHint),
+  statements: Schema.Array(Schema.Unknown),
+  status: Schema.Literal('ok'),
+});
+const DrizzleExplainEnvelope = Schema.Union([
+  DrizzleNoChangesEnvelope,
+  DrizzleExplainPlanEnvelope,
+]);
+const DrizzleApplyEnvelope = Schema.Union([
+  DrizzleNoChangesEnvelope,
+  Schema.Struct({
+    dialect: PostgresDialect,
+    status: Schema.Literal('ok'),
+  }),
+]);
+
+type DrizzleExplainEnvelope = typeof DrizzleExplainEnvelope.Type;
+
+const statementParseOptions = {
+  onExcessProperty: 'preserve',
+} as const;
+const StatementHeader = Schema.Struct({ type: Schema.String });
+const TableIdentity = Schema.Struct({
+  name: Schema.String,
+  schema: Schema.String,
+});
+const TableMemberIdentity = Schema.Struct({
+  schema: Schema.String,
+  table: Schema.String,
+});
+const EnumIdentity = Schema.Struct({
+  name: Schema.String,
+  schema: Schema.String,
+  values: Schema.Array(Schema.String),
+});
+const ColumnGenerated = Schema.Struct({
+  as: Schema.String,
+  type: Schema.Literal('stored'),
+});
+const ColumnIdentity = Schema.Struct({
+  cache: Schema.optional(Schema.Number),
+  cycle: Schema.optional(Schema.Boolean),
+  increment: Schema.optional(Schema.String),
+  maxValue: Schema.optional(Schema.String),
+  minValue: Schema.optional(Schema.String),
+  name: Schema.String,
+  startWith: Schema.optional(Schema.String),
+  type: Schema.Literals(['always', 'byDefault']),
+});
+const CreateTableStatement = Schema.Struct({
+  table: TableIdentity,
+  type: Schema.Literal('create_table'),
+});
+const CreateEnumStatement = Schema.Struct({
+  enum: EnumIdentity,
+  type: Schema.Literal('create_enum'),
+});
+const CreateSchemaStatement = Schema.Struct({
+  name: Schema.String,
+  type: Schema.Literal('create_schema'),
+});
+const CreateSequenceStatement = Schema.Struct({
+  sequence: Schema.Struct({
+    name: Schema.String,
+    schema: Schema.String,
+  }),
+  type: Schema.Literal('create_sequence'),
+});
+const CreateViewStatement = Schema.Struct({
+  type: Schema.Literal('create_view'),
+  view: Schema.Struct({
+    materialized: Schema.Boolean,
+    name: Schema.String,
+    schema: Schema.String,
+  }),
+});
+const AddColumnStatement = Schema.Struct({
+  column: Schema.Struct({
+    default: Schema.optional(Schema.String),
+    generated: Schema.optional(ColumnGenerated),
+    identity: Schema.optional(ColumnIdentity),
+    name: Schema.String,
+    notNull: Schema.Boolean,
+    schema: Schema.String,
+    table: Schema.String,
+  }),
+  isCompositePK: Schema.Boolean,
+  isPK: Schema.Boolean,
+  type: Schema.Literal('add_column'),
+});
+const AlterEnumStatement = Schema.Struct({
+  diff: Schema.Array(
+    Schema.Struct({
+      beforeValue: Schema.optional(Schema.String),
+      type: Schema.Literals(['same', 'removed', 'added']),
+      value: Schema.String,
     }),
-};
-
-const asRecord = (value: unknown): Record<string, unknown> | undefined =>
-  typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : undefined;
-
-const canonicalize = (value: unknown): unknown => {
-  if (Array.isArray(value)) {
-    return value.map((item) => canonicalize(item));
-  }
-  const record = asRecord(value);
-  if (!record) {
-    return value;
-  }
-  return Object.fromEntries(
-    Object.keys(record)
-      .toSorted()
-      .map((key) => [key, canonicalize(record[key])]),
-  );
-};
-
-const planDigest = (plan: unknown): string =>
-  createHash('sha256')
-    .update(JSON.stringify(canonicalize(plan)))
-    .digest('hex');
-
-const tableIdentity = (value: unknown): string | undefined => {
-  if (typeof value === 'string') {
-    return `public.${value}`;
-  }
-  const record = asRecord(value);
-  if (!record) {
-    return;
-  }
-  const name =
-    typeof record['table'] === 'string'
-      ? record['table']
-      : typeof record['tableName'] === 'string'
-        ? record['tableName']
-        : typeof record['name'] === 'string'
-          ? record['name']
-          : undefined;
-  if (!name) {
-    return;
-  }
-  const schema =
-    typeof record['schema'] === 'string' ? record['schema'] : 'public';
-  return `${schema}.${name}`;
-};
-
-const statementTableIdentity = (
-  statement: Record<string, unknown>,
-): string | undefined => {
-  for (const key of [
-    'table',
-    'column',
-    'index',
-    'fk',
-    'unique',
-    'check',
-    'pk',
-  ]) {
-    const identity = tableIdentity(statement[key]);
-    if (identity) {
-      return identity;
-    }
-  }
-  return;
-};
-
-const safeCreateStatementTypes = new Set([
+  ),
+  from: EnumIdentity,
+  to: EnumIdentity,
+  type: Schema.Literal('alter_enum'),
+});
+const CreateIndexStatement = Schema.Struct({
+  index: Schema.Struct({
+    concurrently: Schema.Boolean,
+    isUnique: Schema.Boolean,
+    name: Schema.String,
+    schema: Schema.String,
+    table: Schema.String,
+  }),
+  type: Schema.Literal('create_index'),
+});
+const CreateForeignKeyStatement = Schema.Struct({
+  fk: TableMemberIdentity,
+  type: Schema.Literal('create_fk'),
+});
+const AddUniqueStatement = Schema.Struct({
+  type: Schema.Literal('add_unique'),
+  unique: TableMemberIdentity,
+});
+const AddCheckStatement = Schema.Struct({
+  check: TableMemberIdentity,
+  type: Schema.Literal('add_check'),
+});
+const AddPrimaryKeyStatement = Schema.Struct({
+  pk: TableMemberIdentity,
+  type: Schema.Literal('add_pk'),
+});
+const ApprovedExpandStatement = Schema.Union([
+  AddCheckStatement,
+  AddColumnStatement,
+  AddPrimaryKeyStatement,
+  AddUniqueStatement,
+  AlterEnumStatement,
+  CreateEnumStatement,
+  CreateForeignKeyStatement,
+  CreateIndexStatement,
+  CreateSchemaStatement,
+  CreateSequenceStatement,
+  CreateTableStatement,
+  CreateViewStatement,
+]);
+const approvedExpandStatementTypes: ReadonlySet<string> = new Set([
+  'add_check',
+  'add_column',
+  'add_pk',
+  'add_unique',
+  'alter_enum',
   'create_enum',
+  'create_fk',
+  'create_index',
   'create_schema',
   'create_sequence',
   'create_table',
   'create_view',
 ]);
 
-const isSafeAddedColumn = (statement: Record<string, unknown>): boolean => {
-  const column = asRecord(statement['column']);
-  if (!column || column['notNull'] !== true) {
-    return true;
+const decodeStatementHeader = Schema.decodeUnknownOption(
+  StatementHeader,
+  statementParseOptions,
+);
+const decodeApprovedExpandStatement = Schema.decodeUnknownOption(
+  ApprovedExpandStatement,
+  statementParseOptions,
+);
+
+const planDigest = (plan: DrizzleExplainEnvelope): string =>
+  createHash('sha256').update(JSON.stringify(plan)).digest('hex');
+
+const tableKey = (table: typeof TableIdentity.Type) =>
+  `${table.schema}.${table.name}`;
+
+const tableMemberKey = (member: typeof TableMemberIdentity.Type) =>
+  `${member.schema}.${member.table}`;
+
+const contractMismatchReason = (index: number, type: string) =>
+  `Statement ${index + 1} (${type}) does not match the pinned Drizzle statement contract`;
+
+const unsafeOperationReason = (index: number, type: string) =>
+  `Statement ${index + 1} (${type}) is not an approved expand operation`;
+
+const analyzeStatement = (
+  statement: unknown,
+  index: number,
+  createdTables: ReadonlySet<string>,
+): string | undefined => {
+  const header = Option.getOrUndefined(decodeStatementHeader(statement));
+  if (!header) {
+    return contractMismatchReason(index, 'invalid_statement');
   }
-  return (
-    (Object.hasOwn(column, 'default') && column['default'] !== null) ||
-    column['generated'] !== undefined ||
-    column['identity'] !== undefined
+  const decoded = Option.getOrUndefined(
+    decodeApprovedExpandStatement(statement),
   );
-};
-
-const isSafeEnumExpansion = (statement: Record<string, unknown>): boolean => {
-  const differences = statement['diff'];
-  return (
-    Array.isArray(differences) &&
-    differences.every(
-      (difference) => asRecord(difference)?.['type'] === 'added',
-    )
-  );
-};
-
-const isSafeIndexCreation = (
-  statement: Record<string, unknown>,
-  createdTables: ReadonlySet<string>,
-): boolean => {
-  const index = asRecord(statement['index']);
-  const table = statementTableIdentity(statement);
-  if (table && createdTables.has(table)) {
-    return true;
+  if (!decoded) {
+    return approvedExpandStatementTypes.has(header.type)
+      ? contractMismatchReason(index, header.type)
+      : unsafeOperationReason(index, header.type);
   }
-  return index?.['isUnique'] !== true && index?.['concurrently'] === true;
-};
 
-const isConstraintOnCreatedTable = (
-  statement: Record<string, unknown>,
-  createdTables: ReadonlySet<string>,
-): boolean => {
-  const table = statementTableIdentity(statement);
-  return table !== undefined && createdTables.has(table);
-};
-
-const isSafeStatement = (
-  statement: Record<string, unknown>,
-  createdTables: ReadonlySet<string>,
-): boolean => {
-  const type = statement['type'];
-  if (typeof type !== 'string') {
-    return false;
-  }
-  if (safeCreateStatementTypes.has(type)) {
-    return true;
-  }
-  switch (type) {
-    case 'add_check':
-    case 'add_pk':
-    case 'add_unique':
-    case 'create_fk': {
-      return isConstraintOnCreatedTable(statement, createdTables);
+  switch (decoded.type) {
+    case 'add_check': {
+      return createdTables.has(tableMemberKey(decoded.check))
+        ? undefined
+        : unsafeOperationReason(index, decoded.type);
     }
     case 'add_column': {
-      return isSafeAddedColumn(statement);
+      if (!decoded.column.notNull) {
+        return;
+      }
+      return decoded.column.default !== undefined ||
+        decoded.column.generated !== undefined ||
+        decoded.column.identity !== undefined
+        ? undefined
+        : unsafeOperationReason(index, decoded.type);
+    }
+    case 'add_pk': {
+      return createdTables.has(tableMemberKey(decoded.pk))
+        ? undefined
+        : unsafeOperationReason(index, decoded.type);
+    }
+    case 'add_unique': {
+      return createdTables.has(tableMemberKey(decoded.unique))
+        ? undefined
+        : unsafeOperationReason(index, decoded.type);
     }
     case 'alter_enum': {
-      return isSafeEnumExpansion(statement);
+      return decoded.diff.every((difference) => difference.type === 'added')
+        ? undefined
+        : unsafeOperationReason(index, decoded.type);
+    }
+    case 'create_enum':
+    case 'create_schema':
+    case 'create_sequence':
+    case 'create_table':
+    case 'create_view': {
+      return;
+    }
+    case 'create_fk': {
+      return createdTables.has(tableMemberKey(decoded.fk))
+        ? undefined
+        : unsafeOperationReason(index, decoded.type);
     }
     case 'create_index': {
-      return isSafeIndexCreation(statement, createdTables);
-    }
-    default: {
-      return false;
+      if (createdTables.has(tableMemberKey(decoded.index))) {
+        return;
+      }
+      return !decoded.index.isUnique && decoded.index.concurrently
+        ? undefined
+        : unsafeOperationReason(index, decoded.type);
     }
   }
 };
 
 export interface SchemaPlanAnalysis {
   readonly digest: string;
-  readonly rawPlan: unknown;
   readonly safe: boolean;
   readonly statementTypes: readonly string[];
   readonly unsafeReasons: readonly string[];
 }
 
-export const analyzeSchemaPlan = (rawPlan: unknown): SchemaPlanAnalysis => {
-  const plan = asRecord(rawPlan);
-  const status = plan?.['status'];
-  if (status === 'no_changes') {
+export const analyzeSchemaPlan = (
+  plan: DrizzleExplainEnvelope,
+): SchemaPlanAnalysis => {
+  if (plan.status === 'no_changes') {
     return {
-      digest: planDigest(rawPlan),
-      rawPlan,
+      digest: planDigest(plan),
       safe: true,
       statementTypes: [],
       unsafeReasons: [],
     };
   }
 
-  const statements = Array.isArray(plan?.['statements'])
-    ? plan['statements']
-    : [];
-  const statementRecords = statements.map((statement) => asRecord(statement));
   const createdTables = new Set(
-    statementRecords.flatMap((statement) => {
-      if (statement?.['type'] !== 'create_table') {
-        return [];
-      }
-      const identity = statementTableIdentity(statement);
-      return identity ? [identity] : [];
+    plan.statements.flatMap((statement) => {
+      const decoded = Option.getOrUndefined(
+        decodeApprovedExpandStatement(statement),
+      );
+      return decoded?.type === 'create_table' ? [tableKey(decoded.table)] : [];
     }),
   );
-  const statementTypes = statementRecords.map((statement) =>
-    typeof statement?.['type'] === 'string'
-      ? statement['type']
-      : 'invalid_statement',
+  const statementTypes = plan.statements.map(
+    (statement) =>
+      Option.getOrUndefined(decodeStatementHeader(statement))?.type ??
+      'invalid_statement',
   );
-  const unsafeReasons: string[] = [];
-
-  if (status !== 'ok') {
-    unsafeReasons.push('Drizzle did not return an applicable plan');
-  }
-  if (!Array.isArray(plan?.['statements'])) {
-    unsafeReasons.push('Drizzle plan omitted its statements');
-  }
-  if (Array.isArray(plan?.['hints']) && plan['hints'].length > 0) {
-    unsafeReasons.push('Drizzle reported data-loss or confirmation hints');
-  }
-  for (const [index, statement] of statementRecords.entries()) {
-    if (!statement || !isSafeStatement(statement, createdTables)) {
-      unsafeReasons.push(
-        `Statement ${index + 1} (${statementTypes[index] ?? 'unknown'}) is not an approved expand operation`,
-      );
-    }
+  const unsafeReasons = plan.statements.flatMap((statement, index) => {
+    const reason = analyzeStatement(statement, index, createdTables);
+    return reason ? [reason] : [];
+  });
+  if (plan.hints.length > 0) {
+    unsafeReasons.unshift('Drizzle reported data-loss or confirmation hints');
   }
 
   return {
-    digest: planDigest(rawPlan),
-    rawPlan,
+    digest: planDigest(plan),
     safe: unsafeReasons.length === 0,
     statementTypes,
     unsafeReasons,
   };
 };
 
-const parseCommandJson = (result: OpsCommandResult) =>
-  Effect.gen(function* () {
-    if (result.exitCode !== 0) {
-      return yield* failOpsCommand('Drizzle', result);
-    }
-    return yield* Effect.try({
-      catch: () =>
-        new OpsCommandError({
-          diagnostic: 'drizzle-invalid-json',
-          message: 'Drizzle returned an invalid JSON envelope',
-        }),
-      try: () => JSON.parse(result.stdout),
-    });
-  });
+const logInvalidDrizzleOutput = (
+  command: readonly string[],
+  result: OpsCommandResult,
+  error: OpsCommandError,
+) =>
+  Effect.logError('Drizzle output did not match the pinned contract').pipe(
+    Effect.annotateLogs({
+      cause: String(error.cause),
+      command: command.join(' '),
+      stderr: result.stderr,
+      stdout: result.stdout,
+    }),
+  );
+
+const parseCommandJson = Effect.fn('parseCommandJson')(function* (
+  command: readonly string[],
+  result: OpsCommandResult,
+) {
+  if (result.exitCode !== 0) {
+    return yield* failOpsCommand('Drizzle', command, result);
+  }
+  return yield* Effect.try({
+    catch: (cause) =>
+      OpsCommandError.make({
+        cause,
+        diagnostic: 'drizzle-output-invalid',
+        message: 'Drizzle returned invalid JSON output',
+      }),
+    try: () => JSON.parse(result.stdout),
+  }).pipe(
+    Effect.tapError((error) => logInvalidDrizzleOutput(command, result, error)),
+  );
+});
+
+const decodeExplainResult = Effect.fn('decodeExplainResult')(function* (
+  command: readonly string[],
+  result: OpsCommandResult,
+) {
+  const parsed = yield* parseCommandJson(command, result);
+  return yield* Schema.decodeUnknownEffect(DrizzleExplainEnvelope, {
+    errors: 'all',
+    onExcessProperty: 'error',
+  })(parsed).pipe(
+    Effect.mapError((cause) =>
+      OpsCommandError.make({
+        cause,
+        diagnostic: 'drizzle-output-invalid',
+        message: 'Drizzle explain output changed from the pinned contract',
+      }),
+    ),
+    Effect.tapError((error) => logInvalidDrizzleOutput(command, result, error)),
+  );
+});
+
+const decodeApplyResult = Effect.fn('decodeApplyResult')(function* (
+  command: readonly string[],
+  result: OpsCommandResult,
+) {
+  const parsed = yield* parseCommandJson(command, result);
+  return yield* Schema.decodeUnknownEffect(DrizzleApplyEnvelope, {
+    errors: 'all',
+    onExcessProperty: 'error',
+  })(parsed).pipe(
+    Effect.mapError((cause) =>
+      OpsCommandError.make({
+        cause,
+        diagnostic: 'drizzle-output-invalid',
+        message: 'Drizzle apply output changed from the pinned contract',
+      }),
+    ),
+    Effect.tapError((error) => logInvalidDrizzleOutput(command, result, error)),
+  );
+});
 
 const explainCommand = [
   'bun',
@@ -498,49 +531,11 @@ const applyCommand = [
   'json',
 ] as const;
 
-const hasCommandOutput = (result: OpsCommandResult): boolean =>
-  result.stderr.length > 0 || result.stdout.length > 0;
-
-const asSafeTextDiagnosticCommand = (
-  command: readonly string[],
-): readonly string[] => {
-  const diagnosticCommand = command.filter(
-    (argument) => argument !== '--force',
-  );
-  const outputIndex = diagnosticCommand.indexOf('--output');
-  if (outputIndex !== -1 && diagnosticCommand[outputIndex + 1] === 'json') {
-    diagnosticCommand[outputIndex + 1] = 'text';
-  }
-  if (!diagnosticCommand.includes('--explain')) {
-    diagnosticCommand.push('--explain');
-  }
-  return diagnosticCommand;
-};
-
-const runDrizzleCommand = Effect.fn('runDrizzleCommand')(function* (
-  runner: OpsCommandRunner,
-  command: readonly string[],
-) {
-  const result = yield* runner.run(command);
-  if (result.exitCode === 0 || hasCommandOutput(result)) {
-    return result;
-  }
-
-  const diagnosticResult = yield* runner.run(
-    asSafeTextDiagnosticCommand(command),
-  );
-  return {
-    exitCode: result.exitCode,
-    stderr: diagnosticResult.stderr,
-    stdout: diagnosticResult.stdout,
-  };
-});
-
 export const explainSchema = (
   runner: OpsCommandRunner = liveOpsCommandRunner,
 ) =>
-  runDrizzleCommand(runner, explainCommand).pipe(
-    Effect.flatMap((result) => parseCommandJson(result)),
+  runner.run(explainCommand).pipe(
+    Effect.flatMap((result) => decodeExplainResult(explainCommand, result)),
     Effect.map((plan) => analyzeSchemaPlan(plan)),
   );
 
@@ -572,38 +567,44 @@ export const applySchema = (
       databasePrerequisitesExecutable,
     ]);
     if (prerequisites.exitCode !== 0) {
-      return yield* failOpsCommand('Database prerequisites', prerequisites);
+      return yield* failOpsCommand(
+        'Database prerequisites',
+        ['bun', databasePrerequisitesExecutable],
+        prerequisites,
+      );
     }
 
-    const result = yield* runDrizzleCommand(runner, applyCommand);
-    const envelope = yield* parseCommandJson(result);
-    const status = asRecord(envelope)?.['status'];
-    if (status !== 'ok' && status !== 'no_changes') {
-      return yield* new OpsCommandError({
-        diagnostic: 'drizzle-application-unconfirmed',
-        message: 'Drizzle did not confirm schema application',
-      });
-    }
+    const result = yield* runner.run(applyCommand);
+    const envelope = yield* decodeApplyResult(applyCommand, result);
     return {
       applied: true as const,
       digest: plan.digest,
-      status,
+      status: envelope.status,
       unsafeReasons: [],
     };
   });
 
 const requireSuccessfulBoundedCommand = (
   operation: string,
+  command: readonly string[],
   result: OpsCommandResult,
-) => (result.exitCode === 0 ? Effect.void : failOpsCommand(operation, result));
+) =>
+  result.exitCode === 0
+    ? Effect.void
+    : failOpsCommand(operation, command, result);
 
 const preflightStagingSeed = Effect.fn('preflightStagingSeed')(function* (
   runner: OpsCommandRunner,
 ) {
-  const result = yield* runner.run(['bun', stagingSeedExecutable], {
+  const command = ['bun', stagingSeedExecutable] as const;
+  const result = yield* runner.run(command, {
     environment: { STAGING_SEED_PREFLIGHT_ONLY: 'true' },
   });
-  yield* requireSuccessfulBoundedCommand('Staging seed preflight', result);
+  yield* requireSuccessfulBoundedCommand(
+    'Staging seed preflight',
+    command,
+    result,
+  );
 });
 
 export const seedStaging = (
@@ -612,32 +613,37 @@ export const seedStaging = (
 ) =>
   Effect.gen(function* () {
     yield* preflightStagingSeed(runner);
-    const resetResult = yield* runner.run(['bun', stagingResetExecutable], {
+    const resetCommand = ['bun', stagingResetExecutable] as const;
+    const resetResult = yield* runner.run(resetCommand, {
       environment: { STAGING_RESET_CONFIRMATION: confirmation },
     });
-    yield* requireSuccessfulBoundedCommand('Staging reset', resetResult);
+    yield* requireSuccessfulBoundedCommand(
+      'Staging reset',
+      resetCommand,
+      resetResult,
+    );
 
-    const prerequisitesResult = yield* runner.run([
+    const prerequisitesCommand = [
       'bun',
       databasePrerequisitesExecutable,
-    ]);
+    ] as const;
+    const prerequisitesResult = yield* runner.run(prerequisitesCommand);
     yield* requireSuccessfulBoundedCommand(
       'Database prerequisites',
+      prerequisitesCommand,
       prerequisitesResult,
     );
 
-    const applyResult = yield* runDrizzleCommand(runner, applyCommand);
-    const applyEnvelope = yield* parseCommandJson(applyResult);
-    const applyStatus = asRecord(applyEnvelope)?.['status'];
-    if (applyStatus !== 'ok' && applyStatus !== 'no_changes') {
-      return yield* new OpsCommandError({
-        diagnostic: 'staging-schema-unconfirmed',
-        message: 'Drizzle did not confirm the staging reset schema',
-      });
-    }
+    const applyResult = yield* runner.run(applyCommand);
+    yield* decodeApplyResult(applyCommand, applyResult);
 
-    const seedResult = yield* runner.run(['bun', stagingSeedExecutable]);
-    yield* requireSuccessfulBoundedCommand('Staging seed', seedResult);
+    const seedCommand = ['bun', stagingSeedExecutable] as const;
+    const seedResult = yield* runner.run(seedCommand);
+    yield* requireSuccessfulBoundedCommand(
+      'Staging seed',
+      seedCommand,
+      seedResult,
+    );
 
     return { reset: true as const, seeded: true as const };
   });
@@ -647,11 +653,13 @@ export const initializeEmptyStaging = (
 ) =>
   Effect.gen(function* () {
     yield* preflightStagingSeed(runner);
-    const seedResult = yield* runner.run(['bun', stagingSeedExecutable], {
+    const seedCommand = ['bun', stagingSeedExecutable] as const;
+    const seedResult = yield* runner.run(seedCommand, {
       environment: { STAGING_INITIALIZE_ONLY: 'true' },
     });
     yield* requireSuccessfulBoundedCommand(
       'Empty staging initialization',
+      seedCommand,
       seedResult,
     );
 

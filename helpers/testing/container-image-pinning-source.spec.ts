@@ -132,6 +132,25 @@ describe('container image pinning source', () => {
     ]) {
       expect(dockerIgnore).toContain(excludedPath);
     }
+
+    for (const excludedPath of [
+      'tests',
+      '.e2e-runtime.json',
+      '.playwright-cli',
+      'coverage',
+      'playwright-report',
+      'test-results',
+      'repos',
+    ]) {
+      expect(dockerIgnore).toMatch(
+        new RegExp(`^${excludedPath.replaceAll('.', '\\.')}\\s*$`, 'mu'),
+      );
+    }
+    for (const runtimeInput of ['helpers', 'ops', 'public', 'src']) {
+      expect(dockerIgnore).not.toMatch(
+        new RegExp(`^${runtimeInput}(?:/|\\s*$)`, 'mu'),
+      );
+    }
   });
 
   it('verifies locked private package integrity before the frozen image install', () => {

@@ -152,27 +152,49 @@
               </div>
             </section>
           }
-          @if (targetTenantQuery.isPending()) {
+          @if (targetTenantQuery.isFetching()) {
             <p class="body-small text-on-surface-variant" role="status">
               Paid controls are unavailable while the organization's Stripe
               status is loading.
             </p>
           } @else if (targetTenantQuery.isError()) {
-            <p class="body-small text-error" role="alert">
-              Paid controls are unavailable because the organization's Stripe
-              status could not be loaded. Existing payment data is preserved.
-            </p>
+            <section
+              class="bg-error-container text-on-error-container grid gap-3 p-4"
+              role="alert"
+            >
+              <p class="body-small">
+                Paid controls are unavailable because the organization's Stripe
+                status could not be loaded. Existing payment data is preserved.
+              </p>
+              <div>
+                <button
+                  mat-stroked-button
+                  type="button"
+                  [disabled]="mutationPending()"
+                  (click)="targetTenantQuery.refetch()"
+                >
+                  Try again
+                </button>
+              </div>
+            </section>
           } @else if (!targetTenantQuery.data()) {
             <p class="body-small text-error" role="alert">
               Paid controls are unavailable because the organization could not
               be found. Existing payment data is preserved.
             </p>
           } @else if (stripeDisconnected()) {
-            <p class="body-small text-on-surface-variant" role="status">
-              Paid controls are unavailable because the organization has no
-              connected Stripe account. Saving keeps registrations and add-ons
-              free.
-            </p>
+            @if (paidGraphBlocked()) {
+              <p class="body-small text-error" role="alert">
+                Existing paid sign-ups and add-ons are preserved. This event
+                cannot be saved until paid sign-ups are ready again.
+              </p>
+            } @else {
+              <p class="body-small text-on-surface-variant" role="status">
+                Paid controls are unavailable because the organization has no
+                connected Stripe account. Saving keeps registrations and add-ons
+                free.
+              </p>
+            }
           }
           <mat-form-field>
             <mat-label>Title</mat-label>
@@ -1171,11 +1193,13 @@
                 event.status !== 'DRAFT' ||
                 editForm().invalid() ||
                 !formOptionsReady() ||
+                !paymentSettingsReady() ||
                 currencyAmountErrors().size > 0 ||
                 graphHasIssues() ||
                 invalidRegistrationWindowFields().size > 0 ||
                 hasInvalidRegistrationWindowOrder() ||
                 simpleModeIssue() !== null ||
+                paidGraphBlocked() ||
                 mutationPending()
               "
             >

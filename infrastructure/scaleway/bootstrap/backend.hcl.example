@@ -1,0 +1,5 @@
+bucket = "evorto-terraform-state-bootstrap-replace-with-unique-suffix"
+
+# The bootstrap root fixes its key in versions.tf. Supply only the bootstrap
+# state application's credentials through AWS_ACCESS_KEY_ID and
+# AWS_SECRET_ACCESS_KEY.

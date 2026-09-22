@@ -41,12 +41,20 @@ resource "scaleway_rdb_instance" "application" {
   }
 
   tags = ["evorto", var.environment, "terraform", "private-only"]
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "scaleway_rdb_database" "application" {
   instance_id = scaleway_rdb_instance.application.id
   region      = var.region
   name        = "evorto"
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "scaleway_rdb_privilege" "schema" {

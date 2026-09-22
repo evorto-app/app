@@ -18,9 +18,20 @@ variable "management_application_id" {
   type        = string
 }
 
-variable "application_bucket_console_user_ids" {
-  description = "Scaleway IAM users explicitly allowed to inspect the private application bucket."
+variable "web_application_id" {
+  description = "Bootstrap-owned IAM application used by the web role for application bucket access."
+  type        = string
+}
+
+variable "worker_application_id" {
+  description = "Bootstrap-owned IAM application used by the worker role for application bucket and Transactional Email access."
+  type        = string
+}
+
+variable "deployment_metadata_reader_application_ids" {
+  description = "Bootstrap-owned applications allowed to read immutable release metadata for promotion."
   type        = set(string)
+  default     = []
 }
 
 variable "tem_project_id" {

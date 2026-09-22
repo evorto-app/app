@@ -53,6 +53,7 @@ import {
 } from '../../shared/components/controls/currency-amount-input/currency-amount-input.component';
 import { EventStatusComponent } from '../../shared/components/event-status/event-status.component';
 import {
+  graphHasPaidConfiguration,
   resetAddOnPayment,
   resetRegistrationPayment,
 } from '../../shared/components/forms/payment-configuration';
@@ -347,24 +348,6 @@ export interface PlatformEventRegistrationOptionEdit extends Omit<
 type PlatformEventRegistrationWindowField =
   'closeRegistrationTime' | 'openRegistrationTime';
 
-export const resetPlatformEventGraphPayments = <
-  Model extends PlatformEventGraphEditModel,
->(
-  model: Model,
-): Model => {
-  const addOns = model.addOns.map((addOn) => resetAddOnPayment(addOn, null));
-  const registrationOptions = model.registrationOptions.map((option) =>
-    resetRegistrationPayment(option, null, null),
-  );
-  const unchanged =
-    addOns.every((addOn, index) => addOn === model.addOns[index]) &&
-    registrationOptions.every(
-      (option, index) => option === model.registrationOptions[index],
-    );
-
-  return unchanged ? model : { ...model, addOns, registrationOptions };
-};
-
 export const platformEventMutationErrorMessage = (
   error: unknown,
   fallback: string,
@@ -604,7 +587,8 @@ export class PlatformEventDetailComponent {
       new Set(
         this.formOptionsQuery
           .data()
-          ?.taxRates.map((rate) => rate.stripeTaxRateId),
+          ?.taxRates.filter((rate) => rate.percentage !== null)
+          .map((rate) => rate.stripeTaxRateId),
       ),
   );
   protected readonly graphHasIssues = computed(
@@ -640,9 +624,25 @@ export class PlatformEventDetailComponent {
   protected readonly targetTenantQuery = injectQuery(() =>
     this.operations.tenant(this.tenantId()),
   );
-  protected readonly paymentsConfigured = computed(
+  protected readonly stripeDisconnected = computed(
     () =>
       this.targetTenantQuery.isSuccess() &&
+      this.targetTenantQuery.data()?.paymentsConfigured === false,
+  );
+  protected readonly paidGraphBlocked = computed(
+    () =>
+      this.stripeDisconnected() && graphHasPaidConfiguration(this.graphModel()),
+  );
+  protected readonly paymentSettingsReady = computed(
+    () =>
+      this.targetTenantQuery.isSuccess() &&
+      !this.targetTenantQuery.isFetching() &&
+      this.targetTenantQuery.data() !== null &&
+      this.targetTenantQuery.data() !== undefined,
+  );
+  protected readonly paymentsConfigured = computed(
+    () =>
+      this.paymentSettingsReady() &&
       this.targetTenantQuery.data()?.paymentsConfigured === true,
   );
   protected readonly questionDescriptionIssue =
@@ -661,11 +661,6 @@ export class PlatformEventDetailComponent {
       this.eventQuery.data()?.simpleModeEnabled ?? false,
       this.graphModel().registrationOptions,
     ),
-  );
-  protected readonly stripeDisconnected = computed(
-    () =>
-      this.targetTenantQuery.isSuccess() &&
-      this.targetTenantQuery.data()?.paymentsConfigured === false,
   );
   protected readonly submitMutation = injectMutation(() =>
     this.operations.submitForReview(),
@@ -722,25 +717,11 @@ export class PlatformEventDetailComponent {
             roleIds: [...option.roleIds],
           })),
         };
-        this.graphModel.set(
-          this.stripeDisconnected()
-            ? resetPlatformEventGraphPayments(graph)
-            : graph,
-        );
+        this.graphModel.set(graph);
         this.invalidRegistrationWindowFields.set(new Set());
         this.currencyAmountErrors.set(new Map());
         this.editForm().reset();
         this.initializedEventKey.set(eventKey);
-      });
-    });
-    effect(() => {
-      if (!this.stripeDisconnected()) return;
-      const graph = this.graphModel();
-      const resetGraph = resetPlatformEventGraphPayments(graph);
-      if (resetGraph === graph) return;
-      untracked(() => {
-        this.graphModel.set(resetGraph);
-        this.currencyAmountErrors.set(new Map());
       });
     });
   }
@@ -933,18 +914,25 @@ export class PlatformEventDetailComponent {
       this.mutationPending() ||
       !this.eventQuery.isSuccess() ||
       !this.formOptionsReady() ||
+      !this.paymentSettingsReady() ||
       this.currencyAmountErrors().size > 0 ||
       this.graphHasIssues() ||
       this.invalidRegistrationWindowFields().size > 0 ||
       this.hasInvalidRegistrationWindowOrder() ||
-      this.simpleModeIssue() !== null
+      this.simpleModeIssue() !== null ||
+      this.paidGraphBlocked()
     ) {
       return;
     }
     const current = this.eventQuery.data();
     if (!current || platformEventEditorIsReadOnly(current.status)) return;
     void submit(this.editForm, async () => {
-      if (!this.formOptionsReady()) return;
+      if (
+        !this.formOptionsReady() ||
+        !this.paymentSettingsReady() ||
+        this.paidGraphBlocked()
+      )
+        return;
       const formOptions = this.formOptionsQuery.data();
       if (!formOptions) return;
       const timezone = formOptions.timezone;
@@ -957,9 +945,7 @@ export class PlatformEventDetailComponent {
         );
         return;
       }
-      const graph = this.stripeDisconnected()
-        ? resetPlatformEventGraphPayments(this.graphModel())
-        : this.graphModel();
+      const graph = this.graphModel();
       this.operationPending.set(true);
       this.operationMessage.set('');
       let changeConfirmed = false;

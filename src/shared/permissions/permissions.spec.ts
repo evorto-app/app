@@ -58,6 +58,15 @@ describe('event discovery permissions', () => {
 });
 
 describe('PermissionSchema', () => {
+  it('rejects the retired tax alias at both permission boundaries', () => {
+    expect(() =>
+      Schema.decodeUnknownSync(PermissionSchema)('admin:manageTaxes'),
+    ).toThrow();
+    expect(() =>
+      Schema.decodeUnknownSync(TenantRolePermissionSchema)('admin:manageTaxes'),
+    ).toThrow();
+  });
+
   it('encodes permissions as their string literal values', () => {
     const encoded = Schema.encodeSync(Schema.Array(PermissionSchema))([
       'admin:manageRoles',
@@ -71,7 +80,6 @@ describe('PermissionSchema', () => {
     expect(
       Schema.decodeUnknownSync(Schema.Array(PermissionSchema))([
         ...ALL_PERMISSIONS,
-        'admin:manageTaxes',
         'globalAdmin:*',
         'globalAdmin:manageTenants',
       ]),
@@ -80,14 +88,14 @@ describe('PermissionSchema', () => {
 });
 
 describe('TenantRolePermissionSchema', () => {
-  it('accepts concrete tenant permissions, tenant wildcards, and legacy tax aliases', () => {
+  it('accepts concrete tenant permissions and tenant wildcards', () => {
     expect(
       Schema.decodeUnknownSync(Schema.Array(TenantRolePermissionSchema))([
         'events:create',
         'events:*',
-        'admin:manageTaxes',
+        'admin:tax',
       ]),
-    ).toEqual(['events:create', 'events:*', 'admin:manageTaxes']);
+    ).toEqual(['events:create', 'events:*', 'admin:tax']);
   });
 
   it('rejects both platform-global permissions', () => {
@@ -98,7 +106,7 @@ describe('TenantRolePermissionSchema', () => {
     }
   });
 
-  it('partitions only platform-global permissions from stored tenant roles', () => {
+  it('partitions platform-global permissions from tenant role write input', () => {
     expect(
       partitionTenantRolePermissions([
         'events:create',
@@ -225,20 +233,16 @@ describe('includesPermission', () => {
     expect(includesPermission('templates:view', ['events:create'])).toBe(true);
   });
 
-  it('allows legacy admin tax aliases', () => {
-    expect(includesPermission('admin:tax', ['admin:manageTaxes'])).toBe(true);
-    expect(includesPermission('admin:*', ['admin:manageTaxes'])).toBe(true);
-    expect(includesPermission('admin:manageRoles', ['admin:manageTaxes'])).toBe(
-      false,
-    );
+  it('keeps the current tax grant limited to tax authority', () => {
+    expect(includesPermission('admin:tax', ['admin:tax'])).toBe(true);
+    expect(includesPermission('admin:*', ['admin:tax'])).toBe(true);
+    expect(includesPermission('admin:manageRoles', ['admin:tax'])).toBe(false);
   });
 
-  it('preserves legacy tax checks when the admin wildcard is granted', () => {
-    expect(includesPermission('admin:manageTaxes', ['admin:*'])).toBe(true);
+  it('keeps tax and role authority within the tenant admin wildcard', () => {
     expect(includesPermission('admin:tax', ['admin:*'])).toBe(true);
-    expect(includesPermission('admin:manageTaxes', ['globalAdmin:*'])).toBe(
-      false,
-    );
+    expect(includesPermission('admin:manageRoles', ['admin:*'])).toBe(true);
+    expect(includesPermission('admin:tax', ['globalAdmin:*'])).toBe(false);
   });
 
   it('keeps implied template access visible through group checks', () => {

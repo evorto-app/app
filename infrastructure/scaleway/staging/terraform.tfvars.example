@@ -1,0 +1,13 @@
+project_id                = "00000000-0000-0000-0000-000000000000"
+deployer_application_id   = "00000000-0000-0000-0000-000000000000"
+web_application_id        = "00000000-0000-0000-0000-000000000000"
+worker_application_id     = "00000000-0000-0000-0000-000000000000"
+production_deployer_application_id = "00000000-0000-0000-0000-000000000000"
+tem_project_id            = "00000000-0000-0000-0000-000000000000"
+bucket_suffix             = "replace-unique"
+alert_email               = "operations@example.com"
+cloudflare_zone_id        = "00000000000000000000000000000000"
+
+container_image                  = "rg.fr-par.scw.cloud/evorto-staging/evorto@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+schema_database_password_version = 1
+runtime_database_password_version = 1

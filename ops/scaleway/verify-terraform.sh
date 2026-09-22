@@ -11,7 +11,10 @@ trap 'rm -rf "${temporary_directory}"' EXIT
 
 terraform fmt -check -recursive "${repository_root}/infrastructure/scaleway"
 
-for root in infrastructure/scaleway infrastructure/scaleway/bootstrap; do
+for root in \
+  infrastructure/scaleway/bootstrap \
+  infrastructure/scaleway/staging \
+  infrastructure/scaleway/production; do
   root_key="${root//\//-}"
   TF_DATA_DIR="${temporary_directory}/${root_key}" \
     terraform -chdir="${repository_root}/${root}" init \

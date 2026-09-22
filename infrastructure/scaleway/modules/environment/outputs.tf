@@ -6,10 +6,6 @@ output "deployment_metadata_bucket" {
   value = scaleway_object_bucket.deployment_metadata.name
 }
 
-output "registry_endpoint" {
-  value = scaleway_registry_namespace.application.endpoint
-}
-
 output "database" {
   value = {
     certificate   = scaleway_rdb_instance.application.certificate
@@ -40,14 +36,6 @@ output "containers" {
       environment_variables = local.worker_environment_variables
       id                    = scaleway_container.worker.id
     }
-  }
-}
-
-output "role_application_ids" {
-  value = {
-    ops    = scaleway_iam_application.ops.id
-    web    = scaleway_iam_application.web.id
-    worker = scaleway_iam_application.worker.id
   }
 }
 

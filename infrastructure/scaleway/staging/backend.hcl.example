@@ -1,0 +1,4 @@
+bucket = "evorto-terraform-state-staging-replace-with-unique-suffix"
+
+# The staging root fixes its key in versions.tf. Supply only the staging state
+# application's credentials through AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY.

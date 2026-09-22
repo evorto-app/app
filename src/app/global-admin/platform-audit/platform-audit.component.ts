@@ -42,7 +42,6 @@ const isKnownPermission = (value: string): value is Permission =>
   knownPermissions.has(value);
 const additionalPermissionLabels: Readonly<Record<string, string>> = {
   'admin:*': 'All administration permissions',
-  'admin:manageTaxes': permissionLabel('admin:tax'),
   'events:*': 'All event permissions',
   'finance:*': 'All finance permissions',
   'internal:*': 'All Members Hub permissions',
