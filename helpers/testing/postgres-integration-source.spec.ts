@@ -1,7 +1,10 @@
-import { readdirSync, readFileSync } from 'node:fs';
+import { globSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { configDefaults } from 'vitest/config';
+
+import postgresProject from '../../vitest.postgres.config';
 
 const repositoryRoot = fileURLToPath(new URL('../..', import.meta.url));
 
@@ -32,7 +35,12 @@ describe('PostgreSQL integration source', () => {
       path.join(repositoryRoot, 'vitest.postgres.config.ts'),
     );
 
-    expect(postgresSpecs).toHaveLength(14);
+    expect(postgresSpecs.length).toBeGreaterThan(0);
+    const configuredSpecs = globSync(postgresProject.test?.include ?? [], {
+      cwd: repositoryRoot,
+      exclude: postgresProject.test?.exclude ?? configDefaults.exclude,
+    }).map((file) => path.resolve(repositoryRoot, file));
+    expect(configuredSpecs.toSorted()).toEqual(postgresSpecs.toSorted());
     expect(unitConfig).toContain("'**/*.postgres.spec.ts'");
     expect(postgresConfig).toContain("'helpers/**/*.postgres.spec.ts'");
     expect(postgresConfig).toContain("'src/**/*.postgres.spec.ts'");
