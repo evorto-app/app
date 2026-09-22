@@ -1,4 +1,5 @@
 import { and, eq } from 'drizzle-orm';
+import { writeFile } from 'node:fs/promises';
 
 import { createId } from '../../../src/db/create-id';
 import * as schema from '../../../src/db/schema';
@@ -72,7 +73,7 @@ const clickHydratedAction = async (action: Locator): Promise<void> => {
   await action.click();
 };
 
-test('Event approval workflow', async ({
+test('Review and publish an event', async ({
   browser,
   database,
   page,
@@ -219,7 +220,6 @@ Use two different organization accounts so creation and approval remain independ
 - No payment is needed for this free event.
 {% /callout %}
 
-# Event Approval
 
 The event publishing lifecycle is:
 
@@ -227,7 +227,7 @@ The event publishing lifecycle is:
 - **Pending review**
 - **Published**
 
-Publishing is the approval act. There is no separate approved-but-unpublished state in the relaunch workflow.
+Publishing is the approval act. There is no separate approved-but-unpublished state in the publishing steps.
 
 Pending review and published events are both locked against material editing. A reviewer can return a pending event to draft with feedback, which restores editing so the creator can make corrections. Publishing is the final normal authoring state: approval does not reopen the editor.
 
@@ -256,7 +256,7 @@ The screenshot below highlights the draft status and exact action before the sta
     testInfo,
     draftStatusSurface,
     page,
-    'Draft event status with submit-for-review action',
+    'Draft event ready to submit for review',
   );
 
   await clickHydratedAction(submitButton);
@@ -308,25 +308,90 @@ The screenshot below highlights the draft status and exact action before the sta
     if (!reviewerPage) {
       throw new Error('Review-only browser context is missing');
     }
-    await reviewerPage.page.goto('/');
-    await clickHydratedAction(
-      reviewerPage.page.getByRole('link', {
-        exact: true,
-        name: 'Admin Tools',
-      }),
-    );
-    await clickHydratedAction(
-      reviewerPage.page.getByRole('link', {
-        name: /^Event reviews(?: \d+)?$/u,
-      }),
-    );
-    await expect(
-      reviewerPage.page.getByRole('heading', {
-        exact: true,
-        level: 1,
-        name: 'Event reviews',
-      }),
-    ).toBeVisible();
+    const reviewLink = reviewerPage.page.getByRole('link', {
+      name: /^Event reviews(?: \d+)?$/u,
+    });
+    let navigationStep = 'open-home';
+    try {
+      await reviewerPage.page.goto('/');
+      navigationStep = 'open-admin';
+      await clickHydratedAction(
+        reviewerPage.page.getByRole('link', {
+          exact: true,
+          name: 'Admin Tools',
+        }),
+      );
+      await expect(reviewerPage.page).toHaveURL(/\/admin$/u);
+      navigationStep = 'open-review-queue';
+      await expect(reviewLink).toHaveAttribute('href', '/admin/event-reviews');
+      await clickHydratedAction(reviewLink);
+      await expect(reviewerPage.page).toHaveURL(/\/admin\/event-reviews$/u);
+      navigationStep = 'confirm-review-heading';
+      await expect(
+        reviewerPage.page.getByRole('heading', {
+          exact: true,
+          level: 1,
+          name: 'Event reviews',
+        }),
+      ).toBeVisible();
+    } catch (error) {
+      try {
+        await test.step(
+          'Capture review queue navigation state',
+          async () => {
+            const pathname = new URL(reviewerPage.page.url()).pathname;
+            const diagnostic = {
+              navigationStep,
+              pathname: [
+                '/',
+                '/admin',
+                '/admin/event-reviews',
+                '/403',
+              ].includes(pathname)
+                ? pathname
+                : 'other',
+              reviewComponentCount: await reviewerPage.page
+                .locator('app-event-reviews')
+                .count(),
+              reviewLinks: await reviewLink.evaluateAll((links) =>
+                links.slice(0, 2).map((link) => ({
+                  href:
+                    link.getAttribute('href') === '/admin/event-reviews'
+                      ? '/admin/event-reviews'
+                      : 'other',
+                  clickReplay: (link.getAttribute('jsaction') ?? '').includes(
+                    'click',
+                  ),
+                })),
+              ),
+            };
+            const diagnosticPath = testInfo.outputPath(
+              'review-queue-navigation.json',
+            );
+            await writeFile(
+              diagnosticPath,
+              JSON.stringify(diagnostic, null, 2),
+              {
+                flag: 'wx',
+                mode: 0o600,
+              },
+            );
+            await testInfo.attach('review-queue-navigation', {
+              contentType: 'application/json',
+              path: diagnosticPath,
+            });
+          },
+          { timeout: 2000 },
+        );
+      } catch (diagnosticError) {
+        throw new AggregateError(
+          [error, diagnosticError],
+          'Review queue navigation and diagnostic collection failed',
+          { cause: diagnosticError },
+        );
+      }
+      throw error;
+    }
     return currentReviewQueueItem();
   };
 
@@ -351,7 +416,7 @@ The **Open event** link is available for context, but this account has no **Orga
     testInfo,
     reviewQueueItem,
     reviewerPage.page,
-    'Review-only event queue with publish decision controls',
+    'Events waiting for a publishing decision',
   );
 
   await reviewQueueItem.getByRole('link', { name: 'Open event' }).click();
@@ -483,16 +548,16 @@ This gives creators clear guidance before they re-submit.
     body: `
 ## 4. Approval result
 
-Approving from **Admin Tools** → **Event reviews** removes the item from the queue. Return to the creator account and refresh the event details page. The final status is **Published**.
+Approving from **Admin Tools** → **Event reviews** removes the item from the queue. Return to the creator account and open the event details page again. The final status is **Published**.
 
-Published events are locked. Even the creator no longer sees **Edit Event**. If someone follows an old bookmark or manually enters the edit URL, Evorto returns them to the event details page instead of opening an editable form.
+Published events are locked. Even the creator no longer sees **Edit Event**. If someone follows an old bookmark or manually enters the edit web address, Evorto returns them to the event details page instead of opening an editable form.
 `,
   });
   await takeScreenshot(
     testInfo,
     publishedStatusSurface,
     page,
-    'Published event status chip after organizer submission and approval',
+    'Published event after review',
   );
 
   await page.goto(`/events/${eventId}/edit`);
@@ -515,7 +580,7 @@ Published events are locked. Even the creator no longer sees **Edit Event**. If 
 - Returning to draft requires feedback, and that feedback is shown on the event details page.
 - Re-submitting returns the event to **Pending review**.
 - Approving publishes the event with the final status **Published**.
-- Published events expose no edit action, and direct edit URLs return to the event details page.
+- Published events expose no edit action, and direct edit web addresses return to the event details page.
 `,
   });
 });

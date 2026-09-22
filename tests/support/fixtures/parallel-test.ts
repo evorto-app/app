@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
+import { getId } from '../../../helpers/get-id';
 import {
   seedTenant,
   type SeedTenantResult,
@@ -12,10 +13,14 @@ import {
   PermissionDiff,
 } from '../utils/permissions-override';
 import { test as base } from './base-test';
+import {
+  fixtureOrganizationName,
+  parallelOrganizationDomain,
+} from './tenant-identity';
 
 const buildRunId = (seed: string) =>
   crypto.createHash('sha256').update(seed).digest('hex').slice(0, 10);
-const seededEsnCardIdentifier = 'TEST-ESN-0001';
+export const seededEsnCardIdentifier = 'DE-2026-000184';
 
 interface BaseFixtures {
   discounts?: void;
@@ -98,8 +103,8 @@ export const test = base.extend<BaseFixtures & { seeded: SeedTenantResult }>({
       const runId = buildRunId(`${falsoSeed}:retry-${testInfo.retry}`);
       const result = await seedTenant(database, {
         currency: 'EUR',
-        domain: `e2e-${runId}`,
-        name: `E2E ${runId}`,
+        domain: parallelOrganizationDomain(runId),
+        name: fixtureOrganizationName,
         profile: 'test',
         runId,
         seedDate,
@@ -132,60 +137,116 @@ export const test = base.extend<BaseFixtures & { seeded: SeedTenantResult }>({
   },
   permissionOverride: async ({ database, tenant }, use) => {
     await use(async (diff: PermissionDiff) => {
-      await applyPermissionDiff(database as any, tenant, diff);
+      await applyPermissionDiff(database, tenant, diff);
     });
   },
 
   // Seed discount provider and a verified ESN card for the regular user
   discounts: [
-    async ({ database, seedDate, tenant }, use) => {
-      // Enable ESN provider for tenant (stored on tenant model)
+    async ({ database, registerDatabaseCleanup, seedDate, tenant }, use) => {
       const currentTenant = await database.query.tenants.findFirst({
         where: { id: tenant.id },
       });
-      const current = ((currentTenant as any)?.discountProviders ??
-        {}) as Record<
-        string,
-        { config: unknown; status: 'disabled' | 'enabled' }
-      >;
-      const updated = {
-        ...current,
-        esnCard: { config: {}, status: 'enabled' },
-      };
+      if (!currentTenant) {
+        throw new Error('Expected the seeded tenant for discount setup.');
+      }
+      const regularUser = usersToAuthenticate.find(
+        (user) => user.roles === 'user',
+      );
+      if (!regularUser) {
+        throw new Error('Expected the regular test user for discount setup.');
+      }
+      const currentUser = await database.query.users.findFirst({
+        where: { id: regularUser.id },
+      });
+      if (!currentUser) {
+        throw new Error('Expected the seeded regular user for discount setup.');
+      }
+      const originalCard = await database.query.userDiscountCards.findFirst({
+        where: {
+          tenantId: tenant.id,
+          type: 'esnCard',
+          userId: regularUser.id,
+        },
+      });
+      const discountCardId = originalCard?.id ?? getId();
+
+      // Separate callbacks keep provider restoration independent of card cleanup.
+      registerDatabaseCleanup(async (cleanupDatabase) => {
+        const [restoredTenant] = await cleanupDatabase
+          .update(schema.tenants)
+          .set({
+            discountProviders: currentTenant.discountProviders,
+            updatedAt: currentTenant.updatedAt,
+          })
+          .where(eq(schema.tenants.id, tenant.id))
+          .returning({ id: schema.tenants.id });
+        if (!restoredTenant) {
+          throw new Error('The discount fixture tenant could not be restored.');
+        }
+      });
+      registerDatabaseCleanup(async (cleanupDatabase) => {
+        if (originalCard) {
+          await cleanupDatabase
+            .insert(schema.userDiscountCards)
+            .values(originalCard)
+            .onConflictDoUpdate({
+              set: originalCard,
+              target: [
+                schema.userDiscountCards.userId,
+                schema.userDiscountCards.tenantId,
+                schema.userDiscountCards.type,
+              ],
+            });
+          return;
+        }
+        await cleanupDatabase
+          .delete(schema.userDiscountCards)
+          .where(
+            and(
+              eq(schema.userDiscountCards.id, discountCardId),
+              eq(schema.userDiscountCards.tenantId, tenant.id),
+              eq(schema.userDiscountCards.userId, regularUser.id),
+              eq(schema.userDiscountCards.type, 'esnCard'),
+            ),
+          );
+      });
+
       await database
         .update(schema.tenants)
-        .set({ discountProviders: updated as any })
+        .set({
+          discountProviders: {
+            ...currentTenant.discountProviders,
+            esnCard: { config: {}, status: 'enabled' },
+          },
+        })
         .where(eq(schema.tenants.id, tenant.id));
-      const regularUser = usersToAuthenticate.find((u) => u.roles === 'user');
-      if (regularUser) {
-        const validTo = new Date(
-          seedDate.getTime() + 1000 * 60 * 60 * 24 * 180,
-        ); // ~6 months
-        await database
-          .insert(schema.userDiscountCards)
-          .values({
+      const validTo = new Date(seedDate.getTime() + 1000 * 60 * 60 * 24 * 180); // ~6 months
+      await database
+        .insert(schema.userDiscountCards)
+        .values({
+          id: discountCardId,
+          identifier: seededEsnCardIdentifier,
+          status: 'verified',
+          tenantId: tenant.id,
+          type: 'esnCard',
+          userId: regularUser.id,
+          validFrom: seedDate,
+          validTo,
+        })
+        .onConflictDoUpdate({
+          set: {
             identifier: seededEsnCardIdentifier,
             status: 'verified',
-            tenantId: tenant.id,
-            type: 'esnCard',
-            userId: regularUser.id,
             validFrom: seedDate,
             validTo,
-          })
-          .onConflictDoUpdate({
-            set: {
-              identifier: seededEsnCardIdentifier,
-              status: 'verified',
-              validFrom: seedDate,
-              validTo,
-            },
-            target: [
-              schema.userDiscountCards.userId,
-              schema.userDiscountCards.tenantId,
-              schema.userDiscountCards.type,
-            ],
-          });
-      }
+          },
+          target: [
+            schema.userDiscountCards.userId,
+            schema.userDiscountCards.tenantId,
+            schema.userDiscountCards.type,
+          ],
+        });
       await use();
     },
     { timeout: 30_000 },

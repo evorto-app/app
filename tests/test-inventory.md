@@ -102,10 +102,22 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - specs/smoke/semantic-theme-colors.test.ts
   - specs/smoke/tenant-request-routing.test.ts
   - specs/template-categories/template-categories.test.ts
+  - specs/templates/event-discount-snapshot.spec.ts
   - specs/templates/paid-option-requires-tax-rate.spec.ts [finance]
   - specs/templates/registration-configuration.spec.ts
   - specs/templates/template-actions-permissions.spec.ts [permissions]
   - specs/templates/templates.test.ts
+
+## Executable Source Contract
+
+The source inventory below is verified against the files on disk. Any added or
+removed journey must update this summary in the same change, so coverage cannot
+silently disappear behind a stale hand-maintained file list.
+
+| Suite   | Files | Top-level categories                                                                                                                                                                  |
+| ------- | ----: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `docs`  |    29 | `admin`, `events`, `finance`, `profile`, `roles`, `scanning`, `template-categories`, `templates`, `users`                                                                             |
+| `specs` |    48 | `admin`, `auth`, `discounts`, `events`, `finance`, `permissions`, `profile`, `reporting`, `resilience`, `scanning`, `screenshot`, `seed`, `smoke`, `template-categories`, `templates` |
 
 ## Suite Ownership
 
@@ -139,6 +151,12 @@ by adding or tightening a spec/doc journey instead of leaving only manual notes.
   - `docs/templates/templates.doc.ts`
   - `docs/template-categories/categories.doc.ts`
   - `specs/templates/**`
+  - `specs/templates/event-discount-snapshot.spec.ts` adds two page scenarios
+    for an edited or removed ESNcard price. Both preserve the visible form's
+    submitted discount while a later template edit stays on the template, with
+    event/template database readback. Cleanup owns only the created event graph
+    and exact original template option/discount state; the shared discount
+    fixture restores its original provider and user-card state independently.
   - `specs/template-categories/**`
   - template-category create/edit page-backed coverage with explicit database
     readbacks for created and edited rows
@@ -430,10 +448,10 @@ ESNcard provider credential path.
 
 - Profile/account:
   - Docker-backed system-Chrome profile edit persistence now passes against the
-    rebuilt app. Generated docs exercise the notification-email plus IBAN/PayPal
+    rebuilt app. Generated docs exercise the email for updates plus IBAN/PayPal
     edit/restore path with database readback,
-    `specs/profile/user-profile-edit.spec.ts` functionally covers notification
-    email plus IBAN/PayPal persistence with explicit database readback and
+    `specs/profile/user-profile-edit.spec.ts` functionally covers the email
+    for updates plus IBAN/PayPal persistence with explicit database readback and
     cleanup, and app helper coverage proves payload trimming, blank-value
     normalization, and visible profile-cache refresh after save.
   - Docker-backed system-Chrome profile event-card review now passes against the
@@ -510,7 +528,7 @@ ESNcard provider credential path.
     submit guard shared by the visible submit button and handler.
     `specs/profile/create-account.spec.ts` adds credential-gated functional
     coverage for a generated Auth0 user creating a current-tenant account,
-    landing on profile, persisted notification email/name fields, tenant
+    landing on profile, persisted email address for updates and name fields, tenant
     assignment, default role assignment, and DB cleanup.
     The matching integration-tagged create-account doc now reads back the
     persisted global user, tenant assignment, default role assignment, and
@@ -533,10 +551,10 @@ ESNcard provider credential path.
     credential-gated first-login guide and now includes current privacy-policy
     acceptance and first-home-tenant persistence.
     Shared RPC schema coverage proves account-creation and profile-update
-    notification email format validation, matching the create-account/profile
+    **Email for updates** format validation, matching the create-account/profile
     edit form validators.
     The integration-tagged create-account doc also asserts the editable email
-    field is labeled "Notification email" when Auth0 Management credentials are
+    field is labeled "Email for updates" when Auth0 Management credentials are
     available.
     Root route-manifest coverage keeps `/create-account` reachable to
     authenticated users without a tenant assignment while protected feature
@@ -572,7 +590,7 @@ ESNcard provider credential path.
     rejection remains available without that object, that reimbursement
     recording stays disabled while the refund
     mutation is pending, and that finance receipt contact details prefer the
-    submitter's notification email with login email fallback.
+    submitter's email for updates with login email fallback.
     `docs/finance/receipt-review-reimbursement.doc.ts` now follows the exact
     owned receipt through a real MinIO-backed preview, approval, and
     reimbursement by id/file name, reads the approved/refunded state back, and
@@ -799,7 +817,7 @@ ESNcard provider credential path.
     preserves redeemed units, restocks only the remaining purchased unit, and
     creates one exactly allocated refund claim. Signed local failed and
     generation-1 succeeded webhooks exercise the production handler, scanner
-    and Profile projections, Global Admin **Refund recovery**, immutable refund
+    and Profile projections, Global Admin **Refunds needing attention**, immutable refund
     history, and append-only recovery audit. The guide also documents
     permission/tenant boundaries and retry/idempotency guidance without
     claiming a new denial test or live provider settlement certification.

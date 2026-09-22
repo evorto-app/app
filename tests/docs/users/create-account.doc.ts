@@ -99,7 +99,6 @@ test('Understand organization account setup', async ({}, testInfo) => {
 
   await testInfo.attach('markdown', {
     body: `
-# Organization Setup and Privacy Acceptance
 
 After signing in, Evorto shows **Finish setting up your account** when you first join an organization, need to accept a changed privacy policy, or have a new required question. If **Verify your email** appears, verify the sign-in address and select **Check again**.
 
@@ -109,12 +108,12 @@ Before submitting, the form trims first name, last name, and question answers, a
 
 **Join organization** for a new membership, or **Finish setup** for an existing member, stays unavailable until every required field is valid and the current policy is accepted. If the policy or questions change while the page is open, Evorto keeps answers that still apply and asks you to review the changes.
 
-Completing setup records the accepted privacy-policy version and submitted answers, adds you to the current organization, and grants its standard member access. If your account already belongs to another organization, this step adds the same account here instead of creating a duplicate. If you already belong, setup updates your privacy acceptance and required answers. Your original home organization stays unchanged until you deliberately change it from your profile.
+Completing setup records the accepted privacy-policy version and submitted answers, adds you to the current organization, and grants its usual member access. If your account already belongs to another organization, this step adds the same account here instead of creating a duplicate. If you already belong, setup updates your privacy acceptance and required answers. Your original home organization stays unchanged until you deliberately change it from your profile.
 `,
   });
 });
 
-test.describe('Auth0-backed account creation docs', () => {
+test.describe('Create your account', () => {
   test.beforeAll(() => {
     expect(
       hasManagementEnvironment,
@@ -273,7 +272,7 @@ Open the app page and select **Sign in**.`,
         testInfo,
         page.getByRole('link', { name: 'Sign in' }),
         page,
-        'Sign-in link on desktop browsers',
+        'Select Sign in to begin account setup',
       );
       await page.getByRole('link', { name: 'Sign in' }).click();
       await testInfo.attach('markdown', {

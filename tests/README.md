@@ -22,13 +22,23 @@ dispatch; direct CI invocations must supply the same target settings.
 Each product-facing documentation journey should be understandable without
 prior Evorto knowledge. Include:
 
-1. the intended user and exact account, tenant, permission, and external-service prerequisites;
+1. the intended reader and exact account, organization, permission, and external-service prerequisites;
 2. a click-by-click path starting from normal application navigation;
 3. an explanation of choices before the user commits a write or payment;
 4. the visible completion state plus a persisted, payment, or notification readback where applicable;
-5. critical denial, recovery, retry, timing, and tenant-boundary behavior;
+5. critical denial, recovery, retry, timing, and organization-boundary behavior;
 6. explicit unsupported or deferred behavior so the guide does not promise an unavailable feature;
 7. accessible screenshots where they clarify a real decision or result, backed by behavior assertions rather than screenshots alone.
+
+Use plain product language throughout the published text, guide titles, callouts,
+and screenshot captions. Do not publish implementation names, protocols,
+identifiers, storage or delivery mechanics, database checks, fixture details, or
+test evidence. Keep those details in executable setup and assertions. Name an
+external service only where the reader sees or uses it.
+
+The documentation reporter owns each page title and writes the page's single
+level-one heading. Authored Markdown must start at `##` or a lower heading
+level; adding a `#` heading in a documentation source is an error.
 
 When a complete workflow cannot yet be documented because the product behavior
 does not exist, record the missing behavior as a visible release blocker; do
@@ -77,6 +87,22 @@ Requests are still issued once and all request failures remain visible.
 Register database cleanup through `registerDatabaseCleanup` before the first
 write. Its callbacks run in reverse order while the owning database pool is
 still available, and cleanup failures remain visible.
+
+`specs/templates/event-discount-snapshot.spec.ts` creates events through normal
+template navigation using the discount-enabled fixture. Its two scenarios edit
+or clear the visible ESNcard price, change the template price while the form is
+open, and read back both the new event and template to prove their snapshots
+remain separate. Before its first write, the spec registers separate callbacks
+for its created event graph and the exact original template option/discount
+state. The shared discount fixture separately restores the original provider
+and user-card state; this does not claim whole-tenant cleanup.
+
+The shared `helpers/testing/e2e-runtime-state.ts` reader treats only a missing
+runtime file as absent. Other read failures, malformed JSON, and missing,
+blank, or untrimmed tenant domains fail setup. Authentication waits for missing
+state; the base fixture uses its configured tenant only when the file is absent.
+Playwright configuration and `openAuthenticatedTestPage` use normal browser TLS
+verification without blanket certificate-error overrides.
 
 ## Platform Operation Coverage
 
@@ -143,7 +169,7 @@ still available, and cleanup failures remain visible.
 - The same journey sends signed local Stripe refund webhooks through the
   production `/webhooks/stripe` handler. It proves the failed, safely requeued
   generation-1, and succeeded states across the organizer scanner result,
-  participant Profile, Global Admin **Refund recovery** UI, durable refund
+  participant Profile, Global Admin **Refunds needing attention** UI, durable refund
   history, and append-only platform audit record. This is deterministic local
   workflow evidence, not certification of live bank or card-network settlement.
 - Compose only passes through `E2E_RUNTIME_MODE`; ordinary `docker:start` and
@@ -225,6 +251,14 @@ bun run test:e2e -- --project=setup
 bun run test:e2e -- --headed --workers 1
 bun run lint
 ```
+
+In a linked worktree, the integration, live ESNcard, release-certification, and
+documentation-publication commands fill only missing Google Maps and ESNcard
+test values from the primary checkout's `.env`. Values already set for the
+current command win, and database, Auth0, Stripe, ports, and all other settings
+remain worktree-local. Values absent from both locations remain missing; the
+existing command and test requirements still apply. The wrapper does not skip
+tests or invent substitute values.
 
 ## PostgreSQL Integration Suite
 
@@ -444,8 +478,9 @@ credentials must not be printed or committed.
 - Use `bun run test:e2e:docs:publish` only when you intentionally want to update
   the generated guide catalog in the tracked Evorto Pages documentation app.
   Set `EVORTO_PAGES_ROOT` to an absolute path containing
-  `apps/documentation-page` and `tools/docs/sync-generated-docs.mjs`; the
-  command does not assume a developer-specific checkout. Publishing requires
+  `apps/marketing/src/content/generated-docs`, `apps/marketing/public/docs`,
+  and `tools/docs/sync-generated-docs.mjs`; the command does not assume a
+  developer-specific checkout. Publishing requires
   the complete Auth0 Management, Google Maps, active ESNcard, and permanently
   expired ESNcard credential set. It generates `docs-baseline`,
   `docs-integration`, and `docs-live-esncard` together into ignored staging,

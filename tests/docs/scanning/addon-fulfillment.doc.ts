@@ -180,7 +180,7 @@ After a handout, the scanner offers **Undo last handout** only for that add-on's
 
 Select **Cancel remaining items**, choose a whole number from 1 to the unused item count shown, enter the reason, and choose whether items bought separately should be refunded. Evorto cancels items bought separately first, then items included with the ticket, and shows the split before you confirm. Included items can be cancelled before they are handed out, but they are never refunded.
 
-This optional add-on is free, so no refund is required. For a paid example, continue with **Cancel a Stripe-backed registration with settled add-ons and recover its refund** in [Participant registration cancellation](/docs/participant-registration-cancellation). Check the refund shown in Evorto before telling an attendee that money has been returned.
+This optional add-on is free, so no refund is required. For a paid example, continue with **Cancel a paid ticket with add-ons and resolve a refund problem** in [Cancel a ticket](/docs/cancel-a-ticket). Check the refund shown in Evorto before telling an attendee that money has been returned.
 `,
     });
 

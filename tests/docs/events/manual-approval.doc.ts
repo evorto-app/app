@@ -889,7 +889,7 @@ If the payment page could not be safely prepared, keep the existing sign-up.
 
 {% callout type="note" title="Application states" %}
 - A pending application does not reserve a place or create a ticket. The attendee may withdraw it before approval.
-- Approving a paid application holds the place while payment is pending. The QR ticket appears only after Stripe reports a successful payment.
+- Approving a paid application holds the place while payment is pending. The QR ticket appears only after the payment service confirms successful payment.
 - An unresolved payment keeps its original claim and reserved place until review establishes the payment state. Do not repeat approval or start another payment.
 - Application and approval belong to this organization. Organizer access in another organization does not grant access here.
 {% /callout %}

@@ -45,9 +45,7 @@ describe('member-onboarding generated documentation source', () => {
     );
     expect(source).toContain('.delete(schema.tenantPrivacyPolicyAcceptances)');
     expect(source).toContain('member.page.reload()');
-    expect(source).toContain(
-      '# Join Another Organization and Choose Your Home Organization',
-    );
+    expect(source).not.toMatch(/^#\s+/mu);
     expect(firstStepsGuide?.sourceSlugs).toContain(
       'join-another-organization-and-choose-your-home-organization',
     );

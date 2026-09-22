@@ -6,14 +6,14 @@ export const openRegistrationTransferClaim = async (
 ): Promise<void> => {
   await page.goto('/registration-transfers');
   await expect(
-    page.getByRole('heading', { name: 'Enter a private claim code' }),
+    page.getByRole('heading', { name: 'Enter a private transfer code' }),
   ).toBeVisible();
   const reviewTransfer = page.getByRole('button', { name: 'Review transfer' });
   const codeForm = page.locator('form').filter({ has: reviewTransfer });
   await expect(codeForm).not.toHaveAttribute('jsaction', /submit/, {
     timeout: 20_000,
   });
-  await page.getByLabel('Claim code').fill(claimCode);
+  await page.getByLabel('Transfer code').fill(claimCode);
   await expect(reviewTransfer).toBeEnabled();
   await reviewTransfer.click();
   await expect(page).toHaveURL(/\/registration-transfers$/);

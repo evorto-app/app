@@ -4,7 +4,10 @@ import { expect, test } from '@playwright/test';
 import type { Suite, TestCase, TestResult } from '@playwright/test/reporter';
 
 import DocumentationReporter from '../../support/reporters/documentation-reporter';
-import { captureDocumentationScreenshot } from '../../support/reporters/documentation-reporter/take-screenshot';
+import {
+  captureDocumentationScreenshot,
+  takeScreenshot,
+} from '../../support/reporters/documentation-reporter/take-screenshot';
 import { resolveDocsImageOutputDirectory } from '../../support/utils/doc-screenshot';
 
 type ReporterTestCaseInput = Pick<TestCase, 'title'> &
@@ -206,6 +209,117 @@ test('documentation screenshots wait for active view transitions', async ({
   ).toBe(true);
 });
 
+test('documentation screenshots reject visible loading copy', async ({
+  page,
+}) => {
+  await page.setContent('<main>Loading roles…</main>');
+
+  await expect(captureDocumentationScreenshot(page)).rejects.toThrow(
+    'Documentation screenshot still contains loading copy: Loading roles…',
+  );
+});
+
+for (const loadingState of [
+  {
+    name: 'formatted plain loading copy',
+    html: '<h2>\n  Loading\n roles…\n</h2>',
+  },
+  {
+    name: 'compound discount settings copy',
+    html: '<p role="status">\n  Loading discount settings. Saving is available when they finish loading.\n</p>',
+  },
+  {
+    name: 'compound selected roles copy',
+    html: '<p role="status">Loading organization roles. Selected roles can still be removed.</p>',
+  },
+  {
+    name: 'saved result followed by a loading sentence',
+    html: '<p role="status">Review saved. Loading the latest receipt lists…</p>',
+  },
+  {
+    name: 'accessible transfer spinner',
+    html: '<mat-spinner role="progressbar" aria-label="Loading transfer" style="display:block;width:40px;height:40px"></mat-spinner>',
+  },
+  {
+    name: 'unlabelled indeterminate progress bar',
+    html: '<div role="progressbar" style="width:100px;height:4px"></div>',
+  },
+  {
+    name: 'indeterminate location progress bar',
+    html: '<mat-progress-bar mode="indeterminate" aria-label="Loading location" style="display:block;width:100px;height:4px"></mat-progress-bar>',
+  },
+  {
+    name: 'native indeterminate progress',
+    html: '<progress aria-label="Loading file"></progress>',
+  },
+]) {
+  test(`documentation screenshots reject ${loadingState.name}`, async ({
+    page,
+  }) => {
+    await page.setContent(`<main>${loadingState.html}</main>`);
+    await expect(captureDocumentationScreenshot(page)).rejects.toThrow(
+      'Documentation screenshot still contains',
+    );
+  });
+}
+
+test('documentation screenshots ignore hidden loading states and ordinary settled content', async ({
+  page,
+}) => {
+  await page.setContent(`
+    <main>
+      <p>The word Loading appears in the instructions.</p>
+      <h2>Loading dock access.</h2>
+      <p role="status">Roles loaded. Ready to edit.</p>
+      <div role="progressbar" aria-label="Profile completeness" aria-valuenow="40" aria-valuemin="0" aria-valuemax="100" style="width:100px;height:20px">40%</div>
+      <p hidden>Loading organization roles. Selected roles can still be removed.</p>
+      <div style="display:none"><mat-spinner role="progressbar" aria-label="Loading transfer" style="display:block;width:40px;height:40px"></mat-spinner></div>
+      <div role="progressbar" style="visibility:hidden;width:100px;height:4px"></div>
+    </main>
+  `);
+
+  const screenshot = await captureDocumentationScreenshot(page);
+  expect(screenshot.length).toBeGreaterThan(0);
+});
+
+test('documentation screenshot rejection restores every highlighted element', async ({
+  page,
+}, testInfo) => {
+  await page.setContent(`
+    <main>
+      <p>Loading roles…</p>
+      <button id="first" style="outline: 2px solid blue; z-index: 3">First</button>
+      <button id="second" style="outline: 1px dotted green; z-index: 7">Second</button>
+    </main>
+  `);
+  const focusPoints = [page.locator('#first'), page.locator('#second')];
+  const originalStyles = await Promise.all(
+    focusPoints.map((locator) =>
+      locator.evaluate((element) => {
+        const style = getComputedStyle(element);
+        return { outline: style.outline, zIndex: style.zIndex };
+      }),
+    ),
+  );
+
+  await expect(
+    takeScreenshot(testInfo, focusPoints, page, 'Review the available actions'),
+  ).rejects.toThrow(
+    'Documentation screenshot still contains loading copy: Loading roles…',
+  );
+
+  for (const [index, locator] of focusPoints.entries()) {
+    expect(
+      await locator.evaluate((element) => {
+        const style = getComputedStyle(element);
+        return { outline: style.outline, zIndex: style.zIndex };
+      }),
+    ).toEqual(originalStyles[index]);
+    await expect(locator).not.toHaveAttribute('data-docs-prev-outline');
+    await expect(locator).not.toHaveAttribute('data-docs-prev-z-index');
+  }
+});
+
 test('documentation reporter respects DOCS_* env and writes files', async ({}, testInfo) => {
   const docsRoot = testInfo.outputPath('docs-out');
   const imgsRoot = testInfo.outputPath('docs-img');
@@ -242,6 +356,8 @@ test('documentation reporter respects DOCS_* env and writes files', async ({}, t
   expect(fs.existsSync(mdPath)).toBeTruthy();
   const md = fs.readFileSync(mdPath, 'utf-8');
   expect(md).toContain('title: Sample Journey');
+  expect(md).toContain('\n---\n\n# Sample Journey\n\nHello world');
+  expect(md.match(/^# .+$/gm)).toEqual(['# Sample Journey']);
   expect(md).not.toContain('@track(');
   expect(md).not.toContain('@req(');
   // image written into images root under slug folder
@@ -351,7 +467,7 @@ test('front matter normalization with permissions callout', async ({}, testInfo)
 
   const title = 'Permissions Journey';
   const slug = title.toLowerCase().replaceAll(' ', '-');
-  const mdBlock = `---\nPermissions:\n - admin:manage\n - events:view\n---\nBody text`;
+  const mdBlock = `---\nPermissions:\n - admin:manageRoles\n - events:seeDrafts\n---\nBody text`;
   const result = createReporterTestResult([
     {
       name: 'markdown',
@@ -366,10 +482,38 @@ test('front matter normalization with permissions callout', async ({}, testInfo)
   const mdPath = path.join(docsRoot, slug, 'page.md');
   const md = fs.readFileSync(mdPath, 'utf-8');
   expect(md.startsWith('---\ntitle:')).toBeTruthy();
-  expect(md).toContain('User permissions');
-  expect(md).toContain('- admin:manage');
-  expect(md).toContain('- events:view');
+  expect(md).toContain('Who can do this');
+  expect(md).toContain('- Manage roles');
+  expect(md).toContain('- See draft events');
+  expect(md).not.toContain('admin:manageRoles');
+  expect(md).not.toContain('events:seeDrafts');
   expect(md).toContain('Body text');
+});
+
+test('documentation reporter rejects an authored page title', async ({}, testInfo) => {
+  const docsRoot = testInfo.outputPath('docs-authored-title');
+  const imgsRoot = testInfo.outputPath('docs-authored-title-images');
+  process.env['DOCS_OUT_DIR'] = docsRoot;
+  process.env['DOCS_IMG_OUT_DIR'] = imgsRoot;
+
+  const reporter = new DocumentationReporter();
+  beginReporter(reporter);
+
+  const result = createReporterTestResult([
+    {
+      name: 'markdown',
+      contentType: 'text/markdown',
+      body: Buffer.from('# Authored title\n\nBody text'),
+    },
+  ]);
+  expect(() =>
+    reporter.onTestEnd(
+      createReporterTestCase({ title: 'Reporter-owned title' }, result),
+      result,
+    ),
+  ).toThrow(
+    'Generated documentation owns the page title; documentation source must not add another level-one heading.',
+  );
 });
 
 test('documentation reporter emits one markdown file per describe block', async ({}, testInfo) => {
@@ -440,6 +584,7 @@ test('documentation reporter emits one markdown file per describe block', async 
   expect(fs.existsSync(mdPath)).toBe(true);
   const md = fs.readFileSync(mdPath, 'utf-8');
   expect(md).toContain('title: Registration docs');
+  expect(md.match(/^# .+$/gm)).toEqual(['# Registration docs']);
   expect(md).toContain('## Register for a free event');
   expect(md).toContain('## Register for a paid event');
   expect(md).toContain('First section content');
@@ -522,6 +667,7 @@ test('two tests in one describe block share one markdown file', async ({}, testI
   expect(fs.existsSync(mdPath)).toBe(true);
   const md = fs.readFileSync(mdPath, 'utf-8');
   expect(md).toContain('title: Checkout flow docs');
+  expect(md.match(/^# .+$/gm)).toEqual(['# Checkout flow docs']);
   expect(md).toContain('## Open checkout');
   expect(md).toContain('## Confirm checkout payment');
   expect(md).toContain('Open checkout section');

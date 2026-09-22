@@ -426,12 +426,9 @@
             </div>
           } @else if (registrationStatusQuery.isSuccess()) {
             @if (registrationStatusQuery.data().outgoingTransfers.length > 0) {
-              <section
-                aria-label="Transferred registrations"
-                class="grid gap-3"
-              >
+              <section aria-label="Transferred tickets" class="grid gap-3">
                 <div>
-                  <h3 class="title-medium">Transferred registrations</h3>
+                  <h3 class="title-medium">Transferred tickets</h3>
                   <p class="body-medium text-on-surface-variant mt-1">
                     These are transfers you previously sent. Review their refund
                     history here. If a ticket later returned to you, its current

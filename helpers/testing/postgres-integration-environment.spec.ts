@@ -326,6 +326,20 @@ describe('PostgreSQL integration environment', () => {
     {
       environment: {
         ...localEnvironment,
+        POSTGRES_INTEGRATION_DATABASE_URL: undefined,
+      },
+      message: 'POSTGRES_INTEGRATION_DATABASE_URL is required',
+    },
+    {
+      environment: {
+        ...localEnvironment,
+        POSTGRES_INTEGRATION_DATABASE_URL: '   ',
+      },
+      message: 'POSTGRES_INTEGRATION_DATABASE_URL is required',
+    },
+    {
+      environment: {
+        ...localEnvironment,
         POSTGRES_INTEGRATION_DISPOSABLE: 'false',
       },
       message: 'POSTGRES_INTEGRATION_DISPOSABLE=true',

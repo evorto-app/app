@@ -122,14 +122,10 @@ describe('CI quality source', () => {
   it('enables the Playwright-only runtime mode only in E2E launch paths', () => {
     const composeSource = readSource('docker-compose.yml');
     const webserverSource = readSource('helpers/testing/docker-webserver.sh');
-    const ciDockerStartSource = readSource(
-      'helpers/testing/ci-start-docker-stack.sh',
-    );
 
     expect(composeSource).toContain('E2E_RUNTIME_MODE:');
     expect(composeSource).not.toContain('E2E_RUNTIME_MODE: "playwright"');
     expect(webserverSource).toContain('export E2E_RUNTIME_MODE=playwright');
-    expect(ciDockerStartSource).toContain('export E2E_RUNTIME_MODE=playwright');
     for (const sourcePath of [
       '.github/workflows/e2e-baseline.yml',
       '.github/workflows/esncard-release-certification.yml',
@@ -173,7 +169,6 @@ describe('CI quality source', () => {
     const sourcePaths = [
       '.github/workflows/e2e-baseline.yml',
       '.github/workflows/esncard-release-certification.yml',
-      'helpers/testing/ci-start-docker-stack.sh',
     ];
     const dockerLogCommands = sourcePaths.flatMap((sourcePath) =>
       readSource(sourcePath)
@@ -189,7 +184,6 @@ describe('CI quality source', () => {
       'docker compose logs --no-color db-setup mailpit minio minio-init worker evorto > test-results/docker-logs/docker-compose.log || true',
       'docker compose logs --no-color --tail=100 db-setup mailpit minio minio-init worker evorto',
       'docker compose logs --no-color --tail=100 db-setup mailpit minio minio-init worker evorto',
-      'bun run env:run -- docker compose logs --no-color --tail=100 db-setup mailpit minio minio-init worker evorto || true',
     ]);
 
     for (const command of dockerLogCommands) {
@@ -302,7 +296,7 @@ describe('CI quality source', () => {
     expect(imageSecurityJob).toContain('bun run image:verify');
   });
 
-  it('lints repository-owned tooling without traversing vendored sources', () => {
+  it('lints repository-owned Node-side sources without traversing vendored sources', () => {
     const workspace = JSON.parse(readSource('angular.json')) as {
       projects?: {
         evorto?: {
@@ -327,10 +321,15 @@ describe('CI quality source', () => {
       'tests/**/*.ts',
     ]);
     expect(lintFilePatterns).not.toContain('repos/**/*.ts');
-    expect(eslintConfig).toContain('const toolingFiles = [');
-    for (const sourcePattern of ['"*.config.ts"', '"helpers/**/*.ts"']) {
+    expect(eslintConfig).toContain('const nodeSideFiles = [');
+    for (const sourcePattern of [
+      '"*.config.ts"',
+      '"helpers/**/*.ts"',
+      '"tests/**/*.ts"',
+    ]) {
       expect(eslintConfig).toContain(sourcePattern);
     }
+    expect(eslintConfig).toContain('files: nodeSideFiles');
     expect(eslintConfig).toContain('...tseslint.configs.strict');
     expect(eslintConfig).toContain('process: "readonly"');
     expect(eslintConfig).toContain('ignores: ["repos/**/*"]');

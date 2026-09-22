@@ -22,7 +22,7 @@ const outboxRow = (page: Page, item: EmailOutboxScenarioItem) =>
     .locator(':scope > div')
     .filter({ has: page.getByRole('heading', { name: item.subject }) });
 
-test('Review global email delivery health @admin @globalAdmin', async ({
+test('Review email delivery across organizations @admin @globalAdmin', async ({
   database,
   page,
   registerDatabaseCleanup,

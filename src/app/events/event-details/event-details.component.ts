@@ -123,7 +123,7 @@ export const outgoingRegistrationTransferCopy = (
           'No action is needed. Do not pay or register again to retry the refund.',
         summary:
           'This transfer moved the ticket to its recipient, and one or more refunds due to you are being processed.',
-        title: 'Transfer refund is processing',
+        title: 'Transfer refund is in progress',
         tone: 'info',
       };
     }

@@ -142,7 +142,7 @@ const expectGlobalAdminTenantFormSurface = async (
   }
 };
 
-test('Review platform organization administration @admin @globalAdmin', async ({
+test('Manage organizations @admin @globalAdmin', async ({
   database,
   page,
   registerDatabaseCleanup,
@@ -243,7 +243,7 @@ Evorto administrators can review, create, and edit organizations from **Evorto a
     testInfo,
     page.locator('app-tenant-list'),
     page,
-    'Platform organization list',
+    'Evorto organization list',
   );
   await page.getByRole('link', { name: 'Create organization' }).click();
   await expect(
@@ -355,7 +355,7 @@ Evorto administrators can review, create, and edit organizations from **Evorto a
     testInfo,
     page.locator('app-tenant-detail'),
     page,
-    'Organization detail and platform tools',
+    'Organization details and management',
   );
   await page.getByRole('link', { name: 'Edit organization' }).click();
   await expect(page).toHaveURL(/\/global-admin\/tenants\/[^/]+\/edit$/);
@@ -434,7 +434,7 @@ Evorto administrators can review, create, and edit organizations from **Evorto a
     testInfo,
     page.locator('app-platform-audit'),
     page,
-    'Platform change history',
+    'Evorto change history',
   );
 
   await testInfo.attach('markdown', {

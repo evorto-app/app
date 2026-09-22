@@ -293,7 +293,7 @@ const normalizeHttpUrl = (
     catch: () =>
       new TenantOnboardingValidationError({
         field: 'privacyPolicyUrl',
-        message: 'Privacy policy URL must use http or https.',
+        message: 'Enter a complete privacy policy web address.',
       }),
     try: () => {
       const url = new URL(trimmed);
@@ -314,7 +314,7 @@ export const normalizeTenantPrivacyPolicy = Effect.fn(
     return yield* Effect.fail(
       new TenantOnboardingConfigurationError({
         message:
-          'Add privacy policy text or a privacy policy URL before publishing onboarding.',
+          'Add privacy policy text or a privacy policy web address before publishing these questions.',
       }),
     );
   }
@@ -337,8 +337,7 @@ export const normalizeTenantOnboardingQuestions = Effect.fn(
       return yield* Effect.fail(
         new TenantOnboardingValidationError({
           field: `questions.${index}.prompt`,
-          message:
-            'Question prompts must contain between 1 and 200 characters.',
+          message: 'Each question must contain between 1 and 200 characters.',
         }),
       );
     }
@@ -354,7 +353,7 @@ export const normalizeTenantOnboardingQuestions = Effect.fn(
       return yield* Effect.fail(
         new TenantOnboardingValidationError({
           field: `questions.${index}.options`,
-          message: 'Selection options must be no longer than 80 characters.',
+          message: 'Each answer choice must be 80 characters or fewer.',
         }),
       );
     }
@@ -362,7 +361,7 @@ export const normalizeTenantOnboardingQuestions = Effect.fn(
       return yield* Effect.fail(
         new TenantOnboardingValidationError({
           field: `questions.${index}.options`,
-          message: 'Short-text questions cannot contain selection options.',
+          message: 'A written-answer question cannot also have answer choices.',
         }),
       );
     }
@@ -373,7 +372,7 @@ export const normalizeTenantOnboardingQuestions = Effect.fn(
       return yield* Effect.fail(
         new TenantOnboardingValidationError({
           field: `questions.${index}.options`,
-          message: 'Selection questions require between 2 and 20 options.',
+          message: 'A choice question needs between 2 and 20 answers.',
         }),
       );
     }

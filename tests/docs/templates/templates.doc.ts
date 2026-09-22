@@ -227,14 +227,14 @@ There are a few general settings that are required for templates:
 ### Sign-up setup
 Simple setup starts with one choice for attendees and one for organizers or helpers. Both have the same fields, but different roles are selected for each.
 Advanced setup supports any number of named choices and lets you choose which choices can use each reusable add-on. Switching between simple and advanced setup asks for confirmation. To return to simple setup, keep exactly one organizer choice and one attendee choice. Move any questions and add-on assignments before removing extra choices, then select **Use simple setup**, confirm the change, and save the choice changes and simple setup together. Switching setups never replaces saved choices without confirmation.
-Paid sign-ups and add-ons use Stripe only. There is no cash or manually settled paid-event alternative. If paid sign-ups are not ready, you can save only free choices and add-ons; existing prices stay in the form until you change them. An administrator with **Manage payments** access can open **Admin Tools** → **Payments** to review readiness. If the page still says paid sign-ups are not ready, contact Evorto support.
+Paid sign-ups and add-ons use online payments only. There is no cash payment or option to mark a paid ticket as paid manually. If paid sign-ups are not ready, you can save only free choices and add-ons; existing prices stay in the form until you change them. An administrator with **Manage payments** access can open **Admin Tools** → **Payments** to review readiness. If the page still says paid sign-ups are not ready, contact Evorto support.
 Each sign-up choice includes:
 - **Sign-up choice name**: The label copied into events created from this template.
 - **Description** and **Description after sign-up**: Optional information shown before and after someone signs up, copied into the event.
 - **Enable payment**: Adds a price to this choice.
 - **Price**: The amount each person pays. It appears only when payment is enabled.
 - **ESNcard price**: An optional lower price for organizations that offer an ESNcard discount. Leave it empty to use the standard price.
-- **Selected roles**: The roles that are selected for this registration. Users can only see and use the registration if they have one of the selected roles.
+- **Selected roles**: The roles that are selected for this sign-up. Users can only see and use the sign-up if they have one of the selected roles.
 - **How sign-ups are confirmed**: **First come, first served** confirms a sign-up when space is available. **Manual approval** lets an organizer review it first. If payment is required, the person pays after approval and the place is confirmed only after successful payment.
 - **Sign-up opens**: Enter how long before the event sign-up begins in **Days** and **Hours**; for example, 7 days and 0 hours.
 - **Sign-up closes**: Enter how long before the event sign-up closes in **Days** and **Hours**; for example, 1 day and 0 hours.
