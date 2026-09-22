@@ -553,6 +553,11 @@ The generated `.env.dev` passes the same clock and seed key to Docker database
 setup and the app container; do not seed against one clock while evaluating
 registration or check-in windows against another.
 
+Primary pages and additional authenticated contexts start at the same seeded
+browser time and advance with elapsed `performance.now()` time. Do not freeze
+`Date.now()` in an additional context: framework scheduling still needs an
+advancing clock, even when the test uses deterministic business dates.
+
 ## Baseline vs Integration Projects
 
 Playwright separates external-service coverage with dedicated projects:

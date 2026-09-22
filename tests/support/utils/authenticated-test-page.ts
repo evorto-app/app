@@ -47,17 +47,20 @@ export const openAuthenticatedTestPage = async ({
         return;
       }
       const realDate = Date;
+      const startedAt = performance.now();
+      const currentTime = () =>
+        Math.floor(fixedNow + (performance.now() - startedAt));
       class FixedDate extends realDate {
         constructor(...args: [] | ConstructorParameters<typeof realDate>) {
           if (args.length === 0) {
-            super(fixedNow);
+            super(currentTime());
             return;
           }
           super(...args);
         }
 
         static override now() {
-          return fixedNow;
+          return currentTime();
         }
       }
 
