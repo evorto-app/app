@@ -754,7 +754,7 @@ test('advanced organizer application stays pending until an administrator approv
         emailCount: 1,
         emailRecipient:
           scenario.applicant.communicationEmail ?? scenario.applicant.email,
-        emailSubject: 'Registration approved',
+        emailSubject: 'Sign-up approved',
         reservedSpots: 0,
         status: 'CONFIRMED',
       });

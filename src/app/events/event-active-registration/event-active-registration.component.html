@@ -55,13 +55,14 @@
               class="bg-error-container text-on-error-container rounded-md p-3 @md:col-span-2"
               role="alert"
             >
-              Evorto received an invalid registration payment link and did not
-              open it. Contact an organizer for help.
+              Evorto received an invalid payment link and did not open it.
+              Contact an organizer for help.
             </div>
           } @else {
             <div class="text-warning @md:col-span-2" role="status">
-              Your payment link is being prepared. Refresh this page shortly.
-              Your registration is not confirmed until payment succeeds.
+              Your payment link is not ready yet. Contact an organizer to review
+              this payment. Keep this sign-up and do not start another payment.
+              Your ticket is not confirmed until payment succeeds.
             </div>
           }
         } @else {
@@ -203,7 +204,20 @@
 
                 <div class="grid content-start gap-3">
                   @if (registrationAddonHasCanonicalPendingOrder(addOn)) {
-                    @if (pendingCheckoutUrlInvalid(addOn)) {
+                    @if (addOn.pendingCheckoutExpired) {
+                      <div
+                        class="bg-error-container text-on-error-container grid gap-2 rounded-md p-3"
+                        role="alert"
+                      >
+                        <p class="label-large">The payment window has ended</p>
+                        <p class="body-small">
+                          Evorto has not confirmed payment for
+                          {{ addOn.pendingQuantity }} × {{ addOn.title }} yet.
+                          These items are not on your ticket. Contact an
+                          organizer before trying to buy them again.
+                        </p>
+                      </div>
+                    } @else if (pendingCheckoutUrlInvalid(addOn)) {
                       <div
                         class="bg-error-container text-on-error-container grid gap-2 rounded-md p-3"
                         role="alert"
@@ -229,7 +243,10 @@
                         <p class="body-small">
                           Payment is pending for {{ addOn.pendingQuantity }} ×
                           {{ addOn.title }}.
-                          @if (addOn.pendingCheckoutExpiresAt) {
+                          @if (
+                            addOn.pendingCheckoutExpiresAt &&
+                            checkoutUrl(registration.id, addOn)
+                          ) {
                             Continue the same Stripe checkout before
                             {{
                               addOn.pendingCheckoutExpiresAt | date: "medium"
@@ -247,27 +264,12 @@
                             Continue Stripe checkout
                           </a>
                         } @else {
-                          <p class="body-small">
-                            Your Stripe payment link is still being prepared.
-                            Trying again will not create a duplicate purchase.
+                          <p class="body-small" role="status">
+                            This add-on payment needs review. No payment link
+                            has been confirmed for these items. Keep this
+                            pending purchase and contact an organizer before
+                            trying to buy them again.
                           </p>
-                          <button
-                            type="button"
-                            mat-flat-button
-                            (click)="
-                              purchaseRegistrationAddon(registration.id, addOn)
-                            "
-                            [disabled]="
-                              purchaseRegistrationAddonMutation.isPending()
-                            "
-                          >
-                            {{
-                              activePurchaseKey() ===
-                              registration.id + ":" + addOn.addOnId
-                                ? "Trying again…"
-                                : "Try again"
-                            }}
-                          </button>
                         }
                       </div>
                     }
@@ -430,8 +432,9 @@
           @if (cancellation.buttonLabel; as cancellationButtonLabel) {
             @if (registrationHasPendingAddonPayment(registration)) {
               <p class="body-small text-on-surface-variant" role="status">
-                Finish or let the pending add-on checkout expire before
-                cancelling this registration.
+                Finish an available add-on payment, or wait for that payment
+                page to expire, before cancelling this ticket. If no payment
+                link is available, contact an organizer to review it.
               </p>
             }
             <button

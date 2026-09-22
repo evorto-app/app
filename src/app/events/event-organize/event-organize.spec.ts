@@ -211,7 +211,8 @@ describe('event organizer error notifications', () => {
     },
     {
       conflict: 'Registration option has no available spots',
-      fallback: 'Failed to approve application',
+      fallback:
+        'The approval result could not be confirmed. Check the current sign-up status before trying again.',
       label: 'Approve application',
       mutation: approveRegistration,
     },
@@ -257,6 +258,14 @@ describe('event organizer error notifications', () => {
         error: new Error('Private transport detail'),
         expectedMessage: action.fallback,
         name: 'untyped failure',
+      },
+      {
+        error: {
+          _tag: 'EventRegistrationConflictError',
+          message: { detail: 'Private malformed error detail' },
+        },
+        expectedMessage: action.fallback,
+        name: 'malformed domain failure',
       },
     ])(
       `${action.label} shows safe feedback for $name`,
@@ -578,48 +587,43 @@ describe('organizerRegistrationApprovalDisabled', () => {
       organizerRegistrationApprovalDisabled({
         manualApprovalAvailable: false,
         mutationPending: false,
+        paymentSetupRequired: false,
       }),
     ).toBe(true);
     expect(
       organizerRegistrationApprovalDisabled({
         manualApprovalAvailable: true,
         mutationPending: true,
+        paymentSetupRequired: false,
       }),
     ).toBe(true);
     expect(
       organizerRegistrationApprovalDisabled({
         manualApprovalAvailable: true,
         mutationPending: false,
+        paymentSetupRequired: false,
       }),
     ).toBe(false);
+  });
+  it('blocks another approval request even when a stale view still grants approval access', () => {
+    expect(
+      organizerRegistrationApprovalDisabled({
+        manualApprovalAvailable: true,
+        mutationPending: false,
+        paymentSetupRequired: true,
+      }),
+    ).toBe(true);
   });
 });
 
 describe('organizerRegistrationApprovalLabel', () => {
-  it('distinguishes fresh approval from payment setup recovery', () => {
-    expect(
-      organizerRegistrationApprovalLabel({
-        approvalPending: false,
-        paymentSetupRequired: false,
-      }),
-    ).toBe('Approve application');
-    expect(
-      organizerRegistrationApprovalLabel({
-        approvalPending: false,
-        paymentSetupRequired: true,
-      }),
-    ).toBe('Retry payment setup');
-  });
-
-  it('shows the in-flight state for either approval action', () => {
-    for (const paymentSetupRequired of [false, true]) {
-      expect(
-        organizerRegistrationApprovalLabel({
-          approvalPending: true,
-          paymentSetupRequired,
-        }),
-      ).toBe('Approving…');
-    }
+  it('labels fresh approval and its pending state', () => {
+    expect(organizerRegistrationApprovalLabel({ approvalPending: false })).toBe(
+      'Approve application',
+    );
+    expect(organizerRegistrationApprovalLabel({ approvalPending: true })).toBe(
+      'Approving…',
+    );
   });
 });
 
@@ -636,7 +640,12 @@ describe('event organizer approval template', () => {
       '@if (!registrationOption.organizingRegistration)',
     );
     expect(template).toContain('[attr.aria-busy]="approvalInFlight || null"');
-    expect(template).toContain('Payment setup needs retry');
+    expect(template).toContain('Payment needs attention');
+    expect(template).not.toContain('Retry payment setup');
+    expect(template).toContain('!user.paymentSetupRequired');
+    expect(template.replaceAll(/\s+/g, ' ')).toContain(
+      'Keep this sign-up and contact Evorto support before starting another payment.',
+    );
   });
 
   it('hides transfer and cancellation actions unless their server capabilities are present', () => {

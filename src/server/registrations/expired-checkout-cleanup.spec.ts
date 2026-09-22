@@ -1,3 +1,5 @@
+import type { SQL } from 'drizzle-orm';
+
 import { describe, expect, it, vi } from '@effect/vitest';
 import { PgDialect } from 'drizzle-orm/pg-core';
 import { Effect } from 'effect';
@@ -5,25 +7,113 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import Stripe from 'stripe';
 
-import { Database, type DatabaseClient } from '../../db';
 import { StripeClient } from '../stripe-client';
+import { createDatabaseTestLayer } from '../testing/database-test-layer';
 import {
   boundExpiredCheckoutReconciliationAction,
   checkoutReconcileBackoffMs,
   claimedAddonPurchaseCheckoutPredicate,
   dueBoundAddonPurchaseCheckoutPredicate,
   dueBoundRegistrationCheckoutPredicate,
-  expiredBoundRegistrationClaimPredicate,
   expiredUnboundRegistrationClaimPredicate,
   nextAddonPurchaseCheckoutReconcileAt,
   nextRegistrationCheckoutReconcileAt,
   normalizeExpiredCheckoutCleanupBatchSize,
-  reconcileExpiredBoundRegistrationCheckout,
   reconcileExpiredRegistrationTransferCheckout,
 } from './expired-checkout-cleanup';
 import { expiredRegistrationTransferCheckoutCandidatePredicate } from './registration-transfer-finalization';
 
+const completedTransferSession: Stripe.Response<Stripe.Checkout.Session> = {
+  adaptive_pricing: null,
+  after_expiration: null,
+  allow_promotion_codes: null,
+  amount_subtotal: null,
+  amount_total: null,
+  automatic_tax: {
+    enabled: false,
+    liability: null,
+    provider: null,
+    status: null,
+  },
+  billing_address_collection: null,
+  cancel_url: null,
+  client_reference_id: null,
+  client_secret: null,
+  collected_information: null,
+  consent: null,
+  consent_collection: null,
+  created: 1_900_000_000,
+  currency: 'eur',
+  currency_conversion: null,
+  custom_fields: [],
+  custom_text: {
+    after_submit: null,
+    shipping_address: null,
+    submit: null,
+    terms_of_service_acceptance: null,
+  },
+  customer: null,
+  customer_account: null,
+  customer_creation: null,
+  customer_details: null,
+  customer_email: null,
+  discounts: null,
+  expires_at: 1_900_000_000,
+  id: 'cs_transfer_1',
+  integration_identifier: null,
+  invoice: null,
+  invoice_creation: null,
+  lastResponse: {
+    headers: {},
+    requestId: 'req_cs_transfer_1',
+    statusCode: 200,
+  },
+  livemode: false,
+  locale: null,
+  managed_payments: null,
+  metadata: null,
+  mode: 'payment',
+  object: 'checkout.session',
+  origin_context: null,
+  payment_intent: null,
+  payment_link: null,
+  payment_method_collection: null,
+  payment_method_configuration_details: null,
+  payment_method_options: null,
+  payment_method_types: ['card'],
+  payment_status: 'unpaid',
+  permissions: null,
+  recovered_from: null,
+  saved_payment_method_options: null,
+  setup_intent: null,
+  shipping_address_collection: null,
+  shipping_cost: null,
+  shipping_options: [],
+  status: 'complete',
+  submit_type: null,
+  subscription: null,
+  success_url: null,
+  total_details: null,
+  ui_mode: 'hosted_page',
+  url: null,
+  wallet_options: null,
+};
+
+const requirePredicate = (predicate: SQL | undefined) => {
+  if (!predicate) throw new Error('Expected cleanup predicate');
+  return predicate;
+};
+
 describe('expired checkout cleanup', () => {
+  it('does not hide retry-schedule persistence failures', () => {
+    const source = readFileSync(
+      fileURLToPath(new URL('expired-checkout-cleanup.ts', import.meta.url)),
+      'utf8',
+    );
+
+    expect(source).not.toContain('Effect.ignore');
+  });
+
   it('keeps every sweep within the configured batch bound', () => {
     expect(normalizeExpiredCheckoutCleanupBatchSize()).toBe(25);
     expect(normalizeExpiredCheckoutCleanupBatchSize(0)).toBe(1);
@@ -35,7 +125,7 @@ describe('expired checkout cleanup', () => {
   it('matches only expired pending registration claims without a bound session', () => {
     const dialect = new PgDialect();
     const query = dialect.sqlToQuery(
-      expiredUnboundRegistrationClaimPredicate(1_750_000_000),
+      requirePredicate(expiredUnboundRegistrationClaimPredicate(1_750_000_000)),
     );
 
     expect(query.sql).toContain('"transactions"."method" = $1');
@@ -49,6 +139,9 @@ describe('expired checkout cleanup', () => {
     );
     expect(query.sql).toContain(
       '"transactions"."stripeCheckoutSessionId" is null',
+    );
+    expect(query.sql).toContain(
+      '"transactions"."stripe_checkout_incident_session_id" is null',
     );
     expect(query.sql).toContain('jsonb_path_exists');
     expect(query.sql).toContain('$.expiresAt');
@@ -65,15 +158,7 @@ describe('expired checkout cleanup', () => {
     ]);
   });
 
-  it('selects bound claims separately and reconciles only open or expired sessions', () => {
-    const dialect = new PgDialect();
-    const query = dialect.sqlToQuery(
-      expiredBoundRegistrationClaimPredicate(1_750_000_000),
-    );
-
-    expect(query.sql).toContain(
-      '"transactions"."stripeCheckoutSessionId" is not null',
-    );
+  it('reconciles transfer sessions only when Stripe reports them open or expired', () => {
     expect(boundExpiredCheckoutReconciliationAction('open')).toBe('expire');
     expect(boundExpiredCheckoutReconciliationAction('expired')).toBe('cancel');
     expect(boundExpiredCheckoutReconciliationAction('complete')).toBe('skip');
@@ -84,7 +169,7 @@ describe('expired checkout cleanup', () => {
     const now = new Date('2026-07-10T12:00:00.000Z');
     const dialect = new PgDialect();
     const query = dialect.sqlToQuery(
-      dueBoundRegistrationCheckoutPredicate(now),
+      requirePredicate(dueBoundRegistrationCheckoutPredicate(now)),
     );
 
     expect(query.sql).toContain(
@@ -111,7 +196,7 @@ describe('expired checkout cleanup', () => {
   it('matches only due unleased bound add-on Checkout claims', () => {
     const now = new Date('2026-07-10T12:00:00.000Z');
     const query = new PgDialect().sqlToQuery(
-      dueBoundAddonPurchaseCheckoutPredicate(now),
+      requirePredicate(dueBoundAddonPurchaseCheckoutPredicate(now)),
     );
 
     expect(query.sql).toContain(
@@ -141,17 +226,19 @@ describe('expired checkout cleanup', () => {
 
   it('reschedules only the worker that still owns the exact add-on lease', () => {
     const query = new PgDialect().sqlToQuery(
-      claimedAddonPurchaseCheckoutPredicate({
-        attempts: 3,
-        expiresAt: new Date('2026-07-10T12:30:00.000Z'),
-        leaseId: 'lease-1',
-        orderId: 'order-1',
-        registrationId: 'registration-1',
-        stripeAccountId: 'acct_1',
-        stripeCheckoutSessionId: 'cs_1',
-        tenantId: 'tenant-1',
-        transactionId: 'transaction-1',
-      }),
+      requirePredicate(
+        claimedAddonPurchaseCheckoutPredicate({
+          attempts: 3,
+          expiresAt: new Date('2026-07-10T12:30:00.000Z'),
+          leaseId: 'lease-1',
+          orderId: 'order-1',
+          registrationId: 'registration-1',
+          stripeAccountId: 'acct_1',
+          stripeCheckoutSessionId: 'cs_1',
+          tenantId: 'tenant-1',
+          transactionId: 'transaction-1',
+        }),
+      ),
     );
 
     expect(query.params).toEqual([
@@ -237,7 +324,9 @@ describe('expired checkout cleanup', () => {
 
   it('leaves only unbound expired transfers to the transfer-specific pass', () => {
     const query = new PgDialect().sqlToQuery(
-      expiredRegistrationTransferCheckoutCandidatePredicate(1_750_000_000),
+      requirePredicate(
+        expiredRegistrationTransferCheckoutCandidatePredicate(1_750_000_000),
+      ),
     );
 
     expect(query.sql).toContain(
@@ -254,52 +343,16 @@ describe('expired checkout cleanup', () => {
   });
 
   it.effect(
-    'retrieves through the persisted account and preserves a completed Checkout',
-    () =>
-      Effect.gen(function* () {
-        const stripe = new Stripe('sk_test_123');
-        const retrieve = vi
-          .spyOn(stripe.checkout.sessions, 'retrieve')
-          .mockResolvedValue({
-            id: 'cs_bound_1',
-            status: 'complete',
-          } as Stripe.Checkout.Session);
-        const expire = vi.spyOn(stripe.checkout.sessions, 'expire');
-
-        const outcome = yield* reconcileExpiredBoundRegistrationCheckout(
-          {
-            registrationId: 'registration-1',
-            stripeAccountId: 'acct_persisted',
-            stripeCheckoutSessionId: 'cs_bound_1',
-            tenantId: 'tenant-1',
-            transactionId: 'transaction-1',
-          },
-          1_750_000_000,
-        ).pipe(
-          Effect.provideService(Database, {} as DatabaseClient),
-          Effect.provideService(StripeClient, stripe),
-        );
-
-        expect(outcome).toBe('skipped');
-        expect(retrieve).toHaveBeenCalledWith('cs_bound_1', undefined, {
-          stripeAccount: 'acct_persisted',
-        });
-        expect(expire).not.toHaveBeenCalled();
-      }),
-  );
-
-  it.effect(
     'retrieves an expired transfer Checkout through its persisted account and preserves completion',
     () =>
       Effect.gen(function* () {
         const stripe = new Stripe('sk_test_123');
         const retrieve = vi
           .spyOn(stripe.checkout.sessions, 'retrieve')
-          .mockResolvedValue({
-            id: 'cs_transfer_1',
-            status: 'complete',
-          } as Stripe.Checkout.Session);
-        const expire = vi.spyOn(stripe.checkout.sessions, 'expire');
+          .mockResolvedValue(completedTransferSession);
+        const expire = vi
+          .spyOn(stripe.checkout.sessions, 'expire')
+          .mockRejectedValue(new Error('Unexpected transfer Checkout expiry'));
 
         const outcome = yield* reconcileExpiredRegistrationTransferCheckout({
           registrationId: 'recipient-registration-1',
@@ -309,7 +362,7 @@ describe('expired checkout cleanup', () => {
           transactionId: 'recipient-transaction-1',
           transferId: 'transfer-1',
         }).pipe(
-          Effect.provideService(Database, {} as DatabaseClient),
+          Effect.provide(createDatabaseTestLayer()),
           Effect.provideService(StripeClient, stripe),
         );
 

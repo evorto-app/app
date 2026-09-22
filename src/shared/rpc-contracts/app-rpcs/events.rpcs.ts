@@ -581,6 +581,7 @@ export const EventsRegistrationAddonRecord = Schema.Struct({
   nextPurchaseUnitPrice: NonNegativeInteger,
   nextPurchaseUnitTaxAmount: Schema.NullOr(NonNegativeInteger),
   optionalPurchaseQuantity: NonNegativeInteger,
+  pendingCheckoutExpired: Schema.Boolean,
   pendingCheckoutExpiresAt: Schema.NullOr(Schema.NonEmptyString),
   pendingCheckoutUrl: Schema.NullOr(Schema.NonEmptyString),
   pendingOperationKey: Schema.NullOr(RegistrationAddonOperationKey),
@@ -802,6 +803,16 @@ export const EventsRegisterForEvent = asRpcMutation(
   Rpc.make('events.registerForEvent', {
     error: EventsRegisterForEventError,
     payload: EventsRegisterForEventPayload,
+    success: Schema.Void,
+  }),
+);
+
+export const EventsRetryRegistrationCheckout = asRpcMutation(
+  Rpc.make('events.retryRegistrationCheckout', {
+    error: EventsRegisterForEventError,
+    payload: Schema.Struct({
+      registrationId: Schema.NonEmptyString,
+    }),
     success: Schema.Void,
   }),
 );
@@ -1211,6 +1222,7 @@ export class EventsRpcs extends RpcGroup.make(
   EventsJoinWaitlist,
   EventsPurchaseRegistrationAddon,
   EventsRegisterForEvent,
+  EventsRetryRegistrationCheckout,
   EventsRedeemRegistrationAddon,
   EventsRegistrationScanned,
   EventsReviewEvent,

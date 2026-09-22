@@ -71,6 +71,7 @@ const registrationAddon = (
   nextPurchaseUnitPrice: 0,
   nextPurchaseUnitTaxAmount: 0,
   optionalPurchaseQuantity: 3,
+  pendingCheckoutExpired: false,
   pendingCheckoutExpiresAt: null,
   pendingCheckoutUrl: null,
   pendingOperationKey: null,
@@ -229,7 +230,7 @@ describe('registration transfer copy', () => {
 
   it('explains a pending add-on payment transfer block', () => {
     expect(registrationTransferBlockedCopy('addonPaymentPending')).toContain(
-      'pending add-on checkout',
+      'available add-on payment',
     );
   });
 
@@ -243,7 +244,7 @@ describe('registration transfer copy', () => {
     ).toEqual({
       buttonLabel: 'Transfer unavailable',
       helperText:
-        'Finish or let the pending add-on checkout expire before transferring this ticket.',
+        'Finish an available add-on payment, or wait for that payment page to expire, before transferring this ticket. If no payment link is available, contact an organizer to review it.',
     });
   });
 
@@ -493,9 +494,9 @@ describe('active registration template source', () => {
     expect(template).toContain(
       'registrationCheckoutUrl(registration.checkoutUrl)',
     );
-    expect(template).toContain('Your payment link is being prepared.');
+    expect(template).toContain('Your payment link is not ready yet.');
     expect(template).toContain(
-      'Your registration is not confirmed until payment succeeds.',
+      'Your ticket is not confirmed until payment succeeds.',
     );
   });
 
@@ -645,6 +646,35 @@ describe('EventActiveRegistrationComponent add-on purchase', () => {
     return fixture;
   };
 
+  it('shows the typed cancellation review block without changing the pending registration', async () => {
+    const message =
+      'Payment setup needs review. Keep the existing sign-up and contact the organizer.';
+    cancelRegistration.mockRejectedValue(
+      new EventRegistrationConflictError({ message }),
+    );
+    dialogOpen.mockReturnValue({ afterClosed: () => of(true) });
+    const registration = registrationStatus({
+      paymentPending: true,
+      status: 'PENDING',
+    });
+    const fixture = render(registration);
+    findButton(fixture, 'Cancel registration')?.click();
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      const root: unknown = fixture.nativeElement;
+      if (!(root instanceof HTMLElement))
+        throw new Error('Expected the ticket root to be an HTML element');
+      expect(root.querySelector('[role="alert"]')?.textContent).toContain(
+        message,
+      );
+    });
+    expect(registration).toMatchObject({
+      paymentPending: true,
+      status: 'PENDING',
+    });
+    expect(cancelRegistration).toHaveBeenCalledOnce();
+  });
+
   it('requires explicit confirmation before cancelling a registration', async () => {
     const fixture = render(registrationStatus());
 
@@ -688,7 +718,8 @@ describe('EventActiveRegistrationComponent add-on purchase', () => {
         await fixture.whenStable();
         expect(cancelRegistration).toHaveBeenCalledOnce();
         expect(normalizeText(fixture)).toContain(
-          expectedMessage ?? 'Cancellation failed',
+          expectedMessage ??
+            'The sign-up could not be cancelled. Check its current status and contact an organizer for help.',
         );
         expect(normalizeText(fixture)).not.toContain('Private registration');
       });
@@ -978,6 +1009,96 @@ describe('EventActiveRegistrationComponent add-on purchase', () => {
     });
   });
 
+  it('keeps a canonical add-on claim without a payment link visible without offering another creation attempt', () => {
+    const pendingAddOn = registrationAddon({
+      isPaid: true,
+      maxPurchasableQuantity: 0,
+      pendingCheckoutExpiresAt: '2030-05-01T12:00:00.000Z',
+      pendingCheckoutUrl: null,
+      pendingOperationKey: 'canonical-unbound-key',
+      pendingQuantity: 2,
+      purchaseAvailable: false,
+      purchaseBlockedReason: 'paymentPending',
+      purchaseStatus: 'paymentPending',
+    });
+    const unchangedClaim = structuredClone(pendingAddOn);
+    const fixture = render(
+      registrationStatus({
+        registrationAddOns: [pendingAddOn],
+        transferAvailable: false,
+        transferBlockedReason: 'addonPaymentPending',
+      }),
+    );
+    const element: HTMLElement = fixture.nativeElement;
+
+    expect(normalizeText(fixture)).toContain(
+      'Payment is pending for 2 × Welcome dinner.',
+    );
+    expect(normalizeText(fixture)).toContain(
+      'This add-on payment needs review.',
+    );
+    expect(normalizeText(fixture)).toContain(
+      'Keep this pending purchase and contact an organizer before trying to buy them again.',
+    );
+    expect(normalizeText(fixture)).not.toContain('is still being prepared');
+    expect(normalizeText(fixture)).not.toContain('Continue the same');
+    expect(normalizeText(fixture)).toContain(
+      'If no payment link is available, contact an organizer to review it.',
+    );
+    expect(findButton(fixture, 'Try again')).toBeUndefined();
+    expect(
+      element.querySelector('a[href^="https://checkout.stripe.com"]'),
+    ).toBeNull();
+    expect(purchaseAddon).not.toHaveBeenCalled();
+    expect(pendingAddOn).toEqual(unchangedClaim);
+  });
+
+  it('keeps a pending registration with no payment link visible for organizer review', () => {
+    const registration = registrationStatus({
+      checkoutUrl: null,
+      paymentPending: true,
+      registrationAddOns: [],
+      status: 'PENDING',
+    });
+    const unchangedRegistration = structuredClone(registration);
+    const fixture = render(registration);
+    expect(normalizeText(fixture)).toContain(
+      'Contact an organizer to review this payment. Keep this sign-up and do not start another payment.',
+    );
+    expect(findButton(fixture, 'Try payment again')).toBeUndefined();
+    expect(purchaseAddon).not.toHaveBeenCalled();
+    expect(cancelRegistration).not.toHaveBeenCalled();
+    expect(registration).toEqual(unchangedRegistration);
+  });
+
+  it('does not open a pending add-on payment link after its deadline', () => {
+    const pendingAddOn = registrationAddon({
+      isPaid: true,
+      maxPurchasableQuantity: 0,
+      pendingCheckoutExpired: true,
+      pendingCheckoutExpiresAt: '2030-05-01T12:00:00.000Z',
+      pendingCheckoutUrl: 'https://checkout.stripe.com/c/pay/cs_test_expired',
+      pendingOperationKey: 'expired-operation',
+      pendingQuantity: 2,
+      purchaseAvailable: false,
+      purchaseBlockedReason: 'paymentPending',
+      purchaseStatus: 'paymentPending',
+    });
+    const fixture = render(
+      registrationStatus({ registrationAddOns: [pendingAddOn] }),
+    );
+    const element: HTMLElement = fixture.nativeElement;
+    expect(normalizeText(fixture)).toContain('The payment window has ended');
+    expect(normalizeText(fixture)).toContain(
+      'These items are not on your ticket. Contact an organizer before trying to buy them again.',
+    );
+    expect(
+      element.querySelector('a[href^="https://checkout.stripe.com"]'),
+    ).toBeNull();
+    expect(findButton(fixture, 'Try again')).toBeUndefined();
+    expect(purchaseAddon).not.toHaveBeenCalled();
+  });
+
   it('shows canonical pending checkout without a stale local error or duplicate link', async () => {
     purchaseAddon.mockRejectedValueOnce(new Error('Response was lost'));
     const availablePaidAddOn = registrationAddon({
@@ -1100,6 +1221,15 @@ describe('EventActiveRegistrationComponent add-on purchase', () => {
       'a[href^="https://checkout.stripe.com"]',
     );
 
+    expect(normalizeText(fixture)).toContain(
+      'before transferring this ticket.',
+    );
+    expect(normalizeText(fixture)).toContain(
+      'wait for that payment page to expire',
+    );
+    expect(normalizeText(fixture)).not.toContain(
+      'This add-on payment needs review.',
+    );
     expect(checkoutLink?.href).toBe(
       'https://checkout.stripe.com/c/pay/cs_test_pending',
     );
@@ -1137,7 +1267,7 @@ describe('EventActiveRegistrationComponent add-on purchase', () => {
     ).toBeNull();
   });
 
-  it('distinguishes an invalid registration checkout URL from a link still being prepared', () => {
+  it('distinguishes an invalid registration checkout URL from an unbound payment claim', () => {
     const fixture = render(
       registrationStatus({
         checkoutUrl: 'https://checkout.stripe.com.evil.example/c/pay/cs_test',
@@ -1151,10 +1281,10 @@ describe('EventActiveRegistrationComponent add-on purchase', () => {
     const root: HTMLElement = fixture.nativeElement;
 
     expect(root.querySelector('[role="alert"]')?.textContent).toContain(
-      'invalid registration payment link',
+      'invalid payment link',
     );
     expect(normalizeText(fixture)).not.toContain(
-      'Your payment link is being prepared.',
+      'Contact an organizer to review this payment.',
     );
     expect(
       root.querySelector('a[href*="checkout.stripe.com.evil"]'),

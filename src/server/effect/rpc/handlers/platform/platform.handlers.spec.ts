@@ -818,9 +818,10 @@ describe('platform event, template, and registration handlers', () => {
       const defect = Cause.squash(exit.cause);
       expect(defect).toBeInstanceOf(EventRegistrationInternalError);
       expect(defect).toMatchObject({
-        cause: expect.any(Error),
-        message: 'Invalid E2E_NOW_ISO server clock value',
+        message:
+          'The current time could not be checked. No sign-up was changed. Try again.',
       });
+      expect(defect).not.toHaveProperty('cause');
     }),
   );
 

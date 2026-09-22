@@ -757,6 +757,7 @@ export const platformTenantAdminHandlers = {
           database.transaction((transaction) =>
             Effect.gen(function* () {
               yield* lockTenantRoleGraph(transaction, input.targetTenantId);
+              // Registration eligibility locks the organization before membership.
               yield* lockTargetTenant(transaction, input.targetTenantId);
               const memberships = yield* transaction
                 .select({ id: usersToTenants.id })

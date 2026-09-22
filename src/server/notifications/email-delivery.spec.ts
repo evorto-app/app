@@ -14,11 +14,13 @@ import { Context, Effect, Exit, Layer } from 'effect';
 
 import { reportPollingWorkerFailure } from '../runtime/polling-worker-supervision';
 import {
+  enqueueManualApprovalEmail,
   enqueueReceiptReviewedEmail,
   enqueueRegistrationCancelledEmail,
   enqueueRegistrationConfirmedEmail,
   enqueueRegistrationTransferredEmail,
   enqueueWaitlistSpotAvailableEmail,
+  InvalidTenantEmailTimezoneError,
   processDueEmailOutbox,
 } from './email-delivery';
 const outboxSql = {
@@ -471,9 +473,11 @@ describe('email delivery', () => {
           to: 'alice@example.com',
         });
         yield* enqueueRegistrationCancelledEmail(database, {
+          cancellationKind: 'ticket',
           cancelledBy: 'organizer',
           eventTitle,
           eventUrl,
+          refundOutcome: 'notStarted',
           registrationId: 'registration-1',
           tenant,
           to: 'alice@example.com',
@@ -564,7 +568,9 @@ describe('email delivery', () => {
         expect(insertedValues[0]?.text).toContain(
           'The ticket owner must sign in to Evorto',
         );
-        expect(insertedValues[3]?.text).toContain('does not reserve a spot');
+        expect(insertedValues[3]?.text).toContain(
+          'We have not held a place for you',
+        );
       }),
   );
 
@@ -587,14 +593,20 @@ describe('email delivery', () => {
         };
 
         yield* enqueueRegistrationCancelledEmail(database, {
+          cancellationKind: 'ticket',
+          refundOutcome: 'notStarted',
           ...baseInput,
           cancelledBy: 'participant',
         });
         yield* enqueueRegistrationCancelledEmail(database, {
+          cancellationKind: 'ticket',
+          refundOutcome: 'notStarted',
           ...baseInput,
           cancelledBy: 'organizer',
         });
         yield* enqueueRegistrationCancelledEmail(database, {
+          cancellationKind: 'ticket',
+          refundOutcome: 'notStarted',
           ...baseInput,
           cancelledBy: 'platformAdministrator',
         });
@@ -605,13 +617,13 @@ describe('email delivery', () => {
           'registration-cancelled/tenant-1/registration-1',
         ]);
         expect(String(insertedValues[0]?.text)).toContain(
-          'You cancelled your registration for City tour.',
+          'You cancelled your ticket for City tour.',
         );
         expect(String(insertedValues[1]?.text)).toContain(
-          'An organizer cancelled your registration for City tour.',
+          'An organizer cancelled your ticket for City tour.',
         );
         expect(String(insertedValues[2]?.text)).toContain(
-          'A platform administrator cancelled your registration for City tour.',
+          'Evorto cancelled your ticket for City tour.',
         );
         expect(String(insertedValues[2]?.text)).not.toContain(
           'An organizer cancelled',
@@ -619,6 +631,67 @@ describe('email delivery', () => {
       }),
   );
 
+  it.effect(
+    'formats a paid manual approval deadline in the authoritative tenant timezone',
+    () =>
+      Effect.gen(function* () {
+        const { database, insertedValues } = yield* createEnqueueDatabase();
+        yield* enqueueManualApprovalEmail(database, {
+          approvalKey: 'transaction-1',
+          eventTitle: 'City tour',
+          eventUrl: 'https://section.example.org/events/event-1',
+          paymentDeadline: new Date('2026-07-15T14:30:00.000Z'),
+          registrationId: 'registration-1',
+          tenant: {
+            emailSenderEmail: 'board@example.org',
+            emailSenderName: 'Example Section',
+            id: 'tenant-1',
+            name: 'Example Section',
+            timezone: 'Australia/Brisbane',
+          },
+          to: 'alice@example.com',
+        });
+        expect(insertedValues).toHaveLength(1);
+        expect(insertedValues[0]?.subject).toBe(
+          'Sign-up approved: payment required',
+        );
+        expect(insertedValues[0]?.text).toContain(
+          '16.07.2026, 00:30 (local time for Example Section)',
+        );
+        expect(insertedValues[0]?.text).not.toContain(
+          '2026-07-15T14:30:00.000Z',
+        );
+      }),
+  );
+  it.effect(
+    'fails with a typed error when a persisted tenant timezone is invalid',
+    () =>
+      Effect.gen(function* () {
+        const { database, insertedValues } = yield* createEnqueueDatabase();
+        const error = yield* enqueueManualApprovalEmail(database, {
+          approvalKey: 'transaction-1',
+          eventTitle: 'City tour',
+          eventUrl: 'https://section.example.org/events/event-1',
+          paymentDeadline: new Date('2026-07-15T14:30:00.000Z'),
+          registrationId: 'registration-1',
+          tenant: {
+            emailSenderEmail: 'board@example.org',
+            emailSenderName: 'Example Section',
+            id: 'tenant-1',
+            name: 'Example Section',
+            timezone: 'Invalid/Timezone',
+          },
+          to: 'alice@example.com',
+        }).pipe(Effect.flip);
+        expect(error).toBeInstanceOf(InvalidTenantEmailTimezoneError);
+        expect(error).toMatchObject({
+          _tag: 'InvalidTenantEmailTimezoneError',
+          tenantId: 'tenant-1',
+          timezone: 'Invalid/Timezone',
+        });
+        expect(insertedValues).toEqual([]);
+      }),
+  );
   it.effect('sends a newly queued outbox row once with its reply-to', () =>
     Effect.gen(function* () {
       const deliverMock = vi.fn(() =>

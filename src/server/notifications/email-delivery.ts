@@ -11,9 +11,14 @@ import {
 import { asc, sql } from 'drizzle-orm';
 import { Effect, Schedule, Schema } from 'effect';
 
-import type { Tenant } from '../../types/custom/tenant';
+import type { RegistrationCancellationKind } from '../../shared/registration-cancellation';
 import type { RegistrationCancellationActor } from './email-templates';
 
+import {
+  isIanaTimezone,
+  type Tenant,
+  TENANT_FORMATTING_LOCALE,
+} from '../../types/custom/tenant';
 import { reportPollingWorkerFailure } from '../runtime/polling-worker-supervision';
 import {
   emailOutboxAbandonedSendingPredicate,
@@ -25,6 +30,7 @@ import {
 import {
   ManualApprovalEmail,
   ReceiptReviewedEmail,
+  registrationCancellationEmailTitle,
   RegistrationCancelledEmail,
   RegistrationConfirmedEmail,
   RegistrationTransferredEmail,
@@ -37,7 +43,7 @@ export interface EnqueueManualApprovalEmailInput {
   eventUrl: string;
   paymentDeadline: Date | null;
   registrationId: string;
-  tenant: TenantEmailContext;
+  tenant: ManualApprovalTenantEmailContext;
   to: string;
 }
 
@@ -51,9 +57,11 @@ export interface EnqueueReceiptReviewedEmailInput {
 }
 
 export interface EnqueueRegistrationCancelledEmailInput {
+  cancellationKind: RegistrationCancellationKind;
   cancelledBy: RegistrationCancellationActor;
   eventTitle: string;
   eventUrl: string;
+  refundOutcome: 'notStarted' | 'pending';
   registrationId: string;
   tenant: TenantEmailContext;
   to: string;
@@ -94,6 +102,9 @@ interface EmailOutboxClaim {
 
 type EmailOutboxRow = typeof emailOutboxTable.$inferSelect;
 
+type ManualApprovalTenantEmailContext = Pick<Tenant, 'timezone'> &
+  TenantEmailContext;
+
 type TenantEmailContext = Pick<
   Tenant,
   'emailSenderEmail' | 'emailSenderName' | 'id' | 'name'
@@ -127,6 +138,38 @@ class EmailTemplateRenderError extends Schema.TaggedErrorClass<EmailTemplateRend
     message: Schema.String,
   },
 ) {}
+
+export class InvalidTenantEmailTimezoneError extends Schema.TaggedErrorClass<InvalidTenantEmailTimezoneError>()(
+  'InvalidTenantEmailTimezoneError',
+  {
+    message: Schema.String,
+    tenantId: Schema.NonEmptyString,
+    timezone: Schema.String,
+  },
+) {}
+
+const formatManualApprovalPaymentDeadline = Effect.fn(
+  'formatManualApprovalPaymentDeadline',
+)(function* (paymentDeadline: Date, tenant: ManualApprovalTenantEmailContext) {
+  if (!isIanaTimezone(tenant.timezone)) {
+    return yield* new InvalidTenantEmailTimezoneError({
+      message: 'Tenant timezone is invalid for manual approval email',
+      tenantId: tenant.id,
+      timezone: tenant.timezone,
+    });
+  }
+
+  const formattedDeadline = new Intl.DateTimeFormat(TENANT_FORMATTING_LOCALE, {
+    day: '2-digit',
+    hour: '2-digit',
+    hourCycle: 'h23',
+    minute: '2-digit',
+    month: '2-digit',
+    timeZone: tenant.timezone,
+    year: 'numeric',
+  }).format(paymentDeadline);
+  return `${formattedDeadline} (local time for ${tenant.name})`;
+});
 
 const tenantReplyTo = (
   tenant: Pick<Tenant, 'emailSenderEmail' | 'emailSenderName' | 'name'>,
@@ -229,20 +272,29 @@ export const enqueueManualApprovalEmail = (
   database: Pick<DatabaseClient, 'insert'>,
   input: EnqueueManualApprovalEmailInput,
 ) =>
-  enqueueTenantEmail(database, {
-    idempotencyKey: `manual-approval/${input.tenant.id}/${input.registrationId}/${input.approvalKey}`,
-    kind: 'manualApproval',
-    subject: input.paymentDeadline
-      ? 'Registration approved: payment required'
-      : 'Registration approved',
-    template: ManualApprovalEmail({
-      eventTitle: input.eventTitle,
-      eventUrl: input.eventUrl,
-      paymentDeadline: input.paymentDeadline,
-      tenantName: input.tenant.name,
-    }),
-    tenant: input.tenant,
-    to: input.to,
+  Effect.gen(function* () {
+    const paymentDeadlineText = input.paymentDeadline
+      ? yield* formatManualApprovalPaymentDeadline(
+          input.paymentDeadline,
+          input.tenant,
+        )
+      : null;
+
+    return yield* enqueueTenantEmail(database, {
+      idempotencyKey: `manual-approval/${input.tenant.id}/${input.registrationId}/${input.approvalKey}`,
+      kind: 'manualApproval',
+      subject: input.paymentDeadline
+        ? 'Sign-up approved: payment required'
+        : 'Sign-up approved',
+      template: ManualApprovalEmail({
+        eventTitle: input.eventTitle,
+        eventUrl: input.eventUrl,
+        paymentDeadlineText,
+        tenantName: input.tenant.name,
+      }),
+      tenant: input.tenant,
+      to: input.to,
+    });
   });
 
 export const enqueueRegistrationConfirmedEmail = (
@@ -252,7 +304,7 @@ export const enqueueRegistrationConfirmedEmail = (
   enqueueTenantEmail(database, {
     idempotencyKey: `registration-confirmed/${input.tenant.id}/${input.registrationId}`,
     kind: 'registrationConfirmed',
-    subject: `Registration confirmed: ${input.eventTitle}`,
+    subject: `Ticket confirmed: ${input.eventTitle}`,
     template: RegistrationConfirmedEmail({
       eventTitle: input.eventTitle,
       tenantName: input.tenant.name,
@@ -269,7 +321,7 @@ export const enqueueWaitlistSpotAvailableEmail = (
   enqueueTenantEmail(database, {
     idempotencyKey: `waitlist-spot-available/${input.tenant.id}/${input.waitlistRegistrationId}/${input.availabilityKey}`,
     kind: 'waitlistSpotAvailable',
-    subject: `A spot may be available: ${input.eventTitle}`,
+    subject: `A place may be available: ${input.eventTitle}`,
     template: WaitlistSpotAvailableEmail({
       eventTitle: input.eventTitle,
       eventUrl: input.eventUrl,
@@ -286,11 +338,13 @@ export const enqueueRegistrationCancelledEmail = (
   enqueueTenantEmail(database, {
     idempotencyKey: `registration-cancelled/${input.tenant.id}/${input.registrationId}`,
     kind: 'registrationCancelled',
-    subject: `Registration cancelled: ${input.eventTitle}`,
+    subject: `${registrationCancellationEmailTitle(input.cancellationKind)}: ${input.eventTitle}`,
     template: RegistrationCancelledEmail({
+      cancellationKind: input.cancellationKind,
       cancelledBy: input.cancelledBy,
       eventTitle: input.eventTitle,
       eventUrl: input.eventUrl,
+      refundOutcome: input.refundOutcome,
       tenantName: input.tenant.name,
     }),
     tenant: input.tenant,

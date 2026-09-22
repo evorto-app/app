@@ -35,7 +35,6 @@ import {
 } from 'drizzle-orm';
 import { Effect } from 'effect';
 
-import { isUserEligibleForRegistrationOption } from '../effect/rpc/handlers/events/event-registration.service';
 import { enqueueRegistrationTransferredEmail } from '../notifications/email-delivery';
 import { createRegistrationRefundClaim } from '../payments/registration-refund';
 import {
@@ -43,6 +42,7 @@ import {
   establishRegistrationAcquisition,
   settleAcquisitionComponentTerms,
 } from './registration-acquisition-write';
+import { isUserEligibleForRegistrationOption } from './registration-eligibility';
 import { resolveRegistrationTransferPriorRefunds } from './registration-transfer-prior-refunds';
 import { refundPlansExactlyCoverCurrentAcquisitionPayments } from './registration-transfer-refund-plan-coverage';
 

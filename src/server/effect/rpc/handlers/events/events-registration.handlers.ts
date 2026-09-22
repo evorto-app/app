@@ -6,6 +6,7 @@ import {
   includesPermission,
   type Permission,
 } from '@shared/permissions/permissions';
+import { registrationCancellationKind } from '@shared/registration-cancellation';
 import { registrationSpotCount } from '@shared/registration-spots';
 import {
   activeRegistrationTransferStatuses,
@@ -96,6 +97,7 @@ import {
   RegistrationAcquisitionWriteError,
   settleAcquisitionComponentTerms,
 } from '../../../../registrations/registration-acquisition-write';
+import { readRegistrationPriceSnapshot } from '../../../../registrations/registration-price-snapshot';
 import {
   ensureRegistrationMutationHasNoActiveTransfer,
   RegistrationTransferMutationConflict,
@@ -110,10 +112,37 @@ import { resolveRegistrationTransferRefundLifecycle } from '../../../../registra
 import { resolveRegistrationTransferDeadline } from '../../../../registrations/registration-transfer-state';
 import { StripeClient } from '../../../../stripe-client';
 import { tenantOutboundUrl } from '../../../../tenant-outbound-url';
+import { safeServerErrorSummary } from '../../../../utils/safe-server-error-summary';
 import { RpcAccess } from '../shared/rpc-access.service';
 import { isActiveRegistrationUniqueViolation } from './active-registration-constraint';
 import { EventRegistrationService } from './event-registration.service';
 import { databaseEffect } from './events.shared';
+
+const failRegistrationInternalError = (
+  operation: string,
+  message: string,
+  error: unknown,
+) =>
+  Effect.logError(message).pipe(
+    Effect.annotateLogs(safeServerErrorSummary(operation, error)),
+    Effect.andThen(
+      Effect.fail(new EventRegistrationInternalError({ message })),
+    ),
+  );
+
+const mapRegistrationInternalError =
+  (operation: string, message: string) =>
+  <A, E, R>(
+    effect: Effect.Effect<A, E, R>,
+  ): Effect.Effect<A, EventRegistrationInternalError, R> =>
+    effect.pipe(
+      Effect.tapError((error) =>
+        Effect.logError(message).pipe(
+          Effect.annotateLogs(safeServerErrorSummary(operation, error)),
+        ),
+      ),
+      Effect.mapError(() => new EventRegistrationInternalError({ message })),
+    );
 
 const isRegistrationScanRpcError = (
   error: unknown,
@@ -196,6 +225,11 @@ const registrationHandlerNow = serverClockConfig.pipe(
       try: () => getServerNow(Option.getOrUndefined(E2E_NOW_ISO)).toJSDate(),
     }),
   ),
+);
+
+// Stripe payment deadlines use the real clock, independent of the pinned event clock.
+const registrationPaymentDeadlineNow = Effect.sync(() =>
+  getServerNow(undefined).toJSDate(),
 );
 
 const registrationNotificationEventUrl = (tenant: Tenant, eventId: string) =>
@@ -358,6 +392,11 @@ export const registrationAddonPurchaseAvailability = (input: {
   };
 };
 
+export const registrationAddonCheckoutExpired = (
+  expiresAt: Date | null | undefined,
+  now: Date,
+): boolean => expiresAt !== null && expiresAt !== undefined && expiresAt <= now;
+
 export type RegistrationTransferBlockedReason =
   | 'activeTransfer'
   | 'addonPaymentPending'
@@ -506,7 +545,7 @@ export const mapRegistrationAcquisitionGuardError = Effect.fn(
 const registrationCancellationStateChangedConflict = () =>
   new EventRegistrationConflictError({
     message:
-      'Registration status or payment state changed after confirmation, so nothing was cancelled, no refund was created, and no spots or inventory were released. Refresh, review the current registration, then confirm again.',
+      'The sign-up or payment changed after you confirmed. Nothing was cancelled, no refund was started, and no places or add-ons were released. Review the current sign-up, then confirm again.',
   });
 
 const registrationCancellationStateChanged = ({
@@ -893,34 +932,10 @@ export const cancelRegistrationForTenant = Effect.fn(
     return yield* Effect.fail(
       new EventRegistrationConflictError({
         message:
-          'The participant cancellation deadline has passed, so this request did not cancel the registration, create a refund, or release its spots.',
+          'The attendee cancellation deadline has passed, so this sign-up was not cancelled, no refund was started, and no places were released.',
       }),
     );
   }
-  const cancellationRecipient = registration.user
-    ? registrationNotificationEmail(registration.user)
-    : null;
-  const waitlistRecipients =
-    registration.status === 'WAITLIST'
-      ? []
-      : (registration.registrationOption?.eventRegistrations ?? []).flatMap(
-          (waitlistRegistration) =>
-            waitlistRegistration.user
-              ? [
-                  {
-                    registrationId: waitlistRegistration.id,
-                    to: registrationNotificationEmail(
-                      waitlistRegistration.user,
-                    ),
-                  },
-                ]
-              : [],
-        );
-  const notificationEventUrl =
-    (cancellationRecipient || waitlistRecipients.length > 0) &&
-    registration.event.title
-      ? yield* registrationNotificationEventUrl(tenant, registration.eventId)
-      : null;
   const preflightPendingStripeTransaction = registration.transactions.find(
     (currentTransaction) =>
       currentTransaction.status === 'pending' &&
@@ -934,7 +949,7 @@ export const cancelRegistrationForTenant = Effect.fn(
     return yield* Effect.fail(
       new EventRegistrationConflictError({
         message:
-          'Payment setup is still being reconciled, so this request did not cancel the registration or release its reserved spots. Retry payment setup, then retry cancellation.',
+          'Payment setup needs review, so this request did not cancel the registration or release its reserved place. Keep this sign-up and contact the event organizer or Evorto support before starting another payment.',
       }),
     );
   }
@@ -949,6 +964,43 @@ export const cancelRegistrationForTenant = Effect.fn(
       }),
     );
   }
+
+  if (!registration.user) {
+    return yield* Effect.fail(
+      new EventRegistrationInternalError({
+        message:
+          'The ticket owner could not be verified. Nothing was cancelled, no refund was started, and no places or add-ons were released. Reopen the ticket and try again.',
+      }),
+    );
+  }
+  const cancellationRecipient = registrationNotificationEmail(
+    registration.user,
+  );
+  const waitlistRecipients: {
+    registrationId: string;
+    to: string;
+  }[] = [];
+  if (registration.status !== 'WAITLIST') {
+    for (const waitlistRegistration of registration.registrationOption
+      ?.eventRegistrations ?? []) {
+      if (!waitlistRegistration.user) {
+        return yield* Effect.fail(
+          new EventRegistrationInternalError({
+            message:
+              'A person on the waitlist could not be verified. Nothing was cancelled, no refund was started, and no places or add-ons were released. Reopen the ticket and try again.',
+          }),
+        );
+      }
+      waitlistRecipients.push({
+        registrationId: waitlistRegistration.id,
+        to: registrationNotificationEmail(waitlistRegistration.user),
+      });
+    }
+  }
+  const notificationEventUrl = yield* registrationNotificationEventUrl(
+    tenant,
+    registration.eventId,
+  );
 
   const cancellationOutcome = yield* Database.use((database) =>
     database
@@ -1158,14 +1210,15 @@ export const cancelRegistrationForTenant = Effect.fn(
               return yield* Effect.fail(
                 new EventRegistrationConflictError({
                   message:
-                    'Payment setup changed while cancellation was starting, so this request did not cancel the registration or release its reserved spots. Refresh, then retry cancellation.',
+                    'The payment setup changed while cancellation was starting. Nothing was cancelled and no places were released. Review the current sign-up, then try again.',
                 }),
               );
             }
             if (!pendingStripeTransaction.stripeAccountId) {
               return yield* Effect.fail(
                 new EventRegistrationInternalError({
-                  message: 'Stripe account not found',
+                  message:
+                    'The payment account could not be found. Nothing was cancelled.',
                 }),
               );
             }
@@ -1173,7 +1226,7 @@ export const cancelRegistrationForTenant = Effect.fn(
               return yield* Effect.fail(
                 new EventRegistrationConflictError({
                   message:
-                    'Payment setup is still being reconciled, so this request did not cancel the registration or release its reserved spots. Retry payment setup, then retry cancellation.',
+                    'Payment setup needs review, so this request did not cancel the registration or release its reserved place. Keep this sign-up and contact the event organizer or Evorto support before starting another payment.',
                 }),
               );
             }
@@ -1189,7 +1242,7 @@ export const cancelRegistrationForTenant = Effect.fn(
                 return yield* Effect.fail(
                   new EventRegistrationConflictError({
                     message:
-                      'The pending Checkout changed while cancellation was starting, so this request did not cancel the registration or release its reserved spots. Refresh, then retry cancellation.',
+                      'The pending payment changed while cancellation was starting. Nothing was cancelled and no places were released. Review the current sign-up, then try again.',
                   }),
                 );
               }
@@ -1453,7 +1506,8 @@ export const cancelRegistrationForTenant = Effect.fn(
           if (!lockedTenant) {
             return yield* Effect.fail(
               new EventRegistrationInternalError({
-                message: 'Registration tenant missing',
+                message:
+                  'The organization for this sign-up could not be found. No changes were made.',
               }),
             );
           }
@@ -1504,7 +1558,7 @@ export const cancelRegistrationForTenant = Effect.fn(
             return yield* Effect.fail(
               new EventRegistrationConflictError({
                 message:
-                  'The participant cancellation deadline has passed, so this request did not cancel the registration, create a refund, or release its spots.',
+                  'The attendee cancellation deadline has passed, so this sign-up was not cancelled, no refund was started, and no places were released.',
               }),
             );
           }
@@ -1543,7 +1597,10 @@ export const cancelRegistrationForTenant = Effect.fn(
                     subject: 'platform-registration-cancellation',
                   },
               eventId: lockedRegistration.eventId,
-              reason: `Registration cancelled by ${cancelledBy}`,
+              reason:
+                cancelledBy === 'participant'
+                  ? 'Sign-up ended by attendee'
+                  : 'Sign-up ended by organizer',
               refundRequested: lockedRegistration.status === 'CONFIRMED',
               registrationId: lockedRegistration.id,
               tenantId: tenant.id,
@@ -1919,25 +1976,22 @@ export const cancelRegistrationForTenant = Effect.fn(
             }
           }
 
-          if (
-            cancellationRecipient &&
-            notificationEventUrl &&
-            registration.event.title
-          ) {
-            yield* enqueueRegistrationCancelledEmail(tx, {
-              cancelledBy,
-              eventTitle: registration.event.title,
-              eventUrl: notificationEventUrl,
-              registrationId: lockedRegistration.id,
-              tenant,
-              to: cancellationRecipient,
-            });
-          }
+          yield* enqueueRegistrationCancelledEmail(tx, {
+            cancellationKind: registrationCancellationKind({
+              paymentPending,
+              status: lockedRegistration.status,
+            }),
+            cancelledBy,
+            eventTitle: registration.event.title,
+            eventUrl: notificationEventUrl,
+            refundOutcome: refundTransactionId ? 'pending' : 'notStarted',
+            registrationId: lockedRegistration.id,
+            tenant,
+            to: cancellationRecipient,
+          });
           if (
             releasesReservedResources &&
-            lockedRegistration.status !== 'WAITLIST' &&
-            notificationEventUrl &&
-            registration.event.title
+            lockedRegistration.status !== 'WAITLIST'
           ) {
             for (const waitlistRecipient of waitlistRecipients) {
               yield* enqueueWaitlistSpotAvailableEmail(tx, {
@@ -2030,11 +2084,10 @@ export const cancelRegistrationForTenant = Effect.fn(
           error instanceof EventRegistrationInternalError ||
           error instanceof EventRegistrationNotFoundError
             ? Effect.fail(error)
-            : Effect.fail(
-                new EventRegistrationInternalError({
-                  cause: error,
-                  message: 'Internal server error',
-                }),
+            : failRegistrationInternalError(
+                'eventRegistration.cancel.persist',
+                'The sign-up could not be ended. Nothing was changed. Try again.',
+                error,
               ),
         ),
       ),
@@ -2050,12 +2103,7 @@ export const cancelRegistrationForTenant = Effect.fn(
     // so no database connection or row lock is held while Stripe responds.
     const expirationResult = yield* Effect.result(
       Effect.tryPromise({
-        catch: (cause) =>
-          new EventRegistrationInternalError({
-            cause,
-            message:
-              'Checkout cancellation could not be confirmed, so this request did not cancel the registration or release its reserved spots. Refresh before retrying.',
-          }),
+        catch: (cause) => cause,
         try: () =>
           Promise.race([
             stripe.checkout.sessions.expire(
@@ -2072,19 +2120,16 @@ export const cancelRegistrationForTenant = Effect.fn(
               );
             }),
           ]),
-      }),
+      }).pipe(
+        mapRegistrationInternalError(
+          'eventRegistration.cancel.checkout.expire',
+          'The pending sign-up could not be cancelled. Nothing was changed and no places were released. Reopen it and review the current payment before selecting Cancel sign-up again.',
+        ),
+      ),
     );
     const confirmedExpired = Result.isFailure(expirationResult)
       ? yield* Effect.tryPromise({
-          catch: (cause) =>
-            new EventRegistrationInternalError({
-              cause: {
-                expiryFailure: expirationResult.failure,
-                retrievalFailure: cause,
-              },
-              message:
-                'Checkout cancellation could not be confirmed, so this request did not cancel the registration or release its reserved spots. Refresh before retrying.',
-            }),
+          catch: (cause) => cause,
           try: () =>
             Promise.race([
               stripe.checkout.sessions.retrieve(
@@ -2101,6 +2146,10 @@ export const cancelRegistrationForTenant = Effect.fn(
               }),
             ]),
         }).pipe(
+          mapRegistrationInternalError(
+            'eventRegistration.cancel.checkout.retrieve',
+            'The pending sign-up could not be cancelled. Nothing was changed and no places were released. Reopen it and review the current payment before selecting Cancel sign-up again.',
+          ),
           Effect.map(
             (session) =>
               session.id === stripeCheckoutSessionId &&
@@ -2113,7 +2162,7 @@ export const cancelRegistrationForTenant = Effect.fn(
       return yield* Effect.fail(
         new EventRegistrationInternalError({
           message:
-            'Stripe did not confirm Checkout cancellation, so this request did not cancel the registration or release its reserved spots. Refresh before retrying.',
+            'The pending payment could not be cancelled, so the sign-up and its reserved places were left unchanged. Review the sign-up before trying again.',
         }),
       );
     }
@@ -3573,6 +3622,7 @@ export const eventRegistrationHandlers = {
           id: tenant.id,
           name: tenant.name,
           stripeAccountId: tenant.stripeAccountId,
+          timezone: tenant.timezone,
         },
       });
     }).pipe(Effect.catch(mapRegistrationScanInternalError)),
@@ -4502,6 +4552,7 @@ export const eventRegistrationHandlers = {
         );
       }
       const now = yield* registrationHandlerNow.pipe(Effect.orDie);
+      const paymentDeadlineNow = yield* registrationPaymentDeadlineNow;
 
       const registrationSummaries = currentlyOwnedRegistrations.map(
         (registration) => {
@@ -4518,29 +4569,20 @@ export const eventRegistrationHandlers = {
             );
           }
 
-          const registrationTransaction = registration.transactions.find(
+          const paymentPending = registration.transactions.some(
             (transaction) =>
-              transaction.type === 'registration' &&
-              transaction.amount < registrationOption.price,
+              transaction.status === 'pending' &&
+              transaction.type === 'registration',
           );
-
-          const discountedPrice =
-            registration.appliedDiscountedPrice ??
-            registrationTransaction?.amount ??
-            undefined;
-          const appliedDiscountType =
-            registration.appliedDiscountType ??
-            (discountedPrice === undefined ? undefined : ('esnCard' as const));
-          const basePriceAtRegistration =
-            registration.basePriceAtRegistration ??
-            (discountedPrice === undefined
-              ? undefined
-              : registrationOption.price);
-          const discountAmount =
-            registration.discountAmount ??
-            (discountedPrice === undefined
-              ? undefined
-              : registrationOption.price - discountedPrice);
+          const priceSnapshot = readRegistrationPriceSnapshot({
+            appliedDiscountedPrice: registration.appliedDiscountedPrice,
+            appliedDiscountType: registration.appliedDiscountType,
+            basePriceAtRegistration: registration.basePriceAtRegistration,
+            discountAmount: registration.discountAmount,
+            paymentPending,
+            registrationId: registration.id,
+            status: registration.status,
+          });
 
           const activeTransfer =
             activeTransferByRegistrationId.get(registration.id) ?? null;
@@ -4627,6 +4669,10 @@ export const eventRegistrationHandlers = {
                 nextPurchaseUnitTaxAmount:
                   nextPurchaseUnitAmounts?.taxAmount ?? null,
                 optionalPurchaseQuantity: addOnOption.optionalPurchaseQuantity,
+                pendingCheckoutExpired: registrationAddonCheckoutExpired(
+                  matchingPendingOrder?.expiresAt,
+                  paymentDeadlineNow,
+                ),
                 pendingCheckoutExpiresAt:
                   matchingPendingOrder?.expiresAt?.toISOString() ?? null,
                 pendingCheckoutUrl:
@@ -4684,24 +4730,17 @@ export const eventRegistrationHandlers = {
                   ]
                 : [],
             ),
-            appliedDiscountedPrice: discountedPrice,
-            appliedDiscountType,
-            basePriceAtRegistration,
+            ...priceSnapshot,
             ...cancellationAvailability,
             checkoutUrl: registration.transactions.find(
               (transaction) =>
                 transaction.method === 'stripe' &&
                 transaction.type === 'registration',
             )?.stripeCheckoutUrl,
-            discountAmount,
             guestCount: registration.guestCount,
             id: registration.id,
             organizingRegistration: registrationOption.organizingRegistration,
-            paymentPending: registration.transactions.some(
-              (transaction) =>
-                transaction.status === 'pending' &&
-                transaction.type === 'registration',
-            ),
+            paymentPending,
             registeredDescription: registrationOption.registeredDescription,
             registrationAddOns,
             registrationOptionId: registration.registrationOptionId,
@@ -4732,10 +4771,7 @@ export const eventRegistrationHandlers = {
         answers,
         eventId,
         registrationOptionId,
-        tenant: {
-          id: tenant.id,
-          maxActiveRegistrationsPerUser: tenant.maxActiveRegistrationsPerUser,
-        },
+        tenant: { id: tenant.id },
         user: {
           id: user.id,
           roleIds: user.roleIds,
@@ -4839,11 +4875,15 @@ export const eventRegistrationHandlers = {
         tenant: {
           currency: tenant.currency,
           domain: tenant.domain,
+          emailSenderEmail: tenant.emailSenderEmail,
+          emailSenderName: tenant.emailSenderName,
           id: tenant.id,
           maxActiveRegistrationsPerUser: tenant.maxActiveRegistrationsPerUser,
+          name: tenant.name,
           stripeAccountId: tenant.stripeAccountId,
         },
         user: {
+          communicationEmail: user.communicationEmail,
           email: user.email,
           id: user.id,
           roleIds: user.roleIds,
@@ -4973,6 +5013,18 @@ export const eventRegistrationHandlers = {
         },
       };
     }).pipe(Effect.catch(mapRegistrationScanInternalError)),
+  'events.retryRegistrationCheckout': ({ registrationId }, _options) =>
+    Effect.gen(function* () {
+      yield* RpcAccess.ensureAuthenticated();
+      const { tenant } = yield* RpcAccess.current();
+      const user = yield* RpcAccess.requireUser();
+
+      return yield* EventRegistrationService.retryRegistrationCheckout({
+        registrationId,
+        tenantId: tenant.id,
+        userId: user.id,
+      });
+    }).pipe(Effect.catch(mapRegistrationMutationInternalError)),
   'events.transferEventRegistration': (
     { eventId, previewVersion, registrationId, targetUserId },
     _options,

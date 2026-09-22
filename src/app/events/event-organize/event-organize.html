@@ -170,9 +170,12 @@
                               <span
                                 class="bg-error-container text-on-error-container rounded px-2 py-1 text-xs"
                               >
-                                Payment setup needs retry
+                                Payment needs attention
                               </span>
-                            } @else if (user.manualApprovalAvailable) {
+                            } @else if (
+                              user.manualApprovalAvailable &&
+                              !user.paymentSetupRequired
+                            ) {
                               <span
                                 class="bg-tertiary-container text-on-tertiary-container rounded px-2 py-1 text-xs"
                               >
@@ -186,6 +189,14 @@
                               </span>
                             }
                           </div>
+                          @if (user.paymentSetupRequired) {
+                            <p class="body-small" role="status">
+                              Payment setup needs review. Keep this sign-up and
+                              contact Evorto support before starting another
+                              payment. Its reserved place stays held until the
+                              payment state is confirmed.
+                            </p>
+                          }
                           @if (user.addonPurchases.length > 0) {
                             <p class="body-small text-on-surface-variant">
                               Add-ons:
@@ -204,14 +215,16 @@
                         </div>
                         @if (
                           (registrationOption.canApproveRegistrations &&
-                            user.manualApprovalAvailable) ||
+                            user.manualApprovalAvailable &&
+                            !user.paymentSetupRequired) ||
                           registrationOption.canTransferRegistrations ||
                           registrationOption.canCancelRegistrations
                         ) {
                           <div class="flex flex-wrap gap-2">
                             @if (
                               registrationOption.canApproveRegistrations &&
-                              user.manualApprovalAvailable
+                              user.manualApprovalAvailable &&
+                              !user.paymentSetupRequired
                             ) {
                               <button
                                 mat-flat-button
@@ -221,6 +234,8 @@
                                   organizerRegistrationApprovalDisabled({
                                     manualApprovalAvailable:
                                       user.manualApprovalAvailable,
+                                    paymentSetupRequired:
+                                      user.paymentSetupRequired,
                                     mutationPending:
                                       approveRegistrationMutation.isPending() ||
                                       transferRegistrationMutation.isPending() ||
@@ -231,8 +246,6 @@
                                 {{
                                   organizerRegistrationApprovalLabel({
                                     approvalPending: approvalInFlight,
-                                    paymentSetupRequired:
-                                      user.paymentSetupRequired,
                                   })
                                 }}
                               </button>

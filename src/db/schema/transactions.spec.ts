@@ -7,6 +7,9 @@ import {
   refundOperationShapeCheckName,
   type RegistrationCheckoutSnapshot,
   registrationRefundOperationUniqueIndexName,
+  transactionCounterBoundsCheckName,
+  transactionLeaseShapeCheckName,
+  transactionPaymentOwnershipCheckName,
   transactions,
 } from './transactions';
 
@@ -34,6 +37,66 @@ describe('transaction schema', () => {
     ).toContain(
       '"transactions"."refund_operation_key" IS NOT NULL AND length(trim("transactions"."refund_operation_key")) BETWEEN 1 AND 100',
     );
+    expect(
+      new PgDialect().sqlToQuery(refundOperationShape.value).sql,
+    ).toContain(
+      '"transactions"."source_transaction_id" IS NOT NULL AND "transactions"."eventId" IS NOT NULL AND "transactions"."eventRegistrationId" IS NOT NULL',
+    );
+  });
+
+  it('requires complete event-payment ownership and exact automatic-refund provenance', () => {
+    const tableConfig = getTableConfig(transactions);
+    const ownershipCheck = tableConfig.checks.find(
+      (check) => check.name === transactionPaymentOwnershipCheckName,
+    );
+    const sourcePaymentForeignKey = tableConfig.foreignKeys.find(
+      (foreignKey) => foreignKey.getName() === 'transactions_source_payment_fk',
+    );
+
+    expect(ownershipCheck).toBeDefined();
+    if (!ownershipCheck) {
+      throw new Error('Expected transaction payment ownership check');
+    }
+    expect(new PgDialect().sqlToQuery(ownershipCheck.value).sql).toBe(
+      `"transactions"."type"::text NOT IN ('registration', 'addon')
+        OR ("transactions"."eventId" IS NOT NULL AND "transactions"."eventRegistrationId" IS NOT NULL)`,
+    );
+    expect(sourcePaymentForeignKey).toBeDefined();
+    expect(
+      sourcePaymentForeignKey?.reference().columns.map((column) => column.name),
+    ).toEqual([
+      'source_transaction_id',
+      'tenantId',
+      'eventId',
+      'eventRegistrationId',
+    ]);
+    expect(
+      sourcePaymentForeignKey
+        ?.reference()
+        .foreignColumns.map((column) => column.name),
+    ).toEqual(['id', 'tenantId', 'eventId', 'eventRegistrationId']);
+  });
+
+  it('rejects invalid retry counters and partial leases', () => {
+    const tableConfig = getTableConfig(transactions);
+    const counterBounds = tableConfig.checks.find(
+      (check) => check.name === transactionCounterBoundsCheckName,
+    );
+    const leaseShape = tableConfig.checks.find(
+      (check) => check.name === transactionLeaseShapeCheckName,
+    );
+
+    expect(counterBounds).toBeDefined();
+    expect(leaseShape).toBeDefined();
+    if (!counterBounds || !leaseShape) {
+      throw new Error('Expected transaction retry integrity checks');
+    }
+    expect(new PgDialect().sqlToQuery(counterBounds.value).sql).toContain(
+      '"transactions"."stripe_refund_attempts" <= "transactions"."stripe_refund_max_attempts"',
+    );
+    expect(new PgDialect().sqlToQuery(leaseShape.value).sql).toContain(
+      '("transactions"."stripe_refund_claim_lease_id" IS NULL) = ("transactions"."stripe_refund_claim_lease_expires_at" IS NULL)',
+    );
   });
 
   it('enforces one pending registration payment per registration', () => {
@@ -46,7 +109,10 @@ describe('transaction schema', () => {
     expect(pendingRegistrationIndex).toBeDefined();
     expect(pendingRegistrationIndex?.config.unique).toBe(true);
     expect(
-      pendingRegistrationIndex?.config.columns.map((column) => column.name),
+      pendingRegistrationIndex?.config.columns.map((column) => {
+        if (!('name' in column)) throw new Error('Expected an indexed column');
+        return column.name;
+      }),
     ).toEqual(['eventRegistrationId']);
 
     const predicate = pendingRegistrationIndex?.config.where;
@@ -75,13 +141,13 @@ describe('transaction schema', () => {
       expiresAt: 1_800_000_000,
       lineItems: [
         {
-          name: 'Registration fee for Welcome event',
+          name: 'Ticket for Welcome event',
           quantity: 1,
           taxRateId: 'txr_123',
           unitAmount: 1500,
         },
         {
-          name: 'Guest registration fee for Welcome event',
+          name: 'Guest ticket for Welcome event',
           quantity: 2,
           unitAmount: 1500,
         },
@@ -120,11 +186,12 @@ describe('transaction schema', () => {
     );
     expect(columns.has('stripe_checkout_reconcile_lease_id')).toBe(true);
     expect(columns.has('stripe_checkout_reconcile_next_at')).toBe(true);
-    expect(retryIndex?.config.columns.map((column) => column.name)).toEqual([
-      'type',
-      'status',
-      'stripe_checkout_reconcile_next_at',
-    ]);
+    expect(
+      retryIndex?.config.columns.map((column) => {
+        if (!('name' in column)) throw new Error('Expected an indexed column');
+        return column.name;
+      }),
+    ).toEqual(['type', 'status', 'stripe_checkout_reconcile_next_at']);
   });
 
   it('stores durable Stripe refund ownership and one source-operation relation', () => {
@@ -136,7 +203,10 @@ describe('transaction schema', () => {
 
     expect(refundOperationIndex?.config.unique).toBe(true);
     expect(
-      refundOperationIndex?.config.columns.map((column) => column.name),
+      refundOperationIndex?.config.columns.map((column) => {
+        if (!('name' in column)) throw new Error('Expected an indexed column');
+        return column.name;
+      }),
     ).toEqual(['tenantId', 'source_transaction_id', 'refund_operation_key']);
     const predicate = refundOperationIndex?.config.where;
     expect(predicate).toBeDefined();

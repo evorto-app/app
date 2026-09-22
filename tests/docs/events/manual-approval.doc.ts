@@ -37,11 +37,13 @@ const openEventFromNormalNavigation = async (
 const openOrganizerView = async ({
   browser,
   participantPage,
+  registerDatabaseCleanup,
   scenario,
   testClock,
 }: {
   browser: Browser;
   participantPage: Page;
+  registerDatabaseCleanup: (cleanup: () => Promise<void>) => void;
   scenario: ManualApprovalScenario;
   testClock: DateTime;
 }) => {
@@ -52,6 +54,7 @@ const openOrganizerView = async ({
     tenantDomain: scenario.tenant.domain,
     testClock,
   });
+  registerDatabaseCleanup(organizer.close);
   await openEventFromNormalNavigation(organizer.page, scenario);
   const organizeLink = organizer.page.getByRole('link', {
     name: 'Organize this event',
@@ -131,6 +134,7 @@ const approvalEmailsForRegistration = async (
 
 test.describe('Manual approval registrations', () => {
   test('Apply and receive free confirmation', async ({
+    registerDatabaseCleanup,
     browser,
     database,
     page,
@@ -142,12 +146,10 @@ test.describe('Manual approval registrations', () => {
       kind: 'free',
       seeded,
     });
-    let organizer:
-      Awaited<ReturnType<typeof openAuthenticatedTestPage>> | undefined;
+    registerDatabaseCleanup(scenario.cleanup);
 
-    try {
-      await testInfo.attach('markdown', {
-        body: `
+    await testInfo.attach('markdown', {
+      body: `
 {% callout type="note" title="Before you start" %}
 This guide uses two signed-in accounts in the same organization:
 - a **participant** whose organization role is eligible for the event option;
@@ -166,81 +168,81 @@ Manual approval is useful when organizers need to review each participant before
 2. Open the event you want to attend.
 3. Find the card labeled **Manual approval option**.
 `,
-      });
+    });
 
-      await page.goto('/');
-      const eventLink = page
-        .locator(`a[href="/events/${scenario.eventId}"]`)
-        .first();
-      await expect(eventLink).toBeVisible({ timeout: 20_000 });
-      await takeScreenshot(
-        testInfo,
-        eventLink,
-        page,
-        'Open the manual approval event from Events',
-      );
-      await eventLink.click();
-      await waitForRegistrationStatus(page);
+    await page.goto('/');
+    const eventLink = page
+      .locator(`a[href="/events/${scenario.eventId}"]`)
+      .first();
+    await expect(eventLink).toBeVisible({ timeout: 20_000 });
+    await takeScreenshot(
+      testInfo,
+      eventLink,
+      page,
+      'Open the manual approval event from Events',
+    );
+    await eventLink.click();
+    await waitForRegistrationStatus(page);
 
-      const applicationCard = page
-        .locator('app-event-registration-option')
-        .filter({ hasText: scenario.optionTitle });
-      await expect(
-        applicationCard.getByText('Manual approval option'),
-      ).toBeVisible();
-      await expect(
-        applicationCard.getByText(
-          'Applying does not charge you or confirm a spot. An organizer reviews the application first; if this option has a fee, payment starts only after approval.',
-        ),
-      ).toBeVisible();
-      await takeScreenshot(
-        testInfo,
-        applicationCard,
-        page,
-        'Review the manual approval choice before applying',
-      );
+    const applicationCard = page
+      .locator('app-event-registration-option')
+      .filter({ hasText: scenario.optionTitle });
+    await expect(
+      applicationCard.getByText('Manual approval option'),
+    ).toBeVisible();
+    await expect(
+      applicationCard.getByText(
+        'Applying does not charge you or confirm a spot. An organizer reviews the application first; if this option has a fee, payment starts only after approval.',
+      ),
+    ).toBeVisible();
+    await takeScreenshot(
+      testInfo,
+      applicationCard,
+      page,
+      'Review the manual approval choice before applying',
+    );
 
-      await testInfo.attach('markdown', {
-        body: `
+    await testInfo.attach('markdown', {
+      body: `
 ## Apply for review
 
 Select **Apply for approval** only after reviewing the option. The application is saved immediately, but no capacity is consumed and no payment is started. You may withdraw it from the event page while it is still pending.
 `,
-      });
-      await applyForApproval(page, scenario);
-      await expect(
-        page.getByRole('button', { name: 'Apply for approval' }),
-      ).toHaveCount(0);
-      await expect(page.getByRole('link', { name: 'Pay now' })).toHaveCount(0);
-      await expect(
-        page.getByRole('img', { name: 'QR code for the registration' }),
-      ).toHaveCount(0);
-      await takeScreenshot(
-        testInfo,
-        page.locator('app-event-active-registration'),
-        page,
-        'Application awaiting organizer approval',
-      );
+    });
+    await applyForApproval(page, scenario);
+    await expect(
+      page.getByRole('button', { name: 'Apply for approval' }),
+    ).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'Pay now' })).toHaveCount(0);
+    await expect(
+      page.getByRole('img', { name: 'QR code for the registration' }),
+    ).toHaveCount(0);
+    await takeScreenshot(
+      testInfo,
+      page.locator('app-event-active-registration'),
+      page,
+      'Application awaiting organizer approval',
+    );
 
-      const registration = await requireParticipantRegistration(
-        database,
-        scenario,
-      );
-      expect(registration.status).toBe('PENDING');
-      expect(
-        await database.query.transactions.findMany({
-          where: { eventRegistrationId: registration.id },
-        }),
-      ).toHaveLength(0);
-      expect(
-        await database.query.eventRegistrationOptions.findFirst({
-          columns: { confirmedSpots: true, reservedSpots: true },
-          where: { id: scenario.optionId },
-        }),
-      ).toEqual({ confirmedSpots: 0, reservedSpots: 0 });
+    const registration = await requireParticipantRegistration(
+      database,
+      scenario,
+    );
+    expect(registration.status).toBe('PENDING');
+    expect(
+      await database.query.transactions.findMany({
+        where: { eventRegistrationId: registration.id },
+      }),
+    ).toHaveLength(0);
+    expect(
+      await database.query.eventRegistrationOptions.findFirst({
+        columns: { confirmedSpots: true, reservedSpots: true },
+        where: { id: scenario.optionId },
+      }),
+    ).toEqual({ confirmedSpots: 0, reservedSpots: 0 });
 
-      await testInfo.attach('markdown', {
-        body: `
+    await testInfo.attach('markdown', {
+      body: `
 ## Approve the application as an organizer
 
 1. Sign in with the event-manager or organizer account.
@@ -251,104 +253,100 @@ Select **Apply for approval** only after reviewing the option. The application i
 
 For a free option, this decision immediately confirms one spot. Evorto also queues a single approval email to the participant's notification address.
 `,
-      });
-      organizer = await openOrganizerView({
-        browser,
-        participantPage: page,
-        scenario,
-        testClock,
-      });
-      await expect(
-        organizer.page.getByText(
-          `${scenario.participant.firstName} ${scenario.participant.lastName}`,
-          { exact: true },
-        ),
-      ).toBeVisible();
-      await expect(organizer.page.getByText('Awaiting approval')).toBeVisible();
-      const approveButton = organizer.page.getByRole('button', {
-        name: 'Approve application',
-      });
-      await expect(approveButton).not.toHaveAttribute('jsaction', /click/, {
-        timeout: 20_000,
-      });
-      await takeScreenshot(
-        testInfo,
-        [organizer.page.getByText('Awaiting approval'), approveButton],
-        organizer.page,
-        'Organizer reviews the pending application',
-      );
-      await approveButton.click();
-      await expect(
-        organizer.page.getByText('Registration confirmed'),
-      ).toBeVisible({ timeout: 20_000 });
-      await expect(approveButton).toHaveCount(0);
+    });
+    const organizer = await openOrganizerView({
+      registerDatabaseCleanup,
+      browser,
+      participantPage: page,
+      scenario,
+      testClock,
+    });
+    await expect(
+      organizer.page.getByText(
+        `${scenario.participant.firstName} ${scenario.participant.lastName}`,
+        { exact: true },
+      ),
+    ).toBeVisible();
+    await expect(organizer.page.getByText('Awaiting approval')).toBeVisible();
+    const approveButton = organizer.page.getByRole('button', {
+      name: 'Approve application',
+    });
+    await expect(approveButton).not.toHaveAttribute('jsaction', /click/, {
+      timeout: 20_000,
+    });
+    await takeScreenshot(
+      testInfo,
+      [organizer.page.getByText('Awaiting approval'), approveButton],
+      organizer.page,
+      'Organizer reviews the pending application',
+    );
+    await approveButton.click();
+    await expect(
+      organizer.page.getByText('Registration confirmed'),
+    ).toBeVisible({ timeout: 20_000 });
+    await expect(approveButton).toHaveCount(0);
 
-      await expect
-        .poll(async () => {
-          const persisted = await database.query.eventRegistrations.findFirst({
-            where: { id: registration.id },
-          });
-          const option =
-            await database.query.eventRegistrationOptions.findFirst({
-              columns: { confirmedSpots: true, reservedSpots: true },
-              where: { id: scenario.optionId },
-            });
-          const emails = await approvalEmailsForRegistration(
-            database,
-            registration.id,
-            scenario.tenant.id,
-          );
-          return {
-            confirmedSpots: option?.confirmedSpots,
-            emailCount: emails.length,
-            reservedSpots: option?.reservedSpots,
-            status: persisted?.status,
-            subject: emails[0]?.subject,
-          };
-        })
-        .toEqual({
-          confirmedSpots: 1,
-          emailCount: 1,
-          reservedSpots: 0,
-          status: 'CONFIRMED',
-          subject: 'Registration approved',
+    await expect
+      .poll(async () => {
+        const persisted = await database.query.eventRegistrations.findFirst({
+          where: { id: registration.id },
         });
+        const option = await database.query.eventRegistrationOptions.findFirst({
+          columns: { confirmedSpots: true, reservedSpots: true },
+          where: { id: scenario.optionId },
+        });
+        const emails = await approvalEmailsForRegistration(
+          database,
+          registration.id,
+          scenario.tenant.id,
+        );
+        return {
+          confirmedSpots: option?.confirmedSpots,
+          emailCount: emails.length,
+          reservedSpots: option?.reservedSpots,
+          status: persisted?.status,
+          subject: emails[0]?.subject,
+        };
+      })
+      .toEqual({
+        confirmedSpots: 1,
+        emailCount: 1,
+        reservedSpots: 0,
+        status: 'CONFIRMED',
+        subject: 'Sign-up approved',
+      });
 
-      await testInfo.attach('markdown', {
-        body: `
+    await testInfo.attach('markdown', {
+      body: `
 ## See the confirmed registration
 
 The participant's already-open page does not assume that another account changed it in the background. Refresh or reopen the event after the organizer finishes. A successful free approval then shows the confirmed registration and its QR ticket.
 
 The application and approval actions disappear after completion. Refreshing or selecting the old action again cannot create a second registration, consume another spot, or queue another approval email.
 `,
-      });
-      await page.reload();
-      await waitForRegistrationStatus(page);
-      await expect(page.getByText('You are registered')).toBeVisible();
-      await expect(
-        page.getByRole('img', { name: 'QR code for the registration' }),
-      ).toBeVisible();
-      await expect(
-        page.getByRole('button', { name: 'Apply for approval' }),
-      ).toHaveCount(0);
-      await takeScreenshot(
-        testInfo,
-        page.locator('app-event-active-registration'),
-        page,
-        'Free application confirmed with ticket',
-      );
-      expect(
-        await approvalEmailsForRegistration(
-          database,
-          registration.id,
-          scenario.tenant.id,
-        ),
-      ).toHaveLength(1);
-    } finally {
-      await organizer?.close();
-      await scenario.cleanup();
-    }
+    });
+    await page.reload();
+    await waitForRegistrationStatus(page);
+    await expect(page.getByText('You are registered')).toBeVisible();
+    await expect(
+      page.getByRole('img', { name: 'QR code for the registration' }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Apply for approval' }),
+    ).toHaveCount(0);
+    await takeScreenshot(
+      testInfo,
+      page.locator('app-event-active-registration'),
+      page,
+      'Free application confirmed with ticket',
+    );
+    expect(
+      await approvalEmailsForRegistration(
+        database,
+        registration.id,
+        scenario.tenant.id,
+      ),
+    ).toHaveLength(1);
   });
 
   test('Withdraw a pending application and apply again', async ({
@@ -602,6 +600,7 @@ Select **Apply for approval** to create a new pending application. The new appli
   });
 
   test('Approve a paid application and complete Checkout', async ({
+    registerDatabaseCleanup,
     browser,
     database,
     page,
@@ -615,119 +614,118 @@ Select **Apply for approval** to create a new pending application. The new appli
       kind: 'paid',
       seeded,
     });
-    let organizer:
-      Awaited<ReturnType<typeof openAuthenticatedTestPage>> | undefined;
+    registerDatabaseCleanup(scenario.cleanup);
 
-    try {
-      await testInfo.attach('markdown', {
-        body: `
+    await testInfo.attach('markdown', {
+      body: `
 # Paid manual approval
 
 A paid manual-approval option still begins with an application, not a payment. Follow **Events → event → Manual approval option → Apply for approval**. The participant is not charged and no Checkout exists before the organizer approves the application.
 `,
-      });
-      await openEventFromNormalNavigation(page, scenario);
-      await applyForApproval(page, scenario);
-      const registration = await requireParticipantRegistration(
-        database,
-        scenario,
-      );
-      expect(
-        await database.query.transactions.findMany({
-          where: { eventRegistrationId: registration.id },
-        }),
-      ).toHaveLength(0);
+    });
+    await openEventFromNormalNavigation(page, scenario);
+    await applyForApproval(page, scenario);
+    const registration = await requireParticipantRegistration(
+      database,
+      scenario,
+    );
+    expect(
+      await database.query.transactions.findMany({
+        where: { eventRegistrationId: registration.id },
+      }),
+    ).toHaveLength(0);
 
-      organizer = await openOrganizerView({
-        browser,
-        participantPage: page,
-        scenario,
-        testClock,
-      });
-      await expect(organizer.page.getByText('Awaiting approval')).toBeVisible();
-      const approveButton = organizer.page.getByRole('button', {
-        name: 'Approve application',
-      });
-      await expect(approveButton).not.toHaveAttribute('jsaction', /click/, {
-        timeout: 20_000,
-      });
-      await takeScreenshot(
-        testInfo,
-        approveButton,
-        organizer.page,
-        'Approve a paid application',
-      );
+    const organizer = await openOrganizerView({
+      registerDatabaseCleanup,
+      browser,
+      participantPage: page,
+      scenario,
+      testClock,
+    });
+    await expect(organizer.page.getByText('Awaiting approval')).toBeVisible();
+    const approveButton = organizer.page.getByRole('button', {
+      name: 'Approve application',
+    });
+    await expect(approveButton).not.toHaveAttribute('jsaction', /click/, {
+      timeout: 20_000,
+    });
+    await takeScreenshot(
+      testInfo,
+      approveButton,
+      organizer.page,
+      'Approve a paid application',
+    );
 
-      await testInfo.attach('markdown', {
-        body: `
+    await testInfo.attach('markdown', {
+      body: `
 ## Organizer approval requests payment
 
 Selecting **Approve application** reserves one spot and prepares one Stripe Checkout session. It does not confirm the participant yet. The organizer sees **Payment pending**, and the approval action is removed so repeated clicks cannot create another live payment.
 `,
-      });
-      await approveButton.click();
-      await expect(
-        organizer.page.getByText(
-          'Application approved. Payment is required before confirmation.',
-        ),
-      ).toBeVisible({ timeout: 20_000 });
-      await expect(organizer.page.getByText('Payment pending')).toBeVisible();
-      await expect(approveButton).toHaveCount(0);
+    });
+    await approveButton.click();
+    await expect(
+      organizer.page.getByText(
+        'Application approved. Payment is required before confirmation.',
+      ),
+    ).toBeVisible({ timeout: 20_000 });
+    await expect(organizer.page.getByText('Payment pending')).toBeVisible();
+    await expect(approveButton).toHaveCount(0);
 
-      await expect(async () => {
-        const transactions = await database.query.transactions.findMany({
-          where: {
-            eventRegistrationId: registration.id,
-            status: 'pending',
-            type: 'registration',
-          },
-        });
-        expect({
-          count: transactions.length,
-          hasSession: Boolean(transactions[0]?.stripeCheckoutSessionId),
-          hasUrl: Boolean(transactions[0]?.stripeCheckoutUrl),
-        }).toEqual({ count: 1, hasSession: true, hasUrl: true });
-      }).toPass({
-        intervals: [250, 500, 1_000],
-        timeout: 15_000,
-      });
-      const [pendingTransaction] = await database.query.transactions.findMany({
+    await expect(async () => {
+      const transactions = await database.query.transactions.findMany({
         where: {
           eventRegistrationId: registration.id,
           status: 'pending',
           type: 'registration',
         },
       });
-      if (
-        !pendingTransaction?.stripeAccountId ||
-        !pendingTransaction.stripeCheckoutSessionId ||
-        !pendingTransaction.stripeCheckoutUrl
-      ) {
-        throw new Error(
-          'Expected documented paid approval Checkout ownership details',
-        );
-      }
-      expect(pendingTransaction.stripeAccountId).toBe(
-        scenario.tenant.stripeAccountId,
+      expect({
+        count: transactions.length,
+        hasSession: Boolean(transactions[0]?.stripeCheckoutSessionId),
+        hasUrl: Boolean(transactions[0]?.stripeCheckoutUrl),
+      }).toEqual({ count: 1, hasSession: true, hasUrl: true });
+    }).toPass({
+      intervals: [250, 500, 1_000],
+      timeout: 15_000,
+    });
+    const [pendingTransaction] = await database.query.transactions.findMany({
+      where: {
+        eventRegistrationId: registration.id,
+        status: 'pending',
+        type: 'registration',
+      },
+    });
+    if (
+      !pendingTransaction?.stripeAccountId ||
+      !pendingTransaction.stripeCheckoutSessionId ||
+      !pendingTransaction.stripeCheckoutUrl
+    ) {
+      throw new Error(
+        'Expected documented paid approval Checkout ownership details',
       );
-      expect(
-        await database.query.eventRegistrationOptions.findFirst({
-          columns: { confirmedSpots: true, reservedSpots: true },
-          where: { id: scenario.optionId },
-        }),
-      ).toEqual({ confirmedSpots: 0, reservedSpots: 1 });
-      const paymentApprovalEmails = await approvalEmailsForRegistration(
-        database,
-        registration.id,
-        scenario.tenant.id,
-      );
-      expect(paymentApprovalEmails).toHaveLength(1);
-      expect(paymentApprovalEmails[0]?.subject).toBe(
-        'Registration approved: payment required',
-      );
+    }
+    expect(pendingTransaction.stripeAccountId).toBe(
+      scenario.tenant.stripeAccountId,
+    );
+    expect(
+      await database.query.eventRegistrationOptions.findFirst({
+        columns: { confirmedSpots: true, reservedSpots: true },
+        where: { id: scenario.optionId },
+      }),
+    ).toEqual({ confirmedSpots: 0, reservedSpots: 1 });
+    const paymentApprovalEmails = await approvalEmailsForRegistration(
+      database,
+      registration.id,
+      scenario.tenant.id,
+    );
+    expect(paymentApprovalEmails).toHaveLength(1);
+    expect(paymentApprovalEmails[0]?.subject).toBe(
+      'Sign-up approved: payment required',
+    );
 
-      await testInfo.attach('markdown', {
-        body: `
+    await testInfo.attach('markdown', {
+      body: `
 ## Participant completes payment
 
 Refresh or reopen the event as the participant. The pending registration now explains that payment is required and shows **Pay now**. A ticket is still unavailable.
@@ -743,109 +741,106 @@ Only Stripe payment success confirms the registration. Closing Checkout leaves t
 Stripe Checkout opens on Stripe's website, and the available payment methods can vary. This guide verifies the exact **Pay now** destination and the signed completion event Evorto accepts from Stripe, so it shows Evorto immediately before and after payment instead of reproducing Stripe's card form.
 {% /callout %}
 `,
-      });
-      await page.reload();
-      await waitForRegistrationStatus(page);
-      await expect(
-        page.getByText('Complete payment to confirm your registration.'),
-      ).toBeVisible();
-      const payNow = page.getByRole('link', { name: 'Pay now' });
-      await expect(payNow).toHaveAttribute(
-        'href',
-        pendingTransaction.stripeCheckoutUrl,
-      );
-      await expect(
-        page.getByRole('img', { name: 'QR code for the registration' }),
-      ).toHaveCount(0);
-      await takeScreenshot(
-        testInfo,
-        page.locator('app-event-active-registration'),
-        page,
-        'Paid application awaiting Checkout',
-      );
+    });
+    await page.reload();
+    await waitForRegistrationStatus(page);
+    await expect(
+      page.getByText('Complete payment to confirm your registration.'),
+    ).toBeVisible();
+    const payNow = page.getByRole('link', { name: 'Pay now' });
+    await expect(payNow).toHaveAttribute(
+      'href',
+      pendingTransaction.stripeCheckoutUrl,
+    );
+    await expect(
+      page.getByRole('img', { name: 'QR code for the registration' }),
+    ).toHaveCount(0);
+    await takeScreenshot(
+      testInfo,
+      page.locator('app-event-active-registration'),
+      page,
+      'Paid application awaiting Checkout',
+    );
 
-      await deliverCompletedRegistrationCheckoutWebhook({
-        amount: pendingTransaction.amount,
-        applicationFeeAmount: pendingTransaction.appFee,
-        currency: pendingTransaction.currency,
-        paymentIntentId: pendingTransaction.stripePaymentIntentId,
-        registrationId: registration.id,
-        request,
-        sessionId: pendingTransaction.stripeCheckoutSessionId,
-        stripeAccountId: pendingTransaction.stripeAccountId,
-        tenantId: scenario.tenant.id,
-        transactionId: pendingTransaction.id,
-      });
+    await deliverCompletedRegistrationCheckoutWebhook({
+      amount: pendingTransaction.amount,
+      applicationFeeAmount: pendingTransaction.appFee,
+      currency: pendingTransaction.currency,
+      paymentIntentId: pendingTransaction.stripePaymentIntentId,
+      registrationId: registration.id,
+      request,
+      sessionId: pendingTransaction.stripeCheckoutSessionId,
+      stripeAccountId: pendingTransaction.stripeAccountId,
+      tenantId: scenario.tenant.id,
+      transactionId: pendingTransaction.id,
+    });
 
-      await expect
-        .poll(
-          async () => {
-            const transaction = await database.query.transactions.findFirst({
-              where: { id: pendingTransaction.id },
+    await expect
+      .poll(
+        async () => {
+          const transaction = await database.query.transactions.findFirst({
+            where: { id: pendingTransaction.id },
+          });
+          const persistedRegistration =
+            await database.query.eventRegistrations.findFirst({
+              where: { id: registration.id },
             });
-            const persistedRegistration =
-              await database.query.eventRegistrations.findFirst({
-                where: { id: registration.id },
-              });
-            return `${transaction?.status}:${persistedRegistration?.status}`;
-          },
-          {
-            intervals: [1_000, 2_000, 4_000],
-            timeout: 90_000,
-          },
-        )
-        .toBe('successful:CONFIRMED');
+          return `${transaction?.status}:${persistedRegistration?.status}`;
+        },
+        {
+          intervals: [1_000, 2_000, 4_000],
+          timeout: 90_000,
+        },
+      )
+      .toBe('successful:CONFIRMED');
 
-      await testInfo.attach('markdown', {
-        body: `
+    await testInfo.attach('markdown', {
+      body: `
 ## Paid registration confirmed
 
 After Stripe reports successful payment, Evorto moves the reserved spot to confirmed capacity. Reopen the event to see the registration confirmation and QR ticket. There is still exactly one registration payment and one approval email for this application.
 `,
-      });
-      await page.reload();
-      await waitForRegistrationStatus(page);
-      await expect(page.getByText('You are registered')).toBeVisible();
-      await expect(
-        page.getByRole('img', { name: 'QR code for the registration' }),
-      ).toBeVisible();
-      await takeScreenshot(
-        testInfo,
-        page.locator('app-event-active-registration'),
-        page,
-        'Paid application confirmed after Stripe payment',
-      );
-      expect(
-        await database.query.transactions.findMany({
-          where: {
-            eventRegistrationId: registration.id,
-            type: 'registration',
-          },
-        }),
-      ).toHaveLength(1);
-      expect(
-        await approvalEmailsForRegistration(
-          database,
-          registration.id,
-          scenario.tenant.id,
-        ),
-      ).toHaveLength(1);
-      expect(
-        await database.query.eventRegistrationOptions.findFirst({
-          columns: { confirmedSpots: true, reservedSpots: true },
-          where: { id: scenario.optionId },
-        }),
-      ).toEqual({ confirmedSpots: 1, reservedSpots: 0 });
-    } finally {
-      await organizer?.close();
-      await scenario.cleanup();
-    }
+    });
+    await page.reload();
+    await waitForRegistrationStatus(page);
+    await expect(page.getByText('You are registered')).toBeVisible();
+    await expect(
+      page.getByRole('img', { name: 'QR code for the registration' }),
+    ).toBeVisible();
+    await takeScreenshot(
+      testInfo,
+      page.locator('app-event-active-registration'),
+      page,
+      'Paid application confirmed after Stripe payment',
+    );
+    expect(
+      await database.query.transactions.findMany({
+        where: {
+          eventRegistrationId: registration.id,
+          type: 'registration',
+        },
+      }),
+    ).toHaveLength(1);
+    expect(
+      await approvalEmailsForRegistration(
+        database,
+        registration.id,
+        scenario.tenant.id,
+      ),
+    ).toHaveLength(1);
+    expect(
+      await database.query.eventRegistrationOptions.findFirst({
+        columns: { confirmedSpots: true, reservedSpots: true },
+        where: { id: scenario.optionId },
+      }),
+    ).toEqual({ confirmedSpots: 1, reservedSpots: 0 });
   });
 
-  test('Recover interrupted payment setup or cancel safely', async ({
+  test('Ask for payment review while the existing sign-up stays reserved', async ({
     browser,
     database,
     page,
+    registerDatabaseCleanup,
     seeded,
     testClock,
   }, testInfo) => {
@@ -855,167 +850,119 @@ After Stripe reports successful payment, Evorto moves the reserved spot to confi
       kind: 'paid',
       seeded,
     });
-    let organizer:
-      Awaited<ReturnType<typeof openAuthenticatedTestPage>> | undefined;
+    registerDatabaseCleanup(scenario.cleanup);
+    await openEventFromNormalNavigation(page, scenario);
+    await applyForApproval(page, scenario);
+    const registration = await requireParticipantRegistration(
+      database,
+      scenario,
+    );
+    const organizer = await openOrganizerView({
+      browser,
+      participantPage: page,
+      registerDatabaseCleanup,
+      scenario,
+      testClock,
+    });
+    const transactionId = await scenario.preparePaymentSetupRetry({
+      baseUrl: new URL(page.url()).origin,
+      registrationId: registration.id,
+    });
+    const originalClaim = await database.query.transactions.findFirst({
+      where: { id: transactionId },
+    });
+    await organizer.page.reload();
+    const reviewStatus = organizer.page
+      .getByRole('status')
+      .filter({ hasText: 'Payment setup needs review.' });
+    await expect(reviewStatus).toBeVisible();
+    await expect(
+      organizer.page.getByRole('button', { name: 'Try payment again' }),
+    ).toHaveCount(0);
+    await expect(
+      organizer.page.getByRole('button', { name: 'Approve application' }),
+    ).toHaveCount(0);
+    await testInfo.attach('markdown', {
+      body: `
 
-    try {
-      await openEventFromNormalNavigation(page, scenario);
-      await applyForApproval(page, scenario);
-      const registration = await requireParticipantRegistration(
-        database,
-        scenario,
-      );
-      organizer = await openOrganizerView({
-        browser,
-        participantPage: page,
-        scenario,
-        testClock,
-      });
-      await expect(organizer.page.getByText('Awaiting approval')).toBeVisible();
+If the payment page could not be safely prepared, keep the existing sign-up.
 
-      const transactionId = await scenario.preparePaymentSetupRetry({
-        baseUrl: new URL(page.url()).origin,
-        registrationId: registration.id,
-      });
-      await organizer.page.reload();
-      await expect(
-        organizer.page.getByText('Payment setup needs retry'),
-      ).toBeVisible({ timeout: 20_000 });
-      const retryButton = organizer.page.getByRole('button', {
-        name: 'Retry payment setup',
-      });
-      await expect(retryButton).toBeEnabled();
-      await expect(retryButton).not.toHaveAttribute('jsaction', /click/, {
-        timeout: 20_000,
-      });
-
-      await testInfo.attach('markdown', {
-        body: `
-# Recover interrupted payment setup
-
-If Stripe Checkout could not be prepared after capacity was reserved, Evorto keeps the single payment claim instead of creating another one.
-
-- The organizer sees **Payment setup needs retry** and **Retry payment setup**.
-- The participant sees that the payment link is being prepared and is told to refresh shortly.
-- Retrying resumes the same payment claim and does not reserve another spot.
-- While the payment claim is still being reconciled, cancellation keeps the registration and reserved spot intact. First use **Retry payment setup** so Evorto can bind the Checkout. Then select **Cancel registration**, review the capacity and payment impact in the confirmation, and select **Confirm cancellation** to expire Checkout before releasing the reservation. **Keep registration** is focused by default so an accidental Enter key does not cancel it.
-`,
-      });
-      await takeScreenshot(
-        testInfo,
-        [organizer.page.getByText('Payment setup needs retry'), retryButton],
-        organizer.page,
-        'Organizer can retry interrupted payment setup',
-      );
-
-      await page.reload();
-      await waitForRegistrationStatus(page);
-      const preparingStatus = page.getByRole('status').filter({
-        hasText: 'Your payment link is being prepared.',
-      });
-      await expect(preparingStatus).toBeVisible();
-      await expect(page.getByRole('link', { name: 'Pay now' })).toHaveCount(0);
-      await takeScreenshot(
-        testInfo,
-        preparingStatus,
-        page,
-        'Participant waits for a payment link',
-      );
-
-      await retryButton.click();
-      await expect(
-        organizer.page.getByText(
-          'Application approved. Payment is required before confirmation.',
-        ),
-      ).toBeVisible({ timeout: 20_000 });
-      await expect(organizer.page.getByText('Payment pending')).toBeVisible({
-        timeout: 20_000,
-      });
-      await expect(retryButton).toHaveCount(0);
-      await expect
-        .poll(async () => {
-          const transaction = await database.query.transactions.findFirst({
-            where: { id: transactionId },
-          });
-          return {
-            hasSession: Boolean(transaction?.stripeCheckoutSessionId),
-            hasUrl: Boolean(transaction?.stripeCheckoutUrl),
-            status: transaction?.status,
-          };
-        })
-        .toEqual({ hasSession: true, hasUrl: true, status: 'pending' });
-
-      await page.reload();
-      await waitForRegistrationStatus(page);
-      await expect(page.getByRole('link', { name: 'Pay now' })).toBeVisible();
-      const cancelRegistrationButton = page.getByRole('button', {
-        name: 'Cancel registration',
-      });
-      // The reloaded SSR page exposes this action before its client listener.
-      // Wait for event replay to hand the button to the hydrated application.
-      await expect(cancelRegistrationButton).not.toHaveAttribute(
-        'jsaction',
-        /click/,
-        { timeout: 20_000 },
-      );
-      await cancelRegistrationButton.click();
-      await page
-        .getByRole('dialog')
-        .getByRole('button', { name: 'Confirm cancellation' })
-        .click();
-      await expect(
-        page.getByRole('button', { name: 'Apply for approval' }),
-      ).toBeVisible();
-      await expect
-        .poll(async () => {
-          const persistedRegistration =
-            await database.query.eventRegistrations.findFirst({
-              where: { id: registration.id },
-            });
-          const transaction = await database.query.transactions.findFirst({
-            where: { id: transactionId },
-          });
-          const option =
-            await database.query.eventRegistrationOptions.findFirst({
-              columns: { reservedSpots: true },
-              where: { id: scenario.optionId },
-            });
-          return {
-            registrationStatus: persistedRegistration?.status,
-            reservedSpots: option?.reservedSpots,
-            transactionStatus: transaction?.status,
-          };
-        })
-        .toEqual({
-          registrationStatus: 'CANCELLED',
-          reservedSpots: 0,
-          transactionStatus: 'cancelled',
-        });
-
-      await testInfo.attach('markdown', {
-        body: `
-## Recovery complete
-
-After Stripe confirms the pending Checkout is expired, Evorto cancels the local payment claim, releases the reserved spot, and returns the event to the application choice. If Stripe cannot confirm expiry, nothing is released and the participant receives a retryable error instead. The participant may apply again while registration remains open.
+- The organizer sees **Payment needs attention** and instructions to contact Evorto support for review.
+- The attendee should contact the event organizer. Do not apply again or start another payment.
+- The place remains reserved and the ticket stays unconfirmed while the payment is unresolved.
+- Cancellation cannot release the place until the payment state is confirmed. Evorto shows this block explicitly and preserves the original sign-up.
+- There is no automatic retry action for this state. Review the existing payment first. A normal **Pay now** link or a cancelled sign-up is shown only after its actual state supports that action.
 
 {% callout type="note" title="Application states" %}
-- Organizers resolve a pending application by approving it or cancelling its registration.
+- A pending application does not reserve a place or create a ticket. The attendee may withdraw it before approval.
+- Approving a paid application holds the place while payment is pending. The QR ticket appears only after Stripe reports a successful payment.
+- An unresolved payment keeps its original claim and reserved place until review establishes the payment state. Do not repeat approval or start another payment.
 - Application and approval belong to this organization. Organizer access in another organization does not grant access here.
-- Payment confirmation and the QR ticket appear only after Stripe reports a successful payment.
 {% /callout %}
 `,
-      });
-      await takeScreenshot(
-        testInfo,
-        page
-          .locator('app-event-registration-option')
-          .filter({ hasText: scenario.optionTitle }),
-        page,
-        'Cancelled payment returns to application choice',
-      );
-    } finally {
-      await organizer?.close();
-      await scenario.cleanup();
-    }
+    });
+    await takeScreenshot(
+      testInfo,
+      reviewStatus,
+      organizer.page,
+      'Organizer asks for review of the existing payment',
+    );
+    await page.reload();
+    await waitForRegistrationStatus(page);
+    const attendeeStatus = page
+      .getByRole('status')
+      .filter({ hasText: 'Contact an organizer to review this payment.' });
+    await expect(attendeeStatus).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Pay now' })).toHaveCount(0);
+    await expect(
+      page.getByRole('button', { name: 'Try payment again' }),
+    ).toHaveCount(0);
+    await takeScreenshot(
+      testInfo,
+      attendeeStatus,
+      page,
+      'Attendee keeps the existing sign-up and asks for review',
+    );
+    const cancel = page.getByRole('button', { name: 'Cancel registration' });
+    await expect(cancel).not.toHaveAttribute('jsaction', /click/);
+    await cancel.click();
+    await page
+      .getByRole('dialog')
+      .getByRole('button', { name: 'Confirm cancellation' })
+      .click();
+    const cancellationError = page
+      .getByRole('alert')
+      .filter({ hasText: 'Payment setup needs review' });
+    await expect(cancellationError).toBeVisible();
+    expect(
+      await database.query.transactions.findFirst({
+        where: { id: transactionId },
+      }),
+    ).toEqual(originalClaim);
+    expect(
+      await database.query.eventRegistrations.findFirst({
+        columns: { status: true },
+        where: { id: registration.id },
+      }),
+    ).toEqual({ status: 'PENDING' });
+    expect(
+      await database.query.eventRegistrationOptions.findFirst({
+        columns: { confirmedSpots: true, reservedSpots: true },
+        where: { id: scenario.optionId },
+      }),
+    ).toEqual({ confirmedSpots: 0, reservedSpots: 1 });
+    expect(
+      await approvalEmailsForRegistration(
+        database,
+        registration.id,
+        scenario.tenant.id,
+      ),
+    ).toHaveLength(0);
+    await takeScreenshot(
+      testInfo,
+      cancellationError,
+      page,
+      'Cancellation leaves the unresolved payment and reserved place unchanged',
+    );
   });
 });
