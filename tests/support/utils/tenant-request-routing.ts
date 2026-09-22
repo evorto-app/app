@@ -6,6 +6,7 @@ type RoutingContext = Pick<BrowserContext, 'unroute'>;
 
 type TenantRoute = {
   active: Set<Promise<void>>;
+  pendingSettlements: Set<() => Promise<void>>;
   closing: boolean;
   drainFailure: { error: unknown; observedErrorCount: number } | undefined;
   draining: Promise<void> | undefined;
@@ -63,37 +64,61 @@ export const routeLocalTenantRequests = async ({
   }
   const state: TenantRoute = {
     active: new Set(),
+    pendingSettlements: new Set(),
     closing: false,
     drainFailure: undefined,
     draining: undefined,
     emergencyClose: undefined,
     errors: [],
     handler: (route) => {
+      let settlement: Promise<void> | undefined;
+      const settle = (action: () => Promise<void>) => {
+        if (!settlement) {
+          const pending = Promise.withResolvers<void>();
+          settlement = pending.promise;
+          void settlement.then(
+            () => state.pendingSettlements.delete(cancel),
+            () => state.pendingSettlements.delete(cancel),
+          );
+          // Reserve the terminal action before calling it, but send a late
+          // cancellation immediately rather than queueing another microtask.
+          try {
+            pending.resolve(action());
+          } catch (error) {
+            pending.reject(error);
+          }
+        }
+        return settlement;
+      };
+      const cancel = () => settle(() => route.abort('aborted'));
+      state.pendingSettlements.add(cancel);
       const operation = (async () => {
         const abortOnly = state.closing;
         try {
           if (abortOnly) {
-            await route.abort('aborted');
+            await cancel();
+            return;
+          }
+          const headers = await route.request().allHeaders();
+          if (state.closing) {
+            await cancel();
             return;
           }
           const response = await route.fetch({
-            headers: localTenantRequestHeaders(
-              await route.request().allHeaders(),
-              tenantDomain,
-            ),
+            headers: localTenantRequestHeaders(headers, tenantDomain),
             maxRedirects: 0,
           });
-          await route.fulfill({ response });
+          await settle(() => route.fulfill({ response }));
         } catch (error) {
           // Route callbacks are asynchronous event listeners in Playwright.
           // Keep failures owned here instead of interrupting the test body.
           state.errors.push(error);
           if (!abortOnly) {
             try {
-              await route.abort('failed');
+              await settle(() => route.abort('failed'));
               return;
             } catch (settlementError) {
-              state.errors.push(settlementError);
+              if (settlementError !== error) state.errors.push(settlementError);
             }
           }
           state.closing = true;
@@ -101,11 +126,13 @@ export const routeLocalTenantRequests = async ({
           // Never release it by removing interception or replaying upstream.
           if (!contextCloseAttempts.has(context)) {
             contextCloseAttempts.add(context);
-            state.emergencyClose = Promise.resolve()
-              .then(() => context.close())
-              .catch((closeError) => {
-                state.errors.push(closeError);
-              });
+            state.emergencyClose = settleTenantRequestsBeforeClosure(
+              context,
+              state.errors,
+              () => context.close(),
+            ).catch((closeError) => {
+              state.errors.push(closeError);
+            });
           }
           await state.emergencyClose;
         }
@@ -199,6 +226,34 @@ export const stopTenantRequestRouting = async (
   await state.draining;
 };
 
+const settleTenantRequestsBeforeClosure = async (
+  context: RoutingContext,
+  errors: unknown[],
+  close?: () => Promise<void>,
+): Promise<void> => {
+  const routing = tenantRoutes.get(context);
+  if (routing) {
+    routing.closing = true;
+    // Chromium can resume paused requests without tenant headers on closure.
+    // Include callbacks admitted while an earlier settlement was pending.
+    while (routing.pendingSettlements.size > 0) {
+      const pending = [...routing.pendingSettlements].map((settle) => settle());
+      for (const result of await Promise.allSettled(pending)) {
+        if (result.status === 'rejected') errors.push(result.reason);
+      }
+    }
+  }
+  // Invoke closure in the same turn that observed an empty settlement set.
+  // Awaiting a separate drain before calling close would reopen admission.
+  if (close) {
+    try {
+      await close();
+    } catch (error) {
+      errors.push(error);
+    }
+  }
+};
+
 const closeTenantRequestPagePhase = async (
   context: RoutingContext & {
     pages: () => readonly Pick<Page, 'close' | 'isClosed'>[];
@@ -207,19 +262,21 @@ const closeTenantRequestPagePhase = async (
 ) => {
   const errors: unknown[] = [];
   let drainAttempted = false;
+  // Inventory can fail. Cancel already admitted browser requests even when
+  // owned context disposal must proceed without enumerating its pages.
+  await settleTenantRequestsBeforeClosure(context, errors);
   let pages: ReturnType<typeof context.pages>;
   try {
     pages = [...context.pages()];
   } catch (error) {
-    return { errors: [error], drainAttempted };
+    errors.push(error);
+    return { errors, drainAttempted };
   }
   // Keep interception and the context request client alive while closing pages.
   for (const page of pages) {
-    try {
-      await page.close();
-    } catch (error) {
-      errors.push(error);
-    }
+    await settleTenantRequestsBeforeClosure(context, errors, () =>
+      page.close(),
+    );
   }
   let pagesClosed = false;
   try {
@@ -251,7 +308,15 @@ const closeTenantRequestPagePhase = async (
 export const closeTenantRequestPages = async (
   context: Parameters<typeof closeTenantRequestPagePhase>[0],
 ): Promise<void> => {
-  const { errors } = await closeTenantRequestPagePhase(context);
+  const state = tenantRoutes.get(context);
+  const { errors, drainAttempted } = await closeTenantRequestPagePhase(context);
+  if (!drainAttempted && state) {
+    // Preserve failures already observed without waiting for requests that
+    // still need outer context disposal. Keep them owned for a later drain.
+    for (const error of state.errors) {
+      if (!errors.includes(error)) errors.push(error);
+    }
+  }
   if (errors.length === 1) throw errors[0];
   if (errors.length > 1) {
     throw new AggregateError(errors, 'Tenant request page cleanup failed');
@@ -270,17 +335,15 @@ export const closeTenantRequestContext = async (
   );
   if (state) state.closing = true;
   let closeSucceeded = false;
-  if (!contextCloseAttempts.has(context)) {
-    // Share the attempt with route callbacks before context disposal can fail
-    // their fetch/abort operations. Neither path retries the other's close.
-    contextCloseAttempts.add(context);
-    try {
+  await settleTenantRequestsBeforeClosure(context, errors, async () => {
+    if (!contextCloseAttempts.has(context)) {
+      // Recheck after settlements: a failed cancellation may already have
+      // started emergency disposal. Neither owner retries the other's close.
+      contextCloseAttempts.add(context);
       await context.close();
       closeSucceeded = true;
-    } catch (error) {
-      errors.push(error);
     }
-  }
+  });
   if (!drainAttempted) {
     const emergencyClose = tenantRoutes.get(context)?.emergencyClose;
     if (emergencyClose) {

@@ -58,17 +58,31 @@ repetitions; each repetition receives a distinct fixture seed.
 Local tenant selection uses the scoped routing helper in
 `tests/support/utils/tenant-request-routing.ts`. Use the returned `close()`
 method for pages created with `openAuthenticatedTestPage`. The base page
-fixture uses `closeTenantRequestPages` to close its context's current pages
-while tenant interception and the context request client remain available,
-then drains active requests before removing the exact owned route. If a page
+fixture uses `closeTenantRequestPages` to cancel each pending intercepted browser
+request before closing its context's current pages. Chromium can otherwise replay
+a paused request without its tenant header as the page closes. Cancellation and
+fulfillment share one terminal action, so an upstream fetch that completes during
+cleanup cannot settle the browser request twice. The independent upstream fetch
+and context request client remain alive until cleanup drains all admitted work,
+then removes the exact owned route. Upstream, cancellation and closure failures
+remain visible. If a page
 remains open, cleanup fails and retains routing for Playwright's outer context
 teardown; it does not retry page closure or remove interception from live pages.
 The fixture exclusively owns this final page cleanup. Custom contexts use
-`closeTenantRequestContext` for the same page-close and drain sequence followed
+`closeTenantRequestContext` for the same cancellation, page-close and drain sequence followed
 by owned context closure. It still attempts that closure if page cleanup fails,
 and joins remaining callbacks only after confirming the context is closed.
 Normal and emergency cleanup share one context-close attempt; a rejected or
 unproven closure is not retried, and all known failures remain visible.
+Cleanup checks settlements again before each page and context closes, including
+callbacks arriving while an earlier page closes. It attempts cancellation before
+reading the page inventory, so an inventory failure cannot bypass that step or
+discard an earlier cancellation failure.
+If cleanup starts while a request is still reading its headers, that request
+is canceled without starting an upstream fetch when the headers arrive.
+If page cleanup cannot reach the drain, it also reports routing failures
+already recorded while retaining them for the outer cleanup owner. It does
+not wait for unfinished requests that still need context disposal.
 Do not replace the scoped drain with
 `unrouteAll`, which can release other active requests before their handlers
 finish.
