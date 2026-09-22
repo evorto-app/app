@@ -1,6 +1,8 @@
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
 import { and, eq, inArray } from 'drizzle-orm';
+import { Schema } from 'effect';
+import Stripe from 'stripe';
 
 import type { SeedTenantResult } from '../../../helpers/seed-tenant';
 
@@ -56,10 +58,12 @@ const requiredTestUser = (role: 'admin' | 'user') => {
 export const seedManualApprovalScenario = async ({
   database,
   kind,
+  registerCleanup,
   seeded,
 }: {
   database: TestDatabase;
   kind: 'free' | 'paid';
+  registerCleanup?: (cleanup: () => Promise<void>) => void;
   seeded: SeedTenantResult;
 }): Promise<ManualApprovalScenario> => {
   const scenarioHandle =
@@ -155,40 +159,6 @@ export const seedManualApprovalScenario = async ({
   );
   const eventWindow = futureServerEventWindow();
 
-  await database.transaction(async (transaction) => {
-    if (originalRegistrations.length > 0) {
-      await transaction
-        .update(schema.eventRegistrations)
-        .set({ status: 'CANCELLED' })
-        .where(
-          and(
-            eq(schema.eventRegistrations.registrationOptionId, option.id),
-            eq(schema.eventRegistrations.tenantId, tenant.id),
-          ),
-        );
-    }
-    await transaction
-      .update(schema.eventRegistrationOptions)
-      .set({
-        checkedInSpots: 0,
-        closeRegistrationTime: eventWindow.closeRegistrationTime,
-        confirmedSpots: 0,
-        openRegistrationTime: eventWindow.openRegistrationTime,
-        registrationMode: 'application',
-        reservedSpots: 0,
-        waitlistSpots: 0,
-      })
-      .where(eq(schema.eventRegistrationOptions.id, option.id));
-    await transaction
-      .update(schema.eventInstances)
-      .set({
-        end: eventWindow.end,
-        start: eventWindow.start,
-        status: 'APPROVED',
-      })
-      .where(eq(schema.eventInstances.id, event.id));
-  });
-
   const cleanup = async (): Promise<void> => {
     const currentRegistrations =
       await database.query.eventRegistrations.findMany({
@@ -279,6 +249,41 @@ export const seedManualApprovalScenario = async ({
       })
       .where(eq(schema.eventInstances.id, event.id));
   };
+
+  registerCleanup?.(cleanup);
+  await database.transaction(async (transaction) => {
+    if (originalRegistrations.length > 0) {
+      await transaction
+        .update(schema.eventRegistrations)
+        .set({ status: 'CANCELLED' })
+        .where(
+          and(
+            eq(schema.eventRegistrations.registrationOptionId, option.id),
+            eq(schema.eventRegistrations.tenantId, tenant.id),
+          ),
+        );
+    }
+    await transaction
+      .update(schema.eventRegistrationOptions)
+      .set({
+        checkedInSpots: 0,
+        closeRegistrationTime: eventWindow.closeRegistrationTime,
+        confirmedSpots: 0,
+        openRegistrationTime: eventWindow.openRegistrationTime,
+        registrationMode: 'application',
+        reservedSpots: 0,
+        waitlistSpots: 0,
+      })
+      .where(eq(schema.eventRegistrationOptions.id, option.id));
+    await transaction
+      .update(schema.eventInstances)
+      .set({
+        end: eventWindow.end,
+        start: eventWindow.start,
+        status: 'APPROVED',
+      })
+      .where(eq(schema.eventInstances.id, event.id));
+  });
 
   return {
     cleanup,
@@ -378,5 +383,146 @@ export const seedManualApprovalScenario = async ({
       stripeAccountId: tenant.stripeAccountId,
       timezone: tenant.timezone,
     },
+  };
+};
+
+/** The fixture owns one unpaid test-mode page; recovery itself only reads Stripe. */
+export const seedCheckoutRecoveryScenario = async ({
+  baseUrl,
+  database,
+  registerCleanup,
+  seeded,
+}: {
+  baseUrl: string;
+  database: TestDatabase;
+  registerCleanup: (cleanup: () => Promise<void>) => void;
+  seeded: SeedTenantResult;
+}) => {
+  const apiKey = process.env['STRIPE_API_KEY']?.trim();
+  if (!apiKey || !/^[rs]k_test_/u.test(apiKey))
+    throw new Error(
+      'Checkout recovery fixtures require a Stripe test-mode API key',
+    );
+  const scenario = await seedManualApprovalScenario({
+    database,
+    kind: 'paid',
+    registerCleanup,
+    seeded,
+  });
+  const registrationId = createId();
+  await database.insert(schema.eventRegistrations).values({
+    id: registrationId,
+    eventId: scenario.eventId,
+    registrationOptionId: scenario.optionId,
+    tenantId: scenario.tenant.id,
+    userId: scenario.participant.id,
+    status: 'PENDING',
+  });
+  const transactionId = await scenario.prepareUncertainPaymentClaim({
+    baseUrl,
+    registrationId,
+  });
+  const claim = await database.query.transactions.findFirst({
+    where: { id: transactionId, tenantId: scenario.tenant.id },
+  });
+  if (!claim?.stripeAccountId || claim.appFee === null)
+    throw new Error('Expected the exact pending test Checkout claim');
+  const snapshot = Schema.decodeUnknownSync(
+    schema.RegistrationCheckoutSnapshotSchema,
+  )(claim.stripeCheckoutRequest);
+  const stripe = new Stripe(apiKey, {
+    apiVersion: '2026-08-26.dahlia',
+    maxNetworkRetries: 0,
+  });
+  const account = claim.stripeAccountId;
+  const metadata = {
+    registrationId,
+    tenantId: scenario.tenant.id,
+    transactionId,
+    userId: scenario.participant.id,
+  };
+  const session = await stripe.checkout.sessions.create(
+    {
+      mode: 'payment',
+      customer_email: snapshot.customerEmail,
+      expires_at: snapshot.expiresAt,
+      success_url: `${snapshot.eventUrl}?registrationStatus=success`,
+      cancel_url: `${snapshot.eventUrl}?registrationStatus=cancel`,
+      metadata,
+      payment_intent_data: { application_fee_amount: claim.appFee },
+      line_items: snapshot.lineItems.map((line) => ({
+        price_data: {
+          currency: claim.currency.toLowerCase(),
+          product_data: { name: line.name },
+          unit_amount: line.unitAmount,
+        },
+        quantity: line.quantity,
+        ...(line.taxRateId && { tax_rates: [line.taxRateId] }),
+      })),
+    },
+    {
+      stripeAccount: account,
+      idempotencyKey: `evorto-recovery-fixture:${transactionId}`,
+    },
+  );
+  registerCleanup(async () => {
+    const current = await stripe.checkout.sessions.retrieve(
+      session.id,
+      undefined,
+      { stripeAccount: account },
+    );
+    if (
+      current.livemode ||
+      current.id !== session.id ||
+      Object.entries(metadata).some(
+        ([key, value]) => current.metadata?.[key] !== value,
+      )
+    )
+      throw new Error(
+        'Refusing to clean up a Checkout outside this test fixture',
+      );
+    if (current.status === 'open')
+      await stripe.checkout.sessions.expire(session.id, undefined, {
+        stripeAccount: account,
+        idempotencyKey: `evorto-recovery-fixture-expire:${transactionId}`,
+      });
+    else if (current.status !== 'expired')
+      throw new Error(
+        'Expected an unpaid Checkout fixture to remain open or expired',
+      );
+  });
+  if (session.livemode || !session.url || session.status !== 'open')
+    throw new Error('Expected an open unpaid test-mode Checkout');
+  await database
+    .update(schema.transactions)
+    .set({
+      stripeCheckoutIncidentSessionId: session.id,
+      stripeCheckoutReconcileLastError:
+        'Test fixture: original Checkout returned but binding acknowledgement was uncertain',
+    })
+    .where(
+      and(
+        eq(schema.transactions.id, transactionId),
+        eq(schema.transactions.tenantId, scenario.tenant.id),
+      ),
+    );
+  const reason = `Restore original payment setup ${transactionId}`;
+  registerCleanup(async () => {
+    await database
+      .delete(schema.platformAuditEntries)
+      .where(
+        and(
+          eq(schema.platformAuditEntries.targetTenantId, scenario.tenant.id),
+          eq(schema.platformAuditEntries.reason, reason),
+        ),
+      );
+  });
+  return {
+    ...scenario,
+    checkoutUrl: session.url,
+    reason,
+    registrationId,
+    sessionId: session.id,
+    transactionId,
   };
 };

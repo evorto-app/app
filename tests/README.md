@@ -108,7 +108,11 @@ verification without blanket certificate-error overrides.
 
 - `specs/admin/platform-tenant-operations.spec.ts` follows the guarded tenant
   operation links, opens the refund-recovery surface, and resolves a
-  deterministic scanner result from an attendee ticket URL.
+  deterministic scanner result from an attendee ticket URL. Its payment-setup
+  recovery journey restores one original Stripe test-mode Checkout through
+  platform finance, then verifies the same claim, held capacity, one approval
+  notification and privacy-safe audit. The fixture registers cleanup before
+  changing records and expires only its exact unpaid test session.
 - `docs/admin/platform-tenant-operations.doc.ts` documents explicit target
   selection and executes representative event and template edits, existing-user
   role assignment and removal, an unverifiable-receipt rejection, and attendee
@@ -117,6 +121,11 @@ verification without blanket certificate-error overrides.
   and target tenant in the visible platform audit log. The guide explicitly
   separates participant-owned flows and names the adjacent finance, lifecycle,
   tax-import, approval, and cancellation operations that it does not execute.
+- The separate **Restore an existing sign-up payment** guide follows the same
+  real test-mode provider read and audited page action. PostgreSQL recovery
+  coverage proves concurrent changes, tenant boundaries, discovery pagination,
+  audit rollback, email preservation and canonical paid/expired reconciliation,
+  including add-on stock and a fee mismatch after open-session recovery.
 - Prefer the target-scoped registration-result route for repeatable platform
   scanner checks. The organizer guide already exercises deterministic mocked
   camera permission/readiness, while Browser review covers the fallback and a

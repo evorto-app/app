@@ -183,6 +183,16 @@ export const platformAuditChangedRows = (
       },
     ];
   });
+  if (entry.action === 'registration.recoverCheckout') {
+    return [
+      {
+        after: 'Existing payment linked',
+        before: 'Needed attention',
+        label: 'Payment setup',
+      },
+      ...changedRows,
+    ];
+  }
   if (entry.action !== 'refundClaim.requeue') return changedRows;
   return [
     {
@@ -206,6 +216,7 @@ const platformAuditActionLabels = {
   'registration.approve': 'Registration approved',
   'registration.cancel': 'Registration cancelled',
   'registration.checkIn': 'Registration checked in',
+  'registration.recoverCheckout': 'Payment setup restored',
   'role.create': 'Organization role created',
   'role.delete': 'Organization role deleted',
   'role.update': 'Organization role updated',

@@ -333,6 +333,69 @@ export const PlatformFinanceRefundRecoveryQueue = asRpcQuery(
   }),
 );
 
+export class PlatformFinanceCheckoutRecoveryClaim extends Schema.Class<PlatformFinanceCheckoutRecoveryClaim>(
+  'PlatformFinanceCheckoutRecoveryClaim',
+)({
+  amount: positiveNumber,
+  attendeeFirstName: Schema.String,
+  attendeeLastName: Schema.String,
+  createdAt: Schema.NonEmptyString,
+  currency: Tenant.fields.currency,
+  eventTitle: Schema.String,
+  id: Schema.NonEmptyString,
+  version: Schema.String.check(Schema.isPattern(/^[a-f0-9]{64}$/u)),
+}) {}
+
+export const PlatformFinanceCheckoutRecoveryQueueInput = Schema.Struct({
+  ...PlatformTenantTarget.fields,
+  limit: PlatformFinancePageLimit,
+  offset: PlatformFinancePageOffset,
+});
+
+export type PlatformFinanceCheckoutRecoveryQueueInput = Schema.Schema.Type<
+  typeof PlatformFinanceCheckoutRecoveryQueueInput
+>;
+
+export const PlatformFinanceCheckoutRecoveryQueue = asRpcQuery(
+  Rpc.make('platform.finance.checkoutClaims.recoveryQueue', {
+    error: PlatformOperationRpcError,
+    payload: PlatformFinanceCheckoutRecoveryQueueInput,
+    success: Schema.Struct({
+      data: Schema.Array(PlatformFinanceCheckoutRecoveryClaim),
+      targetTenantId: Schema.NonEmptyString,
+      timezone: Tenant.fields.timezone,
+      total: nonNegativeNumber,
+    }),
+  }),
+);
+
+export const PlatformFinanceRecoverCheckoutInput = Schema.Struct({
+  ...PlatformTenantMutationContext.fields,
+  claimId: Schema.NonEmptyString,
+  expectedVersion: PlatformFinanceCheckoutRecoveryClaim.fields.version,
+});
+
+export type PlatformFinanceRecoverCheckoutInput = Schema.Schema.Type<
+  typeof PlatformFinanceRecoverCheckoutInput
+>;
+
+export const PlatformFinanceRecoveredCheckoutState = literalUnion(
+  'complete',
+  'expired',
+  'open',
+);
+
+export const PlatformFinanceRecoverCheckout = asRpcMutation(
+  Rpc.make('platform.finance.checkoutClaims.recover', {
+    error: PlatformOperationRpcError,
+    payload: PlatformFinanceRecoverCheckoutInput,
+    success: Schema.Struct({
+      claimId: Schema.NonEmptyString,
+      sessionState: PlatformFinanceRecoveredCheckoutState,
+    }),
+  }),
+);
+
 export const PlatformFinanceRequeueRefundClaimInput = Schema.Struct({
   ...PlatformTenantMutationContext.fields,
   refundClaimId: Schema.NonEmptyString,
@@ -359,11 +422,13 @@ export const PlatformFinanceRequeueRefundClaim = asRpcMutation(
 );
 
 export class PlatformTenantFinanceRpcs extends RpcGroup.make(
+  PlatformFinanceCheckoutRecoveryQueue,
   PlatformFinanceRefundRecoveryQueue,
   PlatformFinanceReceiptApprovalDetail,
   PlatformFinanceReceiptApprovalQueue,
   PlatformFinanceReceiptReview,
   PlatformFinanceRecordReimbursement,
+  PlatformFinanceRecoverCheckout,
   PlatformFinanceReimbursementQueue,
   PlatformFinanceRequeueRefundClaim,
   PlatformFinanceTransactionsFindMany,

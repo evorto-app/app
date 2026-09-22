@@ -15,6 +15,7 @@ export const platformTenantAuditActions = [
   'registration.approve',
   'registration.cancel',
   'registration.checkIn',
+  'registration.recoverCheckout',
   'role.create',
   'role.delete',
   'role.update',

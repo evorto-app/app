@@ -37,8 +37,22 @@ completion and cleanup. Transfer behavior remains in the transfer modules.
   ownership.
 - Canonical uncertain payment setup blocks cancellation and transfer while the
   place is held. Explain that an organizer or finance team must investigate;
-  do not offer another approval or payment-create attempt. Operator recovery
-  tooling remains a separate product decision, not an existing public API.
+  do not offer another approval or payment-create attempt. Platform finance has
+  an explicit, reasoned recovery action for direct-registration claims. It
+  reads the original account's existing Checkout, verifies the stored identity,
+  request, amount, currency and line items, and revalidates the reviewed claim
+  under registration-first locks before atomically binding and auditing it.
+  Missing, ambiguous, incomplete or mismatched provider evidence keeps the hold.
+- Recovery never creates or replays Checkout creation. Open Checkout may have
+  no PaymentIntent and exposes no application fee: preserve the stored fee and
+  retain canonical settlement's fee check. When a PaymentIntent exists, verify
+  its fee, amount and currency before binding. Preserve incident identity and
+  error history in the private audit; public history omits provider identifiers.
+- Recovery schedules canonical completion/expiry without changing reserved
+  capacity or add-on stock itself. For an open manual-approval payment, enqueue
+  a missing notification with the original idempotency key in the same
+  transaction; an existing failed or uncertain delivery stays untouched.
+  Separate add-on purchase and transfer claims remain outside this workflow.
 
 Unit fixtures use real Drizzle construction with explicit typed connection rows.
 PostgreSQL tests prove locking, rollback, leases and replay behavior against the

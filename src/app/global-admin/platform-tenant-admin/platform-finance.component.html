@@ -714,4 +714,141 @@
       }
     </section>
   </mat-tab>
+  <mat-tab label="Payments needing attention">
+    <section
+      class="grid gap-6 py-4 lg:grid-cols-2"
+      aria-label="Payments needing attention"
+    >
+      <div>
+        <h2 class="title-medium">Sign-ups waiting for payment setup</h2>
+        <p class="body-small text-on-surface-variant mt-1 mb-4">
+          These reservations are held because their payment setup could not be
+          confirmed. This recovery supports ordinary sign-ups, including
+          organizer-approved sign-ups. Separate add-on purchases and ticket
+          transfers require investigation.
+        </p>
+        @if (checkoutRecoveryQueueQuery.isPending()) {
+          <p role="status">Loading payment setups…</p>
+        } @else if (checkoutRecoveryQueueQuery.isError()) {
+          <div role="alert">
+            <p>Payment setups could not be loaded.</p>
+            <button
+              mat-stroked-button
+              type="button"
+              [disabled]="
+                financeActionBusy() || checkoutRecoveryQueueQuery.isFetching()
+              "
+              (click)="checkoutRecoveryQueueQuery.refetch()"
+            >
+              Try again
+            </button>
+          </div>
+        } @else if (checkoutRecoveryQueueQuery.isSuccess()) {
+          @for (
+            claim of checkoutRecoveryQueueQuery.data().data;
+            track claim.id
+          ) {
+            <div
+              class="flex items-start justify-between gap-4 border-b border-outline-variant py-3"
+            >
+              <div>
+                <h3 class="title-small">{{ claim.eventTitle }}</h3>
+                <p>
+                  {{ claim.attendeeFirstName }} {{ claim.attendeeLastName }}
+                </p>
+                <p>{{ claim.amount / 100 | currency: claim.currency }}</p>
+                <p class="body-small text-on-surface-variant">
+                  {{
+                    claim.createdAt
+                      | date
+                        : "short"
+                        : checkoutRecoveryQueueQuery.data().timezone
+                  }}
+                </p>
+              </div>
+              <button
+                mat-button
+                type="button"
+                [disabled]="financeActionsDisabled()"
+                (click)="chooseCheckoutClaim(claim)"
+              >
+                Review payment setup
+              </button>
+            </div>
+          } @empty {
+            <p>No sign-up payment setups on this page need attention.</p>
+          }
+          <mat-paginator
+            aria-label="Payment setups needing attention"
+            [length]="checkoutRecoveryQueueQuery.data().total"
+            [pageIndex]="checkoutPageIndex()"
+            [pageSize]="checkoutPageSize()"
+            [pageSizeOptions]="[25, 50, 100]"
+            [disabled]="financeActionsDisabled()"
+            (page)="changeCheckoutPage($event)"
+          />
+        }
+      </div>
+      @if (selectedCheckoutClaim(); as claim) {
+        <form (submit)="recoverCheckout($event)">
+          <h2 class="title-medium">Restore existing payment setup</h2>
+          <p class="body-small text-on-surface-variant mt-1">
+            Evorto checks for the original payment page. A verified page
+            restores payment access or resumes checking its final status. No new
+            payment page is created. If the result remains uncertain, the
+            reservation stays held.
+          </p>
+          <p class="body-small text-on-surface-variant mt-2">
+            For an organizer-approved sign-up with an open payment page, a
+            missing approval notification is recorded with the restored link. An
+            existing notification is not sent again.
+          </p>
+          <dl class="my-4 grid gap-2 text-sm">
+            <div>
+              <dt class="text-on-surface-variant">Event</dt>
+              <dd>{{ claim.eventTitle }}</dd>
+            </div>
+            <div>
+              <dt class="text-on-surface-variant">Attendee</dt>
+              <dd>
+                {{ claim.attendeeFirstName }} {{ claim.attendeeLastName }}
+              </dd>
+            </div>
+            <div>
+              <dt class="text-on-surface-variant">Amount</dt>
+              <dd>{{ claim.amount / 100 | currency: claim.currency }}</dd>
+            </div>
+          </dl>
+          <mat-form-field class="w-full">
+            <mat-label>Reason for restoring payment setup</mat-label>
+            <textarea
+              matInput
+              rows="3"
+              [formField]="checkoutRecoveryForm.reason"
+            ></textarea>
+            <mat-hint>Required. This reason is saved with the action.</mat-hint>
+          </mat-form-field>
+          <div class="flex justify-end">
+            <button
+              mat-flat-button
+              type="submit"
+              [disabled]="
+                checkoutRecoveryForm().invalid() || financeActionsDisabled()
+              "
+            >
+              {{
+                financeAction() === "checkout"
+                  ? "Checking existing payment…"
+                  : "Restore existing payment"
+              }}
+            </button>
+          </div>
+        </form>
+      } @else {
+        <p class="body-medium text-on-surface-variant">
+          Select a payment setup to review what can be restored.
+        </p>
+      }
+    </section>
+  </mat-tab>
 </mat-tab-group>
