@@ -6,6 +6,7 @@ type RoutingContext = Pick<BrowserContext, 'unroute'>;
 
 type TenantRoute = {
   active: Set<Promise<void>>;
+  pendingSettlements: Set<() => Promise<void>>;
   closing: boolean;
   drainFailure: { error: unknown; observedErrorCount: number } | undefined;
   draining: Promise<void> | undefined;
@@ -63,17 +64,31 @@ export const routeLocalTenantRequests = async ({
   }
   const state: TenantRoute = {
     active: new Set(),
+    pendingSettlements: new Set(),
     closing: false,
     drainFailure: undefined,
     draining: undefined,
     emergencyClose: undefined,
     errors: [],
     handler: (route) => {
+      let settlement: Promise<void> | undefined;
+      const settle = (action: () => Promise<void>) => {
+        if (!settlement) {
+          settlement = Promise.resolve().then(action);
+          void settlement.then(
+            () => state.pendingSettlements.delete(cancel),
+            () => state.pendingSettlements.delete(cancel),
+          );
+        }
+        return settlement;
+      };
+      const cancel = () => settle(() => route.abort('aborted'));
+      state.pendingSettlements.add(cancel);
       const operation = (async () => {
         const abortOnly = state.closing;
         try {
           if (abortOnly) {
-            await route.abort('aborted');
+            await cancel();
             return;
           }
           const response = await route.fetch({
@@ -83,17 +98,17 @@ export const routeLocalTenantRequests = async ({
             ),
             maxRedirects: 0,
           });
-          await route.fulfill({ response });
+          await settle(() => route.fulfill({ response }));
         } catch (error) {
           // Route callbacks are asynchronous event listeners in Playwright.
           // Keep failures owned here instead of interrupting the test body.
           state.errors.push(error);
           if (!abortOnly) {
             try {
-              await route.abort('failed');
+              await settle(() => route.abort('failed'));
               return;
             } catch (settlementError) {
-              state.errors.push(settlementError);
+              if (settlementError !== error) state.errors.push(settlementError);
             }
           }
           state.closing = true;
@@ -212,6 +227,19 @@ const closeTenantRequestPagePhase = async (
     pages = [...context.pages()];
   } catch (error) {
     return { errors: [error], drainAttempted };
+  }
+  const routing = tenantRoutes.get(context);
+  if (routing) {
+    routing.closing = true;
+    // Chromium can resume paused browser requests without tenant headers when
+    // their page closes. Settle each intercepted browser request once first;
+    // retain the independent upstream fetch until the later drain completes.
+    while (routing.pendingSettlements.size > 0) {
+      const pending = [...routing.pendingSettlements].map((settle) => settle());
+      for (const result of await Promise.allSettled(pending)) {
+        if (result.status === 'rejected') errors.push(result.reason);
+      }
+    }
   }
   // Keep interception and the context request client alive while closing pages.
   for (const page of pages) {

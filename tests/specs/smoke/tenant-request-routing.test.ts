@@ -549,8 +549,13 @@ test('retains routing ownership when emergency close rejects before closing the 
     );
 });
 
-for (const cleanupMode of ['pages', 'context'] as const) {
-  test(`closes tenant pages before draining their held request without browser errors (${cleanupMode})`, async ({
+for (const { cleanupMode, method } of [
+  { cleanupMode: 'pages', method: 'GET' },
+  { cleanupMode: 'pages', method: 'POST' },
+  { cleanupMode: 'context', method: 'GET' },
+  { cleanupMode: 'context', method: 'POST' },
+] as const) {
+  test(`closes tenant pages before draining their held request without replay or browser errors (${cleanupMode}, ${method})`, async ({
     browser,
   }) => {
     const started = Promise.withResolvers<void>();
@@ -558,6 +563,11 @@ for (const cleanupMode of ['pages', 'context'] as const) {
     const errors: unknown[] = [];
     let response: ServerResponse | undefined;
     let heldRequests = 0;
+    const received: {
+      body: string;
+      method: string | undefined;
+      tenant: string | string[] | undefined;
+    }[] = [];
     let context: BrowserContext | undefined;
     let evaluation: Promise<PromiseSettledResult<string>[]> | undefined;
     let closing: Promise<PromiseSettledResult<void>[]> | undefined;
@@ -578,7 +588,20 @@ for (const cleanupMode of ['pages', 'context'] as const) {
           return;
         }
         response = currentResponse;
-        started.resolve();
+        let body = '';
+        request.setEncoding('utf8');
+        request.on('data', (chunk: string) => {
+          body += chunk;
+        });
+        request.on('error', recordFailure);
+        request.on('end', () => {
+          received.push({
+            body,
+            method: request.method,
+            tenant: request.headers[localTestTenantDomainHeader],
+          });
+          started.resolve();
+        });
         return;
       }
       currentResponse.setHeader('content-type', 'text/html');
@@ -597,15 +620,36 @@ for (const cleanupMode of ['pages', 'context'] as const) {
       });
       await page.goto(local.origin);
       evaluation = Promise.allSettled([
-        page.evaluate(async () => (await fetch('/held-page-request')).text()),
+        page.evaluate(async (requestMethod) => {
+          try {
+            await fetch('/held-page-request', {
+              method: requestMethod,
+              ...(requestMethod === 'POST'
+                ? { body: 'tenant-owned mutation' }
+                : {}),
+            });
+          } catch (error) {
+            if (!(error instanceof TypeError)) throw error;
+          }
+          // Keep the observer alive until the page closes after cancellation.
+          return new Promise<string>(() => {});
+        }, method),
       ]);
       await started.promise;
+      const failedRequest = page.waitForEvent('requestfailed', {
+        predicate: (request) =>
+          request.url() === `${local.origin}/held-page-request`,
+        timeout: 10_000,
+      });
       const pageClosed = page.waitForEvent('close', { timeout: 10_000 });
       closing = Promise.allSettled([
         cleanupMode === 'pages'
           ? closeTenantRequestPages(context)
           : closeTenantRequestContext(context),
       ]);
+      expect((await failedRequest).failure()?.errorText).toBe(
+        'net::ERR_ABORTED',
+      );
       await pageClosed;
       expect(page.isClosed()).toBe(true);
       expect(context.isClosed()).toBe(false);
@@ -627,6 +671,13 @@ for (const cleanupMode of ['pages', 'context'] as const) {
       if (closeResult.status === 'rejected') throw closeResult.reason;
       expect(context.isClosed()).toBe(cleanupMode === 'context');
       expect(heldRequests).toBe(1);
+      expect(received).toEqual([
+        {
+          body: method === 'POST' ? 'tenant-owned mutation' : '',
+          method,
+          tenant: 'north-river.evorto.app',
+        },
+      ]);
       expect(pageErrors).toEqual([]);
     } catch (error) {
       recordFailure(error);
