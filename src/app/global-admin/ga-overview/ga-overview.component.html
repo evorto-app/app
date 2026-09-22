@@ -1,4 +1,6 @@
-<div class="grid grid-cols-1 lg:grid-cols-[300px_1fr] lg:gap-4 lg:p-4">
+<div
+  class="grid min-w-0 grid-cols-1 lg:grid-cols-[300px_minmax(0,1fr)] lg:gap-4 lg:p-4"
+>
   <div>
     <div
       class="mb-4 {{
@@ -43,7 +45,7 @@
       </a>
     </nav>
   </div>
-  <div>
+  <div class="min-w-0">
     <router-outlet
       (activate)="outletActive.set(true)"
       (deactivate)="outletActive.set(false)"

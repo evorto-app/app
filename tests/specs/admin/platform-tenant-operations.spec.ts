@@ -321,6 +321,7 @@ test('platform restores an original test Checkout and records its reason @admin 
   testClock,
 }) => {
   test.setTimeout(120_000);
+  await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto('/global-admin');
   const scenario = await seedCheckoutRecoveryScenario({
     baseUrl: new URL(page.url()).origin,
@@ -358,6 +359,20 @@ test('platform restores an original test Checkout and records its reason @admin 
     .getByLabel('Reason for restoring payment setup')
     .fill(scenario.reason);
   await expect(restore).toBeEnabled();
+  for (const width of [1280, 1024, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () =>
+            document.documentElement.scrollWidth <=
+            document.documentElement.clientWidth,
+        ),
+      )
+      .toBe(true);
+    await expect(restore).toBeVisible();
+  }
+  await page.setViewportSize({ width: 1280, height: 900 });
   await restore.click();
   await expect(
     page.getByText(

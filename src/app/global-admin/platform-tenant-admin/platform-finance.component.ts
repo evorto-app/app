@@ -311,6 +311,7 @@ export class PlatformFinanceOperations {
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { class: '@container block min-w-0' },
   imports: [
     CurrencyAmountInputComponent,
     CurrencyPipe,

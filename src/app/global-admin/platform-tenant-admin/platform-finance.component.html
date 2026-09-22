@@ -165,7 +165,7 @@
 
   <mat-tab label="Receipt approval">
     <section
-      class="grid gap-6 py-4 lg:grid-cols-[minmax(18rem,1fr)_minmax(22rem,1fr)]"
+      class="grid gap-6 py-4 @3xl:grid-cols-[minmax(18rem,1fr)_minmax(22rem,1fr)]"
     >
       <div>
         @if (approvalQueueQuery.isPending()) {
@@ -376,7 +376,7 @@
 
   <mat-tab label="Reimbursements">
     <section
-      class="grid gap-6 py-4 lg:grid-cols-[minmax(18rem,1fr)_minmax(22rem,1fr)]"
+      class="grid gap-6 py-4 @3xl:grid-cols-[minmax(18rem,1fr)_minmax(22rem,1fr)]"
     >
       <div>
         @if (reimbursementQueueQuery.isPending()) {
@@ -546,7 +546,7 @@
 
   <mat-tab label="Refunds needing attention">
     <section
-      class="grid gap-6 py-4 lg:grid-cols-[minmax(18rem,1fr)_minmax(22rem,1fr)]"
+      class="grid gap-6 py-4 @3xl:grid-cols-[minmax(18rem,1fr)_minmax(22rem,1fr)]"
     >
       <div>
         <p class="body-small text-on-surface-variant mb-3">
@@ -716,7 +716,7 @@
   </mat-tab>
   <mat-tab label="Payments needing attention">
     <section
-      class="grid gap-6 py-4 lg:grid-cols-2"
+      class="grid gap-6 py-4 @3xl:grid-cols-2"
       aria-label="Payments needing attention"
     >
       <div>
