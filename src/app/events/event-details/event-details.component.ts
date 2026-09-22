@@ -17,16 +17,16 @@ import {
 } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
-import { MatMenuModule } from '@angular/material/menu';
 import { RouterLink } from '@angular/router';
 import { IconComponent } from '@app/shared/components/icon/icon.component';
 import { Shape } from '@app/shared/components/shape/shape';
 import { MaterialThemeDirective } from '@app/shared/directives/material-theme.directive';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
+import { faArrowLeft, faUsers } from '@fortawesome/duotone-regular-svg-icons';
 import {
-  faArrowLeft,
-  faEllipsisVertical,
-} from '@fortawesome/duotone-regular-svg-icons';
+  eventDiscoveryDescription,
+  eventDiscoveryLabel,
+} from '@shared/event-discovery';
 import {
   injectMutation,
   injectQuery,
@@ -56,23 +56,28 @@ import {
 } from '../event-review-dialog/event-review-dialog.component';
 import { eventReviewActionErrorRequiresRefresh } from '../event-rpc-error';
 import { SubmitEventDialogComponent } from '../submit-event-dialog/submit-event-dialog.component';
-import { UpdateVisibilityDialogComponent } from '../update-visibility-dialog/update-visibility-dialog.component';
+import {
+  UpdateAnnouncementDiscoveryDialogComponent,
+  type UpdateAnnouncementDiscoveryDialogResult,
+} from '../update-announcement-discovery-dialog/update-announcement-discovery-dialog.component';
 
 const logger = consola.withTag('app/events/details');
 
 export type RegistrationOptionsState =
-  'hiddenByEligibility' | 'none' | 'visible';
+  'hiddenByEligibility' | 'none' | 'requiresSignIn' | 'visible';
 
 export const registrationOptionsState = (event: {
+  hasRegistrationOptions: boolean;
   registrationOptions: readonly unknown[];
   registrationOptionsHiddenByEligibility: boolean;
 }): RegistrationOptionsState => {
   if (event.registrationOptions.length > 0) {
     return 'visible';
   }
-  return event.registrationOptionsHiddenByEligibility
-    ? 'hiddenByEligibility'
-    : 'none';
+  if (event.registrationOptionsHiddenByEligibility) {
+    return 'hiddenByEligibility';
+  }
+  return event.hasRegistrationOptions ? 'requiresSignIn' : 'none';
 };
 
 export const outgoingRegistrationTransferCopy = (
@@ -250,6 +255,10 @@ export const eventAddonsForRegistrationOption = <
 export class EventDetailsOperations {
   private readonly rpc = AppRpc.injectClient();
 
+  authentication() {
+    return this.rpc.config.isAuthenticated.queryOptions();
+  }
+
   canOrganize(eventId: string) {
     return this.rpc.events.canOrganize.queryOptions({ eventId });
   }
@@ -282,16 +291,12 @@ export class EventDetailsOperations {
     return this.rpc.events.reviewEvent.mutationOptions();
   }
 
-  self() {
-    return this.rpc.users.maybeSelf.queryOptions();
-  }
-
   submitForReview() {
     return this.rpc.events.submitForReview.mutationOptions();
   }
 
-  updateListing() {
-    return this.rpc.events.updateListing.mutationOptions();
+  updateAnnouncementDiscovery() {
+    return this.rpc.events.updateAnnouncementDiscovery.mutationOptions();
   }
 }
 
@@ -305,7 +310,6 @@ export class EventDetailsOperations {
     CurrencyPipe,
     TenantDatePipe,
     MatButtonModule,
-    MatMenuModule,
     RouterLink,
     FontAwesomeModule,
     EventRegistrationOptionComponent,
@@ -338,7 +342,15 @@ export class EventDetailsOperations {
 })
 export class EventDetailsComponent {
   public eventId = input.required<string>();
+  private readonly config = inject(ConfigService);
+  protected readonly discountCardsRequired = computed(
+    () => this.config.tenant.discountProviders?.esnCard?.status === 'enabled',
+  );
   private readonly operations = inject(EventDetailsOperations);
+  protected readonly authenticationQuery = injectQuery(() => ({
+    ...this.operations.authentication(),
+    enabled: this.discountCardsRequired(),
+  }));
   protected readonly eventQuery = injectQuery(() =>
     this.operations.findEvent(this.eventId()),
   );
@@ -351,12 +363,9 @@ export class EventDetailsComponent {
       error._tag === 'EventConflictError'
     );
   });
-  protected readonly selfQery = injectQuery(() => this.operations.self());
-  private readonly isEventCreator = computed(() => {
-    const event = this.eventQuery.data();
-    const self = this.selfQery.data();
-    return !!event && !!self && event.creatorId === self.id;
-  });
+  private readonly isEventCreator = computed(
+    () => this.eventQuery.data()?.userIsCreator === true,
+  );
   private permissions = inject(PermissionsService);
   protected readonly canEdit = computed(() => {
     const event = this.eventQuery.data();
@@ -387,14 +396,18 @@ export class EventDetailsComponent {
       isCreator: this.isEventCreator(),
     });
   });
-  protected readonly myCardsQuery = injectQuery(() =>
-    this.operations.myCards(),
+  protected readonly isAuthenticated = computed(
+    () =>
+      this.authenticationQuery.isSuccess() &&
+      !this.authenticationQuery.isFetching() &&
+      this.authenticationQuery.data() === true,
   );
-  private readonly config = inject(ConfigService);
+  protected readonly myCardsQuery = injectQuery(() => ({
+    ...this.operations.myCards(),
+    enabled: this.isAuthenticated() && this.discountCardsRequired(),
+  }));
   protected readonly cardExpiresBeforeEvent = computed(() => {
-    const isEsnCardEnabled =
-      this.config.tenant.discountProviders?.esnCard?.status === 'enabled';
-    if (!isEsnCardEnabled) return false;
+    if (!this.isAuthenticated() || !this.discountCardsRequired()) return false;
     if (!this.eventQuery.isSuccess() || !this.myCardsQuery.isSuccess()) {
       return false;
     }
@@ -413,6 +426,8 @@ export class EventDetailsComponent {
   protected readonly eventAddonPurchaseTiming = eventAddonPurchaseTiming;
   protected readonly eventAddonsForRegistrationOption =
     eventAddonsForRegistrationOption;
+  protected readonly eventDiscoveryDescription = eventDiscoveryDescription;
+  protected readonly eventDiscoveryLabel = eventDiscoveryLabel;
   protected readonly eventIconColor = computed(() => {
     const event = this.eventQuery.data();
     if (!event) {
@@ -421,14 +436,12 @@ export class EventDetailsComponent {
     return event.icon.iconColor;
   });
   protected readonly eventReviewActionDisabled = eventReviewActionDisabled;
-
   protected readonly eventSubmitForReviewActionDisabled =
     eventSubmitForReviewActionDisabled;
   protected readonly eventTimezone = inject(TENANT_DATE_PIPE_TIMEZONE);
 
   protected readonly faArrowLeft = faArrowLeft;
-
-  protected readonly faEllipsisVertical = faEllipsisVertical;
+  protected readonly faUsers = faUsers;
   protected readonly outgoingRegistrationTransferCopy =
     outgoingRegistrationTransferCopy;
   protected readonly registrationOptionGroups = computed(() =>
@@ -460,12 +473,16 @@ export class EventDetailsComponent {
   protected readonly submitForReviewMutation = injectMutation(() =>
     this.operations.submitForReview(),
   );
-  protected readonly updateListingMutation = injectMutation(() =>
-    this.operations.updateListing(),
+  protected readonly updateAnnouncementDiscoveryMutation = injectMutation(() =>
+    this.operations.updateAnnouncementDiscovery(),
   );
   private dialog = inject(MatDialog);
   private notifications = inject(NotificationService);
   private queryClient = inject(QueryClient);
+  private readonly retainedAnnouncementSelection = signal<null | {
+    announcementRoleIds: string[];
+    eventId: string;
+  }>(null);
   private readonly retainedReviewComment = signal<null | {
     comment: string;
     eventId: string;
@@ -481,41 +498,6 @@ export class EventDetailsComponent {
         this.config.updateDescription(convert(event.description));
       }
     });
-  }
-
-  async updateVisibility() {
-    if (!this.controlsInteractive() || !this.eventQuery.isSuccess()) return;
-
-    const event = this.eventQuery.data();
-
-    const unlisted = await firstValueFrom(
-      this.dialog
-        .open(UpdateVisibilityDialogComponent, {
-          data: { event },
-        })
-        .afterClosed(),
-    );
-    if (unlisted !== null && unlisted !== undefined) {
-      this.updateListingMutation.mutate(
-        {
-          eventId: this.eventId(),
-          unlisted,
-        },
-        {
-          onSuccess: async () => {
-            await this.queryClient.invalidateQueries({
-              queryKey: this.operations.eventQueryKey(this.eventId()),
-            });
-            await this.queryClient.invalidateQueries(
-              this.operations.eventListFilter(),
-            );
-            await this.queryClient.invalidateQueries(
-              this.operations.pendingReviewsFilter(),
-            );
-          },
-        },
-      );
-    }
   }
 
   protected eventAddonTaxRate(addOn: {
@@ -684,6 +666,111 @@ export class EventDetailsComponent {
         );
       } else {
         await this.handleReviewActionError(error, eventId);
+      }
+    } finally {
+      this.reviewActionInProgress.set(false);
+    }
+  }
+
+  protected async updateAnnouncementDiscovery(): Promise<void> {
+    const eventId = this.eventId();
+    if (
+      !this.controlsInteractive() ||
+      !this.eventQuery.isSuccess() ||
+      this.reviewActionInProgress() ||
+      this.updateAnnouncementDiscoveryMutation.isPending()
+    ) {
+      return;
+    }
+    const event = this.eventQuery.data();
+    if (event.id !== eventId || event.hasRegistrationOptions) return;
+    if (event.announcementRoleIds === null) {
+      this.showReviewActionError(
+        eventId,
+        'Who can find this announcement could not be loaded. No change can be made right now.',
+      );
+      return;
+    }
+
+    this.reviewActionInProgress.set(true);
+    let actionStep: 'confirmation' | 'mutation' | 'refresh' = 'confirmation';
+    try {
+      const retained = this.retainedAnnouncementSelection();
+      const result = await firstValueFrom(
+        this.dialog
+          .open<
+            UpdateAnnouncementDiscoveryDialogComponent,
+            {
+              event: { announcementRoleIds: readonly string[]; title: string };
+            },
+            UpdateAnnouncementDiscoveryDialogResult
+          >(UpdateAnnouncementDiscoveryDialogComponent, {
+            data: {
+              event: {
+                ...event,
+                announcementRoleIds:
+                  retained?.eventId === eventId
+                    ? retained.announcementRoleIds
+                    : event.announcementRoleIds,
+              },
+            },
+          })
+          .afterClosed(),
+      );
+      if (!result || this.eventId() !== eventId) return;
+      this.retainedAnnouncementSelection.set({
+        announcementRoleIds: [...result.announcementRoleIds],
+        eventId,
+      });
+      this.reviewActionFeedback.set(null);
+      actionStep = 'mutation';
+      await this.updateAnnouncementDiscoveryMutation.mutateAsync({
+        announcementRoleIds: result.announcementRoleIds,
+        eventId,
+      });
+      actionStep = 'refresh';
+      await this.refreshReviewState(eventId);
+      if (this.eventId() !== eventId) return;
+      this.retainedAnnouncementSelection.set(null);
+      this.notifications.showSuccess(
+        'Who can find the announcement was updated',
+      );
+    } catch (error) {
+      logger.error('Announcement discovery action failed', error);
+      if (actionStep === 'refresh') {
+        this.showReviewActionError(
+          eventId,
+          'Who can find the announcement was updated, but some event information could not be refreshed. Load this event again before making another change.',
+        );
+      } else if (actionStep === 'confirmation') {
+        this.showReviewActionError(
+          eventId,
+          'The action could not be confirmed. Try opening it again.',
+        );
+      } else {
+        const message = getErrorMessage(
+          error,
+          'The outcome could not be confirmed. Load this event again to check who can find the announcement before making another change.',
+          ['EventNotFoundError', 'RpcBadRequestError'],
+        );
+        this.showReviewActionError(eventId, message);
+        try {
+          await this.refreshReviewState(eventId);
+        } catch (refreshError) {
+          logger.error(
+            'Event read after announcement error failed',
+            new AggregateError(
+              [error, refreshError],
+              'Announcement change and follow-up read failed',
+              { cause: refreshError },
+            ),
+          );
+          this.showReviewActionError(
+            eventId,
+            message +
+              ' Some event information could not be refreshed. Check the event list before making another change.',
+          );
+        }
       }
     } finally {
       this.reviewActionInProgress.set(false);

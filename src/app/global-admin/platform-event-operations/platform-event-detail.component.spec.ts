@@ -42,6 +42,7 @@ import {
   platformEventAddonTypeLimitIssue,
 } from './platform-event-detail.component';
 import {
+  platformAnnouncementVisibilityErrorMessage,
   platformEventAddOnAvailabilityIssue,
   platformEventAddOnMappingIssue,
   platformEventAddOnStockIssue,
@@ -135,6 +136,7 @@ describe('platform event registration-mode compatibility', () => {
     expect(source).toContain(
       "getErrorMessage(error, fallback, ['RpcBadRequestError'])",
     );
+    expect(source).toContain('platformEventMutationErrorMessage');
     expect(template).not.toContain('<mat-option value="random"');
     expect(template).toContain('event.simpleModeEnabled');
     expect(source).toContain('globalAdmin.tenants.findOne.queryOptions');
@@ -323,6 +325,11 @@ describe('platform event registration-mode compatibility', () => {
 
     expect(template).not.toContain('<mat-label>Role IDs</mat-label>');
     expect(template).not.toContain('setOptionRoleIds');
+    expect(template).toContain('Who can find this announcement');
+    expect(template).toContain('eventDiscoveryLabel({');
+    expect(template).toContain('Save who can find it');
+    expect(template).not.toContain('changeListing(');
+    expect(source).toContain('this.announcementDiscoveryMutation.isPending()');
     expect(template).toContain('{{ role.name }}');
     expect(source).not.toContain('setOptionRoleIds');
   });
@@ -461,11 +468,35 @@ describe('platform event registration-mode compatibility', () => {
     );
     expect(template).toContain('addOnTypeLimitIssue(graph.addOns)');
   });
+  it('shows safe, specific announcement visibility failures', () => {
+    expect(
+      platformAnnouncementVisibilityErrorMessage({
+        _tag: 'RpcBadRequestError',
+        reason: 'invalidAnnouncementRole',
+      }),
+    ).toContain('selected roles is no longer available');
+    expect(
+      platformAnnouncementVisibilityErrorMessage({
+        _tag: 'RpcBadRequestError',
+        reason: 'announcementRolesRequireOptionlessEvent',
+      }),
+    ).toContain('now has sign-up choices');
+    expect(
+      platformAnnouncementVisibilityErrorMessage({
+        message: 'Event internal-id was not found for the target tenant',
+        reason: 'eventNotFound',
+      }),
+    ).toBe(
+      'The change to who can find this event could not be confirmed. Load this page again and check the current setting before trying again.',
+    );
+  });
 });
 
-type ListingVariables = Parameters<
+type AnnouncementVariables = Parameters<
   NonNullable<
-    ReturnType<PlatformEventDetailOperations['updateListing']>['mutationFn']
+    ReturnType<
+      PlatformEventDetailOperations['updateAnnouncementDiscovery']
+    >['mutationFn']
   >
 >[0];
 
@@ -513,6 +544,8 @@ const graphSaveEventRecord = (): PlatformEventDetailRecord => ({
       totalAvailableQuantity: 20,
     },
   ],
+  announcementRoleIds: [],
+  announcementRoleNames: [],
   creator: {
     email: 'alex@example.test',
     firstName: 'Alex',
@@ -564,7 +597,6 @@ const graphSaveEventRecord = (): PlatformEventDetailRecord => ({
   status: 'DRAFT',
   statusComment: null,
   title: 'Original event title',
-  unlisted: true,
 });
 
 const graphSaveFormOptions: Schema.Schema.Type<
@@ -660,8 +692,10 @@ describe('PlatformEventDetailComponent graph-save outcomes', () => {
     vi.fn<
       (input: UpdateGraphVariables) => Promise<PlatformEventDetailRecord>
     >();
-  const changeListing =
-    vi.fn<(input: ListingVariables) => Promise<PlatformEventDetailRecord>>();
+  const changeAnnouncement =
+    vi.fn<
+      (input: AnnouncementVariables) => Promise<PlatformEventDetailRecord>
+    >();
   const submitReview =
     vi.fn<
       (input: SubmitReviewVariables) => Promise<PlatformEventDetailRecord>
@@ -678,7 +712,7 @@ describe('PlatformEventDetailComponent graph-save outcomes', () => {
     loadEvent.mockReset().mockImplementation(async () => record);
     loadChoices.mockReset().mockResolvedValue(graphSaveFormOptions);
     updateEvent.mockReset().mockImplementation(async () => record);
-    changeListing.mockReset().mockImplementation(async () => record);
+    changeAnnouncement.mockReset().mockImplementation(async () => record);
     submitReview.mockReset().mockImplementation(async () => record);
     reviewEvent.mockReset().mockImplementation(async () => record);
     showError.mockReset();
@@ -728,9 +762,9 @@ describe('PlatformEventDetailComponent graph-save outcomes', () => {
               mutationFn: updateEvent,
               mutationKey: ['platform-event-detail', 'update'],
             }),
-            updateListing: () => ({
-              mutationFn: changeListing,
-              mutationKey: ['platform-event-detail', 'listing'],
+            updateAnnouncementDiscovery: () => ({
+              mutationFn: changeAnnouncement,
+              mutationKey: ['platform-event-detail', 'announcement'],
             }),
           },
         },
@@ -863,7 +897,7 @@ describe('PlatformEventDetailComponent graph-save outcomes', () => {
         title: 'Submitted event title',
       }),
     ]);
-    expect(changeListing).not.toHaveBeenCalled();
+    expect(changeAnnouncement).not.toHaveBeenCalled();
     expect(submitReview).not.toHaveBeenCalled();
     expect(reviewEvent).not.toHaveBeenCalled();
   };
@@ -881,18 +915,16 @@ describe('PlatformEventDetailComponent graph-save outcomes', () => {
 
   const expectAllActionsBlocked = () => {
     expect(fixture.componentInstance['editForm']().submitting()).toBe(true);
-    for (const label of [
-      'Save draft details',
-      'Submit for review',
-      'Make listed',
-    ]) {
+    expect(root.textContent).not.toContain('Save who can find it');
+    for (const label of ['Save draft details', 'Submit for review']) {
       expect(button(label).disabled).toBe(true);
     }
   };
 
   const attemptOtherActions = () => {
     invokeSave();
-    for (const label of ['Submit for review', 'Make listed']) {
+    fixture.componentInstance['saveAnnouncementVisibility']();
+    for (const label of ['Submit for review']) {
       button(label).dispatchEvent(new MouseEvent('click', { bubbles: true }));
     }
     fixture.detectChanges();
@@ -1127,6 +1159,756 @@ describe('PlatformEventDetailComponent graph-save outcomes', () => {
       expectSinglePayload();
       expect(loadEvent).toHaveBeenCalledOnce();
       expect(loadChoices).toHaveBeenCalledOnce();
+    },
+  );
+});
+
+type UpdateEventVariables = Parameters<
+  NonNullable<ReturnType<PlatformEventDetailOperations['update']>['mutationFn']>
+>[0];
+@Component({
+  selector: 'app-platform-tenant-page-header',
+  template: '',
+})
+class PlatformEventDetailHeaderStub {
+  readonly tenantId = input.required<string>();
+  readonly title = input.required<string>();
+}
+
+const eventDetailRecord = (
+  status: PlatformEventDetailRecord['status'] = 'DRAFT',
+): PlatformEventDetailRecord => ({
+  addOns: [],
+  announcementRoleIds: ['role-1'],
+  announcementRoleNames: ['Members'],
+  creator: {
+    email: 'alex@example.test',
+    firstName: 'Alex',
+    id: 'user-1',
+    lastName: 'Able',
+  },
+  description: 'Original event description',
+  end: '2026-09-20T12:00:00.000Z',
+  icon: { iconColor: 0, iconName: 'calendar' },
+  id: 'event-1',
+  location: null,
+  questions: [],
+  registrationCount: 0,
+  registrationOptions: [],
+  reviewedAt: null,
+  simpleModeEnabled: false,
+  start: '2026-09-20T10:00:00.000Z',
+  status,
+  statusComment: null,
+  title: 'Original event title',
+});
+
+const detailFormOptions: Schema.Schema.Type<
+  typeof PlatformEventFormOptionsRecord
+> = {
+  creators: [eventDetailRecord().creator],
+  esnCardEnabled: false,
+  roles: [{ id: 'role-1', name: 'Members' }],
+  taxRates: [],
+  templates: [],
+  timezone: 'Europe/Berlin',
+};
+
+const detailTenant = new GlobalAdminTenantRecord({
+  currency: 'EUR',
+  domain: 'tenant.example.test',
+  id: 'tenant-1',
+  name: 'Test organization',
+  paymentsConfigured: false,
+  theme: 'evorto',
+  timezone: 'Europe/Berlin',
+});
+
+const platformEventActions = [
+  {
+    confirmed:
+      'The event was updated, but the latest event information could not be loaded. Load this page again to check the saved details.',
+    kind: 'save',
+    label: 'Save draft details',
+    status: 'DRAFT',
+    success: 'Event updated',
+    uncertain:
+      'The event update could not be confirmed. Load this page again and check the current event before trying again.',
+  },
+  {
+    confirmed:
+      'Who can find the announcement was updated, but the latest event information could not be loaded. Load this page again to check the saved setting.',
+    kind: 'announcement',
+    label: 'Save who can find it',
+    status: 'DRAFT',
+    success: 'Who can find the announcement was updated',
+    uncertain:
+      'The change to who can find this event could not be confirmed. Load this page again and check the current setting before trying again.',
+  },
+  {
+    confirmed:
+      'The event was submitted for review, but the latest event information could not be loaded. Load this page again to check its current status.',
+    kind: 'submit',
+    label: 'Submit for review',
+    status: 'DRAFT',
+    success: 'Event submitted for review',
+    uncertain:
+      'Submission for review could not be confirmed. Load this page again and check the event status before trying again.',
+  },
+  {
+    confirmed:
+      'The event was approved, but the latest event information could not be loaded. Load this page again to check its current status.',
+    kind: 'approve',
+    label: 'Approve event',
+    status: 'PENDING_REVIEW',
+    success: 'Event approved',
+    uncertain:
+      'The event review could not be confirmed. Load this page again and check the event status before trying again.',
+  },
+  {
+    confirmed:
+      'The event was returned to draft, but the latest event information could not be loaded. Load this page again to check its current status.',
+    kind: 'return',
+    label: 'Return to draft',
+    status: 'PENDING_REVIEW',
+    success: 'Event returned to draft',
+    uncertain:
+      'The event review could not be confirmed. Load this page again and check the event status before trying again.',
+  },
+] as const;
+type PlatformEventAction = (typeof platformEventActions)[number];
+
+const renderedEventElement = (element: unknown): HTMLElement => {
+  if (!(element instanceof HTMLElement))
+    throw new Error('Expected rendered event element');
+  return element;
+};
+
+const heldEventResult = <T>() => {
+  let complete: ((value: T) => void) | undefined;
+  // eslint-disable-next-line unicorn/prefer-promise-with-resolvers -- Angular browser tests use the ES2022 library.
+  const promise = new Promise<T>((resolve) => {
+    complete = resolve;
+  });
+  return {
+    promise,
+    resolve(value: T) {
+      if (!complete) throw new Error('Expected a registered result owner');
+      complete(value);
+    },
+  };
+};
+
+describe('PlatformEventDetailComponent operation outcomes', () => {
+  let record = eventDetailRecord();
+  let queryClient: QueryClient;
+  let acquiredQueryClient: QueryClient | undefined;
+  let acquiredActionFixture:
+    ComponentFixture<PlatformEventDetailComponent> | undefined;
+  let fixture: ComponentFixture<PlatformEventDetailComponent>;
+  let root: HTMLElement;
+  const loadEvent = vi.fn(async () => record);
+  const loadChoices = vi.fn(async () => detailFormOptions);
+  const updateEvent =
+    vi.fn<
+      (input: UpdateEventVariables) => Promise<PlatformEventDetailRecord>
+    >();
+  const changeAnnouncement =
+    vi.fn<
+      (input: AnnouncementVariables) => Promise<PlatformEventDetailRecord>
+    >();
+  const submitReview =
+    vi.fn<
+      (input: SubmitReviewVariables) => Promise<PlatformEventDetailRecord>
+    >();
+  const reviewEvent =
+    vi.fn<
+      (input: ReviewEventVariables) => Promise<PlatformEventDetailRecord>
+    >();
+  const showError = vi.fn<(message: string) => void>();
+  const showSuccess = vi.fn<(message: string) => void>();
+
+  beforeEach(async () => {
+    acquiredQueryClient = undefined;
+    acquiredActionFixture = undefined;
+    record = eventDetailRecord();
+    loadEvent.mockReset().mockImplementation(async () => record);
+    loadChoices.mockReset().mockResolvedValue(detailFormOptions);
+    updateEvent.mockReset().mockImplementation(async () => record);
+    changeAnnouncement.mockReset().mockImplementation(async () => record);
+    submitReview.mockReset().mockImplementation(async () => record);
+    reviewEvent.mockReset().mockImplementation(async () => record);
+    showError.mockReset();
+    showSuccess.mockReset();
+    queryClient = new QueryClient({
+      defaultOptions: {
+        mutations: { retry: false },
+        queries: { gcTime: 0, retry: false },
+      },
+    });
+    acquiredQueryClient = queryClient;
+    TestBed.overrideComponent(PlatformEventDetailComponent, {
+      add: { imports: [PlatformEventDetailHeaderStub] },
+      remove: { imports: [PlatformTenantPageHeaderComponent] },
+    });
+    await TestBed.configureTestingModule({
+      imports: [PlatformEventDetailComponent],
+      providers: [
+        provideTanStackQuery(queryClient),
+        provideRouter([]),
+        { provide: NotificationService, useValue: { showError, showSuccess } },
+        {
+          provide: PlatformEventDetailOperations,
+          useValue: {
+            eventFilter: () => ({ queryKey: ['platform-event-detail'] }),
+            findOne: () => ({
+              queryFn: loadEvent,
+              queryKey: ['platform-event-detail', 'event-1'],
+            }),
+            formOptions: () => ({
+              queryFn: loadChoices,
+              queryKey: ['platform-event-detail', 'form-options'],
+            }),
+            review: () => ({
+              mutationFn: reviewEvent,
+              mutationKey: ['platform-event-detail', 'review'],
+            }),
+            submitForReview: () => ({
+              mutationFn: submitReview,
+              mutationKey: ['platform-event-detail', 'submit'],
+            }),
+            tenant: () => ({
+              queryFn: async () => detailTenant,
+              queryKey: ['platform-event-tenant', 'tenant-1'],
+            }),
+            update: () => ({
+              mutationFn: updateEvent,
+              mutationKey: ['platform-event-detail', 'update'],
+            }),
+            updateAnnouncementDiscovery: () => ({
+              mutationFn: changeAnnouncement,
+              mutationKey: ['platform-event-detail', 'announcement'],
+            }),
+          },
+        },
+      ],
+    }).compileComponents();
+  });
+
+  const drainAction = async () => {
+    const currentFixture = acquiredActionFixture;
+    if (!currentFixture) return;
+    await vi.waitFor(() => {
+      currentFixture.detectChanges();
+      expect(currentFixture.componentInstance['mutationPending']()).toBe(false);
+    });
+    await currentFixture.whenStable();
+  };
+
+  afterEach(async () => {
+    const queryClientToClear = acquiredQueryClient;
+    acquiredQueryClient = undefined;
+    try {
+      await runGraphSaveScenario(drainAction, [
+        () => {
+          TestBed.resetTestingModule();
+        },
+        () => queryClientToClear?.clear(),
+      ]);
+    } finally {
+      acquiredActionFixture = undefined;
+    }
+  });
+
+  const field = (label: string): HTMLInputElement | HTMLTextAreaElement => {
+    const wrapper = [...root.querySelectorAll('mat-form-field')].find(
+      (candidate) =>
+        candidate.querySelector('mat-label')?.textContent?.trim() === label,
+    );
+    const control = wrapper?.querySelector('input, textarea');
+    if (!(
+      control instanceof HTMLInputElement ||
+      control instanceof HTMLTextAreaElement
+    )) {
+      throw new TypeError(`Expected field ${label}`);
+    }
+    return control;
+  };
+
+  const button = (label: string): HTMLButtonElement => {
+    const result = [...root.querySelectorAll('button')].find(
+      (candidate) => candidate.textContent?.trim() === label,
+    );
+    if (!result) throw new Error(`Expected button ${label}`);
+    return result;
+  };
+
+  const enter = (label: string, value: string) => {
+    const control = field(label);
+    control.value = value;
+    control.dispatchEvent(new Event('input', { bubbles: true }));
+    fixture.detectChanges();
+  };
+
+  const entries = () =>
+    JSON.stringify({
+      actionReason: field('Action reason').value,
+      announcementRoleIds: [
+        ...fixture.componentInstance['announcementRoleIds'](),
+      ],
+      description: field('Description').value,
+      end: field('End').value,
+      reason: field('Update reason').value,
+      reviewFeedback:
+        record.status === 'PENDING_REVIEW'
+          ? field('Review feedback').value
+          : null,
+      start: field('Start').value,
+      title: field('Title').value,
+    });
+
+  const render = async (action: PlatformEventAction) => {
+    record = eventDetailRecord(action.status);
+    fixture = TestBed.createComponent(PlatformEventDetailComponent);
+    acquiredActionFixture = fixture;
+    fixture.componentRef.setInput('tenantId', 'tenant-1');
+    fixture.componentRef.setInput('eventId', 'event-1');
+    fixture.detectChanges();
+    root = renderedEventElement(fixture.nativeElement);
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(field('Title').value).toBe(record.title);
+      expect(loadChoices).toHaveBeenCalledOnce();
+    });
+    enter('Action reason', '  Explain the action  ');
+    if (action.status === 'DRAFT') {
+      enter('Title', 'Submitted event title');
+      enter('Description', 'Submitted event description');
+      enter('Update reason', 'Explain the edited details');
+    } else {
+      enter('Review feedback', '  Review feedback for the owner  ');
+    }
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(button(action.label).disabled).toBe(false);
+    });
+  };
+
+  const invoke = (action: PlatformEventAction) => {
+    if (action.kind === 'save') {
+      const form = root.querySelector('form');
+      if (!form) throw new Error('Expected event form');
+      form.dispatchEvent(
+        new Event('submit', { bubbles: true, cancelable: true }),
+      );
+    } else {
+      button(action.label).dispatchEvent(
+        new MouseEvent('click', { bubbles: true }),
+      );
+    }
+    fixture.detectChanges();
+  };
+
+  const selectedMutation = (action: PlatformEventAction) => {
+    switch (action.kind) {
+      case 'announcement': {
+        return changeAnnouncement;
+      }
+      case 'approve':
+      case 'return': {
+        return reviewEvent;
+      }
+      case 'save': {
+        return updateEvent;
+      }
+      case 'submit': {
+        return submitReview;
+      }
+    }
+  };
+
+  const expectSinglePayload = (action: PlatformEventAction) => {
+    const target = {
+      eventId: 'event-1',
+      reason: 'Explain the action',
+      targetTenantId: 'tenant-1',
+    };
+    const expected =
+      action.kind === 'save'
+        ? {
+            addOns: [],
+            description: 'Submitted event description',
+            end: record.end,
+            eventId: 'event-1',
+            icon: record.icon,
+            location: null,
+            questions: [],
+            reason: 'Explain the edited details',
+            registrationOptions: [],
+            start: record.start,
+            targetTenantId: 'tenant-1',
+            title: 'Submitted event title',
+          }
+        : action.kind === 'announcement'
+          ? { announcementRoleIds: ['role-1'], ...target }
+          : action.kind === 'submit'
+            ? target
+            : {
+                approved: action.kind === 'approve',
+                comment: 'Review feedback for the owner',
+                ...target,
+              };
+    // TanStack supplies a second mutation context argument; compare only complete public payloads.
+    expect(
+      selectedMutation(action).mock.calls.map(([payload]) =>
+        JSON.stringify(payload),
+      ),
+    ).toEqual([JSON.stringify(expected)]);
+    expect(
+      updateEvent.mock.calls.length +
+        changeAnnouncement.mock.calls.length +
+        submitReview.mock.calls.length +
+        reviewEvent.mock.calls.length,
+    ).toBe(1);
+  };
+
+  const expectMessage = async (message: string) => {
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(showError).toHaveBeenLastCalledWith(message);
+      expect(root.querySelector('[role="alert"]')?.textContent).toContain(
+        message,
+      );
+    });
+    expect(showSuccess).not.toHaveBeenCalled();
+  };
+
+  const expectAllActionsBlocked = () => {
+    for (const action of platformEventActions) {
+      const control = [...root.querySelectorAll('button')].find(
+        (candidate) => candidate.textContent?.trim() === action.label,
+      );
+      if (control) expect(control.disabled).toBe(true);
+    }
+  };
+
+  it.each(platformEventActions)(
+    'keeps $kind unconfirmed after a lost mutation response',
+    async (action) => {
+      await render(action);
+      const entered = entries();
+      let simulatedChange = false;
+      selectedMutation(action).mockImplementationOnce(async () => {
+        simulatedChange = true;
+        throw new Error(
+          'The test-local change completed but its response was lost.',
+        );
+      });
+      invoke(action);
+      await expectMessage(action.uncertain);
+      await vi.waitFor(() => {
+        fixture.detectChanges();
+        expect(button(action.label).disabled).toBe(false);
+      });
+      expect(simulatedChange).toBe(true);
+      expect(entries()).toBe(entered);
+      expectSinglePayload(action);
+      expect(root.textContent).not.toContain('response was lost');
+    },
+  );
+
+  it.each(platformEventActions)(
+    'keeps $kind unconfirmed after an internal RPC failure',
+    async (action) => {
+      await render(action);
+      const entered = entries();
+      selectedMutation(action).mockRejectedValueOnce(
+        new RpcInternalServerError({ message: 'Private database detail' }),
+      );
+      invoke(action);
+      await expectMessage(action.uncertain);
+      await vi.waitFor(() => {
+        fixture.detectChanges();
+        expect(button(action.label).disabled).toBe(false);
+      });
+      expect(entries()).toBe(entered);
+      expectSinglePayload(action);
+      expect(root.textContent).not.toContain('Private database detail');
+    },
+  );
+
+  it.each(platformEventActions)(
+    'reports confirmed $kind when the explicit event read fails and retains edits after retry',
+    async (action) => {
+      await render(action);
+      const entered = entries();
+      loadEvent
+        .mockResolvedValueOnce(record)
+        .mockRejectedValueOnce(new Error('Detail read failed'));
+      invoke(action);
+      await expectMessage(action.confirmed);
+      expect(loadEvent).toHaveBeenCalledTimes(3);
+      expect(loadChoices).toHaveBeenCalledTimes(2);
+      expectSinglePayload(action);
+      await vi.waitFor(() => {
+        fixture.detectChanges();
+        expect(button('Try again').disabled).toBe(false);
+      });
+      button('Try again').click();
+      await vi.waitFor(() => {
+        fixture.detectChanges();
+        expect(field('Title')).toBeTruthy();
+        expect(entries()).toBe(entered);
+      });
+      expect(loadEvent).toHaveBeenCalledTimes(4);
+      expectSinglePayload(action);
+    },
+  );
+
+  it.each(platformEventActions)(
+    'keeps all actions blocked through $kind follow-up reads and preserves newer edits',
+    async (action) => {
+      await render(action);
+      const mutation = heldEventResult<PlatformEventDetailRecord>();
+      const detail = heldEventResult<PlatformEventDetailRecord>();
+      selectedMutation(action).mockReturnValueOnce(mutation.promise);
+      loadEvent
+        .mockResolvedValueOnce(record)
+        .mockReturnValueOnce(detail.promise);
+      await runGraphSaveScenario(async () => {
+        invoke(action);
+        await vi.waitFor(() => {
+          fixture.detectChanges();
+          expect(selectedMutation(action)).toHaveBeenCalledOnce();
+          expectAllActionsBlocked();
+        });
+        enter('Action reason', 'Newer unsent action reason');
+        if (action.status === 'PENDING_REVIEW')
+          enter('Review feedback', 'Newer unsent feedback');
+        else enter('Title', 'Newer unsent title');
+        const newerEntries = entries();
+        mutation.resolve(record);
+        await vi.waitFor(() => {
+          fixture.detectChanges();
+          expect(loadEvent).toHaveBeenCalledTimes(3);
+          expectAllActionsBlocked();
+        });
+        fixture.componentInstance['saveAnnouncementVisibility']();
+        fixture.componentInstance['submitForReview']();
+        fixture.componentInstance['approve']();
+        fixture.componentInstance['returnToDraft']();
+        fixture.componentInstance['save'](
+          new Event('submit', { cancelable: true }),
+        );
+        for (const alternative of platformEventActions) {
+          if (alternative.status === action.status) invoke(alternative);
+        }
+        expectSinglePayload(action);
+        detail.resolve(record);
+        await vi.waitFor(() => {
+          fixture.detectChanges();
+          expect(showSuccess).toHaveBeenCalledExactlyOnceWith(action.success);
+          expect(button(action.label).disabled).toBe(false);
+          expect(entries()).toBe(newerEntries);
+        });
+        expectSinglePayload(action);
+        expect(showError).not.toHaveBeenCalled();
+      }, [
+        () => mutation.resolve(record),
+        () => detail.resolve(record),
+        drainAction,
+      ]);
+    },
+  );
+
+  it.each([platformEventActions[0], platformEventActions[1]])(
+    'drains a held active sibling after another invalidation read fails, then still reads the event for $kind',
+    async (action) => {
+      await render(action);
+      const entered = entries();
+      const sibling = heldEventResult<string[]>();
+      const loadSibling = vi.fn(async () => ['loaded']);
+      const observer = new QueryObserver(queryClient, {
+        queryFn: loadSibling,
+        queryKey: ['platform-event-detail', 'related-events'],
+      });
+      let siblingStatus = 'pending';
+      const unsubscribe = observer.subscribe((result) => {
+        siblingStatus = result.status;
+      });
+      const failures: unknown[] = [];
+      try {
+        await vi.waitFor(() => expect(siblingStatus).toBe('success'));
+        loadChoices.mockRejectedValueOnce(new Error('Choices failed first'));
+        loadSibling.mockReturnValueOnce(sibling.promise);
+        invoke(action);
+        await vi.waitFor(() => {
+          fixture.detectChanges();
+          expect(loadSibling).toHaveBeenCalledTimes(2);
+          expect(
+            queryClient.getQueryState(['platform-event-detail', 'form-options'])
+              ?.status,
+          ).toBe('error');
+          expectAllActionsBlocked();
+        });
+        expect(loadEvent).toHaveBeenCalledTimes(2);
+        expect(showError).not.toHaveBeenCalled();
+        expect(showSuccess).not.toHaveBeenCalled();
+        expect(button('Try again').disabled).toBe(true);
+        invoke(action);
+        expectSinglePayload(action);
+        sibling.resolve(['loaded again']);
+        await expectMessage(action.confirmed);
+        expect(root.textContent).not.toContain('Nothing changed.');
+        expect(loadEvent).toHaveBeenCalledTimes(3);
+        await vi.waitFor(() => {
+          fixture.detectChanges();
+          expect(button('Try again').disabled).toBe(false);
+        });
+        button('Try again').click();
+        await vi.waitFor(() => {
+          fixture.detectChanges();
+          expect(button(action.label).disabled).toBe(false);
+          expect(entries()).toBe(entered);
+        });
+        expectSinglePayload(action);
+      } catch (error) {
+        failures.push(error);
+      } finally {
+        for (const cleanup of [
+          () => sibling.resolve(['released']),
+          drainAction,
+          unsubscribe,
+        ]) {
+          try {
+            await cleanup();
+          } catch (error) {
+            failures.push(error);
+          }
+        }
+      }
+      if (failures.length > 0) {
+        throw new AggregateError(
+          failures,
+          'Platform event sibling-read scenario failed',
+          { cause: failures[0] },
+        );
+      }
+    },
+  );
+
+  it.each([platformEventActions[0], platformEventActions[1]])(
+    'does not await an inactive matching background read that invalidation does not refetch for $kind',
+    async (action) => {
+      await render(action);
+      const inactive = heldEventResult<string[]>();
+      const inactiveKey = ['platform-event-detail', 'inactive-events'];
+      const loadInactive = vi.fn(() => inactive.promise);
+      const inactiveRead = queryClient.fetchQuery({
+        queryFn: loadInactive,
+        queryKey: inactiveKey,
+      });
+      await runGraphSaveScenario(async () => {
+        expect(
+          queryClient
+            .getQueryCache()
+            .find({ exact: true, queryKey: inactiveKey })
+            ?.isActive(),
+        ).toBe(false);
+        expect(queryClient.getQueryState(inactiveKey)?.fetchStatus).toBe(
+          'fetching',
+        );
+        invoke(action);
+        await vi.waitFor(() => {
+          fixture.detectChanges();
+          expect(showSuccess).toHaveBeenCalledExactlyOnceWith(action.success);
+          expect(fixture.componentInstance['mutationPending']()).toBe(false);
+          expect(button(action.label).disabled).toBe(
+            action.kind === 'announcement',
+          );
+        });
+        expect(queryClient.getQueryState(inactiveKey)?.fetchStatus).toBe(
+          'fetching',
+        );
+        expect(loadInactive).toHaveBeenCalledOnce();
+        expect(loadEvent).toHaveBeenCalledTimes(3);
+        expect(loadChoices).toHaveBeenCalledTimes(2);
+        expect(showError).not.toHaveBeenCalled();
+        expectSinglePayload(action);
+      }, [
+        () => inactive.resolve(['released']),
+        () => inactiveRead,
+        drainAction,
+      ]);
+    },
+  );
+
+  it.each([
+    {
+      error: new RpcBadRequestError({
+        message: 'Return the event to draft before editing it.',
+        reason: 'notDraft',
+      }),
+      message: 'Return the event to draft before editing it.',
+    },
+    {
+      error: new RpcForbiddenError({ message: 'Private permission detail' }),
+      message:
+        'You do not have access to make this change. Ask your administrator for help.',
+    },
+    {
+      error: new RpcUnauthorizedError({
+        message: 'Private authentication detail',
+      }),
+      message: 'Sign in again before changing this event.',
+    },
+  ])(
+    'keeps safe expected denial feedback: $error._tag',
+    async ({ error, message }) => {
+      const action = platformEventActions[0];
+      await render(action);
+      const entered = entries();
+      updateEvent.mockRejectedValueOnce(error);
+      invoke(action);
+      await expectMessage(message);
+      await vi.waitFor(() => {
+        fixture.detectChanges();
+        expect(button(action.label).disabled).toBe(false);
+      });
+      expect(entries()).toBe(entered);
+      expectSinglePayload(action);
+      expect(loadEvent).toHaveBeenCalledOnce();
+    },
+  );
+
+  it.each([
+    {
+      message:
+        'One of the selected roles is no longer available. Review the current role choices and try again.',
+      reason: 'invalidAnnouncementRole',
+    },
+    {
+      message:
+        'This event now has sign-up choices, so who can find it is set by those choices.',
+      reason: 'announcementRolesRequireOptionlessEvent',
+    },
+  ])(
+    'preserves announcement denial $reason when its follow-up read also fails',
+    async ({ message, reason }) => {
+      const action = platformEventActions[1];
+      await render(action);
+      const entered = entries();
+      changeAnnouncement.mockRejectedValueOnce(
+        new RpcBadRequestError({ message: 'Public denial', reason }),
+      );
+      loadEvent.mockRejectedValueOnce(new Error('First event read failed'));
+      invoke(action);
+      await expectMessage(
+        `${message} The latest event information could not be loaded. Load this page again before making another change.`,
+      );
+      expect(loadEvent).toHaveBeenCalledTimes(3);
+      expect(entries()).toBe(entered);
+      expectSinglePayload(action);
     },
   );
 });

@@ -151,8 +151,8 @@ const createEventQueryDatabase = ({
 };
 
 const eventDetailSql = [
-  'select "d0"."creatorId" as "creatorId", "d0"."description" as "description", "d0"."end"::text as "end", "d0"."icon" as "icon", "d0"."id" as "id", "d0"."location" as "location", "d0"."start"::text as "start", "d0"."status" as "status", "d0"."statusComment" as "statusComment", "d0"."title" as "title", "d0"."unlisted" as "unlisted", "registrationOptions"."r" as "registrationOptions", "reviewer"."r" as "reviewer" from "event_instances" as "d0"',
-  `left join lateral(select coalesce(json_agg(row_to_json("t".*)), '[]') as "r" from (select "d1"."checkedInSpots" as "checkedInSpots", "d1"."closeRegistrationTime"::text as "closeRegistrationTime", "d1"."confirmedSpots" as "confirmedSpots", "d1"."description" as "description", "d1"."eventId" as "eventId", "d1"."id" as "id", "d1"."isPaid" as "isPaid", "d1"."openRegistrationTime"::text as "openRegistrationTime", "d1"."organizingRegistration" as "organizingRegistration", "d1"."price" as "price", "d1"."registeredDescription" as "registeredDescription", "d1"."registrationMode" as "registrationMode", "d1"."reservedSpots" as "reservedSpots", "d1"."roleIds" as "roleIds", "d1"."spots" as "spots", "d1"."stripeTaxRateId" as "stripeTaxRateId", "d1"."title" as "title" from "event_registration_options" as "d1" where ((cardinality("d1"."roleIds") = 0) and ("d0"."id" = "d1"."eventId"))) as "t") as "registrationOptions" on true`,
+  'select "d0"."announcementRoleIds" as "announcementRoleIds", "d0"."creatorId" as "creatorId", "d0"."description" as "description", "d0"."end"::text as "end", "d0"."icon" as "icon", "d0"."id" as "id", "d0"."location" as "location", "d0"."start"::text as "start", "d0"."status" as "status", "d0"."statusComment" as "statusComment", "d0"."title" as "title", "registrationOptions"."r" as "registrationOptions", "reviewer"."r" as "reviewer" from "event_instances" as "d0"',
+  `left join lateral(select coalesce(json_agg(row_to_json("t".*)), '[]') as "r" from (select "d1"."closeRegistrationTime"::text as "closeRegistrationTime", "d1"."confirmedSpots" as "confirmedSpots", "d1"."description" as "description", "d1"."eventId" as "eventId", "d1"."id" as "id", "d1"."isPaid" as "isPaid", "d1"."openRegistrationTime"::text as "openRegistrationTime", "d1"."organizingRegistration" as "organizingRegistration", "d1"."price" as "price", "d1"."registrationMode" as "registrationMode", "d1"."reservedSpots" as "reservedSpots", "d1"."roleIds" as "roleIds", "d1"."spots" as "spots", "d1"."stripeTaxRateId" as "stripeTaxRateId", "d1"."title" as "title" from "event_registration_options" as "d1" where "d0"."id" = "d1"."eventId") as "t") as "registrationOptions" on true`,
   'left join lateral(select row_to_json("t".*) "r" from (select "d1"."firstName" as "firstName", "d1"."lastName" as "lastName" from "users" as "d1" where "d0"."reviewedBy" = "d1"."id" limit $1) as "t") as "reviewer" on true',
   'where (("d0"."id" = $2) and ("d0"."tenantId" = $3)) limit $4',
 ].join(' ');
@@ -167,9 +167,6 @@ const optionDiscountsSql =
 const discountCardsSql =
   'select "d0"."validFrom"::text as "validFrom", "d0"."validTo"::text as "validTo" from "user_discount_cards" as "d0" where (("d0"."status" = $1) and ("d0"."tenantId" = $2) and ("d0"."type" = $3) and ("d0"."userId" = $4))';
 
-const hiddenOptionLookupSql =
-  'select "d0"."id" as "id" from "event_registration_options" as "d0" where "d0"."eventId" = $1 limit $2';
-
 const optionTaxRatesSql =
   'select "displayName", "percentage", "stripeTaxRateId" from "tenant_stripe_tax_rates" where (("tenant_stripe_tax_rates"."tenantId" = $1) and ("tenant_stripe_tax_rates"."stripeAccountId" = $2) and ("tenant_stripe_tax_rates"."stripeTaxRateId" in ($3)))';
 
@@ -178,6 +175,7 @@ type TaxScenario =
   | 'hiddenInvalid'
   | 'missingId'
   | 'missingRow'
+  | 'mixedVisibleFreeHiddenInvalid'
   | 'nullDisplayName'
   | 'nullPercentage'
   | 'optionalAddonWithoutTax'
@@ -207,7 +205,9 @@ const createEventDiscountDatabase = ({
   const readTaxRates = vi.fn<(query: EventSqlQuery) => void>();
   const selectDetails = vi.fn<(query: EventSqlQuery) => void>();
   const freeOption =
-    taxScenario === 'free' || taxScenario === 'optionalAddonWithoutTax';
+    taxScenario === 'free' ||
+    taxScenario === 'mixedVisibleFreeHiddenInvalid' ||
+    taxScenario === 'optionalAddonWithoutTax';
   const optionTaxRateId =
     freeOption || taxScenario === 'missingId' || taxScenario === 'hiddenInvalid'
       ? null
@@ -236,7 +236,6 @@ const createEventDiscountDatabase = ({
     () => optionFilterSql,
   );
   const option = {
-    checkedInSpots: 0,
     closeRegistrationTime: new Date('2099-01-01T00:00:00.000Z'),
     confirmedSpots: 0,
     description: null,
@@ -246,7 +245,6 @@ const createEventDiscountDatabase = ({
     openRegistrationTime: new Date('2098-01-01T00:00:00.000Z'),
     organizingRegistration: false,
     price: freeOption ? 0 : 2000,
-    registeredDescription: null,
     registrationMode: 'fcfs',
     reservedSpots: 0,
     roleIds: [],
@@ -255,7 +253,6 @@ const createEventDiscountDatabase = ({
     title: 'Participant',
   } satisfies Pick<
     typeof eventRegistrationOptions.$inferSelect,
-    | 'checkedInSpots'
     | 'closeRegistrationTime'
     | 'confirmedSpots'
     | 'description'
@@ -265,7 +262,6 @@ const createEventDiscountDatabase = ({
     | 'openRegistrationTime'
     | 'organizingRegistration'
     | 'price'
-    | 'registeredDescription'
     | 'registrationMode'
     | 'reservedSpots'
     | 'roleIds'
@@ -273,7 +269,27 @@ const createEventDiscountDatabase = ({
     | 'stripeTaxRateId'
     | 'title'
   >;
+  const registrationOptions = optionIds.map((id) => ({
+    ...option,
+    closeRegistrationTime: databaseTimestamp(option.closeRegistrationTime),
+    id,
+    openRegistrationTime: databaseTimestamp(option.openRegistrationTime),
+    roleIds: hiddenOptions ? ['hidden-role'] : option.roleIds,
+  }));
+  if (taxScenario === 'mixedVisibleFreeHiddenInvalid') {
+    registrationOptions.push({
+      ...option,
+      closeRegistrationTime: databaseTimestamp(option.closeRegistrationTime),
+      id: 'hidden-option',
+      isPaid: true,
+      openRegistrationTime: databaseTimestamp(option.openRegistrationTime),
+      price: 2000,
+      roleIds: ['hidden-role'],
+      stripeTaxRateId: null,
+    });
+  }
   const event = {
+    announcementRoleIds: [],
     creatorId: 'organizer-1',
     description: 'Tenant-scoped event',
     end: new Date('2099-01-02T00:00:00.000Z'),
@@ -284,9 +300,9 @@ const createEventDiscountDatabase = ({
     status,
     statusComment: null,
     title: 'Tenant-scoped event',
-    unlisted: false,
   } satisfies Pick<
     typeof eventInstances.$inferSelect,
+    | 'announcementRoleIds'
     | 'creatorId'
     | 'description'
     | 'end'
@@ -297,7 +313,6 @@ const createEventDiscountDatabase = ({
     | 'status'
     | 'statusComment'
     | 'title'
-    | 'unlisted'
   >;
   const foreignTenantCards = [
     {
@@ -319,6 +334,7 @@ const createEventDiscountDatabase = ({
           expect(parameters).toEqual([1, event.id, tenant.id, 1]);
           return [
             [
+              event.announcementRoleIds,
               event.creatorId,
               event.description,
               databaseTimestamp(event.end),
@@ -329,26 +345,10 @@ const createEventDiscountDatabase = ({
               event.status,
               event.statusComment,
               event.title,
-              event.unlisted,
-              hiddenOptions
-                ? []
-                : optionIds.map((id) => ({
-                    ...option,
-                    closeRegistrationTime: databaseTimestamp(
-                      option.closeRegistrationTime,
-                    ),
-                    id,
-                    openRegistrationTime: databaseTimestamp(
-                      option.openRegistrationTime,
-                    ),
-                  })),
+              registrationOptions,
               null,
             ],
           ];
-        }
-        if (statement === hiddenOptionLookupSql) {
-          expect(parameters).toEqual([event.id, 1]);
-          return [['option-1']];
         }
         if (statement === eventAddonTypesSql) {
           expect(parameters).toEqual([tenant.id, event.id, 21]);
@@ -545,6 +545,7 @@ describe('event discount tenant isolation', () => {
         'free',
         'hiddenInvalid',
         'optionalAddonWithoutTax',
+        'mixedVisibleFreeHiddenInvalid',
       ] as const
     ).map((taxScenario) => ({
       addonCount: taxScenario === 'optionalAddonWithoutTax' ? 1 : 0,
@@ -664,9 +665,17 @@ describe('event discount tenant isolation', () => {
           });
           if (hiddenOptions) {
             expect(event.registrationOptions).toEqual([]);
+            expect(event.hasRegistrationOptions).toBe(true);
             expect(event.registrationOptionsHiddenByEligibility).toBe(true);
             expect(selectDetails).not.toHaveBeenCalled();
             return;
+          }
+          if (taxScenario === 'mixedVisibleFreeHiddenInvalid') {
+            expect(
+              event.registrationOptions.map((option) => option.id),
+            ).toEqual(['option-1']);
+            expect(event.hasRegistrationOptions).toBe(true);
+            expect(event.registrationOptionsHiddenByEligibility).toBe(false);
           }
           expect(event.addOns).toHaveLength(Math.min(mappingCount, 20));
           if (mappingCount === 40) {
@@ -714,6 +723,16 @@ describe('event discount tenant isolation', () => {
               taxRatePercentage: null,
             });
           }
+          expect(event.registrationOptions[0]).not.toHaveProperty(
+            'checkedInSpots',
+          );
+          expect(event.registrationOptions[0]).not.toHaveProperty(
+            'registeredDescription',
+          );
+          expect(event.registrationOptions[0]).not.toHaveProperty('roleIds');
+          expect(event.registrationOptions[0]).not.toHaveProperty(
+            'stripeTaxRateId',
+          );
         }),
     );
   }
@@ -747,9 +766,8 @@ describe('eventHandlers composition', () => {
       'events.reviewEvent',
       'events.submitForReview',
       'events.undoRegistrationAddonRedemption',
-      'events.update',
+      'events.updateAnnouncementDiscovery',
       'events.updateGraph',
-      'events.updateListing',
     ]);
   });
 });

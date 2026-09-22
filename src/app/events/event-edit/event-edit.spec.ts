@@ -391,9 +391,12 @@ const eventDetailFromGraph = (
   graph: EventGraphEditRecord,
 ): EventDetailRecord => ({
   addOns: [],
+  announcementRoleCount: 0,
+  announcementRoleIds: null,
   creatorId: 'creator-1',
   description: graph.description,
   end: graph.end,
+  hasRegistrationOptions: graph.registrationOptions.length > 0,
   icon: graph.icon,
   id: graph.id,
   location: graph.location,
@@ -429,7 +432,7 @@ const eventDetailFromGraph = (
   status: 'DRAFT',
   statusComment: null,
   title: graph.title,
-  unlisted: false,
+  userIsCreator: true,
 });
 
 const eventEditRoot = (fixture: ComponentFixture<EventEdit>): HTMLElement => {

@@ -19,21 +19,24 @@
           <fa-duotone-icon [icon]="faArrowLeft" />
         </a>
         <div class="grow"></div>
-        <button
-          title="menu"
-          *appIfAnyPermission="['events:changeListing']"
-          mat-icon-button
-          [matMenuTriggerFor]="menu"
-          [disabled]="!controlsInteractive() || !eventQuery.isSuccess()"
-          aria-label="Open event actions"
-        >
-          <fa-duotone-icon [icon]="faEllipsisVertical" />
-        </button>
-        <mat-menu #menu="matMenu">
-          <button mat-menu-item (click)="updateVisibility()">
-            Update listing
+        @if (
+          eventQuery.isSuccess() && !eventQuery.data().hasRegistrationOptions
+        ) {
+          <button
+            *appIfAnyPermission="['events:changeAnnouncementDiscovery']"
+            mat-icon-button
+            type="button"
+            [disabled]="
+              !controlsInteractive() ||
+              reviewActionInProgress() ||
+              updateAnnouncementDiscoveryMutation.isPending()
+            "
+            aria-label="Choose who can find this announcement"
+            (click)="updateAnnouncementDiscovery()"
+          >
+            <fa-duotone-icon [icon]="faUsers" />
           </button>
-        </mat-menu>
+        }
       </div>
       <h1 class="display-small">
         @if (eventQuery.isSuccess()) {
@@ -77,6 +80,50 @@
         may not apply.
       </div>
     }
+    @if (
+      eventQuery.isSuccess() &&
+      discountCardsRequired() &&
+      authenticationQuery.isError()
+    ) {
+      <div
+        class="bg-error-container text-on-error-container rounded px-3 py-2 body-small"
+        role="alert"
+      >
+        <p>Discount card guidance could not be checked.</p>
+        <button
+          mat-stroked-button
+          type="button"
+          [disabled]="authenticationQuery.isFetching()"
+          (click)="authenticationQuery.refetch()"
+        >
+          {{ authenticationQuery.isFetching() ? "Trying again…" : "Try again" }}
+        </button>
+      </div>
+    }
+    @if (
+      eventQuery.isSuccess() &&
+      isAuthenticated() &&
+      discountCardsRequired() &&
+      myCardsQuery.isError()
+    ) {
+      <div
+        class="bg-error-container text-on-error-container rounded px-3 py-2 body-small"
+        role="alert"
+      >
+        <p>
+          Your discount card could not be checked. Discount guidance is
+          unavailable.
+        </p>
+        <button
+          mat-stroked-button
+          type="button"
+          [disabled]="myCardsQuery.isFetching()"
+          (click)="myCardsQuery.refetch()"
+        >
+          {{ myCardsQuery.isFetching() ? "Trying again…" : "Try again" }}
+        </button>
+      </div>
+    }
     @if (eventQuery.isSuccess()) {
       @if (canOrganize()) {
         <a routerLink="organize" matButton="filled">Organize this event</a>
@@ -101,15 +148,6 @@
               </span>
             }
           </div>
-          @if (eventQuery.data().unlisted) {
-            <div
-              class="bg-secondary-container text-on-secondary-container rounded px-3 py-2 body-small"
-            >
-              Unlisted: hidden from event lists, but eligible people with the
-              direct link can still open it.
-            </div>
-          }
-
           <div class="flex flex-col gap-2 lg:flex-row lg:items-center lg:gap-4">
             @if (canReview() && eventQuery.data().status === "PENDING_REVIEW") {
               <button
@@ -254,6 +292,35 @@
             [innerHTML]="eventQuery.data().description"
           ></div>
         </section>
+
+        @if (
+          !eventQuery.data().hasRegistrationOptions &&
+            eventQuery.data().announcementRoleIds;
+          as announcementRoleIds
+        ) {
+          <section class="bg-surface text-on-surface rounded-2xl p-4">
+            <h2 class="title-medium">Who can find this announcement</h2>
+            <p class="body-medium mt-2">
+              <strong>
+                {{
+                  eventDiscoveryLabel({
+                    announcementRoleCount: announcementRoleIds.length,
+                    hasRegistrationOptions:
+                      eventQuery.data().hasRegistrationOptions,
+                  })
+                }}
+              </strong>
+              —
+              {{
+                eventDiscoveryDescription({
+                  announcementRoleCount: announcementRoleIds.length,
+                  hasRegistrationOptions:
+                    eventQuery.data().hasRegistrationOptions,
+                })
+              }}
+            </p>
+          </section>
+        }
 
         @if (eventQuery.data().addOns.length > 0) {
           <section class="bg-surface text-on-surface rounded-2xl p-4">
@@ -520,6 +587,21 @@
                       this event's sign-up choices. You can still view the
                       event, but you cannot sign up.
                     </p>
+                  </div>
+                }
+                @case ("requiresSignIn") {
+                  <div class="bg-surface text-on-surface rounded-2xl p-4">
+                    <h3 class="title-small">Sign in to see sign-up choices</h3>
+                    <p class="body-medium text-on-surface-variant mt-2">
+                      Sign in to see which sign-up choices are available to you.
+                    </p>
+                    <a
+                      class="mt-3"
+                      href="/forward-login?redirectUrl=/events/{{ eventId() }}"
+                      mat-flat-button
+                    >
+                      Sign in now
+                    </a>
                   </div>
                 }
                 @case ("none") {

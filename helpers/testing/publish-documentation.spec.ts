@@ -230,9 +230,8 @@ describe('documentation publishing', () => {
         (guide) => guide.id === 'evorto:find-an-event',
       )?.sourceSlugs,
     ).toEqual([
-      'find-a-listed-event',
-      'user-understanding-unlisted-events',
-      'admin-manage-unlisted-events',
+      'find-an-event-you-can-join',
+      'choose-who-can-find-an-announcement',
       'recover-from-an-unknown-organization-link',
     ]);
     const fixtureRoot = fs.mkdtempSync(
@@ -425,7 +424,7 @@ describe('documentation publishing', () => {
 
       writeFixture(
         sourcePage,
-        '---\ntitle: Ambiguous guide\n---\n\n[Approval](/docs/event-approval-workflow).',
+        '---\ntitle: Ambiguous guide\n---\n\n[Announcement](/docs/choose-who-can-find-an-announcement).',
       );
       expect(() =>
         buildDocumentationConsumerBundle({
@@ -434,7 +433,7 @@ describe('documentation publishing', () => {
           rawImagesRoot: raw.images,
         }),
       ).toThrow(
-        'references an ambiguous source guide: /docs/event-approval-workflow',
+        'references an ambiguous source guide: /docs/choose-who-can-find-an-announcement',
       );
     } finally {
       fs.rmSync(fixtureRoot, { force: true, recursive: true });

@@ -58,6 +58,8 @@ import { platformHandlers } from './platform.handlers';
 
 const eventRecord = {
   addOns: [],
+  announcementRoleIds: [],
+  announcementRoleNames: [],
   creator: {
     email: 'owner@example.org',
     firstName: 'Event',
@@ -100,7 +102,6 @@ const eventRecord = {
   status: 'DRAFT' as const,
   statusComment: null,
   title: 'Event',
-  unlisted: false,
 };
 
 const registrationRecord = {
@@ -409,7 +410,7 @@ describe('platform event, template, and registration handlers', () => {
       'platform.events.review',
       'platform.events.submitForReview',
       'platform.events.update',
-      'platform.events.updateListing',
+      'platform.events.updateAnnouncementDiscovery',
       'platform.registrations.approve',
       'platform.registrations.cancel',
       'platform.registrations.checkIn',

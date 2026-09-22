@@ -197,6 +197,7 @@ const PersistedGlobalAdminPlatformAuditState = Schema.Struct({
   addOns: Schema.optional(Schema.Array(Schema.Unknown)),
   alcoholAmount: Schema.optional(Schema.Number),
   amount: Schema.optional(Schema.Number),
+  announcementRoles: Schema.optional(Schema.Array(Schema.NonEmptyString)),
   attendeeCheckedIn: GlobalAdminPlatformAuditState.fields.attendeeCheckedIn,
   checkedInGuestCount: GlobalAdminPlatformAuditState.fields.checkedInGuestCount,
   currency: GlobalAdminPlatformAuditState.fields.currency,
@@ -229,7 +230,6 @@ const PersistedGlobalAdminPlatformAuditState = Schema.Struct({
   title: GlobalAdminPlatformAuditState.fields.title,
   totalAmount: Schema.optional(Schema.Number),
   transferStatus: GlobalAdminPlatformAuditState.fields.transferStatus,
-  unlisted: GlobalAdminPlatformAuditState.fields.unlisted,
 });
 
 type PlatformAuditChangeSummary = Pick<
@@ -253,6 +253,7 @@ const toGlobalAdminPlatformAuditSnapshot = (
     resourceType: snapshot.resourceType,
     state: {
       addOnCount: state.addOns?.length,
+      announcementRoleCount: state.announcementRoles?.length,
       attendeeCheckedIn: state.attendeeCheckedIn,
       checkedInGuestCount: state.checkedInGuestCount,
       currency: state.currency,
@@ -284,7 +285,6 @@ const toGlobalAdminPlatformAuditSnapshot = (
       timezone: state.timezone,
       title: state.title,
       transferStatus: state.transferStatus,
-      unlisted: state.unlisted,
     },
   });
 };

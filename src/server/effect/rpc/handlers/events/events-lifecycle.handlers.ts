@@ -10,7 +10,7 @@ import {
   EventConflictError,
   EventNotFoundError,
 } from '@shared/rpc-contracts/app-rpcs/events.errors';
-import { and, eq, inArray, TransactionRollbackError } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { Context, Effect, Option } from 'effect';
 
 import type { AppRpcHandlers } from '../shared/handler-types';
@@ -37,6 +37,7 @@ import { lockTenantStripeAccount } from '../../../../payments/pending-stripe-obl
 import {
   lockTenantRoleGraph,
   tenantRoleIdsExist,
+  uniqueTenantRoleIds,
 } from '../../../../roles/tenant-role-graph';
 import {
   isMeaningfulRichTextHtml,
@@ -54,11 +55,6 @@ import {
   isEsnCardEnabled,
   registrationOptionPriceError,
 } from './events.shared';
-
-const isTransactionRollbackError = (
-  error: unknown,
-): error is TransactionRollbackError =>
-  error instanceof TransactionRollbackError;
 
 const invalidEventDatesError = () =>
   new RpcBadRequestError({
@@ -800,379 +796,103 @@ export const eventLifecycleHandlers = {
         ),
     );
   },
-  'events.update': (input, _options) =>
+  'events.updateAnnouncementDiscovery': (
+    { announcementRoleIds, eventId },
+    _options,
+  ) =>
     Effect.gen(function* () {
-      yield* RpcAccess.ensureAuthenticated();
+      yield* RpcAccess.ensurePermission('events:changeAnnouncementDiscovery');
       const { tenant } = yield* RpcAccess.current();
-      const user = yield* RpcAccess.requireUser();
+      const normalizedAnnouncementRoleIds =
+        uniqueTenantRoleIds(announcementRoleIds);
 
-      const start = new Date(input.start);
-      const end = new Date(input.end);
-      const eventDateRangeError = validateEventDateRange(start, end);
-      if (eventDateRangeError) {
-        return yield* Effect.fail(eventDateRangeError);
-      }
+      const updatedEvents = yield* Database.use((database) =>
+        database
+          .transaction((transaction) =>
+            Effect.gen(function* () {
+              const lockedEvents = yield* transaction
+                .select({ id: eventInstances.id })
+                .from(eventInstances)
+                .where(
+                  and(
+                    eq(eventInstances.tenantId, tenant.id),
+                    eq(eventInstances.id, eventId),
+                  ),
+                )
+                .for('update')
+                .pipe(Effect.orDie);
+              if (lockedEvents.length === 0) {
+                return yield* Effect.fail(
+                  new EventNotFoundError({
+                    id: eventId,
+                    message: 'Event not found',
+                  }),
+                );
+              }
 
-      const sanitizedDescription = sanitizeRichTextHtml(input.description);
-      if (!isMeaningfulRichTextHtml(sanitizedDescription)) {
-        return yield* Effect.fail(invalidEventDescriptionError());
-      }
-      const sanitizedRegistrationOptions = input.registrationOptions.map(
-        (option) => ({
-          ...option,
-          closeRegistrationTime: new Date(option.closeRegistrationTime),
-          description: sanitizeOptionalRichTextHtml(option.description),
-          esnCardDiscountedPrice:
-            option.esnCardDiscountedPrice === undefined
-              ? null
-              : option.esnCardDiscountedPrice,
-          openRegistrationTime: new Date(option.openRegistrationTime),
-          registeredDescription: sanitizeOptionalRichTextHtml(
-            option.registeredDescription,
-          ),
-        }),
-      );
-
-      for (const option of sanitizedRegistrationOptions) {
-        const priceError = registrationOptionPriceError(option);
-        if (priceError) return yield* Effect.fail(priceError);
-        if (!Number.isInteger(option.spots) || option.spots < 0) {
-          return yield* Effect.fail(invalidRegistrationOptionSpotsError());
-        }
-
-        const registrationOptionDateRangeError =
-          validateRegistrationOptionDateRange(option);
-        if (registrationOptionDateRangeError) {
-          return yield* Effect.fail(registrationOptionDateRangeError);
-        }
-      }
-
-      const event = yield* databaseEffect((database) =>
-        database.query.eventInstances.findFirst({
-          columns: {
-            creatorId: true,
-            simpleModeEnabled: true,
-            status: true,
-          },
-          where: {
-            id: input.eventId,
-            tenantId: tenant.id,
-          },
-        }),
-      );
-      if (!event) {
-        return yield* Effect.fail(
-          new EventNotFoundError({
-            id: input.eventId,
-            message: 'Event not found',
-          }),
-        );
-      }
-      if (
-        !canEditEvent({
-          creatorId: event.creatorId,
-          permissions: user.permissions,
-          userId: user.id,
-        })
-      ) {
-        return yield* Effect.fail(
-          new RpcForbiddenError({ message: 'Forbidden' }),
-        );
-      }
-      if (event.status !== 'DRAFT') {
-        return yield* Effect.fail(
-          new EventConflictError({
-            message: 'Event cannot be updated in its current state',
-          }),
-        );
-      }
-      if (
-        event.simpleModeEnabled &&
-        !simpleEventOptionShapeIsValid(sanitizedRegistrationOptions)
-      ) {
-        return yield* Effect.fail(
-          new RpcBadRequestError({
-            message:
-              'Simple event configuration requires exactly one organizer option and one participant option',
-            reason: 'invalidSimpleEventConfiguration',
-          }),
-        );
-      }
-
-      const esnCardEnabledForTenant = isEsnCardEnabled(
-        tenant.discountProviders ?? null,
-      );
-
-      for (const option of sanitizedRegistrationOptions) {
-        const validation = yield* databaseEffect((database) =>
-          validateTaxRate(database, {
-            isPaid: option.isPaid,
-            stripeTaxRateId: option.stripeTaxRateId ?? null,
-            tenantId: tenant.id,
-          }),
-        );
-        if (!validation.success) {
-          return yield* Effect.fail(invalidRegistrationOptionTaxRateError());
-        }
-
-        if (
-          option.esnCardDiscountedPrice !== null &&
-          option.esnCardDiscountedPrice > option.price
-        ) {
-          return yield* Effect.fail(invalidEsnCardDiscountPriceError());
-        }
-
-        if (
-          option.esnCardDiscountedPrice !== null &&
-          !esnCardEnabledForTenant &&
-          option.isPaid
-        ) {
-          return yield* Effect.fail(unavailableEsnCardDiscountError());
-        }
-      }
-
-      let transactionFailure: EventConflictError | null | RpcBadRequestError =
-        null;
-      const updatedEvent = yield* databaseEffect((database) =>
-        database.transaction((tx) =>
-          Effect.gen(function* () {
-            const transactionalDatabase = Object.assign(tx, {
-              $client: database.$client,
-            });
-            if (
-              eventConfigurationHasPaidItems({
-                addOns: [],
-                registrationOptions: sanitizedRegistrationOptions,
-              })
-            ) {
-              const stripeAccountId = yield* lockTenantStripeAccount(
-                tx,
-                tenant.id,
+              yield* lockTenantRoleGraph(transaction, tenant.id).pipe(
+                Effect.orDie,
               );
-              if (!stripeAccountId) {
-                transactionFailure =
-                  stripeRequiredForPaidEventConfigurationError();
-                yield* tx.rollback();
-              }
-            }
-            for (const option of sanitizedRegistrationOptions) {
-              const validation = yield* validateTaxRate(transactionalDatabase, {
-                isPaid: option.isPaid,
-                stripeTaxRateId: option.stripeTaxRateId ?? null,
-                tenantId: tenant.id,
-              });
-              if (!validation.success) {
-                transactionFailure = invalidRegistrationOptionTaxRateError();
-                yield* tx.rollback();
-              }
-            }
-            yield* lockTenantRoleGraph(tx, tenant.id);
-            const registrationRolesExist = yield* tenantRoleIdsExist(
-              tx,
-              tenant.id,
-              sanitizedRegistrationOptions.flatMap((option) => option.roleIds),
-            );
-            if (!registrationRolesExist) {
-              transactionFailure = new RpcBadRequestError({
-                message: 'Registration option role not found for this tenant',
-                reason: 'registrationRoleNotFound',
-              });
-              yield* tx.rollback();
-            }
-
-            const updatedEvents = yield* tx
-              .update(eventInstances)
-              .set({
-                description: sanitizedDescription,
-                end,
-                icon: input.icon,
-                location: input.location,
-                start,
-                title: input.title,
-              })
-              .where(
-                and(
-                  eq(eventInstances.id, input.eventId),
-                  eq(eventInstances.tenantId, tenant.id),
-                  eq(eventInstances.status, 'DRAFT'),
-                ),
-              )
-              .returning({
-                id: eventInstances.id,
-              });
-            const eventRow = updatedEvents[0];
-            if (!eventRow) {
-              transactionFailure = new EventConflictError({
-                message: 'Event update conflict',
-              });
-              yield* tx.rollback();
-            }
-
-            const existingRegistrationRows =
-              yield* tx.query.eventRegistrationOptions.findMany({
-                columns: {
-                  id: true,
-                },
-                where: {
-                  eventId: input.eventId,
-                },
-              });
-            const existingRegistrationOptionIds = new Set(
-              existingRegistrationRows.map((option) => option.id),
-            );
-            for (const option of sanitizedRegistrationOptions) {
-              if (existingRegistrationOptionIds.has(option.id)) {
-                continue;
+              const roleIdsExist = yield* tenantRoleIdsExist(
+                transaction,
+                tenant.id,
+                normalizedAnnouncementRoleIds,
+              ).pipe(Effect.orDie);
+              if (!roleIdsExist) {
+                return yield* Effect.fail(
+                  new RpcBadRequestError({
+                    message:
+                      'One of the selected roles is no longer available. Go back to the role list, review the current choices, then try again.',
+                    reason: 'invalidAnnouncementRole',
+                  }),
+                );
               }
 
-              transactionFailure = new RpcBadRequestError({
-                message: 'Registration option does not belong to event',
-                reason: 'registrationOptionMismatch',
-              });
-              yield* tx.rollback();
-            }
+              const registrationOptions = yield* transaction
+                .select({ id: eventRegistrationOptions.id })
+                .from(eventRegistrationOptions)
+                .where(eq(eventRegistrationOptions.eventId, eventId))
+                .limit(1)
+                .pipe(Effect.orDie);
+              if (registrationOptions.length > 0) {
+                return yield* Effect.fail(
+                  new RpcBadRequestError({
+                    message:
+                      'This setting is only available for information-only events. Events with sign-up choices are shown according to those choices.',
+                    reason: 'announcementRolesRequireOptionlessEvent',
+                  }),
+                );
+              }
 
-            for (const option of sanitizedRegistrationOptions) {
-              yield* tx
-                .update(eventRegistrationOptions)
+              return yield* transaction
+                .update(eventInstances)
                 .set({
-                  cancellationDeadlineHoursBeforeStart:
-                    option.cancellationDeadlineHoursBeforeStart,
-                  closeRegistrationTime: option.closeRegistrationTime,
-                  description: option.description,
-                  isPaid: option.isPaid,
-                  openRegistrationTime: option.openRegistrationTime,
-                  organizingRegistration: option.organizingRegistration,
-                  price: option.price,
-                  refundFeesOnCancellation: option.refundFeesOnCancellation,
-                  registeredDescription: option.registeredDescription,
-                  registrationMode: option.registrationMode,
-                  roleIds: [...option.roleIds],
-                  spots: option.spots,
-                  stripeTaxRateId: option.stripeTaxRateId ?? null,
-                  title: option.title,
-                  transferDeadlineHoursBeforeStart:
-                    option.transferDeadlineHoursBeforeStart,
+                  announcementRoleIds: normalizedAnnouncementRoleIds,
                 })
                 .where(
                   and(
-                    eq(eventRegistrationOptions.eventId, input.eventId),
-                    eq(eventRegistrationOptions.id, option.id),
-                  ),
-                );
-            }
-
-            const existingEsnDiscounts =
-              sanitizedRegistrationOptions.length === 0
-                ? []
-                : yield* tx
-                    .select({
-                      id: eventRegistrationOptionDiscounts.id,
-                      registrationOptionId:
-                        eventRegistrationOptionDiscounts.registrationOptionId,
-                    })
-                    .from(eventRegistrationOptionDiscounts)
-                    .where(
-                      and(
-                        eq(
-                          eventRegistrationOptionDiscounts.discountType,
-                          'esnCard',
-                        ),
-                        inArray(
-                          eventRegistrationOptionDiscounts.registrationOptionId,
-                          sanitizedRegistrationOptions.map(
-                            (registrationOption) => registrationOption.id,
-                          ),
-                        ),
-                      ),
-                    );
-            const existingEsnDiscountByRegistrationOptionId = new Map(
-              existingEsnDiscounts.map((discount) => [
-                discount.registrationOptionId,
-                discount,
-              ]),
-            );
-
-            for (const option of sanitizedRegistrationOptions) {
-              const existingDiscount =
-                existingEsnDiscountByRegistrationOptionId.get(option.id);
-              const shouldPersistDiscount =
-                esnCardEnabledForTenant &&
-                option.isPaid &&
-                option.esnCardDiscountedPrice !== null;
-
-              if (!shouldPersistDiscount) {
-                if (existingDiscount) {
-                  yield* tx
-                    .delete(eventRegistrationOptionDiscounts)
-                    .where(
-                      eq(
-                        eventRegistrationOptionDiscounts.id,
-                        existingDiscount.id,
-                      ),
-                    );
-                }
-                continue;
-              }
-
-              const discountedPrice = option.esnCardDiscountedPrice;
-              if (discountedPrice === null) {
-                continue;
-              }
-
-              if (existingDiscount) {
-                yield* tx
-                  .update(eventRegistrationOptionDiscounts)
-                  .set({
-                    discountedPrice,
-                  })
-                  .where(
-                    eq(
-                      eventRegistrationOptionDiscounts.id,
-                      existingDiscount.id,
-                    ),
-                  );
-                continue;
-              }
-
-              yield* tx.insert(eventRegistrationOptionDiscounts).values({
-                discountedPrice,
-                discountType: 'esnCard',
-                eventId: input.eventId,
-                registrationOptionId: option.id,
-              });
-            }
-
-            return eventRow;
-          }),
-        ),
-      ).pipe(
-        Effect.catchDefect((defect) => {
-          if (!isTransactionRollbackError(defect)) {
-            return Effect.die(defect);
-          }
-
-          {
-            const failure = transactionFailure;
-            return failure === null
-              ? Effect.die(
-                  new Error(
-                    'Transaction rollback triggered without a tracked failure',
+                    eq(eventInstances.tenantId, tenant.id),
+                    eq(eventInstances.id, eventId),
                   ),
                 )
-              : Effect.fail(failure);
-          }
-        }),
+                .returning({ id: eventInstances.id })
+                .pipe(Effect.orDie);
+            }),
+          )
+          .pipe(
+            Effect.catch((error) =>
+              error instanceof EventNotFoundError ||
+              error instanceof RpcBadRequestError
+                ? Effect.fail(error)
+                : Effect.die(error),
+            ),
+          ),
       );
-      if (!updatedEvent) {
-        return yield* Effect.die(
-          new Error('Event update returned no updated row'),
+      if (!updatedEvents[0]) {
+        return yield* Effect.fail(
+          new EventNotFoundError({ id: eventId, message: 'Event not found' }),
         );
       }
-
-      return {
-        id: updatedEvent.id,
-      };
     }),
   'events.updateGraph': (input, _options) =>
     Effect.gen(function* () {
@@ -1281,6 +1001,10 @@ export const eventLifecycleHandlers = {
               const updated = yield* transaction
                 .update(eventInstances)
                 .set({
+                  ...((before.registrationOptions.length > 0 ||
+                    input.registrationOptions.length > 0) && {
+                    announcementRoleIds: [],
+                  }),
                   description: sanitizedDescription,
                   end,
                   icon: input.icon,
@@ -1315,23 +1039,6 @@ export const eventLifecycleHandlers = {
             });
           })
           .pipe(Effect.catchTag('SqlError', Effect.die)),
-      );
-    }),
-  'events.updateListing': ({ eventId, unlisted }, _options) =>
-    Effect.gen(function* () {
-      yield* RpcAccess.ensurePermission('events:changeListing');
-      const { tenant } = yield* RpcAccess.current();
-
-      yield* databaseEffect((database) =>
-        database
-          .update(eventInstances)
-          .set({ unlisted })
-          .where(
-            and(
-              eq(eventInstances.tenantId, tenant.id),
-              eq(eventInstances.id, eventId),
-            ),
-          ),
       );
     }),
 } satisfies Partial<AppRpcHandlers>;

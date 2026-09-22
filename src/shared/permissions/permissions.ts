@@ -18,15 +18,13 @@ const ADMIN_GROUP = {
 const EVENTS_GROUP = {
   key: 'events',
   permissions: [
-    'changeListing',
+    'changeAnnouncementDiscovery',
     'cancelRegistrations',
     'create',
     'editAll',
     'review',
     'organizeAll',
     'seeDrafts',
-    'seeUnlisted',
-    'viewPublic',
   ] as const,
 } as const;
 
@@ -140,10 +138,10 @@ const PERMISSION_METADATA = {
       'Cancel attendee registrations or unredeemed event add-ons and choose whether eligible add-on purchases should be refunded.',
     label: 'Cancel registrations and add-ons',
   },
-  'events:changeListing': {
+  'events:changeAnnouncementDiscovery': {
     description:
-      'Change whether events are listed publicly or kept unlisted for direct-link access.',
-    label: 'Change event listing',
+      'Choose which organization roles can find announcements without sign-up choices. People with a direct link can still open them, and this choice does not give members new permissions or send them a message.',
+    label: 'Change who can find announcements',
   },
   'events:create': {
     description:
@@ -169,15 +167,6 @@ const PERMISSION_METADATA = {
     description:
       'See draft and pending-review events that are hidden from normal public event lists.',
     label: 'See draft events',
-  },
-  'events:seeUnlisted': {
-    description: 'See unlisted events without needing a direct event link.',
-    label: 'See unlisted events',
-  },
-  'events:viewPublic': {
-    description:
-      'View approved public event details and event lists for the current organization.',
-    label: 'View public events',
   },
   'finance:approveReceipts': {
     description:
@@ -412,14 +401,11 @@ export const PERMISSION_DEPENDENCIES: Partial<
   PERMISSION_GROUPS.flatMap((group) =>
     group.permissions.map((perm) => {
       switch (perm.key) {
-        case 'events:changeListing': {
-          return [perm.key, ['events:seeUnlisted']];
-        }
         case 'events:create': {
           return [perm.key, ['templates:view']];
         }
         case 'events:review': {
-          return [perm.key, ['events:seeDrafts', 'events:seeUnlisted']];
+          return [perm.key, ['events:seeDrafts']];
         }
         case 'users:assignRoles': {
           return [perm.key, ['users:viewAll']];

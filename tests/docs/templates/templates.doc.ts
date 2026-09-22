@@ -205,7 +205,7 @@ Select **Create template** to create a new template.`,
     body: `
 You can now specify all the settings for your template.
 The template's event details, sign-up choices, questions, and add-ons become the starting point for new events. Template-only fields such as its category and organizer planning tips are not copied.
-New events use the standard listing setting, while event review and access rules still apply.
+An upcoming published event appears in Events when at least one sign-up choice allows one of the viewer's organization roles. Event review and sign-up requirements still apply.
 ### General settings
 There are a few general settings that are required for templates:
 - **Template icon**: The icon to be used for the template.

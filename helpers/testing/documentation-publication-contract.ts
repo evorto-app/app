@@ -18,9 +18,8 @@ export const documentationConsumerGuideCatalog = [
     id: 'evorto:find-an-event',
     slug: 'find-an-event',
     sourceSlugs: [
-      'find-a-listed-event',
-      'user-understanding-unlisted-events',
-      'admin-manage-unlisted-events',
+      'find-an-event-you-can-join',
+      'choose-who-can-find-an-announcement',
       'recover-from-an-unknown-organization-link',
     ],
     title: 'Find an event',
@@ -122,7 +121,10 @@ export const documentationConsumerGuideCatalog = [
   {
     id: 'evorto:review-and-publish-an-event',
     slug: 'review-and-publish-an-event',
-    sourceSlugs: ['event-approval-workflow', 'admin-manage-unlisted-events'],
+    sourceSlugs: [
+      'event-approval-workflow',
+      'choose-who-can-find-an-announcement',
+    ],
     title: 'Review and publish an event',
   },
 ] as const;

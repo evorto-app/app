@@ -27,7 +27,10 @@ import {
   EventListService,
   mergeEventListPages,
 } from '../event-list.service';
-import { EventListComponent } from './event-list.component';
+import {
+  EventListComponent,
+  eventListSignUpStateLabel,
+} from './event-list.component';
 
 const eventQueryState = signal<'error' | 'success'>('error');
 const hasNextPage = signal(false);
@@ -38,34 +41,54 @@ const listedEvents: readonly EventsEventListDayRecord[] = [
     day: '2030-01-02T00:00:00.000Z',
     events: [
       {
+        announcementRoleCount: 0,
+        hasRegistrationOptions: true,
         icon: { iconColor: 0xff_67_50_a4, iconName: 'calendar:fas' },
         id: 'event-1',
         start: '2030-01-02T10:00:00.000Z',
         status: 'APPROVED' as const,
         title: 'Recovery workshop',
-        unlisted: false,
-        userIsCreator: false,
-        userRegistered: false,
+        userSignUpState: null,
       },
       {
+        announcementRoleCount: 0,
+        hasRegistrationOptions: true,
         icon: { iconColor: 0xff_67_50_a4, iconName: 'calendar:fas' },
-        id: 'event-private',
+        id: 'event-confirmed',
+        start: '2030-01-02T10:30:00.000Z',
+        status: 'APPROVED' as const,
+        title: 'Confirmed event',
+        userSignUpState: 'confirmed' as const,
+      },
+      {
+        announcementRoleCount: 0,
+        hasRegistrationOptions: true,
+        icon: { iconColor: 0xff_67_50_a4, iconName: 'calendar:fas' },
+        id: 'event-approval',
         start: '2030-01-02T11:00:00.000Z',
-        status: 'APPROVED',
-        title: 'Private workshop',
-        unlisted: true,
-        userIsCreator: true,
-        userRegistered: false,
+        status: 'APPROVED' as const,
+        title: 'Application event',
+        userSignUpState: 'approvalPending' as const,
       },
       {
+        announcementRoleCount: 0,
+        hasRegistrationOptions: true,
         icon: { iconColor: 0xff_67_50_a4, iconName: 'calendar:fas' },
-        id: 'event-registered',
+        id: 'event-payment',
+        start: '2030-01-02T11:30:00.000Z',
+        status: 'APPROVED' as const,
+        title: 'Paid event',
+        userSignUpState: 'paymentRequired' as const,
+      },
+      {
+        announcementRoleCount: 0,
+        hasRegistrationOptions: true,
+        icon: { iconColor: 0xff_67_50_a4, iconName: 'calendar:fas' },
+        id: 'event-waitlist',
         start: '2030-01-02T12:00:00.000Z',
-        status: 'APPROVED',
-        title: 'Registered workshop',
-        unlisted: false,
-        userIsCreator: false,
-        userRegistered: true,
+        status: 'APPROVED' as const,
+        title: 'Waitlist event',
+        userSignUpState: 'waitlisted' as const,
       },
     ],
   },
@@ -136,7 +159,7 @@ describe('EventListComponent load recovery', () => {
       fixture.nativeElement.querySelector('[role="alert"]');
     expect(alert?.textContent).toContain('Events could not be loaded');
     expect(alert?.textContent).toContain(
-      'Event discovery is temporarily unavailable.',
+      'No events are shown. Select Try again.',
     );
 
     const retryButton: HTMLButtonElement | null =
@@ -176,7 +199,7 @@ describe('EventListComponent load recovery', () => {
 
   it.each([
     { label: 'anonymous', permissions: [] },
-    { label: 'member', permissions: ['events:viewPublic'] },
+    { label: 'member', permissions: ['internal:viewInternalPages'] },
     { label: 'reviewer', permissions: ['events:review'] },
   ] satisfies { label: string; permissions: Permission[] }[])(
     'keeps public event links without an empty actions menu for $label',
@@ -454,28 +477,39 @@ describe('EventListComponent load recovery', () => {
       );
   });
 
-  it('retains the existing registered and unlisted row markers without marking unrelated events', () => {
+  it('shows current sign-up states and marks only related events', () => {
     eventQueryState.set('success');
     const fixture = TestBed.createComponent(EventListComponent);
     fixture.detectChanges();
     const root: unknown = fixture.nativeElement;
-    if (!(root instanceof HTMLElement))
-      throw new Error('Expected the event-list element.');
-    const privateCard = root.querySelector<HTMLAnchorElement>(
-      ':scope a[href="/event-private"]',
+    if (!(root instanceof HTMLElement)) {
+      throw new TypeError('Expected the rendered event list element.');
+    }
+    const cards = [...root.querySelectorAll('a')];
+    const card = (title: string) =>
+      cards.find((candidate) => candidate.textContent?.includes(title));
+
+    expect(card('Confirmed event')?.textContent).toContain('Place confirmed');
+    expect(card('Application event')?.textContent).toContain(
+      'Waiting for approval',
     );
-    const registeredCard = root.querySelector<HTMLAnchorElement>(
-      ':scope a[href="/event-registered"]',
+    expect(card('Paid event')?.textContent).toContain('Finish payment');
+    expect(card('Waitlist event')?.textContent).toContain('On waitlist');
+    for (const title of [
+      'Confirmed event',
+      'Application event',
+      'Paid event',
+      'Waitlist event',
+    ]) {
+      expect(card(title)?.classList.contains('ring-primary')).toBe(true);
+      expect(card(title)?.textContent).not.toContain('unlisted');
+    }
+    expect(card('Recovery workshop')?.classList.contains('ring-primary')).toBe(
+      false,
     );
-    const unrelatedCard = root.querySelector<HTMLAnchorElement>(
-      ':scope a[href="/event-1"]',
+    expect(card('Recovery workshop')?.textContent).not.toMatch(
+      /Place confirmed|Waiting for approval|Finish payment|On waitlist|unlisted/u,
     );
-    expect(privateCard?.textContent).toContain('unlisted');
-    expect(privateCard?.classList.contains('ring-success')).toBe(false);
-    expect(registeredCard?.classList.contains('ring-success')).toBe(true);
-    expect(registeredCard?.textContent).not.toContain('unlisted');
-    expect(unrelatedCard?.classList.contains('ring-success')).toBe(false);
-    expect(unrelatedCard?.textContent).not.toContain('unlisted');
   });
 });
 
@@ -509,6 +543,7 @@ const pendingEventListRead = () => {
 
 describe('EventListComponent server rendering readiness', () => {
   const startAfter = '2030-01-01T00:00:00.000Z';
+  const canSeeDrafts = signal(false);
   let childInjector: EnvironmentInjector | undefined;
   let fixture: ComponentFixture<EventListComponent> | undefined;
   let queryClient: QueryClient;
@@ -518,6 +553,7 @@ describe('EventListComponent server rendering readiness', () => {
   beforeEach(async () => {
     // Only freeze Date; keep the real query and Angular notification timers.
     vi.setSystemTime(new Date(startAfter));
+    canSeeDrafts.set(false);
     read = pendingEventListRead();
     loadEvents = vi.fn<EventListRpc['call']>(() => read.promise);
     queryClient = new QueryClient({
@@ -525,12 +561,6 @@ describe('EventListComponent server rendering readiness', () => {
         queries: { gcTime: 0, retry: false, staleTime: Infinity },
       },
     });
-    const selfQueryKey = createRpcQueryKey(['users', 'maybeSelf'], {
-      keyPrefix: 'rpc',
-      type: 'query',
-    });
-    // Identity is already settled, so only the event read can hold readiness.
-    queryClient.setQueryData(selfQueryKey, null);
     await TestBed.configureTestingModule({
       imports: [EventListComponent],
       providers: [
@@ -544,21 +574,14 @@ describe('EventListComponent server rendering readiness', () => {
             events: {
               eventList: { call: loadEvents, queryKey: readinessEventListKey },
             },
-            users: {
-              maybeSelf: {
-                queryOptions: () => ({
-                  queryFn: () => Promise.resolve(null),
-                  queryKey: selfQueryKey,
-                }),
-              },
-            },
           },
         },
         { provide: ConfigService, useValue: { updateTitle: vi.fn() } },
         {
           provide: PermissionsService,
           useValue: {
-            hasPermission: () => signal(false),
+            hasPermission: (permission: Permission) =>
+              permission === 'events:seeDrafts' ? canSeeDrafts : signal(false),
             hasPermissionSync: () => false,
           },
         },
@@ -609,12 +632,10 @@ describe('EventListComponent server rendering readiness', () => {
   const cacheFirstPage = () => {
     queryClient.setQueryData(
       readinessEventListKey({
-        includeUnlisted: false,
         limit: EVENT_LIST_PAGE_SIZE,
         offset: 0,
         startAfter,
         status: ['APPROVED'],
-        userId: undefined,
       }),
       { pageParams: [0], pages: [listedEvents] },
     );
@@ -670,14 +691,20 @@ describe('EventListComponent server rendering readiness', () => {
     expect(loadEvents).not.toHaveBeenCalled();
   });
 
-  it('waits for a new server filter result after a cached result was ready', async () => {
+  it('waits for the changed server permissions query after a cached result was ready', async () => {
     cacheFirstPage();
     const { fixture: rendered, root, service } = renderEventList();
     await rendered.whenStable();
-    service.updateStartFilter(new Date('2030-01-02T00:00:00.000Z'));
+    canSeeDrafts.set(true);
     rendered.detectChanges();
     expect(service.eventQuery.isPending()).toBe(true);
     expect(loadEvents).toHaveBeenCalledOnce();
+    expect(loadEvents).toHaveBeenLastCalledWith({
+      limit: EVENT_LIST_PAGE_SIZE,
+      offset: 0,
+      startAfter,
+      status: ['APPROVED', 'DRAFT', 'PENDING_REVIEW'],
+    });
     const firstStable = rendered.whenStable().then(() => ({
       link: root.querySelector('a[href="/event-1"]')?.textContent,
       pending: service.eventQuery.isPending(),
@@ -745,14 +772,14 @@ describe('event list paging', () => {
     id: string,
     start: string,
   ): EventsEventListDayRecord['events'][number] => ({
+    announcementRoleCount: 0,
+    hasRegistrationOptions: true,
     icon: { iconColor: 0xff_67_50_a4, iconName: 'calendar:fas' },
     id,
     start,
     status: 'APPROVED' as const,
     title: id,
-    unlisted: false,
-    userIsCreator: false,
-    userRegistered: false,
+    userSignUpState: null,
   });
 
   it('requests the next offset only after a full page', () => {
@@ -803,5 +830,17 @@ describe('event list paging', () => {
         ],
       },
     ]);
+  });
+});
+
+describe('eventListSignUpStateLabel', () => {
+  it('maps each server state to concise participant copy', () => {
+    expect(eventListSignUpStateLabel('confirmed')).toBe('Place confirmed');
+    expect(eventListSignUpStateLabel('approvalPending')).toBe(
+      'Waiting for approval',
+    );
+    expect(eventListSignUpStateLabel('paymentRequired')).toBe('Finish payment');
+    expect(eventListSignUpStateLabel('waitlisted')).toBe('On waitlist');
+    expect(eventListSignUpStateLabel(null)).toBeNull();
   });
 });

@@ -280,7 +280,6 @@ export const seedOrganizerSignupScenario = async ({
       templateId: sourceEvent.templateId,
       tenantId: seeded.tenant.id,
       title,
-      unlisted: false,
     });
     eventCreated = true;
 

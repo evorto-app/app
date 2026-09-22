@@ -173,7 +173,6 @@ test('Event approval workflow', async ({
     templateId: template.id,
     tenantId: tenant.id,
     title: eventTitle,
-    unlisted: false,
   });
 
   await database.insert(schema.roles).values({
