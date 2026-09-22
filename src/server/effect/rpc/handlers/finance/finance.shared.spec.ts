@@ -34,9 +34,16 @@ describe('required tenant receipt settings', () => {
       const tenant = {
         receiptSettings: { allowOther, receiptCountries: ['DE'] },
       };
-      expect(() => resolveTenantSelectableReceiptCountries(tenant)).toThrow();
-      expect(() => validateReceiptCountryForTenant(tenant, 'OTHER')).toThrow();
-      expect(() => validateReceiptCountryForTenant(tenant, 'DE')).toThrow();
+      const message = 'Receipt country allowOther setting must be a boolean';
+      expect(() => resolveTenantSelectableReceiptCountries(tenant)).toThrow(
+        message,
+      );
+      expect(() => validateReceiptCountryForTenant(tenant, 'OTHER')).toThrow(
+        message,
+      );
+      expect(() => validateReceiptCountryForTenant(tenant, 'DE')).toThrow(
+        message,
+      );
     }
   });
 
@@ -56,6 +63,38 @@ describe('required tenant receipt settings', () => {
       ).toThrow();
     }
   });
+  it.each([
+    {
+      countries: [],
+      message: 'At least one receipt country must be configured',
+    },
+    {
+      countries: ['DE', 'DE'],
+      message: 'Receipt countries must not contain duplicates',
+    },
+    {
+      countries: ['de'],
+      message:
+        'Receipt countries must use supported uppercase two-letter codes',
+    },
+  ])(
+    'preserves the shared validation error: $message',
+    ({ countries, message }) => {
+      const tenant = {
+        receiptSettings: { allowOther: false, receiptCountries: countries },
+      };
+      expect(() => resolveTenantSelectableReceiptCountries(tenant)).toThrow(
+        message,
+      );
+      expect(() => validateReceiptCountryForTenant(tenant, 'OTHER')).toThrow(
+        message,
+      );
+      expect(() => validateReceiptCountryForTenant(tenant, 'DE')).toThrow(
+        message,
+      );
+    },
+  );
+
   it('uses the explicit country list and Other policy', () => {
     const tenant = {
       receiptSettings: { allowOther: true, receiptCountries: ['NL', 'DE'] },

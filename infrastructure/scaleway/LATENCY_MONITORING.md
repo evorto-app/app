@@ -44,7 +44,12 @@ latency increase paired with elevated errors. Send warnings to the normal
 operational channel for investigation during working hours.
 
 The synthetic evaluates each burst independently. It retains no state across
-workflow runs: `enforce-critical` fails on one critical check. Confirm persistent
+workflow runs: `enforce-critical` fails on one critical check (exit 2) or
+incomplete timing evidence (exit 3). Every expected warm-candidate response
+must include a usable upstream timing before the probe can report a complete
+latency result. The report retains the measured distribution and count, marks
+partial evidence `insufficient`, and preserves critical measured latency and
+availability failures as higher-priority outcomes. Confirm persistent
 latency from successive artifacts and traces before treating it as a sustained
 regression. The trace, browser and error-rate windows above are operational
 objectives; this HTTP probe does not calculate them or send paging messages.

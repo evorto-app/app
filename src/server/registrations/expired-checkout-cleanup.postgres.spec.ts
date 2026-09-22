@@ -621,15 +621,7 @@ describe('expired unbound checkout cleanup concurrency', () => {
       }
       await Promise.all(settledWorkers);
     }
-    if (failures.length === 1) {
-      throw failures[0];
-    }
-    if (failures.length > 1) {
-      throw new AggregateError(
-        failures,
-        'Registration test and cleanup failures',
-      );
-    }
+    throwCleanupFailures(failures);
   }, 30_000);
 
   it('preserves a claim that becomes bound while the sweeper waits', async () => {
@@ -703,15 +695,7 @@ describe('expired unbound checkout cleanup concurrency', () => {
       }
       await Promise.all(settledWorkers);
     }
-    if (failures.length === 1) {
-      throw failures[0];
-    }
-    if (failures.length > 1) {
-      throw new AggregateError(
-        failures,
-        'Registration test and cleanup failures',
-      );
-    }
+    throwCleanupFailures(failures);
   }, 30_000);
 
   it('leases fair due batches across two workers without starving later claims', async () => {

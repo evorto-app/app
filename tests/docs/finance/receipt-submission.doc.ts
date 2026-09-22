@@ -232,7 +232,18 @@ If the receipt was submitted but its lists could not be updated, it is already s
     .getByLabel(`Deposit amount (${tenant.currency})`)
     .fill('2.50');
   await receiptDialog.getByRole('button', { name: 'Submit receipt' }).click();
-  await expect(receiptDialog).not.toBeVisible();
+  try {
+    await expect(receiptDialog).not.toBeVisible();
+  } catch (error) {
+    const state = {
+      alerts: await receiptDialog.getByRole('alert').allTextContents(),
+      statuses: await receiptDialog.getByRole('status').allTextContents(),
+    };
+    throw new Error(
+      `Receipt submission did not finish: ${JSON.stringify(state)}`,
+      { cause: error },
+    );
+  }
   await expect(page.getByText('Receipt submitted')).toBeVisible();
 
   const receiptCard = receiptSection
