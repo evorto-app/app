@@ -34,6 +34,7 @@ import {
   users,
   usersToTenants,
 } from '@db/schema';
+import { lockUserDiscountCards } from '@server/discounts/user-discount-card-lock';
 import {
   MAX_EVENT_ADDON_TYPES,
   MAX_REGISTRATION_ADDON_QUANTITY,
@@ -508,7 +509,6 @@ const resolveCurrentRegistrationTransferPrice = Effect.fn(
           columns: { type: true, validFrom: true, validTo: true },
           where: {
             status: 'verified',
-            tenantId,
             userId,
           },
         }),
@@ -2891,21 +2891,18 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
             (addOn) => addOn !== undefined,
           );
 
+          yield* lockUserDiscountCards(tx, user.id, 'shared');
           const lockedDiscountCards = yield* tx
             .select({
+              status: userDiscountCards.status,
               type: userDiscountCards.type,
               validFrom: userDiscountCards.validFrom,
               validTo: userDiscountCards.validTo,
             })
             .from(userDiscountCards)
-            .where(
-              and(
-                eq(userDiscountCards.status, 'verified'),
-                eq(userDiscountCards.tenantId, tenant.id),
-                eq(userDiscountCards.userId, user.id),
-              ),
-            )
-            .for('update');
+            .where(eq(userDiscountCards.userId, user.id))
+            .orderBy(userDiscountCards.id)
+            .for('share');
           const lockedDiscounts = yield* tx
             .select({
               discountedPrice: eventRegistrationOptionDiscounts.discountedPrice,
@@ -2929,7 +2926,9 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
           );
           const discountResolution = resolveRegistrationTransferPrice({
             basePrice: optionBasePrice,
-            cards: lockedDiscountCards,
+            cards: lockedDiscountCards.filter(
+              (card) => card.status === 'verified',
+            ),
             discounts: lockedDiscounts,
             enabledDiscountTypes,
             eventStart: lockedOption.eventStart,

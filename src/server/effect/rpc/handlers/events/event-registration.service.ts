@@ -1,3 +1,4 @@
+import { lockUserDiscountCards } from '@server/discounts/user-discount-card-lock';
 import {
   MAX_EVENT_ADDON_TYPES,
   MAX_REGISTRATION_ADDON_QUANTITY,
@@ -1485,11 +1486,12 @@ const registrationSnapshotChanged = () =>
 /**
  * Callers hold tenant and event locks. Discount evaluation requires tenant
  * UPDATE before event/question/member locks, including a fully discounted price.
+ * Card eligibility then takes the shared global owner lock before its read.
  */
 export const ensureCurrentRegistrationSnapshot = Effect.fn(
   'EventRegistration.ensureCurrentRegistrationSnapshot',
 )(function* (
-  database: Pick<DatabaseClient, 'query' | 'select'>,
+  database: Pick<DatabaseClient, 'execute' | 'query' | 'select'>,
   input: {
     readonly addOns?: readonly RegistrationAddonTerms[];
     readonly admission?: Pick<
@@ -1663,8 +1665,14 @@ export const ensureCurrentRegistrationSnapshot = Effect.fn(
         })
         .pipe(Effect.orDie);
       if (!tenant) return yield* registrationSnapshotChanged();
-      // Lock every status: filtering in SQL would miss a concurrent transition
-      // from unverified to verified. Tenant UPDATE also serializes new inserts.
+      // Serialize against every writer, including a first card inserted through
+      // another organization. Read only after the owner lock has been acquired.
+      yield* lockUserDiscountCards(
+        database,
+        pricing.discountEligibility.userId,
+        'shared',
+      ).pipe(Effect.orDie);
+      // Keep every status locked until the current eligibility has been checked.
       const cards = yield* database
         .select({
           status: userDiscountCards.status,
@@ -1673,12 +1681,7 @@ export const ensureCurrentRegistrationSnapshot = Effect.fn(
           validTo: userDiscountCards.validTo,
         })
         .from(userDiscountCards)
-        .where(
-          and(
-            eq(userDiscountCards.tenantId, input.tenantId),
-            eq(userDiscountCards.userId, pricing.discountEligibility.userId),
-          ),
-        )
+        .where(eq(userDiscountCards.userId, pricing.discountEligibility.userId))
         .orderBy(userDiscountCards.id)
         .for('share')
         .pipe(Effect.orDie);
@@ -2224,7 +2227,6 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
             },
             where: {
               status: 'verified',
-              tenantId: tenant.id,
               userId: registration.userId,
             },
           }),
@@ -3414,7 +3416,6 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
               },
               where: {
                 status: 'verified',
-                tenantId: tenant.id,
                 userId: user.id,
               },
             }),

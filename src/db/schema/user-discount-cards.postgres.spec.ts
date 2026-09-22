@@ -72,26 +72,31 @@ const testDatabaseLayer = databaseLayer.pipe(
 type Card = typeof userDiscountCards.$inferInsert;
 const withCardFixture = <E, R>(
   run: (fixture: {
-    card: Pick<Card, 'identifier' | 'tenantId' | 'type' | 'userId'>;
+    card: Pick<Card, 'identifier' | 'type' | 'userId'>;
     database: DatabaseClient;
+    otherTenantId: string;
     otherUserId: string;
+    tenantId: string;
   }) => Effect.Effect<void, E, R>,
 ) =>
   Effect.gen(function* () {
     const database = yield* Database;
     yield* Effect.acquireUseRelease(
       Effect.sync(() => ({
+        otherTenantId: createId(),
         otherUserId: createId(),
         tenantId: createId(),
         userId: createId(),
       })),
-      ({ otherUserId, tenantId, userId }) =>
+      ({ otherTenantId, otherUserId, tenantId, userId }) =>
         Effect.gen(function* () {
-          yield* database.insert(tenants).values({
-            domain: `${tenantId}.card-window.example`,
-            id: tenantId,
-            name: 'Card validity window',
-          });
+          yield* database.insert(tenants).values(
+            [tenantId, otherTenantId].map((id) => ({
+              domain: `${id}.card-window.example`,
+              id,
+              name: 'Card validity window',
+            })),
+          );
           yield* database.insert(users).values(
             [userId, otherUserId].map((id) => ({
               auth0Id: `card-window|${id}`,
@@ -105,18 +110,19 @@ const withCardFixture = <E, R>(
           yield* run({
             card: {
               identifier: `card-${userId}`,
-              tenantId,
               type: 'esnCard',
               userId,
             },
             database,
+            otherTenantId,
             otherUserId,
+            tenantId,
           });
         }),
-      ({ otherUserId, tenantId, userId }) =>
+      ({ otherTenantId, otherUserId, tenantId, userId }) =>
         database
           .delete(userDiscountCards)
-          .where(eq(userDiscountCards.tenantId, tenantId))
+          .where(inArray(userDiscountCards.userId, [userId, otherUserId]))
           .pipe(
             Effect.ensuring(
               database
@@ -127,7 +133,7 @@ const withCardFixture = <E, R>(
             Effect.ensuring(
               database
                 .delete(tenants)
-                .where(eq(tenants.id, tenantId))
+                .where(inArray(tenants.id, [tenantId, otherTenantId]))
                 .pipe(Effect.orDie),
             ),
             Effect.orDie,
@@ -274,7 +280,7 @@ describe('global discount card ownership across organizations', () => {
     it.live(
       `preserves global ownership for a ${scenario} in another organization`,
       () =>
-        withCardFixture(({ card, database, otherUserId }) =>
+        withCardFixture(({ card, database, otherUserId, tenantId }) =>
           Effect.acquireUseRelease(
             Effect.sync(createId),
             (otherTenantId) =>
@@ -285,7 +291,7 @@ describe('global discount card ownership across organizations', () => {
                 yield* database
                   .update(tenants)
                   .set({ discountProviders })
-                  .where(eq(tenants.id, card.tenantId));
+                  .where(eq(tenants.id, tenantId));
                 yield* database.insert(tenants).values({
                   discountProviders,
                   domain: `${otherTenantId}.global-card.example`,
@@ -294,7 +300,7 @@ describe('global discount card ownership across organizations', () => {
                 });
                 const tenant = Schema.decodeUnknownSync(Tenant)(
                   yield* database.query.tenants.findFirst({
-                    where: { id: card.tenantId },
+                    where: { id: tenantId },
                   }),
                 );
                 const otherTenant = Schema.decodeUnknownSync(Tenant)(
@@ -354,24 +360,16 @@ describe('global discount card ownership across organizations', () => {
               }),
             (otherTenantId) =>
               database
-                .delete(userDiscountCards)
-                .where(eq(userDiscountCards.tenantId, otherTenantId))
-                .pipe(
-                  Effect.ensuring(
-                    database
-                      .delete(tenants)
-                      .where(eq(tenants.id, otherTenantId))
-                      .pipe(Effect.orDie),
-                  ),
-                  Effect.orDie,
-                ),
+                .delete(tenants)
+                .where(eq(tenants.id, otherTenantId))
+                .pipe(Effect.orDie),
           ),
         ).pipe(Effect.provide(testDatabaseLayer)),
     );
   }
 });
 
-describe('concurrent discount card saves', () => {
+describe('concurrent discount card saves across organizations', () => {
   for (const scenario of [
     'existing identifier',
     'new identifier',
@@ -381,106 +379,114 @@ describe('concurrent discount card saves', () => {
     it.live(
       `keeps the winning card and returns a typed conflict for a ${scenario} race`,
       () =>
-        withCardFixture(({ card, database, otherUserId }) =>
-          Effect.gen(function* () {
-            yield* database
-              .update(tenants)
-              .set({
-                discountProviders: {
-                  esnCard: { config: {}, status: 'enabled' },
-                },
-              })
-              .where(eq(tenants.id, card.tenantId));
-            const tenant = Schema.decodeUnknownSync(Tenant)(
-              yield* database.query.tenants.findFirst({
-                where: { id: card.tenantId },
-              }),
-            );
-            if (scenario === 'existing identifier') {
-              yield* database.insert(userDiscountCards).values({
-                ...card,
-                identifier: 'ORIGINAL',
-                status: 'unverified',
-              });
-            }
-            const before = yield* database.query.userDiscountCards.findMany({
-              where: { tenantId: card.tenantId },
-            });
-            const started = yield* Deferred.make<undefined>();
-            const release = yield* Deferred.make<undefined>();
-            let validationCalls = 0;
-            const result: ValidationResult = {
-              metadata: { provider: 'synthetic' },
-              status: 'verified',
-              validFrom,
-              validTo,
-            };
-            const validate: ProviderAdapter['validate'] = () => {
-              validationCalls += 1;
-              if (validationCalls === 1) {
-                return Effect.runPromise(
-                  Deferred.succeed(started, undefined).pipe(
-                    Effect.andThen(Deferred.await(release)),
-                    Effect.as(result),
-                  ),
-                );
+        withCardFixture(
+          ({ card, database, otherTenantId, otherUserId, tenantId }) =>
+            Effect.gen(function* () {
+              yield* database
+                .update(tenants)
+                .set({
+                  discountProviders: {
+                    esnCard: { config: {}, status: 'enabled' },
+                  },
+                })
+                .where(inArray(tenants.id, [tenantId, otherTenantId]));
+              const tenant = Schema.decodeUnknownSync(Tenant)(
+                yield* database.query.tenants.findFirst({
+                  where: { id: tenantId },
+                }),
+              );
+              const otherTenant = Schema.decodeUnknownSync(Tenant)(
+                yield* database.query.tenants.findFirst({
+                  where: { id: otherTenantId },
+                }),
+              );
+              if (scenario === 'existing identifier') {
+                yield* database.insert(userDiscountCards).values({
+                  ...card,
+                  identifier: 'ORIGINAL',
+                  status: 'unverified',
+                });
               }
-              return Promise.resolve(result);
-            };
-            yield* withEsnCardAdapter(
-              validate,
-              Effect.gen(function* () {
-                const waitingSave = yield* saveCard(
-                  tenant,
-                  card.userId,
-                  'TARGET',
-                ).pipe(Effect.result, Effect.forkScoped);
-                yield* Effect.gen(function* () {
-                  // The first request has finished both reads and is paused in provider validation.
-                  yield* Deferred.await(started);
-                  const sameUser =
-                    scenario === 'new user slot' ||
-                    scenario === 'same identifier and user';
-                  const winningUser = sameUser ? card.userId : otherUserId;
-                  const winningIdentifier =
-                    scenario === 'new user slot' ? 'WINNER' : 'TARGET';
-                  const winner = yield* saveCard(
-                    tenant,
-                    winningUser,
-                    winningIdentifier,
+              const before = yield* database.query.userDiscountCards.findMany({
+                where: { userId: { in: [card.userId, otherUserId] } },
+              });
+              const started = yield* Deferred.make<undefined>();
+              const release = yield* Deferred.make<undefined>();
+              let validationCalls = 0;
+              const result: ValidationResult = {
+                metadata: { provider: 'synthetic' },
+                status: 'verified',
+                validFrom,
+                validTo,
+              };
+              const validate: ProviderAdapter['validate'] = () => {
+                validationCalls += 1;
+                if (validationCalls === 1) {
+                  return Effect.runPromise(
+                    Deferred.succeed(started, undefined).pipe(
+                      Effect.andThen(Deferred.await(release)),
+                      Effect.as(result),
+                    ),
                   );
-                  yield* Deferred.succeed(release, undefined);
-                  const loser = yield* Fiber.join(waitingSave);
-                  expect(Result.isFailure(loser)).toBe(true);
-                  if (!Result.isFailure(loser)) return;
-                  expect(loser.failure).toMatchObject({
-                    _tag: sameUser
-                      ? 'DiscountCardChangedError'
-                      : 'DiscountCardConflictError',
-                  });
-                  const after =
-                    yield* database.query.userDiscountCards.findMany({
-                      where: { tenantId: card.tenantId },
+                }
+                return Promise.resolve(result);
+              };
+              yield* withEsnCardAdapter(
+                validate,
+                Effect.gen(function* () {
+                  const waitingSave = yield* saveCard(
+                    tenant,
+                    card.userId,
+                    'TARGET',
+                  ).pipe(Effect.result, Effect.forkScoped);
+                  yield* Effect.gen(function* () {
+                    // The first request has finished both reads and is paused in provider validation.
+                    yield* Deferred.await(started);
+                    const sameUser =
+                      scenario === 'new user slot' ||
+                      scenario === 'same identifier and user';
+                    const winningUser = sameUser ? card.userId : otherUserId;
+                    const winningIdentifier =
+                      scenario === 'new user slot' ? 'WINNER' : 'TARGET';
+                    const winner = yield* saveCard(
+                      otherTenant,
+                      winningUser,
+                      winningIdentifier,
+                    );
+                    yield* Deferred.succeed(release, undefined);
+                    const loser = yield* Fiber.join(waitingSave);
+                    expect(Result.isFailure(loser)).toBe(true);
+                    if (!Result.isFailure(loser)) return;
+                    expect(loser.failure).toMatchObject({
+                      _tag: sameUser
+                        ? 'DiscountCardChangedError'
+                        : 'DiscountCardConflictError',
                     });
-                  expect(after).toHaveLength(before.length + 1);
-                  expect(
-                    after.find((row) => row.id === winner.id),
-                  ).toMatchObject({
-                    identifier: winningIdentifier,
-                    metadata: { provider: 'synthetic' },
-                    status: 'verified',
-                    userId: winningUser,
-                  });
-                  if (scenario === 'existing identifier') {
+                    const after =
+                      yield* database.query.userDiscountCards.findMany({
+                        where: { userId: { in: [card.userId, otherUserId] } },
+                      });
+                    expect(after).toHaveLength(before.length + 1);
                     expect(
-                      after.find((row) => row.userId === card.userId),
-                    ).toEqual(before[0]);
-                  }
-                  expect(validationCalls).toBe(2);
-                }).pipe(Effect.ensuring(Deferred.succeed(release, undefined)));
-              }).pipe(Effect.scoped),
-            );
-          }),
+                      after.find((row) => row.id === winner.id),
+                    ).toMatchObject({
+                      identifier: winningIdentifier,
+                      metadata: { provider: 'synthetic' },
+                      status: 'verified',
+                      userId: winningUser,
+                    });
+                    if (scenario === 'existing identifier') {
+                      expect(
+                        after.find((row) => row.userId === card.userId),
+                      ).toEqual(before[0]);
+                    }
+                    expect(validationCalls).toBe(2);
+                  }).pipe(
+                    Effect.ensuring(Deferred.succeed(release, undefined)),
+                  );
+                }).pipe(Effect.scoped),
+              );
+            }),
         ).pipe(Effect.provide(testDatabaseLayer)),
     );
   }

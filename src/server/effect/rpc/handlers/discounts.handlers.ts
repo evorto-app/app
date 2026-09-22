@@ -18,7 +18,11 @@ import { isSqlError } from 'effect/unstable/sql/SqlError';
 import type { AppRpcHandlers } from './shared/handler-types';
 
 import { Database, type DatabaseClient } from '../../../../db';
-import { tenants, userDiscountCards } from '../../../../db/schema';
+import {
+  userDiscountCardIdentifierUniqueConstraintName,
+  userDiscountCards,
+  userDiscountCardUserTypeUniqueConstraintName,
+} from '../../../../db/schema';
 import {
   Adapters,
   PROVIDER_TYPES,
@@ -27,6 +31,7 @@ import {
   ProviderValidationUnavailableError,
   type ValidationResult,
 } from '../../../discounts/providers';
+import { lockUserDiscountCards } from '../../../discounts/user-discount-card-lock';
 import { safeServerErrorSummary } from '../../../utils/safe-server-error-summary';
 import { RpcAccess } from './shared/rpc-access.service';
 
@@ -51,13 +56,12 @@ const cardSaveConflict = (error: unknown) => {
   )
     return;
   switch (failure.error.reason.constraint) {
-    case 'user_discount_cards_tenantId_type_identifier_unique': {
+    case userDiscountCardIdentifierUniqueConstraintName: {
       return new DiscountCardConflictError({
-        message:
-          'This ESNcard is already linked to another account in this organization.',
+        message: 'This ESNcard is already linked to another account.',
       });
     }
-    case 'user_discount_cards_userId_tenantId_type_unique': {
+    case userDiscountCardUserTypeUniqueConstraintName: {
       return new DiscountCardChangedError({
         message:
           'Your saved ESNcard changed or was removed while it was being checked. Review your current card and try again.',
@@ -69,23 +73,16 @@ const cardSaveConflict = (error: unknown) => {
   }
 };
 
-const withDiscountCardTenantLock = <A>(
+const withDiscountCardOwnerLock = <A>(
   database: Pick<DatabaseClient, 'transaction'>,
-  tenantId: string,
+  userId: string,
   operation: (
     transaction: Pick<DatabaseClient, 'delete' | 'insert' | 'update'>,
   ) => Effect.Effect<A, unknown, never>,
 ) =>
   database.transaction((transaction) =>
     Effect.gen(function* () {
-      // Registration takes tenant UPDATE before reading card eligibility. Take
-      // the compatible writer lock before card rows or unique-index entries;
-      // otherwise INSERT's later FK lock can form a cycle with a replacement.
-      yield* transaction
-        .select({ id: tenants.id })
-        .from(tenants)
-        .where(eq(tenants.id, tenantId))
-        .for('key share');
+      yield* lockUserDiscountCards(transaction, userId, 'exclusive');
       return yield* operation(transaction);
     }),
   );
@@ -93,7 +90,7 @@ const withDiscountCardTenantLock = <A>(
 const databaseCardSaveEffect = <A>(
   card: Pick<
     typeof userDiscountCards.$inferSelect,
-    'identifier' | 'tenantId' | 'type' | 'userId'
+    'identifier' | 'type' | 'userId'
   >,
   operation: (
     database: Pick<DatabaseClient, 'delete' | 'insert' | 'update'>,
@@ -104,7 +101,7 @@ const databaseCardSaveEffect = <A>(
   Database
 > =>
   Database.use((database) =>
-    withDiscountCardTenantLock(database, card.tenantId, operation).pipe(
+    withDiscountCardOwnerLock(database, card.userId, operation).pipe(
       Effect.catch((error) => {
         const conflict = cardSaveConflict(error);
         if (!conflict) return Effect.die(error);
@@ -118,7 +115,6 @@ const databaseCardSaveEffect = <A>(
             columns: { userId: true },
             where: {
               identifier: card.identifier,
-              tenantId: card.tenantId,
               type: card.type,
             },
           })
@@ -206,16 +202,14 @@ export const discountHandlers = {
   'discounts.deleteMyCard': (input, _options) =>
     Effect.gen(function* () {
       yield* RpcAccess.ensureAuthenticated();
-      const { tenant } = yield* RpcAccess.current();
       const user = yield* RpcAccess.requireUser();
 
       yield* databaseEffect((database) =>
-        withDiscountCardTenantLock(database, tenant.id, (transaction) =>
+        withDiscountCardOwnerLock(database, user.id, (transaction) =>
           transaction
             .delete(userDiscountCards)
             .where(
               and(
-                eq(userDiscountCards.tenantId, tenant.id),
                 eq(userDiscountCards.userId, user.id),
                 eq(userDiscountCards.type, input.type),
               ),
@@ -226,7 +220,6 @@ export const discountHandlers = {
   'discounts.getMyCards': (_payload, _options) =>
     Effect.gen(function* () {
       yield* RpcAccess.ensureAuthenticated();
-      const { tenant } = yield* RpcAccess.current();
       const user = yield* RpcAccess.requireUser();
       const cards = yield* databaseEffect((database) =>
         database.query.userDiscountCards.findMany({
@@ -238,7 +231,6 @@ export const discountHandlers = {
             validTo: true,
           },
           where: {
-            tenantId: tenant.id,
             userId: user.id,
           },
         }),
@@ -321,7 +313,6 @@ export const discountHandlers = {
             validTo: true,
           },
           where: {
-            tenantId: tenant.id,
             type: input.type,
             userId: user.id,
           },
@@ -344,7 +335,7 @@ export const discountHandlers = {
         identifier: card.identifier,
       });
       const updatedCards = yield* databaseEffect((database) =>
-        withDiscountCardTenantLock(database, tenant.id, (transaction) =>
+        withDiscountCardOwnerLock(database, user.id, (transaction) =>
           transaction
             .update(userDiscountCards)
             .set({
@@ -357,7 +348,6 @@ export const discountHandlers = {
             .where(
               and(
                 eq(userDiscountCards.id, card.id),
-                eq(userDiscountCards.tenantId, tenant.id),
                 eq(userDiscountCards.userId, user.id),
                 eq(userDiscountCards.type, input.type),
                 eq(userDiscountCards.identifier, card.identifier),
@@ -427,7 +417,6 @@ export const discountHandlers = {
           },
           where: {
             identifier: input.identifier,
-            tenantId: tenant.id,
             type: input.type,
           },
         }),
@@ -435,8 +424,7 @@ export const discountHandlers = {
       if (existingIdentifier && existingIdentifier.userId !== user.id) {
         return yield* Effect.fail(
           new DiscountCardConflictError({
-            message:
-              'This ESNcard is already linked to another account in this organization.',
+            message: 'This ESNcard is already linked to another account.',
           }),
         );
       }
@@ -451,7 +439,6 @@ export const discountHandlers = {
             validTo: true,
           },
           where: {
-            tenantId: tenant.id,
             type: input.type,
             userId: user.id,
           },
@@ -476,7 +463,6 @@ export const discountHandlers = {
         ? yield* databaseCardSaveEffect(
             {
               identifier: input.identifier,
-              tenantId: tenant.id,
               type: input.type,
               userId: user.id,
             },
@@ -490,7 +476,6 @@ export const discountHandlers = {
                 .where(
                   and(
                     eq(userDiscountCards.id, existingCard.id),
-                    eq(userDiscountCards.tenantId, tenant.id),
                     eq(userDiscountCards.userId, user.id),
                     eq(userDiscountCards.type, input.type),
                     eq(userDiscountCards.identifier, existingCard.identifier),
@@ -507,7 +492,6 @@ export const discountHandlers = {
         : yield* databaseCardSaveEffect(
             {
               identifier: input.identifier,
-              tenantId: tenant.id,
               type: input.type,
               userId: user.id,
             },
@@ -517,7 +501,6 @@ export const discountHandlers = {
                 .values({
                   ...validatedCardFields,
                   identifier: input.identifier,
-                  tenantId: tenant.id,
                   type: input.type,
                   userId: user.id,
                 })
