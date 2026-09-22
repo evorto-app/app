@@ -19,6 +19,7 @@ test('Manage one organization and review change history', async ({
   seeded,
   templates,
   tenant,
+  testClock,
 }, testInfo) => {
   // This guide intentionally exercises six audited operations and their
   // persisted readbacks in one continuous organization-scoped journey.
@@ -85,6 +86,32 @@ test('Manage one organization and review change history', async ({
   if (!originalOptionCounters) {
     throw new Error('Expected the documented check-in option to exist');
   }
+
+  const originalCheckInEventWindow =
+    await database.query.eventInstances.findFirst({
+      columns: { end: true, start: true },
+      where: { id: checkInEvent.id, tenantId: tenant.id },
+    });
+  if (!originalCheckInEventWindow) {
+    throw new Error('Expected the documented check-in event to exist');
+  }
+  const scannerNow = testClock.toJSDate();
+  const openCheckInEventWindow = {
+    end: new Date(scannerNow.getTime() + 30 * 60 * 1000),
+    start: new Date(scannerNow.getTime() - 30 * 60 * 1000),
+  };
+
+  registerDatabaseCleanup(async (cleanupDatabase) => {
+    await cleanupDatabase
+      .update(schema.eventInstances)
+      .set(originalCheckInEventWindow)
+      .where(
+        and(
+          eq(schema.eventInstances.id, checkInEvent.id),
+          eq(schema.eventInstances.tenantId, tenant.id),
+        ),
+      );
+  });
 
   let receiptUploadId: string | undefined;
   let temporaryRecordsInserted = false;
@@ -185,6 +212,15 @@ test('Manage one organization and review change history', async ({
   );
   receiptUploadId = createdReceiptUploadId;
   await database.transaction(async (transaction) => {
+    await transaction
+      .update(schema.eventInstances)
+      .set(openCheckInEventWindow)
+      .where(
+        and(
+          eq(schema.eventInstances.id, checkInEvent.id),
+          eq(schema.eventInstances.tenantId, tenant.id),
+        ),
+      );
     await transaction.insert(schema.financeReceipts).values({
       alcoholAmount: 0,
       attachmentFileName: receiptFileName,
@@ -515,13 +551,13 @@ This action records a decision and schedules a receipt-review notification; it d
   await page
     .getByRole('link', { exact: true, name: 'Inspect registrations' })
     .click();
-  const lookupInput = page.getByLabel('Ticket link or registration ID');
+  const lookupInput = page.getByLabel('Ticket link or ticket number');
   await expect(lookupInput).toBeEnabled({ timeout: 20_000 });
   await lookupInput.fill(
     `http://localhost:4200/scan/registration/${registrationId}`,
   );
   const openRegistration = page.getByRole('button', {
-    name: 'Open registration',
+    name: 'Open ticket',
   });
   await expect(openRegistration).toBeEnabled({ timeout: 20_000 });
   await openRegistration.click();
@@ -534,21 +570,24 @@ This action records a decision and schedules a receipt-review notification; it d
       has: page.getByRole('heading', {
         exact: true,
         level: 3,
-        name: 'Help with this registration',
+        name: 'Help with this ticket',
       }),
     });
   await expect(registrationDetail).toBeVisible({ timeout: 20_000 });
   await expect(
-    registrationDetail.getByText('Confirmed', { exact: true }),
-  ).toBeVisible({ timeout: 20_000 });
+    registrationDetail.getByRole('status', {
+      exact: true,
+      name: 'Ticket status',
+    }),
+  ).toHaveText('Confirmed', { timeout: 20_000 });
 
   await testInfo.attach('markdown', {
     body: `
 ## Check in an attendee and guest
 
-Return to the organization and choose **Inspect registrations**. Paste either the registration ID or its attendee ticket link, then select **Open registration**. Evorto confirms that the registration belongs to this organization before showing it.
+Return to the organization and choose **Inspect registrations**. Paste either the ticket number or its attendee ticket link, then select **Open ticket**. Evorto confirms that the registration belongs to this organization before showing it.
 
-For a confirmed registration inside the check-in window, enter the number of guests arriving now, add a **Reason for this action**, and select **Check in**. This walkthrough checks in the attendee and one guest, then confirms the updated attendee and guest totals. It does not approve or cancel a registration.
+Check-in opens one hour before the event starts and closes two hours after it ends. For a confirmed registration inside that window, enter the number of guests arriving now, add a **Reason for this action**, and select **Check in**. This walkthrough checks in the attendee and one guest, then confirms the updated attendee and guest totals. It does not approve or cancel a registration.
 `,
   });
   const guestCheckInCount = registrationDetail.getByLabel(
@@ -571,7 +610,7 @@ For a confirmed registration inside the check-in window, enter the number of gue
   });
   await expect(checkIn).toBeEnabled({ timeout: 20_000 });
   await checkIn.click({ timeout: 20_000 });
-  await expect(page.getByText('Registration checked in')).toBeVisible();
+  await expect(page.getByText('Ticket checked in')).toBeVisible();
   await expect(
     registrationDetail.getByText('1 of 1 checked in', { exact: true }),
   ).toBeVisible();

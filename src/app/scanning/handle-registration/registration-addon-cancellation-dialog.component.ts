@@ -54,13 +54,13 @@ export const registrationAddonRefundChoiceDescription = (
 ): string => {
   switch (availability) {
     case 'monetaryRefundAvailable': {
-      return 'Refund the eligible payment for the cancelled optional units.';
+      return 'The amount paid for the cancelled items bought separately can be refunded.';
     }
     case 'noMonetaryRefundRequired': {
-      return 'No monetary refund is required because these optional units were free. The result will be recorded as refund not required.';
+      return 'These items were bought separately for free, so there is nothing to refund.';
     }
     case 'none': {
-      return 'No optional purchase is eligible for a refund.';
+      return 'These items bought separately cannot be refunded.';
     }
   }
 };
@@ -69,7 +69,7 @@ export const registrationAddonRefundChoiceTitle = (
   availability: EventsRegistrationAddonRefundAvailability,
 ): string =>
   availability === 'noMonetaryRefundRequired'
-    ? 'Cancel with refund handling (no payment refund)'
+    ? 'Cancel free items'
     : 'Cancel with refund';
 
 export const registrationAddonCancellationAllocation = ({
@@ -94,8 +94,8 @@ export const registrationAddonRefundQuantityDescription = (
   cancellablePurchasedQuantity: number,
 ): string =>
   cancellablePurchasedQuantity > 0
-    ? `Up to ${cancellablePurchasedQuantity} optional ${cancellablePurchasedQuantity === 1 ? 'unit' : 'units'} may have refund handling. Included units are never refunded.`
-    : 'Only included units remain. No payment refund applies to them.';
+    ? `Up to ${cancellablePurchasedQuantity} ${cancellablePurchasedQuantity === 1 ? 'item' : 'items'} bought separately can be refunded. Items included with the ticket cannot be refunded.`
+    : 'Only items included with the ticket remain. They cannot be refunded.';
 
 export const registrationAddonCancellationResult = ({
   cancellablePurchasedQuantity,
@@ -145,8 +145,8 @@ export const registrationAddonCancellationResult = ({
     <form (submit)="onSubmit($event)">
       <mat-dialog-content class="grid gap-4">
         <p class="text-on-surface-variant">
-          Only unredeemed units can be cancelled. Redeemed units remain on the
-          fulfillment record, and included units are never refunded.
+          Only unused items can be cancelled. Items already used stay on the
+          ticket. Items included with the ticket cannot be refunded.
         </p>
 
         <mat-form-field appearance="outline" class="w-full">
@@ -159,14 +159,16 @@ export const registrationAddonCancellationResult = ({
             [formField]="cancellationForm.quantity"
           />
           <mat-hint>
-            {{ data.cancellableQuantity }} unredeemed
-            {{ data.cancellableQuantity === 1 ? 'unit' : 'units' }} available
+            {{ data.cancellableQuantity }} unused
+            {{ data.cancellableQuantity === 1 ? 'item' : 'items' }} available
           </mat-hint>
           @if (
             cancellationForm.quantity().touched() &&
             cancellationForm.quantity().invalid()
           ) {
-            <mat-error>Choose an available whole-unit quantity.</mat-error>
+            <mat-error>
+              Enter a whole number from 1 to {{ data.cancellableQuantity }}.
+            </mat-error>
           }
         </mat-form-field>
 
@@ -175,13 +177,14 @@ export const registrationAddonCancellationResult = ({
             class="bg-surface-container-low text-on-surface rounded-lg p-3 text-sm"
           >
             <p class="font-medium">
-              Selected cancellation:
-              {{ selectedAllocation().optionalQuantity }} optional,
-              {{ selectedAllocation().includedQuantity }} included.
+              You are cancelling:
+              {{ selectedAllocation().optionalQuantity }} bought separately,
+              {{ selectedAllocation().includedQuantity }} included with the
+              ticket.
             </p>
             <p class="text-on-surface-variant mt-1">
-              Optional purchased units are cancelled before included units.
-              Refund handling applies only to optional quantity.
+              Items bought separately are cancelled first and can be refunded.
+              Items included with the ticket cannot be refunded.
             </p>
           </div>
         }
@@ -213,10 +216,10 @@ export const registrationAddonCancellationResult = ({
 
         @if (refundChoiceAvailable) {
           <fieldset class="border-outline-variant grid gap-2 border-t pt-4">
-            <legend class="title-small mb-2">Refund handling</legend>
+            <legend class="title-small mb-2">Refund</legend>
             <mat-radio-group
               class="grid gap-3"
-              aria-label="Refund handling"
+              aria-label="Refund"
               [formField]="cancellationForm.refundChoice"
             >
               <mat-radio-button value="refund">
@@ -246,21 +249,21 @@ export const registrationAddonCancellationResult = ({
           >
             <p class="font-medium">No refund applies.</p>
             <p class="text-on-surface-variant mt-1">
-              This cancellation contains only included units and will be
-              recorded without a refund.
+              Only items included with the ticket are being cancelled, so there
+              is no refund.
             </p>
           </div>
         }
       </mat-dialog-content>
 
       <mat-dialog-actions align="end" class="gap-2">
-        <button mat-button mat-dialog-close type="button">Keep units</button>
+        <button mat-button mat-dialog-close type="button">Keep items</button>
         <button
           mat-flat-button
           type="submit"
           [disabled]="cancellationForm().invalid()"
         >
-          Cancel selected units
+          Cancel selected items
         </button>
       </mat-dialog-actions>
     </form>
@@ -285,8 +288,8 @@ export class RegistrationAddonCancellationDialogComponent {
         Number.isSafeInteger(value())
           ? undefined
           : {
-              kind: 'wholeUnit',
-              message: 'Choose an available whole-unit quantity.',
+              kind: 'wholeNumber',
+              message: `Enter a whole number from 1 to ${this.data.cancellableQuantity}.`,
             },
       );
       required(schema.reason);

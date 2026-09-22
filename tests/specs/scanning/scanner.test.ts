@@ -3,10 +3,15 @@ import { and, eq, inArray } from 'drizzle-orm';
 
 import { getId } from '../../../helpers/get-id';
 import type { SeedTenantResult } from '../../../helpers/seed-tenant';
-import { adminStateFile, organizerStateFile } from '../../../helpers/user-data';
+import {
+  adminStateFile,
+  emptyStateFile,
+  organizerStateFile,
+} from '../../../helpers/user-data';
 import type { relations } from '../../../src/db/relations';
 import {
   eventAddons,
+  eventInstances,
   eventRegistrationAddonFulfillmentAllocations,
   eventRegistrationAddonFulfillmentEvents,
   eventRegistrationAddonPurchaseLots,
@@ -32,12 +37,72 @@ import {
 test.use({ storageState: adminStateFile });
 
 type TestDatabase = NodePgDatabase<typeof relations>;
+type RegisterDatabaseCleanup = (
+  cleanup: (database: TestDatabase) => Promise<void>,
+) => void;
+type RegistrationPriceSnapshot = Pick<
+  typeof eventRegistrations.$inferInsert,
+  | 'basePriceAtRegistration'
+  | 'discountAmount'
+  | 'stripeTaxRateId'
+  | 'taxRateDisplayName'
+  | 'taxRateInclusive'
+  | 'taxRatePercentage'
+>;
+
+const openScannerEventCheckInWindow = async ({
+  database,
+  eventId,
+  now,
+  registerDatabaseCleanup,
+}: {
+  database: TestDatabase;
+  eventId: string;
+  now: Date;
+  registerDatabaseCleanup: RegisterDatabaseCleanup;
+}) => {
+  const [eventBefore] = await database
+    .select({
+      end: eventInstances.end,
+      start: eventInstances.start,
+    })
+    .from(eventInstances)
+    .where(eq(eventInstances.id, eventId));
+  if (!eventBefore) {
+    throw new Error(`Expected scanner event "${eventId}"`);
+  }
+
+  registerDatabaseCleanup(async () => {
+    const restoredEvents = await database
+      .update(eventInstances)
+      .set(eventBefore)
+      .where(eq(eventInstances.id, eventId))
+      .returning({ id: eventInstances.id });
+    if (restoredEvents.length !== 1) {
+      throw new Error(`Could not restore scanner event "${eventId}"`);
+    }
+  });
+
+  const activatedEvents = await database
+    .update(eventInstances)
+    .set({
+      end: new Date(now.getTime() + 30 * 60 * 1000),
+      start: new Date(now.getTime() - 30 * 60 * 1000),
+    })
+    .where(eq(eventInstances.id, eventId))
+    .returning({ id: eventInstances.id });
+  if (activatedEvents.length !== 1) {
+    throw new Error(`Could not activate scanner event "${eventId}"`);
+  }
+};
 
 const requireScannerFixture = async ({
   database,
+  registerDatabaseCleanup,
   seeded,
 }: {
   database: TestDatabase;
+  registerDatabaseCleanup: RegisterDatabaseCleanup;
   seeded: SeedTenantResult;
 }) => {
   const eventId = seeded.scenario.events.past.eventId;
@@ -54,11 +119,58 @@ const requireScannerFixture = async ({
       'Expected participant registration option for scanner coverage',
     );
   }
+  if (registrationOption.isPaid && !registrationOption.stripeTaxRateId) {
+    throw new Error(
+      `Paid registration option "${registrationOption.id}" is missing its Stripe tax rate`,
+    );
+  }
+  if (!registrationOption.isPaid && registrationOption.stripeTaxRateId) {
+    throw new Error(
+      `Free registration option "${registrationOption.id}" unexpectedly has a Stripe tax rate`,
+    );
+  }
+
+  const taxRate = registrationOption.stripeTaxRateId
+    ? await database.query.tenantStripeTaxRates.findFirst({
+        columns: {
+          active: true,
+          displayName: true,
+          inclusive: true,
+          percentage: true,
+          stripeAccountId: true,
+        },
+        where: {
+          stripeTaxRateId: registrationOption.stripeTaxRateId,
+          tenantId: seeded.tenant.id,
+        },
+      })
+    : undefined;
+  if (
+    registrationOption.stripeTaxRateId &&
+    (!taxRate ||
+      !taxRate.active ||
+      taxRate.percentage === null ||
+      taxRate.stripeAccountId !== seeded.tenant.stripeAccountId)
+  ) {
+    throw new Error(
+      `Registration option "${registrationOption.id}" does not reference an active, complete tax rate for its tenant Stripe account`,
+    );
+  }
+  const registrationPriceSnapshot = {
+    basePriceAtRegistration: registrationOption.price,
+    discountAmount: 0,
+    stripeTaxRateId: registrationOption.stripeTaxRateId,
+    taxRateDisplayName: taxRate?.displayName ?? null,
+    taxRateInclusive: taxRate?.inclusive ?? null,
+    taxRatePercentage: taxRate?.percentage ?? null,
+  } satisfies RegistrationPriceSnapshot;
 
   const [optionBefore] = await database
     .select({
       checkedInSpots: eventRegistrationOptions.checkedInSpots,
       confirmedSpots: eventRegistrationOptions.confirmedSpots,
+      reservedSpots: eventRegistrationOptions.reservedSpots,
+      spots: eventRegistrationOptions.spots,
     })
     .from(eventRegistrationOptions)
     .where(
@@ -76,30 +188,124 @@ const requireScannerFixture = async ({
   const scannerUserId = getId();
   const scannerTenantUserId = getId();
   const scannerUserEmail = `scanner-${scannerUserId}@example.test`;
-  await database.insert(users).values({
-    auth0Id: `test|scanner-${scannerUserId}`,
-    communicationEmail: scannerUserEmail,
-    email: scannerUserEmail,
-    firstName: 'Scanner',
-    id: scannerUserId,
-    lastName: 'Fixture',
+  registerDatabaseCleanup(async () => {
+    await database.delete(users).where(eq(users.id, scannerUserId));
   });
-  await database.insert(usersToTenants).values({
-    id: scannerTenantUserId,
-    tenantId: seeded.tenant.id,
-    userId: scannerUserId,
+  registerDatabaseCleanup(async () => {
+    await database
+      .delete(usersToTenants)
+      .where(eq(usersToTenants.id, scannerTenantUserId));
+  });
+  await database.transaction(async (transaction) => {
+    await transaction.insert(users).values({
+      auth0Id: `test|scanner-${scannerUserId}`,
+      communicationEmail: scannerUserEmail,
+      email: scannerUserEmail,
+      firstName: 'Scanner',
+      id: scannerUserId,
+      lastName: 'Fixture',
+    });
+    await transaction.insert(usersToTenants).values({
+      id: scannerTenantUserId,
+      tenantId: seeded.tenant.id,
+      userId: scannerUserId,
+    });
   });
 
+  const insertConfirmedRegistration = async (input: {
+    checkedInGuestCount?: number;
+    checkInTime?: Date;
+    guestCount: number;
+    registrationId: string;
+  }) => {
+    const checkedInGuestCount = input.checkedInGuestCount ?? 0;
+    if (
+      checkedInGuestCount < 0 ||
+      checkedInGuestCount > input.guestCount ||
+      (!input.checkInTime && checkedInGuestCount !== 0)
+    ) {
+      throw new Error(
+        `Scanner registration "${input.registrationId}" has inconsistent checked-in guest state`,
+      );
+    }
+
+    const registrationSpotCount = input.guestCount + 1;
+    const initialCheckedInSpotCount = input.checkInTime
+      ? checkedInGuestCount + 1
+      : 0;
+    const confirmedSpots = optionBefore.confirmedSpots + registrationSpotCount;
+    const checkedInSpots =
+      optionBefore.checkedInSpots + initialCheckedInSpotCount;
+    if (
+      confirmedSpots + optionBefore.reservedSpots > optionBefore.spots ||
+      checkedInSpots > confirmedSpots
+    ) {
+      throw new Error(
+        `Registration option "${registrationOption.id}" lacks coherent capacity for scanner fixture "${input.registrationId}"`,
+      );
+    }
+
+    await database.transaction(async (transaction) => {
+      const updatedOptions = await transaction
+        .update(eventRegistrationOptions)
+        .set({ checkedInSpots, confirmedSpots })
+        .where(
+          and(
+            eq(eventRegistrationOptions.eventId, eventId),
+            eq(eventRegistrationOptions.id, registrationOption.id),
+            eq(
+              eventRegistrationOptions.checkedInSpots,
+              optionBefore.checkedInSpots,
+            ),
+            eq(
+              eventRegistrationOptions.confirmedSpots,
+              optionBefore.confirmedSpots,
+            ),
+          ),
+        )
+        .returning({ id: eventRegistrationOptions.id });
+      if (updatedOptions.length !== 1) {
+        throw new Error(
+          `Registration option "${registrationOption.id}" counters changed before scanner fixture setup`,
+        );
+      }
+
+      await transaction.insert(eventRegistrations).values({
+        ...registrationPriceSnapshot,
+        checkedInGuestCount,
+        ...(input.checkInTime && { checkInTime: input.checkInTime }),
+        eventId,
+        guestCount: input.guestCount,
+        id: input.registrationId,
+        registrationOptionId: registrationOption.id,
+        status: 'CONFIRMED',
+        tenantId: seeded.tenant.id,
+        userId: scannerUserId,
+      });
+    });
+
+    return checkedInSpots;
+  };
+
   return {
-    cleanupUser: async () => {
-      await database
-        .delete(usersToTenants)
-        .where(eq(usersToTenants.id, scannerTenantUserId));
-      await database.delete(users).where(eq(users.id, scannerUserId));
-    },
     eventId,
+    insertConfirmedRegistration,
     optionBefore,
     registrationOptionId: registrationOption.id,
+    restoreOptionCounters: async () => {
+      await database
+        .update(eventRegistrationOptions)
+        .set({
+          checkedInSpots: optionBefore.checkedInSpots,
+          confirmedSpots: optionBefore.confirmedSpots,
+        })
+        .where(
+          and(
+            eq(eventRegistrationOptions.eventId, eventId),
+            eq(eventRegistrationOptions.id, registrationOption.id),
+          ),
+        );
+    },
     tenantId: seeded.tenant.id,
     userId: scannerUserId,
   };
@@ -147,14 +353,43 @@ test('scanner explains a denied camera and offers a retry', async ({
   ).toBeEnabled();
 });
 
+test.describe('without organizer scanner capability', () => {
+  test.use({ storageState: emptyStateFile });
+
+  test('scanner checks access without requesting the camera', async ({
+    page,
+  }) => {
+    await installMockCamera(page, 'allowed');
+
+    await page.goto('/scan');
+
+    await expect(page.getByRole('alert')).toContainText('Scanner unavailable');
+    const cameraPreview = page.getByLabel('Camera preview for ticket scanning');
+    await expect(cameraPreview).toBeHidden();
+    await expect
+      .poll(() =>
+        cameraPreview.evaluate((video: HTMLVideoElement) =>
+          Boolean(video.srcObject),
+        ),
+      )
+      .toBe(false);
+  });
+});
+
 test('scanner hands out, immediately undoes, and cancels add-on quantities with explicit refund handling', async ({
   database,
   page,
   seeded,
+
+  registerDatabaseCleanup,
 }) => {
   test.slow();
 
-  const scannerFixture = await requireScannerFixture({ database, seeded });
+  const scannerFixture = await requireScannerFixture({
+    database,
+    registerDatabaseCleanup,
+    seeded,
+  });
   const registrationId = getId();
   const acquisitionId = getId();
   const toteAddOnId = getId();
@@ -170,18 +405,43 @@ test('scanner hands out, immediately undoes, and cancels add-on quantities with 
   const voucherTitle = 'Drink voucher';
   const checklistTitle = 'Photo acknowledgement';
 
-  try {
-    await database.insert(eventRegistrations).values({
-      basePriceAtRegistration: 0,
-      discountAmount: 0,
-      checkedInGuestCount: 0,
-      eventId: scannerFixture.eventId,
+  registerDatabaseCleanup(async () => {
+    await scannerFixture.restoreOptionCounters();
+  });
+  registerDatabaseCleanup(async () => {
+    await database
+      .delete(eventAddons)
+      .where(
+        inArray(eventAddons.id, [
+          toteAddOnId,
+          voucherAddOnId,
+          checklistAddOnId,
+        ]),
+      );
+  });
+  registerDatabaseCleanup(async () => {
+    await database
+      .delete(eventRegistrations)
+      .where(eq(eventRegistrations.id, registrationId));
+  });
+  registerDatabaseCleanup(async () => {
+    await cleanupScannerRegistrationAcquisition({ acquisitionId, database });
+  });
+  registerDatabaseCleanup(async () => {
+    await database
+      .delete(eventRegistrationAddonFulfillmentEvents)
+      .where(
+        inArray(eventRegistrationAddonFulfillmentEvents.purchaseId, [
+          totePurchaseId,
+          voucherPurchaseId,
+          checklistPurchaseId,
+        ]),
+      );
+  });
+  {
+    await scannerFixture.insertConfirmedRegistration({
       guestCount: 0,
-      id: registrationId,
-      registrationOptionId: scannerFixture.registrationOptionId,
-      status: 'CONFIRMED',
-      tenantId: scannerFixture.tenantId,
-      userId: scannerFixture.userId,
+      registrationId,
     });
     await seedScannerRegistrationAcquisition({
       acquisitionId,
@@ -253,29 +513,29 @@ test('scanner hands out, immediately undoes, and cancels add-on quantities with 
     ).toContainText('3');
     await expect(tote.getByText('No refund requested')).toBeVisible();
 
-    await tote.getByRole('button', { name: 'Cancel remaining units' }).click();
+    await tote.getByRole('button', { name: 'Cancel remaining items' }).click();
     const allocationPreviewDialog = page.getByRole('dialog');
     await expect(allocationPreviewDialog).toContainText(
-      'Selected cancellation: 1 optional, 0 included.',
+      'You are cancelling: 1 bought separately, 0 included with the ticket.',
     );
     await expect(allocationPreviewDialog).toContainText(
-      'Optional purchased units are cancelled before included units.',
+      'Items bought separately are cancelled first and can be refunded. Items included with the ticket cannot be refunded.',
     );
     const previewQuantity =
       allocationPreviewDialog.getByLabel('Quantity to cancel');
     await previewQuantity.fill('1.5');
     await previewQuantity.blur();
     await expect(allocationPreviewDialog).toContainText(
-      'Choose an available whole-unit quantity.',
+      'Enter a whole number from 1 to 3.',
     );
     await expect(
       allocationPreviewDialog.getByRole('button', {
-        name: 'Cancel selected units',
+        name: 'Cancel selected items',
       }),
     ).toBeDisabled();
     await previewQuantity.fill('1');
     await allocationPreviewDialog
-      .getByRole('button', { name: 'Keep units' })
+      .getByRole('button', { name: 'Keep items' })
       .click();
 
     await tote.getByRole('button', { name: 'Hand out 1' }).click();
@@ -303,40 +563,40 @@ test('scanner hands out, immediately undoes, and cancels add-on quantities with 
       tote.getByText('Handed out', { exact: true }).locator('..'),
     ).toContainText('2', { timeout: 15_000 });
 
-    await tote.getByRole('button', { name: 'Cancel remaining units' }).click();
+    await tote.getByRole('button', { name: 'Cancel remaining items' }).click();
     const refundDialog = page.getByRole('dialog');
-    await expect(refundDialog).toContainText('1 unredeemed unit available');
+    await expect(refundDialog).toContainText('1 unused item available');
     await expect(refundDialog).toContainText(
-      'No monetary refund is required because these optional units were free.',
+      'These items were bought separately for free, so there is nothing to refund.',
     );
     await refundDialog
       .getByLabel('Cancellation reason')
       .fill('The attendee no longer needs the remaining tote.');
     await refundDialog
-      .getByRole('radio', { name: /Cancel with refund/ })
+      .getByRole('radio', { name: 'Cancel free items' })
       .click();
     await refundDialog
-      .getByRole('button', { name: 'Cancel selected units' })
+      .getByRole('button', { name: 'Cancel selected items' })
       .click();
     await expect(
       tote.getByText('Cancelled', { exact: true }).locator('..'),
     ).toContainText('1', { timeout: 15_000 });
     await expect(
-      page.getByText('Cancellation recorded. No monetary refund was required.'),
+      page.getByText('The items were cancelled. No refund was needed.'),
     ).toBeVisible();
     await expect(
       tote.getByText('Ready to hand out', { exact: true }).locator('..'),
     ).toContainText('0');
-    await expect(tote.getByText('No monetary refund required')).toBeVisible();
+    await expect(tote.getByText('No refund needed')).toBeVisible();
     await expect(tote.getByRole('button', { name: 'Hand out 1' })).toHaveCount(
       0,
     );
     await expect(
-      tote.getByRole('button', { name: 'Cancel remaining units' }),
+      tote.getByRole('button', { name: 'Cancel remaining items' }),
     ).toHaveCount(0);
 
     await voucher
-      .getByRole('button', { name: 'Cancel remaining units' })
+      .getByRole('button', { name: 'Cancel remaining items' })
       .click();
     const noRefundDialog = page.getByRole('dialog');
     await noRefundDialog
@@ -346,7 +606,7 @@ test('scanner hands out, immediately undoes, and cancels add-on quantities with 
       .getByRole('radio', { name: 'Cancel without a refund' })
       .click();
     await noRefundDialog
-      .getByRole('button', { name: 'Cancel selected units' })
+      .getByRole('button', { name: 'Cancel selected items' })
       .click();
     await expect(
       voucher.getByText('Cancelled', { exact: true }).locator('..'),
@@ -354,22 +614,22 @@ test('scanner hands out, immediately undoes, and cancels add-on quantities with 
     await expect(voucher.getByText('Cancelled without refund')).toBeVisible();
 
     await checklist
-      .getByRole('button', { name: 'Cancel remaining units' })
+      .getByRole('button', { name: 'Cancel remaining items' })
       .click();
     const includedDialog = page.getByRole('dialog');
-    await expect(includedDialog).toContainText('1 unredeemed unit available');
+    await expect(includedDialog).toContainText('1 unused item available');
     await expect(includedDialog).toContainText(
-      'Only included units remain. No payment refund applies to them.',
+      'Only items included with the ticket remain. They cannot be refunded.',
     );
     await expect(includedDialog).toContainText(
-      'This cancellation contains only included units and will be recorded without a refund.',
+      'Only items included with the ticket are being cancelled, so there is no refund.',
     );
     await expect(includedDialog.getByRole('radio')).toHaveCount(0);
     await includedDialog
       .getByLabel('Cancellation reason')
       .fill('The checklist item is no longer needed.');
     await includedDialog
-      .getByRole('button', { name: 'Cancel selected units' })
+      .getByRole('button', { name: 'Cancel selected items' })
       .click();
     await expect(
       checklist.getByText('Cancelled', { exact: true }).locator('..'),
@@ -377,9 +637,7 @@ test('scanner hands out, immediately undoes, and cancels add-on quantities with 
     await expect(
       checklist.getByText('Ready to hand out', { exact: true }).locator('..'),
     ).toContainText('0');
-    await expect(
-      checklist.getByText('No monetary refund required'),
-    ).toBeVisible();
+    await expect(checklist.getByText('No refund needed')).toBeVisible();
 
     const fulfillmentEvents = await database
       .select({
@@ -612,29 +870,6 @@ test('scanner hands out, immediately undoes, and cancels add-on quantities with 
         ]),
       );
     expect(refundAllocations).toEqual([]);
-  } finally {
-    await database
-      .delete(eventRegistrationAddonFulfillmentEvents)
-      .where(
-        inArray(eventRegistrationAddonFulfillmentEvents.purchaseId, [
-          totePurchaseId,
-          voucherPurchaseId,
-          checklistPurchaseId,
-        ]),
-      );
-    await cleanupScannerRegistrationAcquisition({ acquisitionId, database });
-    await database
-      .delete(eventRegistrations)
-      .where(eq(eventRegistrations.id, registrationId));
-    await database
-      .delete(eventAddons)
-      .where(
-        inArray(eventAddons.id, [
-          toteAddOnId,
-          voucherAddOnId,
-          checklistAddOnId,
-        ]),
-      );
   }
 });
 
@@ -646,10 +881,16 @@ test.describe('organizer add-on cancellation permissions', () => {
     page,
     permissionOverride,
     seeded,
+
+    registerDatabaseCleanup,
   }) => {
     test.slow();
 
-    const scannerFixture = await requireScannerFixture({ database, seeded });
+    const scannerFixture = await requireScannerFixture({
+      database,
+      registerDatabaseCleanup,
+      seeded,
+    });
     const registrationId = getId();
     const acquisitionId = getId();
     const addOnId = getId();
@@ -657,23 +898,29 @@ test.describe('organizer add-on cancellation permissions', () => {
     const purchaseLotId = getId();
     const title = 'Permission-scoped welcome pack';
 
-    try {
+    registerDatabaseCleanup(async () => {
+      await scannerFixture.restoreOptionCounters();
+    });
+    registerDatabaseCleanup(async () => {
+      await database.delete(eventAddons).where(eq(eventAddons.id, addOnId));
+    });
+    registerDatabaseCleanup(async () => {
+      await database
+        .delete(eventRegistrations)
+        .where(eq(eventRegistrations.id, registrationId));
+    });
+    registerDatabaseCleanup(async () => {
+      await cleanupScannerRegistrationAcquisition({ acquisitionId, database });
+    });
+    {
       await permissionOverride({
         add: ['events:organizeAll'],
         remove: ['events:cancelRegistrations'],
         roleName: 'Section member',
       });
-      await database.insert(eventRegistrations).values({
-        basePriceAtRegistration: 0,
-        discountAmount: 0,
-        checkedInGuestCount: 0,
-        eventId: scannerFixture.eventId,
+      await scannerFixture.insertConfirmedRegistration({
         guestCount: 0,
-        id: registrationId,
-        registrationOptionId: scannerFixture.registrationOptionId,
-        status: 'CONFIRMED',
-        tenantId: scannerFixture.tenantId,
-        userId: scannerFixture.userId,
+        registrationId,
       });
       await seedScannerRegistrationAcquisition({
         acquisitionId,
@@ -704,10 +951,10 @@ test.describe('organizer add-on cancellation permissions', () => {
         addOn.getByRole('button', { name: 'Hand out 1' }),
       ).toBeVisible();
       await expect(
-        addOn.getByRole('button', { name: 'Cancel remaining units' }),
+        addOn.getByRole('button', { name: 'Cancel remaining items' }),
       ).toHaveCount(0);
       await expect(addOn).toContainText(
-        'Cancelling units requires Cancel registrations and add-ons access.',
+        'You cannot cancel these items. Ask someone who manages tickets and add-ons for this event.',
       );
 
       await addOn.getByRole('button', { name: 'Hand out 1' }).click();
@@ -726,63 +973,66 @@ test.describe('organizer add-on cancellation permissions', () => {
       await page.reload();
       await waitForScannerAddonFulfillment(page);
       await expect(
-        addOn.getByRole('button', { name: 'Cancel remaining units' }),
+        addOn.getByRole('button', { name: 'Cancel remaining items' }),
       ).toBeVisible();
       await expect(addOn).not.toContainText(
-        'Cancelling units requires Cancel registrations and add-ons access.',
+        'You cannot cancel these items. Ask someone who manages tickets and add-ons for this event.',
       );
-    } finally {
-      await cleanupScannerRegistrationAcquisition({ acquisitionId, database });
-      await database
-        .delete(eventRegistrations)
-        .where(eq(eventRegistrations.id, registrationId));
-      await database.delete(eventAddons).where(eq(eventAddons.id, addOnId));
     }
   });
 });
 
-test('scan confirmed registration records check-in', async ({
+test('scan confirmed ticket checks in the attendee', async ({
   database,
   page,
   seeded,
+  testClock,
+
+  registerDatabaseCleanup,
 }) => {
-  const scannerFixture = await requireScannerFixture({ database, seeded });
+  const scannerFixture = await requireScannerFixture({
+    database,
+    registerDatabaseCleanup,
+    seeded,
+  });
   const registrationId = getId();
+  await openScannerEventCheckInWindow({
+    database,
+    eventId: scannerFixture.eventId,
+    now: testClock.toJSDate(),
+    registerDatabaseCleanup,
+  });
 
-  try {
-    await database.insert(eventRegistrations).values({
-      basePriceAtRegistration: 0,
-      discountAmount: 0,
-      checkedInGuestCount: 0,
-      eventId: scannerFixture.eventId,
-      guestCount: 2,
-      id: registrationId,
-      registrationOptionId: scannerFixture.registrationOptionId,
-      status: 'CONFIRMED',
-      tenantId: scannerFixture.tenantId,
-      userId: scannerFixture.userId,
-    });
-
+  registerDatabaseCleanup(async () => {
+    await scannerFixture.restoreOptionCounters();
+  });
+  registerDatabaseCleanup(async () => {
     await database
-      .update(eventRegistrationOptions)
-      .set({
-        confirmedSpots: scannerFixture.optionBefore.confirmedSpots + 3,
-      })
-      .where(
-        eq(eventRegistrationOptions.id, scannerFixture.registrationOptionId),
-      );
+      .delete(eventRegistrations)
+      .where(eq(eventRegistrations.id, registrationId));
+  });
+  {
+    await scannerFixture.insertConfirmedRegistration({
+      guestCount: 2,
+      registrationId,
+    });
 
     await page.goto(`/scan/registration/${registrationId}`);
     await expect(
-      page.getByRole('heading', { name: 'Registration scanned' }),
+      page.getByRole('heading', { name: 'Ticket scanned' }),
     ).toBeVisible();
-    await expect(page.getByText('Event starting in the future')).toHaveCount(0);
+    await expect(
+      page.getByText('Check-in closed', { exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByText('Check-in not open', { exact: true }),
+    ).toHaveCount(0);
     const confirmCheckIn = await fillScannerGuestCheckInCount(page, {
       guestCount: 2,
       includeAttendee: true,
     });
     await confirmCheckIn.click();
-    await expect(page.getByText('Check-in recorded')).toBeVisible();
+    await expect(page.getByText('Check-in complete')).toBeVisible();
     await expect(
       page.getByRole('button', { name: 'Checked in' }),
     ).toBeDisabled();
@@ -823,20 +1073,6 @@ test('scan confirmed registration records check-in', async ({
       String(scannerFixture.optionBefore.checkedInSpots + 3),
       { timeout: 15_000 },
     );
-  } finally {
-    await database
-      .delete(eventRegistrations)
-      .where(eq(eventRegistrations.id, registrationId));
-    await database
-      .update(eventRegistrationOptions)
-      .set({
-        checkedInSpots: scannerFixture.optionBefore.checkedInSpots,
-        confirmedSpots: scannerFixture.optionBefore.confirmedSpots,
-      })
-      .where(
-        eq(eventRegistrationOptions.id, scannerFixture.registrationOptionId),
-      );
-    await scannerFixture.cleanupUser();
   }
 });
 
@@ -845,38 +1081,42 @@ test('scan checked-in registration records remaining guest arrival', async ({
   page,
   seedDate,
   seeded,
-}) => {
-  const scannerFixture = await requireScannerFixture({ database, seeded });
-  const registrationId = getId();
-  const checkedInBaseline = scannerFixture.optionBefore.checkedInSpots + 2;
+  testClock,
 
-  try {
-    await database.insert(eventRegistrations).values({
-      basePriceAtRegistration: 0,
-      discountAmount: 0,
+  registerDatabaseCleanup,
+}) => {
+  const scannerFixture = await requireScannerFixture({
+    database,
+    registerDatabaseCleanup,
+    seeded,
+  });
+  const registrationId = getId();
+  await openScannerEventCheckInWindow({
+    database,
+    eventId: scannerFixture.eventId,
+    now: testClock.toJSDate(),
+    registerDatabaseCleanup,
+  });
+
+  registerDatabaseCleanup(async () => {
+    await scannerFixture.restoreOptionCounters();
+  });
+  registerDatabaseCleanup(async () => {
+    await database
+      .delete(eventRegistrations)
+      .where(eq(eventRegistrations.id, registrationId));
+  });
+  {
+    const checkedInBaseline = await scannerFixture.insertConfirmedRegistration({
       checkedInGuestCount: 1,
       checkInTime: seedDate,
-      eventId: scannerFixture.eventId,
       guestCount: 2,
-      id: registrationId,
-      registrationOptionId: scannerFixture.registrationOptionId,
-      status: 'CONFIRMED',
-      tenantId: scannerFixture.tenantId,
-      userId: scannerFixture.userId,
+      registrationId,
     });
-    await database
-      .update(eventRegistrationOptions)
-      .set({
-        checkedInSpots: checkedInBaseline,
-        confirmedSpots: scannerFixture.optionBefore.confirmedSpots + 3,
-      })
-      .where(
-        eq(eventRegistrationOptions.id, scannerFixture.registrationOptionId),
-      );
 
     await page.goto(`/scan/registration/${registrationId}`);
     await expect(
-      page.getByRole('heading', { name: 'Registration scanned' }),
+      page.getByRole('heading', { name: 'Ticket scanned' }),
     ).toBeVisible();
     await expect(page.getByText('1 checked in, 1 remaining.')).toBeVisible();
     await expect(page.getByText('Already checked in')).toHaveCount(0);
@@ -886,7 +1126,7 @@ test('scan checked-in registration records remaining guest arrival', async ({
       includeAttendee: false,
     });
     await confirmGuestCheckIn.click();
-    await expect(page.getByText('Check-in recorded')).toBeVisible();
+    await expect(page.getByText('Check-in complete')).toBeVisible();
     await expect(
       page.getByRole('button', { name: 'Checked in' }),
     ).toBeDisabled();
@@ -927,19 +1167,5 @@ test('scan checked-in registration records remaining guest arrival', async ({
       String(checkedInBaseline + 1),
       { timeout: 15_000 },
     );
-  } finally {
-    await database
-      .delete(eventRegistrations)
-      .where(eq(eventRegistrations.id, registrationId));
-    await database
-      .update(eventRegistrationOptions)
-      .set({
-        checkedInSpots: scannerFixture.optionBefore.checkedInSpots,
-        confirmedSpots: scannerFixture.optionBefore.confirmedSpots,
-      })
-      .where(
-        eq(eventRegistrationOptions.id, scannerFixture.registrationOptionId),
-      );
-    await scannerFixture.cleanupUser();
   }
 });

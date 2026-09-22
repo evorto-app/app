@@ -1,4 +1,5 @@
 import { asRpcMutation, asRpcQuery } from '@heddendorp/effect-angular-query';
+import { EventCheckInTimingIssue } from '@shared/event-check-in';
 import {
   MAX_EVENT_ADDON_TYPES,
   MAX_REGISTRATION_ADDON_QUANTITY,
@@ -9,13 +10,14 @@ import {
   MAX_REGISTRATION_QUESTIONS,
 } from '@shared/registration-question-limits';
 import { nonNegativeNumber } from '@shared/schema-utilities';
-import { Effect, Schema } from 'effect';
+import { Schema } from 'effect';
 import * as Rpc from 'effect/unstable/rpc/Rpc';
 import * as RpcGroup from 'effect/unstable/rpc/RpcGroup';
 
 import { Tenant, TenantTimezone } from '../../../types/custom/tenant';
 import { EventLocation } from '../../../types/location';
 import { iconSchema } from '../../types/icon';
+import { EventCheckInUnavailableError } from './events.errors';
 import { EventReviewStatus, EventsRegistrationStatus } from './events.rpcs';
 import { IconRecord } from './icons.rpcs';
 import {
@@ -431,7 +433,7 @@ export const PlatformRegistrationDetailRecord = Schema.Struct({
     }),
   }),
   checkedInGuestCount: nonNegativeInteger,
-  checkInTimingIssue: Schema.Boolean,
+  checkInTimingIssue: Schema.NullOr(EventCheckInTimingIssue),
   currency: Tenant.fields.currency,
   guestCount: nonNegativeInteger,
   manualApprovalAvailable: Schema.Boolean,
@@ -444,29 +446,6 @@ export const PlatformRegistrationDetailRecord = Schema.Struct({
 export type PlatformRegistrationDetailRecord = Schema.Schema.Type<
   typeof PlatformRegistrationDetailRecord
 >;
-
-export const PlatformRegistrationPageLimit = nonNegativeNumber
-  .check(Schema.isInt(), Schema.isLessThanOrEqualTo(100))
-  .pipe(Schema.withDecodingDefaultTypeKey(Effect.succeed(100)));
-
-export const PlatformRegistrationPageOffset = nonNegativeNumber
-  .check(Schema.isInt())
-  .pipe(Schema.withDecodingDefaultTypeKey(Effect.succeed(0)));
-
-export const PlatformRegistrationsListInput = Schema.Struct({
-  ...PlatformTenantTarget.fields,
-  eventId: Schema.optional(Schema.NonEmptyString),
-  limit: PlatformRegistrationPageLimit,
-  offset: PlatformRegistrationPageOffset,
-});
-
-export const PlatformRegistrationsList = asRpcQuery(
-  Rpc.make('platform.registrations.list', {
-    error: PlatformOperationRpcError,
-    payload: PlatformRegistrationsListInput,
-    success: Schema.Array(PlatformRegistrationListRecord),
-  }),
-);
 
 export const PlatformRegistrationsFindOne = asRpcQuery(
   Rpc.make('platform.registrations.findOne', {
@@ -489,9 +468,17 @@ export type PlatformRegistrationsCheckInInput = Schema.Schema.Type<
   typeof PlatformRegistrationsCheckInInput
 >;
 
+export const PlatformRegistrationsCheckInError = Schema.Union([
+  EventCheckInUnavailableError,
+  PlatformOperationRpcError,
+]);
+export type PlatformRegistrationsCheckInError = Schema.Schema.Type<
+  typeof PlatformRegistrationsCheckInError
+>;
+
 export const PlatformRegistrationsCheckIn = asRpcMutation(
   Rpc.make('platform.registrations.checkIn', {
-    error: PlatformOperationRpcError,
+    error: PlatformRegistrationsCheckInError,
     payload: PlatformRegistrationsCheckInInput,
     success: PlatformRegistrationDetailRecord,
   }),
@@ -544,7 +531,6 @@ export class PlatformEventsRpcs extends RpcGroup.make(
   PlatformRegistrationsCancel,
   PlatformRegistrationsCheckIn,
   PlatformRegistrationsFindOne,
-  PlatformRegistrationsList,
   PlatformTemplatesCreate,
   PlatformTemplatesFindOne,
   PlatformTemplatesFormOptions,

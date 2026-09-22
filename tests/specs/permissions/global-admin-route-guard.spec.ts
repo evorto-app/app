@@ -77,7 +77,7 @@ test.describe('global admin route guard allow path', () => {
     const operations = [
       { heading: 'Events', path: 'events' },
       { heading: 'Event templates', path: 'templates' },
-      { heading: 'Registration support', path: 'scanner' },
+      { heading: 'Ticket support', path: 'scanner' },
       { heading: 'Organization members', path: 'users' },
       { heading: 'Organization roles', path: 'roles' },
       { heading: 'Organization tax rates', path: 'tax-rates' },
