@@ -638,7 +638,7 @@ describe('role lookup search boundary', () => {
     expect(Schema.is(RolesFindManyInput)({ search: 'x'.repeat(65) })).toBe(
       false,
     );
-    expect(Schema.is(RolesFindManyInput)({ defaultUserRole: true })).toBe(true);
+    expect(Schema.is(RolesFindManyInput)({})).toBe(true);
   });
 });
 
@@ -702,7 +702,7 @@ describe('RoleSelectQueries cached role verification', () => {
       name: `Default ${index}`,
     }));
     const updatedAt = Date.now() - 1000;
-    queryClient.setQueryData(keyFor({ defaultOrganizerRole: true }), defaults, {
+    queryClient.setQueryData(keyFor({}), defaults, {
       updatedAt,
     });
     const host = TestBed.createComponent(RoleSelectFormHost);
@@ -729,7 +729,7 @@ describe('RoleSelectQueries cached role verification', () => {
       [{ ...role, name: 'Older name' }],
       { updatedAt: updatedAt - 1000 },
     );
-    queryClient.setQueryData(keyFor({ defaultOrganizerRole: true }), [role], {
+    queryClient.setQueryData(keyFor({}), [role], {
       updatedAt,
     });
     expect(await queryClient.fetchQuery(queries.selected(role.id))).toEqual(
@@ -761,10 +761,7 @@ describe('RoleSelectQueries cached role verification', () => {
               keyPrefix: 'rpc',
               type: 'query',
             })
-          : keyFor(
-              { defaultOrganizerRole: true },
-              state === 'other-rpc-scope' ? 'other-app' : 'rpc',
-            );
+          : keyFor({}, state === 'other-rpc-scope' ? 'other-app' : 'rpc');
       queryClient.setQueryData(
         lookupKey,
         state === 'malformed'
@@ -910,11 +907,7 @@ describe('RoleSelectQueries cached role verification', () => {
       vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
       try {
         const verifiedAt = Date.now();
-        queryClient.setQueryData(
-          keyFor({ defaultOrganizerRole: true }),
-          [role],
-          { updatedAt: verifiedAt },
-        );
+        queryClient.setQueryData(keyFor({}), [role], { updatedAt: verifiedAt });
         const host = TestBed.createComponent(RoleSelectFormHost);
         host.detectChanges();
         const otherHost = TestBed.createComponent(RoleSelectFormHost);
@@ -1019,9 +1012,7 @@ describe('RoleSelectQueries cached role verification', () => {
     async (operation) => {
       vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
       try {
-        queryClient.setQueryData(keyFor({ defaultOrganizerRole: true }), [
-          role,
-        ]);
+        queryClient.setQueryData(keyFor({}), [role]);
         const host = TestBed.createComponent(RoleSelectFormHost);
         host.detectChanges();
         await vi.waitFor(() => {
@@ -1124,7 +1115,7 @@ describe('RoleSelectQueries cached role verification', () => {
   ] as const)(
     'keeps uncached %s selections invalid and removable',
     async (_name, failure, kind) => {
-      queryClient.setQueryData(keyFor({ defaultOrganizerRole: true }), [role]);
+      queryClient.setQueryData(keyFor({}), [role]);
       loadRole.mockRejectedValue(failure);
       const host = TestBed.createComponent(RoleSelectFormHost);
       host.componentInstance.model.set({ roleIds: ['missing-role'] });

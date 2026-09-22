@@ -7,6 +7,7 @@ import { faArrowLeft, faEdit } from '@fortawesome/duotone-regular-svg-icons';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
 import {
+  includesPermission,
   PERMISSION_GROUPS,
   type TenantRolePermission,
 } from '../../../shared/permissions/permissions';
@@ -34,10 +35,15 @@ export class RoleDetailsComponent {
   );
 
   hasPermission(permission: TenantRolePermission) {
-    return this.roleQuery.data()?.permissions.includes(permission) ?? false;
+    return includesPermission(
+      permission,
+      this.roleQuery.data()?.permissions ?? [],
+    );
   }
 
   protected errorMessage(error: unknown): string {
-    return getErrorMessage(error, 'Unknown error', ['AdminRoleNotFoundError']);
+    return getErrorMessage(error, "We couldn't load this role.", [
+      'AdminRoleNotFoundError',
+    ]);
   }
 }

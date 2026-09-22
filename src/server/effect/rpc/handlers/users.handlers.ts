@@ -247,7 +247,7 @@ export const userHandlers = {
               if (!membership) {
                 return yield* Effect.fail(
                   new UserRoleAssignmentNotFoundError({
-                    message: 'Tenant user not found',
+                    message: 'Member not found.',
                   }),
                 );
               }
@@ -255,7 +255,7 @@ export const userHandlers = {
               if (userId === currentUser.id && nextRoleIds.length === 0) {
                 return yield* Effect.fail(
                   new UserSelfRoleRemovalError({
-                    message: 'You cannot remove all of your own roles',
+                    message: 'You cannot remove all of your own roles.',
                   }),
                 );
               }
@@ -273,7 +273,8 @@ export const userHandlers = {
                 if (tenantRoles.length !== nextRoleIds.length) {
                   return yield* Effect.fail(
                     new UserRoleAssignmentNotFoundError({
-                      message: 'One or more roles were not found',
+                      message:
+                        'One or more selected roles are no longer available.',
                     }),
                   );
                 }

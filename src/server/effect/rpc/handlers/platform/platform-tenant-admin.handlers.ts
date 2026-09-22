@@ -1,9 +1,5 @@
 import { RpcBadRequestError } from '@shared/errors/rpc-errors';
-import {
-  partitionTenantRolePermissions,
-  type Permission,
-  type TenantRolePermission,
-} from '@shared/permissions/permissions';
+import { type TenantRolePermission } from '@shared/permissions/permissions';
 import { type PlatformAuditSnapshot } from '@shared/platform-audit';
 import {
   type PlatformRoleCreateInput,
@@ -17,6 +13,7 @@ import {
   type PlatformTenantUsersListInput,
   PlatformTenantUsersListResult,
 } from '@shared/rpc-contracts/app-rpcs/platform-tenant-admin.rpcs';
+import { RoleNameAlreadyExistsError } from '@shared/rpc-contracts/app-rpcs/role-write.shared';
 import { and, count, eq, ilike, inArray } from 'drizzle-orm';
 import { Effect, Schema } from 'effect';
 import { createHash } from 'node:crypto';
@@ -31,6 +28,10 @@ import {
   users,
   usersToTenants,
 } from '../../../../../db/schema';
+import {
+  normalizeRoleWrite,
+  roleNameConflictFromDatabase,
+} from '../../../../roles/role-write';
 import {
   ensureTenantRetainsAnotherDefaultUserRole,
   ensureTenantRoleIsUnreferenced,
@@ -52,16 +53,6 @@ export interface StripeTaxRateSource {
   readonly inclusive: boolean;
   readonly percentage: null | number;
   readonly state: null | string;
-}
-
-interface NormalizedRoleWrite {
-  readonly collapseMembersInHup: boolean;
-  readonly defaultOrganizerRole: boolean;
-  readonly defaultUserRole: boolean;
-  readonly description: null | string;
-  readonly displayInHub: boolean;
-  readonly name: string;
-  readonly permissions: TenantRolePermission[];
 }
 
 type QueryDatabase = Pick<DatabaseClient, 'query'>;
@@ -113,9 +104,40 @@ const databaseEffect = <A, E, R>(
     ),
   );
 
-const roleNotFound = (roleId: string) =>
+const databaseRoleEffect = <A, E, R>(
+  roleName: string,
+  operation: (database: DatabaseClient) => Effect.Effect<A, E, R>,
+): Effect.Effect<
+  A,
+  RoleNameAlreadyExistsError | RpcBadRequestError,
+  Database | R
+> =>
+  Database.use((database) =>
+    operation(database).pipe(
+      Effect.catch(
+        (
+          error,
+        ): Effect.Effect<
+          never,
+          RoleNameAlreadyExistsError | RpcBadRequestError,
+          never
+        > => {
+          const nameConflict = roleNameConflictFromDatabase(error, roleName);
+          if (nameConflict) {
+            return Effect.fail(nameConflict);
+          }
+
+          return error instanceof RpcBadRequestError
+            ? Effect.fail(error)
+            : Effect.die(error);
+        },
+      ),
+    ),
+  );
+
+const roleNotFound = () =>
   new RpcBadRequestError({
-    message: `Role ${roleId} was not found for the target tenant`,
+    message: 'This role no longer exists. Return to the role list.',
     reason: 'roleNotFound',
   });
 
@@ -146,20 +168,6 @@ const lockTargetTenant = Effect.fn('PlatformTenantAdmin.lockTargetTenant')(
   },
 );
 
-export const normalizeTenantAssignableRolePermissions = Effect.fn(
-  'PlatformTenantAdmin.normalizeTenantAssignableRolePermissions',
-)(function* (permissions: readonly Permission[]) {
-  const partitionedPermissions = partitionTenantRolePermissions(permissions);
-  if (partitionedPermissions.rejected.length > 0) {
-    return yield* new RpcBadRequestError({
-      message: 'Platform authority cannot be granted through a tenant role',
-      reason: 'platformPermissionNotAssignable',
-    });
-  }
-
-  return [...new Set(partitionedPermissions.accepted)].toSorted();
-});
-
 export const ensureStripeAccountUnchanged = Effect.fn(
   'PlatformTenantAdmin.ensureStripeAccountUnchanged',
 )(function* (
@@ -175,32 +183,7 @@ export const ensureStripeAccountUnchanged = Effect.fn(
   }
 });
 
-const normalizeRoleWrite = Effect.fn('PlatformTenantAdmin.normalizeRoleWrite')(
-  function* (input: PlatformRoleCreateInput | PlatformRoleUpdateInput) {
-    const name = input.name.trim();
-    if (!name) {
-      return yield* new RpcBadRequestError({
-        message: 'Role name is required',
-        reason: 'roleNameRequired',
-      });
-    }
-
-    return {
-      collapseMembersInHup: input.collapseMembersInHup,
-      defaultOrganizerRole: input.defaultOrganizerRole,
-      defaultUserRole: input.defaultUserRole,
-      description: input.description?.trim() || null,
-      displayInHub: input.displayInHub,
-      name,
-      permissions: yield* normalizeTenantAssignableRolePermissions(
-        input.permissions,
-      ),
-    } satisfies NormalizedRoleWrite;
-  },
-);
-
 const toPlatformRoleRecord = (role: {
-  collapseMembersInHup: boolean;
   defaultOrganizerRole: boolean;
   defaultUserRole: boolean;
   description: null | string;
@@ -216,7 +199,6 @@ const loadPlatformRole = Effect.fn('PlatformTenantAdmin.loadPlatformRole')(
     const role = yield* database.query.roles
       .findFirst({
         columns: {
-          collapseMembersInHup: true,
           defaultOrganizerRole: true,
           defaultUserRole: true,
           description: true,
@@ -230,7 +212,7 @@ const loadPlatformRole = Effect.fn('PlatformTenantAdmin.loadPlatformRole')(
       })
       .pipe(Effect.orDie);
     if (!role) {
-      return yield* roleNotFound(roleId);
+      return yield* roleNotFound();
     }
 
     return toPlatformRoleRecord(role);
@@ -241,7 +223,6 @@ const lockPlatformRole = Effect.fn('PlatformTenantAdmin.lockPlatformRole')(
   function* (database: SelectDatabase, targetTenantId: string, roleId: string) {
     const matchingRoles = yield* database
       .select({
-        collapseMembersInHup: roles.collapseMembersInHup,
         defaultOrganizerRole: roles.defaultOrganizerRole,
         defaultUserRole: roles.defaultUserRole,
         description: roles.description,
@@ -257,7 +238,7 @@ const lockPlatformRole = Effect.fn('PlatformTenantAdmin.lockPlatformRole')(
       .pipe(Effect.orDie);
     const role = matchingRoles[0];
     if (!role) {
-      return yield* roleNotFound(roleId);
+      return yield* roleNotFound();
     }
 
     return toPlatformRoleRecord(role);
@@ -268,7 +249,6 @@ const roleSnapshot = (role: PlatformRoleRecord): PlatformAuditSnapshot => ({
   resourceId: role.id,
   resourceType: 'role',
   state: {
-    collapseMembersInHup: role.collapseMembersInHup,
     defaultOrganizerRole: role.defaultOrganizerRole,
     defaultUserRole: role.defaultUserRole,
     description: role.description,
@@ -433,32 +413,6 @@ export const collectSupportedStripeTaxRatePages = Effect.fn(
   });
 });
 
-const ensureRoleNameAvailable = Effect.fn(
-  'PlatformTenantAdmin.ensureRoleNameAvailable',
-)(function* (
-  database: QueryDatabase,
-  targetTenantId: string,
-  name: string,
-  excludedRoleId?: string,
-) {
-  const existingRole = yield* database.query.roles
-    .findFirst({
-      columns: { id: true },
-      where: {
-        name,
-        tenantId: targetTenantId,
-        ...(excludedRoleId && { id: { NOT: excludedRoleId } }),
-      },
-    })
-    .pipe(Effect.orDie);
-  if (existingRole) {
-    return yield* new RpcBadRequestError({
-      message: `A role named ${name} already exists for the target tenant`,
-      reason: 'roleNameAlreadyExists',
-    });
-  }
-});
-
 const retrieveSupportedStripeTaxRate = Effect.fn(
   'PlatformTenantAdmin.retrieveSupportedStripeTaxRate',
 )(function* (stripe: Stripe, stripeAccount: string, id: string) {
@@ -512,16 +466,11 @@ export const platformTenantAdminHandlers = {
       const normalized = yield* normalizeRoleWrite(input);
 
       return yield* providePlatformOperation(
-        databaseEffect((database) =>
+        databaseRoleEffect(normalized.name, (database) =>
           database.transaction((transaction) =>
             Effect.gen(function* () {
               yield* lockTenantRoleGraph(transaction, input.targetTenantId);
               yield* lockTargetTenant(transaction, input.targetTenantId);
-              yield* ensureRoleNameAvailable(
-                transaction,
-                input.targetTenantId,
-                normalized.name,
-              );
 
               const createdRoles = yield* transaction
                 .insert(roles)
@@ -530,7 +479,6 @@ export const platformTenantAdminHandlers = {
                   tenantId: input.targetTenantId,
                 })
                 .returning({
-                  collapseMembersInHup: roles.collapseMembersInHup,
                   defaultOrganizerRole: roles.defaultOrganizerRole,
                   defaultUserRole: roles.defaultUserRole,
                   description: roles.description,
@@ -539,8 +487,7 @@ export const platformTenantAdminHandlers = {
                   name: roles.name,
                   permissions: roles.permissions,
                   sortOrder: roles.sortOrder,
-                })
-                .pipe(Effect.orDie);
+                });
               const createdRole = createdRoles[0];
               if (!createdRole) {
                 return yield* Effect.die(
@@ -645,7 +592,6 @@ export const platformTenantAdminHandlers = {
           database.query.roles
             .findMany({
               columns: {
-                collapseMembersInHup: true,
                 defaultOrganizerRole: true,
                 defaultUserRole: true,
                 description: true,
@@ -678,7 +624,7 @@ export const platformTenantAdminHandlers = {
       const normalized = yield* normalizeRoleWrite(input);
 
       return yield* providePlatformOperation(
-        databaseEffect((database) =>
+        databaseRoleEffect(normalized.name, (database) =>
           database.transaction((transaction) =>
             Effect.gen(function* () {
               yield* lockTenantRoleGraph(transaction, input.targetTenantId);
@@ -686,12 +632,6 @@ export const platformTenantAdminHandlers = {
               const before = yield* lockPlatformRole(
                 transaction,
                 input.targetTenantId,
-                input.roleId,
-              );
-              yield* ensureRoleNameAvailable(
-                transaction,
-                input.targetTenantId,
-                normalized.name,
                 input.roleId,
               );
               if (before.defaultUserRole && !normalized.defaultUserRole) {
@@ -712,7 +652,6 @@ export const platformTenantAdminHandlers = {
                   ),
                 )
                 .returning({
-                  collapseMembersInHup: roles.collapseMembersInHup,
                   defaultOrganizerRole: roles.defaultOrganizerRole,
                   defaultUserRole: roles.defaultUserRole,
                   description: roles.description,
@@ -721,8 +660,7 @@ export const platformTenantAdminHandlers = {
                   name: roles.name,
                   permissions: roles.permissions,
                   sortOrder: roles.sortOrder,
-                })
-                .pipe(Effect.orDie);
+                });
               const updatedRole = updatedRoles[0];
               if (!updatedRole) {
                 return yield* Effect.die(

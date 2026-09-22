@@ -39,6 +39,29 @@
       class="text-on-surface grid max-w-6xl gap-6"
       (submit)="onSubmit($event)"
     >
+      @if (rolesQuery.isPending()) {
+        <p role="status" aria-live="polite">Loading roles...</p>
+      } @else if (rolesQuery.isError()) {
+        <section
+          class="bg-error-container text-on-error-container grid gap-3 p-4"
+          role="alert"
+        >
+          <p>
+            Roles could not be loaded. Your entries are still here. Retry to
+            continue saving.
+          </p>
+          <button
+            mat-stroked-button
+            type="button"
+            data-testid="retry-template-roles"
+            [disabled]="rolesQuery.isFetching()"
+            (click)="rolesQuery.refetch()"
+          >
+            {{ rolesQuery.isFetching() ? "Retrying..." : "Retry roles" }}
+          </button>
+        </section>
+      }
+
       <section
         class="border-outline-variant bg-surface grid gap-4 rounded-lg border p-4"
         aria-labelledby="template-details-title"

@@ -7,7 +7,7 @@ import {
   platformTenantSettingsSnapshot,
 } from '@shared/tenant-settings-snapshot';
 import * as PgDrizzle from 'drizzle-orm/effect-postgres';
-import { Effect, Layer, Schema, Stream } from 'effect';
+import { Effect, Exit, Layer, Schema, Stream } from 'effect';
 import * as Headers from 'effect/unstable/http/Headers';
 import { Rpc, RpcMessage } from 'effect/unstable/rpc';
 import Stripe from 'stripe';
@@ -29,7 +29,9 @@ import * as GlobalAdminRpcs from '../../../../shared/rpc-contracts/app-rpcs/glob
 import { PlatformAdministratorAuthority } from '../../../../types/custom/platform-authority';
 import { Tenant } from '../../../../types/custom/tenant';
 import { StripeClient } from '../../../stripe-client';
+import { createRegistrationDatabaseTestLayer } from '../../../testing/registration-database';
 import {
+  GLOBAL_ADMIN_PLATFORM_AUDIT_PAGE_SIZE,
   globalAdminHandlers,
   tenantPrivacyPolicyDigest,
 } from './global-admin.handlers';
@@ -79,6 +81,67 @@ const createRpcOptions = <R extends Rpc.Any>(rpc: R) => ({
   requestId: RpcMessage.RequestId(1),
   rpc,
 });
+
+type AuditFixtureRow = Pick<
+  typeof platformAuditEntries.$inferSelect,
+  'action' | 'actorEmail' | 'after' | 'before' | 'createdAt' | 'id' | 'reason'
+> & { cursorCreatedAt?: string; targetTenantName: null | string };
+
+const auditFixtureRow = (
+  overrides: Partial<AuditFixtureRow> = {},
+): AuditFixtureRow => ({
+  action: 'tenant.create',
+  actorEmail: 'platform@example.org',
+  after: {
+    resourceId: 'tenant-1',
+    resourceType: 'tenant',
+    state: { name: 'Section', stripeConnected: false },
+  },
+  before: null,
+  createdAt: new Date('2026-07-10T09:15:00.000Z'),
+  id: 'audit-001',
+  reason: 'Provision requested by section board',
+  targetTenantName: 'Section',
+  ...overrides,
+});
+
+const readAuditPage = (
+  rows: readonly AuditFixtureRow[],
+  cursor: GlobalAdminRpcs.GlobalAdminPlatformAuditCursor | null = null,
+  inspectQuery?: (statement: string, parameters: readonly unknown[]) => void,
+) =>
+  globalAdminHandlers['globalAdmin.platformAudit.findMany'](
+    { cursor },
+    createRpcOptions(
+      GlobalAdminRpcs.GlobalAdminPlatformAuditFindMany.middleware(
+        RpcRequestContextMiddleware,
+      ),
+    ),
+  ).pipe(
+    Effect.provide(requestContextLayer(createRequestContext([]))),
+    Effect.provide(
+      createRegistrationDatabaseTestLayer({
+        executeValues: (statement, parameters) =>
+          Effect.sync(() => {
+            expect(statement).toMatch(/^select /);
+            expect(statement).toContain('from "platform_audit_entries"');
+            inspectQuery?.(statement, parameters);
+            return rows.map((row) => [
+              row.action,
+              row.actorEmail,
+              row.after,
+              row.before,
+              row.createdAt.toISOString().slice(0, -1),
+              row.cursorCreatedAt ??
+                row.createdAt.toISOString().replace(/Z$/u, '000Z'),
+              row.id,
+              row.reason,
+              row.targetTenantName,
+            ]);
+          }),
+      }),
+    ),
+  );
 
 const provideDatabaseOnly = (database: object) =>
   Layer.succeed(Database, database as DatabaseClient);
@@ -775,52 +838,341 @@ describe('globalAdminHandlers', () => {
           timezone: 'Europe/Berlin',
         },
       } as const;
-      const selectQuery = {
-        from: () => selectQuery,
-        leftJoin: () => selectQuery,
-        limit: () =>
-          Effect.succeed([
-            {
-              action: 'tenant.create' as const,
-              actorEmail: 'platform@example.org',
-              actorId: 'auth0|platform-admin',
-              after,
-              before: null,
-              createdAt,
-              id: 'audit-1',
-              reason: 'Provision requested by section board',
-              targetTenantId: 'tenant-1',
-              targetTenantName: 'Section',
+      const rows: AuditFixtureRow[] = [
+        {
+          action: 'tenant.create' as const,
+          actorEmail: 'platform@example.org',
+          after,
+          before: null,
+          createdAt,
+          id: 'audit-1',
+          reason: 'Provision requested by section board',
+          targetTenantName: 'Section',
+        },
+        {
+          action: 'taxRates.import' as const,
+          actorEmail: 'platform@example.org',
+          after: {
+            resourceId: 'tax-import-1',
+            resourceType: 'taxRateBatch' as const,
+            state: {
+              rates: [
+                {
+                  active: true,
+                  country: 'DE',
+                  displayName: 'Standard',
+                  inclusive: true,
+                  percentage: '19',
+                  state: null,
+                  stripeTaxRateId: 'txr_existing',
+                },
+                {
+                  active: true,
+                  country: 'DE',
+                  displayName: 'Reduced',
+                  inclusive: true,
+                  percentage: '7',
+                  state: null,
+                  stripeTaxRateId: 'txr_added',
+                },
+                {
+                  active: true,
+                  country: 'DE',
+                  displayName: 'Super reduced',
+                  inclusive: true,
+                  percentage: '5',
+                  state: null,
+                  stripeTaxRateId: 'txr_unchanged',
+                },
+              ],
             },
-          ]),
-        orderBy: () => selectQuery,
-      };
-      const database = { select: () => selectQuery };
+          },
+          before: {
+            resourceId: 'tax-import-1',
+            resourceType: 'taxRateBatch' as const,
+            state: {
+              rates: [
+                {
+                  active: true,
+                  country: 'DE',
+                  displayName: 'Old standard',
+                  inclusive: true,
+                  percentage: '19',
+                  state: null,
+                  stripeTaxRateId: 'txr_existing',
+                },
+                {
+                  active: true,
+                  country: 'DE',
+                  displayName: 'Super reduced',
+                  inclusive: true,
+                  percentage: '5',
+                  state: null,
+                  stripeTaxRateId: 'txr_unchanged',
+                },
+              ],
+            },
+          },
+          createdAt,
+          id: 'audit-2',
+          reason: 'Refresh tax rates',
+          targetTenantName: 'Section',
+        },
+      ];
 
-      const entries = yield* globalAdminHandlers[
-        'globalAdmin.platformAudit.findMany'
-      ](
-        undefined,
-        createRpcOptions(
-          GlobalAdminRpcs.GlobalAdminPlatformAuditFindMany.middleware(
-            RpcRequestContextMiddleware,
-          ),
-        ),
-      )
-        .pipe(Effect.provide(requestContextLayer(createRequestContext([]))))
-        .pipe(Effect.provide(provideDatabase(database)));
+      const page = yield* readAuditPage(rows);
 
-      expect(entries).toEqual([
+      expect(page.items).toEqual([
         expect.objectContaining({
           action: 'tenant.create',
-          actorId: 'auth0|platform-admin',
           createdAt: '2026-07-10T09:15:00.000Z',
           reason: 'Provision requested by section board',
-          targetTenantId: 'tenant-1',
           targetTenantName: 'Section',
         }),
+        expect.objectContaining({
+          action: 'taxRates.import',
+          after: expect.objectContaining({
+            state: {
+              taxRateAddedCount: 1,
+              taxRateCount: 3,
+              taxRateUnchangedCount: 1,
+              taxRateUpdatedCount: 1,
+            },
+          }),
+        }),
       ]);
+      expect(page.items[0]?.after?.state).toMatchObject({
+        stripeConnected: false,
+      });
+      expect(page.nextCursor).toBeNull();
+      expect(page.items[0]?.after?.state).not.toHaveProperty('stripeAccountId');
+      expect(page.items[0]).not.toHaveProperty('actorId');
+      expect(page.items[0]).not.toHaveProperty('targetTenantId');
+      expect(page.items[0]?.after).not.toHaveProperty('resourceId');
     }),
+  );
+
+  it.effect.each([
+    {
+      added: 1,
+      after: ['role-new'],
+      before: ['role-old'],
+      name: 'same-count replacement',
+      removed: 1,
+    },
+    {
+      added: 1,
+      after: ['role-kept', 'role-new'],
+      before: ['role-kept'],
+      name: 'addition',
+      removed: 0,
+    },
+    {
+      added: 0,
+      after: ['role-kept'],
+      before: ['role-kept', 'role-old'],
+      name: 'removal',
+      removed: 1,
+    },
+    {
+      added: 0,
+      after: ['role-kept'],
+      before: ['role-kept'],
+      name: 'unchanged assignment',
+      removed: 0,
+    },
+    {
+      added: 0,
+      after: ['role-two', 'role-one'],
+      before: ['role-one', 'role-two'],
+      name: 'reordered assignment',
+      removed: 0,
+    },
+    { added: 0, after: [], before: [], name: 'empty assignment', removed: 0 },
+  ])(
+    'summarizes $name without exposing member or role identifiers',
+    (assignment) =>
+      Effect.gen(function* () {
+        const page = yield* readAuditPage([
+          auditFixtureRow({
+            action: 'user.assignRoles',
+            after: {
+              resourceId: 'private-member',
+              resourceType: 'userRoleAssignment',
+              state: { roleIds: assignment.after, userId: 'private-member' },
+            },
+            before: {
+              resourceId: 'private-member',
+              resourceType: 'userRoleAssignment',
+              state: { roleIds: assignment.before, userId: 'private-member' },
+            },
+          }),
+        ]);
+        expect(page.items[0]?.before).toEqual({
+          resourceType: 'userRoleAssignment',
+          state: { roleCount: assignment.before.length },
+        });
+        expect(page.items[0]?.after).toEqual({
+          resourceType: 'userRoleAssignment',
+          state: {
+            roleAddedCount: assignment.added,
+            roleCount: assignment.after.length,
+            roleRemovedCount: assignment.removed,
+          },
+        });
+        expect(JSON.stringify(page)).not.toContain('private-member');
+        expect(JSON.stringify(page)).not.toContain('roleIds');
+        for (const roleId of [...assignment.before, ...assignment.after]) {
+          expect(JSON.stringify(page)).not.toContain(roleId);
+        }
+      }),
+  );
+
+  it.effect.each([
+    { name: 'missing role IDs', state: {} },
+    { name: 'non-string role IDs', state: { roleIds: [123] } },
+    { name: 'empty role IDs', state: { roleIds: [''] } },
+  ])('rejects assignment audit snapshots with $name', ({ state }) =>
+    Effect.gen(function* () {
+      const exit = yield* readAuditPage([
+        auditFixtureRow({
+          action: 'user.assignRoles',
+          after: {
+            resourceId: 'member-1',
+            resourceType: 'userRoleAssignment',
+            state,
+          },
+          before: {
+            resourceId: 'member-1',
+            resourceType: 'userRoleAssignment',
+            state: { roleIds: [] },
+          },
+        }),
+      ]).pipe(Effect.exit);
+      expect(Exit.isFailure(exit)).toBe(true);
+    }),
+  );
+
+  it.effect('returns a bounded, deterministically ordered audit page', () =>
+    Effect.gen(function* () {
+      const rows = Array.from(
+        { length: GLOBAL_ADMIN_PLATFORM_AUDIT_PAGE_SIZE + 1 },
+        (_, index) =>
+          auditFixtureRow({
+            id: `audit-${String(index + 1).padStart(3, '0')}`,
+          }),
+      );
+      const page = yield* readAuditPage(rows, null, (statement, parameters) => {
+        expect(statement).toContain(
+          'order by "platform_audit_entries"."created_at" desc, "platform_audit_entries"."id" asc',
+        );
+        expect(statement).not.toContain(' where ');
+        expect(parameters).toEqual([GLOBAL_ADMIN_PLATFORM_AUDIT_PAGE_SIZE + 1]);
+      });
+      expect(page.items).toHaveLength(GLOBAL_ADMIN_PLATFORM_AUDIT_PAGE_SIZE);
+      expect(page.items.at(-1)?.id).toBe('audit-050');
+      expect(page.nextCursor).toEqual({
+        createdAt: '2026-07-10T09:15:00.000000Z',
+        id: 'audit-050',
+      });
+    }),
+  );
+
+  it.effect('returns the exact stored timestamp at a page boundary', () =>
+    Effect.gen(function* () {
+      const rows = Array.from(
+        { length: GLOBAL_ADMIN_PLATFORM_AUDIT_PAGE_SIZE + 1 },
+        (_, index) =>
+          auditFixtureRow({
+            createdAt: new Date('2026-07-10T09:15:00.123Z'),
+            cursorCreatedAt: '2026-07-10T09:15:00.123456Z',
+            id: `audit-${String(index + 1).padStart(3, '0')}`,
+          }),
+      );
+      const page = yield* readAuditPage(rows);
+      expect(page.nextCursor).toEqual({
+        createdAt: '2026-07-10T09:15:00.123456Z',
+        id: 'audit-050',
+      });
+      expect(page.items.at(-1)?.createdAt).toBe('2026-07-10T09:15:00.123Z');
+    }),
+  );
+
+  it.effect('continues after equal timestamps by ascending audit id', () =>
+    Effect.gen(function* () {
+      const cursor = {
+        createdAt: '2026-07-10T09:15:00.123456Z',
+        id: 'audit-050',
+      };
+      const page = yield* readAuditPage([], cursor, (statement, parameters) => {
+        expect(statement).toContain(
+          '"platform_audit_entries"."created_at" < $1::timestamp',
+        );
+        expect(statement).toContain(
+          '"platform_audit_entries"."created_at" = $2::timestamp',
+        );
+        expect(statement).toContain('"platform_audit_entries"."id" > $3');
+        expect(parameters).toEqual([
+          cursor.createdAt,
+          cursor.createdAt,
+          cursor.id,
+          GLOBAL_ADMIN_PLATFORM_AUDIT_PAGE_SIZE + 1,
+        ]);
+      });
+      expect(page).toEqual({ items: [], nextCursor: null });
+    }),
+  );
+
+  it.effect('projects formatted descriptions as readable audit text', () =>
+    Effect.gen(function* () {
+      const page = yield* readAuditPage([
+        auditFixtureRow({
+          action: 'event.update',
+          after: {
+            resourceId: 'event-1',
+            resourceType: 'event',
+            state: {
+              description:
+                '<p>Welcome <strong>everyone</strong>.</p><ul><li>Bring ID</li></ul>',
+            },
+          },
+          before: {
+            resourceId: 'event-1',
+            resourceType: 'event',
+            state: { description: '<p>Welcome.</p>' },
+          },
+        }),
+      ]);
+      expect(page.items[0]?.before?.state.description).toBe('Welcome.');
+      expect(page.items[0]?.after?.state.description).toBe(
+        'Welcome everyone. Bring ID',
+      );
+      expect(JSON.stringify(page)).not.toContain('<p>');
+    }),
+  );
+
+  it.effect(
+    'preserves the current event listing decision in the safe audit projection',
+    () =>
+      Effect.gen(function* () {
+        const page = yield* readAuditPage([
+          auditFixtureRow({
+            action: 'event.updateListing',
+            after: {
+              resourceId: 'event-1',
+              resourceType: 'event',
+              state: { unlisted: true },
+            },
+            before: {
+              resourceId: 'event-1',
+              resourceType: 'event',
+              state: { unlisted: false },
+            },
+          }),
+        ]);
+        expect(page.items[0]?.after?.state).toEqual({ unlisted: true });
+        expect(page.items[0]?.before?.state).toEqual({ unlisted: false });
+      }),
   );
 
   it.effect('rejects tenant detail reads without platform authority', () =>

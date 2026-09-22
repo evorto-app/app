@@ -6,7 +6,6 @@ import { faArrowLeft, faPlus } from '@fortawesome/duotone-regular-svg-icons';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
-import { getErrorMessage } from '../../core/error-message';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -22,8 +21,4 @@ export class RoleListComponent {
   protected readonly roleQuery = injectQuery(() =>
     this.rpc.admin.roles.findMany.queryOptions({}),
   );
-
-  protected errorMessage(error: unknown): string {
-    return getErrorMessage(error, 'Unknown error');
-  }
 }

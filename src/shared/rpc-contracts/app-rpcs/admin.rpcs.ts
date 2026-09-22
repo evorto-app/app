@@ -9,7 +9,12 @@ import * as RpcGroup from 'effect/unstable/rpc/RpcGroup';
 import { Tenant } from '../../../types/custom/tenant';
 import { GoogleLocation } from '../../../types/location';
 import { TenantRolePermissionSchema } from '../../permissions/permissions';
-import { AdminRoleRpcError, AdminTenantRpcError } from './admin.errors';
+import {
+  AdminRoleRpcError,
+  AdminRoleWriteRpcError,
+  AdminTenantRpcError,
+} from './admin.errors';
+import { RoleWriteInput } from './role-write.shared';
 
 const UrlString = Schema.String.pipe(
   Schema.check(
@@ -50,7 +55,6 @@ const OptionalSenderEmail = Schema.NonEmptyString.check(
 );
 
 export const AdminRoleRecord = Schema.Struct({
-  collapseMembersInHup: Schema.Boolean,
   defaultOrganizerRole: Schema.Boolean,
   defaultUserRole: Schema.Boolean,
   description: Schema.NullOr(Schema.String),
@@ -118,15 +122,7 @@ export const AdminRolesFindHubRoles = asRpcQuery(
   }),
 );
 
-export const AdminRolesCreateInput = Schema.Struct({
-  collapseMembersInHup: Schema.Boolean,
-  defaultOrganizerRole: Schema.Boolean,
-  defaultUserRole: Schema.Boolean,
-  description: Schema.NullOr(Schema.NonEmptyString),
-  displayInHub: Schema.Boolean,
-  name: Schema.NonEmptyString,
-  permissions: Schema.mutable(Schema.Array(TenantRolePermissionSchema)),
-});
+export const AdminRolesCreateInput = RoleWriteInput;
 
 export type AdminRolesCreateInput = Schema.Schema.Type<
   typeof AdminRolesCreateInput
@@ -134,7 +130,7 @@ export type AdminRolesCreateInput = Schema.Schema.Type<
 
 export const AdminRolesCreate = asRpcMutation(
   Rpc.make('admin.roles.create', {
-    error: AdminRoleRpcError,
+    error: AdminRoleWriteRpcError,
     payload: AdminRolesCreateInput,
     success: AdminRoleRecord,
   }),
@@ -171,7 +167,7 @@ export type AdminRolesUpdateInput = Schema.Schema.Type<
 
 export const AdminRolesUpdate = asRpcMutation(
   Rpc.make('admin.roles.update', {
-    error: AdminRoleRpcError,
+    error: AdminRoleWriteRpcError,
     payload: AdminRolesUpdateInput,
     success: AdminRoleRecord,
   }),

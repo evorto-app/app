@@ -14,7 +14,9 @@ const openUserAssignment = async (
   scenario: UserRoleAssignmentScenario,
 ): Promise<{ roleSelect: Locator; userRow: Locator }> => {
   await page.goto('/admin/users');
-  await expect(page.getByRole('heading', { name: 'All users' })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'All members' }),
+  ).toBeVisible();
   await expect(page.locator('[ngh]')).toHaveCount(0, { timeout: 20_000 });
   await expect(page.getByRole('table')).toBeVisible({ timeout: 15_000 });
   const searchInput = page.getByPlaceholder('Name or email');
@@ -37,7 +39,8 @@ const openUserAssignment = async (
 test.describe('with users:assignRoles', () => {
   test.use({ storageState: adminStateFile });
 
-  test('assigns and removes an existing user role with persisted UI readback @admin @permissions', async ({
+  test('assigns and removes an existing member role with persisted UI readback @admin @permissions', async ({
+    registerDatabaseCleanup,
     database,
     page,
     tenant,
@@ -48,8 +51,9 @@ test.describe('with users:assignRoles', () => {
       tenant,
       userEmail: 'casey.role-assignment@evorto.test',
     });
+    registerDatabaseCleanup(scenario.cleanup);
 
-    try {
+    {
       let { roleSelect } = await openUserAssignment(page, scenario);
       await expect(roleSelect).toBeEnabled();
       await roleSelect.press('Enter');
@@ -62,7 +66,7 @@ test.describe('with users:assignRoles', () => {
       await expect(roleOption).toHaveAttribute('aria-selected', 'false');
       await roleOption.click();
       await page.keyboard.press('Escape');
-      await expect(page.getByText('User roles updated')).toBeVisible();
+      await expect(page.getByText('Member roles updated')).toBeVisible();
       await expect
         .poll(scenario.readAssignedRoleIds)
         .toEqual([scenario.role.id]);
@@ -94,8 +98,6 @@ test.describe('with users:assignRoles', () => {
       await expect(roleOption).toBeVisible();
       await expect(roleOption).toHaveAttribute('aria-selected', 'false');
       await page.keyboard.press('Escape');
-    } finally {
-      await scenario.cleanup();
     }
   });
 });
@@ -103,7 +105,8 @@ test.describe('with users:assignRoles', () => {
 test.describe('with users:viewAll but without users:assignRoles', () => {
   test.use({ storageState: organizerStateFile });
 
-  test('shows existing-user assignments as read-only role chips @admin @permissions', async ({
+  test('shows existing member assignments as read-only role chips @admin @permissions', async ({
+    registerDatabaseCleanup,
     database,
     page,
     permissionOverride,
@@ -116,8 +119,9 @@ test.describe('with users:viewAll but without users:assignRoles', () => {
       tenant,
       userEmail: 'casey.read-only-role@evorto.test',
     });
+    registerDatabaseCleanup(scenario.cleanup);
 
-    try {
+    {
       await permissionOverride({
         add: ['users:viewAll'],
         remove: ['users:assignRoles'],
@@ -130,8 +134,6 @@ test.describe('with users:viewAll but without users:assignRoles', () => {
         userRow.getByText(scenario.role.name, { exact: true }),
       ).toBeVisible();
       expect(await scenario.readAssignedRoleIds()).toEqual([scenario.role.id]);
-    } finally {
-      await scenario.cleanup();
     }
   });
 });

@@ -8,7 +8,7 @@ export const PlatformOperationRpcError =
 export type PlatformOperationRpcError =
   BadRequestForbiddenOrUnauthorizedRpcError;
 
-export const PlatformOperationReason = Schema.String.check(
+export const PlatformOperationReason = Schema.Trim.check(
   Schema.isMinLength(1),
   Schema.isMaxLength(500),
 );

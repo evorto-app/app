@@ -3,6 +3,7 @@ import { Schema } from 'effect';
 import * as Rpc from 'effect/unstable/rpc/Rpc';
 import * as RpcGroup from 'effect/unstable/rpc/RpcGroup';
 
+import { ForbiddenOrUnauthorizedRpcError } from '../../errors/rpc-errors';
 import { RoleLookupRpcError } from './roles.errors';
 
 export const RoleLookupRecord = Schema.Struct({
@@ -17,8 +18,6 @@ export type RoleLookupRecord = Schema.Schema.Type<typeof RoleLookupRecord>;
 export const roleSearchMaxLength = 64;
 
 export const RolesFindManyInput = Schema.Struct({
-  defaultOrganizerRole: Schema.optional(Schema.Boolean),
-  defaultUserRole: Schema.optional(Schema.Boolean),
   search: Schema.optional(
     Schema.String.check(Schema.isMaxLength(roleSearchMaxLength)),
   ),
@@ -28,7 +27,7 @@ export type RolesFindManyInput = Schema.Schema.Type<typeof RolesFindManyInput>;
 
 export const RolesFindMany = asRpcQuery(
   Rpc.make('roles.findMany', {
-    error: RoleLookupRpcError,
+    error: ForbiddenOrUnauthorizedRpcError,
     payload: RolesFindManyInput,
     success: Schema.Array(RoleLookupRecord),
   }),
@@ -37,9 +36,7 @@ export const RolesFindMany = asRpcQuery(
 export const RolesFindOne = asRpcQuery(
   Rpc.make('roles.findOne', {
     error: RoleLookupRpcError,
-    payload: Schema.Struct({
-      id: Schema.NonEmptyString,
-    }),
+    payload: Schema.Struct({ id: Schema.NonEmptyString }),
     success: RoleLookupRecord,
   }),
 );

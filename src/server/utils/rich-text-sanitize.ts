@@ -1,4 +1,5 @@
 import { hasUsableRichTextImageSources } from '@shared/utils/rich-text-media';
+import { convert } from 'html-to-text';
 import sanitizeHtml from 'sanitize-html';
 
 const ALLOWED_TAGS = [
@@ -61,6 +62,9 @@ const ALLOWED_STYLES = {
 
 const STRUCTURAL_MEDIA_NODE_PATTERN = /<(table|hr)\b/i;
 
+const TEXT_BOUNDARY_NODE_PATTERN =
+  /<\/?(?:blockquote|br|h[1-6]|hr|li|ol|p|pre|table|tbody|td|th|thead|tr|ul)\b[^>]*>/giu;
+
 export const sanitizeRichTextHtml = (content: string): string => {
   return sanitizeHtml(content, {
     allowedAttributes: ALLOWED_ATTRIBUTES,
@@ -92,6 +96,18 @@ export const sanitizeOptionalRichTextHtml = (
 
   return sanitized;
 };
+
+export const richTextToPlainText = (content: string): string =>
+  convert(
+    sanitizeHtml(content.replaceAll(TEXT_BOUNDARY_NODE_PATTERN, ' '), {
+      allowedAttributes: {},
+      allowedTags: [],
+    }),
+    { wordwrap: false },
+  )
+    .replaceAll('\u{A0}', ' ')
+    .replaceAll(/\s+/gu, ' ')
+    .trim();
 
 export const isMeaningfulRichTextHtml = (content: string): boolean => {
   const plainText = sanitizeHtml(content, {

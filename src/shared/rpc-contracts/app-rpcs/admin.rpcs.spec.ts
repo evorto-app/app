@@ -7,7 +7,7 @@ import { Schema } from 'effect';
 import { describe, expect, it } from 'vitest';
 
 import { Tenant } from '../../../types/custom/tenant';
-import { AdminTenantRpcError } from './admin.errors';
+import { AdminRoleWriteRpcError, AdminTenantRpcError } from './admin.errors';
 import {
   AdminRolesCreateInput,
   AdminRolesUpdateInput,
@@ -16,7 +16,6 @@ import {
 } from './admin.rpcs';
 
 const currentRoleInput = {
-  collapseMembersInHup: false,
   defaultOrganizerRole: false,
   defaultUserRole: true,
   description: 'Default tenant member',
@@ -38,7 +37,7 @@ describe('admin role input schemas', () => {
     ).not.toThrow();
   });
 
-  it('rejects platform-global permissions on create and update', () => {
+  it('keeps known permissions structural so the server can return a typed validation error', () => {
     for (const permission of ['globalAdmin:*', 'globalAdmin:manageTenants']) {
       expect(() =>
         Schema.decodeUnknownSync(AdminRolesCreateInput)({
@@ -46,15 +45,32 @@ describe('admin role input schemas', () => {
           defaultUserRole: true,
           permissions: [permission],
         }),
-      ).toThrow();
+      ).not.toThrow();
       expect(() =>
         Schema.decodeUnknownSync(AdminRolesUpdateInput)({
           ...currentRoleInput,
           id: 'role-1',
           permissions: [permission],
         }),
-      ).toThrow();
+      ).not.toThrow();
     }
+  });
+
+  it('declares validation and duplicate-name errors on the role RPC channel', () => {
+    expect(
+      Schema.decodeUnknownSync(AdminRoleWriteRpcError)({
+        _tag: 'RoleWriteValidationError',
+        field: 'name',
+        message: 'Role name is required',
+      })._tag,
+    ).toBe('RoleWriteValidationError');
+    expect(
+      Schema.decodeUnknownSync(AdminRoleWriteRpcError)({
+        _tag: 'RoleNameAlreadyExistsError',
+        message: 'A role named Member already exists',
+        name: 'Member',
+      })._tag,
+    ).toBe('RoleNameAlreadyExistsError');
   });
 });
 

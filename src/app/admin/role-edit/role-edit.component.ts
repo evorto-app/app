@@ -18,6 +18,7 @@ import {
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
+import { NotificationService } from '../../core/notification.service';
 import { RoleFormComponent } from '../components/role-form/role-form.component';
 import {
   mergeRoleFormOverrides,
@@ -55,6 +56,7 @@ export class RoleEditComponent {
   protected readonly updateRoleMutation = injectMutation(() =>
     this.rpc.admin.roles.update.mutationOptions(),
   );
+  private readonly notifications = inject(NotificationService);
   private readonly queryClient = inject(QueryClient);
   private readonly router = inject(Router);
 
@@ -66,6 +68,20 @@ export class RoleEditComponent {
     this.updateRoleMutation.mutate(
       { ...role, id: this.roleId() },
       {
+        onError: (error) => {
+          this.notifications.showError(
+            getErrorMessage(
+              error,
+              'The role could not be updated. Try again.',
+              [
+                'RoleNameAlreadyExistsError',
+                'RoleWriteValidationError',
+                'AdminRoleNotFoundError',
+                'RpcBadRequestError',
+              ],
+            ),
+          );
+        },
         onSuccess: async () => {
           await this.queryClient.invalidateQueries(
             this.rpc.queryFilter(['admin', 'roles.findOne']),
@@ -82,20 +98,10 @@ export class RoleEditComponent {
           await this.queryClient.invalidateQueries(
             this.rpc.queryFilter(['roles', 'findMany']),
           );
-          await this.queryClient.invalidateQueries(
-            this.rpc.queryFilter(['roles', 'findOne']),
-          );
           const id = this.roleId();
           this.router.navigate(['admin', 'roles', id]);
         },
       },
     );
-  }
-
-  protected errorMessage(error: unknown): string {
-    return getErrorMessage(error, 'The role could not be saved. Try again.', [
-      'AdminRoleNotFoundError',
-      'RpcBadRequestError',
-    ]);
   }
 }

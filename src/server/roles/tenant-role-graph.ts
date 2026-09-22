@@ -66,7 +66,8 @@ export const ensureTenantRetainsAnotherDefaultUserRole = Effect.fn(
     );
   if ((otherDefaults[0]?.total ?? 0) === 0) {
     return yield* new RpcBadRequestError({
-      message: 'The tenant must keep at least one default user role',
+      message:
+        'Keep at least one role that is assigned automatically to new members.',
       reason: 'lastDefaultUserRole',
     });
   }
@@ -92,7 +93,7 @@ export const ensureTenantRoleIsUnreferenced = Effect.fn(
   if (roleAssignments.length > 0) {
     return yield* new RpcBadRequestError({
       message:
-        'Role cannot be deleted while it is assigned to organization members',
+        'This role is still assigned to organization members. Remove those assignments before deleting the role.',
       reason: 'roleInUseByUserAssignments',
     });
   }
@@ -114,7 +115,7 @@ export const ensureTenantRoleIsUnreferenced = Effect.fn(
   if (eventOptions.length > 0) {
     return yield* new RpcBadRequestError({
       message:
-        'Role cannot be deleted while an event registration option uses it',
+        'This role is still used by an event sign-up choice. Remove it from that choice before deleting the role.',
       reason: 'roleInUseByEventOption',
     });
   }
@@ -136,7 +137,7 @@ export const ensureTenantRoleIsUnreferenced = Effect.fn(
   if (templateOptions.length > 0) {
     return yield* new RpcBadRequestError({
       message:
-        'Role cannot be deleted while a template registration option uses it',
+        'This role is still used by a template sign-up choice. Remove it from that choice before deleting the role.',
       reason: 'roleInUseByTemplateOption',
     });
   }

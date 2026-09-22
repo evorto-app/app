@@ -49,6 +49,7 @@ test('Manage one organization and review change history', async ({
     tenant,
     userEmail: `platform-operator-docs-${suffix}@evorto.test`,
   });
+  registerDatabaseCleanup(assignmentScenario.cleanup);
   const eventReason = `Document target event update ${suffix}`;
   const templateReason = `Document target template update ${suffix}`;
   const roleAssignmentReason = `Document target role assignment ${suffix}`;
@@ -169,7 +170,6 @@ test('Manage one organization and review change history', async ({
           eq(schema.eventTemplates.tenantId, tenant.id),
         ),
       );
-    await assignmentScenario.cleanup();
   });
 
   const createdReceiptUploadId = await addConsumedFinanceReceiptUpload(
@@ -376,11 +376,11 @@ Return to the organization, choose **Manage templates**, find the reusable templ
   await expectPersistedAudit(templateReason, 'template.update');
 
   await page.getByRole('link', { name: 'Back to organization' }).click();
-  await page.getByRole('link', { exact: true, name: 'Manage users' }).click();
+  await page.getByRole('link', { exact: true, name: 'Manage members' }).click();
   await expect(
     page.getByRole('heading', { level: 1, name: 'Organization members' }),
   ).toBeVisible();
-  const searchUsers = page.getByLabel('Search users');
+  const searchUsers = page.getByLabel('Search members');
   await searchUsers.fill(assignmentScenario.user.email);
   let userRow = page.getByRole('row').filter({
     has: page.getByText(assignmentScenario.user.email, { exact: true }),
@@ -391,7 +391,7 @@ Return to the organization, choose **Manage templates**, find the reusable templ
     body: `
 ## Assign and remove an organization role
 
-Return to the organization and choose **Manage users**. Search by the existing member's email, then select **Manage roles** on that row. Open **Assigned roles**, choose the role, enter an **Operational reason**, and select **Save roles**. The assignment affects only this organization.
+Return to the organization and choose **Manage members**. Search by the existing member's email, then select **Manage roles** on that row. Open **Assigned roles**, choose the role, enter a **Reason for this change**, and select **Save roles**. The assignment affects only this organization.
 `,
   });
   await userRow.getByRole('button', { name: 'Manage roles' }).click();
@@ -404,22 +404,22 @@ Return to the organization and choose **Manage users**. Search by the existing m
   await expect(assignmentOption).toHaveAttribute('aria-selected', 'false');
   await assignmentOption.click();
   await page.keyboard.press('Escape');
-  await page.getByLabel('Operational reason').fill(roleAssignmentReason);
+  await page.getByLabel('Reason for this change').fill(roleAssignmentReason);
   await takeScreenshot(
     testInfo,
     page.locator('app-platform-tenant-users form'),
     page,
-    'Assign an organization role with an operational reason',
+    'Assign an organization role with a reason',
   );
   await page.getByRole('button', { name: 'Save roles' }).click();
-  await expect(page.getByText('User roles updated')).toBeVisible();
+  await expect(page.getByText('Member roles updated')).toBeVisible();
   await expect
     .poll(assignmentScenario.readAssignedRoleIds)
     .toEqual([assignmentScenario.role.id]);
   await expectPersistedAudit(roleAssignmentReason, 'user.assignRoles');
 
   await page.reload();
-  await page.getByLabel('Search users').fill(assignmentScenario.user.email);
+  await page.getByLabel('Search members').fill(assignmentScenario.user.email);
   userRow = page.getByRole('row').filter({
     has: page.getByText(assignmentScenario.user.email, { exact: true }),
   });
@@ -429,7 +429,7 @@ Return to the organization and choose **Manage users**. Search by the existing m
 
   await testInfo.attach('markdown', {
     body: `
-To remove that role, select **Manage roles** again, deselect it in **Assigned roles**, enter a new operational reason, and save. Removing every role is allowed for this target member; it does not delete the member or the role definition.
+To remove that role, select **Manage roles** again, deselect it in **Assigned roles**, enter a new reason, and save. Removing every role is allowed for this target member; it does not delete the member or the role definition.
 `,
   });
   await userRow.getByRole('button', { name: 'Manage roles' }).click();
@@ -442,9 +442,9 @@ To remove that role, select **Manage roles** again, deselect it in **Assigned ro
   await expect(assignmentOption).toHaveAttribute('aria-selected', 'true');
   await assignmentOption.click();
   await page.keyboard.press('Escape');
-  await page.getByLabel('Operational reason').fill(roleRemovalReason);
+  await page.getByLabel('Reason for this change').fill(roleRemovalReason);
   await page.getByRole('button', { name: 'Save roles' }).click();
-  await expect(page.getByText('User roles updated')).toBeVisible();
+  await expect(page.getByText('Member roles updated')).toBeVisible();
   await expect.poll(assignmentScenario.readAssignedRoleIds).toEqual([]);
   await expectPersistedAudit(roleRemovalReason, 'user.assignRoles');
 
@@ -626,7 +626,15 @@ For a confirmed registration inside the check-in window, enter the number of gue
   const eventAuditEntry = page
     .getByRole('article')
     .filter({ has: page.getByText(eventReason, { exact: true }) });
-  await eventAuditEntry.getByText('Review before and after').click();
+  await expect(
+    eventAuditEntry.getByRole('heading', { name: 'Changes', exact: true }),
+  ).toBeVisible();
+  await expect(
+    eventAuditEntry.getByRole('columnheader', {
+      name: 'Changed item',
+      exact: true,
+    }),
+  ).toBeVisible();
   await expect(eventAuditEntry).toContainText(draftEvent.title);
   await expect(eventAuditEntry).toContainText(editedEventTitle);
 
@@ -634,7 +642,7 @@ For a confirmed registration inside the check-in window, enter the number of gue
     body: `
 ## Verify the audit trail
 
-Return to **Platform administration** and select **Platform audit log**. Find each operation by its reason. Verify the action label and organization, then open **Review before and after** to compare the changes. The log includes the event and template edits, role changes, receipt rejection, and registration check-in reviewed in this guide.
+Return to **Platform administration** and select **Platform audit log**. Find each operation by its reason. Verify the action label and organization, then compare the recorded values in the visible **Changes** table. Select **Load older** to review earlier entries. The log includes the event and template edits, role changes, receipt rejection, and registration check-in reviewed in this guide.
 
 Participant profiles and home pages, joining or leaving an organization, personal receipt submission, and self-service registration transfer remain participant-owned. A platform administrator does not act as an organization member for those flows.
 `,
