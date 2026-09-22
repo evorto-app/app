@@ -184,7 +184,7 @@ test.describe('Template Tax Rate Validation', () => {
         throw new Error('Expected another usable seeded tax rate');
       const replacementLabel = `${replacement.displayName || 'Tax rate name unavailable'} — ${replacement.percentage}%`;
       // The saved selection is visible in SSR before its keyboard listener is
-      // hydrated. Pressing Enter then can target a control hydration replaces.
+      // hydrated. Enter can target a control that hydration replaces.
       await expect(taxRateSelect).not.toHaveAttribute('jsaction', /keydown/);
       await taxRateSelect.press('Enter');
       await expect(taxRateSelect).toHaveAttribute('aria-expanded', 'true');
