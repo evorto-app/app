@@ -388,7 +388,7 @@ describe('PlatformEventCreateComponent', () => {
       activeRead.finish();
       await vi.waitFor(async () => {
         await fixture.whenStable();
-        expect(button.disabled).toBe(false);
+        expect(button.disabled).toBe(true);
         expect(
           TestBed.inject(NotificationService).showError,
         ).toHaveBeenCalledExactlyOnceWith(
@@ -410,7 +410,7 @@ describe('PlatformEventCreateComponent', () => {
         ]);
         await vi.waitFor(async () => {
           await fixture.whenStable();
-          expect(button.disabled).toBe(false);
+          expect(button.disabled).toBe(true);
         });
       } finally {
         unsubscribeFailed();
@@ -425,7 +425,7 @@ describe('PlatformEventCreateComponent', () => {
       const navigate = vi.mocked(TestBed.inject(Router).navigate);
       if (outcome === 'cancelled') navigate.mockResolvedValueOnce(false);
       else navigate.mockRejectedValueOnce(new Error('Navigation unavailable'));
-      const { form, title } = await renderForCreate();
+      const { button, fixture, form, title } = await renderForCreate();
       form.dispatchEvent(
         new Event('submit', { bubbles: true, cancelable: true }),
       );
@@ -436,6 +436,12 @@ describe('PlatformEventCreateComponent', () => {
           'The event was created, but its page could not be opened. Open it from the event list before making further changes.',
         ),
       );
+      await fixture.whenStable();
+      expect(button.disabled).toBe(true);
+      form.dispatchEvent(
+        new Event('submit', { bubbles: true, cancelable: true }),
+      );
+      await fixture.whenStable();
       expectSubmittedOnce();
       expect(navigate).toHaveBeenCalledExactlyOnceWith([
         '/global-admin/tenants',

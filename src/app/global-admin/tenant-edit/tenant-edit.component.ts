@@ -4,6 +4,7 @@ import { DOCUMENT } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
+  computed,
   DestroyRef,
   inject,
   input,
@@ -39,7 +40,10 @@ import { Schema } from 'effect';
 
 import { supportedTenantCurrencies } from '../../../types/custom/tenant';
 import { AppRpc } from '../../core/effect-rpc-angular-client';
-import { tenantTimezoneOptions } from '../../core/geography-labels';
+import {
+  tenantTimezoneLabel,
+  tenantTimezoneOptions,
+} from '../../core/geography-labels';
 import { NotificationService } from '../../core/notification.service';
 import {
   globalAdminTenantDomainValidationMessage,
@@ -98,7 +102,15 @@ export class TenantEditComponent {
     );
   });
   protected readonly tenantSubmitDisabled = globalAdminTenantSubmitDisabled;
-  protected readonly timezoneOptions = tenantTimezoneOptions;
+  protected readonly timezoneOptions = computed(() => {
+    const timezone = this.tenantModel().timezone;
+    return tenantTimezoneOptions.some((option) => option.value === timezone)
+      ? tenantTimezoneOptions
+      : [
+          ...tenantTimezoneOptions,
+          { label: tenantTimezoneLabel(timezone), value: timezone },
+        ];
+  });
   protected readonly settingsConflict = linkedSignal({
     computation: () => false,
     source: this.tenantId,

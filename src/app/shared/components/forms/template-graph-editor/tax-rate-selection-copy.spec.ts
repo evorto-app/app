@@ -47,6 +47,12 @@ import {
   createRegistrationOptionFormModel,
   registrationOptionFormSchema,
 } from '../registration-option-form/registration-option-form.schema';
+import { TemplateAddonEditorComponent } from './template-addon-editor.component';
+import {
+  createTemplateGraphAddonFormModel,
+  createTemplateGraphRegistrationOptionFormModel,
+} from './template-graph-form.model';
+import { TemplateRegistrationOptionEditorComponent } from './template-registration-option-editor.component';
 
 const readSource = (sourcePath: string): string =>
   readFileSync(nodePath.join(process.cwd(), sourcePath), 'utf8');
@@ -119,12 +125,18 @@ describe('tax-rate selection copy', () => {
 });
 
 type TaxSelectorSurface =
-  'event-addon' | 'event-registration' | 'shared-registration';
+  | 'event-addon'
+  | 'event-registration'
+  | 'shared-registration'
+  | 'template-addon'
+  | 'template-registration';
 
 const renderedTaxSelectorSurfaces: readonly TaxSelectorSurface[] = [
   'event-addon',
   'event-registration',
   'shared-registration',
+  'template-addon',
+  'template-registration',
 ];
 
 const taxSelectorGraphModel = (): EventGraphFormModel => {
@@ -158,6 +170,8 @@ const taxSelectorGraphModel = (): EventGraphFormModel => {
     EventAddonEditor,
     EventRegistrationOptionEditor,
     RegistrationOptionForm,
+    TemplateAddonEditorComponent,
+    TemplateRegistrationOptionEditorComponent,
   ],
   selector: 'app-tax-selector-test-host',
   template: `
@@ -181,6 +195,28 @@ const taxSelectorGraphModel = (): EventGraphFormModel => {
             [optionForm]="option"
             currencyCode="EUR"
             [esnEnabled]="false"
+          />
+        }
+      }
+      @case ('template-addon') {
+        @for (addOn of templateForm.addOns; track addOn) {
+          <app-template-addon-editor
+            [taxRates]="availableTaxRates() ?? []"
+            [taxRateState]="taxRateState()"
+            [addOnForm]="addOn"
+            currencyCode="EUR"
+            [optionChoices]="[]"
+          />
+        }
+      }
+      @case ('template-registration') {
+        @for (option of templateForm.registrationOptions; track option) {
+          <app-template-registration-option-editor
+            [taxRates]="availableTaxRates() ?? []"
+            [taxRateState]="taxRateState()"
+            [optionForm]="option"
+            currencyCode="EUR"
+            [simpleMode]="true"
           />
         }
       }
@@ -226,6 +262,29 @@ class TaxSelectorTestHost {
     }),
   );
   readonly sharedForm = form(this.sharedModel, registrationOptionFormSchema);
+  readonly templateModel = signal({
+    addOns: [
+      {
+        ...createTemplateGraphAddonFormModel(),
+        isPaid: true,
+        price: 100,
+        stripeTaxRateId: 'txr-standard',
+      },
+    ],
+    registrationOptions: [
+      {
+        ...createTemplateGraphRegistrationOptionFormModel(
+          'Paid choice',
+          20,
+          false,
+        ),
+        isPaid: true,
+        price: 100,
+        stripeTaxRateId: 'txr-standard',
+      },
+    ],
+  });
+  readonly templateForm = form(this.templateModel);
 
   selectedTaxRate(): null | string | undefined {
     switch (this.surface()) {
@@ -237,6 +296,12 @@ class TaxSelectorTestHost {
       }
       case 'shared-registration': {
         return this.sharedModel().stripeTaxRateId;
+      }
+      case 'template-addon': {
+        return this.templateModel().addOns[0]?.stripeTaxRateId;
+      }
+      case 'template-registration': {
+        return this.templateModel().registrationOptions[0]?.stripeTaxRateId;
       }
     }
   }
@@ -464,7 +529,11 @@ describe('rendered tax-rate selector recovery', () => {
       const loader = TestbedHarnessEnvironment.loader(fixture);
       const select = await manualChangeDetection(async () => {
         const field = await loader.getHarness(
-          MatFormFieldHarness.with({ floatingLabelText: 'Tax rate' }),
+          MatFormFieldHarness.with({
+            floatingLabelText: surface.startsWith('template-')
+              ? 'Tax included in the shown price'
+              : 'Tax rate',
+          }),
         );
         const control = await field.getControl(MatSelectHarness);
         if (!control) throw new Error('Expected the actual tax-rate MatSelect');
@@ -507,7 +576,14 @@ describe('rendered tax-rate selector recovery', () => {
         { reason: readError, status: 'rejected' },
       ]);
       await waitForQuery('error');
-      await expectPanelMessage(select, 'Tax rates are unavailable');
+      await expectPanelMessage(
+        select,
+        surface === 'template-addon'
+          ? 'Tax rates could not be loaded'
+          : surface === 'template-registration'
+            ? 'Failed to load tax rates'
+            : 'Tax rates are unavailable',
+      );
       expect(fixture.componentInstance.selectedTaxRate()).toBe('txr-reduced');
 
       readRates.mockResolvedValueOnce([]);

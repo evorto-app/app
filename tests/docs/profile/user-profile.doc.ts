@@ -280,6 +280,7 @@ You can use a different address for updates than for signing in. Optional IBAN a
       .locator('article')
       .filter({ hasText: profileEventCards.confirmed.addOnTitle });
     await expect(documentedEventCard).toBeVisible();
+    await expect(documentedEventCard).toContainText('1 included, 2 added');
     await expect(
       documentedEventCard.getByText(profileEventCards.confirmed.eventTitle),
     ).toBeVisible();
@@ -291,7 +292,7 @@ You can use a different address for updates than for signing in. Optional IBAN a
     ).toBeVisible();
     await expect(
       documentedEventCard.getByText(
-        `2 x ${profileEventCards.confirmed.addOnTitle}`,
+        `3 x ${profileEventCards.confirmed.addOnTitle}`,
       ),
     ).toBeVisible();
     await expect(
@@ -409,7 +410,7 @@ You can use a different address for updates than for signing in. Optional IBAN a
     expect(confirmedAddonPurchase).toEqual(
       expect.objectContaining({
         addonId: profileEventCards.confirmed.addonId,
-        quantity: 2,
+        quantity: 3,
       }),
     );
 

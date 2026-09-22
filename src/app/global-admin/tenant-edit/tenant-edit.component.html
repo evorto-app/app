@@ -110,7 +110,7 @@
           <mat-form-field>
             <mat-label>Time zone</mat-label>
             <mat-select [formField]="tenantForm.timezone">
-              @for (timezone of timezoneOptions; track timezone.value) {
+              @for (timezone of timezoneOptions(); track timezone.value) {
                 <mat-option [value]="timezone.value">
                   {{ timezone.label }}
                 </mat-option>

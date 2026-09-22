@@ -113,7 +113,10 @@ const validateSubmittedIds = (
     );
   }
   if (!existingIds && presentIds.length > 0) {
-    return invalidGraph(templateChangedMessage, 'unexpectedTemplateGraphId');
+    return invalidGraph(
+      'A new template contains entries from an existing template. Nothing was saved. Start a new template and add its sign-up choices, add-ons, and questions again.',
+      'unexpectedTemplateGraphId',
+    );
   }
   if (existingIds && presentIds.some((id) => !existingIds.has(id))) {
     return invalidGraph(templateChangedMessage, 'templateGraphIdMismatch');

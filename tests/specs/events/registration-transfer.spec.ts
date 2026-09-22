@@ -332,6 +332,21 @@ test('offers a paid registration privately while rejecting a source self-claim',
     throw new Error('Expected paid-transfer tenant payment account');
   }
   const stripeAccountId = originalTenant.stripeAccountId;
+  const taxRate = await database.query.tenantStripeTaxRates.findFirst({
+    columns: { stripeTaxRateId: true },
+    where: {
+      active: true,
+      inclusive: true,
+      percentage: '0',
+      stripeAccountId,
+      tenantId: tenant.id,
+    },
+  });
+  if (!taxRate) {
+    throw new Error(
+      'Expected a current zero-percent inclusive tax rate for the paid transfer scenario',
+    );
+  }
 
   registerDatabaseCleanup(async (database) => {
     await database
@@ -423,6 +438,7 @@ test('offers a paid registration privately while rejecting a source self-claim',
     registrationMode: 'fcfs',
     roleIds: [],
     spots: 10,
+    stripeTaxRateId: taxRate.stripeTaxRateId,
     title: 'Paid participant',
     transferDeadlineHoursBeforeStart: 0,
   });

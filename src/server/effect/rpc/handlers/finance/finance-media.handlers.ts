@@ -54,6 +54,24 @@ const finalizedUpload = (upload: {
   uploadId: upload.id,
 });
 
+const verifiedFinalizedUpload = Effect.fn(
+  'financeMedia.verifiedFinalizedUpload',
+)(function* (
+  upload: Parameters<typeof finalizedUpload>[0] & { storageKey: string },
+) {
+  const receiptMedia = yield* ReceiptMediaService;
+  const exists = yield* receiptMedia.objectExists({
+    storageKey: upload.storageKey,
+  });
+  if (!exists) {
+    return yield* new RpcBadRequestError({
+      message: 'This receipt file is no longer available. Add the file again.',
+      reason: 'receipt_upload_unavailable',
+    });
+  }
+  return finalizedUpload(upload);
+});
+
 export const financeMediaHandlers = {
   'finance.receiptMedia.createUpload': (input, _options) =>
     Effect.gen(function* () {
@@ -215,7 +233,7 @@ export const financeMediaHandlers = {
         );
       }
       if (upload.status === 'ready') {
-        return finalizedUpload(upload);
+        return yield* verifiedFinalizedUpload(upload);
       }
       if (upload.status !== 'pending') {
         return yield* Effect.fail(
@@ -287,7 +305,7 @@ export const financeMediaHandlers = {
       if (!claimed) {
         const concurrent = yield* loadUpload;
         if (concurrent?.status === 'ready') {
-          return finalizedUpload(concurrent);
+          return yield* verifiedFinalizedUpload(concurrent);
         }
         return yield* Effect.fail(
           new RpcBadRequestError({

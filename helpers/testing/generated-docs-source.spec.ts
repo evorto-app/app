@@ -2496,7 +2496,7 @@ describe('generated docs source current behavior', () => {
       'Organizers check in attendees from the dedicated QR scanner.',
     );
     expect(source).toContain(
-      'The **Ticket scanned** page shows the attendee, event, sign-up choice, ESNcard discount marker when applicable, guest check-in progress when guests are attached to the sign-up, and warnings for self-scan, future events, non-confirmed tickets, and already checked-in tickets.',
+      'The **Ticket scanned** page shows the attendee, event, sign-up choice, ESNcard discount marker when applicable, guest check-in progress when guests are attached to the sign-up, and warnings for self-scan, unavailable check-in, non-confirmed tickets, and already checked-in tickets.',
     );
     expect(source).toContain(
       'The scanner shows **Check-in not open** before that window opens and **Check-in closed** more than two hours after the event ends. Check-in opens one hour before the event starts and closes two hours after it ends.',

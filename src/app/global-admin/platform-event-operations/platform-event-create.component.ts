@@ -173,6 +173,7 @@ export class PlatformEventCreateComponent {
     event.preventDefault();
     if (
       this.createMutation.isPending() ||
+      this.createMutation.isSuccess() ||
       this.createForm().submitting() ||
       !this.optionsQuery.isSuccess()
     ) {

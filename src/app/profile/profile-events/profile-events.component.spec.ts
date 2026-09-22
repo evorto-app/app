@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { normalizeStripeCheckoutUrl } from '../../core/stripe-checkout-url';
 import {
   profileEventActionNote,
+  profileEventAddonIncludedLabel,
   profileEventAddonPaidAmount,
   profileEventAudienceLabel,
   profileEventContinuePaymentUrl,
@@ -318,6 +319,18 @@ describe('profile event labels', () => {
       'at least one refund needs help from the organizer',
     );
     expect(mixedFollowUp).toContain('Contact the organizer for an update.');
+  });
+
+  it('distinguishes included units from extra units without hiding the bundle total', () => {
+    expect(
+      profileEventAddonIncludedLabel({ purchasedQuantity: 2, quantity: 3 }),
+    ).toBe('1 included, 2 added');
+    expect(
+      profileEventAddonIncludedLabel({ purchasedQuantity: 0, quantity: 2 }),
+    ).toBe('2 included');
+    expect(
+      profileEventAddonIncludedLabel({ purchasedQuantity: 2, quantity: 2 }),
+    ).toBeNull();
   });
 
   it('prices only purchased add-on units and leaves included units free', () => {

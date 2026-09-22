@@ -2222,6 +2222,34 @@ describe('EventDetailsComponent review action outcomes', () => {
     },
   );
 
+  it.each(['approve', 'returnToDraft', 'submit', 'discovery'] as const)(
+    'reports the confirmed %s outcome without success when follow-up reads pause offline',
+    async (action) => {
+      const wasOnline = onlineManager.isOnline();
+      try {
+        onlineManager.setOnline(true);
+        await renderAction(action);
+        mutationFor(action).mockImplementationOnce(async () => {
+          onlineManager.setOnline(false);
+          return;
+        });
+        await confirmAction(action);
+        await expectFeedback(confirmedReadFailure(action));
+        expect(
+          queryClient.getQueryState(eventKey('event-1'))?.fetchStatus,
+        ).toBe('paused');
+        expect(loadEvent).toHaveBeenCalledTimes(1);
+        expectSingleMutation(action);
+        expectNoSuccess();
+      } finally {
+        fixture?.destroy();
+        await queryClient.cancelQueries();
+        queryClient.clear();
+        onlineManager.setOnline(wasOnline);
+      }
+    },
+  );
+
   it('preserves the conflict message without claiming fresh details when the real query pauses offline', async () => {
     const originalOnlineState = onlineManager.isOnline();
     let stopObserver: (() => void) | undefined;
@@ -2252,7 +2280,10 @@ describe('EventDetailsComponent review action outcomes', () => {
         throw conflict;
       });
       await confirmAction('approve');
-      await expectFeedback(conflict.message);
+      await expectFeedback(
+        conflict.message +
+          ' Some event information could not be refreshed. Load this event again before making another change.',
+      );
       await vi.waitFor(() => {
         detectChanges();
         expect(observedFetchStatus).toBe('paused');
@@ -2271,11 +2302,14 @@ describe('EventDetailsComponent review action outcomes', () => {
       expect(loadEvent).toHaveBeenCalledTimes(1);
       expectSingleMutation('approve');
       expectNoSuccess();
-      expect(errorNotice).toHaveBeenCalledExactlyOnceWith(conflict.message);
+      expect(errorNotice).toHaveBeenCalledExactlyOnceWith(
+        conflict.message +
+          ' Some event information could not be refreshed. Load this event again before making another change.',
+      );
       expect(rootElement().textContent).not.toContain(
         'The latest event details are now shown.',
       );
-      expect(rootElement().textContent).not.toContain(
+      expect(rootElement().textContent).toContain(
         'Some event information could not be refreshed.',
       );
     } catch (error) {

@@ -1,6 +1,8 @@
 import '@angular/compiler';
 import { Component, input } from '@angular/core';
 import { type ComponentFixture, TestBed } from '@angular/core/testing';
+import { MatSelect } from '@angular/material/select';
+import { By } from '@angular/platform-browser';
 import { provideRouter } from '@angular/router';
 import {
   createRpcQueryFilter,
@@ -1418,6 +1420,145 @@ describe('PlatformEventDetailComponent graph-save outcomes', () => {
           registrationOptions: record.registrationOptions,
         }),
       ]);
+    },
+  );
+
+  const renderedTaxSelects = () =>
+    fixture.debugElement
+      .queryAll(By.css('mat-select'))
+      .filter((binding) => {
+        const element: unknown = binding.nativeElement;
+        return (
+          element instanceof HTMLElement &&
+          element
+            .closest('mat-form-field')
+            ?.querySelector('mat-label')
+            ?.textContent?.trim() === 'Tax rate included in price'
+        );
+      })
+      .map((binding) => binding.injector.get(MatSelect));
+
+  it('explains how to import rates in both empty event tax selectors without clearing selected values', async () => {
+    record = graphSavePaidEventRecord();
+    loadTenant.mockResolvedValue(graphSaveConnectedTenant);
+    loadChoices.mockResolvedValue({
+      ...graphSavePaidFormOptions,
+      taxRates: [],
+    });
+    await render({ waitForSaveReady: false });
+    const selected = entries();
+    const selects = renderedTaxSelects();
+    expect(selects).toHaveLength(2);
+    for (const select of selects) {
+      expect(select.disabled).toBe(false);
+      select.open();
+      fixture.detectChanges();
+      await vi.waitFor(() => {
+        fixture.detectChanges();
+        const guidance = select.options.find(
+          (option) =>
+            option.viewValue.replaceAll(/\s+/g, ' ').trim() ===
+            'No tax rates are available. Ask someone who manages payments to import a tax rate.',
+        );
+        expect(guidance?.disabled).toBe(true);
+        expect(
+          select.options.filter((option) => !option.disabled),
+        ).toHaveLength(0);
+      });
+      select.close();
+      fixture.detectChanges();
+    }
+    expect(selects.map((select) => select.value)).toEqual([
+      'txr_paid',
+      'txr_paid',
+    ]);
+    expect(button('Save draft details').disabled).toBe(true);
+    invokeSave();
+    expect(updateEvent).not.toHaveBeenCalled();
+    expect(entries()).toBe(selected);
+  });
+
+  it.each(['success', 'error'] as const)(
+    'disables cached event tax selectors throughout a refresh ending in %s and preserves selected zero-rate recovery',
+    async (outcome) => {
+      record = graphSavePaidEventRecord();
+      loadTenant.mockResolvedValue(graphSaveConnectedTenant);
+      loadChoices.mockResolvedValue(graphSavePaidFormOptions);
+      await render();
+      const selected = entries();
+      const selects = renderedTaxSelects();
+      expect(selects).toHaveLength(2);
+      const refreshed = heldGraphSaveResult<typeof graphSavePaidFormOptions>();
+      loadChoices.mockImplementationOnce(async () => {
+        const rates = await refreshed.promise;
+        if (outcome === 'error') throw new Error('Private tax catalog failure');
+        return rates;
+      });
+      const refetch = queryClient.refetchQueries({
+        exact: true,
+        queryKey: graphSaveChoicesKey,
+      });
+      const zeroRates = {
+        ...graphSavePaidFormOptions,
+        taxRates: graphSavePaidFormOptions.taxRates.map((rate) => ({
+          ...rate,
+          percentage: '0',
+        })),
+      };
+      await runGraphSaveScenario(async () => {
+        await vi.waitFor(() => {
+          fixture.detectChanges();
+          expect(
+            queryClient.getQueryState(graphSaveChoicesKey)?.fetchStatus,
+          ).toBe('fetching');
+          expect(selects.every((select) => select.disabled)).toBe(true);
+          expect(button('Save draft details').disabled).toBe(true);
+        });
+        for (const select of selects) {
+          select.open();
+          expect(select.panelOpen).toBe(false);
+        }
+        expect(selects.map((select) => select.value)).toEqual([
+          'txr_paid',
+          'txr_paid',
+        ]);
+        expect(entries()).toBe(selected);
+        invokeSave();
+        expect(updateEvent).not.toHaveBeenCalled();
+        refreshed.resolve(zeroRates);
+        await refetch;
+        await vi.waitFor(() => {
+          fixture.detectChanges();
+          expect(queryClient.getQueryState(graphSaveChoicesKey)?.status).toBe(
+            outcome,
+          );
+          expect(selects.every((select) => select.disabled)).toBe(
+            outcome === 'error',
+          );
+        });
+        if (outcome === 'error') {
+          expect(button('Save draft details').disabled).toBe(true);
+          invokeSave();
+          expect(updateEvent).not.toHaveBeenCalled();
+          loadChoices.mockResolvedValue(zeroRates);
+          await queryClient.refetchQueries({
+            exact: true,
+            queryKey: graphSaveChoicesKey,
+          });
+        }
+        await vi.waitFor(() => {
+          fixture.detectChanges();
+          expect(selects.every((select) => !select.disabled)).toBe(true);
+          expect(button('Save draft details').disabled).toBe(false);
+        });
+        expect(selects.map((select) => select.value)).toEqual([
+          'txr_paid',
+          'txr_paid',
+        ]);
+        expect(entries()).toBe(selected);
+        invokeSave();
+        await vi.waitFor(() => expect(updateEvent).toHaveBeenCalledOnce());
+      }, [() => refreshed.resolve(zeroRates), () => refetch, drainSave]);
     },
   );
 

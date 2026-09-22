@@ -25,16 +25,16 @@ describe('registrationCancellationKind', () => {
 
 it('gives every cancellation kind a specific recovery message', () => {
   expect(registrationCancellationFailureMessage('application')).toContain(
-    'application could not be withdrawn',
+    'whether the application was withdrawn',
   );
   expect(registrationCancellationFailureMessage('pendingSignUp')).toContain(
-    'pending sign-up could not be cancelled',
+    'whether the pending sign-up was cancelled',
   );
   expect(registrationCancellationFailureMessage('ticket')).toContain(
-    'ticket could not be cancelled',
+    'whether the ticket was cancelled',
   );
   expect(registrationCancellationFailureMessage('waitlist')).toContain(
-    'waitlist place could not be removed',
+    'whether the waitlist place was removed',
   );
 });
 

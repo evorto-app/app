@@ -129,7 +129,8 @@ export class TemplateCreateComponent {
       !this.paidGraphBlocked() &&
       !this.templateForm().invalid() &&
       !this.templateForm().submitting() &&
-      !this.createTemplateMutation.isPending(),
+      !this.createTemplateMutation.isPending() &&
+      !this.createTemplateMutation.isSuccess(),
   );
   protected readonly categoryId = input<string>();
   protected readonly createErrorMessage = computed(() =>

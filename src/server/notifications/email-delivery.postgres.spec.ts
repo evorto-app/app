@@ -509,6 +509,99 @@ describe('email outbox single-dispatch state transitions', () => {
       }),
   );
 
+  it.effect(
+    'settles HTTP 408 as unknown and never dispatches that email again',
+    () =>
+      Effect.gen(function* () {
+        const { baseEmail, database, emailIds, tenantId } =
+          yield* acquireOutboxFixture();
+        const existingCandidates = yield* Effect.promise(() =>
+          database
+            .select({ id: emailOutbox.id })
+            .from(emailOutbox)
+            .where(
+              or(
+                emailOutboxDispatchablePredicate(),
+                emailOutboxAbandonedSendingPredicate(),
+              ),
+            ),
+        );
+        expect(
+          existingCandidates,
+          'Single-dispatch PostgreSQL proof requires an idle, isolated outbox',
+        ).toEqual([]);
+        yield* Effect.promise(() =>
+          database.insert(emailOutbox).values({
+            ...baseEmail,
+            id: emailIds.queued,
+            idempotencyKey: `http408/${tenantId}/${emailIds.queued}`,
+          }),
+        );
+        const fetchMock = yield* Effect.acquireRelease(
+          Effect.sync(() =>
+            vi
+              .spyOn(globalThis, 'fetch')
+              .mockImplementation(
+                async () => new Response('{}', { status: 408 }),
+              ),
+          ),
+          (mock) => Effect.sync(() => mock.mockRestore()),
+        );
+        const deliveryLayer = EmailDelivery.Default.pipe(
+          Layer.provide(
+            ConfigProvider.layer(
+              ConfigProvider.fromEnv({
+                env: {
+                  APP_ENVIRONMENT: 'local',
+                  EMAIL_DELIVERY_PROVIDER: 'tem',
+                  TEM_API_TOKEN: 'synthetic-http408-token',
+                  TEM_PROJECT_ID: 'synthetic-http408-project',
+                },
+              }),
+            ),
+          ),
+        );
+        const dispatch = processDueEmailOutbox(10).pipe(
+          Effect.provide(makeDatabaseServiceLayer(databaseUrl)),
+          Effect.provide(deliveryLayer),
+        );
+        expect(yield* dispatch).toBe(1);
+        expect(fetchMock).toHaveBeenCalledOnce();
+        const [input, init] = fetchMock.mock.calls[0] ?? [];
+        expect(String(input)).toBe(
+          'https://api.scaleway.com/transactional-email/v1alpha1/regions/fr-par/emails',
+        );
+        expect(init?.method).toBe('POST');
+        expect(JSON.parse(String(init?.body))).toMatchObject({
+          to: [{ email: baseEmail.toEmail }],
+        });
+        const readRow = () =>
+          database
+            .select()
+            .from(emailOutbox)
+            .where(eq(emailOutbox.id, emailIds.queued));
+        const settled = yield* Effect.promise(readRow);
+        expect(settled).toEqual([
+          expect.objectContaining({
+            attempts: 1,
+            claimLeaseExpiresAt: null,
+            claimLeaseId: null,
+            deliveryUnknownAt: expect.any(Date),
+            id: emailIds.queued,
+            lastAttemptAt: expect.any(Date),
+            lastError: unknownMessage,
+            provider: 'tem',
+            providerMessageId: null,
+            sentAt: null,
+            status: 'deliveryUnknown',
+          }),
+        ]);
+        expect(yield* dispatch).toBe(0);
+        expect(fetchMock).toHaveBeenCalledOnce();
+        expect(yield* Effect.promise(readRow)).toEqual(settled);
+      }),
+  );
+
   it.effect('rejects requeueing an already attempted row', () =>
     Effect.gen(function* () {
       const { baseEmail, database, emailIds, tenantId } =

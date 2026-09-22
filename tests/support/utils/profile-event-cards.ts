@@ -385,6 +385,7 @@ export const seedProfileEventCards = async ({
         ]);
         await seedFreeRegistrationAddon({
           addonId: confirmedAddonId,
+          includedQuantity: 1,
           database: transaction,
           eventId: confirmedEventId,
           registrationOptionId: confirmedEventOptionId,
@@ -456,8 +457,9 @@ export const seedProfileEventCards = async ({
               addonId: confirmedAddonId,
               eventId: confirmedEventId,
               id: confirmedAddonPurchaseId,
+              includedQuantity: 1,
               purchasedQuantity: 2,
-              quantity: 2,
+              quantity: 3,
               registrationId: confirmedRegistrationId,
               registrationOptionId: confirmedEventOptionId,
               tenantId: seeded.tenant.id,

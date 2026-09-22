@@ -163,6 +163,7 @@
             type="submit"
             mat-button
             [disabled]="
+              createEventMutation.isSuccess() ||
               templateCreateEventSubmitDisabled({
                 discountProvidersReady: discountProvidersReady(),
                 paidGraphBlocked: paidGraphBlocked(),

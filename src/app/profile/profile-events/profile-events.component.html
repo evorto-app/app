@@ -55,6 +55,12 @@
                           {{ addOnPurchase.quantity }} x
                           {{ addOnPurchase.title }}
                           @if (
+                            profileEventAddonIncludedLabel(addOnPurchase);
+                            as includedLabel
+                          ) {
+                            ({{ includedLabel }})
+                          }
+                          @if (
                             profileEventAddonPaidAmount(addOnPurchase);
                             as paidAmount
                           ) {

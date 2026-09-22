@@ -2393,6 +2393,7 @@ const createManualApprovalDatabase = ({
   lockedEventStatus = 'APPROVED',
   lockedOptionRoleIds = ['role-1'],
   lockedStripeAccountId = 'acct_123',
+  notificationTenantAvailable = true,
   operationOrder = [],
   persistCommittedEmail = true,
   registration = paidManualApprovalRegistration,
@@ -2409,6 +2410,7 @@ const createManualApprovalDatabase = ({
   lockedEventStatus?: 'APPROVED' | 'DRAFT' | 'PENDING_REVIEW';
   lockedOptionRoleIds?: readonly string[];
   lockedStripeAccountId?: null | string;
+  notificationTenantAvailable?: boolean;
   operationOrder?: string[];
   persistCommittedEmail?: boolean;
   registration?: ManualApprovalRegistrationFixture;
@@ -2418,6 +2420,7 @@ const createManualApprovalDatabase = ({
   Effect.gen(function* () {
     let bindingUpdateCount = 0;
     let tenantSettingsReadCount = 0;
+    let tenantLockObserved = false;
     let acquisitionComponentInsertValues:
       | readonly Pick<
           typeof registrationAcquisitionComponents.$inferSelect,
@@ -2473,6 +2476,23 @@ const createManualApprovalDatabase = ({
     const databaseLayer = createRegistrationDatabaseTestLayer({
       executeValues: (statement, parameters) =>
         Effect.sync(() => {
+          if (
+            statement ===
+            'select "id" from "tenants" where "tenants"."id" = $1 for update'
+          )
+            tenantLockObserved = true;
+          if (
+            statement.startsWith(
+              'select "email_sender_email", "email_sender_name", "id", "name", "timezone" from "tenants"',
+            )
+          ) {
+            expect(transactionOpen).toBe(true);
+            expect(tenantLockObserved).toBe(true);
+            expect(parameters).toEqual(['tenant-1']);
+            return notificationTenantAvailable
+              ? [[null, null, 'tenant-1', 'Tenant', 'Europe/Amsterdam']]
+              : [];
+          }
           const questionSetRows = readQuestionSetLockFixture({
             parameters,
             statement,
@@ -3203,22 +3223,6 @@ const createDirectCheckoutDatabase = ({
         ]);
         return registration ? [[registration.status]] : [];
       }
-      if (
-        statement.startsWith(
-          'select "d0"."eventId" as "eventId", "d0"."id" as "id"',
-        )
-      ) {
-        expect(parameters).toEqual([
-          requireRegistration().id,
-          'PENDING',
-          'tenant-1',
-          'user-1',
-          1,
-        ]);
-        return registration?.status === 'PENDING'
-          ? [[registration.eventId, registration.id]]
-          : [];
-      }
       expect(parameters).toEqual([
         'event-1',
         'CANCELLED',
@@ -3913,26 +3917,6 @@ const runDirectCheckout = ({
       id: 'user-1',
       roleIds: ['role-1'],
     },
-  }).pipe(
-    Effect.provide(EventRegistrationService.Default),
-    Effect.provide(Layer.succeed(Database, database)),
-    Effect.provideService(StripeClient, stripe),
-    Effect.provide(configProviderLayer),
-  );
-
-const retryDirectCheckout = ({
-  database,
-  registrationId,
-  stripe,
-}: {
-  database: DatabaseClient;
-  registrationId: string;
-  stripe: Stripe;
-}) =>
-  EventRegistrationService.retryRegistrationCheckout({
-    registrationId,
-    tenantId: 'tenant-1',
-    userId: 'user-1',
   }).pipe(
     Effect.provide(EventRegistrationService.Default),
     Effect.provide(Layer.succeed(Database, database)),
@@ -5308,6 +5292,28 @@ describe('EventRegistrationService', () => {
         expect(approvalDatabase.claimInsertCount()).toBe(0);
         expect(approvalDatabase.reservationUpdateCount()).toBe(0);
         expect(createSession).not.toHaveBeenCalled();
+      }),
+  );
+
+  it.effect(
+    'does not approve or create payment when the locked organization email context is missing',
+    () =>
+      Effect.gen(function* () {
+        const fixture = yield* createManualApprovalDatabase({
+          notificationTenantAvailable: false,
+        });
+        const stripe = createStripeTestClient();
+        const error = yield* runManualApproval({
+          database: fixture.database,
+          stripe,
+        }).pipe(Effect.flip);
+        expect(error).toBeInstanceOf(EventRegistrationInternalError);
+        expect(error.message).toContain(
+          'organization email settings could not be verified',
+        );
+        expect(fixture.claimInsertCount()).toBe(0);
+        expect(fixture.emailInsertCount()).toBe(0);
+        expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
       }),
   );
 
@@ -7428,89 +7434,77 @@ describe('EventRegistrationService', () => {
       }),
   );
 
-  for (const mode of ['direct', 'approval'] as const) {
-    for (const lineCount of [
-      MAX_STRIPE_CHECKOUT_LINE_ITEMS,
-      MAX_STRIPE_CHECKOUT_LINE_ITEMS + 1,
-    ]) {
-      it.effect(
-        `${mode} resume validates ${lineCount} persisted checkout lines before Stripe`,
-        () =>
-          Effect.gen(function* () {
-            const snapshot = {
-              customerEmail: 'stored@example.com',
-              eventTitle: 'Stored event',
-              eventUrl: 'https://tenant.example.com/events/event-1',
-              expiresAt: 1_900_000_000,
-              lineItems: Array.from({ length: lineCount }, (_, index) => ({
-                name: `Stored item ${index}`,
-                quantity: 1,
-                taxRateId: 'txr_19',
-                unitAmount: 1000,
-              })),
-              notificationEmail: 'stored@example.com',
-            };
-            const existingClaim: ManualApprovalClaim = {
-              amount: lineCount * 1000,
-              appFee: 35,
-              currency: 'EUR',
-              id: 'transaction-existing',
-              stripeAccountId: 'acct_123',
-              stripeCheckoutIncidentSessionId: null,
-              stripeCheckoutRequest: snapshot,
-              stripeCheckoutSessionId: null,
-              stripeCheckoutUrl: null,
-              targetUserId: 'user-1',
-            };
-            const fixture =
-              mode === 'direct'
-                ? yield* createDirectCheckoutDatabase({ existingClaim })
-                : yield* createManualApprovalDatabase({ existingClaim });
-            const stripe = createStripeTestClient();
-            const createSession = vi
-              .spyOn(stripe.checkout.sessions, 'create')
-              .mockResolvedValue(
-                checkoutSessionResponse({
-                  id: 'cs_stored',
-                  paymentIntent: null,
-                  url: 'https://checkout.stripe.test/stored',
-                }),
-              );
-            const run =
-              mode === 'direct'
-                ? retryDirectCheckout({
-                    database: fixture.database,
-                    registrationId: 'registration-direct',
-                    stripe,
-                  })
-                : runManualApproval({ database: fixture.database, stripe });
-            if (lineCount > MAX_STRIPE_CHECKOUT_LINE_ITEMS) {
-              const error = yield* run.pipe(Effect.flip);
-              expect(error).toBeInstanceOf(EventRegistrationInternalError);
-              expect(createSession).not.toHaveBeenCalled();
-              expect(fixture.bindingUpdateCount()).toBe(0);
-              expect(fixture.getClaim()?.stripeCheckoutRequest).toEqual(
-                snapshot,
-              );
-            } else {
-              const decoded = yield* decodeRegistrationCheckoutSnapshot(
-                snapshot,
-                'Invalid stored snapshot',
-              );
-              expect(decoded.lineItems).toHaveLength(
-                MAX_STRIPE_CHECKOUT_LINE_ITEMS,
-              );
-              const error = yield* run.pipe(Effect.flip);
-              expect(error).toBeInstanceOf(EventRegistrationConflictError);
-              expect(error.message).toContain('Contact an organizer');
-              expect(createSession).not.toHaveBeenCalled();
-              expect(fixture.bindingUpdateCount()).toBe(0);
-            }
-            expect(fixture.claimInsertCount()).toBe(0);
-            expect(fixture.reservationUpdateCount()).toBe(0);
-          }),
-      );
-    }
+  for (const lineCount of [
+    MAX_STRIPE_CHECKOUT_LINE_ITEMS,
+    MAX_STRIPE_CHECKOUT_LINE_ITEMS + 1,
+  ]) {
+    it.effect(
+      `approval resume validates ${lineCount} persisted checkout lines before Stripe`,
+      () =>
+        Effect.gen(function* () {
+          const snapshot = {
+            customerEmail: 'stored@example.com',
+            eventTitle: 'Stored event',
+            eventUrl: 'https://tenant.example.com/events/event-1',
+            expiresAt: 1_900_000_000,
+            lineItems: Array.from({ length: lineCount }, (_, index) => ({
+              name: `Stored item ${index}`,
+              quantity: 1,
+              taxRateId: 'txr_19',
+              unitAmount: 1000,
+            })),
+            notificationEmail: 'stored@example.com',
+          };
+          const existingClaim: ManualApprovalClaim = {
+            amount: lineCount * 1000,
+            appFee: 35,
+            currency: 'EUR',
+            id: 'transaction-existing',
+            stripeAccountId: 'acct_123',
+            stripeCheckoutIncidentSessionId: null,
+            stripeCheckoutRequest: snapshot,
+            stripeCheckoutSessionId: null,
+            stripeCheckoutUrl: null,
+            targetUserId: 'user-1',
+          };
+          const fixture = yield* createManualApprovalDatabase({
+            existingClaim,
+          });
+          const stripe = createStripeTestClient();
+          const createSession = vi
+            .spyOn(stripe.checkout.sessions, 'create')
+            .mockResolvedValue(
+              checkoutSessionResponse({
+                id: 'cs_stored',
+                paymentIntent: null,
+                url: 'https://checkout.stripe.test/stored',
+              }),
+            );
+          const run = runManualApproval({ database: fixture.database, stripe });
+          if (lineCount > MAX_STRIPE_CHECKOUT_LINE_ITEMS) {
+            const error = yield* run.pipe(Effect.flip);
+            expect(error).toBeInstanceOf(EventRegistrationInternalError);
+            expect(createSession).not.toHaveBeenCalled();
+            expect(fixture.bindingUpdateCount()).toBe(0);
+            expect(fixture.getClaim()?.stripeCheckoutRequest).toEqual(snapshot);
+          } else {
+            const decoded = yield* decodeRegistrationCheckoutSnapshot(
+              snapshot,
+              'Invalid stored snapshot',
+            );
+            expect(decoded.lineItems).toHaveLength(
+              MAX_STRIPE_CHECKOUT_LINE_ITEMS,
+            );
+            const error = yield* run.pipe(Effect.flip);
+            expect(error).toBeInstanceOf(EventRegistrationConflictError);
+            expect(error.message).toContain('Contact an organizer');
+            expect(createSession).not.toHaveBeenCalled();
+            expect(fixture.bindingUpdateCount()).toBe(0);
+          }
+          expect(fixture.claimInsertCount()).toBe(0);
+          expect(fixture.reservationUpdateCount()).toBe(0);
+        }),
+    );
   }
 
   it.effect(
@@ -7781,13 +7775,14 @@ describe('EventRegistrationService', () => {
         expect(firstError).toBeInstanceOf(EventRegistrationInternalError);
         for (const removeRole of [false, true]) {
           if (removeRole) lockedUserRoleIds.length = 0;
-          const retryError = yield* retryDirectCheckout({
+          const retryError = yield* runDirectCheckout({
             database: directDatabase.database,
-            registrationId: directDatabase.getRegistrationId(),
             stripe,
           }).pipe(Effect.flip);
           expect(retryError).toBeInstanceOf(EventRegistrationConflictError);
-          expect(retryError.message).toContain('Contact an organizer');
+          expect(retryError.message).toBe(
+            'You are already signed up for this event.',
+          );
         }
         expect(createSession).toHaveBeenCalledOnce();
         expect(directDatabase.getClaim()).toEqual(
@@ -7802,7 +7797,7 @@ describe('EventRegistrationService', () => {
       }),
   );
 
-  it.effect('reuses a bound direct claim without another provider create', () =>
+  it.effect('rejects repeat sign-up after a direct Checkout is bound', () =>
     Effect.gen(function* () {
       const directDatabase = yield* createDirectCheckoutDatabase();
       const stripe = createStripeTestClient();
@@ -7817,23 +7812,16 @@ describe('EventRegistrationService', () => {
           ),
         );
       yield* runDirectCheckout({ database: directDatabase.database, stripe });
-      yield* retryDirectCheckout({
+      const repeatError = yield* runDirectCheckout({
         database: directDatabase.database,
-        registrationId: directDatabase.getRegistrationId(),
-        stripe,
-      });
-      expect(createSession).toHaveBeenCalledOnce();
-      expect(directDatabase.bindingUpdateCount()).toBe(1);
-      const claim = directDatabase.getClaim();
-      if (!claim) throw new Error('Expected a persisted checkout claim');
-      claim.stripeCheckoutUrl = 'https://checkout.stripe.com/c/pay/cs_other';
-      const mismatch = yield* retryDirectCheckout({
-        database: directDatabase.database,
-        registrationId: directDatabase.getRegistrationId(),
         stripe,
       }).pipe(Effect.flip);
-      expect(mismatch).toBeInstanceOf(EventRegistrationInternalError);
+      expect(repeatError).toBeInstanceOf(EventRegistrationConflictError);
+      expect(repeatError.message).toBe(
+        'You are already signed up for this event.',
+      );
       expect(createSession).toHaveBeenCalledOnce();
+      expect(directDatabase.bindingUpdateCount()).toBe(1);
     }),
   );
 
@@ -7862,12 +7850,13 @@ describe('EventRegistrationService', () => {
           database: directDatabase.database,
           stripe,
         }).pipe(Effect.flip);
-        const retryError = yield* retryDirectCheckout({
+        const retryError = yield* runDirectCheckout({
           database: directDatabase.database,
-          registrationId: directDatabase.getRegistrationId(),
           stripe,
         }).pipe(Effect.flip);
-        expect(retryError.message).toContain('Contact an organizer');
+        expect(retryError.message).toBe(
+          'You are already signed up for this event.',
+        );
         expect(createSession).toHaveBeenCalledOnce();
         expect(directDatabase.getClaim()).toEqual(
           expect.objectContaining({

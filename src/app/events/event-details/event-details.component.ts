@@ -819,13 +819,15 @@ export class EventDetailsComponent {
       this.queryClient
         .getQueryCache()
         .findAll(filter)
-        .map(
-          (query) => () =>
-            this.queryClient.invalidateQueries(
-              { ...filter, exact: true, queryKey: query.queryKey },
-              { throwOnError: true },
-            ),
-        ),
+        .map((query) => async () => {
+          await this.queryClient.invalidateQueries(
+            { ...filter, exact: true, queryKey: query.queryKey },
+            { throwOnError: true },
+          );
+          if (query.isActive() && query.state.fetchStatus !== 'idle') {
+            throw new Error('An event follow-up read did not complete.');
+          }
+        }),
     );
     const results = await Promise.allSettled(reads.map(async (read) => read()));
     const failures: unknown[] = results

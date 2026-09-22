@@ -27,6 +27,7 @@ import {
   RpcRequestContextMiddleware,
   type RpcRequestContextShape,
 } from '../../shared/rpc-contracts/app-rpcs';
+import { TENANT_FORMATTING_LOCALE } from '../../types/custom/tenant';
 import { databaseLayer } from '../database.layer';
 import { createNodePgPoolConfig } from '../pg-connection-config';
 import { relations } from '../relations';
@@ -421,9 +422,6 @@ const makeServiceLayer = (url: string, stripe: Stripe) => {
 type ApprovalInput = Parameters<
   typeof EventRegistrationService.approveManualRegistration
 >[0];
-type RegistrationCheckoutRetryInput = Parameters<
-  typeof EventRegistrationService.retryRegistrationCheckout
->[0];
 type RegistrationInput = Parameters<
   typeof EventRegistrationService.registerForEvent
 >[0];
@@ -449,21 +447,6 @@ const runRegistration = (
 ) =>
   Effect.runPromise(
     EventRegistrationService.registerForEvent(input).pipe(
-      Effect.match({
-        onFailure: (error) => ({ error, status: 'failure' as const }),
-        onSuccess: () => ({ status: 'success' as const }),
-      }),
-      Effect.provide(EventRegistrationService.Default),
-      Effect.provide(serviceLayer),
-    ),
-  );
-
-const runRegistrationCheckoutRetry = (
-  input: RegistrationCheckoutRetryInput,
-  serviceLayer: ReturnType<typeof makeServiceLayer>,
-) =>
-  Effect.runPromise(
-    EventRegistrationService.retryRegistrationCheckout(input).pipe(
       Effect.match({
         onFailure: (error) => ({ error, status: 'failure' as const }),
         onSuccess: () => ({ status: 'success' as const }),
@@ -1694,6 +1677,59 @@ describe('paid manual approval concurrency', () => {
     expect(checkoutForm.get('line_items[1][quantity]')).toBeNull();
   }, 30_000);
 
+  it('snapshots approval email settings after a concurrent tenant update commits', async () => {
+    const fixture = await seedFixture(database);
+    fixtures.push(fixture);
+    const stripeHttp = new IdempotentStripeHttpClient();
+    const stripe = new StripeClientLibrary('sk_test_concurrency', {
+      httpClient: stripeHttp,
+      maxNetworkRetries: 0,
+    });
+    const serviceLayer = makeServiceLayer(databaseUrl, stripe);
+    const tenantLock = await withRowLock(pool, async (client) => {
+      await client.query(
+        'UPDATE tenants SET timezone = $1, name = $2 WHERE id = $3',
+        ['America/New_York', 'Updated organization', fixture.tenantId],
+      );
+    });
+    let transactionOpen = true;
+    const operations = createPendingOperationTracker();
+    await runWithCleanup(async () => {
+      // The request still carries the previous Europe/Berlin context.
+      const approval = operations.track(
+        runApproval(approvalInput(fixture), serviceLayer),
+      );
+      await waitForBlockedQueries(pool, 'tenants', 1);
+      expect(stripeHttp.createRequests).toHaveLength(0);
+      await tenantLock.query('COMMIT');
+      transactionOpen = false;
+      expect(await approval).toEqual({
+        status: 'success',
+        value: { status: 'paymentPending' },
+      });
+      const state = await readFixtureState(database, fixture);
+      expect(state.emails).toHaveLength(1);
+      const request = state.claims[0]?.stripeCheckoutRequest;
+      if (!request) throw new Error('Expected approval Checkout snapshot');
+      const deadline = new Date(request.expiresAt * 1000);
+      const format = (timeZone: string) =>
+        new Intl.DateTimeFormat(TENANT_FORMATTING_LOCALE, {
+          day: '2-digit',
+          hour: '2-digit',
+          hourCycle: 'h23',
+          minute: '2-digit',
+          month: '2-digit',
+          timeZone,
+          year: 'numeric',
+        }).format(deadline);
+      expect(state.emails[0]?.text).toContain(
+        `${format('America/New_York')} (local time for Updated organization)`,
+      );
+      expect(state.emails[0]?.text).not.toContain(format('Europe/Berlin'));
+      expect(stripeHttp.createRequests).toHaveLength(1);
+    }, [() => releaseRowLock(tenantLock, transactionOpen), operations.drain]);
+  }, 30_000);
+
   it('lets only the fresh simultaneous approval create the durable Checkout session', async () => {
     const fixture = await seedFixture(database);
     fixtures.push(fixture);
@@ -2268,16 +2304,7 @@ describe('direct paid registration concurrency', () => {
         'Expected one pending registration after failed payment start',
       );
     }
-    expect(
-      await runRegistrationCheckoutRetry(
-        {
-          registrationId: pendingRegistration.id,
-          tenantId: fixture.tenantId,
-          userId: fixture.userId,
-        },
-        serviceLayer,
-      ),
-    ).toMatchObject({
+    expect(await runRegistration(input, serviceLayer)).toMatchObject({
       error: { _tag: 'EventRegistrationConflictError' },
       status: 'failure',
     });

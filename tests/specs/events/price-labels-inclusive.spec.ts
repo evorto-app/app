@@ -153,7 +153,7 @@ test.describe('Inclusive price labels', () => {
       }
     });
 
-    test('missing tax details are surfaced without an inclusive-tax claim', async ({
+    test('missing tax details block sign-up until the settings are corrected', async ({
       database,
       page,
       seeded,
@@ -169,6 +169,13 @@ test.describe('Inclusive price labels', () => {
       if (!paidOption?.stripeTaxRateId) {
         throw new Error('Expected seeded paid event option with a tax rate');
       }
+      const taxRate = await database.query.tenantStripeTaxRates.findFirst({
+        where: {
+          stripeTaxRateId: paidOption.stripeTaxRateId,
+          tenantId: paidOption.tenantId,
+        },
+      });
+      if (!taxRate) throw new Error('Expected the original tenant tax rate');
 
       registerDatabaseCleanup(async () => {
         await database
@@ -184,10 +191,33 @@ test.describe('Inclusive price labels', () => {
         await page.goto(`/events/${paidEventId}`);
         await expect(page).toHaveURL(`/events/${paidEventId}`);
 
+        const unavailable = page.getByRole('alert').filter({
+          has: page.getByRole('heading', {
+            name: 'Registration unavailable',
+            exact: true,
+          }),
+        });
+        await expect(unavailable).toBeVisible();
+        await expect(unavailable).toContainText(
+          "This event's sign-up settings need to be corrected. Contact the organizer before trying to register.",
+        );
+        await expect(page.locator('app-event-registration-option')).toHaveCount(
+          0,
+        );
+
+        await database
+          .update(schema.eventRegistrationOptions)
+          .set({ stripeTaxRateId: paidOption.stripeTaxRateId })
+          .where(eq(schema.eventRegistrationOptions.id, paidOptionId));
+        await unavailable.getByRole('button', { name: 'Try again' }).click();
+
         const card = registrationOptionCard(page, paidOption.title);
         await expectCardReady(card);
         await expect(visiblePrice(card, paidOption.price)).toBeVisible();
-        await expect(card.getByText('Tax details unavailable')).toBeVisible();
+        await expect(
+          card.getByText(formatInclusiveTaxLabel(taxRate)),
+        ).toBeVisible();
+        await expect(unavailable).toHaveCount(0);
       }
     });
 

@@ -539,7 +539,9 @@
                           <mat-label>Tax rate included in price</mat-label>
                           <mat-select
                             [value]="option.stripeTaxRateId"
-                            [disabled]="!paymentsConfigured()"
+                            [disabled]="
+                              !paymentsConfigured() || !formOptionsReady()
+                            "
                             (selectionChange)="
                               setOptionTaxRate(optionIndex, $event)
                             "
@@ -565,6 +567,11 @@
                                   }}
                                   · {{ rate.percentage }}%
                                 }
+                              </mat-option>
+                            } @empty {
+                              <mat-option disabled>
+                                No tax rates are available. Ask someone who
+                                manages payments to import a tax rate.
                               </mat-option>
                             }
                           </mat-select>
@@ -873,7 +880,9 @@
                           <mat-label>Tax rate included in price</mat-label>
                           <mat-select
                             [value]="addOn.stripeTaxRateId"
-                            [disabled]="!paymentsConfigured()"
+                            [disabled]="
+                              !paymentsConfigured() || !formOptionsReady()
+                            "
                             (selectionChange)="
                               setAddOnTaxRate(addOnIndex, $event)
                             "
@@ -899,6 +908,11 @@
                                   }}
                                   · {{ rate.percentage }}%
                                 }
+                              </mat-option>
+                            } @empty {
+                              <mat-option disabled>
+                                No tax rates are available. Ask someone who
+                                manages payments to import a tax rate.
                               </mat-option>
                             }
                           </mat-select>
@@ -1318,9 +1332,8 @@
         class="mt-3 w-full"
         mat-button
         [routerLink]="['/global-admin/tenants', tenantId(), 'scanner']"
-        [queryParams]="{ eventId: event.id }"
       >
-        Inspect registrations
+        Open ticket scanner
       </a>
     </aside>
   </div>

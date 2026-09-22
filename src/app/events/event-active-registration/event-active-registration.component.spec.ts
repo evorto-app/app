@@ -774,33 +774,63 @@ describe('EventActiveRegistrationComponent add-on purchase', () => {
     expect(cancelRegistration).toHaveBeenCalledOnce();
   });
 
-  it('reports an uncertain cancellation after the server commits but the response is lost', async () => {
-    let serverCancelled = false;
-    cancelRegistration.mockImplementation(async () => {
-      serverCancelled = true;
-      throw new Error('Connection closed before the response arrived');
-    });
-    dialogOpen.mockReturnValue({ afterClosed: () => of(true) });
-    const fixture = render(registrationStatus());
-    findButton(fixture, 'Cancel ticket')?.click();
+  it.each([
+    {
+      action: 'Cancel ticket',
+      outcome: 'whether the ticket was cancelled',
+      paymentPending: false,
+      status: 'CONFIRMED',
+    },
+    {
+      action: 'Withdraw application',
+      outcome: 'whether the application was withdrawn',
+      paymentPending: false,
+      status: 'PENDING',
+    },
+    {
+      action: 'Cancel sign-up',
+      outcome: 'whether the pending sign-up was cancelled',
+      paymentPending: true,
+      status: 'PENDING',
+    },
+    {
+      action: 'Leave waitlist',
+      outcome: 'whether the waitlist place was removed',
+      paymentPending: false,
+      status: 'WAITLIST',
+    },
+  ] as const)(
+    'reports the uncertain $action outcome after the server commits but the response is lost',
+    async ({ action, outcome, paymentPending, status }) => {
+      let serverCancelled = false;
+      cancelRegistration.mockImplementation(async () => {
+        serverCancelled = true;
+        throw new Error('Connection closed before the response arrived');
+      });
+      dialogOpen.mockReturnValue({ afterClosed: () => of(true) });
+      const fixture = render(registrationStatus({ paymentPending, status }));
+      const actionButton = findButton(fixture, action);
+      if (!actionButton) throw new Error(`Expected the ${action} action`);
+      actionButton.click();
 
-    await vi.waitFor(() => {
-      fixture.detectChanges();
-      const element: unknown = fixture.nativeElement;
-      if (!(element instanceof HTMLElement))
-        throw new Error('Expected the sign-up root to be an HTML element');
-      const alert = element.querySelector('[role="alert"]');
-      expect(alert?.querySelector('h3')?.textContent).toBe(
-        'Review cancellation',
-      );
-      expect(alert?.textContent).toContain(
-        'The cancellation outcome could not be confirmed. Load the page again to check the current sign-up status before trying again.',
-      );
-      expect(alert?.textContent).not.toContain('Nothing changed');
-    });
-    expect(serverCancelled).toBe(true);
-    expect(cancelRegistration).toHaveBeenCalledOnce();
-  });
+      await vi.waitFor(() => {
+        fixture.detectChanges();
+        const element: unknown = fixture.nativeElement;
+        if (!(element instanceof HTMLElement))
+          throw new Error('Expected the sign-up root to be an HTML element');
+        const alert = element.querySelector('[role="alert"]');
+        expect(alert?.querySelector('h3')?.textContent).toBe(
+          'Review cancellation',
+        );
+        expect(alert?.textContent).toContain(
+          `Evorto could not confirm ${outcome}. Load the page again to check its current status before trying again.`,
+        );
+        expect(alert?.textContent).not.toContain('Nothing changed');
+      });
+      expect(serverCancelled).toBe(true);
+      expect(cancelRegistration).toHaveBeenCalledOnce();
+    },
+  );
 
   it('requires explicit confirmation before cancelling a registration', async () => {
     const fixture = render(registrationStatus());
@@ -846,7 +876,7 @@ describe('EventActiveRegistrationComponent add-on purchase', () => {
         expect(cancelRegistration).toHaveBeenCalledOnce();
         expect(normalizeText(fixture)).toContain(
           expectedMessage ??
-            'The cancellation outcome could not be confirmed. Load the page again to check the current sign-up status before trying again.',
+            'Evorto could not confirm whether the ticket was cancelled. Load the page again to check its current status before trying again.',
         );
         expect(normalizeText(fixture)).not.toContain('Private registration');
       });

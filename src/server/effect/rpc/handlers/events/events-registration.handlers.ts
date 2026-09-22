@@ -3530,7 +3530,8 @@ export const eventRegistrationHandlers = {
       ) {
         return yield* Effect.fail(
           new EventRegistrationNotFoundError({
-            message: 'Registration not found',
+            message:
+              'Ticket not found. Check the QR code or ask an organizer for help.',
           }),
         );
       }
@@ -3599,18 +3600,6 @@ export const eventRegistrationHandlers = {
         },
       };
     }).pipe(Effect.catch(mapRegistrationScanInternalError)),
-  'events.retryRegistrationCheckout': ({ registrationId }, _options) =>
-    Effect.gen(function* () {
-      yield* RpcAccess.ensureAuthenticated();
-      const { tenant } = yield* RpcAccess.current();
-      const user = yield* RpcAccess.requireUser();
-
-      return yield* EventRegistrationService.retryRegistrationCheckout({
-        registrationId,
-        tenantId: tenant.id,
-        userId: user.id,
-      });
-    }).pipe(Effect.catch(mapRegistrationMutationInternalError)),
   'events.undoRegistrationAddonRedemption': (
     { operationKey, redemptionEventId, registrationAddonId, registrationId },
     _options,

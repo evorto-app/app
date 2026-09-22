@@ -14,6 +14,10 @@ import {
   templateRegistrationOptions,
   templateRegistrationQuestions,
 } from '../../../../../db/schema';
+import {
+  sanitizeOptionalRichTextHtml,
+  sanitizeRichTextHtml,
+} from '../../../../utils/rich-text-sanitize';
 
 type TemplateGraphReader = Pick<DatabaseClient, 'select'>;
 
@@ -286,7 +290,7 @@ export const loadTemplateGraphDetail = Effect.fn(
       stripeTaxRateId: addOn.stripeTaxRateId ?? null,
     })),
     categoryId: template.categoryId,
-    description: template.description,
+    description: sanitizeRichTextHtml(template.description),
     icon: template.icon,
     id: template.id,
     location: template.location ?? null,
@@ -297,9 +301,11 @@ export const loadTemplateGraphDetail = Effect.fn(
     })),
     registrationOptions: registrationOptions.map((option) => ({
       ...option,
-      description: option.description ?? null,
+      description: sanitizeOptionalRichTextHtml(option.description),
       esnCardDiscountedPrice: esnDiscountByOptionId.get(option.id) ?? null,
-      registeredDescription: option.registeredDescription ?? null,
+      registeredDescription: sanitizeOptionalRichTextHtml(
+        option.registeredDescription,
+      ),
       roles: option.roleIds.map((roleId) =>
         getRequiredTemplateRole({
           optionId: option.id,

@@ -1322,6 +1322,78 @@ describe('finance receipt media permissions', () => {
     );
   }
 
+  for (const concurrent of [false, true]) {
+    for (const outcome of ['present', 'missing', 'unavailable'] as const) {
+      it.effect(
+        `checks ${concurrent ? 'concurrently completed' : 'ready'} receipt evidence when storage is ${outcome}`,
+        () =>
+          Effect.gen(function* () {
+            const fixture = databaseWithPendingReceiptUpload();
+            const storageKey = `receipts/tenant-1/event-1/user-1/upload-1-${'a'.repeat(64)}-receipt.png`;
+            fixture.upload.status = 'ready';
+            fixture.upload.storageKey = storageKey;
+            const objectExists = vi.fn<
+              Context.Service.Shape<typeof ReceiptMediaService>['objectExists']
+            >(() =>
+              outcome === 'unavailable'
+                ? Effect.fail(
+                    new ReceiptMediaServiceUnavailableError({
+                      message: 'Storage unavailable',
+                    }),
+                  )
+                : Effect.succeed(outcome === 'present'),
+            );
+            const inspectUpload = vi.fn(() =>
+              Effect.die(
+                new Error('Must not inspect an already finalized upload'),
+              ),
+            );
+            const promoteUpload = vi.fn(() =>
+              Effect.die(
+                new Error('Must not promote an already finalized upload'),
+              ),
+            );
+            const finalized = financeHandlers[
+              'finance.receiptMedia.finalizeUpload'
+            ]({ uploadId: 'upload-1' }, receiptUploadOptions).pipe(
+              Effect.provide(
+                createContextLayer(['events:organizeAll'], {
+                  database: concurrent
+                    ? databaseWithConcurrentReceiptUpload(storageKey)
+                    : fixture.database,
+                  receiptMediaService: {
+                    inspectUpload,
+                    objectExists,
+                    promoteUpload,
+                  },
+                }),
+              ),
+            );
+            if (outcome === 'present') {
+              expect((yield* finalized).uploadId).toBe('upload-1');
+            } else {
+              const error = yield* finalized.pipe(Effect.flip);
+              expect(error._tag).toBe(
+                outcome === 'missing'
+                  ? 'RpcBadRequestError'
+                  : 'ReceiptMediaServiceUnavailableError',
+              );
+              expect(error.message).toBe(
+                outcome === 'missing'
+                  ? 'This receipt file is no longer available. Add the file again.'
+                  : 'Storage unavailable',
+              );
+            }
+            expect(objectExists).toHaveBeenCalledExactlyOnceWith({
+              storageKey,
+            });
+            expect(inspectUpload).not.toHaveBeenCalled();
+            expect(promoteUpload).not.toHaveBeenCalled();
+          }),
+      );
+    }
+  }
+
   it.effect(
     'records the promoted immutable key when finalizing an upload',
     () =>
@@ -1399,6 +1471,7 @@ describe('finance receipt media permissions', () => {
               receiptMediaService: {
                 discardPromotedUpload,
                 inspectUpload,
+                objectExists: () => Effect.succeed(true),
                 promoteUpload,
               },
             });
@@ -1496,6 +1569,7 @@ describe('finance receipt media permissions', () => {
                     discarded.push(storageKey);
                   }),
                 inspectUpload,
+                objectExists: () => Effect.succeed(true),
               },
             }),
           ),

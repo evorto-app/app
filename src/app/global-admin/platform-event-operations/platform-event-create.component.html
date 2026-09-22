@@ -187,7 +187,8 @@
           [disabled]="
             createForm().invalid() ||
             createForm().submitting() ||
-            createMutation.isPending()
+            createMutation.isPending() ||
+            createMutation.isSuccess()
           "
         >
           {{
