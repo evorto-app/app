@@ -266,6 +266,7 @@ export const seedOrganizerSignupScenario = async ({
       location: sourceEvent.location,
       simpleModeEnabled: mode === 'simple',
       start: eventWindow.start,
+      reviewedAt: new Date(),
       status: 'APPROVED',
       templateId: sourceEvent.templateId,
       tenantId: seeded.tenant.id,

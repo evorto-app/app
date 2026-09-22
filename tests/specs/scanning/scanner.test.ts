@@ -56,7 +56,10 @@ const requireScannerFixture = async ({
   }
 
   const [optionBefore] = await database
-    .select({ checkedInSpots: eventRegistrationOptions.checkedInSpots })
+    .select({
+      checkedInSpots: eventRegistrationOptions.checkedInSpots,
+      confirmedSpots: eventRegistrationOptions.confirmedSpots,
+    })
     .from(eventRegistrationOptions)
     .where(
       and(
@@ -169,6 +172,8 @@ test('scanner hands out, immediately undoes, and cancels add-on quantities with 
 
   try {
     await database.insert(eventRegistrations).values({
+      basePriceAtRegistration: 0,
+      discountAmount: 0,
       checkedInGuestCount: 0,
       eventId: scannerFixture.eventId,
       guestCount: 0,
@@ -659,6 +664,8 @@ test.describe('organizer add-on cancellation permissions', () => {
         roleName: 'Section member',
       });
       await database.insert(eventRegistrations).values({
+        basePriceAtRegistration: 0,
+        discountAmount: 0,
         checkedInGuestCount: 0,
         eventId: scannerFixture.eventId,
         guestCount: 0,
@@ -744,6 +751,8 @@ test('scan confirmed registration records check-in', async ({
 
   try {
     await database.insert(eventRegistrations).values({
+      basePriceAtRegistration: 0,
+      discountAmount: 0,
       checkedInGuestCount: 0,
       eventId: scannerFixture.eventId,
       guestCount: 2,
@@ -753,6 +762,15 @@ test('scan confirmed registration records check-in', async ({
       tenantId: scannerFixture.tenantId,
       userId: scannerFixture.userId,
     });
+
+    await database
+      .update(eventRegistrationOptions)
+      .set({
+        confirmedSpots: scannerFixture.optionBefore.confirmedSpots + 3,
+      })
+      .where(
+        eq(eventRegistrationOptions.id, scannerFixture.registrationOptionId),
+      );
 
     await page.goto(`/scan/registration/${registrationId}`);
     await expect(
@@ -811,7 +829,10 @@ test('scan confirmed registration records check-in', async ({
       .where(eq(eventRegistrations.id, registrationId));
     await database
       .update(eventRegistrationOptions)
-      .set({ checkedInSpots: scannerFixture.optionBefore.checkedInSpots })
+      .set({
+        checkedInSpots: scannerFixture.optionBefore.checkedInSpots,
+        confirmedSpots: scannerFixture.optionBefore.confirmedSpots,
+      })
       .where(
         eq(eventRegistrationOptions.id, scannerFixture.registrationOptionId),
       );
@@ -831,6 +852,8 @@ test('scan checked-in registration records remaining guest arrival', async ({
 
   try {
     await database.insert(eventRegistrations).values({
+      basePriceAtRegistration: 0,
+      discountAmount: 0,
       checkedInGuestCount: 1,
       checkInTime: seedDate,
       eventId: scannerFixture.eventId,
@@ -843,7 +866,10 @@ test('scan checked-in registration records remaining guest arrival', async ({
     });
     await database
       .update(eventRegistrationOptions)
-      .set({ checkedInSpots: checkedInBaseline })
+      .set({
+        checkedInSpots: checkedInBaseline,
+        confirmedSpots: scannerFixture.optionBefore.confirmedSpots + 3,
+      })
       .where(
         eq(eventRegistrationOptions.id, scannerFixture.registrationOptionId),
       );
@@ -907,7 +933,10 @@ test('scan checked-in registration records remaining guest arrival', async ({
       .where(eq(eventRegistrations.id, registrationId));
     await database
       .update(eventRegistrationOptions)
-      .set({ checkedInSpots: scannerFixture.optionBefore.checkedInSpots })
+      .set({
+        checkedInSpots: scannerFixture.optionBefore.checkedInSpots,
+        confirmedSpots: scannerFixture.optionBefore.confirmedSpots,
+      })
       .where(
         eq(eventRegistrationOptions.id, scannerFixture.registrationOptionId),
       );

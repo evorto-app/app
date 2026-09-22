@@ -5,6 +5,7 @@ import {
   PlatformRegistrationPageLimit,
   PlatformRegistrationsListInput,
 } from '@shared/rpc-contracts/app-rpcs/platform-events.rpcs';
+import { PlatformOperationRpcError } from '@shared/rpc-contracts/app-rpcs/platform-operations.shared';
 import { RpcRequestContext } from '@shared/rpc-contracts/app-rpcs/rpc-request-context.middleware';
 import { getTableColumns } from 'drizzle-orm';
 import { Cause, ConfigProvider, Effect, Exit, Layer, Schema } from 'effect';
@@ -456,6 +457,37 @@ describe('platform event, template, and registration handlers', () => {
       _tag: 'RpcBadRequestError',
       reason: 'paidEventRegistrationOptionRequiresPositivePrice',
     });
+  });
+
+  it('rejects free platform registration options with nonzero prices using the RPC error contract', () => {
+    const participant = eventRecord.registrationOptions[0];
+    if (!participant) throw new Error('Expected participant fixture');
+    const error = platformEventGraphCompatibilityError({
+      before: { simpleModeEnabled: false },
+      input: {
+        addOns: [],
+        registrationOptions: [{ ...participant, isPaid: false, price: 100 }],
+      },
+    });
+    expect(error).toMatchObject({
+      _tag: 'RpcBadRequestError',
+      reason: 'freeEventRegistrationOptionRequiresZeroPrice',
+    });
+    expect(Schema.is(PlatformOperationRpcError)(error)).toBe(true);
+    for (const pair of [
+      { isPaid: false, price: 0 },
+      { isPaid: true, price: 100 },
+    ]) {
+      expect(
+        platformEventGraphCompatibilityError({
+          before: { simpleModeEnabled: false },
+          input: {
+            addOns: [],
+            registrationOptions: [{ ...participant, ...pair }],
+          },
+        }),
+      ).toBeNull();
+    }
   });
 
   it('accepts optional-only platform add-on mappings but rejects impossible quantities', () => {

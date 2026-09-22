@@ -18,7 +18,7 @@ import { isSqlError } from 'effect/unstable/sql/SqlError';
 import type { AppRpcHandlers } from './shared/handler-types';
 
 import { Database, type DatabaseClient } from '../../../../db';
-import { userDiscountCards } from '../../../../db/schema';
+import { tenants, userDiscountCards } from '../../../../db/schema';
 import {
   Adapters,
   PROVIDER_TYPES,
@@ -69,19 +69,42 @@ const cardSaveConflict = (error: unknown) => {
   }
 };
 
+const withDiscountCardTenantLock = <A>(
+  database: Pick<DatabaseClient, 'transaction'>,
+  tenantId: string,
+  operation: (
+    transaction: Pick<DatabaseClient, 'delete' | 'insert' | 'update'>,
+  ) => Effect.Effect<A, unknown, never>,
+) =>
+  database.transaction((transaction) =>
+    Effect.gen(function* () {
+      // Registration takes tenant UPDATE before reading card eligibility. Take
+      // the compatible writer lock before card rows or unique-index entries;
+      // otherwise INSERT's later FK lock can form a cycle with a replacement.
+      yield* transaction
+        .select({ id: tenants.id })
+        .from(tenants)
+        .where(eq(tenants.id, tenantId))
+        .for('key share');
+      return yield* operation(transaction);
+    }),
+  );
+
 const databaseCardSaveEffect = <A>(
   card: Pick<
     typeof userDiscountCards.$inferSelect,
     'identifier' | 'tenantId' | 'type' | 'userId'
   >,
-  operation: (database: DatabaseClient) => Effect.Effect<A, unknown, never>,
+  operation: (
+    database: Pick<DatabaseClient, 'delete' | 'insert' | 'update'>,
+  ) => Effect.Effect<A, unknown, never>,
 ): Effect.Effect<
   A,
   DiscountCardChangedError | DiscountCardConflictError,
   Database
 > =>
   Database.use((database) =>
-    operation(database).pipe(
+    withDiscountCardTenantLock(database, card.tenantId, operation).pipe(
       Effect.catch((error) => {
         const conflict = cardSaveConflict(error);
         if (!conflict) return Effect.die(error);
@@ -187,15 +210,17 @@ export const discountHandlers = {
       const user = yield* RpcAccess.requireUser();
 
       yield* databaseEffect((database) =>
-        database
-          .delete(userDiscountCards)
-          .where(
-            and(
-              eq(userDiscountCards.tenantId, tenant.id),
-              eq(userDiscountCards.userId, user.id),
-              eq(userDiscountCards.type, input.type),
+        withDiscountCardTenantLock(database, tenant.id, (transaction) =>
+          transaction
+            .delete(userDiscountCards)
+            .where(
+              and(
+                eq(userDiscountCards.tenantId, tenant.id),
+                eq(userDiscountCards.userId, user.id),
+                eq(userDiscountCards.type, input.type),
+              ),
             ),
-          ),
+        ),
       );
     }),
   'discounts.getMyCards': (_payload, _options) =>
@@ -319,31 +344,33 @@ export const discountHandlers = {
         identifier: card.identifier,
       });
       const updatedCards = yield* databaseEffect((database) =>
-        database
-          .update(userDiscountCards)
-          .set({
-            lastCheckedAt: new Date(),
-            metadata: result.metadata ?? null,
-            status: result.status,
-            validFrom: result.validFrom ?? null,
-            validTo: result.validTo ?? null,
-          })
-          .where(
-            and(
-              eq(userDiscountCards.id, card.id),
-              eq(userDiscountCards.tenantId, tenant.id),
-              eq(userDiscountCards.userId, user.id),
-              eq(userDiscountCards.type, input.type),
-              eq(userDiscountCards.identifier, card.identifier),
-            ),
-          )
-          .returning({
-            id: userDiscountCards.id,
-            identifier: userDiscountCards.identifier,
-            status: userDiscountCards.status,
-            type: userDiscountCards.type,
-            validTo: userDiscountCards.validTo,
-          }),
+        withDiscountCardTenantLock(database, tenant.id, (transaction) =>
+          transaction
+            .update(userDiscountCards)
+            .set({
+              lastCheckedAt: new Date(),
+              metadata: result.metadata ?? null,
+              status: result.status,
+              validFrom: result.validFrom ?? null,
+              validTo: result.validTo ?? null,
+            })
+            .where(
+              and(
+                eq(userDiscountCards.id, card.id),
+                eq(userDiscountCards.tenantId, tenant.id),
+                eq(userDiscountCards.userId, user.id),
+                eq(userDiscountCards.type, input.type),
+                eq(userDiscountCards.identifier, card.identifier),
+              ),
+            )
+            .returning({
+              id: userDiscountCards.id,
+              identifier: userDiscountCards.identifier,
+              status: userDiscountCards.status,
+              type: userDiscountCards.type,
+              validTo: userDiscountCards.validTo,
+            }),
+        ),
       );
       const updatedCard = updatedCards[0];
       if (!updatedCard) {

@@ -77,6 +77,7 @@ import {
   processRegistrationRefundClaim,
 } from '../payments/registration-refund';
 import { tenantOutboundUrl } from '../tenant-outbound-url';
+import { lockEventRegistrationQuestionSet } from './event-question-answer-guard';
 import {
   establishRegistrationAcquisition,
   settleAcquisitionComponentTerms,
@@ -565,6 +566,24 @@ const createOffer = Effect.fn('RegistrationTransferService.createOffer')(
               });
             }
 
+            // Match answer writers' tenant → event → option order. A joined
+            // multi-table lock can hold the option while waiting on the event.
+            yield* tx
+              .select({ id: tenants.id })
+              .from(tenants)
+              .where(eq(tenants.id, tenant.id))
+              .for('update');
+            yield* tx
+              .select({ id: eventInstances.id })
+              .from(eventInstances)
+              .where(
+                and(
+                  eq(eventInstances.id, lockedSource.eventId),
+                  eq(eventInstances.tenantId, tenant.id),
+                ),
+              )
+              .for('share');
+
             const lockedTransferTerms = yield* tx
               .select({
                 eventStart: eventInstances.start,
@@ -590,7 +609,7 @@ const createOffer = Effect.fn('RegistrationTransferService.createOffer')(
                   eq(eventInstances.tenantId, tenant.id),
                 ),
               )
-              .for('update');
+              .for('update', { of: eventRegistrationOptions });
             const lockedTransferTerm = lockedTransferTerms[0];
             if (
               !lockedTransferTerm ||
@@ -2455,6 +2474,12 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
               ),
             )
             .for('update');
+          const questionRows = yield* lockEventRegistrationQuestionSet(tx, {
+            eventId: transfer.eventId,
+            registrationOptionId: transfer.optionId,
+            tenantId: tenant.id,
+          });
+          if (!questionRows) return { _tag: 'Unavailable' as const };
           const lockedTerms = yield* tx
             .select({
               eventStart: eventInstances.start,
@@ -2478,7 +2503,7 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
                 eq(eventInstances.tenantId, tenant.id),
               ),
             )
-            .for('update');
+            .for('update', { of: eventRegistrationOptions });
           const recipientUser = recipientUsers[0];
           const lockedOption = lockedTerms[0];
           if (
@@ -2503,19 +2528,6 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
           ) {
             return { _tag: 'Ineligible' as const };
           }
-          const questionRows = yield* tx
-            .select({
-              id: eventRegistrationQuestions.id,
-              required: eventRegistrationQuestions.required,
-            })
-            .from(eventRegistrationQuestions)
-            .where(
-              eq(
-                eventRegistrationQuestions.registrationOptionId,
-                transfer.optionId,
-              ),
-            )
-            .for('update');
           const answerInserts = yield* Effect.try({
             catch: (error) =>
               error instanceof EventRegistrationConflictError
@@ -3197,7 +3209,7 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
               appliedDiscountedPrice: discountResolution.appliedDiscountedPrice,
               appliedDiscountType: discountResolution.appliedDiscountType,
               basePriceAtRegistration: optionBasePrice,
-              discountAmount: discountResolution.discountAmount,
+              discountAmount: discountResolution.discountAmount ?? 0,
               stripeTaxRateId: lockedOption.optionStripeTaxRateId,
               taxRateDisplayName: selectedTaxRate?.displayName,
               taxRateInclusive: selectedTaxRate?.inclusive,
@@ -3252,8 +3264,11 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
             yield* tx.insert(eventRegistrationQuestionAnswers).values(
               answerInserts.map((answer) => ({
                 answer: answer.answer,
+                eventId: transfer.eventId,
                 questionId: answer.questionId,
                 registrationId: recipientRegistrationId,
+                registrationOptionId: transfer.optionId,
+                tenantId: tenant.id,
               })),
             );
           }

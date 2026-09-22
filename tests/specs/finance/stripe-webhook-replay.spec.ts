@@ -298,6 +298,7 @@ test('an exact pending transaction and checkout session match completes once und
     );
 
   await database.insert(schema.eventRegistrations).values({
+    discountAmount: 0,
     basePriceAtRegistration: 2500,
     eventId: seeded.scenario.events.paidOpen.eventId,
     id: registrationId,
@@ -555,6 +556,7 @@ test('competing completion and expiry webhooks leave one coherent registration o
       ),
     );
   await database.insert(schema.eventRegistrations).values({
+    discountAmount: 0,
     basePriceAtRegistration: 2500,
     eventId: seeded.scenario.events.paidOpen.eventId,
     id: registrationId,
@@ -812,6 +814,7 @@ test('invalid checkout bindings and stale state leave registrations, payments, a
     expect(optionBefore).toBeTruthy();
 
     await database.insert(schema.eventRegistrations).values({
+      discountAmount: 0,
       basePriceAtRegistration: 2500,
       eventId: seeded.scenario.events.paidOpen.eventId,
       id: registrationId,
@@ -989,6 +992,7 @@ test('expired checkout webhook resolves the persisted session and releases reser
     );
 
   await database.insert(schema.eventRegistrations).values({
+    discountAmount: 0,
     basePriceAtRegistration: 2500,
     eventId: seeded.scenario.events.paidOpen.eventId,
     id: registrationId,
@@ -1179,6 +1183,7 @@ test('stale webhook claims are reclaimed so Stripe retries can finish processing
   const stripeEventId = `evt_test_${getId()}`;
 
   await database.insert(schema.eventRegistrations).values({
+    discountAmount: 0,
     basePriceAtRegistration: 2500,
     eventId: seeded.scenario.events.paidOpen.eventId,
     id: registrationId,
@@ -1303,6 +1308,7 @@ test('checkout webhook resolves registration by payment intent when metadata is 
   });
 
   await database.insert(schema.eventRegistrations).values({
+    discountAmount: 0,
     basePriceAtRegistration: 2500,
     eventId: seeded.scenario.events.paidOpen.eventId,
     id: registrationId,

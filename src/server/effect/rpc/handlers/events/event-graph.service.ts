@@ -13,16 +13,20 @@ import {
   eventRegistrationAddonPurchases,
   eventRegistrationOptionDiscounts,
   eventRegistrationOptions,
-  eventRegistrationQuestionAnswers,
   eventRegistrationQuestions,
   eventRegistrations,
 } from '../../../../../db/schema';
+import {
+  ensureAnsweredEventQuestionsUnchanged,
+  normalizeEventQuestionValues,
+} from '../../../../registrations/event-question-answer-guard';
 import {
   lockTenantRoleGraph,
   tenantRoleIdsExist,
 } from '../../../../roles/tenant-role-graph';
 import { sanitizeOptionalRichTextHtml } from '../../../../utils/rich-text-sanitize';
 import { validateTaxRate } from '../../../../utils/validate-tax-rate';
+import { registrationOptionPriceError } from './events.shared';
 
 export type EventGraphUpdateInput = Parameters<
   AppRpcHandlers['events.updateGraph']
@@ -158,12 +162,8 @@ export const validateEventGraphStructure = ({
   }
 
   for (const option of input.registrationOptions) {
-    if (option.isPaid && option.price <= 0) {
-      return invalidGraph(
-        'Paid event registration options require a positive price',
-        'paidEventRegistrationOptionRequiresPositivePrice',
-      );
-    }
+    const priceError = registrationOptionPriceError(option);
+    if (priceError) return priceError;
 
     const open = new Date(option.openRegistrationTime);
     const close = new Date(option.closeRegistrationTime);
@@ -308,30 +308,6 @@ const ensureNoRemovedAddOnPurchases = Effect.fn(
     );
   }
 });
-
-const ensureNoQuestionAnswers = Effect.fn('Events.ensureNoQuestionAnswers')(
-  function* (database: DatabaseClient, removedQuestionIds: readonly string[]) {
-    if (removedQuestionIds.length === 0) return;
-    const answers = yield* database
-      .select({ id: eventRegistrationQuestionAnswers.id })
-      .from(eventRegistrationQuestionAnswers)
-      .where(
-        inArray(eventRegistrationQuestionAnswers.questionId, [
-          ...removedQuestionIds,
-        ]),
-      )
-      .limit(1)
-      .pipe(Effect.orDie);
-    if (answers.length > 0) {
-      return yield* Effect.fail(
-        invalidGraph(
-          'Answered event questions cannot be changed or removed',
-          'eventQuestionInUse',
-        ),
-      );
-    }
-  },
-);
 
 const mappingKey = (addOnId: string, optionId: string): string =>
   `${addOnId}:${optionId}`;
@@ -494,6 +470,7 @@ export const updateEventGraph = Effect.fn('Events.updateEventGraph')(
           .values({
             discountedPrice: option.esnCardDiscountedPrice,
             discountType: 'esnCard',
+            eventId: input.eventId,
             registrationOptionId: optionId,
           })
           .pipe(Effect.orDie);
@@ -714,13 +691,35 @@ export const updateEventGraph = Effect.fn('Events.updateEventGraph')(
       }
     }
 
+    const submittedPersistedQuestions = [];
+    for (const question of input.questions) {
+      if (!question.id) continue;
+      const registrationOptionId = optionIdByKey.get(
+        question.registrationOptionKey,
+      );
+      if (!registrationOptionId) {
+        return yield* Effect.die(
+          new Error('Validated question target is missing'),
+        );
+      }
+      submittedPersistedQuestions.push({
+        id: question.id,
+        ...normalizeEventQuestionValues({
+          ...question,
+          registrationOptionId,
+        }),
+      });
+    }
+    yield* ensureAnsweredEventQuestionsUnchanged(database, {
+      before: before.questions,
+      submitted: submittedPersistedQuestions,
+    });
     const submittedQuestionIds = new Set(
-      input.questions.flatMap((question) => (question.id ? [question.id] : [])),
+      submittedPersistedQuestions.map((question) => question.id),
     );
     const removedQuestionIds = before.questions
       .map((question) => question.id)
       .filter((id) => !submittedQuestionIds.has(id));
-    yield* ensureNoQuestionAnswers(database, removedQuestionIds);
     if (removedQuestionIds.length > 0) {
       yield* database
         .delete(eventRegistrationQuestions)
@@ -741,31 +740,11 @@ export const updateEventGraph = Effect.fn('Events.updateEventGraph')(
           new Error('Validated question target is missing'),
         );
       }
-      const values = {
-        description: question.description?.trim() || null,
+      const values = normalizeEventQuestionValues({
+        ...question,
         registrationOptionId,
-        required: question.required,
-        sortOrder: question.sortOrder,
-        title: question.title.trim(),
-      };
+      });
       if (question.id) {
-        const beforeQuestion = before.questions.find(
-          (existing) => existing.id === question.id,
-        );
-        if (!beforeQuestion) {
-          return yield* Effect.die(
-            new Error('Validated event question is missing from prior graph'),
-          );
-        }
-        const questionChanged =
-          (beforeQuestion.description ?? '') !== (values.description ?? '') ||
-          beforeQuestion.registrationOptionId !== values.registrationOptionId ||
-          beforeQuestion.required !== values.required ||
-          beforeQuestion.sortOrder !== values.sortOrder ||
-          beforeQuestion.title !== values.title;
-        if (questionChanged) {
-          yield* ensureNoQuestionAnswers(database, [question.id]);
-        }
         yield* database
           .update(eventRegistrationQuestions)
           .set(values)

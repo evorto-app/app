@@ -207,6 +207,7 @@ test('Manage one organization and review change history', async ({
     });
     await transaction.insert(schema.eventRegistrations).values({
       basePriceAtRegistration: 0,
+      discountAmount: 0,
       eventId: checkInEvent.id,
       guestCount: 1,
       id: registrationId,

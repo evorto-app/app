@@ -3395,7 +3395,7 @@ const transferEventRegistration = Effect.fn('transferEventRegistration')(
                 appliedDiscountedPrice: recipientPrice.appliedDiscountedPrice,
                 appliedDiscountType: recipientPrice.appliedDiscountType,
                 basePriceAtRegistration: optionBasePrice,
-                discountAmount: recipientPrice.discountAmount,
+                discountAmount: recipientPrice.discountAmount ?? 0,
                 stripeTaxRateId: lockedPricing.optionStripeTaxRateId,
                 taxRateDisplayName: registrationTaxRate?.displayName,
                 taxRateInclusive: registrationTaxRate?.inclusive,

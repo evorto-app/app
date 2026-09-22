@@ -377,6 +377,8 @@ const createEvents = (
         end: DateTime.fromJSDate(eventStart).plus({ hours: 6 }).toJSDate(),
         icon: template.icon,
         id: eventId,
+        reviewedAt: status === 'APPROVED' ? seedNow.toJSDate() : null,
+        reviewedBy: status === 'APPROVED' ? adminUser : null,
         start: eventStart,
         status,
         templateId: template.id,
@@ -623,6 +625,7 @@ export const addEvents = async (
       paidParticipantOptions.map((option) => ({
         discountedPrice: Math.max(0, (option.price ?? 0) - 500),
         discountType: 'esnCard' as const,
+        eventId: option.eventId,
         registrationOptionId: option.id,
       })),
     );

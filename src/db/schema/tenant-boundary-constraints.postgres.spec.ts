@@ -9,12 +9,19 @@ import { relations } from '../relations';
 import {
   eventInstances,
   eventRegistrationEventTenantForeignKeyName,
+  eventRegistrationOptionCapacityCheckName,
   eventRegistrationOptionEventForeignKeyName,
+  eventRegistrationOptionPriceCheckName,
   eventRegistrationOptions,
+  eventRegistrationOptionTimeOrderCheckName,
   eventRegistrationQuestions,
   eventRegistrations,
+  eventReviewLifecycleCheckName,
   eventTemplateCategories,
+  eventTemplateCategoryTenantForeignKeyName,
   eventTemplates,
+  eventTemplateTenantForeignKeyName,
+  eventTimeOrderCheckName,
   registrationTransferAnswerQuestionOwnerForeignKeyName,
   registrationTransferAnswers,
   registrationTransferAnswerTransferOwnerForeignKeyName,
@@ -154,39 +161,77 @@ const cleanFixture = async (
   database: TestDatabase,
   fixture: TenantBoundaryFixture,
 ) => {
-  await database
-    .delete(registrationTransferAnswers)
-    .where(inArray(registrationTransferAnswers.tenantId, fixture.tenantIds));
-  await database
-    .delete(registrationTransfers)
-    .where(inArray(registrationTransfers.tenantId, fixture.tenantIds));
-  await database
-    .delete(eventRegistrationQuestions)
-    .where(inArray(eventRegistrationQuestions.eventId, fixture.eventIds));
-  await database
-    .delete(eventRegistrations)
-    .where(inArray(eventRegistrations.tenantId, fixture.tenantIds));
-  await database
-    .delete(eventRegistrationOptions)
-    .where(inArray(eventRegistrationOptions.id, fixture.optionIds));
-  await database
-    .delete(eventInstances)
-    .where(inArray(eventInstances.id, fixture.eventIds));
-  await database
-    .delete(eventTemplates)
-    .where(inArray(eventTemplates.id, fixture.templateIds));
-  await database
-    .delete(eventTemplateCategories)
-    .where(inArray(eventTemplateCategories.id, fixture.categoryIds));
-  await database
-    .delete(rolesToTenantUsers)
-    .where(inArray(rolesToTenantUsers.tenantId, fixture.tenantIds));
-  await database.delete(roles).where(inArray(roles.id, fixture.roleIds));
-  await database
-    .delete(usersToTenants)
-    .where(inArray(usersToTenants.id, fixture.membershipIds));
-  await database.delete(users).where(inArray(users.id, fixture.userIds));
-  await database.delete(tenants).where(inArray(tenants.id, fixture.tenantIds));
+  const failures: unknown[] = [];
+  const operations = [
+    () =>
+      database
+        .delete(registrationTransferAnswers)
+        .where(
+          inArray(registrationTransferAnswers.tenantId, fixture.tenantIds),
+        ),
+    () =>
+      database
+        .delete(registrationTransfers)
+        .where(inArray(registrationTransfers.tenantId, fixture.tenantIds)),
+    () =>
+      database
+        .delete(eventRegistrationQuestions)
+        .where(inArray(eventRegistrationQuestions.eventId, fixture.eventIds)),
+    () =>
+      database
+        .delete(eventRegistrations)
+        .where(inArray(eventRegistrations.tenantId, fixture.tenantIds)),
+    () =>
+      database
+        .delete(eventRegistrationOptions)
+        .where(
+          inArray(
+            eventRegistrationOptions.eventId,
+            database
+              .select({ id: eventInstances.id })
+              .from(eventInstances)
+              .where(inArray(eventInstances.tenantId, fixture.tenantIds)),
+          ),
+        ),
+    () =>
+      database
+        .delete(eventInstances)
+        .where(inArray(eventInstances.tenantId, fixture.tenantIds)),
+    () =>
+      database
+        .delete(eventTemplates)
+        .where(inArray(eventTemplates.tenantId, fixture.tenantIds)),
+    () =>
+      database
+        .delete(eventTemplateCategories)
+        .where(inArray(eventTemplateCategories.id, fixture.categoryIds)),
+    () =>
+      database
+        .delete(rolesToTenantUsers)
+        .where(inArray(rolesToTenantUsers.tenantId, fixture.tenantIds)),
+    () => database.delete(roles).where(inArray(roles.id, fixture.roleIds)),
+    () =>
+      database
+        .delete(usersToTenants)
+        .where(inArray(usersToTenants.id, fixture.membershipIds)),
+    () => database.delete(users).where(inArray(users.id, fixture.userIds)),
+    () =>
+      database.delete(tenants).where(inArray(tenants.id, fixture.tenantIds)),
+  ];
+  for (const operation of operations) {
+    try {
+      await operation();
+    } catch (error) {
+      failures.push(error);
+    }
+  }
+  if (failures.length > 0) {
+    throw new AggregateError(
+      failures,
+      'Failed to clean tenant boundary fixtures',
+      { cause: failures[0] },
+    );
+  }
 };
 
 const expectForeignKeyViolation = async (
@@ -209,6 +254,26 @@ const expectForeignKeyViolation = async (
   }
 };
 
+const expectCheckViolation = async (
+  operation: PromiseLike<unknown>,
+  constraint: string,
+) => {
+  try {
+    await operation;
+    throw new Error(`Expected check constraint ${constraint} to reject`);
+  } catch (error) {
+    expect(error).toBeInstanceOf(DrizzleQueryError);
+    if (!(error instanceof DrizzleQueryError)) {
+      throw error;
+    }
+
+    const cause = error.cause;
+    expect(cause).toBeInstanceOf(Error);
+    expect(cause).toHaveProperty('code', '23514');
+    expect(cause).toHaveProperty('constraint', constraint);
+  }
+};
+
 describe('tenant boundary constraints in PostgreSQL', () => {
   let database: TestDatabase;
   const fixture = makeFixture();
@@ -221,8 +286,24 @@ describe('tenant boundary constraints in PostgreSQL', () => {
   });
 
   afterAll(async () => {
-    await cleanFixture(database, fixture);
-    await pool.end();
+    const failures: unknown[] = [];
+    try {
+      await cleanFixture(database, fixture);
+    } catch (error) {
+      failures.push(error);
+    }
+    try {
+      await pool.end();
+    } catch (error) {
+      failures.push(error);
+    }
+    if (failures.length > 0) {
+      throw new AggregateError(
+        failures,
+        'Failed to release tenant boundary fixtures',
+        { cause: failures[0] },
+      );
+    }
   });
 
   it('rejects role and membership tuples from different tenants', async () => {
@@ -286,6 +367,117 @@ describe('tenant boundary constraints in PostgreSQL', () => {
         userId: fixture.userIds[0],
       }),
     ).resolves.toBeDefined();
+  });
+
+  it('rejects templates and events whose owner tuples cross tenants', async () => {
+    const suffix = randomUUID().replaceAll('-', '').slice(0, 6);
+    await expectForeignKeyViolation(
+      database.insert(eventTemplates).values({
+        categoryId: fixture.categoryIds[1],
+        description: 'Mismatched template category tenant',
+        icon: { iconColor: 0, iconName: 'circle' },
+        id: `tpl-owner-${suffix}`,
+        tenantId: fixture.tenantIds[0],
+        title: 'Mismatched template',
+      }),
+      eventTemplateCategoryTenantForeignKeyName,
+    );
+    await expectForeignKeyViolation(
+      database.insert(eventInstances).values({
+        creatorId: fixture.userIds[0],
+        description: 'Mismatched event template tenant',
+        end: new Date(Date.now() + 2 * 60_000),
+        icon: { iconColor: 0, iconName: 'circle' },
+        id: `event-owner-${suffix}`,
+        start: new Date(Date.now() + 60_000),
+        templateId: fixture.templateIds[1],
+        tenantId: fixture.tenantIds[0],
+        title: 'Mismatched event',
+      }),
+      eventTemplateTenantForeignKeyName,
+    );
+  });
+
+  it('rejects invalid event and registration-option lifecycle state', async () => {
+    const suffix = randomUUID().replaceAll('-', '').slice(0, 6);
+    const now = Date.now();
+
+    await expectCheckViolation(
+      database.insert(eventInstances).values({
+        creatorId: fixture.userIds[0],
+        description: 'Invalid event time order',
+        end: new Date(now + 60_000),
+        icon: { iconColor: 0, iconName: 'circle' },
+        id: `event-time-${suffix}`,
+        start: new Date(now + 60_000),
+        templateId: fixture.templateIds[0],
+        tenantId: fixture.tenantIds[0],
+        title: 'Invalid event time order',
+      }),
+      eventTimeOrderCheckName,
+    );
+    await expectCheckViolation(
+      database.insert(eventInstances).values({
+        creatorId: fixture.userIds[0],
+        description: 'Approved without review timestamp',
+        end: new Date(now + 2 * 60_000),
+        icon: { iconColor: 0, iconName: 'circle' },
+        id: `event-review-${suffix}`,
+        start: new Date(now + 60_000),
+        status: 'APPROVED',
+        templateId: fixture.templateIds[0],
+        tenantId: fixture.tenantIds[0],
+        title: 'Approved without review timestamp',
+      }),
+      eventReviewLifecycleCheckName,
+    );
+    await expectCheckViolation(
+      database.insert(eventRegistrationOptions).values({
+        closeRegistrationTime: new Date(now + 60_000),
+        confirmedSpots: 2,
+        eventId: fixture.eventIds[0],
+        id: `option-cap-${suffix}`,
+        isPaid: false,
+        openRegistrationTime: new Date(now),
+        organizingRegistration: false,
+        price: 0,
+        registrationMode: 'fcfs',
+        reservedSpots: 1,
+        spots: 2,
+        title: 'Invalid capacity',
+      }),
+      eventRegistrationOptionCapacityCheckName,
+    );
+    await expectCheckViolation(
+      database.insert(eventRegistrationOptions).values({
+        closeRegistrationTime: new Date(now + 60_000),
+        eventId: fixture.eventIds[0],
+        id: `option-price-${suffix}`,
+        isPaid: true,
+        openRegistrationTime: new Date(now),
+        organizingRegistration: false,
+        price: 0,
+        registrationMode: 'fcfs',
+        spots: 2,
+        title: 'Invalid price',
+      }),
+      eventRegistrationOptionPriceCheckName,
+    );
+    await expectCheckViolation(
+      database.insert(eventRegistrationOptions).values({
+        closeRegistrationTime: new Date(now),
+        eventId: fixture.eventIds[0],
+        id: `option-time-${suffix}`,
+        isPaid: false,
+        openRegistrationTime: new Date(now + 60_000),
+        organizingRegistration: false,
+        price: 0,
+        registrationMode: 'fcfs',
+        spots: 2,
+        title: 'Invalid registration window',
+      }),
+      eventRegistrationOptionTimeOrderCheckName,
+    );
   });
 
   it('rejects a transfer whose source registration belongs to another event option', async () => {

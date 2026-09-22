@@ -45,7 +45,12 @@ test('Check in event attendees', async ({
   }
 
   const [optionBefore] = await database
-    .select({ checkedInSpots: eventRegistrationOptions.checkedInSpots })
+    .select({
+      checkedInSpots: eventRegistrationOptions.checkedInSpots,
+      confirmedSpots: eventRegistrationOptions.confirmedSpots,
+      reservedSpots: eventRegistrationOptions.reservedSpots,
+      spots: eventRegistrationOptions.spots,
+    })
     .from(eventRegistrationOptions)
     .where(
       and(
@@ -60,17 +65,55 @@ test('Check in event attendees', async ({
   }
 
   const registrationId = getId();
+  const registrationSpotCount = 3;
+  const confirmedSpots = optionBefore.confirmedSpots + registrationSpotCount;
+  if (
+    confirmedSpots + optionBefore.reservedSpots > optionBefore.spots ||
+    optionBefore.checkedInSpots > confirmedSpots
+  ) {
+    throw new Error(
+      `Registration option "${participantOption.id}" lacks coherent capacity for check-in documentation`,
+    );
+  }
 
   try {
-    await database.insert(eventRegistrations).values({
-      checkedInGuestCount: 0,
-      eventId,
-      guestCount: 2,
-      id: registrationId,
-      registrationOptionId: participantOption.id,
-      status: 'CONFIRMED',
-      tenantId: seeded.tenant.id,
-      userId: attendee.id,
+    await database.transaction(async (transaction) => {
+      const updatedOptions = await transaction
+        .update(eventRegistrationOptions)
+        .set({ confirmedSpots })
+        .where(
+          and(
+            eq(eventRegistrationOptions.eventId, eventId),
+            eq(eventRegistrationOptions.id, participantOption.id),
+            eq(
+              eventRegistrationOptions.checkedInSpots,
+              optionBefore.checkedInSpots,
+            ),
+            eq(
+              eventRegistrationOptions.confirmedSpots,
+              optionBefore.confirmedSpots,
+            ),
+          ),
+        )
+        .returning({ id: eventRegistrationOptions.id });
+      if (updatedOptions.length !== 1) {
+        throw new Error(
+          `Registration option "${participantOption.id}" counters changed before check-in documentation setup`,
+        );
+      }
+
+      await transaction.insert(eventRegistrations).values({
+        basePriceAtRegistration: 0,
+        discountAmount: 0,
+        checkedInGuestCount: 0,
+        eventId,
+        guestCount: 2,
+        id: registrationId,
+        registrationOptionId: participantOption.id,
+        status: 'CONFIRMED',
+        tenantId: seeded.tenant.id,
+        userId: attendee.id,
+      });
     });
 
     await installMockCamera(page, 'allowed');
@@ -301,7 +344,10 @@ Never bypass a warning by changing the link or using another organization. Ask a
       .where(eq(eventRegistrations.id, registrationId));
     await database
       .update(eventRegistrationOptions)
-      .set({ checkedInSpots: optionBefore.checkedInSpots })
+      .set({
+        checkedInSpots: optionBefore.checkedInSpots,
+        confirmedSpots: optionBefore.confirmedSpots,
+      })
       .where(eq(eventRegistrationOptions.id, participantOption.id));
   }
 });

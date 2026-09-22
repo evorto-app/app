@@ -51,6 +51,7 @@ test('transfers a free registration through a private claim URL', async ({
     icon: { iconColor: 0x4f46e5, iconName: 'ticket' },
     id: eventId,
     start: startsAt,
+    reviewedAt: new Date(),
     status: 'APPROVED',
     templateId: template.id,
     tenantId: tenant.id,
@@ -74,6 +75,7 @@ test('transfers a free registration through a private claim URL', async ({
     transferDeadlineHoursBeforeStart: 0,
   });
   await database.insert(schema.eventRegistrations).values({
+    discountAmount: 0,
     basePriceAtRegistration: 0,
     eventId,
     guestCount: 0,
@@ -342,6 +344,7 @@ test('offers a paid registration privately while rejecting a source self-claim',
     icon: { iconColor: 0x4f46e5, iconName: 'ticket' },
     id: eventId,
     start: startsAt,
+    reviewedAt: new Date(),
     status: 'APPROVED',
     templateId: template.id,
     tenantId: tenant.id,
@@ -365,6 +368,7 @@ test('offers a paid registration privately while rejecting a source self-claim',
     transferDeadlineHoursBeforeStart: 0,
   });
   await database.insert(schema.eventRegistrations).values({
+    discountAmount: 0,
     basePriceAtRegistration: 1800,
     eventId,
     id: sourceRegistrationId,

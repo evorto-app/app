@@ -142,6 +142,8 @@ const verifiedResult = {
 
 const tenantReadSql =
   'select "d0"."discount_providers" as "discountProviders" from "tenants" as "d0" where "d0"."id" = $1 limit $2';
+const tenantLockSql =
+  'select "id" from "tenants" where "tenants"."id" = $1 for key share';
 const cardProjectionSql =
   'select "d0"."id" as "id", "d0"."identifier" as "identifier", "d0"."status" as "status", "d0"."type" as "type", "d0"."validTo"::text as "validTo" from "user_discount_cards" as "d0"';
 const cardListSql = `${cardProjectionSql} where (("d0"."tenantId" = $1) and ("d0"."userId" = $2))`;
@@ -196,6 +198,15 @@ const createDiscountDatabase = ({
 } = {}) => {
   let cards = initialCards.map((card) => ({ ...card }));
   const operations: string[] = [];
+  const transactionOperations: string[] = [];
+  let transactionActive = false;
+  let tenantLocked = false;
+
+  const recordCardWrite = (operation: string) => {
+    expect(transactionActive).toBe(true);
+    expect(tenantLocked).toBe(true);
+    transactionOperations.push(operation);
+  };
 
   const readTenantProviders = (parameters: readonly unknown[]) => {
     operations.push('readTenantProviders');
@@ -224,6 +235,8 @@ const createDiscountDatabase = ({
     return card ? [cardRow(card)] : [];
   };
   const readIdentifierOwner = (parameters: readonly unknown[]) => {
+    expect(transactionActive).toBe(false);
+    transactionOperations.push('readIdentifierOwner');
     operations.push('readIdentifierOwner');
     expect(parameters).toEqual(['ESN-123', 'tenant-2', 'esnCard', 1]);
     const card = cards.find(
@@ -235,6 +248,7 @@ const createDiscountDatabase = ({
     return card ? [[card.userId]] : [];
   };
   const updateExistingCard = (parameters: readonly unknown[]) => {
+    recordCardWrite('updateExistingCard');
     operations.push('updateExistingCard');
     expect([8, 12]).toContain(parameters.length);
     decodeTimestamp(parameters[0]);
@@ -273,6 +287,7 @@ const createDiscountDatabase = ({
     return [cardRow(updated)];
   };
   const refreshOriginalCard = (parameters: readonly unknown[]) => {
+    recordCardWrite('refreshOriginalCard');
     operations.push('refreshOriginalCard');
     expect(parameters).toHaveLength(11);
     decodeTimestamp(parameters[0]);
@@ -304,6 +319,7 @@ const createDiscountDatabase = ({
     return [cardRow(refreshed)];
   };
   const insertNewCard = (parameters: readonly unknown[]) => {
+    recordCardWrite('insertNewCard');
     operations.push('insertNewCard');
     expect(parameters).toHaveLength(10);
     expect(parameters.slice(5, 8)).toEqual(['tenant-2', 'esnCard', 'user-1']);
@@ -322,6 +338,7 @@ const createDiscountDatabase = ({
     return [cardRow(card)];
   };
   const deleteCurrentCard = (parameters: readonly unknown[]) => {
+    recordCardWrite('deleteCurrentCard');
     operations.push('deleteCurrentCard');
     expect(parameters).toEqual(['tenant-2', 'user-1', 'esnCard']);
     cards = cards.filter(
@@ -342,6 +359,7 @@ const createDiscountDatabase = ({
         writeFailure &&
         (statement === guardedUpsertUpdateSql || statement === insertCardSql)
       ) {
+        recordCardWrite('failedCardWrite');
         if (concurrentCard) cards.push(concurrentCard);
         return Effect.fail(writeFailure);
       }
@@ -368,6 +386,9 @@ const createDiscountDatabase = ({
           case partialRefreshUpdateSql:
           case partialUpsertUpdateSql: {
             const saving = statement === partialUpsertUpdateSql;
+            recordCardWrite(
+              saving ? 'updateExistingCard' : 'refreshOriginalCard',
+            );
             operations.push(
               saving ? 'updateExistingCard' : 'refreshOriginalCard',
             );
@@ -395,6 +416,14 @@ const createDiscountDatabase = ({
           case refreshUpdateSql: {
             return refreshOriginalCard(parameters);
           }
+          case tenantLockSql: {
+            expect(transactionActive).toBe(true);
+            expect(tenantLocked).toBe(false);
+            expect(parameters).toEqual(['tenant-2']);
+            tenantLocked = true;
+            transactionOperations.push('lockTenant');
+            return [['tenant-2']];
+          }
           case tenantReadSql: {
             return readTenantProviders(parameters);
           }
@@ -416,7 +445,32 @@ const createDiscountDatabase = ({
       }),
     executeStream: () =>
       Stream.die(new Error('Unexpected discount card query stream')),
-    executeUnprepared: () => unexpectedDatabaseAccess,
+    executeUnprepared: (statement, parameters) =>
+      Effect.sync(() => {
+        expect(parameters).toEqual([]);
+        switch (statement) {
+          case 'BEGIN': {
+            expect(transactionActive).toBe(false);
+            transactionActive = true;
+            tenantLocked = false;
+            break;
+          }
+          case 'COMMIT':
+          case 'ROLLBACK': {
+            expect(transactionActive).toBe(true);
+            transactionActive = false;
+            tenantLocked = false;
+            break;
+          }
+          default: {
+            throw new Error(
+              `Unexpected discount card transaction SQL: ${statement}`,
+            );
+          }
+        }
+        transactionOperations.push(statement);
+        return [];
+      }),
     executeValues,
     executeValuesUnprepared: () => unexpectedDatabaseAccess,
   } satisfies SqlConnection.Connection;
@@ -430,7 +484,7 @@ const createDiscountDatabase = ({
           acquirer: Effect.succeed(connection),
           config: {},
           listenAcquirer: unexpectedDatabaseAccess,
-          transactionAcquirer: unexpectedDatabaseAccess,
+          transactionAcquirer: Effect.succeed(connection),
         }),
       ),
     ),
@@ -438,8 +492,16 @@ const createDiscountDatabase = ({
 
   return {
     databaseLayer,
-    getCards: () => cards.map((card) => ({ ...card })),
+    getCards: () => {
+      expect(transactionActive).toBe(false);
+      return cards.map((card) => ({ ...card }));
+    },
     operations,
+    providerRequest: () => {
+      expect(transactionActive).toBe(false);
+      expect(tenantLocked).toBe(false);
+      transactionOperations.push('providerRequest');
+    },
     removeOriginalCard: () => {
       cards = cards.filter((card) => card.id !== 'card-1');
     },
@@ -448,6 +510,7 @@ const createDiscountDatabase = ({
         card.id === 'card-1' ? { ...card, identifier: 'ESN-456' } : card,
       );
     },
+    transactionOperations,
   };
 };
 
@@ -633,18 +696,21 @@ layer(discountHandlerLayer)('discountHandlers', (it) => {
   it.effect('upsertMyCard returns an expired provider state', () => {
     const expiredFrom = new Date('2024-01-01T00:00:00.000Z');
     const expiredTo = new Date('2024-12-31T00:00:00.000Z');
-    const validate = vi.fn(async (): Promise<ValidationResult> => ({
-      metadata: { provider: 'esncard' },
-      status: 'expired',
-      validFrom: expiredFrom,
-      validTo: expiredTo,
-    }));
+    const fixture = createDiscountDatabase({
+      initialCards: [createCard({ identifier: 'OLD-ESN' })],
+    });
+    const validate = vi.fn(async (): Promise<ValidationResult> => {
+      fixture.providerRequest();
+      return {
+        metadata: { provider: 'esncard' },
+        status: 'expired',
+        validFrom: expiredFrom,
+        validTo: expiredTo,
+      };
+    });
     return withEsnCardAdapter(
       validate,
       Effect.gen(function* () {
-        const fixture = createDiscountDatabase({
-          initialCards: [createCard({ identifier: 'OLD-ESN' })],
-        });
         const card = yield* upsertMyCard().pipe(
           Effect.provide(fixture.databaseLayer),
         );
@@ -669,6 +735,14 @@ layer(discountHandlerLayer)('discountHandlers', (it) => {
           'readIdentifierOwner',
           'readCurrentCard',
           'updateExistingCard',
+        ]);
+        expect(fixture.transactionOperations).toEqual([
+          'readIdentifierOwner',
+          'providerRequest',
+          'BEGIN',
+          'lockTenant',
+          'updateExistingCard',
+          'COMMIT',
         ]);
         expect(validate).toHaveBeenCalledExactlyOnceWith({
           identifier: 'ESN-123',
@@ -735,6 +809,17 @@ layer(discountHandlerLayer)('discountHandlers', (it) => {
               ...initialCards,
               concurrentCard,
             ]);
+            expect(fixture.transactionOperations).toEqual([
+              'readIdentifierOwner',
+              'BEGIN',
+              'lockTenant',
+              'failedCardWrite',
+              'ROLLBACK',
+              ...(scenario.constraint ===
+              'user_discount_cards_tenantId_type_identifier_unique'
+                ? ['readIdentifierOwner']
+                : []),
+            ]);
           }),
         ),
     );
@@ -780,17 +865,27 @@ layer(discountHandlerLayer)('discountHandlers', (it) => {
               underlying && Cause.isFailReason(underlying) && underlying.error,
             ).toBe(failure);
             expect(fixture.getCards()).toEqual([]);
+            expect(fixture.transactionOperations).toEqual([
+              'readIdentifierOwner',
+              'BEGIN',
+              'lockTenant',
+              'failedCardWrite',
+              'ROLLBACK',
+            ]);
           }),
         ),
     );
   }
 
   it.effect('upsertMyCard validates before inserting a new card', () => {
-    const validate = vi.fn(async () => verifiedResult);
+    const fixture = createDiscountDatabase();
+    const validate = vi.fn(async () => {
+      fixture.providerRequest();
+      return verifiedResult;
+    });
     return withEsnCardAdapter(
       validate,
       Effect.gen(function* () {
-        const fixture = createDiscountDatabase();
         const card = yield* upsertMyCard().pipe(
           Effect.provide(fixture.databaseLayer),
         );
@@ -816,6 +911,14 @@ layer(discountHandlerLayer)('discountHandlers', (it) => {
           'readIdentifierOwner',
           'readCurrentCard',
           'insertNewCard',
+        ]);
+        expect(fixture.transactionOperations).toEqual([
+          'readIdentifierOwner',
+          'providerRequest',
+          'BEGIN',
+          'lockTenant',
+          'insertNewCard',
+          'COMMIT',
         ]);
         expect(validate).toHaveBeenCalledExactlyOnceWith({
           identifier: 'ESN-123',
@@ -866,6 +969,9 @@ layer(discountHandlerLayer)('discountHandlers', (it) => {
               'readTenantProviders',
               'readIdentifierOwner',
               'readCurrentCard',
+            ]);
+            expect(fixture.transactionOperations).toEqual([
+              'readIdentifierOwner',
             ]);
             expect(validate).toHaveBeenCalledExactlyOnceWith({
               identifier: 'ESN-123',
@@ -940,13 +1046,16 @@ layer(discountHandlerLayer)('discountHandlers', (it) => {
   it.effect(
     'refreshMyCard revalidates and updates the current user card',
     () => {
-      const validate = vi.fn(async () => verifiedResult);
+      const fixture = createDiscountDatabase({
+        initialCards: [createCard()],
+      });
+      const validate = vi.fn(async () => {
+        fixture.providerRequest();
+        return verifiedResult;
+      });
       return withEsnCardAdapter(
         validate,
         Effect.gen(function* () {
-          const fixture = createDiscountDatabase({
-            initialCards: [createCard()],
-          });
           const refreshed = yield* refreshMyCard().pipe(
             Effect.provide(fixture.databaseLayer),
           );
@@ -973,6 +1082,13 @@ layer(discountHandlerLayer)('discountHandlers', (it) => {
             'readTenantProviders',
             'readCurrentCard',
             'refreshOriginalCard',
+          ]);
+          expect(fixture.transactionOperations).toEqual([
+            'providerRequest',
+            'BEGIN',
+            'lockTenant',
+            'refreshOriginalCard',
+            'COMMIT',
           ]);
         }),
       );
@@ -1012,6 +1128,7 @@ layer(discountHandlerLayer)('discountHandlers', (it) => {
             'readTenantProviders',
             'readCurrentCard',
           ]);
+          expect(fixture.transactionOperations).toEqual([]);
           expect(validate).toHaveBeenCalledExactlyOnceWith({
             identifier: 'ESN-123',
           });
@@ -1225,6 +1342,12 @@ layer(discountHandlerLayer)('discountHandlers', (it) => {
       ).pipe(Effect.provide(fixture.databaseLayer));
       expect(fixture.getCards()).toEqual([otherTenantCard, otherUserCard]);
       expect(fixture.operations).toEqual(['deleteCurrentCard']);
+      expect(fixture.transactionOperations).toEqual([
+        'BEGIN',
+        'lockTenant',
+        'deleteCurrentCard',
+        'COMMIT',
+      ]);
     }),
   );
 });

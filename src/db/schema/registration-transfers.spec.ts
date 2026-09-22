@@ -99,7 +99,9 @@ describe('registration transfer schema', () => {
 
     expect(activeSourceIndex?.config.unique).toBe(true);
     expect(
-      activeSourceIndex?.config.columns.map((column) => column.name),
+      activeSourceIndex?.config.columns.map((column) =>
+        'name' in column ? column.name : undefined,
+      ),
     ).toEqual(['source_registration_id']);
     const predicate = activeSourceIndex?.config.where;
     expect(predicate).toBeDefined();
@@ -122,10 +124,11 @@ describe('registration transfer schema', () => {
     expect(columnNames).toContain('claim_code_hash');
     expect(columnNames).not.toContain('claim_token');
     expect(columnNames).not.toContain('claim_code');
-    expect(expiryIndex?.config.columns.map((column) => column.name)).toEqual([
-      'status',
-      'expires_at',
-    ]);
+    expect(
+      expiryIndex?.config.columns.map((column) =>
+        'name' in column ? column.name : undefined,
+      ),
+    ).toEqual(['status', 'expires_at']);
   });
 
   it('keeps the transferred registration and capacity in place', () => {
@@ -350,9 +353,11 @@ describe('registration transfer schema', () => {
       table: registrationTransferRefundPlanItems,
     });
     expect(refundIndex?.config.unique).toBe(true);
-    expect(refundIndex?.config.columns.map((column) => column.name)).toEqual([
-      'refund_transaction_id',
-    ]);
+    expect(
+      refundIndex?.config.columns.map((column) =>
+        'name' in column ? column.name : undefined,
+      ),
+    ).toEqual(['refund_transaction_id']);
     const refundPredicate = refundIndex?.config.where;
     expect(refundPredicate).toBeDefined();
     if (!refundPredicate) {
@@ -432,6 +437,23 @@ describe('registration transfer schema', () => {
     });
   });
 
+  it('indexes transfer answer history by question independently of the transfer', () => {
+    const questionIndex = getTableConfig(
+      registrationTransferAnswers,
+    ).indexes.find(
+      (index) =>
+        index.config.name === 'registration_transfer_answers_question_idx',
+    );
+
+    expect(questionIndex).toBeDefined();
+    expect(questionIndex?.config.unique).toBe(false);
+    expect(
+      questionIndex?.config.columns.map((column) =>
+        'name' in column ? column.name : undefined,
+      ),
+    ).toEqual(['question_id']);
+  });
+
   it('keeps transfer history append-only and ordered per transfer', () => {
     const tableConfig = getTableConfig(registrationTransferEvents);
 
@@ -440,7 +462,9 @@ describe('registration transfer schema', () => {
     );
     expect(
       tableConfig.indexes.map((index) => ({
-        columns: index.config.columns.map((column) => column.name),
+        columns: index.config.columns.map((column) =>
+          'name' in column ? column.name : undefined,
+        ),
         name: index.config.name,
       })),
     ).toEqual([

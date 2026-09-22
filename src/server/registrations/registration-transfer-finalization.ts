@@ -1072,7 +1072,7 @@ export const finalizeRegistrationTransferCheckout = Effect.fn(
       appliedDiscountedPrice: transfer.recipientAppliedDiscountedPrice,
       appliedDiscountType: transfer.recipientAppliedDiscountType,
       basePriceAtRegistration: transfer.recipientBasePrice,
-      discountAmount: transfer.recipientDiscountAmount,
+      discountAmount: transfer.recipientDiscountAmount ?? 0,
       stripeTaxRateId: transfer.recipientStripeTaxRateId,
       taxRateDisplayName: transfer.recipientTaxRateDisplayName,
       taxRateInclusive: transfer.recipientTaxRateInclusive,
@@ -1150,8 +1150,11 @@ export const finalizeRegistrationTransferCheckout = Effect.fn(
     yield* tx.insert(eventRegistrationQuestionAnswers).values(
       transferAnswers.map((answer) => ({
         answer: answer.answer,
+        eventId: transfer.eventId,
         questionId: answer.questionId,
         registrationId: transfer.sourceRegistrationId,
+        registrationOptionId: transfer.registrationOptionId,
+        tenantId: input.tenantId,
       })),
     );
   }

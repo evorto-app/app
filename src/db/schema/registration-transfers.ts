@@ -494,6 +494,9 @@ export const registrationTransferAnswers = pgTable(
     transferId: varchar('transfer_id', { length: 20 }).notNull(),
   },
   (table) => ({
+    byQuestion: index('registration_transfer_answers_question_idx').on(
+      table.questionId,
+    ),
     questionOwner: foreignKey({
       columns: [table.questionId, table.eventId, table.registrationOptionId],
       foreignColumns: [
