@@ -597,10 +597,14 @@ describe('tenant request page lifetime', () => {
     expect(context.close).not.toHaveBeenCalled();
   });
 
-  it.each([false, true])(
-    'retains routing if a page stays open (close rejects: %s)',
-    async (rejectClose) => {
+  it.each(['open', 'close-rejects', 'inventory-error'] as const)(
+    'retains routing and earlier upstream failures when page cleanup cannot drain (%s)',
+    async (failureMode) => {
       const pageFailure = new Error('page refused closure');
+      const inventoryFailure = new Error('page inventory failed');
+      const upstreamFailure = new Error('earlier upstream request failed');
+      const installed: { handler?: Parameters<BrowserContext['route']>[1] } =
+        {};
       let secondClosed = false;
       const secondClose = vi.fn(async () => {
         secondClosed = true;
@@ -608,7 +612,7 @@ describe('tenant request page lifetime', () => {
       const pages = [
         {
           close: async () => {
-            if (rejectClose) throw pageFailure;
+            if (failureMode === 'close-rejects') throw pageFailure;
           },
           isClosed: () => false,
         },
@@ -618,8 +622,14 @@ describe('tenant request page lifetime', () => {
         close: vi.fn(async () => {}),
         grantPermissions: async () => {},
         isClosed: () => false,
-        pages: () => pages.filter((page) => !page.isClosed()),
-        route: registerRoute,
+        pages: () => {
+          if (failureMode === 'inventory-error') throw inventoryFailure;
+          return pages.filter((page) => !page.isClosed());
+        },
+        route: vi.fn<BrowserContext['route']>(async (_, handler) => {
+          installed.handler = handler;
+          return registerRoute();
+        }),
         unroute: vi.fn(async () => {}),
       };
       await routeLocalTenantRequests({
@@ -627,26 +637,40 @@ describe('tenant request page lifetime', () => {
         context,
         tenantDomain: 'north-river.evorto.app',
       });
+      const request = createTeardownRequest();
+      const route: Route = {
+        abort: vi.fn(async () => {}),
+        continue: unusedRequestOperation,
+        fallback: unusedRequestOperation,
+        fetch: async () => {
+          throw upstreamFailure;
+        },
+        fulfill: unusedRequestOperation,
+        request: () => request,
+      };
+      const handler = installed.handler;
+      if (!handler) throw new Error('Tenant route handler was not installed');
+      await handler(route, request);
       const failure = await closeTenantRequestPages(context).catch(
         (error: unknown) => error,
       );
-      if (rejectClose) {
-        expect(failure).toMatchObject({
-          errors: [
-            pageFailure,
-            expect.objectContaining({
-              message:
-                'Tenant request pages remain open; routing remains installed',
-            }),
-          ],
-        });
-      } else {
-        expect(failure).toMatchObject({
-          message:
-            'Tenant request pages remain open; routing remains installed',
-        });
-      }
-      expect(secondClose).toHaveBeenCalledOnce();
+      const expectedPageErrors =
+        failureMode === 'inventory-error'
+          ? [inventoryFailure]
+          : [
+              ...(failureMode === 'close-rejects' ? [pageFailure] : []),
+              expect.objectContaining({
+                message:
+                  'Tenant request pages remain open; routing remains installed',
+              }),
+            ];
+      expect(failure).toMatchObject({
+        errors: [...expectedPageErrors, upstreamFailure],
+      });
+      expect(route.abort).toHaveBeenCalledExactlyOnceWith('failed');
+      expect(secondClose).toHaveBeenCalledTimes(
+        failureMode === 'inventory-error' ? 0 : 1,
+      );
       expect(context.unroute).not.toHaveBeenCalled();
       expect(context.close).not.toHaveBeenCalled();
       await expect(
@@ -656,6 +680,9 @@ describe('tenant request page lifetime', () => {
           tenantDomain: 'replacement.example.org',
         }),
       ).rejects.toThrow('Tenant request routing is already installed');
+      await expect(stopTenantRequestRouting(context)).rejects.toBe(
+        upstreamFailure,
+      );
     },
   );
 

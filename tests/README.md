@@ -90,6 +90,9 @@ reading the page inventory, so an inventory failure cannot bypass that step or
 discard an earlier cancellation failure.
 If cleanup starts while a request is still reading its headers, that request
 is canceled without starting an upstream fetch when the headers arrive.
+If page cleanup cannot reach the drain, it also reports routing failures
+already recorded while retaining them for the outer cleanup owner. It does
+not wait for unfinished requests that still need context disposal.
 Do not replace the scoped drain with
 `unrouteAll`, which can release other active requests before their handlers
 finish.

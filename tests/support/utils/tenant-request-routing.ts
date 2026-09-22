@@ -308,7 +308,15 @@ const closeTenantRequestPagePhase = async (
 export const closeTenantRequestPages = async (
   context: Parameters<typeof closeTenantRequestPagePhase>[0],
 ): Promise<void> => {
-  const { errors } = await closeTenantRequestPagePhase(context);
+  const state = tenantRoutes.get(context);
+  const { errors, drainAttempted } = await closeTenantRequestPagePhase(context);
+  if (!drainAttempted && state) {
+    // Preserve failures already observed without waiting for requests that
+    // still need outer context disposal. Keep them owned for a later drain.
+    for (const error of state.errors) {
+      if (!errors.includes(error)) errors.push(error);
+    }
+  }
   if (errors.length === 1) throw errors[0];
   if (errors.length > 1) {
     throw new AggregateError(errors, 'Tenant request page cleanup failed');
