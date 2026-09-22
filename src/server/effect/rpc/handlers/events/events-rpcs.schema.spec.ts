@@ -24,7 +24,9 @@ import {
   EventsCancellableRegistrationStatus,
   EventsCancelRegistration,
   EventsCreateRegistrationOptionInput,
+  EventsEventListInput,
   EventsFindOneAddon,
+  EventsFindOneForEditRegistrationOption,
   EventsFindOneRegistrationOption,
   EventsGetOrganizeOverviewUser,
   EventsJoinWaitlistPayload,
@@ -37,6 +39,49 @@ import {
   EventsRegistrationStatusRecord,
 } from '../../../../../shared/rpc-contracts/app-rpcs/events.rpcs';
 import { EventLocation } from '../../../../../types/location';
+
+describe('events RPC list input schema', () => {
+  it('accepts only bounded integer pages and canonical UTC timestamps', () => {
+    expect(
+      Schema.decodeUnknownSync(EventsEventListInput)({
+        includeUnlisted: true,
+        limit: 100,
+        offset: 0,
+        startAfter: '2026-07-15T14:30:00.000Z',
+        status: ['APPROVED'],
+        userId: 'current-client-user',
+      }),
+    ).toEqual({
+      includeUnlisted: true,
+      limit: 100,
+      offset: 0,
+      startAfter: '2026-07-15T14:30:00.000Z',
+      status: ['APPROVED'],
+      userId: 'current-client-user',
+    });
+
+    for (const input of [
+      { limit: 0, offset: 0, startAfter: '2026-07-15T14:30:00.000Z' },
+      { limit: 101, offset: 0, startAfter: '2026-07-15T14:30:00.000Z' },
+      { limit: 10.5, offset: 0, startAfter: '2026-07-15T14:30:00.000Z' },
+      { limit: 10, offset: -1, startAfter: '2026-07-15T14:30:00.000Z' },
+      { limit: 10, offset: 0.5, startAfter: '2026-07-15T14:30:00.000Z' },
+      { limit: 10, offset: 0, startAfter: 'not-a-timestamp' },
+      {
+        limit: 10,
+        offset: 0,
+        startAfter: '2026-07-15T16:30:00.000+02:00',
+      },
+    ]) {
+      expect(() =>
+        Schema.decodeUnknownSync(EventsEventListInput)({
+          status: ['APPROVED'],
+          ...input,
+        }),
+      ).toThrow();
+    }
+  });
+});
 
 describe('events RPC location schema', () => {
   it('accepts a structured Google event location', () => {
@@ -701,12 +746,7 @@ describe('events RPC editable graph schema', () => {
             title: 'Dietary requirements',
           },
         ],
-        registrationOptions: [
-          {
-            ...writableOption,
-            registrationMode: 'random',
-          },
-        ],
+        registrationOptions: [writableOption],
         simpleModeEnabled: false,
         start: '2026-09-20T12:00:00.000Z',
         title: 'Event',
@@ -714,12 +754,28 @@ describe('events RPC editable graph schema', () => {
     ).not.toThrow();
   });
 
-  it('keeps legacy random readable but rejects it in graph writes', () => {
+  it('accepts supported modes and rejects retired values in event reads and writes', () => {
+    for (const registrationMode of ['fcfs', 'application']) {
+      const option = { ...writableOption, registrationMode };
+      expect(
+        Schema.decodeUnknownSync(EventsFindOneForEditRegistrationOption)(option)
+          .registrationMode,
+      ).toBe(registrationMode);
+      expect(
+        Schema.decodeUnknownSync(EventGraphRegistrationOptionInput)(option)
+          .registrationMode,
+      ).toBe(registrationMode);
+    }
+    const retiredOption = { ...writableOption, registrationMode: 'random' };
     expect(() =>
-      Schema.decodeUnknownSync(EventGraphRegistrationOptionInput)({
-        ...writableOption,
-        registrationMode: 'random',
-      }),
+      Schema.decodeUnknownSync(EventsFindOneForEditRegistrationOption)(
+        retiredOption,
+      ),
+    ).toThrow();
+    expect(() =>
+      Schema.decodeUnknownSync(EventGraphRegistrationOptionInput)(
+        retiredOption,
+      ),
     ).toThrow();
   });
 

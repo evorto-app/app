@@ -130,7 +130,7 @@ const validateRegistrationOption = (
     option.registrationMode !== 'fcfs'
   ) {
     return invalidGraph(
-      'Random template allocation is deferred and unsupported for the relaunch',
+      'Use First come, first served or Manual approval for every sign-up choice.',
       'unsupportedTemplateRegistrationMode',
     );
   }
@@ -256,17 +256,6 @@ export const validateTemplateGraphStructure = ({
     return invalidGraph(
       `A template can have at most ${MAX_REGISTRATION_QUESTIONS} sign-up questions.`,
       'templateQuestionLimitExceeded',
-    );
-  }
-
-  if (
-    before?.registrationOptions.some(
-      (option) => option.registrationMode === 'random',
-    )
-  ) {
-    return invalidGraph(
-      'Random template allocation is deferred and unsupported for the relaunch',
-      'unsupportedTemplateRegistrationMode',
     );
   }
 

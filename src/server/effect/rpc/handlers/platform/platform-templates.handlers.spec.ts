@@ -87,7 +87,7 @@ const graphRecord: TemplateGraphRecord = {
       price: 0,
       refundFeesOnCancellation: null,
       registeredDescription: null,
-      registrationMode: 'random',
+      registrationMode: 'fcfs',
       roleIds: ['role-2'],
       roles: [{ id: 'role-2', name: 'Participant' }],
       spots: 30,
@@ -156,11 +156,11 @@ describe('platform template full-graph handler', () => {
       'utf8',
     );
     expect(contractSource).toMatch(
-      /TemplateGraphRegistrationOptionInput[\s\S]*?registrationMode: TemplateWritableRegistrationMode/,
+      /TemplateGraphRegistrationOptionInput[\s\S]*?registrationMode: TemplateRegistrationMode/,
     );
   });
 
-  it('keeps legacy random options readable in audit without free-text PII', () => {
+  it('keeps registration options in audit without free-text PII', () => {
     const snapshot = platformTemplateAuditSnapshot(graphRecord);
     const encoded = JSON.stringify(snapshot);
 
@@ -185,7 +185,7 @@ describe('platform template full-graph handler', () => {
         simpleModeEnabled: false,
       }),
     );
-    expect(encoded).toContain('random');
+    expect(encoded).toContain('application');
     expect(encoded).toContain('option-1');
     expect(encoded).toContain('option-2');
     expect(encoded).not.toContain('Not included in audit state');

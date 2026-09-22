@@ -64,7 +64,7 @@ export interface EventRegistrationOptionView {
     sortOrder: number;
     title: string;
   }[];
-  registrationMode: 'application' | 'fcfs' | 'random';
+  registrationMode: 'application' | 'fcfs';
   reservedSpots: number;
   spots: number;
   stripeTaxRateId?: null | string;
@@ -411,9 +411,6 @@ export class EventRegistrationOptionComponent {
     () =>
       this.registrationOption().registrationMode !== 'application' &&
       this.selectedTotalPrice() > 0,
-  );
-  protected readonly registrationModeSupported = computed(
-    () => this.registrationOption().registrationMode !== 'random',
   );
   private currentTime = toSignal(interval(1000).pipe(map(() => new Date())), {
     initialValue: new Date(),

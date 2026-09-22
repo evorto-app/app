@@ -15,7 +15,7 @@ import { DateAdapter } from '@angular/material/core';
 import { MatFormFieldHarness } from '@angular/material/form-field/testing';
 import { MatSelectHarness } from '@angular/material/select/testing';
 import { createRpcQueryKey } from '@heddendorp/effect-angular-query';
-import { writableRegistrationModes } from '@shared/registration-modes';
+import { registrationModes } from '@shared/registration-modes';
 import { ClientTenantConfig } from '@shared/rpc-contracts/app-rpcs/config.rpcs';
 import { TaxRatesListActiveRecord } from '@shared/rpc-contracts/app-rpcs/tax-rates.rpcs';
 import {
@@ -216,7 +216,7 @@ class TaxSelectorTestHost {
   readonly surface = input.required<TaxSelectorSurface>();
   readonly graphModel = signal(taxSelectorGraphModel());
   readonly graphForm = form(this.graphModel, eventGraphFormSchema);
-  readonly registrationModes = writableRegistrationModes;
+  readonly registrationModes = registrationModes;
   readonly sharedModel = signal(
     createRegistrationOptionFormModel({
       isPaid: true,

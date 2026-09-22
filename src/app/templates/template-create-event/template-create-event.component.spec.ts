@@ -25,13 +25,11 @@ import { ConfigService } from '../../core/config.service';
 import { EventGeneralForm } from '../../shared/components/forms/event-general-form/event-general-form';
 import { RegistrationOptionForm } from '../../shared/components/forms/registration-option-form/registration-option-form';
 import {
-  legacyRandomTemplateEventMessage,
   templateAddOnCopyNotice,
   TemplateCreateEventComponent,
   templateCreateEventErrorMessage,
   TemplateCreateEventOperations,
   templateCreateEventSubmitDisabled,
-  templateHasLegacyRandomRegistration,
 } from './template-create-event.component';
 
 describe('templateCreateEventSubmitDisabled', () => {
@@ -41,7 +39,6 @@ describe('templateCreateEventSubmitDisabled', () => {
         discountProvidersReady: true,
         formInvalid: false,
         formSubmitting: false,
-        legacyRandomBlocked: false,
         mutationPending: false,
         paidGraphBlocked: false,
         taxRatesReady: true,
@@ -52,7 +49,6 @@ describe('templateCreateEventSubmitDisabled', () => {
         discountProvidersReady: true,
         formInvalid: true,
         formSubmitting: false,
-        legacyRandomBlocked: false,
         mutationPending: false,
         paidGraphBlocked: false,
         taxRatesReady: true,
@@ -63,7 +59,6 @@ describe('templateCreateEventSubmitDisabled', () => {
         discountProvidersReady: true,
         formInvalid: false,
         formSubmitting: true,
-        legacyRandomBlocked: false,
         mutationPending: false,
         paidGraphBlocked: false,
         taxRatesReady: true,
@@ -74,19 +69,7 @@ describe('templateCreateEventSubmitDisabled', () => {
         discountProvidersReady: true,
         formInvalid: false,
         formSubmitting: false,
-        legacyRandomBlocked: false,
         mutationPending: true,
-        paidGraphBlocked: false,
-        taxRatesReady: true,
-      }),
-    ).toBe(true);
-    expect(
-      templateCreateEventSubmitDisabled({
-        discountProvidersReady: true,
-        formInvalid: false,
-        formSubmitting: false,
-        legacyRandomBlocked: true,
-        mutationPending: false,
         paidGraphBlocked: false,
         taxRatesReady: true,
       }),
@@ -114,30 +97,9 @@ describe('templateCreateEventSubmitDisabled', () => {
         ...pricing,
         formInvalid: false,
         formSubmitting: false,
-        legacyRandomBlocked: false,
         mutationPending: false,
       }),
     ).toBe(true);
-  });
-});
-
-describe('template legacy random allocation guard', () => {
-  it('blocks event creation without coercing the template mode', () => {
-    const registrationOptions = [
-      { registrationMode: 'fcfs' },
-      { registrationMode: 'random' },
-    ];
-    expect(templateHasLegacyRandomRegistration(registrationOptions)).toBe(true);
-    expect(registrationOptions[1]?.registrationMode).toBe('random');
-    expect(legacyRandomTemplateEventMessage).toBe(
-      'Random allocation is unavailable. An authorized template editor must choose First come, first served or Manual approval before anyone can create an event from this template.',
-    );
-    expect(
-      templateHasLegacyRandomRegistration([
-        { registrationMode: 'fcfs' },
-        { registrationMode: 'application' },
-      ]),
-    ).toBe(false);
   });
 });
 

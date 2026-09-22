@@ -4,7 +4,10 @@ import {
   type PlatformTemplatesCreateInput,
   type PlatformTemplatesUpdateInput,
 } from '@shared/rpc-contracts/app-rpcs/platform-events.rpcs';
-import { type TemplateGraphRecord } from '@shared/rpc-contracts/app-rpcs/templates.rpcs';
+import {
+  type TemplateGraphRecord,
+  TemplateRegistrationMode,
+} from '@shared/rpc-contracts/app-rpcs/templates.rpcs';
 import { and, asc, eq } from 'drizzle-orm';
 import { Effect, Schema } from 'effect';
 
@@ -39,7 +42,7 @@ const PlatformTemplateAuditRegistrationOption = Schema.Struct({
   organizingRegistration: Schema.Boolean,
   price: Schema.Number,
   refundFeesOnCancellation: Schema.NullOr(Schema.Boolean),
-  registrationMode: Schema.Literals(['application', 'fcfs', 'random']),
+  registrationMode: TemplateRegistrationMode,
   roleIds: Schema.Array(Schema.NonEmptyString),
   spots: Schema.Number,
   stripeTaxRateId: Schema.NullOr(Schema.String),

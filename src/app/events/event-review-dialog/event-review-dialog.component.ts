@@ -12,9 +12,17 @@ import {
   validate,
 } from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
-import { MatDialogModule, MatDialogRef } from '@angular/material/dialog';
+import {
+  MAT_DIALOG_DATA,
+  MatDialogModule,
+  MatDialogRef,
+} from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+
+export interface EventReviewDialogData {
+  readonly initialComment: string;
+}
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -27,7 +35,7 @@ import { MatInputModule } from '@angular/material/input';
   ],
   selector: 'app-event-review-dialog',
   template: `
-    <h2 mat-dialog-title>Return Event to Draft</h2>
+    <h2 mat-dialog-title>Return event to draft</h2>
     <form (submit)="onSubmit($event)">
       <mat-dialog-content>
         <p class="text-on-surface-variant mb-4">
@@ -57,14 +65,20 @@ import { MatInputModule } from '@angular/material/input';
           type="submit"
           [disabled]="reviewForm().invalid() || reviewForm().submitting()"
         >
-          Return to Draft
+          Return to draft
         </button>
       </mat-dialog-actions>
     </form>
   `,
 })
 export class EventReviewDialogComponent {
-  private readonly reviewModel = signal({ comment: '' });
+  private readonly data = inject<EventReviewDialogData | null>(
+    MAT_DIALOG_DATA,
+    { optional: true },
+  );
+  private readonly reviewModel = signal({
+    comment: this.data?.initialComment ?? '',
+  });
   protected readonly reviewForm = form(this.reviewModel, (schema) => {
     required(schema.comment);
     validate(schema.comment, ({ value }) =>

@@ -131,7 +131,7 @@ export const organizerRegistrationApprovalState = ({
   registrationStatus,
   transactions,
 }: {
-  registrationMode: 'application' | 'fcfs' | 'random';
+  registrationMode: 'application' | 'fcfs';
   registrationStatus: 'CANCELLED' | 'CONFIRMED' | 'PENDING' | 'WAITLIST';
   transactions: readonly {
     status: string;
@@ -158,6 +158,11 @@ export const organizerRegistrationApprovalState = ({
 
 const canInspectTenantEvents = (permissions: readonly Permission[]): boolean =>
   includesPermission('globalAdmin:manageTenants', permissions);
+
+export const eventListOrder = () => [
+  asc(eventInstances.start),
+  asc(eventInstances.id),
+];
 
 export const groupEventsByTenantDay = <EventRecord extends { start: string }>(
   events: readonly EventRecord[],
@@ -330,7 +335,7 @@ export const eventQueryHandlers = {
           )
           .limit(input.limit)
           .offset(input.offset)
-          .orderBy(eventInstances.start),
+          .orderBy(...eventListOrder()),
       );
 
       const eventRecords = selectedEvents.map((event) => ({

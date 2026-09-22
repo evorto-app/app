@@ -1,23 +1,35 @@
-import { Component, input, signal } from '@angular/core';
 import '@angular/compiler';
+import { registerLocaleData } from '@angular/common';
+import localeDe from '@angular/common/locales/de';
+import { Component, computed, input, LOCALE_ID, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { MatDialog } from '@angular/material/dialog';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { provideRouter } from '@angular/router';
-import { EventConflictError } from '@shared/rpc-contracts/app-rpcs/events.errors';
-import { EventNotFoundError } from '@shared/rpc-contracts/app-rpcs/events.errors';
+import { createRpcQueryFilter } from '@heddendorp/effect-angular-query';
+import { RpcBadRequestError } from '@shared/errors/rpc-errors';
+import { ClientTenantConfig } from '@shared/rpc-contracts/app-rpcs/config.rpcs';
 import {
+  EventConflictError,
+  EventNotFoundError,
+} from '@shared/rpc-contracts/app-rpcs/events.errors';
+import {
+  onlineManager,
   provideTanStackQuery,
   QueryClient,
+  QueryObserver,
 } from '@tanstack/angular-query-experimental';
 import { readFileSync } from 'node:fs';
 import nodePath from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import type { AppRpc } from '../../core/effect-rpc-angular-client';
 
 import { ConfigService } from '../../core/config.service';
 import { NotificationService } from '../../core/notification.service';
 import { PermissionsService } from '../../core/permissions.service';
 import { TENANT_DATE_PIPE_TIMEZONE } from '../../core/tenant-date.pipe';
 import { EventActiveRegistrationComponent } from '../event-active-registration/event-active-registration.component';
+import { EventReviewDialogComponent } from '../event-review-dialog/event-review-dialog.component';
 import {
   eventAddonPurchaseTiming,
   eventAddonsForRegistrationOption,
@@ -369,6 +381,28 @@ describe('eventAddonsForRegistrationOption', () => {
   });
 });
 
+type ScheduleViewer = Awaited<
+  ReturnType<
+    ReturnType<typeof AppRpc.injectClient>['users']['maybeSelf']['call']
+  >
+>;
+const findScheduleViewer = vi.fn<() => Promise<ScheduleViewer>>();
+const signedInScheduleViewer = {
+  attributes: [],
+  auth0Id: 'auth0|schedule-viewer',
+  communicationEmail: undefined,
+  email: 'schedule-viewer@example.test',
+  firstName: 'Schedule',
+  homeTenantId: undefined,
+  homeTenantName: undefined,
+  iban: undefined,
+  id: 'schedule-viewer',
+  lastName: 'Viewer',
+  paypalEmail: undefined,
+  permissions: [],
+  roleIds: [],
+} satisfies NonNullable<ScheduleViewer>;
+
 const findEvent = vi.fn();
 const findRegistrationStatus = vi.fn();
 
@@ -421,6 +455,7 @@ describe('EventDetailsComponent load recovery', () => {
 
   beforeEach(async () => {
     findEvent.mockReset();
+    findScheduleViewer.mockReset().mockResolvedValue(null);
     findRegistrationStatus.mockReset();
     reviewEvent.mockReset().mockResolvedValue(undefined);
     queryClient = new QueryClient({
@@ -480,7 +515,7 @@ describe('EventDetailsComponent load recovery', () => {
               mutationKey: ['review-event'],
             }),
             self: () => ({
-              queryFn: async () => null,
+              queryFn: findScheduleViewer,
               queryKey: ['maybe-self'],
             }),
             submitForReview: () => ({
@@ -528,6 +563,96 @@ describe('EventDetailsComponent load recovery', () => {
     fixture.detectChanges();
     return fixture;
   };
+
+  it.each([false, true])(
+    'shows the event schedule in the tenant timezone and physical location with signed-in state %s',
+    async (signedIn) => {
+      registerLocaleData(localeDe);
+      TestBed.overrideProvider(LOCALE_ID, { useValue: 'de-DE' });
+      findScheduleViewer.mockResolvedValue(
+        signedIn ? signedInScheduleViewer : null,
+      );
+      findEvent.mockResolvedValue({
+        ...eventDetails,
+        end: '2030-01-03T02:00:00.000Z',
+        location: {
+          address: 'Theaterplatz 2, 78467 Konstanz',
+          coordinates: { lat: 47.664, lng: 9.176 },
+          name: 'Theatre entrance',
+          placeId: 'theatre-entrance',
+          type: 'google',
+        },
+        start: '2030-01-02T23:30:00.000Z',
+      });
+      findRegistrationStatus.mockResolvedValue({
+        isRegistered: false,
+        outgoingTransfers: [],
+        registrations: [],
+      });
+
+      const fixture = render();
+      await vi.waitFor(() => {
+        fixture.detectChanges();
+        expect(queryClient.getQueryData(['maybe-self'])).toEqual(
+          signedIn ? signedInScheduleViewer : null,
+        );
+        expect(normalizeText(fixture)).toContain(
+          'Starts 03.01.2030 · 00:30 Ends 03.01.2030 · 03:00',
+        );
+      });
+      expect(
+        normalizeText(fixture).match(/Times shown in Europe\/Berlin\./gu),
+      ).toHaveLength(1);
+      const root: HTMLElement = fixture.nativeElement;
+      expect(
+        [
+          ...root.querySelectorAll(
+            ':scope section[aria-label="Event details"] dd p',
+          ),
+        ].map((paragraph) => paragraph.textContent?.trim()),
+      ).toEqual(['Theatre entrance', 'Theaterplatz 2, 78467 Konstanz']);
+      expect(
+        [...root.querySelectorAll('time')].map((time) =>
+          time.getAttribute('datetime'),
+        ),
+      ).toEqual(['2030-01-02T23:30:00.000Z', '2030-01-03T02:00:00.000Z']);
+      expect(normalizeText(fixture)).toContain('Bring a notebook.');
+    },
+  );
+
+  it('identifies an online location without inventing a physical address', async () => {
+    findScheduleViewer.mockResolvedValue(null);
+    findEvent.mockResolvedValue({
+      ...eventDetails,
+      location: {
+        meetingProvider: 'other',
+        meetingUrl: 'https://meeting.example.test/workshop',
+        name: 'Online workshop',
+        type: 'online',
+      },
+    });
+    findRegistrationStatus.mockResolvedValue({
+      isRegistered: false,
+      outgoingTransfers: [],
+      registrations: [],
+    });
+
+    const fixture = render();
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(normalizeText(fixture)).toContain('Online workshop');
+      expect(normalizeText(fixture)).toContain('Times shown in Europe/Berlin.');
+    });
+    const root: HTMLElement = fixture.nativeElement;
+    expect(
+      [
+        ...root.querySelectorAll(
+          ':scope section[aria-label="Event details"] dd p',
+        ),
+      ].map((paragraph) => paragraph.textContent?.trim()),
+    ).toEqual(['Online workshop', 'Online']);
+    expect(normalizeText(fixture)).not.toContain('Not specified');
+  });
 
   it('explains a stored registration-settings conflict without offering a registration form', async () => {
     findEvent.mockRejectedValue(
@@ -590,6 +715,7 @@ describe('EventDetailsComponent load recovery', () => {
     });
     expect(findEvent).toHaveBeenCalledTimes(2);
     expect(fixture.nativeElement.querySelector('[role="alert"]')).toBeNull();
+    expect(normalizeText(fixture)).toContain('Not specified');
   });
 
   it('refreshes deleted event details and invalidates list and review caches after approval fails', async () => {
@@ -843,5 +969,1127 @@ describe('EventDetails template', () => {
     expect(template).toContain('Organizer/helper opportunities');
     expect(template).toContain('aria-label="Sign-up choices for attendees"');
     expect(template).toContain('Sign-up choices for attendees');
+  });
+});
+
+describe('EventDetailsComponent review action outcomes', () => {
+  type OutcomeRpc = ReturnType<typeof AppRpc.injectClient>;
+  type EventRecord = Awaited<
+    ReturnType<OutcomeRpc['events']['findOne']['call']>
+  >;
+  type ReviewMutation = NonNullable<
+    ReturnType<EventDetailsOperations['reviewEvent']>['mutationFn']
+  >;
+  type SubmitMutation = NonNullable<
+    ReturnType<EventDetailsOperations['submitForReview']>['mutationFn']
+  >;
+  type ListingMutation = NonNullable<
+    ReturnType<EventDetailsOperations['updateListing']>['mutationFn']
+  >;
+  type Action = 'approve' | 'returnToDraft' | 'submit';
+  type ReviewList = Awaited<
+    ReturnType<OutcomeRpc['events']['getPendingReviews']['call']>
+  >;
+  type EventList = Awaited<
+    ReturnType<OutcomeRpc['events']['eventList']['call']>
+  >;
+  const review = vi.fn<ReviewMutation>();
+  const submitReview = vi.fn<SubmitMutation>();
+  const changeListing = vi.fn<ListingMutation>();
+  const loadEvent = vi.fn<(id: string) => Promise<EventRecord>>();
+  const reviewedNotice = vi.fn<NotificationService['showEventReviewed']>();
+  const submittedNotice = vi.fn<NotificationService['showEventSubmitted']>();
+  const successNotice = vi.fn<NotificationService['showSuccess']>();
+  const errorNotice = vi.fn<NotificationService['showError']>();
+  const comment = 'Retained feedback: confirm the accessible entrance.';
+  const tenant = new ClientTenantConfig({
+    cancellationDeadlineHoursBeforeStart: 24,
+    currency: 'EUR',
+    defaultLocation: undefined,
+    discountProviders: { esnCard: { config: {}, status: 'disabled' } },
+    domain: 'tenant.example.test',
+    id: 'tenant-1',
+    maxActiveRegistrationsPerUser: 3,
+    name: 'Tenant',
+    paymentsConfigured: true,
+    receiptSettings: { allowOther: false, receiptCountries: ['DE'] },
+    refundFeesOnCancellation: false,
+    theme: 'evorto',
+    timezone: 'Europe/Berlin',
+    transferDeadlineHoursBeforeStart: 24,
+  });
+  const record = (status: EventRecord['status']): EventRecord => ({
+    addOns: [],
+    creatorId: 'user-1',
+    description: '<p>Retained event description.</p>',
+    end: '2030-01-02T12:00:00.000Z',
+    icon: { iconColor: 2, iconName: 'calendar:fas' },
+    id: 'event-1',
+    location: null,
+    registrationOptions: [],
+    registrationOptionsHiddenByEligibility: false,
+    reviewer: null,
+    start: '2030-01-02T10:00:00.000Z',
+    status,
+    statusComment: null,
+    title: 'Outcome workshop',
+    unlisted: false,
+  });
+  const unknownReview =
+    'The outcome could not be confirmed. Load this event again to check its status before making another change.';
+  const confirmedReadFailure = (action: Action) => {
+    switch (action) {
+      case 'approve': {
+        return 'The event was approved, but some event information could not be refreshed. Load this event again before making another change.';
+      }
+      case 'returnToDraft': {
+        return 'The event was returned to draft, but some event information could not be refreshed. Load this event again before making another change.';
+      }
+      case 'submit': {
+        return 'The event was submitted for review, but some event information could not be refreshed. Load this event again before making another change.';
+      }
+    }
+  };
+  const mutationFor = (action: Action) =>
+    action === 'submit' ? submitReview : review;
+  const expectedPayload = (action: Action) => {
+    switch (action) {
+      case 'approve': {
+        return { approved: true, eventId: 'event-1' };
+      }
+      case 'returnToDraft': {
+        return { approved: false, comment, eventId: 'event-1' };
+      }
+      case 'submit': {
+        return { eventId: 'event-1' };
+      }
+    }
+  };
+  let queryClient: QueryClient;
+  let cleanupQueryClient: QueryClient | undefined;
+  let cleanupDialog: MatDialog | undefined;
+  let fixture: ComponentFixture<EventDetailsComponent> | undefined;
+  const rootElement = () => {
+    const element: unknown = fixture?.nativeElement;
+    if (!(element instanceof HTMLElement))
+      throw new Error('Expected the event-details root.');
+    return element;
+  };
+  const detectChanges = () => {
+    if (!fixture) throw new Error('Expected an event-details fixture.');
+    fixture.detectChanges();
+  };
+  const buttonNamed = (root: ParentNode, text: string) => {
+    const button = [
+      ...root.querySelectorAll<HTMLButtonElement>(':scope button'),
+    ].find(
+      (candidate) =>
+        candidate.textContent?.replaceAll(/\s+/g, ' ').trim() === text,
+    );
+    if (!button) throw new Error('Expected the ' + text + ' button.');
+    return button;
+  };
+  const dialogElement = () => {
+    const dialog = document.querySelector<HTMLElement>('mat-dialog-container');
+    if (!dialog) throw new Error('Expected the actual Material dialog.');
+    return dialog;
+  };
+  const pageButton = (action: Action) =>
+    buttonNamed(
+      rootElement(),
+      action === 'approve'
+        ? 'Approve'
+        : action === 'returnToDraft'
+          ? 'Return to draft'
+          : 'Submit for Review',
+    );
+  const expectNoSuccess = () => {
+    expect(reviewedNotice).not.toHaveBeenCalled();
+    expect(submittedNotice).not.toHaveBeenCalled();
+    expect(successNotice).not.toHaveBeenCalled();
+  };
+  const expectSingleMutation = (action: Action) => {
+    expect(mutationFor(action)).toHaveBeenCalledExactlyOnceWith(
+      expectedPayload(action),
+      expect.objectContaining({ client: queryClient }),
+    );
+    expect(
+      review.mock.calls.length +
+        submitReview.mock.calls.length +
+        changeListing.mock.calls.length,
+    ).toBe(1);
+  };
+  const expectFeedback = async (message: string) => {
+    await vi.waitFor(() => {
+      detectChanges();
+      expect(
+        rootElement().querySelector(
+          ':scope [data-testid="event-review-action-message"]',
+        )?.textContent,
+      ).toContain(message);
+      expect(errorNotice).toHaveBeenCalledWith(message);
+    });
+  };
+  const eventKey = (
+    id: string,
+  ): ReturnType<EventDetailsOperations['eventQueryKey']> => [
+    ['events', 'findOne'],
+    { input: { id }, type: 'query' },
+  ];
+
+  beforeEach(async () => {
+    cleanupDialog = undefined;
+    cleanupQueryClient = undefined;
+    fixture = undefined;
+    review.mockReset().mockResolvedValue(undefined);
+    submitReview.mockReset().mockResolvedValue(undefined);
+    changeListing.mockReset().mockResolvedValue(undefined);
+    loadEvent.mockReset();
+    reviewedNotice.mockReset();
+    submittedNotice.mockReset();
+    successNotice.mockReset();
+    errorNotice.mockReset();
+    queryClient = new QueryClient({
+      defaultOptions: {
+        mutations: { gcTime: 0, retry: false },
+        queries: { gcTime: 0, retry: false, staleTime: Infinity },
+      },
+    });
+    cleanupQueryClient = queryClient;
+    const operations = {
+      canOrganize: (eventId: string) => ({
+        queryFn: async () => false,
+        queryKey: [
+          ['events', 'canOrganize'],
+          { input: { eventId }, type: 'query' },
+        ],
+      }),
+      eventListFilter: () => createRpcQueryFilter(['events', 'eventList']),
+      eventQueryKey: eventKey,
+      findEvent: (id: string) => ({
+        queryFn: () => loadEvent(id),
+        queryKey: eventKey(id),
+      }),
+      myCards: () => ({
+        queryFn: async () => [],
+        queryKey: [['discounts', 'getMyCards'], { type: 'query' }],
+      }),
+      pendingReviewsFilter: () =>
+        createRpcQueryFilter(['events', 'getPendingReviews']),
+      registrationStatus: (eventId: string) => ({
+        queryFn: async () => ({
+          isRegistered: false,
+          outgoingTransfers: [],
+          registrations: [],
+        }),
+        queryKey: [
+          ['events', 'getRegistrationStatus'],
+          { input: { eventId }, type: 'query' },
+        ],
+      }),
+      reviewEvent: () => ({ mutationFn: review }),
+      self: () => ({
+        queryFn: async () => null,
+        queryKey: [['users', 'maybeSelf'], { type: 'query' }],
+      }),
+      submitForReview: () => ({ mutationFn: submitReview }),
+      updateListing: () => ({ mutationFn: changeListing }),
+    } satisfies Pick<EventDetailsOperations, keyof EventDetailsOperations>;
+    const allowed = new Set<
+      Parameters<PermissionsService['hasPermission']>[number]
+    >(['events:editAll', 'events:review']);
+    await TestBed.configureTestingModule({
+      imports: [EventDetailsComponent, MatDialogModule],
+      providers: [
+        provideRouter([]),
+        provideTanStackQuery(queryClient),
+        { provide: TENANT_DATE_PIPE_TIMEZONE, useValue: 'Europe/Berlin' },
+        { provide: EventDetailsOperations, useValue: operations },
+        {
+          provide: ConfigService,
+          useValue: {
+            tenant,
+            updateDescription: vi.fn<ConfigService['updateDescription']>(),
+            updateTitle: vi.fn<ConfigService['updateTitle']>(),
+          } satisfies Pick<
+            ConfigService,
+            'tenant' | 'updateDescription' | 'updateTitle'
+          >,
+        },
+        {
+          provide: PermissionsService,
+          useValue: {
+            hasPermission: (
+              ...permissions: Parameters<PermissionsService['hasPermission']>
+            ) =>
+              computed(() =>
+                permissions.every((permission) => allowed.has(permission)),
+              ),
+            hasPermissionSync: (
+              ...permissions: Parameters<
+                PermissionsService['hasPermissionSync']
+              >
+            ) => permissions.every((permission) => allowed.has(permission)),
+          } satisfies Pick<
+            PermissionsService,
+            'hasPermission' | 'hasPermissionSync'
+          >,
+        },
+        {
+          provide: NotificationService,
+          useValue: {
+            showError: errorNotice,
+            showEventReviewed: reviewedNotice,
+            showEventSubmitted: submittedNotice,
+            showSuccess: successNotice,
+          } satisfies Pick<
+            NotificationService,
+            | 'showError'
+            | 'showEventReviewed'
+            | 'showEventSubmitted'
+            | 'showSuccess'
+          >,
+        },
+      ],
+    }).compileComponents();
+    cleanupDialog = TestBed.inject(MatDialog);
+  });
+
+  afterEach(async () => {
+    const failures: unknown[] = [];
+    try {
+      cleanupDialog?.closeAll();
+    } catch (error) {
+      failures.push(error);
+    }
+    try {
+      await fixture?.whenStable();
+    } catch (error) {
+      failures.push(error);
+    }
+    try {
+      TestBed.resetTestingModule();
+    } catch (error) {
+      failures.push(error);
+    }
+    try {
+      cleanupQueryClient?.clear();
+    } catch (error) {
+      failures.push(error);
+    }
+    try {
+      vi.restoreAllMocks();
+    } catch (error) {
+      failures.push(error);
+    }
+    if (failures.length > 0) {
+      throw new AggregateError(
+        failures,
+        'Event details review action cleanup failed',
+      );
+    }
+  });
+
+  const renderAction = async (
+    action: Action,
+    status: EventRecord['status'] = action === 'submit'
+      ? 'DRAFT'
+      : 'PENDING_REVIEW',
+  ) => {
+    loadEvent.mockResolvedValue(record(status));
+    fixture = TestBed.createComponent(EventDetailsComponent);
+    fixture.componentRef.setInput('eventId', 'event-1');
+    await vi.waitFor(() => {
+      detectChanges();
+      expect(pageButton(action).disabled).toBe(false);
+      expect(rootElement().getAttribute('aria-busy')).toBeNull();
+    });
+    return fixture;
+  };
+  const openAction = async (action: Exclude<Action, 'approve'>) => {
+    pageButton(action).click();
+    await vi.waitFor(() => {
+      detectChanges();
+      expect(dialogElement().textContent).toContain(
+        action === 'returnToDraft'
+          ? 'Return event to draft'
+          : 'Submit Event for Review',
+      );
+    });
+    return dialogElement();
+  };
+  const confirmAction = async (action: Action) => {
+    if (action === 'approve') {
+      pageButton(action).click();
+      return;
+    }
+    const dialog = await openAction(action);
+    await confirmOpenDialog(action, dialog);
+  };
+  const confirmOpenDialog = async (
+    action: Exclude<Action, 'approve'>,
+    dialog: HTMLElement,
+  ) => {
+    if (action === 'returnToDraft') {
+      const textarea =
+        dialog.querySelector<HTMLTextAreaElement>(':scope textarea');
+      if (!textarea) throw new Error('Expected the review-feedback field.');
+      textarea.value = comment;
+      textarea.dispatchEvent(new Event('input', { bubbles: true }));
+      detectChanges();
+      const formElement = dialog.querySelector(':scope form');
+      if (!formElement) throw new Error('Expected the review form.');
+      expect(buttonNamed(dialog, 'Return to draft').disabled).toBe(false);
+      formElement.dispatchEvent(
+        new Event('submit', { bubbles: true, cancelable: true }),
+      );
+    } else if (action === 'submit') {
+      buttonNamed(dialog, 'Submit for Review').click();
+    }
+  };
+
+  it.each(['approve', 'returnToDraft', 'submit'] as const)(
+    'keeps the confirmed %s outcome visible when the real event read fails',
+    async (action) => {
+      await renderAction(action);
+      loadEvent.mockRejectedValueOnce(new Error('Event detail read failed.'));
+      await confirmAction(action);
+      await expectFeedback(confirmedReadFailure(action));
+      expectSingleMutation(action);
+      expect(loadEvent).toHaveBeenCalledTimes(2);
+      expect(queryClient.getQueryState(eventKey('event-1'))?.status).toBe(
+        'error',
+      );
+      expect(queryClient.getMutationCache().getAll()[0]?.state.status).toBe(
+        'success',
+      );
+      expect(rootElement().textContent).toContain('Event could not be loaded');
+      expect(rootElement().textContent).not.toContain(
+        'The outcome could not be confirmed.',
+      );
+      expectNoSuccess();
+
+      buttonNamed(rootElement(), 'Try again').click();
+      await vi.waitFor(() => {
+        detectChanges();
+        expect(loadEvent).toHaveBeenCalledTimes(3);
+        expect(rootElement().querySelector(':scope h1')?.textContent).toContain(
+          'Outcome workshop',
+        );
+        expect(queryClient.getQueryState(eventKey('event-1'))).toEqual(
+          expect.objectContaining({ fetchStatus: 'idle', status: 'success' }),
+        );
+      });
+      await fixture?.whenStable();
+      await expectFeedback(confirmedReadFailure(action));
+      expectSingleMutation(action);
+      expectNoSuccess();
+    },
+  );
+
+  it.each(['approve', 'returnToDraft', 'submit'] as const)(
+    'keeps a lost %s response uncertain after a test-local simulated commit',
+    async (action) => {
+      await renderAction(action);
+      let simulatedCommit = false;
+      mutationFor(action).mockImplementationOnce(async () => {
+        simulatedCommit = true;
+        throw new Error('Response lost after the simulated commit.');
+      });
+      await confirmAction(action);
+      await expectFeedback(unknownReview);
+      expect(simulatedCommit).toBe(true);
+      expectSingleMutation(action);
+      expect(queryClient.getMutationCache().getAll()[0]?.state.status).toBe(
+        'error',
+      );
+      expectNoSuccess();
+      expect(rootElement().textContent).not.toContain(
+        confirmedReadFailure(action),
+      );
+      expect(rootElement().textContent).not.toContain(
+        'Response lost after the simulated commit.',
+      );
+
+      await vi.waitFor(() => {
+        detectChanges();
+        expect(rootElement().getAttribute('aria-busy')).toBeNull();
+        expect(queryClient.isFetching()).toBe(0);
+      });
+      loadEvent.mockRejectedValueOnce(new Error('Later event read failed.'));
+      await expect(
+        queryClient.refetchQueries(
+          { exact: true, queryKey: eventKey('event-1') },
+          { throwOnError: true },
+        ),
+      ).rejects.toThrow('Later event read failed.');
+      await vi.waitFor(() => {
+        detectChanges();
+        expect(buttonNamed(rootElement(), 'Try again').disabled).toBe(false);
+      });
+      buttonNamed(rootElement(), 'Try again').click();
+      await vi.waitFor(() => {
+        detectChanges();
+        expect(rootElement().querySelector(':scope h1')?.textContent).toContain(
+          'Outcome workshop',
+        );
+        expect(queryClient.getQueryState(eventKey('event-1'))).toEqual(
+          expect.objectContaining({ fetchStatus: 'idle', status: 'success' }),
+        );
+      });
+      await fixture?.whenStable();
+      await expectFeedback(unknownReview);
+      expectSingleMutation(action);
+      expectNoSuccess();
+    },
+  );
+
+  it.each(['approve', 'submit'] as const)(
+    'keeps all actions locked after %s succeeds until both a failed and a held read under the same list filter settle',
+    async (action) => {
+      const currentFixture = await renderAction(action);
+      if (action === 'submit')
+        loadEvent.mockResolvedValueOnce(record('PENDING_REVIEW'));
+      const listRead = vi.fn<() => Promise<EventList>>().mockResolvedValue([]);
+      const secondListRead = vi
+        .fn<() => Promise<EventList>>()
+        .mockResolvedValue([]);
+      const reviewListRead = vi
+        .fn<() => Promise<ReviewList>>()
+        .mockResolvedValue([]);
+      const listOptions: ReturnType<
+        OutcomeRpc['events']['eventList']['queryOptions']
+      > = {
+        queryFn: listRead,
+        queryKey: [
+          ['events', 'eventList'],
+          {
+            input: {
+              limit: 100,
+              offset: 0,
+              startAfter: '2030-01-01T00:00:00.000Z',
+              status: [],
+            },
+            type: 'query',
+          },
+        ],
+      };
+      const secondListOptions: ReturnType<
+        OutcomeRpc['events']['eventList']['queryOptions']
+      > = {
+        queryFn: secondListRead,
+        queryKey: [
+          ['events', 'eventList'],
+          {
+            input: {
+              limit: 100,
+              offset: 100,
+              startAfter: '2030-01-01T00:00:00.000Z',
+              status: [],
+            },
+            type: 'query',
+          },
+        ],
+      };
+      const reviewListOptions: ReturnType<
+        OutcomeRpc['events']['getPendingReviews']['queryOptions']
+      > = {
+        queryFn: reviewListRead,
+        queryKey: [['events', 'getPendingReviews'], { type: 'query' }],
+      };
+      const listObserver = new QueryObserver(queryClient, listOptions);
+      const secondListObserver = new QueryObserver(
+        queryClient,
+        secondListOptions,
+      );
+      const reviewObserver = new QueryObserver(queryClient, reviewListOptions);
+      let listStatus = 'loading';
+      let secondListStatus = 'loading';
+      let reviewStatus = 'loading';
+      let stopList: (() => void) | undefined;
+      let stopSecondList: (() => void) | undefined;
+      let stopReviews: (() => void) | undefined;
+      const failures: unknown[] = [];
+      let releaseRead: ((value: EventList) => void) | undefined;
+      // Angular's browser target does not expose Promise.withResolvers.
+      // eslint-disable-next-line unicorn/prefer-promise-with-resolvers
+      const heldRead = new Promise<EventList>((resolve) => {
+        releaseRead = resolve;
+      });
+      try {
+        stopList = listObserver.subscribe((result) => {
+          listStatus = result.status;
+        });
+        stopSecondList = secondListObserver.subscribe((result) => {
+          secondListStatus = result.status;
+        });
+        stopReviews = reviewObserver.subscribe((result) => {
+          reviewStatus = result.status;
+        });
+        await vi.waitFor(() => {
+          expect(listStatus).toBe('success');
+          expect(reviewStatus).toBe('success');
+          expect(secondListStatus).toBe('success');
+        });
+        listRead.mockRejectedValueOnce(
+          new Error('The event list could not be read.'),
+        );
+        secondListRead.mockReturnValueOnce(heldRead);
+        await confirmAction(action);
+        await vi.waitFor(() => {
+          detectChanges();
+          expect(listRead).toHaveBeenCalledTimes(2);
+          expect(reviewListRead).toHaveBeenCalledTimes(2);
+          expect(secondListRead).toHaveBeenCalledTimes(2);
+          expect(listStatus).toBe('error');
+          expect(queryClient.getQueryState(eventKey('event-1'))?.status).toBe(
+            'success',
+          );
+          expect(
+            queryClient.getQueryState(eventKey('event-1'))?.fetchStatus,
+          ).toBe('idle');
+          expect(queryClient.getMutationCache().getAll()[0]?.state.status).toBe(
+            'success',
+          );
+        });
+        expect(rootElement().getAttribute('aria-busy')).toBe('true');
+        const buttons = [
+          ...rootElement().querySelectorAll<HTMLButtonElement>(':scope button'),
+        ].filter((button) =>
+          ['Approve', 'Return to draft', 'Submit for Review'].includes(
+            button.textContent?.trim() ?? '',
+          ),
+        );
+        expect(buttons.length).toBeGreaterThanOrEqual(2);
+        for (const button of buttons) {
+          expect(button.disabled).toBe(true);
+          button.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        }
+        expect(TestBed.inject(MatDialog).openDialogs).toHaveLength(0);
+        expectSingleMutation(action);
+        expectNoSuccess();
+        expect(
+          rootElement().querySelector(
+            ':scope [data-testid="event-review-action-message"]',
+          ),
+        ).toBeNull();
+      } catch (error) {
+        failures.push(error);
+      } finally {
+        try {
+          releaseRead?.([]);
+        } catch (error) {
+          failures.push(error);
+        }
+        try {
+          await heldRead;
+        } catch (error) {
+          failures.push(error);
+        }
+        try {
+          await currentFixture.whenStable();
+        } catch (error) {
+          failures.push(error);
+        }
+        try {
+          await vi.waitFor(() => {
+            expect(queryClient.isFetching()).toBe(0);
+          });
+        } catch (error) {
+          failures.push(error);
+        }
+        for (const stop of [stopList, stopSecondList, stopReviews]) {
+          try {
+            stop?.();
+          } catch (error) {
+            failures.push(error);
+          }
+        }
+      }
+      if (failures.length > 0)
+        throw new AggregateError(
+          failures,
+          'Event review read ownership or cleanup failed.',
+          { cause: failures[0] },
+        );
+      await expectFeedback(confirmedReadFailure(action));
+      expectSingleMutation(action);
+      expectNoSuccess();
+      await vi.waitFor(() => {
+        detectChanges();
+        expect(pageButton('approve').disabled).toBe(false);
+        expect(rootElement().getAttribute('aria-busy')).toBeNull();
+      });
+    },
+  );
+
+  it('restores the submitted review comment on explicit reopen after an uncertain response', async () => {
+    await renderAction('returnToDraft');
+    review.mockRejectedValueOnce(new Error('Review response lost.'));
+    await confirmAction('returnToDraft');
+    await expectFeedback(unknownReview);
+    await vi.waitFor(() => {
+      detectChanges();
+      expect(pageButton('returnToDraft').disabled).toBe(false);
+    });
+    const dialog = await openAction('returnToDraft');
+    expect(
+      dialog.querySelector<HTMLTextAreaElement>(':scope textarea')?.value,
+    ).toBe(comment);
+    expectSingleMutation('returnToDraft');
+    buttonNamed(dialog, 'Cancel').click();
+    await fixture?.whenStable();
+    expectSingleMutation('returnToDraft');
+    expectNoSuccess();
+  });
+
+  it.each(['returnToDraft', 'submit'] as const)(
+    'cancels the %s confirmation without a mutation and releases the action lock',
+    async (action) => {
+      await renderAction(action);
+      const dialog = await openAction(action);
+      buttonNamed(dialog, 'Cancel').click();
+      await vi.waitFor(() => {
+        detectChanges();
+        expect(TestBed.inject(MatDialog).openDialogs).toHaveLength(0);
+        expect(pageButton(action).disabled).toBe(false);
+      });
+      expect(review).not.toHaveBeenCalled();
+      expect(submitReview).not.toHaveBeenCalled();
+      expect(changeListing).not.toHaveBeenCalled();
+      expectNoSuccess();
+    },
+  );
+
+  it.each([
+    new EventConflictError({
+      message: 'This event is no longer waiting for review.',
+    }),
+    new EventNotFoundError({
+      id: 'event-1',
+      message: 'This event could not be found.',
+    }),
+    new RpcBadRequestError({
+      message: 'Add feedback before returning this event to draft.',
+    }),
+  ])(
+    'preserves the expected $_tag review message without a success notification',
+    async (error) => {
+      await renderAction('approve');
+      review.mockRejectedValueOnce(error);
+      await confirmAction('approve');
+      await vi.waitFor(() => {
+        detectChanges();
+        expect(
+          rootElement().querySelector(
+            ':scope [data-testid="event-review-action-message"]',
+          )?.textContent,
+        ).toContain(error.message);
+      });
+      expectSingleMutation('approve');
+      expectNoSuccess();
+      expect(rootElement().textContent).not.toContain(unknownReview);
+    },
+  );
+
+  it('preserves the conflict message without claiming fresh details when the real query pauses offline', async () => {
+    const originalOnlineState = onlineManager.isOnline();
+    let stopObserver: (() => void) | undefined;
+    const failures: unknown[] = [];
+    try {
+      onlineManager.setOnline(true);
+      await renderAction('approve');
+      const cachedEvent = queryClient.getQueryData<EventRecord>(
+        eventKey('event-1'),
+      );
+      expect(cachedEvent).toEqual(record('PENDING_REVIEW'));
+      const detailOptions: ReturnType<EventDetailsOperations['findEvent']> = {
+        queryFn: () => loadEvent('event-1'),
+        queryKey: eventKey('event-1'),
+      };
+      const detailObserver = new QueryObserver(queryClient, detailOptions);
+      let observedFetchStatus = detailObserver.getCurrentResult().fetchStatus;
+      let observedData = detailObserver.getCurrentResult().data;
+      stopObserver = detailObserver.subscribe((result) => {
+        observedFetchStatus = result.fetchStatus;
+        observedData = result.data;
+      });
+      const conflict = new EventConflictError({
+        message: 'This event changed before the review was saved.',
+      });
+      review.mockImplementationOnce(async () => {
+        onlineManager.setOnline(false);
+        throw conflict;
+      });
+      await confirmAction('approve');
+      await expectFeedback(conflict.message);
+      await vi.waitFor(() => {
+        detectChanges();
+        expect(observedFetchStatus).toBe('paused');
+        expect(
+          queryClient.getQueryState(eventKey('event-1'))?.fetchStatus,
+        ).toBe('paused');
+        expect(queryClient.getQueryState(eventKey('event-1'))?.status).toBe(
+          'success',
+        );
+        expect(rootElement().getAttribute('aria-busy')).toBeNull();
+      });
+      expect(observedData).toEqual(cachedEvent);
+      expect(queryClient.getQueryData(eventKey('event-1'))).toEqual(
+        cachedEvent,
+      );
+      expect(loadEvent).toHaveBeenCalledTimes(1);
+      expectSingleMutation('approve');
+      expectNoSuccess();
+      expect(errorNotice).toHaveBeenCalledExactlyOnceWith(conflict.message);
+      expect(rootElement().textContent).not.toContain(
+        'The latest event details are now shown.',
+      );
+      expect(rootElement().textContent).not.toContain(
+        'Some event information could not be refreshed.',
+      );
+    } catch (error) {
+      failures.push(error);
+    } finally {
+      try {
+        await queryClient.cancelQueries();
+      } catch (error) {
+        failures.push(error);
+      }
+      try {
+        stopObserver?.();
+      } catch (error) {
+        failures.push(error);
+      }
+      // Retire the component observer before restoring connectivity: reconnect
+      // must not start a second transport after the paused query was cancelled.
+      try {
+        fixture?.destroy();
+      } catch (error) {
+        failures.push(error);
+      }
+      try {
+        queryClient.clear();
+      } catch (error) {
+        failures.push(error);
+      }
+      try {
+        onlineManager.setOnline(originalOnlineState);
+      } catch (error) {
+        failures.push(error);
+      }
+      try {
+        await fixture?.whenStable();
+      } catch (error) {
+        failures.push(error);
+      }
+    }
+    if (failures.length > 0) {
+      throw new AggregateError(
+        failures,
+        'Paused event conflict scenario or cleanup failed.',
+        { cause: failures[0] },
+      );
+    }
+  });
+
+  it('does not claim that conflict details were loaded when the actual follow-up read fails', async () => {
+    const currentFixture = await renderAction('approve');
+    review.mockRejectedValueOnce(
+      new EventConflictError({
+        message: 'This event changed before the review was saved.',
+      }),
+    );
+    loadEvent.mockRejectedValueOnce(new Error('Conflict detail read failed.'));
+    await confirmAction('approve');
+    await expectFeedback(
+      'This event changed before the review was saved. Some event information could not be refreshed. Load this event again before making another change.',
+    );
+    expectSingleMutation('approve');
+    expect(loadEvent).toHaveBeenCalledTimes(2);
+    expect(rootElement().textContent).not.toContain(
+      'latest event details are now shown',
+    );
+    expectNoSuccess();
+
+    loadEvent.mockRejectedValueOnce(new Error('Explicit detail retry failed.'));
+    buttonNamed(rootElement(), 'Try again').click();
+    await vi.waitFor(() => {
+      detectChanges();
+      expect(loadEvent).toHaveBeenCalledTimes(3);
+      expect(buttonNamed(rootElement(), 'Try again').disabled).toBe(false);
+    });
+    await expectFeedback(
+      'This event changed before the review was saved. Some event information could not be refreshed. Load this event again before making another change.',
+    );
+    expectSingleMutation('approve');
+
+    const currentEvent = {
+      ...record('PENDING_REVIEW'),
+      title: 'Current event after explicit recovery',
+    };
+    let releaseRead: ((event: EventRecord) => void) | undefined;
+    // Angular's browser target does not expose Promise.withResolvers.
+    // eslint-disable-next-line unicorn/prefer-promise-with-resolvers
+    const heldRead = new Promise<EventRecord>((resolve) => {
+      releaseRead = resolve;
+    });
+    loadEvent.mockReturnValueOnce(heldRead);
+    try {
+      buttonNamed(rootElement(), 'Try again').click();
+      await vi.waitFor(() => {
+        detectChanges();
+        expect(loadEvent).toHaveBeenCalledTimes(4);
+        expect(buttonNamed(rootElement(), 'Retrying…').disabled).toBe(true);
+        expect(rootElement().textContent).toContain(
+          'Some event information could not be refreshed.',
+        );
+      });
+      expectSingleMutation('approve');
+    } finally {
+      releaseRead?.(currentEvent);
+      await heldRead;
+    }
+    await vi.waitFor(async () => {
+      await currentFixture.whenStable();
+      detectChanges();
+      expect(rootElement().querySelector(':scope h1')?.textContent).toContain(
+        currentEvent.title,
+      );
+      expect(
+        rootElement()
+          .querySelector(':scope [data-testid="event-review-action-message"]')
+          ?.textContent?.trim(),
+      ).toBe('This event changed before the review was saved.');
+      expect(pageButton('approve').disabled).toBe(false);
+    });
+    expect(rootElement().textContent).not.toContain(
+      'Event could not be loaded',
+    );
+    expect(queryClient.getQueryData(eventKey('event-1'))).toEqual(currentEvent);
+    expect(loadEvent.mock.calls).toEqual([
+      ['event-1'],
+      ['event-1'],
+      ['event-1'],
+      ['event-1'],
+    ]);
+    expect(errorNotice).toHaveBeenCalledTimes(1);
+    expectSingleMutation('approve');
+    expectNoSuccess();
+  });
+
+  it('retains the review conflict and comment across background reads until explicit detail recovery', async () => {
+    await renderAction('returnToDraft');
+    const conflictMessage = 'This event changed before the review was saved.';
+    const combinedMessage =
+      conflictMessage +
+      ' Some event information could not be refreshed. Load this event again before making another change.';
+    review.mockRejectedValueOnce(
+      new EventConflictError({ message: conflictMessage }),
+    );
+    loadEvent.mockRejectedValueOnce(new Error('Conflict detail read failed.'));
+    await confirmAction('returnToDraft');
+    await expectFeedback(combinedMessage);
+    expectSingleMutation('returnToDraft');
+
+    await queryClient.refetchQueries(
+      { exact: true, queryKey: eventKey('event-1') },
+      { throwOnError: true },
+    );
+    await vi.waitFor(() => {
+      detectChanges();
+      expect(pageButton('returnToDraft').disabled).toBe(false);
+      expect(loadEvent).toHaveBeenCalledTimes(3);
+    });
+    await expectFeedback(combinedMessage);
+
+    loadEvent.mockRejectedValueOnce(new Error('Later detail read failed.'));
+    await expect(
+      queryClient.refetchQueries(
+        { exact: true, queryKey: eventKey('event-1') },
+        { throwOnError: true },
+      ),
+    ).rejects.toThrow('Later detail read failed.');
+    await vi.waitFor(() => {
+      detectChanges();
+      expect(buttonNamed(rootElement(), 'Try again').disabled).toBe(false);
+    });
+    buttonNamed(rootElement(), 'Try again').click();
+    await vi.waitFor(() => {
+      detectChanges();
+      expect(loadEvent).toHaveBeenCalledTimes(5);
+      expect(
+        rootElement()
+          .querySelector(':scope [data-testid="event-review-action-message"]')
+          ?.textContent?.trim(),
+      ).toBe(conflictMessage);
+      expect(pageButton('returnToDraft').disabled).toBe(false);
+    });
+    const dialog = await openAction('returnToDraft');
+    expect(
+      dialog.querySelector<HTMLTextAreaElement>(':scope textarea')?.value,
+    ).toBe(comment);
+    buttonNamed(dialog, 'Cancel').click();
+    await fixture?.whenStable();
+    expect(loadEvent.mock.calls.every(([id]) => id === 'event-1')).toBe(true);
+    expect(errorNotice).toHaveBeenCalledExactlyOnceWith(combinedMessage);
+    expectSingleMutation('returnToDraft');
+    expectNoSuccess();
+  });
+
+  it.each(['returnToDraft', 'submit'] as const)(
+    'does not submit the old %s dialog against another event after input reuse',
+    async (action) => {
+      const currentFixture = await renderAction(action);
+      const dialog = await openAction(action);
+      const nextEvent = {
+        ...record('DRAFT'),
+        id: 'event-2',
+        title: 'Different workshop',
+      };
+      loadEvent.mockImplementation(async (id) =>
+        id === 'event-2' ? nextEvent : record('PENDING_REVIEW'),
+      );
+      currentFixture.componentRef.setInput('eventId', 'event-2');
+      await vi.waitFor(() => {
+        detectChanges();
+        expect(rootElement().querySelector(':scope h1')?.textContent).toContain(
+          'Different workshop',
+        );
+      });
+      await confirmOpenDialog(action, dialog);
+      await vi.waitFor(() => {
+        detectChanges();
+        expect(TestBed.inject(MatDialog).openDialogs).toHaveLength(0);
+        expect(rootElement().getAttribute('aria-busy')).toBeNull();
+      });
+      expect(review).not.toHaveBeenCalled();
+      expect(submitReview).not.toHaveBeenCalled();
+      expect(changeListing).not.toHaveBeenCalled();
+      expectNoSuccess();
+      expect(errorNotice).not.toHaveBeenCalled();
+      expect(
+        rootElement().querySelector(
+          ':scope [data-testid="event-review-action-message"]',
+        ),
+      ).toBeNull();
+      expect(queryClient.getQueryData(eventKey('event-2'))).toEqual(nextEvent);
+    },
+  );
+
+  it('refreshes the original event and suppresses its completion notice after the page input changes', async () => {
+    const currentFixture = await renderAction('approve');
+    const nextEvent = {
+      ...record('DRAFT'),
+      id: 'event-2',
+      title: 'Different workshop',
+    };
+    loadEvent.mockImplementation(async (id) =>
+      id === 'event-2' ? nextEvent : record('PENDING_REVIEW'),
+    );
+    const originalOptions: ReturnType<EventDetailsOperations['findEvent']> = {
+      queryFn: () => loadEvent('event-1'),
+      queryKey: eventKey('event-1'),
+    };
+    const originalObserver = new QueryObserver(queryClient, originalOptions);
+    let originalStatus = 'loading';
+    let stopOriginal: (() => void) | undefined;
+    const failures: unknown[] = [];
+    let releaseMutation: (() => void) | undefined;
+    // Angular's browser target does not expose Promise.withResolvers.
+    // eslint-disable-next-line unicorn/prefer-promise-with-resolvers
+    const heldMutation = new Promise<void>((resolve) => {
+      releaseMutation = resolve;
+    });
+    try {
+      stopOriginal = originalObserver.subscribe((result) => {
+        originalStatus = result.status;
+      });
+      review.mockReturnValueOnce(heldMutation);
+      await confirmAction('approve');
+      await vi.waitFor(() => {
+        expect(review).toHaveBeenCalledTimes(1);
+      });
+      currentFixture.componentRef.setInput('eventId', 'event-2');
+      await vi.waitFor(() => {
+        detectChanges();
+        expect(rootElement().querySelector(':scope h1')?.textContent).toContain(
+          'Different workshop',
+        );
+        expect(rootElement().getAttribute('aria-busy')).toBe('true');
+        expect(pageButton('submit').disabled).toBe(true);
+      });
+    } catch (error) {
+      failures.push(error);
+    } finally {
+      try {
+        releaseMutation?.();
+      } catch (error) {
+        failures.push(error);
+      }
+      try {
+        await heldMutation;
+      } catch (error) {
+        failures.push(error);
+      }
+      try {
+        await currentFixture.whenStable();
+      } catch (error) {
+        failures.push(error);
+      }
+      try {
+        await vi.waitFor(() => {
+          detectChanges();
+          expect(rootElement().getAttribute('aria-busy')).toBeNull();
+          expect(queryClient.isFetching()).toBe(0);
+        });
+      } catch (error) {
+        failures.push(error);
+      }
+      try {
+        stopOriginal?.();
+      } catch (error) {
+        failures.push(error);
+      }
+    }
+    if (failures.length > 0)
+      throw new AggregateError(
+        failures,
+        'Event review mutation ownership or cleanup failed.',
+        { cause: failures[0] },
+      );
+    expectSingleMutation('approve');
+    expect(originalStatus).toBe('success');
+    expect(
+      loadEvent.mock.calls.filter(([id]) => id === 'event-1'),
+    ).toHaveLength(2);
+    expect(
+      loadEvent.mock.calls.filter(([id]) => id === 'event-2'),
+    ).toHaveLength(1);
+    expect(queryClient.getQueryData(eventKey('event-2'))).toEqual(nextEvent);
+    expectNoSuccess();
+    expect(errorNotice).not.toHaveBeenCalled();
+    expect(
+      rootElement().querySelector(
+        ':scope [data-testid="event-review-action-message"]',
+      ),
+    ).toBeNull();
+  });
+
+  it('keeps the existing review-dialog caller without initial data empty and cancellable', async () => {
+    await renderAction('approve');
+    TestBed.inject(MatDialog).open(EventReviewDialogComponent);
+    await vi.waitFor(() => {
+      detectChanges();
+      expect(
+        dialogElement().querySelector<HTMLTextAreaElement>(':scope textarea')
+          ?.value,
+      ).toBe('');
+    });
+    expect(buttonNamed(dialogElement(), 'Return to draft').disabled).toBe(true);
+    buttonNamed(dialogElement(), 'Cancel').click();
+    await fixture?.whenStable();
+    expect(review).not.toHaveBeenCalled();
+    expectNoSuccess();
   });
 });

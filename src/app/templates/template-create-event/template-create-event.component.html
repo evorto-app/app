@@ -53,156 +53,134 @@
       </button>
     </div>
   } @else if (templateQuery.isSuccess()) {
-    @if (legacyRandomBlocked()) {
-      <section
-        class="bg-error-container text-on-error-container rounded-xl p-4"
-        role="alert"
-        data-testid="template-random-registration-block"
+    @if (addOnCopyNotice(); as notice) {
+      <aside
+        class="border-outline-variant bg-surface-container-low text-on-surface rounded-lg border p-4"
       >
-        <h2 class="title-medium">Event creation is blocked</h2>
-        <p class="mt-2">{{ legacyRandomTemplateEventMessage }}</p>
-        <p class="mt-2 text-sm">
-          No registration mode has been changed. Return here after an authorized
-          template editor updates the template.
-        </p>
-      </section>
-    } @else {
-      @if (addOnCopyNotice(); as notice) {
-        <aside
-          class="border-outline-variant bg-surface-container-low text-on-surface rounded-lg border p-4"
+        <div class="flex items-start gap-3">
+          <fa-duotone-icon class="text-primary mt-1" [icon]="faCircleInfo" />
+          <p class="body-medium">{{ notice }}</p>
+        </div>
+      </aside>
+    }
+
+    <form
+      (submit)="onSubmit($event)"
+      [attr.aria-busy]="
+        createEventForm().submitting() || createEventMutation.isPending()
+      "
+    >
+      <div class="grid gap-6">
+        <section class="bg-surface text-on-surface rounded-2xl p-4">
+          <h2 class="title-large mb-4">Event details</h2>
+          <app-event-general-form
+            [generalForm]="createEventForm"
+            [iconUsage]="iconUsage"
+          />
+        </section>
+
+        <section
+          class="bg-surface-container-high text-on-surface-container-high rounded-2xl p-2"
         >
-          <div class="flex items-start gap-3">
-            <fa-duotone-icon class="text-primary mt-1" [icon]="faCircleInfo" />
-            <p class="body-medium">{{ notice }}</p>
-          </div>
-        </aside>
-      }
-
-      <form
-        (submit)="onSubmit($event)"
-        [attr.aria-busy]="
-          createEventForm().submitting() || createEventMutation.isPending()
-        "
-      >
-        <div class="grid gap-6">
-          <section class="bg-surface text-on-surface rounded-2xl p-4">
-            <h2 class="title-large mb-4">Event details</h2>
-            <app-event-general-form
-              [generalForm]="createEventForm"
-              [iconUsage]="iconUsage"
-            />
-          </section>
-
-          <section
-            class="bg-surface-container-high text-on-surface-container-high rounded-2xl p-2"
-          >
-            <h2 class="title-large mb-4 p-2">Sign-up choices</h2>
-            @if (!stripeConnectionKnown()) {
+          <h2 class="title-large mb-4 p-2">Sign-up choices</h2>
+          @if (!stripeConnectionKnown()) {
+            <p class="text-on-surface-variant mb-4 px-2 text-sm" role="status">
+              Paid controls are unavailable while the organization's Stripe
+              status is loading.
+            </p>
+          } @else if (paidControlsUnavailable()) {
+            @if (paidGraphBlocked()) {
+              <p class="text-error mb-4 px-2 text-sm" role="alert">
+                This template contains paid registration options or add-ons.
+                Their prices remain unchanged. The event cannot be created until
+                this organization has a connected Stripe account.
+              </p>
+            } @else {
               <p
                 class="text-on-surface-variant mb-4 px-2 text-sm"
                 role="status"
               >
-                Paid controls are unavailable while the organization's Stripe
-                status is loading.
-              </p>
-            } @else if (paidControlsUnavailable()) {
-              @if (paidGraphBlocked()) {
-                <p class="text-error mb-4 px-2 text-sm" role="alert">
-                  This template contains paid registration options or add-ons.
-                  Their prices remain unchanged. The event cannot be created
-                  until this organization has a connected Stripe account.
-                </p>
-              } @else {
-                <p
-                  class="text-on-surface-variant mb-4 px-2 text-sm"
-                  role="status"
-                >
-                  Paid controls are unavailable because this organization has no
-                  connected Stripe account.
-                </p>
-              }
-            }
-            @if (discountProviderState() === "error") {
-              <div class="text-error mb-4 grid gap-2" role="alert">
-                <p>
-                  Discount settings could not be loaded. Prices remain unchanged
-                  and event creation is unavailable.
-                </p>
-                <button
-                  mat-stroked-button
-                  type="button"
-                  (click)="discountProvidersQuery.refetch()"
-                >
-                  Try again
-                </button>
-              </div>
-            } @else if (
-              !discountProvidersReady() || taxRateState() === "loading"
-            ) {
-              <p role="status">
-                Wait for discount settings and tax rates to finish loading
-                before creating the event.
+                Paid controls are unavailable because this organization has no
+                connected Stripe account.
               </p>
             }
-            @if (taxRateState() === "error") {
-              <div class="text-error mb-4 grid gap-2" role="alert">
-                <p>
-                  Tax rates could not be loaded. Tax choices remain unchanged
-                  and event creation is unavailable.
-                </p>
-                <button
-                  mat-stroked-button
-                  type="button"
-                  (click)="taxRatesQuery.refetch()"
-                >
-                  Try again
-                </button>
-              </div>
-            }
-            <div
-              class="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:[grid-template-rows:auto_auto_auto_auto_auto_auto_auto]"
-            >
-              @for (
-                option of createEventForm.registrationOptions;
-                track option
-              ) {
-                <app-registration-option-form
-                  class="bg-surface text-on-surface rounded-xl p-4 grid gap-4 lg:row-span-7 lg:grid-rows-subgrid"
-                  [esnEnabled]="esnEnabled()"
-                  [registrationOptionForm]="option"
-                  [registrationModes]="registrationModes"
-                  [taxRates]="availableTaxRates()"
-                  [taxRateState]="taxRateState()"
-                />
-              }
+          }
+          @if (discountProviderState() === "error") {
+            <div class="text-error mb-4 grid gap-2" role="alert">
+              <p>
+                Discount settings could not be loaded. Prices remain unchanged
+                and event creation is unavailable.
+              </p>
+              <button
+                mat-stroked-button
+                type="button"
+                (click)="discountProvidersQuery.refetch()"
+              >
+                Try again
+              </button>
             </div>
-          </section>
-
-          <div class="flex justify-end">
-            <button
-              type="submit"
-              mat-button
-              [disabled]="
-                templateCreateEventSubmitDisabled({
-                  discountProvidersReady: discountProvidersReady(),
-                  paidGraphBlocked: paidGraphBlocked(),
-                  taxRatesReady: taxRatesReady(),
-                  formInvalid: createEventForm().invalid(),
-                  formSubmitting: createEventForm().submitting(),
-                  legacyRandomBlocked: legacyRandomBlocked(),
-                  mutationPending: createEventMutation.isPending(),
-                })
-              "
-            >
-              {{
-                createEventMutation.isPending()
-                  ? "Creating event..."
-                  : "Create event"
-              }}
-            </button>
+          } @else if (
+            !discountProvidersReady() || taxRateState() === "loading"
+          ) {
+            <p role="status">
+              Wait for discount settings and tax rates to finish loading before
+              creating the event.
+            </p>
+          }
+          @if (taxRateState() === "error") {
+            <div class="text-error mb-4 grid gap-2" role="alert">
+              <p>
+                Tax rates could not be loaded. Tax choices remain unchanged and
+                event creation is unavailable.
+              </p>
+              <button
+                mat-stroked-button
+                type="button"
+                (click)="taxRatesQuery.refetch()"
+              >
+                Try again
+              </button>
+            </div>
+          }
+          <div
+            class="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:[grid-template-rows:auto_auto_auto_auto_auto_auto_auto]"
+          >
+            @for (option of createEventForm.registrationOptions; track option) {
+              <app-registration-option-form
+                class="bg-surface text-on-surface rounded-xl p-4 grid gap-4 lg:row-span-7 lg:grid-rows-subgrid"
+                [esnEnabled]="esnEnabled()"
+                [registrationOptionForm]="option"
+                [registrationModes]="registrationModes"
+                [taxRates]="availableTaxRates()"
+                [taxRateState]="taxRateState()"
+              />
+            }
           </div>
+        </section>
+
+        <div class="flex justify-end">
+          <button
+            type="submit"
+            mat-button
+            [disabled]="
+              templateCreateEventSubmitDisabled({
+                discountProvidersReady: discountProvidersReady(),
+                paidGraphBlocked: paidGraphBlocked(),
+                taxRatesReady: taxRatesReady(),
+                formInvalid: createEventForm().invalid(),
+                formSubmitting: createEventForm().submitting(),
+                mutationPending: createEventMutation.isPending(),
+              })
+            "
+          >
+            {{
+              createEventMutation.isPending()
+                ? "Creating event..."
+                : "Create event"
+            }}
+          </button>
         </div>
-      </form>
-    }
+      </div>
+    </form>
   }
 </main>

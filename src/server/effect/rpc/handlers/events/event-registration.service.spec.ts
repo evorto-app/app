@@ -8749,44 +8749,6 @@ describe('EventRegistrationService', () => {
         expect(fixture.transactionCommands).toEqual(['BEGIN', 'COMMIT']);
       }),
   );
-
-  it.effect('rejects registration for unsupported registration modes', () =>
-    Effect.gen(function* () {
-      const error = yield* EventRegistrationService.registerForEvent({
-        eventId: 'event-1',
-        guestCount: 0,
-        registrationOptionId: 'option-1',
-        tenant: {
-          ...tenantPublicOrigin,
-          currency: 'EUR',
-          id: 'tenant-1',
-          name: 'Tenant',
-          stripeAccountId: undefined,
-        },
-        user: {
-          communicationEmail: 'alice@example.com',
-          email: 'alice@example.com',
-          id: 'user-1',
-          roleIds: ['role-1'],
-        },
-      }).pipe(
-        Effect.flip,
-        Effect.provide(EventRegistrationService.Default),
-        Effect.provide(
-          createRegistrationReadDatabaseLayer({
-            option: {
-              ...approvedRegistrationOption,
-              registrationMode: 'random',
-            },
-          }),
-        ),
-        Effect.provideService(StripeClient, stripeClient),
-        Effect.provide(configProviderLayer),
-      );
-      expect(error['_tag']).toBe('EventRegistrationConflictError');
-      expect(error.message).toBe('Registration option mode is not supported');
-    }),
-  );
 });
 
 describe('retained registration input bounds', () => {

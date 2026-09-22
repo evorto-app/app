@@ -340,7 +340,7 @@ describe('templates RPC full graph schemas', () => {
     ).not.toThrow();
   });
 
-  it('keeps legacy random allocation readable but rejects it from graph writes', () => {
+  it('rejects retired random allocation in stored records and graph writes', () => {
     const persistedRecord = {
       ...validTemplateFindOneRecord,
       registrationOptions: [
@@ -370,7 +370,7 @@ describe('templates RPC full graph schemas', () => {
 
     expect(() =>
       Schema.decodeUnknownSync(TemplateGraphRecord)(persistedRecord),
-    ).not.toThrow();
+    ).toThrow();
     expect(() =>
       Schema.decodeUnknownSync(TemplateGraphInput)({
         ...graphInput,

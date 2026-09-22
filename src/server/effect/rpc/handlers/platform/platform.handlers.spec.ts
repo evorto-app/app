@@ -44,7 +44,6 @@ import {
   platformEventAuditSnapshot,
   platformEventGraphCompatibilityError,
   platformEventStateError,
-  platformUnsupportedRegistrationModeError,
   validatePlatformEventCreateReferences,
 } from './platform-events.handlers';
 import {
@@ -446,24 +445,15 @@ describe('platform event, template, and registration handlers', () => {
       Effect.gen(function* () {
         const creatorError = yield* validatePlatformEventCreateReferences({
           creatorMembershipFound: false,
-          registrationModes: [],
           templateFound: true,
         }).pipe(Effect.flip);
         expect(creatorError.reason).toBe('creatorMembershipNotFound');
 
         const templateError = yield* validatePlatformEventCreateReferences({
           creatorMembershipFound: true,
-          registrationModes: [],
           templateFound: false,
         }).pipe(Effect.flip);
         expect(templateError.reason).toBe('templateNotFound');
-
-        const modeError = yield* validatePlatformEventCreateReferences({
-          creatorMembershipFound: true,
-          registrationModes: ['random'],
-          templateFound: true,
-        }).pipe(Effect.flip);
-        expect(modeError.reason).toBe('unsupportedRegistrationMode');
       }),
   );
 
@@ -742,53 +732,6 @@ describe('platform event, template, and registration handlers', () => {
       reason: 'eventAddonMappingInUse',
     });
   });
-
-  it.effect(
-    'rejects random event updates before opening a target mutation',
-    () =>
-      Effect.gen(function* () {
-        expect(
-          platformUnsupportedRegistrationModeError(['application', 'fcfs']),
-        ).toBeNull();
-
-        const error = yield* platformHandlers['platform.events.update'](
-          {
-            addOns: eventRecord.addOns,
-            description: eventRecord.description,
-            end: eventRecord.end,
-            eventId: eventRecord.id,
-            icon: eventRecord.icon,
-            location: eventRecord.location,
-            questions: eventRecord.questions,
-            reason: 'Attempt to retain an unsupported allocation mode',
-            registrationOptions: eventRecord.registrationOptions.map(
-              (option) => ({
-                ...option,
-                registrationMode: 'random',
-              }),
-            ),
-            start: eventRecord.start,
-            targetTenantId: targetTenant.id,
-            title: eventRecord.title,
-          } as never,
-          undefined,
-        ).pipe(
-          Effect.flip,
-          Effect.provide(
-            Layer.mergeAll(
-              createDatabaseTestLayer(),
-              RpcAccess.Default,
-              Layer.succeed(RpcRequestContext, operation.requestContext),
-            ),
-          ),
-        );
-
-        expect(error).toMatchObject({
-          _tag: 'RpcBadRequestError',
-          reason: 'unsupportedRegistrationMode',
-        });
-      }),
-  );
 
   for (const { addonId, optionalQuantity } of [undefined, 'addon-1'].flatMap(
     (addonId) =>

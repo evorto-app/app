@@ -139,8 +139,7 @@ const updateInputFrom = (
     return {
       ...record,
       key: option.id,
-      registrationMode:
-        option.registrationMode === 'random' ? 'fcfs' : option.registrationMode,
+      registrationMode: option.registrationMode,
       roleIds: [...option.roleIds],
     };
   }),
@@ -176,28 +175,31 @@ describe('TemplateGraphService structural validation', () => {
     });
   });
 
-  it('keeps a persisted legacy random template read-only when the payload changes it to fcfs', () => {
-    const before = persistedGraph(false);
-    before.registrationOptions = before.registrationOptions.map(
-      (option, index) =>
-        index === 1 ? { ...option, registrationMode: 'random' } : option,
-    );
-    const input = updateInputFrom(before);
+  it('preserves first-come and manual-approval modes in simple and advanced graphs', () => {
+    for (const simpleModeEnabled of [true, false]) {
+      const before = persistedGraph(simpleModeEnabled);
+      before.registrationOptions = before.registrationOptions.map(
+        (option, index): typeof option => ({
+          ...option,
+          registrationMode: index === 0 ? 'fcfs' : 'application',
+        }),
+      );
+      const input = updateInputFrom(before);
 
-    expect(
-      input.registrationOptions.map((option) => option.registrationMode),
-    ).not.toContain('random');
-    const error = validateTemplateGraphStructure({
-      before,
-      esnCardEnabled: false,
-      input,
-    });
-
-    expect(error).toBeInstanceOf(RpcBadRequestError);
-    expect(error).toMatchObject({
-      _tag: 'RpcBadRequestError',
-      reason: 'unsupportedTemplateRegistrationMode',
-    });
+      expect(
+        validateTemplateGraphStructure({
+          before,
+          esnCardEnabled: false,
+          input,
+        }),
+      ).toBeNull();
+      expect(
+        before.registrationOptions.map((option) => option.registrationMode),
+      ).toEqual(['fcfs', 'application']);
+      expect(
+        input.registrationOptions.map((option) => option.registrationMode),
+      ).toEqual(['fcfs', 'application']);
+    }
   });
 
   it('accepts simple mode only with one organizer and one participant option', () => {

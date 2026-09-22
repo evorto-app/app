@@ -41,16 +41,7 @@ const RegistrationQuestionTitle = Schema.NonEmptyString.check(
   Schema.isMaxLength(MAX_REGISTRATION_QUESTION_TITLE_LENGTH),
 );
 
-export const TemplateRegistrationMode = literalUnion(
-  'application',
-  'fcfs',
-  'random',
-);
-
-export const TemplateWritableRegistrationMode = literalUnion(
-  'application',
-  'fcfs',
-);
+export const TemplateRegistrationMode = literalUnion('application', 'fcfs');
 
 export const TemplateRoleRecord = Schema.Struct({
   id: Schema.NonEmptyString,
@@ -138,7 +129,7 @@ export const TemplateGraphRegistrationOptionInput = Schema.Struct({
   price: nonNegativeNumber,
   refundFeesOnCancellation: Schema.NullOr(Schema.Boolean),
   registeredDescription: Schema.NullOr(Schema.String),
-  registrationMode: TemplateWritableRegistrationMode,
+  registrationMode: TemplateRegistrationMode,
   roleIds: Schema.mutable(Schema.Array(Schema.NonEmptyString)),
   spots: positiveNumber,
   stripeTaxRateId: Schema.NullOr(Schema.NonEmptyString),
