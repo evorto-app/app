@@ -39,7 +39,7 @@
         @if (eventQuery.isSuccess()) {
           {{ eventQuery.data().title }}
         } @else if (eventQuery.isPending()) {
-          Loading event ...
+          Loading event…
         } @else {
           Event unavailable
         }
@@ -160,7 +160,7 @@
   <div class="flex flex-col gap-4">
     @if (eventQuery.isPending()) {
       <div class="bg-surface text-on-surface rounded-2xl p-4">
-        <h2 class="title-medium">Loading event ...</h2>
+        <h2 class="title-medium">Loading event…</h2>
       </div>
     } @else if (eventQuery.isError()) {
       <div
@@ -244,9 +244,7 @@
                       <dd>{{ eventAddonPurchaseTiming(addOn) }}</dd>
                     </div>
                     <div>
-                      <dt class="text-on-surface-variant">
-                        Registration options
-                      </dt>
+                      <dt class="text-on-surface-variant">Sign-up choices</dt>
                       <dd>
                         @for (
                           option of addOn.registrationOptions;
@@ -275,10 +273,10 @@
         }
 
         <section class="flex flex-col gap-4">
-          <h2 class="headline-small">Registration</h2>
+          <h2 class="headline-small">Your sign-up</h2>
           @if (registrationStatusQuery.isPending()) {
             <div class="bg-surface text-on-surface rounded-2xl p-4">
-              <h3 class="title-small">Loading registration status…</h3>
+              <h3 class="title-small">Loading your sign-up…</h3>
             </div>
           } @else if (registrationStatusQuery.isError()) {
             <div
@@ -286,13 +284,11 @@
               class="bg-error-container text-on-error-container flex flex-col items-start gap-3 rounded-xl p-4"
             >
               <div>
-                <h3 class="title-small">
-                  Registration actions are temporarily unavailable
-                </h3>
+                <h3 class="title-small">Sign-up details could not be loaded</h3>
                 <p class="body-medium mt-1">
-                  You can still review the event details. Try loading your
-                  registration status again to register or manage an existing
-                  registration.
+                  No sign-up action is available until these details load. You
+                  can still review the event details. Select Try again to check
+                  once more.
                 </p>
               </div>
               <button
@@ -303,7 +299,7 @@
               >
                 {{
                   registrationStatusQuery.isFetching()
-                    ? "Retrying…"
+                    ? "Trying again…"
                     : "Try again"
                 }}
               </button>
@@ -403,7 +399,7 @@
                             Organizer/helper opportunities
                           </p>
                           <p class="body-medium text-on-surface-variant">
-                            Confirmed organizer/helper registrations grant event
+                            A confirmed organizer/helper place grants event
                             management access. Applications require approval and
                             any required payment first.
                           </p>
@@ -431,12 +427,12 @@
                       registrationOptionGroups().participantOptions.length > 0
                     ) {
                       <section
-                        aria-label="Participant registration options"
+                        aria-label="Sign-up choices for attendees"
                         class="grid gap-4"
                       >
                         <div class="grid gap-1">
                           <p class="title-medium">
-                            Participant registration options
+                            Sign-up choices for attendees
                           </p>
                           <p class="body-medium text-on-surface-variant">
                             Choose how you want to attend this event.
@@ -465,20 +461,19 @@
                 }
                 @case ("hiddenByEligibility") {
                   <div class="bg-surface text-on-surface rounded-2xl p-4">
-                    <h3 class="title-small">Registration unavailable</h3>
+                    <h3 class="title-small">Sign-up unavailable</h3>
                     <p class="body-medium text-on-surface-variant mt-2">
-                      This event is visible from the direct link, but your
-                      account is not eligible for the available registration
-                      options.
+                      Your access in this organization does not include any of
+                      this event's sign-up choices. You can still view the
+                      event, but you cannot sign up.
                     </p>
                   </div>
                 }
                 @case ("none") {
                   <div class="bg-surface text-on-surface rounded-2xl p-4">
-                    <h3 class="title-small">No registration options</h3>
+                    <h3 class="title-small">Information only</h3>
                     <p class="body-medium text-on-surface-variant mt-2">
-                      This event does not currently offer registration through
-                      the app.
+                      This event does not have sign-up choices.
                     </p>
                   </div>
                 }

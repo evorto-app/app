@@ -115,7 +115,7 @@ const registrationStatus = (
 });
 
 describe('registrationCancellationCopy', () => {
-  it('describes pending payment cancellation as releasing reserved spots', () => {
+  it('describes pending payment cancellation as releasing reserved places', () => {
     expect(
       registrationCancellationCopy({
         activeTransfer: null,
@@ -126,9 +126,26 @@ describe('registrationCancellationCopy', () => {
         status: 'PENDING',
       }),
     ).toEqual({
-      buttonLabel: 'Cancel registration',
+      buttonLabel: 'Cancel sign-up',
       helperText:
-        'This cancels the pending registration and releases all selected spots. It does not complete a payment.',
+        'This cancels the pending sign-up and releases all selected places. It does not complete a payment.',
+    });
+  });
+
+  it('distinguishes withdrawing an application from cancelling a payment', () => {
+    expect(
+      registrationCancellationCopy({
+        activeTransfer: null,
+        cancellationAvailable: true,
+        cancellationBlockedReason: 'none',
+        guestCount: 0,
+        paymentPending: false,
+        status: 'PENDING',
+      }),
+    ).toEqual({
+      buttonLabel: 'Withdraw application',
+      helperText:
+        'This withdraws your pending application before organizer approval.',
     });
   });
 
@@ -143,9 +160,9 @@ describe('registrationCancellationCopy', () => {
         status: 'CONFIRMED',
       }),
     ).toEqual({
-      buttonLabel: 'Cancel registration',
+      buttonLabel: 'Cancel ticket',
       helperText:
-        'This cancels your confirmed registration and releases your spot. If a refund applies, Evorto starts it automatically after cancellation. It may take time to appear; do not pay or register again to retry it.',
+        'This cancels your ticket and releases your place. If a refund applies, Evorto starts it automatically after cancellation. It may take time to appear; do not pay or sign up again to retry it.',
     });
   });
 
@@ -182,7 +199,7 @@ describe('registrationCancellationCopy', () => {
     ).toEqual({
       buttonLabel: null,
       helperText:
-        'The cancellation deadline has passed. No cancellation, refund, or spot release has been made.',
+        'The cancellation deadline has passed. Your ticket is still active, no place has been released, and no refund has started.',
     });
   });
 });
@@ -195,13 +212,13 @@ describe('registrationAudienceCopy', () => {
       ),
     ).toEqual({
       audienceLabel: 'Organizer/helper',
-      confirmedStatus: 'Organizer/helper registration confirmed',
+      confirmedStatus: 'Organizer/helper ticket confirmed',
       passHeading: 'Your organizer/helper pass',
       paymentPendingStatus:
-        'Complete payment to confirm your organizer/helper registration. Organizer access starts only after payment succeeds.',
+        'Complete payment to confirm your organizer/helper place. Organizer access starts only after payment succeeds.',
       pendingApprovalStatus:
         'Organizer/helper application pending. Organizer access starts only after approval and any required payment.',
-      qrAlt: 'QR code for the organizer/helper registration',
+      qrAlt: 'QR code for the organizer/helper pass',
     });
   });
 
@@ -347,7 +364,7 @@ describe('registration action guards', () => {
 
 describe('registration add-on purchase helpers', () => {
   it.each([
-    ['registrationStatus', 'confirmed registration'],
+    ['registrationStatus', 'ticket is confirmed'],
     ['eventUnavailable', 'not available'],
     ['activeTransfer', 'active transfer'],
     ['paymentPending', 'already in progress'],
@@ -355,11 +372,11 @@ describe('registration add-on purchase helpers', () => {
     ['duringEventDisabled', 'not sold during'],
     ['eventEnded', 'event has ended'],
     ['multipleNotAllowed', 'only once'],
-    ['optionLimitReached', 'registration option'],
+    ['optionLimitReached', 'maximum number of this add-on'],
     ['userLimitReached', 'per-person limit'],
     ['outOfStock', 'sold out'],
     ['paymentUnavailable', 'Online payment'],
-    ['taxUnavailable', 'tax setup'],
+    ['taxUnavailable', 'tax details are no longer available'],
   ] as const)('explains %s without guessing client state', (reason, copy) => {
     expect(registrationAddonPurchaseBlockedCopy(reason)).toContain(copy);
   });
@@ -658,7 +675,7 @@ describe('EventActiveRegistrationComponent add-on purchase', () => {
       status: 'PENDING',
     });
     const fixture = render(registration);
-    findButton(fixture, 'Cancel registration')?.click();
+    findButton(fixture, 'Cancel sign-up')?.click();
     await vi.waitFor(() => {
       fixture.detectChanges();
       const root: unknown = fixture.nativeElement;
@@ -675,10 +692,38 @@ describe('EventActiveRegistrationComponent add-on purchase', () => {
     expect(cancelRegistration).toHaveBeenCalledOnce();
   });
 
+  it('reports an uncertain cancellation after the server commits but the response is lost', async () => {
+    let serverCancelled = false;
+    cancelRegistration.mockImplementation(async () => {
+      serverCancelled = true;
+      throw new Error('Connection closed before the response arrived');
+    });
+    dialogOpen.mockReturnValue({ afterClosed: () => of(true) });
+    const fixture = render(registrationStatus());
+    findButton(fixture, 'Cancel ticket')?.click();
+
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      const element: unknown = fixture.nativeElement;
+      if (!(element instanceof HTMLElement))
+        throw new Error('Expected the sign-up root to be an HTML element');
+      const alert = element.querySelector('[role="alert"]');
+      expect(alert?.querySelector('h3')?.textContent).toBe(
+        'Review cancellation',
+      );
+      expect(alert?.textContent).toContain(
+        'The cancellation outcome could not be confirmed. Load the page again to check the current sign-up status before trying again.',
+      );
+      expect(alert?.textContent).not.toContain('Nothing changed');
+    });
+    expect(serverCancelled).toBe(true);
+    expect(cancelRegistration).toHaveBeenCalledOnce();
+  });
+
   it('requires explicit confirmation before cancelling a registration', async () => {
     const fixture = render(registrationStatus());
 
-    findButton(fixture, 'Cancel registration')?.click();
+    findButton(fixture, 'Cancel ticket')?.click();
 
     await vi.waitFor(() => expect(dialogOpen).toHaveBeenCalledOnce());
     expect(cancelRegistration).not.toHaveBeenCalled();
@@ -695,7 +740,7 @@ describe('EventActiveRegistrationComponent add-on purchase', () => {
     dialogOpen.mockReturnValue({ afterClosed: () => of(true) });
     const fixture = render(registrationStatus());
 
-    findButton(fixture, 'Cancel registration')?.click();
+    findButton(fixture, 'Cancel ticket')?.click();
 
     await vi.waitFor(() => expect(cancelRegistration).toHaveBeenCalledOnce());
     expect(cancelRegistration.mock.calls[0]?.[0]).toEqual({
@@ -712,14 +757,14 @@ describe('EventActiveRegistrationComponent add-on purchase', () => {
       dialogOpen.mockReturnValue({ afterClosed: () => of(true) });
       const fixture = render(registrationStatus());
 
-      findButton(fixture, 'Cancel registration')?.click();
+      findButton(fixture, 'Cancel ticket')?.click();
 
       await vi.waitFor(async () => {
         await fixture.whenStable();
         expect(cancelRegistration).toHaveBeenCalledOnce();
         expect(normalizeText(fixture)).toContain(
           expectedMessage ??
-            'The sign-up could not be cancelled. Check its current status and contact an organizer for help.',
+            'The cancellation outcome could not be confirmed. Load the page again to check the current sign-up status before trying again.',
         );
         expect(normalizeText(fixture)).not.toContain('Private registration');
       });
@@ -792,7 +837,7 @@ describe('EventActiveRegistrationComponent add-on purchase', () => {
       registrationStatus({ organizingRegistration: true }),
     );
 
-    findButton(fixture, 'Cancel registration')?.click();
+    findButton(fixture, 'Cancel ticket')?.click();
 
     await vi.waitFor(() => {
       expect(cancelRegistration).toHaveBeenCalledOnce();
@@ -811,7 +856,7 @@ describe('EventActiveRegistrationComponent add-on purchase', () => {
       registrationStatus({ organizingRegistration: true }),
     );
 
-    findButton(fixture, 'Cancel registration')?.click();
+    findButton(fixture, 'Cancel ticket')?.click();
 
     await vi.waitFor(() => {
       expect(cancelRegistration).toHaveBeenCalledOnce();
@@ -830,7 +875,7 @@ describe('EventActiveRegistrationComponent add-on purchase', () => {
       registrationStatus({ organizingRegistration: true }),
     );
 
-    findButton(fixture, 'Cancel registration')?.click();
+    findButton(fixture, 'Cancel ticket')?.click();
 
     await vi.waitFor(() => {
       expect(cancelRegistration).toHaveBeenCalledOnce();
@@ -849,9 +894,9 @@ describe('EventActiveRegistrationComponent add-on purchase', () => {
     const fixture = render(registration);
 
     expect(normalizeText(fixture)).toContain(
-      'The cancellation deadline has passed. No cancellation, refund, or spot release has been made.',
+      'The cancellation deadline has passed. Your ticket is still active, no place has been released, and no refund has started.',
     );
-    expect(findButton(fixture, 'Cancel registration')).toBeUndefined();
+    expect(findButton(fixture, 'Cancel ticket')).toBeUndefined();
 
     await fixture.componentInstance.cancelRegistration(registration);
 
@@ -868,7 +913,7 @@ describe('EventActiveRegistrationComponent add-on purchase', () => {
     });
     const fixture = render(pendingApplication);
 
-    findButton(fixture, 'Cancel registration')?.click();
+    findButton(fixture, 'Withdraw application')?.click();
     await vi.waitFor(() => expect(dialogOpen).toHaveBeenCalledOnce());
     fixture.componentRef.setInput('registrations', [
       registrationStatus({ paymentPending: false, status: 'CONFIRMED' }),
@@ -974,7 +1019,7 @@ describe('EventActiveRegistrationComponent add-on purchase', () => {
         'Trying again will not create a duplicate purchase.',
       );
       expect(normalizeText(fixture)).toContain(
-        'If the checkout has expired, reload this page and start the add-on purchase again.',
+        'If the payment page has expired, start the add-on purchase again.',
       );
     });
     findButton(fixture, 'Add to ticket')?.click();
@@ -1004,7 +1049,7 @@ describe('EventActiveRegistrationComponent add-on purchase', () => {
     await vi.waitFor(() => {
       fixture.detectChanges();
       expect(root.querySelector('input')?.hasAttribute('disabled')).toBe(true);
-      expect(findButton(fixture, 'Cancel registration')?.disabled).toBe(true);
+      expect(findButton(fixture, 'Cancel ticket')?.disabled).toBe(true);
       expect(findButton(fixture, 'Create transfer link')?.disabled).toBe(true);
     });
   });
@@ -1114,7 +1159,7 @@ describe('EventActiveRegistrationComponent add-on purchase', () => {
       registrationStatus({ registrationAddOns: [availablePaidAddOn] }),
     );
 
-    findButton(fixture, 'Continue to Stripe')?.click();
+    findButton(fixture, 'Continue to payment')?.click();
     await vi.waitFor(() => {
       fixture.detectChanges();
       expect(normalizeText(fixture)).toContain('Add-on purchase failed');
@@ -1234,9 +1279,9 @@ describe('EventActiveRegistrationComponent add-on purchase', () => {
       'https://checkout.stripe.com/c/pay/cs_test_pending',
     );
     expect(normalizeText(fixture)).toContain(
-      'Your ticket updates only after Stripe confirms payment.',
+      'Your ticket updates only after the online payment is confirmed.',
     );
-    expect(findButton(fixture, 'Cancel registration')?.disabled).toBe(true);
+    expect(findButton(fixture, 'Cancel ticket')?.disabled).toBe(true);
     expect(findButton(fixture, 'Transfer unavailable')?.disabled).toBe(true);
   });
 

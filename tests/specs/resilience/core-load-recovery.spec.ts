@@ -188,14 +188,14 @@ test('organizer overview never presents failed participant data as zero and reco
   await expect.poll(failureCount).toBe(1);
 
   const alert = page.getByRole('alert');
-  await expect(alert).toContainText('Participant data could not be loaded');
+  await expect(alert).toContainText('Attendees could not be loaded');
   await expect(alert).toContainText(
-    'Do not treat the missing counts as zero or as current event data.',
+    'No current sign-up counts or attendee actions are shown. Select Try again.',
   );
-  await expect(page.getByText('Registered', { exact: true })).toHaveCount(0);
-  await expect(
-    page.getByRole('button', { name: 'Cancel registration' }),
-  ).toHaveCount(0);
+  await expect(page.getByText('Signed up', { exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Cancel ticket' })).toHaveCount(
+    0,
+  );
 
   const backLink = page.getByRole('link', { name: 'Back to event' });
   await expect(backLink).toBeVisible();
@@ -209,7 +209,7 @@ test('organizer overview never presents failed participant data as zero and reco
   await expect(
     page.getByRole('heading', { name: 'Overview', exact: true }),
   ).toBeVisible();
-  await expect(page.getByText('Registered', { exact: true })).toBeVisible();
+  await expect(page.getByText('Signed up', { exact: true })).toBeVisible();
 
   await backLink.focus();
   await expect(backLink).toBeFocused();

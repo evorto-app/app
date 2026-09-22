@@ -211,7 +211,7 @@ export const registrationRefundClaimInsert = (
   nextAttemptAt: Date,
 ): typeof transactions.$inferInsert => ({
   amount: -input.amount,
-  comment: `Registration refund claim for source transaction ${input.sourceTransactionId}`,
+  comment: 'Ticket refund',
   currency: input.currency,
   eventId: input.eventId,
   eventRegistrationId: input.eventRegistrationId,
@@ -663,7 +663,7 @@ export const registrationProviderRefundPersistence = (
 ): typeof transactions.$inferInsert => {
   return {
     amount: -refund.amount,
-    comment: 'Refund recorded by Stripe',
+    comment: 'Ticket refund',
     currency: source.currency,
     eventId: source.eventId,
     eventRegistrationId: source.eventRegistrationId,

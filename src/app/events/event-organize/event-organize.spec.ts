@@ -1,3 +1,5 @@
+import '@angular/compiler';
+import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { MatDialog } from '@angular/material/dialog';
 import {
@@ -27,7 +29,7 @@ import { of } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ConfigService } from '../../core/config.service';
-import { APP_RPC_CLIENT } from '../../core/effect-rpc-angular-client';
+import { APP_RPC_CLIENT, AppRpc } from '../../core/effect-rpc-angular-client';
 import { NotificationService } from '../../core/notification.service';
 import {
   computeEventOrganizeStats,
@@ -37,6 +39,7 @@ import {
   organizerRegistrationActionDisabled,
   organizerRegistrationApprovalDisabled,
   organizerRegistrationApprovalLabel,
+  organizerRegistrationCancellationActionLabel,
   organizerRegistrationTransferDisabled,
   receiptSubmissionActionDisabled,
 } from './event-organize';
@@ -205,7 +208,8 @@ describe('event organizer error notifications', () => {
   for (const action of [
     {
       conflict: 'Checked-in registrations cannot be cancelled',
-      fallback: 'Failed to cancel registration',
+      fallback:
+        'The cancellation outcome could not be confirmed. Load the page again to check the current sign-up status before trying again.',
       label: 'Cancel registration',
       mutation: cancelRegistration,
     },
@@ -427,6 +431,24 @@ describe('computeEventOrganizeStats', () => {
   });
 });
 
+describe('organizerRegistrationCancellationActionLabel', () => {
+  it.each([
+    ['PENDING', false, 'Withdraw application'],
+    ['PENDING', true, 'Cancel sign-up'],
+    ['CONFIRMED', false, 'Cancel ticket'],
+  ] as const)(
+    'labels %s registrations explicitly',
+    (status, paymentPending, label) => {
+      expect(
+        organizerRegistrationCancellationActionLabel({
+          paymentPending,
+          status,
+        }),
+      ).toBe(label);
+    },
+  );
+});
+
 describe('invalidateEventOrganizeStateQueries', () => {
   it('invalidates every exact self-facing cache after an organizer action', async () => {
     const queryClient = new QueryClient();
@@ -502,16 +524,16 @@ describe('groupEventOrganizeRegistrationOptions', () => {
 
     expect(groups).toEqual([
       {
-        emptyMessage: 'No organizer/helper registrations yet.',
+        emptyMessage: 'No organizer/helper sign-ups yet.',
         id: 'organizer-helper-team',
         options: [organizerOption],
         title: 'Organizer/helper team',
       },
       {
-        emptyMessage: 'No participant registrations yet.',
+        emptyMessage: 'No attendee sign-ups yet.',
         id: 'participant-registrations',
         options: [participantOptionA, participantOptionB],
-        title: 'Participant registrations',
+        title: 'Attendee sign-ups',
       },
     ]);
   });
@@ -693,10 +715,8 @@ describe('event organizer query-state template', () => {
     expect(template).toContain('@if (eventQuery.isPending())');
     expect(template).toContain('@else if (eventQuery.isError())');
     expect(template).toContain('@else if (organizerOverviewQuery.isSuccess())');
-    expect(template).toContain('Participant data could not be loaded');
-    expect(template).toContain(
-      'not treat the missing counts as zero or as current event data',
-    );
+    expect(template).toContain('Attendees could not be loaded');
+    expect(template).toContain('No current sign-up counts');
     expect(template).toContain('(click)="organizerOverviewQuery.refetch()"');
     expect(template).toContain('(click)="receiptsByEventQuery.refetch()"');
 
@@ -718,6 +738,9 @@ describe('event organizer query-state template', () => {
       'const expectedPaymentPending = registration.paymentPending',
     );
     expect(source).toContain('const expectedStatus = registration.status');
+    expect(source).toContain(
+      'The cancellation outcome could not be confirmed. Load the page again to check the current sign-up status before trying again.',
+    );
   });
 });
 
@@ -752,4 +775,240 @@ describe('receiptSubmissionActionDisabled', () => {
       }),
     ).toBe(false);
   });
+});
+
+type OrganizerCancellationOptions = ReturnType<
+  OrganizerClient['events']['cancelEventRegistration']['mutationOptions']
+>;
+
+type OrganizerCancellationState = Pick<
+  Parameters<NonNullable<OrganizerCancellationOptions['mutationFn']>>[0],
+  'expectedPaymentPending' | 'expectedStatus'
+>;
+
+type OrganizerClient = ReturnType<typeof AppRpc.injectClient>;
+@Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  selector: 'app-organizer-cancellation-test',
+  template: '',
+})
+class OrganizerCancellationTestComponent extends EventOrganize {
+  cancelForTest(state?: OrganizerCancellationState) {
+    const expectedPaymentPending = state?.expectedPaymentPending ?? false;
+    const expectedStatus = state?.expectedStatus ?? 'CONFIRMED';
+    return this.cancelRegistration({
+      checkedIn: false,
+      firstName: 'Alex',
+      lastName: 'Attendee',
+      paymentPending: expectedPaymentPending,
+      registrationId: 'registration-1',
+      status: expectedStatus,
+    });
+  }
+}
+
+const cancelOrganizerRegistration =
+  vi.fn<NonNullable<OrganizerCancellationOptions['mutationFn']>>();
+const showCancellationError = vi.fn<(message: string) => void>();
+const showCancellationSuccess = vi.fn<(message: string) => void>();
+const cancellationOptions = (): OrganizerCancellationOptions => ({
+  mutationFn: cancelOrganizerRegistration,
+  mutationKey: ['organizer-cancel'],
+});
+
+const cancellationFallback =
+  'The cancellation outcome could not be confirmed. Load the page again to check the current sign-up status before trying again.';
+
+describe('organizer cancellation outcome feedback', () => {
+  let queryClient: QueryClient;
+
+  beforeEach(async () => {
+    cancelOrganizerRegistration.mockReset();
+    showCancellationError.mockReset();
+    showCancellationSuccess.mockReset();
+    queryClient = new QueryClient({
+      defaultOptions: {
+        mutations: { retry: false },
+        queries: { gcTime: Infinity, retry: false },
+      },
+    });
+    vi.spyOn(queryClient, 'invalidateQueries').mockResolvedValue();
+    await TestBed.configureTestingModule({
+      imports: [OrganizerCancellationTestComponent],
+      providers: [
+        provideTanStackQuery(queryClient),
+        { provide: ConfigService, useValue: { updateTitle: vi.fn() } },
+        {
+          provide: MatDialog,
+          useValue: { open: () => ({ afterClosed: () => of(true) }) },
+        },
+        {
+          provide: NotificationService,
+          useValue: {
+            showError: showCancellationError,
+            showSuccess: showCancellationSuccess,
+          },
+        },
+        {
+          provide: APP_RPC_CLIENT,
+          useValue: {
+            events: {
+              approveRegistration: {
+                mutationOptions: () => ({ mutationKey: ['approve'] }),
+              },
+              cancelEventRegistration: { mutationOptions: cancellationOptions },
+              canOrganize: { queryKey: () => ['organizer-access'] },
+              findOne: {
+                queryKey: () => ['event'],
+                queryOptions: () => ({ enabled: false, queryKey: ['event'] }),
+              },
+              getOrganizeOverview: {
+                queryKey: () => ['organizer-overview'],
+                queryOptions: () => ({
+                  enabled: false,
+                  queryKey: ['organizer-overview'],
+                }),
+              },
+              getRegistrationStatus: {
+                queryKey: () => ['registration-status'],
+              },
+              transferEventRegistration: {
+                mutationOptions: () => ({ mutationKey: ['transfer'] }),
+              },
+            },
+            finance: {
+              receiptMedia: {
+                createUpload: {
+                  mutationOptions: () => ({ mutationKey: ['receipt-upload'] }),
+                },
+                finalizeUpload: {
+                  mutationOptions: () => ({
+                    mutationKey: ['receipt-finalize'],
+                  }),
+                },
+              },
+              receipts: {
+                byEvent: {
+                  queryOptions: () => ({
+                    enabled: false,
+                    queryKey: ['receipts'],
+                  }),
+                },
+                submit: {
+                  mutationOptions: () => ({ mutationKey: ['receipt-submit'] }),
+                },
+              },
+            },
+            users: {
+              canUseScanner: { queryKey: () => ['scanner-access'] },
+              events: { queryKey: () => ['user-events'] },
+            },
+          },
+        },
+      ],
+    }).compileComponents();
+  });
+
+  afterEach(() => {
+    queryClient.clear();
+    TestBed.resetTestingModule();
+  });
+
+  it.each([
+    {
+      expectedPaymentPending: false,
+      expectedStatus: 'WAITLIST',
+      message: 'Waitlist place removed',
+    },
+    {
+      expectedPaymentPending: false,
+      expectedStatus: 'PENDING',
+      message: 'Application withdrawn',
+    },
+    {
+      expectedPaymentPending: true,
+      expectedStatus: 'PENDING',
+      message: 'Sign-up cancelled',
+    },
+    {
+      expectedPaymentPending: false,
+      expectedStatus: 'CONFIRMED',
+      message: 'Ticket cancelled',
+    },
+  ] satisfies (OrganizerCancellationState & { message: string })[])(
+    'reports the confirmed outcome for $expectedStatus with payment pending $expectedPaymentPending',
+    async ({ expectedPaymentPending, expectedStatus, message }) => {
+      cancelOrganizerRegistration.mockResolvedValue(undefined);
+      const fixture = TestBed.createComponent(
+        OrganizerCancellationTestComponent,
+      );
+      fixture.componentRef.setInput('eventId', 'event-1');
+      fixture.detectChanges();
+      await fixture.componentInstance.cancelForTest({
+        expectedPaymentPending,
+        expectedStatus,
+      });
+      await vi.waitFor(() =>
+        expect(showCancellationSuccess).toHaveBeenCalledExactlyOnceWith(
+          message,
+        ),
+      );
+      expect(cancelOrganizerRegistration).toHaveBeenCalledExactlyOnceWith(
+        {
+          eventId: 'event-1',
+          expectedPaymentPending,
+          expectedStatus,
+          registrationId: 'registration-1',
+        },
+        expect.anything(),
+      );
+      expect(showCancellationError).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    {
+      commits: true,
+      error: new Error('Connection closed before the response arrived'),
+      expected: cancellationFallback,
+      name: 'a response lost after cancellation commits',
+    },
+    {
+      commits: false,
+      error: new EventRegistrationConflictError({
+        message: 'The sign-up changed. Reload before cancelling.',
+      }),
+      expected: 'The sign-up changed. Reload before cancelling.',
+      name: 'an expected conflict',
+    },
+    {
+      commits: false,
+      error: new EventRegistrationNotFoundError({
+        message: 'The sign-up could not be found.',
+      }),
+      expected: 'The sign-up could not be found.',
+      name: 'an expected missing sign-up',
+    },
+  ])(
+    'reports $name without replaying the cancellation',
+    async ({ commits, error, expected }) => {
+      let serverCancelled = false;
+      cancelOrganizerRegistration.mockImplementation(async () => {
+        serverCancelled = commits;
+        throw error;
+      });
+      const fixture = TestBed.createComponent(
+        OrganizerCancellationTestComponent,
+      );
+      fixture.componentRef.setInput('eventId', 'event-1');
+      fixture.detectChanges();
+      await fixture.componentInstance.cancelForTest();
+      await vi.waitFor(() =>
+        expect(showCancellationError).toHaveBeenCalledWith(expected),
+      );
+      expect(serverCancelled).toBe(commits);
+      expect(cancelOrganizerRegistration).toHaveBeenCalledOnce();
+      expect(showCancellationSuccess).not.toHaveBeenCalled();
+    },
+  );
 });

@@ -100,7 +100,9 @@ test.describe('Inclusive price labels', () => {
       const card = registrationOptionCard(page, freeOption.title);
       await expectCardReady(card);
       await expect(card.locator('app-price-with-tax')).toHaveCount(0);
-      await expect(card.getByText('Incl.')).toHaveCount(0);
+      await expect(card.getByText('included in the shown price')).toHaveCount(
+        0,
+      );
       await expect(card.getByText('Tax free')).toHaveCount(0);
     });
 
@@ -109,6 +111,8 @@ test.describe('Inclusive price labels', () => {
       page,
       seeded,
       tenant,
+
+      registerDatabaseCleanup,
     }) => {
       const paidEventId = seeded.scenario.events.paidOpen.eventId;
       const paidOptionId = seeded.scenario.events.paidOpen.optionId;
@@ -128,12 +132,17 @@ test.describe('Inclusive price labels', () => {
         );
       }
 
+      registerDatabaseCleanup(async () => {
+        await database
+          .update(schema.eventRegistrationOptions)
+          .set({ stripeTaxRateId: paidOption.stripeTaxRateId })
+          .where(eq(schema.eventRegistrationOptions.id, paidOptionId));
+      });
       await database
         .update(schema.eventRegistrationOptions)
         .set({ stripeTaxRateId: zeroRate.stripeTaxRateId })
         .where(eq(schema.eventRegistrationOptions.id, paidOptionId));
-
-      try {
+      {
         await page.goto(`/events/${paidEventId}`);
         await expect(page).toHaveURL(`/events/${paidEventId}`);
 
@@ -141,18 +150,15 @@ test.describe('Inclusive price labels', () => {
         await expectCardReady(card);
         await expect(visiblePrice(card, paidOption.price)).toBeVisible();
         await expect(card.getByText('Tax free')).toBeVisible();
-      } finally {
-        await database
-          .update(schema.eventRegistrationOptions)
-          .set({ stripeTaxRateId: paidOption.stripeTaxRateId })
-          .where(eq(schema.eventRegistrationOptions.id, paidOptionId));
       }
     });
 
-    test('fallback label shown when tax rate details are unavailable', async ({
+    test('missing tax details are surfaced without an inclusive-tax claim', async ({
       database,
       page,
       seeded,
+
+      registerDatabaseCleanup,
     }) => {
       const paidEventId = seeded.scenario.events.paidOpen.eventId;
       const paidOptionId = seeded.scenario.events.paidOpen.optionId;
@@ -164,24 +170,24 @@ test.describe('Inclusive price labels', () => {
         throw new Error('Expected seeded paid event option with a tax rate');
       }
 
+      registerDatabaseCleanup(async () => {
+        await database
+          .update(schema.eventRegistrationOptions)
+          .set({ stripeTaxRateId: paidOption.stripeTaxRateId })
+          .where(eq(schema.eventRegistrationOptions.id, paidOptionId));
+      });
       await database
         .update(schema.eventRegistrationOptions)
         .set({ stripeTaxRateId: 'txr_missing_seed_details' })
         .where(eq(schema.eventRegistrationOptions.id, paidOptionId));
-
-      try {
+      {
         await page.goto(`/events/${paidEventId}`);
         await expect(page).toHaveURL(`/events/${paidEventId}`);
 
         const card = registrationOptionCard(page, paidOption.title);
         await expectCardReady(card);
         await expect(visiblePrice(card, paidOption.price)).toBeVisible();
-        await expect(card.getByText('Incl. Tax')).toBeVisible();
-      } finally {
-        await database
-          .update(schema.eventRegistrationOptions)
-          .set({ stripeTaxRateId: paidOption.stripeTaxRateId })
-          .where(eq(schema.eventRegistrationOptions.id, paidOptionId));
+        await expect(card.getByText('Tax details unavailable')).toBeVisible();
       }
     });
 

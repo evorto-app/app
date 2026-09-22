@@ -122,12 +122,14 @@ export class PlatformTaxRatesComponent {
 
     void submit(this.importForm, async () => {
       const model = this.importModel();
+      let importCompleted = false;
       try {
         await this.importMutation.mutateAsync({
           ids: model.ids,
           reason: model.reason,
           targetTenantId: this.tenantId(),
         });
+        importCompleted = true;
         await this.queryClient.invalidateQueries(
           this.operations.taxRatesFilter(),
         );
@@ -136,11 +138,13 @@ export class PlatformTaxRatesComponent {
         this.importForm().reset();
       } catch (error) {
         this.notifications.showError(
-          getErrorMessage(
-            error,
-            'The tax rates could not be added. Try again.',
-            ['RpcBadRequestError'],
-          ),
+          importCompleted
+            ? 'Tax rates were imported, but the list could not be updated. Load the page again to see the current tax rates.'
+            : getErrorMessage(
+                error,
+                'The import outcome could not be confirmed. Load the page again to check the current tax rates before trying again.',
+                ['RpcBadRequestError'],
+              ),
         );
       }
     });
