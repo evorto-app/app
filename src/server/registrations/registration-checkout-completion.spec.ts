@@ -1,7 +1,8 @@
+import type Stripe from 'stripe';
+
 import { describe, expect, it, vi } from '@effect/vitest';
 import { getTableName } from 'drizzle-orm';
 import { Effect } from 'effect';
-import Stripe from 'stripe';
 
 import {
   eventRegistrations,
@@ -11,6 +12,11 @@ import {
 } from '../../db/schema';
 import { StripeClient } from '../stripe-client';
 import { createDatabaseTestLayer } from '../testing/database-test-layer';
+import {
+  createRejectingStripeClient,
+  stripeCheckoutSessionResponse,
+  stripePaymentIntentResponse,
+} from '../testing/stripe-test-fixtures';
 import {
   completePaidRegistrationCheckout,
   registrationCheckoutInitialReconcileAt,
@@ -28,167 +34,26 @@ const identity = {
   transactionId: 'transaction-1',
 } as const;
 
-const checkoutSessionResponse = ({
-  id,
-  paymentIntent,
-  url,
-}: {
-  id: string;
-  paymentIntent: Stripe.Checkout.Session['payment_intent'];
-  url: string;
-}): Stripe.Response<Stripe.Checkout.Session> => ({
-  adaptive_pricing: null,
-  after_expiration: null,
-  allow_promotion_codes: null,
-  amount_subtotal: null,
-  amount_total: null,
-  automatic_tax: {
-    enabled: false,
-    liability: null,
-    provider: null,
-    status: null,
-  },
-  billing_address_collection: null,
-  cancel_url: null,
-  client_reference_id: null,
-  client_secret: null,
-  collected_information: null,
-  consent: null,
-  consent_collection: null,
-  created: 1_900_000_000,
-  currency: 'eur',
-  currency_conversion: null,
-  custom_fields: [],
-  custom_text: {
-    after_submit: null,
-    shipping_address: null,
-    submit: null,
-    terms_of_service_acceptance: null,
-  },
-  customer: null,
-  customer_account: null,
-  customer_creation: null,
-  customer_details: null,
-  customer_email: null,
-  discounts: null,
-  expires_at: 1_900_000_000,
-  id,
-  integration_identifier: null,
-  invoice: null,
-  invoice_creation: null,
-  lastResponse: {
-    headers: {},
-    requestId: `req_${id}`,
-    statusCode: 200,
-  },
-  livemode: false,
-  locale: null,
-  managed_payments: null,
-  metadata: null,
-  mode: 'payment',
-  object: 'checkout.session',
-  origin_context: null,
-  payment_intent: paymentIntent,
-  payment_link: null,
-  payment_method_collection: null,
-  payment_method_configuration_details: null,
-  payment_method_options: null,
-  payment_method_types: ['card'],
-  payment_status: 'unpaid',
-  permissions: null,
-  recovered_from: null,
-  saved_payment_method_options: null,
-  setup_intent: null,
-  shipping_address_collection: null,
-  shipping_cost: null,
-  shipping_options: [],
-  status: 'open',
-  submit_type: null,
-  subscription: null,
-  success_url: null,
-  total_details: null,
-  ui_mode: 'hosted_page',
-  url,
-  wallet_options: null,
-});
-
-class UnusedStripeHttpClient extends Stripe.HttpClient {
-  override getClientName() {
-    return 'registration-completion-fixture';
-  }
-  override makeRequest() {
-    return Promise.reject(
-      new Error('Unexpected unmocked Stripe completion request'),
-    );
-  }
-}
-const createStripeClient = () =>
-  new Stripe('sk_test_123', { httpClient: new UnusedStripeHttpClient() });
-const paymentIntentResponse = (
-  id: string,
-  chargeId: null | string,
-): Stripe.Response<Stripe.PaymentIntent> => ({
-  amount: 2500,
-  amount_capturable: 0,
-  amount_received: 2500,
-  application: null,
-  application_fee_amount: null,
-  automatic_payment_methods: null,
-  canceled_at: null,
-  cancellation_reason: null,
-  capture_method: 'automatic',
-  client_secret: null,
-  confirmation_method: 'automatic',
-  created: 1_900_000_000,
-  currency: 'eur',
-  customer: null,
-  customer_account: null,
-  description: null,
-  excluded_payment_method_types: null,
-  id,
-  last_payment_error: null,
-  lastResponse: { headers: {}, requestId: `req_${id}`, statusCode: 200 },
-  latest_charge: chargeId,
-  livemode: false,
-  managed_payments: null,
-  metadata: {},
-  next_action: null,
-  object: 'payment_intent',
-  on_behalf_of: null,
-  payment_method: null,
-  payment_method_configuration_details: null,
-  payment_method_options: null,
-  payment_method_types: ['card'],
-  processing: null,
-  receipt_email: null,
-  review: null,
-  setup_future_usage: null,
-  shipping: null,
-  source: null,
-  statement_descriptor: null,
-  statement_descriptor_suffix: null,
-  status: 'succeeded',
-  transfer_group: null,
-});
 const checkoutSession = (input: {
   metadata?: Stripe.Metadata;
   paymentIntent?: Stripe.Checkout.Session['payment_intent'];
-}): Stripe.Checkout.Session => ({
-  ...checkoutSessionResponse({
+}): Stripe.Checkout.Session =>
+  stripeCheckoutSessionResponse({
+    amount_subtotal: null,
+    amount_total: 2500,
+    expires_at: 1_900_000_000,
     id: identity.stripeCheckoutSessionId,
-    paymentIntent:
+    metadata: input.metadata ?? {
+      registrationId: identity.registrationId,
+      tenantId: identity.tenantId,
+      transactionId: identity.transactionId,
+    },
+    payment_intent:
       input.paymentIntent === undefined ? 'pi_persisted' : input.paymentIntent,
+    payment_status: 'paid',
+    status: 'complete',
     url: 'https://checkout.stripe.com/c/pay/cs_persisted',
-  }),
-  amount_total: 2500,
-  metadata: input.metadata ?? {
-    registrationId: identity.registrationId,
-    tenantId: identity.tenantId,
-    transactionId: identity.transactionId,
-  },
-  payment_status: 'paid',
-  status: 'complete',
-});
+  });
 const registrationPreflightDatabase = () =>
   createDatabaseTestLayer((statement, parameters) =>
     Effect.sync(() => {
@@ -384,7 +249,10 @@ describe('registration Checkout completion ownership', () => {
     expect(
       registrationCheckoutPaymentIntentId(
         checkoutSession({
-          paymentIntent: paymentIntentResponse('pi_expanded', null),
+          paymentIntent: stripePaymentIntentResponse({
+            id: 'pi_expanded',
+            latest_charge: null,
+          }),
         }),
       ),
     ).toBe('pi_expanded');
@@ -394,10 +262,15 @@ describe('registration Checkout completion ownership', () => {
     'retrieves a string payment intent through the exact connected account and rejects a mismatched Stripe identity',
     () =>
       Effect.gen(function* () {
-        const stripe = createStripeClient();
+        const stripe = createRejectingStripeClient();
         const retrieve = vi
           .spyOn(stripe.paymentIntents, 'retrieve')
-          .mockResolvedValue(paymentIntentResponse('pi_foreign', 'ch_foreign'));
+          .mockResolvedValue(
+            stripePaymentIntentResponse({
+              id: 'pi_foreign',
+              latest_charge: 'ch_foreign',
+            }),
+          );
 
         const error = yield* completePaidRegistrationCheckout(
           identity,
@@ -426,7 +299,7 @@ describe('registration Checkout completion ownership', () => {
     'maps a missing Stripe payment intent rejection to an invalid binding and preserves its cause',
     () =>
       Effect.gen(function* () {
-        const stripe = createStripeClient();
+        const stripe = createRejectingStripeClient();
         const cause = {
           raw: { code: 'resource_missing' },
           type: 'StripeInvalidRequestError',
@@ -461,7 +334,7 @@ describe('registration Checkout completion ownership', () => {
     'maps an unknown Stripe payment intent rejection to an internal completion error and preserves its cause',
     () =>
       Effect.gen(function* () {
-        const stripe = createStripeClient();
+        const stripe = createRejectingStripeClient();
         const cause = new Error('Stripe is temporarily unavailable');
         vi.spyOn(stripe.paymentIntents, 'retrieve').mockRejectedValue(cause);
 
@@ -489,7 +362,7 @@ describe('registration Checkout completion ownership', () => {
         const select = vi.fn(() =>
           Effect.die(new Error('Unexpected SQL before checkout validation')),
         );
-        const stripe = createStripeClient();
+        const stripe = createRejectingStripeClient();
         const retrieve = vi.spyOn(stripe.paymentIntents, 'retrieve');
 
         const error = yield* completePaidRegistrationCheckout(

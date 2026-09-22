@@ -97,6 +97,8 @@ export const SCANNER_CAMERA_FACTORY = new InjectionToken<ScannerCameraFactory>(
   },
 );
 
+const logger = consola.withTag('app/scanning');
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [MatButtonModule],
@@ -233,7 +235,7 @@ export class ScannerComponent implements OnDestroy {
         this.navigationErrorMessage.set(scannerNavigationErrorMessage);
       }
     } catch (error) {
-      consola.warn('Failed to open scanned registration', error);
+      logger.warn('Failed to open scanned registration', error);
       this.navigationErrorMessage.set(scannerNavigationErrorMessage);
     } finally {
       this.navigationPending.set(false);
@@ -243,7 +245,7 @@ export class ScannerComponent implements OnDestroy {
   private async setupScanner(): Promise<void> {
     const videoElement = this.videoRef();
     if (!videoElement) {
-      consola.error('videoElement not found');
+      logger.error('videoElement not found');
       this.ticketFeedbackMessage.set('');
       this.cameraErrorMessage.set(scannerViewUnavailableMessage);
       return;
@@ -260,7 +262,7 @@ export class ScannerComponent implements OnDestroy {
       this.scanner = scanner;
       await this.startScanner({ clearErrorOnSuccess: true });
     } catch (error) {
-      consola.warn('Failed to initialize QR scanner camera', error);
+      logger.warn('Failed to initialize QR scanner camera', error);
       this.cameraReady.set(false);
       this.ticketFeedbackMessage.set('');
       this.cameraErrorMessage.set(scannerCameraErrorMessage(error));
@@ -299,7 +301,7 @@ export class ScannerComponent implements OnDestroy {
       ) {
         return;
       }
-      consola.warn('Failed to start QR scanner camera', error);
+      logger.warn('Failed to start QR scanner camera', error);
       this.cameraReady.set(false);
       this.ticketFeedbackMessage.set('');
       this.cameraErrorMessage.set(scannerCameraErrorMessage(error));

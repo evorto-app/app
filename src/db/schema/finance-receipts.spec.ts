@@ -101,15 +101,15 @@ describe('finance receipt schema', () => {
     ).toContain('finance_receipt_uploads_event_tenant_fk');
 
     const receiptColumns = receiptConfig.columns.map((column) => column.name);
-    expect(receiptColumns).not.toEqual(
-      expect.arrayContaining([
-        'attachmentMimeType',
-        'attachmentSizeBytes',
-        'previewImageId',
-        'previewImageUrl',
-        'stripeTaxRateId',
-      ]),
-    );
+    for (const removedColumn of [
+      'attachmentMimeType',
+      'attachmentSizeBytes',
+      'previewImageId',
+      'previewImageUrl',
+      'stripeTaxRateId',
+    ]) {
+      expect(receiptColumns).not.toContain(removedColumn);
+    }
     expect(receiptColumns).toContain('attachmentFileName');
     expect(uploadConfig.columns.map((column) => column.name)).not.toContain(
       'storageUrl',

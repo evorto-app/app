@@ -809,22 +809,6 @@ export const completePaidRegistrationCheckout = Effect.fn(
             .where(eq(transactions.id, input.transactionId));
         }
 
-        const transferFinalization =
-          yield* finalizeRegistrationTransferCheckout(tx, {
-            registrationId: input.registrationId,
-            tenantId: input.tenantId,
-            transactionId: input.transactionId,
-          });
-        if (transferFinalization !== 'notTransfer') {
-          return transferFinalization;
-        }
-        if (preflight.type === 'transfer') {
-          return yield* failStateConflict(
-            input,
-            'Registration transfer mapping changed during Checkout completion',
-          );
-        }
-
         const eligibilityCompensationOperationKey =
           registrationEligibilityCompensationRefundOperationKey(
             input.transactionId,
@@ -862,6 +846,22 @@ export const completePaidRegistrationCheckout = Effect.fn(
           ) {
             return 'alreadyFinalized' as const;
           }
+        }
+
+        const transferFinalization =
+          yield* finalizeRegistrationTransferCheckout(tx, {
+            registrationId: input.registrationId,
+            tenantId: input.tenantId,
+            transactionId: input.transactionId,
+          });
+        if (transferFinalization !== 'notTransfer') {
+          return transferFinalization;
+        }
+        if (preflight.type === 'transfer') {
+          return yield* failStateConflict(
+            input,
+            'Registration transfer mapping changed during Checkout completion',
+          );
         }
 
         if (

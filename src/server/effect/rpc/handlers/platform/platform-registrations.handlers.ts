@@ -153,13 +153,7 @@ export const mapPlatformRegistrationMutationError = (error: unknown) => {
     return Effect.fail(error);
   }
   if (error instanceof EventRegistrationNotFoundError) {
-    return Effect.fail(
-      new RpcBadRequestError({
-        message:
-          "This sign-up no longer exists. No changes were made. Return to the event's sign-ups and choose an existing sign-up.",
-        reason: 'registrationNotFound',
-      }),
-    );
+    return Effect.fail(registrationNotFound());
   }
   if (error instanceof EventRegistrationConflictError) {
     return Effect.fail(
@@ -1100,6 +1094,8 @@ export const platformRegistrationHandlers = {
             cancelledBy: 'platformAdministrator',
             enforceParticipantDeadline: false,
             executiveUserId: null,
+            expectedPaymentPending: input.expectedPaymentPending,
+            expectedStatus: input.expectedStatus,
             onCancelled: (transaction, transition) => {
               const snapshots =
                 platformRegistrationCancellationAuditSnapshots(transition);

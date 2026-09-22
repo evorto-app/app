@@ -262,6 +262,62 @@ describe('organization image ownership in PostgreSQL', () => {
   );
 
   it.effect(
+    'reschedules unsettled ownership so a full batch cannot starve later due assets',
+    () =>
+      Effect.gen(function* () {
+        const f = yield* fixture();
+        const failedUpload = yield* f.upload().pipe(
+          Effect.provide(
+            f.storage({
+              put: () =>
+                Effect.fail(
+                  new RpcInternalServerError({
+                    message: 'Unknown storage outcome',
+                  }),
+                ),
+            }),
+          ),
+          Effect.exit,
+        );
+        expect(Exit.isFailure(failedUpload)).toBe(true);
+        const [unsettled] = yield* f.rows();
+        if (!unsettled) throw new Error('Missing unsettled upload ownership');
+        const ready = yield* f.upload().pipe(Effect.provide(f.storage()));
+        yield* f.expire();
+        yield* Effect.promise(() =>
+          f.database
+            .update(tenantBrandAssetUploads)
+            .set({ nextCleanupAt: new Date(1) })
+            .where(eq(tenantBrandAssetUploads.storageKey, ready.storageKey)),
+        );
+
+        const now = new Date(retention);
+        const first = yield* processTenantBrandAssetOrphans({
+          batchSize: 1,
+          now,
+        }).pipe(Effect.provide(f.storage()));
+        expect(first).toEqual({ deleted: 0, retained: 1, scanned: 1 });
+        expect(f.deleted).toEqual([unsettled.storageKey]);
+
+        const second = yield* processTenantBrandAssetOrphans({
+          batchSize: 1,
+          now,
+        }).pipe(Effect.provide(f.storage()));
+        expect(second).toEqual({ deleted: 1, retained: 0, scanned: 1 });
+        expect(f.deleted).toEqual([unsettled.storageKey, ready.storageKey]);
+        expect(f.objects.has(ready.storageKey)).toBe(false);
+        expect(yield* f.rows()).toEqual([
+          expect.objectContaining({
+            id: unsettled.id,
+            nextCleanupAt: new Date(now.getTime() + retry),
+            putSucceededAt: null,
+            status: 'cleaning',
+          }),
+        ]);
+      }).pipe(Effect.provide(serviceLayer), Effect.scoped),
+  );
+
+  it.effect(
     'retains interrupted PUT ownership and deletes a late object on the next sweep',
     () =>
       Effect.gen(function* () {

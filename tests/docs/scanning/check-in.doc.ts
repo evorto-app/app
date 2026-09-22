@@ -33,7 +33,7 @@ test('Check in event attendees', async ({
   }
 
   const participantOption = event.registrationOptions.find(
-    (option) => !option.organizingRegistration,
+    (option) => !option.organizingRegistration && !option.isPaid,
   );
   if (!participantOption) {
     throw new Error(

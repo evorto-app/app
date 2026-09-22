@@ -1836,7 +1836,7 @@ export const lockCurrentRegistrationTaxConfiguration = Effect.fn(
 
   const taxRateById = new Map<string, RegistrationTaxRateSnapshot>();
   for (const taxRate of lockedTaxRates) {
-    if (taxRate.percentage === null) {
+    if (!taxRate.percentage?.trim()) {
       return yield* Effect.fail(registrationTaxConfigurationChanged());
     }
     taxRateById.set(taxRate.stripeTaxRateId, {
@@ -2183,10 +2183,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                 }),
               )
             : undefined;
-        if (
-          selectedTaxRateId &&
-          (!selectedTaxRate || selectedTaxRate.percentage === null)
-        ) {
+        if (selectedTaxRateId && !selectedTaxRate?.percentage?.trim()) {
           return yield* Effect.fail(
             new EventRegistrationConflictError({
               message:
@@ -3343,7 +3340,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
               addOn.price > 0 &&
               (!addOn.stripeTaxRateId ||
                 addOn.taxRateInclusive !== true ||
-                addOn.taxRatePercentage === null),
+                !addOn.taxRatePercentage?.trim()),
           )
         ) {
           return yield* Effect.fail(
@@ -3390,10 +3387,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                 }),
               )
             : undefined;
-        if (
-          selectedTaxRateId &&
-          (!selectedTaxRate || selectedTaxRate.percentage === null)
-        ) {
+        if (selectedTaxRateId && !selectedTaxRate?.percentage?.trim()) {
           return yield* Effect.fail(
             new EventRegistrationConflictError({
               message:

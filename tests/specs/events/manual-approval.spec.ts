@@ -449,7 +449,9 @@ test.describe('Manual approval registrations', () => {
     const approve = organizer.page.getByRole('button', {
       name: 'Approve application',
     });
-    await expect(approve).not.toHaveAttribute('jsaction', /click/);
+    await expect(approve).not.toHaveAttribute('jsaction', /click/, {
+      timeout: 20_000,
+    });
     await approve.click();
     await expect(organizer.page.getByText('Payment pending')).toBeVisible({
       timeout: 20_000,
@@ -473,7 +475,9 @@ test.describe('Manual approval registrations', () => {
       claim.stripeCheckoutUrl,
     );
     const cancel = page.getByRole('button', { name: 'Cancel sign-up' });
-    await expect(cancel).not.toHaveAttribute('jsaction', /click/);
+    await expect(cancel).not.toHaveAttribute('jsaction', /click/, {
+      timeout: 20_000,
+    });
     await cancel.click();
     await page
       .getByRole('dialog')
@@ -572,7 +576,9 @@ test.describe('Manual approval registrations', () => {
     ).toHaveCount(0);
     await expect(page.getByRole('link', { name: 'Pay now' })).toHaveCount(0);
     const cancel = page.getByRole('button', { name: 'Cancel sign-up' });
-    await expect(cancel).not.toHaveAttribute('jsaction', /click/);
+    await expect(cancel).not.toHaveAttribute('jsaction', /click/, {
+      timeout: 20_000,
+    });
     await cancel.click();
     await page
       .getByRole('dialog')

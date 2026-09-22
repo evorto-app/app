@@ -43,6 +43,8 @@
           {{ eventQuery.data().title }}
         } @else if (eventQuery.isPending()) {
           Loading event…
+        } @else if (eventLoadErrorTag() === "EventNotFoundError") {
+          Event not found
         } @else {
           Event unavailable
         }
@@ -220,7 +222,12 @@
         class="bg-error-container text-on-error-container flex flex-col items-start gap-3 rounded-xl p-4"
       >
         <div>
-          @if (registrationUnavailable()) {
+          @if (eventLoadErrorTag() === "EventNotFoundError") {
+            <h2 class="title-medium">Event not found</h2>
+            <p class="body-medium mt-1">
+              This event could not be found or is not available to you.
+            </p>
+          } @else if (eventLoadErrorTag() === "EventConflictError") {
             <h2 class="title-medium">Registration unavailable</h2>
             <p class="body-medium mt-1">
               This event's sign-up settings need to be corrected. Contact the
@@ -234,14 +241,18 @@
             </p>
           }
         </div>
-        <button
-          mat-stroked-button
-          type="button"
-          [disabled]="eventQuery.isFetching()"
-          (click)="retryEventDetails()"
-        >
-          {{ eventQuery.isFetching() ? "Retrying…" : "Try again" }}
-        </button>
+        @if (eventLoadErrorTag() === "EventNotFoundError") {
+          <a mat-stroked-button routerLink="/events">Back to events</a>
+        } @else {
+          <button
+            mat-stroked-button
+            type="button"
+            [disabled]="eventQuery.isFetching()"
+            (click)="retryEventDetails()"
+          >
+            {{ eventQuery.isFetching() ? "Retrying…" : "Try again" }}
+          </button>
+        }
       </div>
     } @else if (eventQuery.isSuccess()) {
       <div class="flex flex-col gap-4">

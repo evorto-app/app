@@ -5057,6 +5057,48 @@ describe('EventRegistrationService', () => {
         }),
     );
 
+    it.effect.each([null, '', ' '.repeat(3), '\t\n'])(
+      'rejects a locked tax rate without a usable percentage (%s)',
+      (percentage) =>
+        Effect.gen(function* () {
+          const fixture = createDatabase({
+            taxRates: [
+              {
+                displayName: 'Registration VAT',
+                inclusive: true,
+                percentage: '19',
+                stripeTaxRateId: 'txr_registration',
+              },
+              {
+                displayName: 'Add-on VAT',
+                inclusive: true,
+                percentage,
+                stripeTaxRateId: 'txr_addon',
+              },
+            ],
+          });
+          const error = yield* fixture
+            .run({
+              addOns: [
+                {
+                  addOnId: 'addon-1',
+                  requiresTaxRate: true,
+                  stripeTaxRateId: 'txr_addon',
+                },
+              ],
+              eventId: 'event-1',
+              optionRequiresTaxRate: true,
+              optionStripeTaxRateId: 'txr_registration',
+              registrationOptionId: 'option-1',
+              stripeAccountId: 'acct_current',
+              tenantId: 'tenant-1',
+            })
+            .pipe(Effect.flip);
+          expect(error).toBeInstanceOf(EventRegistrationConflictError);
+          expect(fixture.lockOrder).toEqual(['option', 'addon', 'tax-rate']);
+        }),
+    );
+
     it.effect(
       'fails closed when referenced rates are absent from the locked account',
       () =>
@@ -8238,6 +8280,76 @@ describe('EventRegistrationService', () => {
           'There are not enough places left for this sign-up choice.',
         );
         expect(fixture.registrationInserts).toHaveLength(0);
+        fixture.expectComplete();
+      }),
+  );
+
+  it.effect.each([null, '', ' '.repeat(3), '\t\n', '0', '19'])(
+    'checks selected paid add-on tax details before starting payment (%s)',
+    (percentage) =>
+      Effect.gen(function* () {
+        const fixture = yield* createReservationDatabaseFixture({
+          addon: {
+            addOnId: 'addon-1',
+            allowMultiple: false,
+            allowPurchaseDuringRegistration: true,
+            includedQuantity: 0,
+            isPaid: true,
+            maxQuantityPerUser: 1,
+            optionalPurchaseQuantity: 1,
+            price: 500,
+            stripeTaxRateId: 'txr_addon',
+            taxRateDisplayName: 'VAT',
+            taxRateInclusive: true,
+            taxRatePercentage: percentage,
+            title: 'Lunch',
+            totalAvailableQuantity: 1,
+          },
+          steps: ['readExistingRegistration', 'readOption', 'readAddons'],
+        });
+        const stripe = createStripeTestClient();
+        const error = yield* EventRegistrationService.registerForEvent({
+          addOns: [{ addOnId: 'addon-1', quantity: 1 }],
+          eventId: 'event-1',
+          guestCount: 0,
+          registrationOptionId: 'option-1',
+          tenant: {
+            ...tenantPublicOrigin,
+            currency: 'EUR',
+            id: 'tenant-1',
+            stripeAccountId: undefined,
+          },
+          user: {
+            communicationEmail: 'alice.contact@example.com',
+            email: 'alice.contact@example.com',
+            id: 'user-1',
+            roleIds: ['role-1'],
+          },
+        }).pipe(
+          Effect.flip,
+          Effect.provide(EventRegistrationService.Default),
+          Effect.provide(Layer.succeed(Database, fixture.database)),
+          Effect.provideService(StripeClient, stripe),
+          Effect.provide(configProviderLayer),
+        );
+
+        // Usable rates reach the separate payment-account check, including 0%.
+        expect(error).toMatchObject(
+          percentage === '0' || percentage === '19'
+            ? {
+                _tag: 'EventRegistrationInternalError',
+                message: 'Stripe account not found',
+              }
+            : {
+                _tag: 'EventRegistrationConflictError',
+                message:
+                  "Online payment cannot be started because a selected add-on's tax details are no longer available. No sign-up or payment was started. Contact the organizer.",
+              },
+        );
+        expect(fixture.transactionCommands).toEqual([]);
+        expect(fixture.registrationInserts).toHaveLength(0);
+        expect(fixture.addonStockUpdates).toHaveLength(0);
+        expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
         fixture.expectComplete();
       }),
   );

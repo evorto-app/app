@@ -2,7 +2,7 @@
 
 Scope: Current Playwright tests and documentation journeys.
 
-Updated: 2026-09-17
+Updated: 2026-09-21
 
 ## How to Use This Inventory
 
@@ -24,6 +24,11 @@ or inventory.
 Browser/manual exploration is still the right discovery tool for flows that are
 being stabilized. Once a flow decision is confirmed, persist the learning here
 by adding or tightening a spec/doc journey instead of leaving only manual notes.
+
+Event-detail recovery distinguishes missing or inaccessible events from
+temporary loading failures. The functional suite checks the anonymous missing
+event message, error-panel accessibility, and keyboard navigation back to Events;
+component regressions retain retry recovery for temporary failures.
 
 ## Active Files
 
@@ -222,7 +227,11 @@ silently disappear behind a stale hand-maintained file list.
     approval/cancellation, or reimbursement operations.
   - `specs/admin/platform-tenant-operations.spec.ts` follows the discoverable
     target-operation links, opens the refund-recovery tab, and resolves an
-    attendee ticket URL through the target-scoped platform scanner route.
+    attendee ticket URL through the target-scoped platform scanner route. It also
+    cancels an owned free ticket and blocks the follow-up detail read, proving
+    that the confirmed result remains visible without a duplicate cancellation
+    or a refund claim. Platform cancellation carries the status and payment
+    snapshot confirmed by the administrator.
   - global-admin unit/source coverage pins explicit platform authority,
     application/API append-only tenant action audit records, full event graph
     writes, bounded
@@ -342,6 +351,11 @@ silently disappear behind a stale hand-maintained file list.
   parallel multi-user registration insert. It proves the point-in-time email
   read completes without a global user-row write lock, releases the blocked
   insert, and commits both registrations under a bounded lock timeout.
+- `src/server/effect/rpc/handlers/platform/platform-event-creation.postgres.spec.ts`
+  creates paid events through the platform handler with ESNcard enabled and
+  disabled after the template was saved. It verifies the copied discount,
+  unchanged template and ticket price, and the creation audit entry, then rolls
+  back all fixture rows.
 - `specs/events/negative-registration-states.spec.ts` adds page-backed waitlist
   coverage for full first-come-first-served options with explicit required
   answer gating, persisted waitlist registration readback, and persisted

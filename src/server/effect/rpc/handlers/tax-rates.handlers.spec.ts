@@ -66,6 +66,8 @@ const databaseFixture = (includeRate: boolean, allowedRead = true) => {
           ? [
               ['NL', 'Dutch VAT', 'tax-rate-1', '21', null, 'txr_vat_21'],
               ['NL', 'Zero VAT', 'tax-rate-0', '0', null, 'txr_vat_0'],
+              ['NL', 'Empty VAT', 'tax-rate-empty', '', null, 'txr_empty'],
+              ['NL', 'Blank VAT', 'tax-rate-blank', ' \t\n', null, 'txr_blank'],
             ]
           : [];
       }),
@@ -82,7 +84,7 @@ layer(
   ),
 )('taxRateHandlers permissions', (it) => {
   it.effect(
-    'lists percentage-based active inclusive rates including zero for the current tenant account',
+    'lists usable percentage rates including zero and excludes blank rates for the current tenant account',
     () =>
       Effect.gen(function* () {
         const fixture = databaseFixture(true);

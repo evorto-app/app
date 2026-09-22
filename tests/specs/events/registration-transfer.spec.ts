@@ -193,13 +193,21 @@ test('transfers a free registration through a private transfer code', async ({
   // Event replay removes `jsaction` once the mutation is interactive.
   await expect(createTransferLink).not.toHaveAttribute('jsaction', /click/);
   await createTransferLink.click();
+  const transferDialog = page.getByRole('dialog', {
+    exact: true,
+    name: 'Private transfer ready',
+  });
   await expect(
-    page.getByRole('heading', { name: 'Private transfer ready' }),
+    transferDialog.getByRole('heading', { name: 'Private transfer ready' }),
   ).toBeVisible();
-  const claimCode = await page.getByLabel('Transfer code').inputValue();
+  const claimCode = await transferDialog
+    .getByLabel('Transfer code')
+    .inputValue();
   await expect(page.getByLabel('Transfer page')).toHaveCount(0);
-  await page.getByRole('button', { name: 'Copy transfer page link' }).click();
-  await expect(page.getByRole('status')).toContainText(
+  await transferDialog
+    .getByRole('button', { name: 'Copy transfer page link' })
+    .click();
+  await expect(transferDialog.getByRole('status')).toContainText(
     'Transfer page link copied to clipboard.',
   );
   expect(claimCode).toMatch(/^(?:[A-F0-9]{4}-){7}[A-F0-9]{4}$/);

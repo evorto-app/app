@@ -91,6 +91,10 @@ import {
   writePlatformAudit,
 } from '../shared/platform-operation.service';
 import { RpcAccess } from '../shared/rpc-access.service';
+import {
+  checkoutRecoveryQueue,
+  recoverCheckout,
+} from './platform-checkout-recovery';
 
 type DatabaseTransaction = Parameters<
   Parameters<DatabaseClient['transaction']>[0]
@@ -1367,6 +1371,10 @@ const recordReimbursement = Effect.fn(
 });
 
 export const platformTenantFinanceHandlers = {
+  'platform.finance.checkoutClaims.recover': (input, _options) =>
+    recoverCheckout(input),
+  'platform.finance.checkoutClaims.recoveryQueue': (input, _options) =>
+    checkoutRecoveryQueue(input),
   'platform.finance.receipts.approvalDetail': (input, _options) =>
     runPlatformRead(
       input.targetTenantId,

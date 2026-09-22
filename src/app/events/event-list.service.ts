@@ -10,12 +10,13 @@ import {
   PendingTasks,
   PLATFORM_ID,
 } from '@angular/core';
+import { MAX_PAGE_LIMIT } from '@shared/schema-utilities';
 import { injectInfiniteQuery } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../core/effect-rpc-angular-client';
 import { PermissionsService } from '../core/permissions.service';
 
-export const EVENT_LIST_PAGE_SIZE = 100;
+export const EVENT_LIST_PAGE_SIZE = MAX_PAGE_LIMIT;
 
 const eventListPageEventCount = (
   page: readonly EventsEventListDayRecord[],

@@ -54,9 +54,7 @@ const failOpsCommand = Effect.fn('failOpsCommand')(function* (
       command: command.join(' '),
       exitCode: result.exitCode,
       operation,
-      stderr: result.stderr,
       stderrBytes: outputByteLength(result.stderr),
-      stdout: result.stdout,
       stdoutBytes: outputByteLength(result.stdout),
     }),
   );
@@ -443,10 +441,11 @@ const logInvalidDrizzleOutput = (
 ) =>
   Effect.logError('Drizzle output did not match the pinned contract').pipe(
     Effect.annotateLogs({
-      cause: String(error.cause),
       command: command.join(' '),
-      stderr: result.stderr,
-      stdout: result.stdout,
+      diagnostic: error.diagnostic,
+      exitCode: result.exitCode,
+      stderrBytes: outputByteLength(result.stderr),
+      stdoutBytes: outputByteLength(result.stdout),
     }),
   );
 
@@ -458,14 +457,19 @@ const parseCommandJson = Effect.fn('parseCommandJson')(function* (
     return yield* failOpsCommand('Drizzle', command, result);
   }
   return yield* Effect.try({
-    catch: (cause) =>
-      OpsCommandError.make({
-        cause,
-        diagnostic: 'drizzle-output-invalid',
-        message: 'Drizzle returned invalid JSON output',
-      }),
+    catch: (cause) => cause,
     try: () => JSON.parse(result.stdout),
   }).pipe(
+    Effect.catch((error) =>
+      error instanceof SyntaxError
+        ? Effect.fail(
+            OpsCommandError.make({
+              diagnostic: 'drizzle-output-invalid',
+              message: 'Drizzle returned invalid JSON output',
+            }),
+          )
+        : Effect.die(error),
+    ),
     Effect.tapError((error) => logInvalidDrizzleOutput(command, result, error)),
   );
 });
@@ -479,9 +483,8 @@ const decodeExplainResult = Effect.fn('decodeExplainResult')(function* (
     errors: 'all',
     onExcessProperty: 'error',
   })(parsed).pipe(
-    Effect.mapError((cause) =>
+    Effect.mapError(() =>
       OpsCommandError.make({
-        cause,
         diagnostic: 'drizzle-output-invalid',
         message: 'Drizzle explain output changed from the pinned contract',
       }),
@@ -499,9 +502,8 @@ const decodeApplyResult = Effect.fn('decodeApplyResult')(function* (
     errors: 'all',
     onExcessProperty: 'error',
   })(parsed).pipe(
-    Effect.mapError((cause) =>
+    Effect.mapError(() =>
       OpsCommandError.make({
-        cause,
         diagnostic: 'drizzle-output-invalid',
         message: 'Drizzle apply output changed from the pinned contract',
       }),

@@ -1556,7 +1556,7 @@ ${runBody.replace(/^ {10}/gmu, '').trim()}`,
     expect(productionSmoke).toContain('https://alpha.evorto.app/events');
   });
 
-  it('records report-only warm latency independently and on deployments', () => {
+  it('keeps independent latency checks manual while preserving deployment reports', () => {
     const monitor = source('.github/workflows/staging-latency.yml');
     const staging = source('.github/workflows/scaleway-staging.yml');
     const deploymentProbe = between(
@@ -1565,7 +1565,9 @@ ${runBody.replace(/^ {10}/gmu, '').trim()}`,
       '- name: Write append-only successful deployment manifest',
     );
 
-    expect(monitor).toContain('cron: "7,22,37,52 * * * *"');
+    expect(monitor).toContain('workflow_dispatch:');
+    expect(monitor).not.toContain('schedule:');
+    expect(monitor).not.toContain('cron:');
     expect(monitor).toContain('bash ops/scaleway/probe-http-latency.sh');
     expect(monitor).toContain('--warm-samples 4');
     expect(monitor).toContain('--mode "${MODE}"');

@@ -76,7 +76,7 @@ export const getCompatibleTaxRates = Effect.fn('getCompatibleTaxRates')(
     });
     if (!tenant?.stripeAccountId) return [];
 
-    return yield* database.query.tenantStripeTaxRates.findMany({
+    const rates = yield* database.query.tenantStripeTaxRates.findMany({
       orderBy: (table, { asc }) => [
         asc(table.displayName),
         asc(table.stripeTaxRateId),
@@ -89,6 +89,7 @@ export const getCompatibleTaxRates = Effect.fn('getCompatibleTaxRates')(
         tenantId,
       },
     });
+    return rates.filter((rate) => Boolean(rate.percentage?.trim()));
   },
 );
 
@@ -167,7 +168,7 @@ export const validateTaxRate = (
           'Selected tax rate is not compatible (must be inclusive and active)',
         );
       }
-      if (taxRate.percentage === null) {
+      if (!taxRate.percentage?.trim()) {
         return validationError(
           TAX_RATE_ERROR_CODES.ERR_TAX_RATE_PERCENTAGE_REQUIRED,
           'Selected tax rate must have a percentage',

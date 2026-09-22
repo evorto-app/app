@@ -1,3 +1,5 @@
+import type { Schema } from 'effect';
+
 import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
 import { Component, input, LOCALE_ID } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
@@ -25,6 +27,8 @@ import {
   RpcUnauthorizedError,
 } from '../../../shared/errors/rpc-errors';
 import {
+  PlatformFinanceCheckoutRecoveryClaim,
+  PlatformFinanceCheckoutRecoveryQueue,
   PlatformFinanceReceiptApprovalDetailRecord,
   PlatformFinanceReceiptWithSubmitterRecord,
   PlatformFinanceRefundLifecycleSummary,
@@ -260,6 +264,20 @@ describe('platform refund lifecycle copy', () => {
   });
 });
 
+const loadCheckoutRecoveryQueue =
+  vi.fn<
+    () => Promise<
+      Schema.Schema.Type<
+        typeof PlatformFinanceCheckoutRecoveryQueue.successSchema
+      >
+    >
+  >();
+const recoverCheckoutMutation =
+  vi.fn<
+    NonNullable<
+      ReturnType<PlatformFinanceOperations['recoverCheckout']>['mutationFn']
+    >
+  >();
 const loadRecoveryQueue = vi.fn();
 const loadApprovalDetail = vi.fn();
 const loadApprovalQueue = vi.fn();
@@ -450,6 +468,16 @@ describe('PlatformFinanceComponent refund lifecycle table', () => {
     );
     loadApprovalQueue.mockResolvedValue({ groups: [], tenantContext });
     loadRecoveryQueue.mockResolvedValue({ claims: [], tenantContext });
+    loadCheckoutRecoveryQueue.mockResolvedValue({
+      data: [],
+      targetTenantId: 'tenant-1',
+      timezone: tenantContext.timezone,
+      total: 0,
+    });
+    recoverCheckoutMutation.mockResolvedValue({
+      claimId: 'checkout-claim',
+      sessionState: 'open',
+    });
     loadReimbursementQueue.mockResolvedValue({ groups: [], tenantContext });
     loadTransactions.mockResolvedValue({
       data: [],
@@ -518,6 +546,17 @@ describe('PlatformFinanceComponent refund lifecycle table', () => {
                 { input: { targetTenantId }, keyPrefix: 'rpc', type: 'query' },
               ),
             }),
+            checkoutRecoveryQueue: (input: {
+              limit: number;
+              offset: number;
+              targetTenantId: string;
+            }) => ({
+              queryFn: loadCheckoutRecoveryQueue,
+              queryKey: createRpcQueryKey(
+                ['platform', 'finance', 'checkoutClaims', 'recoveryQueue'],
+                { input, keyPrefix: 'rpc', type: 'query' },
+              ),
+            }),
             financeFilter: () =>
               createRpcQueryFilter(['platform', 'finance'], {
                 keyPrefix: 'rpc',
@@ -536,6 +575,18 @@ describe('PlatformFinanceComponent refund lifecycle table', () => {
               mutationFn: recordReimbursementMutation,
               mutationKey: createRpcQueryKey<undefined>(
                 ['platform', 'finance', 'receipts', 'recordReimbursement'],
+                { keyPrefix: 'rpc', type: 'mutation' },
+              ),
+            }),
+            recoverCheckout: () => ({
+              meta: {
+                rpc: {
+                  path: ['platform', 'finance', 'checkoutClaims', 'recover'],
+                },
+              },
+              mutationFn: recoverCheckoutMutation,
+              mutationKey: createRpcQueryKey<undefined>(
+                ['platform', 'finance', 'checkoutClaims', 'recover'],
                 { keyPrefix: 'rpc', type: 'mutation' },
               ),
             }),
@@ -1204,6 +1255,112 @@ describe('PlatformFinanceComponent refund lifecycle table', () => {
     expect(component['refundRecoveryForm'].refundClaimId().value()).toBe('');
     expect(component['refundRecoveryForm'].reason().value()).toBe('');
     expect(component['transactionPageIndex']()).toBe(0);
+  });
+
+  const checkoutClaim = PlatformFinanceCheckoutRecoveryClaim.make({
+    amount: 2500,
+    attendeeFirstName: 'Ada',
+    attendeeLastName: 'Lovelace',
+    createdAt: '2026-07-10T10:00:00.000Z',
+    currency: 'EUR',
+    eventTitle: 'City tour',
+    id: 'checkout-claim',
+    version: 'a'.repeat(64),
+  });
+
+  it('preserves a confirmed checkout recovery when finance readback fails', async () => {
+    const fixture = TestBed.createComponent(PlatformFinanceComponent);
+    fixture.componentRef.setInput('tenantId', 'tenant-1');
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    await vi.waitFor(() =>
+      expect(component['checkoutRecoveryQueueQuery'].isSuccess()).toBe(true),
+    );
+    component['chooseCheckoutClaim'](checkoutClaim);
+    component['checkoutRecoveryModel'].update((model) => ({
+      ...model,
+      reason: 'Restore the verified original payment',
+    }));
+    loadCheckoutRecoveryQueue.mockRejectedValue(
+      new Error('Readback unavailable'),
+    );
+    component['recoverCheckout'](new Event('submit'));
+    await vi.waitFor(() =>
+      expect(component['financeOutcome']()).toMatchObject({
+        kind: 'confirmed',
+        readState: 'failed',
+      }),
+    );
+    expect(recoverCheckoutMutation.mock.calls[0]?.[0]).toEqual({
+      claimId: checkoutClaim.id,
+      expectedVersion: checkoutClaim.version,
+      reason: 'Restore the verified original payment',
+      targetTenantId: 'tenant-1',
+    });
+    expect(component['financeOutcome']()?.summary).toContain(
+      'Payment link restored',
+    );
+    component['recoverCheckout'](new Event('submit'));
+    expect(recoverCheckoutMutation).toHaveBeenCalledTimes(1);
+  });
+
+  it('holds an unconfirmed checkout recovery until an explicit readback and never repeats the write', async () => {
+    const fixture = TestBed.createComponent(PlatformFinanceComponent);
+    fixture.componentRef.setInput('tenantId', 'tenant-1');
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    await vi.waitFor(() =>
+      expect(component['checkoutRecoveryQueueQuery'].isSuccess()).toBe(true),
+    );
+    component['chooseCheckoutClaim'](checkoutClaim);
+    component['checkoutRecoveryModel'].update((model) => ({
+      ...model,
+      reason: 'Investigate held sign-up',
+    }));
+    recoverCheckoutMutation.mockRejectedValue(new Error('Response lost'));
+    component['recoverCheckout'](new Event('submit'));
+    await vi.waitFor(() =>
+      expect(component['financeOutcome']()).toMatchObject({
+        kind: 'unknown',
+        readState: 'unchecked',
+      }),
+    );
+    expect(component['checkoutRecoveryForm'].reason().value()).toBe(
+      'Investigate held sign-up',
+    );
+    component['recoverCheckout'](new Event('submit'));
+    expect(recoverCheckoutMutation).toHaveBeenCalledTimes(1);
+    await component['showLatestFinance']();
+    expect(component['financeOutcome']()).toBeNull();
+    expect(component['selectedCheckoutClaim']()).toBeNull();
+    expect(component['checkoutRecoveryForm'].reason().value()).toBe('');
+    expect(recoverCheckoutMutation).toHaveBeenCalledTimes(1);
+  });
+
+  it('clears checkout recovery identity, reason and page when the target organization changes', async () => {
+    const fixture = TestBed.createComponent(PlatformFinanceComponent);
+    fixture.componentRef.setInput('tenantId', 'tenant-1');
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    await vi.waitFor(() =>
+      expect(component['checkoutRecoveryQueueQuery'].isSuccess()).toBe(true),
+    );
+    component['chooseCheckoutClaim'](checkoutClaim);
+    component['checkoutRecoveryModel'].update((model) => ({
+      ...model,
+      reason: 'Tenant A reason',
+    }));
+    component['checkoutPageIndex'].set(2);
+    fixture.componentRef.setInput('tenantId', 'tenant-2');
+    fixture.detectChanges();
+    expect(component['selectedCheckoutClaim']()).toBeNull();
+    expect(component['checkoutRecoveryModel']()).toEqual({
+      claimId: '',
+      expectedVersion: '',
+      reason: '',
+    });
+    expect(component['checkoutPageIndex']()).toBe(0);
+    expect(recoverCheckoutMutation).not.toHaveBeenCalled();
   });
 
   const actions = [

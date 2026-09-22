@@ -48,6 +48,7 @@ import {
 import { firstValueFrom } from 'rxjs';
 
 import type {
+  PlatformFinanceCheckoutRecoveryClaim,
   PlatformFinanceReceiptApprovalDetailRecord,
   PlatformFinanceReceiptWithSubmitterRecord,
   PlatformFinanceRefundLifecycleSummary,
@@ -72,6 +73,12 @@ import {
 } from '../../finance/shared/reimbursement-confirmation-dialog/reimbursement-confirmation-dialog.component';
 import { CurrencyAmountInputComponent } from '../../shared/components/controls/currency-amount-input/currency-amount-input.component';
 import { PlatformTenantPageHeaderComponent } from './platform-tenant-page-header.component';
+
+interface CheckoutRecoveryModel {
+  claimId: string;
+  expectedVersion: string;
+  reason: string;
+}
 
 interface FinanceOutcome {
   kind: 'confirmed' | 'unknown';
@@ -247,6 +254,20 @@ export class PlatformFinanceOperations {
     });
   }
 
+  checkoutRecoveryQueue(input: {
+    limit: number;
+    offset: number;
+    targetTenantId: string;
+  }) {
+    return this.rpc.platform.finance.checkoutClaims.recoveryQueue.queryOptions(
+      input,
+    );
+  }
+
+  recoverCheckout() {
+    return this.rpc.platform.finance.checkoutClaims.recover.mutationOptions();
+  }
+
   financeFilter() {
     return this.rpc.queryFilter(['platform', 'finance']);
   }
@@ -290,6 +311,7 @@ export class PlatformFinanceOperations {
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { class: '@container block min-w-0' },
   imports: [
     CurrencyAmountInputComponent,
     CurrencyPipe,
@@ -317,7 +339,7 @@ export class PlatformFinanceComponent {
   );
   protected readonly countryLabel = countryLabel;
   protected readonly financeAction = signal<
-    'read' | 'refund' | 'reimbursement' | 'review' | null
+    'checkout' | 'read' | 'refund' | 'reimbursement' | 'review' | null
   >(null);
   protected readonly financeActionBusy = computed(
     () => this.financeAction() !== null,
@@ -350,6 +372,36 @@ export class PlatformFinanceComponent {
   protected readonly recoveryQueueQuery = injectQuery(() =>
     this.operations.recoveryQueue(this.tenantId()),
   );
+  protected readonly checkoutPageIndex = signal(0);
+  protected readonly checkoutPageSize = signal(25);
+  protected readonly checkoutRecoveryQueueQuery = injectQuery(() =>
+    this.operations.checkoutRecoveryQueue({
+      limit: this.checkoutPageSize(),
+      offset: this.checkoutPageIndex() * this.checkoutPageSize(),
+      targetTenantId: this.tenantId(),
+    }),
+  );
+  protected readonly selectedCheckoutClaim =
+    signal<null | PlatformFinanceCheckoutRecoveryClaim>(null);
+  private readonly checkoutRecoveryModel = signal<CheckoutRecoveryModel>({
+    claimId: '',
+    expectedVersion: '',
+    reason: '',
+  });
+  protected readonly checkoutRecoveryForm = form(
+    this.checkoutRecoveryModel,
+    (recovery) => {
+      disabled(recovery, () => this.financeActionsDisabled());
+      required(recovery.claimId);
+      required(recovery.expectedVersion);
+      required(recovery.reason, { message: 'Enter a reason for this action.' });
+      maxLength(recovery.reason, 500);
+    },
+  );
+  protected readonly checkoutRecoveryMutation = injectMutation(() =>
+    this.operations.recoverCheckout(),
+  );
+
   protected readonly refundLifecycleCopy = platformRefundLifecycleCopy;
   private readonly refundRecoveryModel = signal<RefundRecoveryModel>({
     reason: '',
@@ -748,6 +800,95 @@ export class PlatformFinanceComponent {
     });
   }
 
+  protected chooseCheckoutClaim(
+    claim: PlatformFinanceCheckoutRecoveryClaim,
+  ): void {
+    if (this.financeActionsDisabled()) return;
+    this.selectedCheckoutClaim.set(claim);
+    this.checkoutRecoveryModel.set({
+      claimId: claim.id,
+      expectedVersion: claim.version,
+      reason: '',
+    });
+    this.checkoutRecoveryForm().reset();
+  }
+
+  protected changeCheckoutPage(event: PageEvent): void {
+    if (this.financeActionsDisabled()) return;
+    this.checkoutPageIndex.set(event.pageIndex);
+    this.checkoutPageSize.set(event.pageSize);
+    this.clearCheckoutSelection();
+  }
+
+  protected recoverCheckout(event: Event): void {
+    event.preventDefault();
+    if (
+      this.financeActionsDisabled() ||
+      this.checkoutRecoveryForm().submitting()
+    )
+      return;
+    void submit(this.checkoutRecoveryForm, async () => {
+      if (this.financeActionsDisabled()) return;
+      const recovery = this.checkoutRecoveryModel();
+      const selected = this.selectedCheckoutClaim();
+      const targetTenantId = this.tenantId();
+      this.financeAction.set('checkout');
+      this.financePhase.set('saving');
+      let recordedSummary: string | undefined;
+      try {
+        const result = await this.checkoutRecoveryMutation.mutateAsync({
+          ...recovery,
+          targetTenantId,
+        });
+        recordedSummary =
+          result.sessionState === 'open'
+            ? 'Payment link restored. The attendee can return to the event to continue paying.'
+            : 'Existing payment linked. Its final status is being checked.';
+        this.financePhase.set('refreshing');
+        const readState = await this.refreshFinance();
+        if (this.tenantId() !== targetTenantId) return;
+        if (readState === 'paused') {
+          this.financeOutcome.set({
+            kind: 'confirmed',
+            readState,
+            summary: recordedSummary,
+          });
+          return;
+        }
+        this.notifications.showSuccess(recordedSummary);
+        if (this.selectedCheckoutClaim() === selected)
+          this.clearCheckoutSelection();
+      } catch (error) {
+        if (this.tenantId() !== targetTenantId) return;
+        if (recordedSummary) {
+          this.financeOutcome.set({
+            kind: 'confirmed',
+            readState: 'failed',
+            summary: recordedSummary,
+          });
+        } else {
+          const denial =
+            error instanceof RpcUnauthorizedError
+              ? 'Sign in again, then check the latest finance information.'
+              : error instanceof RpcForbiddenError
+                ? 'Your account does not have access to restore this payment setup.'
+                : getErrorMessage(error, '', ['RpcBadRequestError']);
+          if (denial) this.notifications.showError(denial);
+          else
+            this.financeOutcome.set({
+              kind: 'unknown',
+              readState: 'unchecked',
+              summary:
+                "We couldn't confirm whether the payment setup was restored. Your selection and reason are still here.",
+            });
+        }
+      } finally {
+        this.financePhase.set(null);
+        this.financeAction.set(null);
+      }
+    });
+  }
+
   protected requeueRefundClaim(event: Event): void {
     event.preventDefault();
     if (this.financeActionsDisabled() || this.refundRecoveryForm().submitting())
@@ -938,6 +1079,7 @@ export class PlatformFinanceComponent {
         receiptIds: [],
       });
       this.reimbursementForm().reset();
+      this.clearCheckoutSelection();
       this.selectedRefundClaim.set(null);
       this.refundRecoveryModel.set({ reason: '', refundClaimId: '' });
       this.refundRecoveryForm().reset();
@@ -1017,9 +1159,21 @@ export class PlatformFinanceComponent {
     return 'fresh';
   }
 
+  private clearCheckoutSelection(): void {
+    this.selectedCheckoutClaim.set(null);
+    this.checkoutRecoveryModel.set({
+      claimId: '',
+      expectedVersion: '',
+      reason: '',
+    });
+    this.checkoutRecoveryForm().reset();
+  }
+
   private resetTenantScopedState(): void {
     this.financeOutcome.set(null);
     this.transactionPageIndex.set(0);
+    this.checkoutPageIndex.set(0);
+    this.clearCheckoutSelection();
 
     this.receiptDetailRequestId += 1;
     this.receiptDetailPending.set(false);

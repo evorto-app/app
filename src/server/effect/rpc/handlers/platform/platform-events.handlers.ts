@@ -1192,6 +1192,9 @@ export const platformEventHandlers = {
                   }),
                 );
               }
+              const esnCardEnabled =
+                operation.targetTenant.discountProviders?.esnCard?.status ===
+                'enabled';
               const registrationOptions = template.registrationOptions.map(
                 (option) => ({
                   cancellationDeadlineHoursBeforeStart:
@@ -1201,7 +1204,10 @@ export const platformEventHandlers = {
                       option.closeRegistrationOffset * 60 * 60 * 1000,
                   ).toISOString(),
                   description: option.description,
-                  esnCardDiscountedPrice: option.esnCardDiscountedPrice,
+                  esnCardDiscountedPrice:
+                    option.isPaid && esnCardEnabled
+                      ? option.esnCardDiscountedPrice
+                      : null,
                   isPaid: option.isPaid,
                   openRegistrationTime: new Date(
                     start.getTime() -
@@ -1326,6 +1332,11 @@ export const platformEventHandlers = {
               .orderBy(
                 asc(tenantStripeTaxRates.displayName),
                 asc(tenantStripeTaxRates.stripeTaxRateId),
+              )
+              .pipe(
+                Effect.map((rates) =>
+                  rates.filter((rate) => Boolean(rate.percentage?.trim())),
+                ),
               ),
             templates: database
               .select({ id: eventTemplates.id, title: eventTemplates.title })

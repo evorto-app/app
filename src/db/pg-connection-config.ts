@@ -59,10 +59,15 @@ const normalizeDatabaseHostname = (hostname: string): string => {
   );
 };
 
-const databaseConnectionUrl = (databaseUrl: string): string => {
-  // pg accepts raw Unix socket paths, with an optional database suffix.
-  if (databaseUrl.startsWith('/')) return databaseUrl;
+const rawSocketConnectionOptions = (databaseUrl: string) => {
+  const separator = databaseUrl.indexOf(' ');
+  const host = separator === -1 ? databaseUrl : databaseUrl.slice(0, separator);
+  const database =
+    separator === -1 ? undefined : databaseUrl.slice(separator + 1);
+  return { host, ...(database && { database }) };
+};
 
+const databaseConnectionUrl = (databaseUrl: string): string => {
   const parsedUrl = new URL(databaseUrl);
   const host =
     parsedUrl.searchParams.getAll('host').at(-1) || parsedUrl.hostname;
@@ -81,7 +86,7 @@ const databaseConnectionUrl = (databaseUrl: string): string => {
 
 const nativeDatabaseConnectionUrl = (databaseUrl: string): string => {
   if (databaseUrl.startsWith('/')) {
-    const [host, database] = databaseUrl.split(' ', 2);
+    const { database, host } = rawSocketConnectionOptions(databaseUrl);
     const url = new URL('postgresql:///');
     url.searchParams.set('host', host);
     if (database) url.pathname = `/${encodeURIComponent(database)}`;
@@ -218,7 +223,9 @@ export const createNodePgPoolConfig = ({
     tlsServerName,
   );
   return {
-    connectionString: databaseConnectionUrl(databaseUrl),
+    ...(databaseUrl.startsWith('/')
+      ? rawSocketConnectionOptions(databaseUrl)
+      : { connectionString: databaseConnectionUrl(databaseUrl) }),
     connectionTimeoutMillis: boundedPool.connectTimeoutMs,
     idleTimeoutMillis: boundedPool.idleTimeoutMs,
     max: boundedPool.max,

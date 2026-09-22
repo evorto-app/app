@@ -1246,6 +1246,9 @@ describe('PlatformEventDetailComponent graph-save outcomes', () => {
         expect(root.textContent).toContain(
           'Existing paid sign-ups and add-ons are preserved.',
         );
+        expect(root.textContent?.replaceAll(/\s+/g, ' ')).toContain(
+          'This event cannot be saved because the organization has no connected Stripe account.',
+        );
       });
       invokeSave();
       expect(updateEvent).not.toHaveBeenCalled();

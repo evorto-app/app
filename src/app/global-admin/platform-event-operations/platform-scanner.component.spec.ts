@@ -6,7 +6,7 @@ import {
   provideTanStackQuery,
   QueryClient,
 } from '@tanstack/angular-query-experimental';
-import { of } from 'rxjs';
+import { of, Subject } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type {
@@ -276,6 +276,8 @@ describe('PlatformScannerComponent', () => {
 
   beforeEach(async () => {
     approveRegistration.mockReset().mockResolvedValue(inspectedRegistration);
+    cancelRegistration.mockReset().mockResolvedValue(inspectedRegistration);
+    checkInRegistration.mockReset().mockResolvedValue(inspectedRegistration);
     findRegistration.mockReset().mockResolvedValue(inspectedRegistration);
     loadFormOptions.mockReset().mockResolvedValue({
       timezone: 'Australia/Brisbane',
@@ -638,6 +640,33 @@ describe('PlatformScannerComponent', () => {
     expect(notifications.showSuccess).toHaveBeenCalledWith('Ticket checked in');
   });
 
+  it('loads fresh ticket details once after a successful check-in', async () => {
+    const fixture = await render();
+    const notifications = TestBed.inject(NotificationService);
+    findRegistration
+      .mockReset()
+      .mockResolvedValueOnce({
+        ...inspectedRegistration,
+        attendeeCheckedIn: true,
+        checkInTime: '2030-01-02T00:00:00.000Z',
+      })
+      .mockRejectedValue(new Error('Unexpected duplicate registration read'));
+
+    findButton(fixture, 'Check in')?.click();
+
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(notifications.showSuccess).toHaveBeenCalledWith(
+        'Ticket checked in',
+      );
+    });
+    expect(findRegistration).toHaveBeenCalledOnce();
+    expect(notifications.showError).not.toHaveBeenCalled();
+    expect(
+      queryClient.getQueryData(['platform-scanner', 'registration']),
+    ).toMatchObject({ attendeeCheckedIn: true });
+  });
+
   it('shows an expected approval outcome', async () => {
     findRegistration.mockResolvedValue({
       ...inspectedRegistration,
@@ -697,10 +726,66 @@ describe('PlatformScannerComponent', () => {
 
     await vi.waitFor(() => expect(cancelRegistration).toHaveBeenCalledOnce());
     expect(cancelRegistration.mock.calls[0]?.[0]).toEqual({
+      expectedPaymentPending: false,
+      expectedStatus: 'CONFIRMED',
       reason: 'Duplicate registration',
       registrationId: 'registration-1',
       targetTenantId: 'tenant-1',
     });
-    expect(notifications.showSuccess).toHaveBeenCalledWith('Ticket cancelled');
+    expect(notifications.showSuccess).toHaveBeenCalledWith(
+      'Cancellation confirmed',
+    );
+  });
+  it('keeps the cancellation state that the administrator confirmed', async () => {
+    const confirmation = new Subject<boolean>();
+    dialogOpen.mockReturnValue({ afterClosed: () => confirmation });
+    const fixture = await render();
+    findButton(fixture, 'Cancel ticket')?.click();
+    await vi.waitFor(() => expect(dialogOpen).toHaveBeenCalledOnce());
+    queryClient.setQueryData(['platform-scanner', 'registration'], {
+      ...inspectedRegistration,
+      paymentPending: true,
+      status: 'PENDING',
+    });
+    fixture.detectChanges();
+    confirmation.next(true);
+    confirmation.complete();
+    await vi.waitFor(() => expect(cancelRegistration).toHaveBeenCalledOnce());
+    expect(cancelRegistration.mock.calls[0]?.[0]).toMatchObject({
+      expectedPaymentPending: false,
+      expectedStatus: 'CONFIRMED',
+      registrationId: inspectedRegistration.id,
+    });
+  });
+
+  it('preserves confirmed cancellation when loading current details fails', async () => {
+    dialogOpen.mockReturnValue({ afterClosed: () => of(true) });
+    const fixture = await render();
+    const notifications = TestBed.inject(NotificationService);
+    findRegistration.mockRejectedValue(
+      new Error('Registration read unavailable'),
+    );
+    findButton(fixture, 'Cancel ticket')?.click();
+    await vi.waitFor(() => {
+      expect(cancelRegistration).toHaveBeenCalledOnce();
+      expect(notifications.showError).toHaveBeenCalledWith(
+        'Cancellation confirmed. Current sign-up details could not be loaded. Reload the page before making another change.',
+      );
+    });
+    expect(notifications.showSuccess).not.toHaveBeenCalled();
+  });
+
+  it('does not guess the former sign-up state when cancellation is uncertain', async () => {
+    dialogOpen.mockReturnValue({ afterClosed: () => of(true) });
+    cancelRegistration.mockRejectedValue({ _tag: 'RpcInternalServerError' });
+    const fixture = await render();
+    const notifications = TestBed.inject(NotificationService);
+    findButton(fixture, 'Cancel ticket')?.click();
+    await vi.waitFor(() => {
+      expect(notifications.showError).toHaveBeenCalledWith(
+        'The cancellation outcome could not be confirmed. Reload the page to check the current sign-up status before trying again.',
+      );
+    });
+    expect(notifications.showSuccess).not.toHaveBeenCalled();
   });
 });

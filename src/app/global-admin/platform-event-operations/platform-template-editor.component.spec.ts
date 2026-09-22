@@ -1721,6 +1721,9 @@ describe('PlatformTemplateEditorComponent recovery', () => {
       expect(root.textContent?.replaceAll(/\s+/g, ' ')).toContain(
         'Existing paid sign-ups and add-ons are preserved.',
       );
+      expect(root.textContent?.replaceAll(/\s+/g, ' ')).toContain(
+        'This template cannot be saved because the organization has no connected Stripe account.',
+      );
       expect(prices()).toEqual(['10', '4.5']);
       expect(
         root.querySelector<HTMLButtonElement>('button[type="submit"]')
