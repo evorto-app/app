@@ -257,6 +257,15 @@ describe('RegistrationTransferService.getClaim tenant settings', () => {
               `Add-on ${index + 1}`,
             ]);
           }
+          if (
+            statement ===
+            'select pg_advisory_xact_lock_shared(hashtextextended($1, 0))'
+          ) {
+            expect(parameters).toEqual([
+              'evorto:user-discount-cards:recipient-1',
+            ]);
+            return [];
+          }
           const emptyReadTables = [
             'event_registration_questions',
             'registration_transfer_refund_plan_items',
@@ -907,6 +916,13 @@ const createTransferTaxFixture = ({
     parameters,
   ) =>
     Effect.sync(() => {
+      if (
+        statement ===
+        'select pg_advisory_xact_lock_shared(hashtextextended($1, 0))'
+      ) {
+        expect(parameters).toEqual(['evorto:user-discount-cards:recipient-1']);
+        return [];
+      }
       if (!statement.startsWith('select ')) {
         writes.push(statement);
         throw new Error(`Unexpected transfer tax fixture write: ${statement}`);

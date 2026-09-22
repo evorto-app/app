@@ -164,7 +164,7 @@ const eventQuestionsSql =
 const optionDiscountsSql =
   'select "discountedPrice", "discountType", "registrationOptionId" from "event_registration_option_discounts" where (("event_registration_option_discounts"."discountType" = $1) and ("event_registration_option_discounts"."registrationOptionId" in ($2)))';
 const discountCardsSql =
-  'select "d0"."validFrom"::text as "validFrom", "d0"."validTo"::text as "validTo" from "user_discount_cards" as "d0" where (("d0"."status" = $1) and ("d0"."tenantId" = $2) and ("d0"."type" = $3) and ("d0"."userId" = $4))';
+  'select "d0"."validFrom"::text as "validFrom", "d0"."validTo"::text as "validTo" from "user_discount_cards" as "d0" where (("d0"."status" = $1) and ("d0"."type" = $2) and ("d0"."userId" = $3))';
 
 const optionTaxRatesSql =
   'select "displayName", "percentage", "stripeTaxRateId" from "tenant_stripe_tax_rates" where (("tenant_stripe_tax_rates"."tenantId" = $1) and ("tenant_stripe_tax_rates"."stripeAccountId" = $2) and ("tenant_stripe_tax_rates"."stripeTaxRateId" in ($3)))';
@@ -186,6 +186,7 @@ const databaseTimestamp = (value: Date) =>
 
 const createEventDiscountDatabase = ({
   addonCount = 0,
+  cardUserId = 'other-user',
   hiddenOptions = false,
   mappingCount = 0,
   questionCount = 0,
@@ -193,6 +194,7 @@ const createEventDiscountDatabase = ({
   taxScenario = 'valid',
 }: {
   addonCount?: number;
+  cardUserId?: string;
   hiddenOptions?: boolean;
   mappingCount?: number;
   questionCount?: number;
@@ -313,18 +315,17 @@ const createEventDiscountDatabase = ({
     | 'statusComment'
     | 'title'
   >;
-  const foreignTenantCards = [
+  const accountCards = [
     {
       status: 'verified',
-      tenantId: 'tenant-2',
       type: 'esnCard',
-      userId: 'user-1',
+      userId: cardUserId,
       validFrom: new Date('2000-01-01T00:00:00.000Z'),
       validTo: new Date('2100-01-01T00:00:00.000Z'),
     },
   ] satisfies readonly Pick<
     typeof userDiscountCards.$inferSelect,
-    'status' | 'tenantId' | 'type' | 'userId' | 'validFrom' | 'validTo'
+    'status' | 'type' | 'userId' | 'validFrom' | 'validTo'
   >[];
   const databaseLayer = createRegistrationDatabaseTestLayer({
     executeValues: (statement, parameters) =>
@@ -408,20 +409,14 @@ const createEventDiscountDatabase = ({
               ];
         }
         if (statement === discountCardsSql) {
-          expect(parameters).toEqual([
-            'verified',
-            tenant.id,
-            'esnCard',
-            'user-1',
-          ]);
+          expect(parameters).toEqual(['verified', 'esnCard', 'user-1']);
           findCards({ parameters, statement });
-          return foreignTenantCards
+          return accountCards
             .filter(
               (card) =>
                 card.status === parameters[0] &&
-                card.tenantId === parameters[1] &&
-                card.type === parameters[2] &&
-                card.userId === parameters[3],
+                card.type === parameters[1] &&
+                card.userId === parameters[2],
             )
             .map((card) => [
               databaseTimestamp(card.validFrom),
@@ -469,7 +464,53 @@ const createContextLayer = ({
   );
 };
 
-describe('event discount tenant isolation', () => {
+describe('event discount tenant policy and global account ownership', () => {
+  for (const enabled of [true, false]) {
+    it.effect(
+      `uses the global account card only when the organization program is ${enabled ? 'enabled' : 'disabled'}`,
+      () =>
+        Effect.gen(function* () {
+          const fixture = createEventDiscountDatabase({ cardUserId: 'user-1' });
+          const event = yield* eventQueryHandlers['events.findOne'](
+            { id: 'event-1' },
+            createRpcOptions(
+              EventsRpcs.EventsFindOne.middleware(RpcRequestContextMiddleware),
+            ),
+          ).pipe(
+            Effect.provide(
+              createContextLayer({
+                databaseLayer: fixture.databaseLayer,
+                tenantOverride: {
+                  ...tenant,
+                  discountProviders: {
+                    esnCard: {
+                      config: {},
+                      status: enabled ? 'enabled' : 'disabled',
+                    },
+                  },
+                  stripeAccountId: 'acct_tenant',
+                },
+              }),
+            ),
+          );
+          expect(event.registrationOptions[0]).toMatchObject({
+            appliedDiscountType: enabled ? 'esnCard' : null,
+            discountApplied: enabled,
+            effectivePrice: enabled ? 1000 : 2000,
+            esnCardDiscountedPrice: enabled ? 1000 : null,
+          });
+          if (enabled) {
+            expect(fixture.findCards).toHaveBeenCalledExactlyOnceWith({
+              parameters: ['verified', 'esnCard', 'user-1'],
+              statement: discountCardsSql,
+            });
+          } else {
+            expect(fixture.findCards).not.toHaveBeenCalled();
+          }
+        }),
+    );
+  }
+
   for (const {
     addonCount,
     hiddenOptions,
@@ -659,7 +700,7 @@ describe('event discount tenant isolation', () => {
             throw new Error('Expected actionable event');
           const event = result.success;
           expect(findCards).toHaveBeenCalledWith({
-            parameters: ['verified', tenant.id, 'esnCard', 'user-1'],
+            parameters: ['verified', 'esnCard', 'user-1'],
             statement: discountCardsSql,
           });
           if (hiddenOptions) {

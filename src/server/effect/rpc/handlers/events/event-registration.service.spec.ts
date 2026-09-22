@@ -420,8 +420,10 @@ const registrationDiscountProvidersSql =
   'select "d0"."discount_providers" as "discountProviders" from "tenants" as "d0" where "d0"."id" = $1 limit $2';
 const registrationDiscountRowsSql =
   'select "d0"."discountedPrice" as "discountedPrice", "d0"."discountType" as "discountType" from "event_registration_option_discounts" as "d0" where "d0"."registrationOptionId" = $1';
+const registrationDiscountCardOwnerLockSql =
+  'select pg_advisory_xact_lock_shared(hashtextextended($1, 0))';
 const registrationDiscountCardsSql =
-  'select "status", "type", "validFrom"::text, "validTo"::text from "user_discount_cards" where (("user_discount_cards"."tenantId" = $1) and ("user_discount_cards"."userId" = $2)) order by "user_discount_cards"."id" for share';
+  'select "status", "type", "validFrom"::text, "validTo"::text from "user_discount_cards" where "user_discount_cards"."userId" = $1 order by "user_discount_cards"."id" for share';
 const readLockedNoDiscountFixture = ({
   parameters,
   statement,
@@ -436,8 +438,12 @@ const readLockedNoDiscountFixture = ({
     expect(parameters).toEqual(['tenant-1', 1]);
     return [[{ esnCard: { config: {}, status: 'disabled' } }]];
   }
+  if (statement === registrationDiscountCardOwnerLockSql) {
+    expect(parameters).toEqual(['evorto:user-discount-cards:user-1']);
+    return [];
+  }
   if (statement === registrationDiscountCardsSql) {
-    expect(parameters).toEqual(['tenant-1', 'user-1']);
+    expect(parameters).toEqual(['user-1']);
     return [];
   }
   if (statement === registrationDiscountRowsSql) {
@@ -2585,7 +2591,7 @@ const createManualApprovalDatabase = ({
               : [];
           }
           if (statement.includes(' from "user_discount_cards"')) {
-            expect(parameters).toEqual(['verified', 'tenant-1', 'user-1']);
+            expect(parameters).toEqual(['verified', 'user-1']);
             return discountSettings
               ? [['esnCard', '2026-12-31T00:00:00.000']]
               : [];
@@ -3787,7 +3793,7 @@ const createDirectCheckoutDatabase = ({
           : [];
       }
       if (statement.includes(' from "user_discount_cards"')) {
-        expect(parameters).toEqual(['verified', 'tenant-1', 'user-1']);
+        expect(parameters).toEqual(['verified', 'user-1']);
         return discountSettings ? [['esnCard', '2026-12-31T00:00:00.000']] : [];
       }
       if (statement.includes(` from "${getTableName(tenantStripeTaxRates)}"`)) {
@@ -4091,7 +4097,12 @@ describe('EventRegistrationService', () => {
       Effect.gen(function* () {
         let transactionOpen = false;
         const reads: (
-          'addons' | 'cards' | 'discounts' | 'option' | 'providers'
+          | 'addons'
+          | 'card-owner-lock'
+          | 'cards'
+          | 'discounts'
+          | 'option'
+          | 'providers'
         )[] = [];
         const transactionCommands: ('BEGIN' | 'COMMIT' | 'ROLLBACK')[] = [];
         const context = yield* Layer.build(
@@ -4156,10 +4167,19 @@ describe('EventRegistrationService', () => {
                     ],
                   ];
                 }
-                if (statement === registrationDiscountCardsSql) {
+                if (statement === registrationDiscountCardOwnerLockSql) {
                   expect(transactionOpen).toBe(true);
                   expect(reads.at(-1)).toBe('providers');
-                  expect(parameters).toEqual(['tenant-1', 'user-1']);
+                  expect(parameters).toEqual([
+                    'evorto:user-discount-cards:user-1',
+                  ]);
+                  reads.push('card-owner-lock');
+                  return [];
+                }
+                if (statement === registrationDiscountCardsSql) {
+                  expect(transactionOpen).toBe(true);
+                  expect(reads.at(-1)).toBe('card-owner-lock');
+                  expect(parameters).toEqual(['user-1']);
                   reads.push('cards');
                   return cards.map((card) => [
                     card.status,
@@ -4301,6 +4321,7 @@ describe('EventRegistrationService', () => {
               'option',
               'discounts',
               'providers',
+              'card-owner-lock',
               'cards',
             ]);
             expect(fixture.transactionCommands).toEqual(['BEGIN', 'ROLLBACK']);
@@ -4337,6 +4358,7 @@ describe('EventRegistrationService', () => {
             'option',
             'discounts',
             'providers',
+            'card-owner-lock',
             'cards',
           ]);
           expect(fixture.transactionCommands).toEqual(['BEGIN', 'COMMIT']);
@@ -4372,6 +4394,7 @@ describe('EventRegistrationService', () => {
             'option',
             'discounts',
             'providers',
+            'card-owner-lock',
             'cards',
           ]);
           expect(fixture.transactionCommands).toEqual(['BEGIN', 'COMMIT']);
@@ -4410,6 +4433,7 @@ describe('EventRegistrationService', () => {
             'option',
             'discounts',
             'providers',
+            'card-owner-lock',
             'cards',
           ]);
           expect(fixture.transactionCommands).toEqual(['BEGIN', 'COMMIT']);

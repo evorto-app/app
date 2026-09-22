@@ -1824,6 +1824,7 @@ const createTrustedUrlDatabaseFixture = () => {
   let claim: TrustedUrlPaymentClaim | undefined;
   let registrationId: string | undefined;
   let transactionOpen = false;
+  let cardOwnerLocked = false;
   let bindingCount = 0;
   const commands: ('BEGIN' | 'COMMIT' | 'ROLLBACK')[] = [];
   const requireClaim = () => {
@@ -2151,15 +2152,25 @@ const createTrustedUrlDatabaseFixture = () => {
           ]);
           return [];
         }
+        if (
+          statement ===
+          'select pg_advisory_xact_lock_shared(hashtextextended($1, 0))'
+        ) {
+          expect(transactionOpen).toBe(true);
+          expect(parameters).toEqual(['evorto:user-discount-cards:attendee-1']);
+          cardOwnerLocked = true;
+          return [];
+        }
         if (statement.includes(' from "user_discount_cards"')) {
           if (transactionOpen) {
-            expect(parameters).toEqual(['tenant-1', 'attendee-1']);
+            expect(cardOwnerLocked).toBe(true);
+            expect(parameters).toEqual(['attendee-1']);
             expect(statement).toContain(
               'order by "user_discount_cards"."id" for share',
             );
             expect(statement).not.toContain('"status" =');
           } else {
-            expect(parameters).toEqual(['verified', 'tenant-1', 'attendee-1']);
+            expect(parameters).toEqual(['verified', 'attendee-1']);
           }
           return [];
         }
@@ -2233,6 +2244,7 @@ const createTrustedUrlDatabaseFixture = () => {
           expect(transactionOpen).toBe(true);
           transactionOpen = false;
         }
+        cardOwnerLocked = false;
         commands.push(command);
       }),
   });
