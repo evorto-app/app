@@ -102,6 +102,8 @@ const visibleEsnCardStatus = (
   validTo: Date | null,
   timeZone: string,
 ): string => {
+  // Keep expected labels independent of the application's formatter so a
+  // rendering regression cannot also change the test's expected output.
   const label = status === 'verified' ? 'Verified' : 'Expired';
   if (!validTo) {
     return label;
@@ -218,19 +220,10 @@ If you already added an ESNcard, Evorto shows its status and, when available, th
   const unchangedSeededEsnCard =
     await database.query.userDiscountCards.findFirst({
       where: {
-        identifier: seededEsnCardIdentifier,
-        type: 'esnCard',
-        userId: regularUser.id,
+        id: seededEsnCard.id,
       },
     });
-  expect(unchangedSeededEsnCard).toEqual(
-    expect.objectContaining({
-      identifier: seededEsnCardIdentifier,
-      status: 'verified',
-      type: 'esnCard',
-      userId: regularUser.id,
-    }),
-  );
+  expect(unchangedSeededEsnCard).toEqual(seededEsnCard);
 });
 
 test.describe('Check your ESNcard', () => {

@@ -203,13 +203,19 @@ Local runs use Playwright's bundled Chromium by default. For exploratory runs
 on a machine that already has Google Chrome installed, set
 `E2E_BROWSER_CHANNEL=chrome` instead of downloading the bundled browser.
 
-For end-to-end (e2e) testing, run:
+To run the complete functional and documentation baselines with shared setup:
+
+```bash
+bun run test:e2e:baseline
+```
+
+For a functional-only iteration, run:
 
 ```bash
 bun run test:e2e
 ```
 
-To run documentation tests:
+For a documentation-only iteration, run:
 
 ```bash
 bun run test:e2e:docs

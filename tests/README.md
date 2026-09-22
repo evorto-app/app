@@ -396,7 +396,7 @@ credentials must not be printed or committed.
   needs a callback URL Auth0 accepts. On this machine, run Docker-backed
   authenticated checks with `APP_HOST_PORT=4200 bun run docker:start` unless the
   generated worktree port has also been added to the Auth0 application.
-- Local `dev:start`, `test:e2e`, `test:e2e:ui`, `test:e2e:integration`, `test:e2e:docs`, `db:*`, and `docker:*` package scripts use `env:run` to resolve an invocation-private environment. Concurrent commands cannot overwrite each other's selected project or database through `.env.dev`. Use `bun run docker:ps` rather than bare `docker compose ps` so the worktree project is selected explicitly.
+- Local `dev:start`, `test:e2e`, `test:e2e:baseline`, `test:e2e:ui`, `test:e2e:integration`, `test:e2e:docs`, `db:*`, and `docker:*` package scripts use `env:run` to resolve an invocation-private environment. Concurrent commands cannot overwrite each other's selected project or database through `.env.dev`. Use `bun run docker:ps` rather than bare `docker compose ps` so the worktree project is selected explicitly.
 - `bun run docker:check` fails before Docker Compose mutates local containers
   when required local runtime variables are missing. The check covers Auth0,
   Stripe, the application session secret, and Font Awesome package registry
@@ -710,7 +710,7 @@ reporter. Credential-backed baseline CI additionally forces tracing off, never
 uploads `playwright-report`, and explicitly excludes `trace.zip` from both
 artifact uploads.
 
-The ordinary `test:e2e`, `test:e2e:ui`, `test:e2e:integration`, and
+The ordinary `test:e2e`, `test:e2e:baseline`, `test:e2e:ui`, `test:e2e:integration`, and
 `test:e2e:docs` scripts run `test:e2e:check` first. That Playwright preflight
 requires all six passwords and the Auth0 Management test client before
 Docker-backed test startup. `docker:check` does not require them, so starting
