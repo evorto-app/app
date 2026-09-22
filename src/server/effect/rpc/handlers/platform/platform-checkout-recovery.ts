@@ -318,6 +318,8 @@ export const recoveryLineItemsOwnClaim = (
   const actual: string[] = [];
   for (const line of lines) {
     if (
+      !Array.isArray(line.taxes) ||
+      !Array.isArray(line.discounts) ||
       line.object !== 'item' ||
       line.currency !== claim.candidate.claim.currency.toLowerCase() ||
       line.price?.currency !== line.currency ||
@@ -329,8 +331,8 @@ export const recoveryLineItemsOwnClaim = (
       line.quantity <= 0 ||
       line.amount_total !== line.price.unit_amount * line.quantity ||
       line.amount_discount !== 0 ||
-      (line.discounts?.length ?? 0) !== 0 ||
-      line.taxes?.some((tax) => !tax.rate.inclusive)
+      line.discounts.length > 0 ||
+      line.taxes.some((tax) => !tax.rate.inclusive)
     )
       return false;
     actual.push(
@@ -338,7 +340,7 @@ export const recoveryLineItemsOwnClaim = (
         line.description,
         line.price.unit_amount,
         line.quantity,
-        (line.taxes ?? []).map((tax) => tax.rate.id).toSorted(),
+        line.taxes.map((tax) => tax.rate.id).toSorted(),
       ]),
     );
   }
@@ -360,7 +362,7 @@ const verifyExistingSession = Effect.fn(
   const lines = yield* readStripe(claim.identity.transactionId, () =>
     stripe.checkout.sessions.listLineItems(
       sessionId,
-      { limit: 100 },
+      { expand: ['data.taxes', 'data.discounts'], limit: 100 },
       { stripeAccount: claim.stripeAccountId },
     ),
   );

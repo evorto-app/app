@@ -1573,6 +1573,10 @@ describe('existing Checkout recovery validation', () => {
   it('checks quantities, item prices and exact inclusive tax identities including zero-percent tax', () => {
     const line = stripeLineItemFixture();
     expect(recoveryLineItemsOwnClaim(claim, [line])).toBe(true);
+    const { taxes: _taxes, ...withoutTaxes } = line;
+    const { discounts: _discounts, ...withoutDiscounts } = line;
+    expect(recoveryLineItemsOwnClaim(claim, [withoutTaxes])).toBe(false);
+    expect(recoveryLineItemsOwnClaim(claim, [withoutDiscounts])).toBe(false);
     expect(recoveryLineItemsOwnClaim(claim, [])).toBe(false);
     expect(recoveryLineItemsOwnClaim(claim, [line, line])).toBe(false);
     for (const changed of [

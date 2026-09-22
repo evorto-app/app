@@ -1,10 +1,18 @@
 import { and, eq } from 'drizzle-orm';
 
 import { getId } from '../../../helpers/get-id';
-import { gaStateFile, usersToAuthenticate } from '../../../helpers/user-data';
+import {
+  gaStateFile,
+  userStateFile,
+  usersToAuthenticate,
+} from '../../../helpers/user-data';
 import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
-import { seedCheckoutRecoveryScenario } from '../../support/utils/manual-approval-scenario';
+import {
+  seedCheckoutRecoveryScenario,
+  waitForRegistrationStatus,
+} from '../../support/utils/manual-approval-scenario';
+import { openAuthenticatedTestPage } from '../../support/utils/authenticated-test-page';
 import {
   cleanupScannerRegistrationAcquisition,
   seedScannerRegistrationAcquisition,
@@ -305,10 +313,12 @@ test('platform cancellation preserves its confirmed outcome when detail readback
 });
 
 test('platform restores an original test Checkout and records its reason @admin @globalAdmin', async ({
+  browser,
   database,
   page,
   registerDatabaseCleanup,
   seeded,
+  testClock,
 }) => {
   test.setTimeout(120_000);
   await page.goto('/global-admin');
@@ -398,6 +408,29 @@ test('platform restores an original test Checkout and records its reason @admin 
       }),
     }),
   ]);
+  const attendee = await openAuthenticatedTestPage({
+    baseUrl: new URL(page.url()).origin,
+    browser,
+    storageState: userStateFile,
+    tenantDomain: scenario.tenant.domain,
+    testClock,
+  });
+  registerDatabaseCleanup(attendee.close);
+  await attendee.page.goto('/');
+  await attendee.page
+    .locator(`a[href="/events/${scenario.eventId}"]`)
+    .first()
+    .click();
+  await waitForRegistrationStatus(attendee.page);
+  await expect(
+    attendee.page.getByRole('link', { name: 'Pay now', exact: true }),
+  ).toHaveAttribute('href', scenario.checkoutUrl);
+  await expect(
+    attendee.page.getByRole('button', {
+      name: 'Apply for approval',
+      exact: true,
+    }),
+  ).toHaveCount(0);
   await page.goto('/global-admin');
   await page.getByRole('link', { name: 'Evorto change history' }).click();
   const audit = page

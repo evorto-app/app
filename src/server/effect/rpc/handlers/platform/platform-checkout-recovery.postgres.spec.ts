@@ -434,13 +434,23 @@ class RecoveryStripeHttp extends Stripe.HttpClient {
         url: '/v1/checkout/sessions',
       });
     }
-    if (url.pathname.endsWith('/line_items'))
+    if (url.pathname.endsWith('/line_items')) {
+      const expansions = new Set(
+        [...url.searchParams.entries()]
+          .filter(([key]) => key.startsWith('expand['))
+          .map(([, value]) => value),
+      );
       return new FixtureResponse({
-        data: this.lines,
+        data: this.lines.map(({ discounts, taxes, ...line }) => ({
+          ...line,
+          ...(expansions.has('data.taxes') && { taxes }),
+          ...(expansions.has('data.discounts') && { discounts }),
+        })),
         has_more: false,
         object: 'list',
         url: url.pathname,
       });
+    }
     if (url.pathname === `/v1/checkout/sessions/${this.session.id}`) {
       if (this.onSessionRead) await this.onSessionRead();
       return new FixtureResponse(this.session);
