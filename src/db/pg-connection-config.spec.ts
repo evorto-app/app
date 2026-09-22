@@ -189,8 +189,7 @@ describe('pg-connection-config', () => {
 
   for (const driver of [
     {
-      connectionString: (databaseUrl: string) =>
-        createNodePgPoolConfig({ databaseUrl }).connectionString,
+      config: (databaseUrl: string) => createNodePgPoolConfig({ databaseUrl }),
       name: 'node',
     },
   ]) {
@@ -205,22 +204,33 @@ describe('pg-connection-config', () => {
         database: 'socket-database',
         databaseUrl: '/var/run/postgresql socket-database',
       },
+      {
+        database: 'app data é',
+        databaseUrl: '/var/run/postgresql app data é',
+      },
+      {
+        database: ' app  data ',
+        databaseUrl: '/var/run/postgresql  app  data ',
+      },
     ])(
       `preserves supported raw socket paths without a CA for ${driver.name}: $databaseUrl`,
       ({ database, databaseUrl }) => {
         vi.stubEnv('PGDATABASE', undefined);
         try {
-          const connectionString = driver.connectionString(databaseUrl);
-          if (driver.name === 'node') {
-            expect(connectionString).toBe(databaseUrl);
+          const config = driver.config(databaseUrl);
+          if (!databaseUrl.startsWith('/')) {
+            expect(config.connectionString).toBe(databaseUrl);
           }
           const client = new Client({
-            connectionString,
+            ...config,
             ssl: false,
             user: 'fixture-user',
           });
           expect(client.host).toBe('/var/run/postgresql');
           expect(client.database).toBe(database);
+          if (databaseUrl.startsWith('/')) {
+            expect(client.user).toBe('fixture-user');
+          }
         } finally {
           vi.unstubAllEnvs();
         }

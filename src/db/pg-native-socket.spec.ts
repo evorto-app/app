@@ -25,6 +25,8 @@ describe('native PostgreSQL Unix socket transport', () => {
   it.each([
     { database: undefined, syntax: 'raw' },
     { database: 'socket-database-é', syntax: 'raw' },
+    { database: 'app data é', syntax: 'raw' },
+    { database: ' app  data ', syntax: 'raw' },
     { database: 'app data é', syntax: 'url' },
   ])(
     'connects through $syntax socket syntax with database $database',
