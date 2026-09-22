@@ -32,6 +32,13 @@ const createWireFixture = () => {
   const started = new Map<string, Deferred.Deferred<undefined>>();
   const cancellationStarted = Deferred.makeUnsafe<undefined>();
   const acquisitionStarted = Deferred.makeUnsafe<undefined>();
+  const primaryCloseStarted = Deferred.makeUnsafe<undefined>();
+  const pendingPrimaryClosures: (() => void)[] = [];
+  let holdPrimaryClose = false;
+  const releasePrimaryClosures = () => {
+    holdPrimaryClose = false;
+    for (const release of pendingPrimaryClosures.splice(0)) release();
+  };
   let holdStartup = false;
   let releaseStartup: (() => void) | undefined;
   let failControl = false;
@@ -49,6 +56,12 @@ const createWireFixture = () => {
     let inTransaction = false;
     let sql: string | undefined;
     const socket: Duplex = new Duplex({
+      destroy(error, callback) {
+        if (backend !== 0 && holdPrimaryClose) {
+          pendingPrimaryClosures.push(() => callback(error));
+          Deferred.doneUnsafe(primaryCloseStarted, Effect.succeed(undefined));
+        } else callback(error);
+      },
       final(callback) {
         socket.push(null);
         callback();
@@ -171,6 +184,7 @@ const createWireFixture = () => {
     acquisitionStarted: Deferred.await(acquisitionStarted),
     cancellationStarted: Deferred.await(cancellationStarted),
     close: () => {
+      releasePrimaryClosures();
       for (const socket of sockets) socket.destroy();
     },
     complete: (text: string, cancelled = false) => {
@@ -190,12 +204,17 @@ const createWireFixture = () => {
     holdNextAcquisition: () => {
       holdStartup = true;
     },
+    holdPrimaryClose: () => {
+      holdPrimaryClose = true;
+    },
+    primaryCloseStarted: Deferred.await(primaryCloseStarted),
     queries,
     releaseAcquisition: () => {
       if (!releaseStartup) throw new Error('No held acquisition');
       releaseStartup();
       releaseStartup = undefined;
     },
+    releasePrimaryClosures,
     replyToSuccessor: () => {
       serveSuccessor = true;
     },
@@ -239,6 +258,55 @@ const successor = (fixture: WireFixture, sql: PgClient.PgClient) =>
   });
 
 describe('native PostgreSQL cancellation ownership', () => {
+  for (const retained of [false, true]) {
+    it(`keeps physical pool capacity until a discarded stream closes; retained=${retained}`, () =>
+      run(
+        withFixture((fixture) =>
+          Effect.gen(function* () {
+            const pool = yield* PgPool.make({
+              maxConnections: 1,
+              prepare: false,
+              stream: fixture.stream,
+              username: 'fixture-user',
+            });
+            const held = retained ? yield* pool.get : undefined;
+            const original = yield* Effect.forkChild(
+              held
+                ? held.query('SELECT original')
+                : pool.use((connection) => connection.query('SELECT original')),
+            );
+            yield* fixture.waitForQuery('SELECT original');
+            fixture.holdPrimaryClose();
+            const interruption = yield* Effect.forkChild(
+              Fiber.interrupt(original),
+            );
+            yield* fixture.cancellationStarted;
+            fixture.acknowledgeCancel();
+            yield* fixture.primaryCloseStarted;
+            fixture.replyToSuccessor();
+            const next = yield* Effect.forkChild(
+              pool.use((connection) => connection.query('SELECT successor')),
+              { startImmediately: true },
+            );
+            yield* Effect.yieldNow;
+            expect(fixture.sessions[0]?.socket.destroyed).toBe(true);
+            expect(fixture.sessions[0]?.socket.closed).toBe(false);
+            expect(fixture.sessions).toHaveLength(1);
+            expect(
+              fixture.queries.some(
+                (query) => query.text === 'SELECT successor',
+              ),
+            ).toBe(false);
+            fixture.releasePrimaryClosures();
+            yield* Fiber.join(interruption);
+            yield* Fiber.join(next);
+            expect(fixture.sessions[0]?.socket.closed).toBe(true);
+            expect(fixture.sessions).toHaveLength(2);
+          }),
+        ),
+      ));
+  }
+
   it('cancels a queued pool acquisition before it can execute', () =>
     run(
       withFixture((fixture) =>

@@ -2,10 +2,7 @@ diff --git a/dist/PgConnection.d.ts b/dist/PgConnection.d.ts
 index a90e1c609154ae8db437e676910833035b510536..0d8d96060948061e1a6839342315ef91ba25e7a7 100644
 --- a/dist/PgConnection.d.ts
 +++ b/dist/PgConnection.d.ts
-@@ -155,12 +155,11 @@ export interface PgConnection {
-      * Runs a query and returns rows keyed by column name. Pass `false` to skip
-      * the prepared statement cache.
-      *
+@@ -158,6 +158,5 @@ export interface PgConnection {
 -     * On interruption, the connection drains to `ReadyForQuery` and sends a
 -     * `CancelRequest` if needed. Unless the backend confirms cancellation with
 -     * `57014`, a pool retires the session before its next checkout. A retained
@@ -17,20 +14,32 @@ index a90e1c609154ae8db437e676910833035b510536..0d8d96060948061e1a6839342315ef91
 +     * and transaction-pinned checkouts. A closed control connection or `57014`
 +     * does not prove that a delayed cancellation cannot affect a later query.
 +     * Completed or idle queries do not dispatch cancellation or retire a session.
-      */
-     readonly query: (sql: string, params?: ReadonlyArray<unknown>, prepare?: boolean) => Effect.Effect<Result, SqlError>;
-     /**
 diff --git a/dist/PgConnection.js b/dist/PgConnection.js
-index eb8fb660ac266978be0f23ec1b3f17c70f116acd..815dfe9b17aafd80d6c184fe3869bc9ae7f12ce5 100644
+index eb8fb660ac266978be0f23ec1b3f17c70f116acd..d49f8cda74abe8a7bc29c8f18cb35c90a772f07f 100644
 --- a/dist/PgConnection.js
 +++ b/dist/PgConnection.js
-@@ -392,10 +392,16 @@ class PgConnectionImpl {
-   };
-   /** Sends a `CancelRequest` for this session on a side connection. */
-   cancel = /*#__PURE__*/Effect.suspend(() => {
+@@ -68 +68 @@ export const make = options => Effect.flatMap(resolveConfig(options), config =>
+-}), connection => Effect.sync(() => connection.closeUnsafe()), {
++}), connection => connection.close, {
+@@ -110,0 +111 @@ class PgConnectionImpl {
++  socketClosed = /*#__PURE__*/Deferred.makeUnsafe();
+@@ -131,0 +133 @@ class PgConnectionImpl {
++      close: this.close,
+@@ -151 +153,4 @@ class PgConnectionImpl {
+-  onSocketClose = () => this.fatal(connectionQueryError(new Error("Connection closed"), "PgConnection: Connection closed"));
++  onSocketClose = () => {
++    Deferred.doneUnsafe(this.socketClosed, Effect.void);
++    this.fatal(connectionQueryError(new Error("Connection closed"), "PgConnection: Connection closed"));
++  };
+@@ -210,0 +216,4 @@ class PgConnectionImpl {
++  close = /*#__PURE__*/Effect.suspend(() => {
++    this.closeUnsafe();
++    return this.session.socket.closed ? Effect.void : Deferred.await(this.socketClosed);
++  });
+@@ -395 +404 @@ class PgConnectionImpl {
 -    if (this.deadWith !== undefined) return Effect.void;
 +    if (this.deadWith !== undefined || this.consumer === undefined) return Effect.void;
-     this.cancelPending = true;
+@@ -397,2 +406,8 @@ class PgConnectionImpl {
 -    if (this.consumer === undefined) this.retire();
 -    return sendCancelRequest(this.resolved, this.session);
 +    return sendCancelRequest(this.resolved, this.session).pipe(
@@ -41,17 +50,45 @@ index eb8fb660ac266978be0f23ec1b3f17c70f116acd..815dfe9b17aafd80d6c184fe3869bc9a
 +        ));
 +      }))
 +    );
-   });
-   pin = /*#__PURE__*/Effect.suspend(() => {
-     const reserve = this[internalsKey].reserve;
+diff --git a/dist/PgPool.js b/dist/PgPool.js
+index 8aa5453a1350014ad852fbdf6fba920a7b0ae32e..31b790b4fd2bae439cde687c64d58c515329841e 100644
+--- a/dist/PgPool.js
++++ b/dist/PgPool.js
+@@ -50,0 +51,8 @@ export const make = /*#__PURE__*/Effect.fnUntraced(function* (options) {
++  const invalidate = connection => {
++    const base = connectionInternals(connection).base;
++    return Effect.gen(function* () {
++      yield* connectionInternals(base).close;
++      yield* Pool.invalidate(pool, base);
++      deadConnections.delete(base);
++    });
++  };
+@@ -56,4 +64,3 @@ export const make = /*#__PURE__*/Effect.fnUntraced(function* (options) {
+-      // `deadConnections` is only read by the next checkout, and a checkout
+-      // already waiting for this connection would never get that far. Tell
+-      // the pool now so it can replace the connection and admit them.
+-      runFork(Pool.invalidate(pool, connection));
++      // Keep the dead session out of the fast path while physical closure
++      // completes; only then can invalidation admit a replacement.
++      runFork(invalidate(connection));
+@@ -91,2 +98 @@ export const make = /*#__PURE__*/Effect.fnUntraced(function* (options) {
+-        deadConnections.clear();
+-        yield* Effect.forEach(dead, connection => Pool.invalidate(pool, connection), {
++        yield* Effect.forEach(dead, invalidate, {
+@@ -98 +104 @@ export const make = /*#__PURE__*/Effect.fnUntraced(function* (options) {
+-        yield* Pool.invalidate(pool, connection);
++        yield* invalidate(connection);
+@@ -104 +110 @@ export const make = /*#__PURE__*/Effect.fnUntraced(function* (options) {
+-  const get = Effect.suspend(() => deadConnections.size > 0 ? retry : Effect.flatMap(Pool.get(pool), connection => expired(connection) ? Effect.andThen(Pool.invalidate(pool, connection), retry) : Effect.succeed(connection)));
++  const get = Effect.suspend(() => deadConnections.size > 0 ? retry : Effect.flatMap(Pool.get(pool), connection => expired(connection) ? Effect.andThen(invalidate(connection), retry) : Effect.succeed(connection)));
+@@ -117 +123 @@ export const make = /*#__PURE__*/Effect.fnUntraced(function* (options) {
+-    invalidate: connection => Pool.invalidate(pool, connectionInternals(connection).base)
++    invalidate
 diff --git a/src/PgConnection.ts b/src/PgConnection.ts
-index 4ad47bc336d0d2e2c3aff58a391fb2cb57f8554c..540086bf24a28cf055ca78e93a207af25ad55f67 100644
+index 4ad47bc336d0d2e2c3aff58a391fb2cb57f8554c..b1831681a45cc098f2771055128630c59af15c61 100644
 --- a/src/PgConnection.ts
 +++ b/src/PgConnection.ts
-@@ -203,12 +203,11 @@ export interface PgConnection {
-    * Runs a query and returns rows keyed by column name. Pass `false` to skip
-    * the prepared statement cache.
-    *
+@@ -206,6 +206,5 @@ export interface PgConnection {
 -   * On interruption, the connection drains to `ReadyForQuery` and sends a
 -   * `CancelRequest` if needed. Unless the backend confirms cancellation with
 -   * `57014`, a pool retires the session before its next checkout. A retained
@@ -63,16 +100,29 @@ index 4ad47bc336d0d2e2c3aff58a391fb2cb57f8554c..540086bf24a28cf055ca78e93a207af2
 +   * and transaction-pinned checkouts. A closed control connection or `57014`
 +   * does not prove that a delayed cancellation cannot affect a later query.
 +   * Completed or idle queries do not dispatch cancellation or retire a session.
-    */
-   readonly query: (
-     sql: string,
-@@ -722,10 +721,16 @@ class PgConnectionImpl implements PgConnection {
- 
-   /** Sends a `CancelRequest` for this session on a side connection. */
-   readonly cancel: Effect.Effect<void> = Effect.suspend(() => {
+@@ -287 +286 @@ export const make = (options: Config): Effect.Effect<PgConnection, SqlError, Sco
+-      (connection) => Effect.sync(() => connection.closeUnsafe()),
++      (connection) => connection.close,
+@@ -362,0 +362 @@ class PgConnectionImpl implements PgConnection {
++  readonly socketClosed = Deferred.makeUnsafe<void>()
+@@ -384,0 +385 @@ class PgConnectionImpl implements PgConnection {
++      close: this.close,
+@@ -412 +413,2 @@ class PgConnectionImpl implements PgConnection {
+-  private readonly onSocketClose = (): void =>
++  private readonly onSocketClose = (): void => {
++    Deferred.doneUnsafe(this.socketClosed, Effect.void)
+@@ -413,0 +416 @@ class PgConnectionImpl implements PgConnection {
++  }
+@@ -482,0 +486,5 @@ class PgConnectionImpl implements PgConnection {
++  readonly close: Effect.Effect<void> = Effect.suspend(() => {
++    this.closeUnsafe()
++    return this.session.socket.closed ? Effect.void : Deferred.await(this.socketClosed)
++  })
++
+@@ -725 +733 @@ class PgConnectionImpl implements PgConnection {
 -    if (this.deadWith !== undefined) return Effect.void
 +    if (this.deadWith !== undefined || this.consumer === undefined) return Effect.void
-     this.cancelPending = true
+@@ -727,2 +735,8 @@ class PgConnectionImpl implements PgConnection {
 -    if (this.consumer === undefined) this.retire()
 -    return sendCancelRequest(this.resolved, this.session)
 +    return sendCancelRequest(this.resolved, this.session).pipe(
@@ -83,6 +133,48 @@ index 4ad47bc336d0d2e2c3aff58a391fb2cb57f8554c..540086bf24a28cf055ca78e93a207af2
 +        ))
 +      }))
 +    )
-   })
- 
-   readonly pin: Effect.Effect<PgConnection, never, Scope.Scope> = Effect.suspend(() => {
+diff --git a/src/PgPool.ts b/src/PgPool.ts
+index 7ddb9ba91cd70dd14f484a62663c04af6f15b0b7..9eaf468c75bfa4a1a586ab3301848c2e4a69b6b9 100644
+--- a/src/PgPool.ts
++++ b/src/PgPool.ts
+@@ -138,0 +139,8 @@ export const make = Effect.fnUntraced(function*(options: Config): Effect.fn.Retu
++  const invalidate = (connection: PgConnection.PgConnection) => {
++    const base = connectionInternals(connection).base
++    return Effect.gen(function*() {
++      yield* connectionInternals(base).close
++      yield* Pool.invalidate(pool, base)
++      deadConnections.delete(base)
++    })
++  }
+@@ -145,4 +153,3 @@ export const make = Effect.fnUntraced(function*(options: Config): Effect.fn.Retu
+-        // `deadConnections` is only read by the next checkout, and a checkout
+-        // already waiting for this connection would never get that far. Tell
+-        // the pool now so it can replace the connection and admit them.
+-        runFork(Pool.invalidate(pool, connection))
++        // Keep the dead session out of the fast path while physical closure
++        // completes; only then can invalidation admit a replacement.
++        runFork(invalidate(connection))
+@@ -185,2 +192 @@ export const make = Effect.fnUntraced(function*(options: Config): Effect.fn.Retu
+-        deadConnections.clear()
+-        yield* Effect.forEach(dead, (connection) => Pool.invalidate(pool, connection), { discard: true })
++        yield* Effect.forEach(dead, invalidate, { discard: true })
+@@ -190 +196 @@ export const make = Effect.fnUntraced(function*(options: Config): Effect.fn.Retu
+-        yield* Pool.invalidate(pool, connection)
++        yield* invalidate(connection)
+@@ -200 +206 @@ export const make = Effect.fnUntraced(function*(options: Config): Effect.fn.Retu
+-        ? Effect.andThen(Pool.invalidate(pool, connection), retry)
++        ? Effect.andThen(invalidate(connection), retry)
+@@ -225 +231 @@ export const make = Effect.fnUntraced(function*(options: Config): Effect.fn.Retu
+-    invalidate: (connection) => Pool.invalidate(pool, connectionInternals(connection).base as PgConnection.PgConnection)
++    invalidate
+diff --git a/src/internal/connection.ts b/src/internal/connection.ts
+index c0a839575cd80ccdafc1defec6f72b079a3c2469..5306ce468f47dc2a2c1ecaa8a7b52c5002ddfc14 100644
+--- a/src/internal/connection.ts
++++ b/src/internal/connection.ts
+@@ -3,0 +4 @@ import type { SqlError } from "effect/unstable/sql/SqlError"
++import type { PgConnection } from "../PgConnection.ts"
+@@ -11 +12,3 @@ export interface ConnectionInternals {
+-  readonly base: object
++  readonly base: PgConnection
++  /** Closes the physical stream before pool capacity can be reused. */
++  readonly close: Effect.Effect<void>
