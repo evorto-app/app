@@ -5,7 +5,6 @@ import { adminStateFile } from '../../../helpers/user-data';
 import { test } from '../../support/fixtures/parallel-test';
 
 test.setTimeout(120_000);
-
 test.use({ storageState: adminStateFile });
 
 const onePixelPng = Buffer.from(
@@ -13,7 +12,7 @@ const onePixelPng = Buffer.from(
   'base64',
 );
 
-test('tenant admin updates general settings @admin', async ({
+test('tenant admin saves each settings section independently @admin', async ({
   database,
   page,
   seedDate,
@@ -34,43 +33,234 @@ test('tenant admin updates general settings @admin', async ({
   const originalPrivacyPolicies = await readPrivacyPolicies();
   expect(originalPrivacyPolicies.length).toBeGreaterThan(0);
 
+  const paymentAccountId = tenant.stripeAccountId;
+  if (!paymentAccountId) {
+    throw new Error('Expected seeded tenant to have payments ready');
+  }
+
   const suffix = seedDate.getTime();
   const emailSenderEmail = `operations+${suffix}@example.org`;
   const emailSenderName = `Operations ${suffix}`;
   const maxActiveRegistrationsPerUser = 3;
   const transferDeadlineHoursBeforeStart = 18;
   const cancellationDeadlineHoursBeforeStart = 84;
-  const refundFeesOnCancellation = false;
   const seoTitle = `Tenant settings spec ${suffix}`;
   const seoDescription = `Search preview copy for tenant settings spec ${suffix}`;
   const legalNoticeText = `Hosted imprint text ${suffix}`;
-  const stripeAccountId = tenant.stripeAccountId;
-  if (!stripeAccountId) {
-    throw new Error(
-      'Expected seeded tenant to have a connected Stripe account',
-    );
-  }
   const termsText = `Hosted terms text ${suffix}`;
   const buyEsnCardUrl = `https://esncard.example.org/${tenant.id}`;
 
-  await test.step('Update tenant general settings', async () => {
+  await test.step('Save organization settings', async () => {
     await page.goto('/admin/settings');
-    const generalSettings = page.locator('app-general-settings');
+    const settings = page.locator('app-organization-settings');
+    await expect(
+      settings.getByRole('heading', { name: 'Organization settings' }),
+    ).toBeVisible();
+    await expect(
+      settings.getByRole('heading', { name: 'Organization', exact: true }),
+    ).toBeVisible();
+    await expect(settings).not.toHaveAttribute('ngh', /.*/);
+    await expect(
+      settings.getByText('Organization name', { exact: true }),
+    ).toBeVisible();
+    await expect(
+      settings.getByText('Website address', { exact: true }),
+    ).toBeVisible();
+    await expect(
+      settings.getByRole('combobox', { name: 'Time zone' }),
+    ).toHaveText('Berlin time');
 
+    await settings
+      .getByPlaceholder('Example Section')
+      .fill(` ${emailSenderName} `);
+    await settings
+      .getByPlaceholder('events@section.example.org')
+      .fill(` ${emailSenderEmail} `);
+    await settings
+      .getByRole('button', { name: 'Save organization settings' })
+      .click();
+    await expect(page.getByText('Organization settings updated')).toBeVisible();
+
+    await expect
+      .poll(async () =>
+        database.query.tenants.findFirst({
+          columns: { emailSenderEmail: true, emailSenderName: true },
+          where: { id: tenant.id },
+        }),
+      )
+      .toMatchObject({
+        emailSenderEmail,
+        emailSenderName,
+      });
+  });
+
+  await test.step('Save sign-up rules', async () => {
+    await page.goto('/admin/settings/registration');
+    const settings = page.locator('app-registration-settings');
     await expect(
-      generalSettings.getByRole('heading', { name: 'General settings' }),
+      settings.getByRole('heading', { name: 'Sign-up rules' }),
     ).toBeVisible();
     await expect(
-      page.getByRole('heading', { name: 'Organization' }),
+      settings.getByText(
+        'Joining a waitlist does not count toward this limit.',
+      ),
     ).toBeVisible();
-    await expect(generalSettings).not.toHaveAttribute('ngh', /.*/);
+    await settings
+      .getByRole('spinbutton', { name: 'Active sign-up limit' })
+      .fill(String(maxActiveRegistrationsPerUser));
+    await settings
+      .getByRole('spinbutton', {
+        name: 'Transfer deadline before event (hours)',
+      })
+      .fill(String(transferDeadlineHoursBeforeStart));
+    await settings
+      .getByRole('spinbutton', {
+        name: 'Cancellation deadline before event (hours)',
+      })
+      .fill(String(cancellationDeadlineHoursBeforeStart));
+    await settings.getByRole('button', { name: 'Save sign-up rules' }).click();
+    await expect(page.getByText('Sign-up rules updated')).toBeVisible();
+
+    await expect
+      .poll(async () =>
+        database.query.tenants.findFirst({
+          columns: {
+            cancellationDeadlineHoursBeforeStart: true,
+            maxActiveRegistrationsPerUser: true,
+            transferDeadlineHoursBeforeStart: true,
+          },
+          where: { id: tenant.id },
+        }),
+      )
+      .toMatchObject({
+        cancellationDeadlineHoursBeforeStart,
+        maxActiveRegistrationsPerUser,
+        transferDeadlineHoursBeforeStart,
+      });
+  });
+
+  let logoUrl = '';
+  let faviconUrl = '';
+  await test.step('Save appearance settings', async () => {
+    await page.goto('/admin/settings/appearance');
+    const settings = page.locator('app-appearance-settings');
     await expect(
-      generalSettings.getByText('Organization name', { exact: true }),
+      settings.getByRole('heading', { name: 'Appearance' }),
+    ).toBeVisible();
+
+    const logoUrlInput = settings.getByRole('textbox', {
+      name: 'Logo web address',
+    });
+    await settings.getByLabel('Upload organization logo file').setInputFiles({
+      buffer: onePixelPng,
+      mimeType: 'image/png',
+      name: `tenant-logo-${suffix}.png`,
+    });
+    await expect(
+      page.getByText('Logo uploaded. Save appearance settings to publish it.'),
+    ).toBeVisible();
+    await expect(logoUrlInput).toHaveValue(
+      new RegExp(`^/tenant-assets/${tenant.id}/logo/`),
+    );
+    logoUrl = await logoUrlInput.inputValue();
+
+    const faviconUrlInput = settings.getByRole('textbox', {
+      name: 'Tab icon web address',
+    });
+    await settings
+      .getByLabel('Upload organization tab icon file')
+      .setInputFiles({
+        buffer: onePixelPng,
+        mimeType: 'image/png',
+        name: `tenant-favicon-${suffix}.png`,
+      });
+    await expect(
+      page.getByText(
+        'Tab icon uploaded. Save appearance settings to publish it.',
+      ),
+    ).toBeVisible();
+    await expect(faviconUrlInput).toHaveValue(
+      new RegExp(`^/tenant-assets/${tenant.id}/favicon/`),
+    );
+    faviconUrl = await faviconUrlInput.inputValue();
+
+    await settings
+      .getByPlaceholder('Organization name or public site title')
+      .fill(` ${seoTitle} `);
+    await settings
+      .getByPlaceholder('Short description for search results and previews')
+      .fill(` ${seoDescription} `);
+    await settings
+      .getByRole('button', { name: 'Save appearance settings' })
+      .click();
+    await expect(page.getByText('Appearance settings updated')).toBeVisible();
+
+    await expect
+      .poll(async () =>
+        database.query.tenants.findFirst({
+          columns: {
+            faviconUrl: true,
+            logoUrl: true,
+            seoDescription: true,
+            seoTitle: true,
+          },
+          where: { id: tenant.id },
+        }),
+      )
+      .toMatchObject({
+        faviconUrl,
+        logoUrl,
+        seoDescription,
+        seoTitle,
+      });
+  });
+
+  await test.step('Save legal pages', async () => {
+    await page.goto('/admin/settings/legal');
+    const settings = page.locator('app-legal-settings');
+    await expect(
+      settings.getByRole('heading', { name: 'Legal pages' }),
+    ).toBeVisible();
+    await settings
+      .getByRole('textbox', {
+        name: 'Imprint / legal notice text published by Evorto',
+      })
+      .fill(` ${legalNoticeText} `);
+    await settings
+      .getByRole('textbox', { name: 'Terms text published by Evorto' })
+      .fill(` ${termsText} `);
+    await settings.getByRole('button', { name: 'Save legal pages' }).click();
+    await expect(page.getByText('Legal settings updated')).toBeVisible();
+
+    await expect
+      .poll(async () =>
+        database.query.tenants.findFirst({
+          columns: {
+            legalNoticeText: true,
+            termsText: true,
+          },
+          where: { id: tenant.id },
+        }),
+      )
+      .toMatchObject({
+        legalNoticeText,
+        termsText,
+      });
+  });
+
+  await test.step('Save payment settings', async () => {
+    await page.goto('/admin/settings/payments');
+    const settings = page.locator('app-payment-provider-settings');
+    await expect(
+      settings.getByRole('heading', { name: 'Payments' }),
     ).toBeVisible();
     await expect(
-      generalSettings.getByText('Public domain', { exact: true }),
+      settings.getByText('Paid sign-ups are ready.', { exact: true }),
     ).toBeVisible();
-    const currencySelect = generalSettings.getByRole('combobox', {
+    await expect(settings.getByLabel('Stripe account ID')).toHaveCount(0);
+    await expect(settings.getByPlaceholder('acct_...')).toHaveCount(0);
+
+    const currencySelect = settings.getByRole('combobox', {
       name: 'Currency',
     });
     await expect(currencySelect).toBeVisible();
@@ -79,182 +269,112 @@ test('tenant admin updates general settings @admin', async ({
     await expect(page.getByRole('option', { name: 'CZK' })).toBeVisible();
     await expect(page.getByRole('option', { name: 'AUD' })).toBeVisible();
     await page.keyboard.press('Escape');
-    await expect(
-      generalSettings.getByRole('textbox', { name: 'Timezone' }),
-    ).toHaveValue('Europe/Berlin');
-    await expect(
-      generalSettings.getByRole('combobox', { name: 'Timezone' }),
-    ).toHaveCount(0);
-
-    await page.getByPlaceholder('Example Section').fill(` ${emailSenderName} `);
-    await page
-      .getByPlaceholder('events@section.example.org')
-      .fill(` ${emailSenderEmail} `);
-    await expect(generalSettings.getByLabel('Stripe account ID')).toHaveCount(
-      0,
-    );
-    await expect(generalSettings.getByPlaceholder('acct_...')).toHaveCount(0);
-    await expect(
-      generalSettings.getByText('Paid sign-ups are ready.', { exact: true }),
-    ).toBeVisible();
-    await page
-      .getByRole('spinbutton', { name: 'Active registration limit' })
-      .fill(String(maxActiveRegistrationsPerUser));
-    await page
-      .getByRole('spinbutton', {
-        name: 'Transfer deadline before event (hours)',
-      })
-      .fill(String(transferDeadlineHoursBeforeStart));
-    await page
-      .getByRole('spinbutton', {
-        name: 'Cancellation deadline before event (hours)',
-      })
-      .fill(String(cancellationDeadlineHoursBeforeStart));
-    const refundFeesToggle = generalSettings
+    const refundFeesToggle = settings
       .locator('mat-slide-toggle')
       .filter({ hasText: 'Refund fees on cancellation' })
       .getByRole('switch');
     if (await refundFeesToggle.isChecked()) {
       await refundFeesToggle.click();
     }
-    const logoUrlInput = generalSettings.getByRole('textbox', {
-      name: 'Logo URL',
-    });
-    await generalSettings
-      .getByLabel('Upload organization logo file')
-      .setInputFiles({
-        buffer: onePixelPng,
-        mimeType: 'image/png',
-        name: `tenant-logo-${suffix}.png`,
-      });
-    await expect(
-      page.getByText('Logo uploaded. Save settings to publish it.'),
-    ).toBeVisible();
-    await expect(logoUrlInput).toHaveValue(
-      new RegExp(`^/tenant-assets/${tenant.id}/logo/`),
-    );
-    const logoUrl = await logoUrlInput.inputValue();
-
-    const faviconUrlInput = generalSettings.getByRole('textbox', {
-      name: 'Favicon URL',
-    });
-    await generalSettings
-      .getByLabel('Upload organization favicon file')
-      .setInputFiles({
-        buffer: onePixelPng,
-        mimeType: 'image/png',
-        name: `tenant-favicon-${suffix}.png`,
-      });
-    await expect(
-      page.getByText('Favicon uploaded. Save settings to publish it.'),
-    ).toBeVisible();
-    await expect(faviconUrlInput).toHaveValue(
-      new RegExp(`^/tenant-assets/${tenant.id}/favicon/`),
-    );
-    const faviconUrl = await faviconUrlInput.inputValue();
-    await page
-      .getByPlaceholder('Organization name or public site title')
-      .fill(` ${seoTitle} `);
-    await page
-      .getByPlaceholder('Short description for search results and previews')
-      .fill(` ${seoDescription} `);
-    await page
-      .getByPlaceholder('Legal notice text shown at /legal/imprint')
-      .fill(` ${legalNoticeText} `);
-    await page
-      .getByPlaceholder('Terms shown at /legal/terms')
-      .fill(` ${termsText} `);
-    const esnCardToggle = generalSettings
+    const esnCardToggle = settings
       .locator('mat-slide-toggle')
-      .filter({ hasText: 'ESN Card discounts' })
+      .filter({ hasText: 'ESNcard discounts' })
       .getByRole('switch');
     if (!(await esnCardToggle.isChecked())) {
       await esnCardToggle.click();
     }
-    await page
+    await settings
       .getByPlaceholder('https://esncard.org/')
       .fill(` ${buyEsnCardUrl} `);
-
-    await page.getByRole('button', { name: 'Save' }).click();
-    await expect(page.getByText('Organization settings updated')).toBeVisible();
+    await settings
+      .getByRole('button', { name: 'Save payment settings' })
+      .click();
+    await expect(page.getByText('Payment settings updated')).toBeVisible();
 
     await expect
-      .poll(async () => {
-        const tenantRecord = await database.query.tenants.findFirst({
+      .poll(async () =>
+        database.query.tenants.findFirst({
+          columns: {
+            discountProviders: true,
+            refundFeesOnCancellation: true,
+            stripeAccountId: true,
+          },
           where: { id: tenant.id },
-        });
-        return tenantRecord?.logoUrl ?? null;
-      })
-      .toBe(logoUrl);
-    const updatedTenant = await database.query.tenants.findFirst({
-      where: { id: tenant.id },
-    });
-    if (!updatedTenant) {
-      throw new Error('Expected tenant row after general-settings update');
-    }
-    expect(updatedTenant.emailSenderEmail).toBe(emailSenderEmail);
-    expect(updatedTenant.emailSenderName).toBe(emailSenderName);
-    expect(updatedTenant.stripeAccountId).toBe(stripeAccountId);
-    expect(updatedTenant.maxActiveRegistrationsPerUser).toBe(
-      maxActiveRegistrationsPerUser,
-    );
-    expect(updatedTenant.transferDeadlineHoursBeforeStart).toBe(
-      transferDeadlineHoursBeforeStart,
-    );
-    expect(updatedTenant.cancellationDeadlineHoursBeforeStart).toBe(
-      cancellationDeadlineHoursBeforeStart,
-    );
-    expect(updatedTenant.refundFeesOnCancellation).toBe(
-      refundFeesOnCancellation,
-    );
-    expect(updatedTenant.logoUrl).toBe(logoUrl);
-    expect(updatedTenant.faviconUrl).toBe(faviconUrl);
-    expect(updatedTenant.seoTitle).toBe(seoTitle);
-    expect(updatedTenant.seoDescription).toBe(seoDescription);
-    expect(updatedTenant.legalNoticeText).toBe(legalNoticeText);
-    expect(await readPrivacyPolicies()).toEqual(originalPrivacyPolicies);
-    expect(updatedTenant.termsText).toBe(termsText);
-    expect(updatedTenant.discountProviders.esnCard).toEqual({
-      config: { buyEsnCardUrl },
-      status: 'enabled',
-    });
+        }),
+      )
+      .toMatchObject({
+        discountProviders: {
+          esnCard: {
+            config: { buyEsnCardUrl },
+            status: 'enabled',
+          },
+        },
+        refundFeesOnCancellation: false,
+        stripeAccountId: paymentAccountId,
+      });
+  });
 
-    for (const assetUrl of [logoUrl, faviconUrl]) {
-      const assetResponse = await page.request.get(assetUrl);
-      expect(assetResponse.status()).toBe(200);
-      expect(assetResponse.headers()['content-type']).toBe('image/png');
-      expect(await assetResponse.body()).toEqual(onePixelPng);
-    }
+  expect(await readPrivacyPolicies()).toEqual(originalPrivacyPolicies);
 
+  await test.step('Read the saved values after reopening each settings page', async () => {
+    await page.goto('/admin/settings');
     await page.reload();
-    await expect(page.getByPlaceholder('Example Section')).toHaveValue(
-      emailSenderName,
-    );
+    const organizationSettings = page.locator('app-organization-settings');
     await expect(
-      page.getByPlaceholder('events@section.example.org'),
+      organizationSettings.getByPlaceholder('Example Section'),
+    ).toHaveValue(emailSenderName);
+    await expect(
+      organizationSettings.getByPlaceholder('events@section.example.org'),
     ).toHaveValue(emailSenderEmail);
-    await expect(generalSettings.getByLabel('Stripe account ID')).toHaveCount(
-      0,
-    );
-    await expect(generalSettings.getByPlaceholder('acct_...')).toHaveCount(0);
+
+    await page.goto('/admin/settings/registration');
+    const registrationSettings = page.locator('app-registration-settings');
     await expect(
-      generalSettings.getByText('Paid sign-ups are ready.', { exact: true }),
-    ).toBeVisible();
-    await expect(
-      page.getByRole('spinbutton', { name: 'Active registration limit' }),
+      registrationSettings.getByRole('spinbutton', {
+        name: 'Active sign-up limit',
+      }),
     ).toHaveValue(String(maxActiveRegistrationsPerUser));
     await expect(
-      page.getByRole('spinbutton', {
+      registrationSettings.getByRole('spinbutton', {
         name: 'Transfer deadline before event (hours)',
       }),
     ).toHaveValue(String(transferDeadlineHoursBeforeStart));
     await expect(
-      page.getByRole('spinbutton', {
+      registrationSettings.getByRole('spinbutton', {
         name: 'Cancellation deadline before event (hours)',
       }),
     ).toHaveValue(String(cancellationDeadlineHoursBeforeStart));
-    await expect(refundFeesToggle).not.toBeChecked();
-    await expect(logoUrlInput).toHaveValue(logoUrl);
-    await expect(faviconUrlInput).toHaveValue(faviconUrl);
+
+    await page.goto('/admin/settings/payments');
+    const paymentSettings = page.locator('app-payment-provider-settings');
+    await expect(paymentSettings.getByLabel('Stripe account ID')).toHaveCount(
+      0,
+    );
+    await expect(paymentSettings.getByPlaceholder('acct_...')).toHaveCount(0);
+    await expect(
+      paymentSettings.getByText('Paid sign-ups are ready.', { exact: true }),
+    ).toBeVisible();
+    await expect(
+      paymentSettings
+        .locator('mat-slide-toggle')
+        .filter({ hasText: 'Refund fees on cancellation' })
+        .getByRole('switch'),
+    ).not.toBeChecked();
+
+    await page.goto('/admin/settings/appearance');
+    const appearanceSettings = page.locator('app-appearance-settings');
+    await expect(
+      appearanceSettings.getByRole('textbox', { name: 'Logo web address' }),
+    ).toHaveValue(logoUrl);
+    await expect(
+      appearanceSettings.getByRole('textbox', { name: 'Tab icon web address' }),
+    ).toHaveValue(faviconUrl);
   });
+
+  for (const assetUrl of [logoUrl, faviconUrl]) {
+    const assetResponse = await page.request.get(assetUrl);
+    expect(assetResponse.status()).toBe(200);
+    expect(assetResponse.headers()['content-type']).toBe('image/png');
+    expect(await assetResponse.body()).toEqual(onePixelPng);
+  }
 });

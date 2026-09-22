@@ -1,13 +1,20 @@
 import type { AdminTenantBrandAssetKind } from '@shared/rpc-contracts/app-rpcs/admin.rpcs';
 
+import { Database, type DatabaseClient } from '@db/index';
+import { tenantBrandAssetUploads, tenants } from '@db/schema';
 import {
   RpcBadRequestError,
   RpcInternalServerError,
 } from '@shared/errors/rpc-errors';
-import { Effect } from 'effect';
+import { and, asc, eq, inArray, lte, sql } from 'drizzle-orm';
+import { Clock, Duration, Effect, Schedule } from 'effect';
 import { randomUUID } from 'node:crypto';
 
-import { ObjectStorage } from './integrations/object-storage';
+import {
+  ObjectStorage,
+  ObjectStorageNotFoundError,
+} from './integrations/object-storage';
+import { reportPollingWorkerFailure } from './runtime/polling-worker-supervision';
 
 export const MAX_TENANT_BRAND_ASSET_SIZE_BYTES = 5 * 1024 * 1024;
 
@@ -182,6 +189,28 @@ export const uploadTenantBrandAsset = (input: {
       tenantId: input.tenantId,
     });
 
+    const assetUrl = tenantBrandAssetUrl({
+      fileName,
+      kind: input.kind,
+      tenantId: input.tenantId,
+    });
+    const database = yield* Database;
+    const now = new Date(yield* Clock.currentTimeMillis);
+    const expiresAt = new Date(now.getTime() + brandAssetRetentionMilliseconds);
+    // Commit ownership before issuing this key's only PUT. Interruption or an
+    // uncertain storage/settlement result must never make the key unreachable.
+    yield* database
+      .insert(tenantBrandAssetUploads)
+      .values({
+        assetUrl,
+        expiresAt,
+        kind: input.kind,
+        nextCleanupAt: expiresAt,
+        storageKey,
+        tenantId: input.tenantId,
+      })
+      .pipe(Effect.orDie);
+
     yield* ObjectStorage.put({
       body,
       contentType: input.mimeType,
@@ -195,13 +224,225 @@ export const uploadTenantBrandAsset = (input: {
       ),
     );
 
+    const settledAt = new Date(yield* Clock.currentTimeMillis);
+    const [settled] = yield* database
+      .update(tenantBrandAssetUploads)
+      .set({
+        putSucceededAt: settledAt,
+        status: sql`case when ${tenantBrandAssetUploads.status} = 'uploading' and ${tenantBrandAssetUploads.expiresAt} > ${settledAt.toISOString()}::timestamp then 'ready'::tenant_brand_asset_status else ${tenantBrandAssetUploads.status} end`,
+      })
+      .where(eq(tenantBrandAssetUploads.storageKey, storageKey))
+      .returning({ status: tenantBrandAssetUploads.status })
+      .pipe(Effect.orDie);
+    if (settled?.status !== 'ready')
+      return yield* Effect.fail(unavailableBrandAsset());
+
     return {
-      assetUrl: tenantBrandAssetUrl({
-        fileName,
-        kind: input.kind,
-        tenantId: input.tenantId,
-      }),
+      assetUrl,
       sizeBytes: body.byteLength,
       storageKey,
     };
   });
+
+const brandAssetRetentionMilliseconds = 24 * 60 * 60 * 1000;
+const cleanupLeaseMilliseconds = 15 * 60 * 1000;
+const cleanupIntervalMilliseconds = 5 * 60 * 1000;
+const unavailableBrandAsset = () =>
+  new RpcBadRequestError({
+    message:
+      'This organization image is no longer available. Upload or select the image again before saving.',
+  });
+
+type BrandAssetSelection = Pick<
+  typeof tenants.$inferSelect,
+  'faviconUrl' | 'logoUrl'
+>;
+
+/** Caller holds the organization row lock; assets are always locked after it. */
+export const associateTenantBrandAssets = Effect.fn(
+  'associateTenantBrandAssets',
+)(function* (
+  transaction: Pick<DatabaseClient, 'select' | 'update'>,
+  input: {
+    next: BrandAssetSelection;
+    previous: BrandAssetSelection;
+    tenantId: string;
+  },
+) {
+  const changed = (['favicon', 'logo'] as const).filter(
+    (kind) => input.previous[`${kind}Url`] !== input.next[`${kind}Url`],
+  );
+  const urls = changed
+    .flatMap((kind) => [input.previous[`${kind}Url`], input.next[`${kind}Url`]])
+    .filter((url): url is string => !!url && url.startsWith('/tenant-assets/'));
+  if (urls.length === 0) return;
+  const assets = yield* transaction
+    .select()
+    .from(tenantBrandAssetUploads)
+    .where(
+      and(
+        eq(tenantBrandAssetUploads.tenantId, input.tenantId),
+        inArray(tenantBrandAssetUploads.assetUrl, urls),
+      ),
+    )
+    .orderBy(asc(tenantBrandAssetUploads.storageKey))
+    .for('update');
+  const now = new Date(yield* Clock.currentTimeMillis);
+  for (const kind of changed) {
+    const nextUrl = input.next[`${kind}Url`];
+    const selected = assets.find((asset) => asset.assetUrl === nextUrl);
+    if (nextUrl?.startsWith('/tenant-assets/')) {
+      if (
+        !selected ||
+        selected.kind !== kind ||
+        selected.status !== 'ready' ||
+        selected.expiresAt <= now ||
+        !selected.putSucceededAt
+      ) {
+        return yield* Effect.fail(unavailableBrandAsset());
+      }
+      yield* transaction
+        .update(tenantBrandAssetUploads)
+        .set({ nextCleanupAt: null, status: 'attached' })
+        .where(eq(tenantBrandAssetUploads.id, selected.id));
+    }
+    const previous = assets.find(
+      (asset) => asset.assetUrl === input.previous[`${kind}Url`],
+    );
+    if (
+      previous?.status === 'attached' &&
+      !Object.values(input.next).includes(previous.assetUrl)
+    ) {
+      const expiresAt = new Date(
+        now.getTime() + brandAssetRetentionMilliseconds,
+      );
+      yield* transaction
+        .update(tenantBrandAssetUploads)
+        .set({ expiresAt, nextCleanupAt: expiresAt, status: 'ready' })
+        .where(eq(tenantBrandAssetUploads.id, previous.id));
+    }
+  }
+});
+
+export const processTenantBrandAssetOrphans = Effect.fn(
+  'processTenantBrandAssetOrphans',
+)(
+  function* (options: { batchSize?: number; now?: Date } = {}) {
+    const now = options.now ?? new Date(yield* Clock.currentTimeMillis);
+    const batchSize = Number.isFinite(options.batchSize ?? 25)
+      ? Math.min(100, Math.max(1, Math.trunc(options.batchSize ?? 25)))
+      : 25;
+    const database = yield* Database;
+    const storage = yield* ObjectStorage;
+    const candidates = yield* database
+      .select({
+        id: tenantBrandAssetUploads.id,
+        tenantId: tenantBrandAssetUploads.tenantId,
+      })
+      .from(tenantBrandAssetUploads)
+      .where(lte(tenantBrandAssetUploads.nextCleanupAt, now))
+      .orderBy(
+        asc(tenantBrandAssetUploads.nextCleanupAt),
+        asc(tenantBrandAssetUploads.id),
+      )
+      .limit(batchSize);
+    let deleted = 0;
+    let retained = 0;
+    for (const candidate of candidates) {
+      const claim = yield* database.transaction((transaction) =>
+        Effect.gen(function* () {
+          const [tenant] = yield* transaction
+            .select({
+              faviconUrl: tenants.faviconUrl,
+              logoUrl: tenants.logoUrl,
+            })
+            .from(tenants)
+            .where(eq(tenants.id, candidate.tenantId))
+            .for('update', { skipLocked: true });
+          if (!tenant) return;
+          const [asset] = yield* transaction
+            .select()
+            .from(tenantBrandAssetUploads)
+            .where(eq(tenantBrandAssetUploads.id, candidate.id))
+            .for('update', { skipLocked: true });
+          if (
+            !asset ||
+            asset.status === 'attached' ||
+            !asset.nextCleanupAt ||
+            asset.nextCleanupAt > now ||
+            asset.expiresAt > now ||
+            tenant?.logoUrl === asset.assetUrl ||
+            tenant?.faviconUrl === asset.assetUrl
+          )
+            return;
+          const token = randomUUID();
+          yield* transaction
+            .update(tenantBrandAssetUploads)
+            .set({
+              cleanupClaimToken: token,
+              nextCleanupAt: new Date(now.getTime() + cleanupLeaseMilliseconds),
+              status: 'cleaning',
+            })
+            .where(eq(tenantBrandAssetUploads.id, asset.id));
+          return { ...asset, token };
+        }),
+      );
+      if (!claim) continue;
+      yield* storage
+        .deleteObject(claim.storageKey)
+        .pipe(
+          Effect.catch((error) =>
+            error instanceof ObjectStorageNotFoundError
+              ? Effect.void
+              : Effect.fail(error),
+          ),
+        );
+      const ownedClaim = and(
+        eq(tenantBrandAssetUploads.id, claim.id),
+        eq(tenantBrandAssetUploads.status, 'cleaning'),
+        eq(tenantBrandAssetUploads.cleanupClaimToken, claim.token),
+      );
+      // Settlement must precede this DELETE. A PUT settling during an earlier
+      // unknown-outcome deletion can recreate the object after that deletion.
+      if (claim.putSucceededAt) {
+        const removed = yield* database
+          .delete(tenantBrandAssetUploads)
+          .where(ownedClaim)
+          .returning({ id: tenantBrandAssetUploads.id });
+        deleted += removed.length;
+      } else {
+        const retainedRows = yield* database
+          .update(tenantBrandAssetUploads)
+          .set({
+            cleanupClaimToken: null,
+            nextCleanupAt: new Date(
+              now.getTime() + cleanupIntervalMilliseconds,
+            ),
+          })
+          .where(ownedClaim)
+          .returning({ id: tenantBrandAssetUploads.id });
+        retained += retainedRows.length;
+      }
+    }
+    return { deleted, retained, scanned: candidates.length };
+  },
+  (effect, _options: { batchSize?: number; now?: Date } = {}) =>
+    effect.pipe(Effect.timeout('30 seconds')),
+);
+
+export const runTenantBrandAssetCleanupWorker =
+  processTenantBrandAssetOrphans().pipe(
+    Effect.tap((summary) =>
+      summary.scanned > 0
+        ? Effect.logInfo('Processed organization image upload orphans').pipe(
+            Effect.annotateLogs(summary),
+          )
+        : Effect.void,
+    ),
+    Effect.catchCause(
+      reportPollingWorkerFailure('Organization image cleanup iteration failed'),
+    ),
+    Effect.repeat(
+      Schedule.spaced(Duration.millis(cleanupIntervalMilliseconds)),
+    ),
+  );

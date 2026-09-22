@@ -379,7 +379,9 @@ describe('globalAdminHandlers', () => {
         .pipe(Effect.provide(provideDatabase(database)), Effect.flip);
 
       expect(error['_tag']).toBe('RpcForbiddenError');
-      expect(error.message).toBe('Platform administrator authority required');
+      expect(error.message).toBe(
+        'You need Evorto administrator access to do this.',
+      );
     }),
   );
 
@@ -481,6 +483,20 @@ describe('globalAdminHandlers', () => {
           ],
           [
             null,
+            'sent-missing-time',
+            'registrationConfirmed',
+            attempt,
+            'sent-missing-time@example.org',
+            null,
+            'sent',
+            'Registration confirmed',
+            null,
+            'section.example.org',
+            'Section',
+            'Australia/Brisbane',
+          ],
+          [
+            null,
             'suppressed',
             'manualApproval',
             null,
@@ -532,7 +548,7 @@ describe('globalAdminHandlers', () => {
                 return [
                   ['failed', 2],
                   ['queued', 1],
-                  ['sent', 2],
+                  ['sent', 3],
                   ['deliveryUnknown', 1],
                   ['sending', 1],
                   ['suppressed', 1],
@@ -569,7 +585,7 @@ describe('globalAdminHandlers', () => {
           failed: 2,
           queued: 1,
           sending: 1,
-          sent: 2,
+          sent: 3,
           staleSending: 1,
           suppressed: 1,
         });
@@ -582,7 +598,8 @@ describe('globalAdminHandlers', () => {
           { id: 'failed', recordIncomplete: false },
           { id: 'unknown', recordIncomplete: true },
           { id: 'sent', recordIncomplete: false },
-          { id: 'sent-missing-attempt', recordIncomplete: true },
+          { id: 'sent-missing-attempt', recordIncomplete: false },
+          { id: 'sent-missing-time', recordIncomplete: true },
           { id: 'suppressed', recordIncomplete: true },
           { id: 'sending', recordIncomplete: true },
           { id: 'queued', recordIncomplete: false },
@@ -994,7 +1011,9 @@ describe('globalAdminHandlers', () => {
         .pipe(Effect.provide(provideDatabase(database)), Effect.flip);
 
       expect(error['_tag']).toBe('RpcForbiddenError');
-      expect(error.message).toBe('Platform administrator authority required');
+      expect(error.message).toBe(
+        'You need Evorto administrator access to do this.',
+      );
     }),
   );
 
@@ -1092,6 +1111,8 @@ describe('globalAdminHandlers', () => {
         theme: 'esn',
         timezone: 'Europe/Prague',
       });
+      expect(capturedInsert).not.toHaveProperty('privacyPolicyText');
+      expect(capturedInsert).not.toHaveProperty('privacyPolicyUrl');
       expect(capturedAudit).toMatchObject({
         action: 'tenant.create',
         actorEmail: 'platform@example.org',
@@ -1181,7 +1202,9 @@ describe('globalAdminHandlers', () => {
           .pipe(Effect.provide(provideDatabase(database)), Effect.flip);
 
         expect(error['_tag']).toBe('RpcBadRequestError');
-        expect(error.message).toBe('Organization domain already exists');
+        expect(error.message).toBe(
+          'This website address is already used by another organization.',
+        );
         if (error._tag !== 'RpcBadRequestError') {
           return yield* Effect.die(
             new Error('Expected a typed bad-request error'),
@@ -1714,7 +1737,9 @@ describe('globalAdminHandlers', () => {
           .pipe(Effect.provide(provideDatabase(database)), Effect.flip);
 
         expect(error['_tag']).toBe('RpcBadRequestError');
-        expect(error.message).toBe('Organization domain already exists');
+        expect(error.message).toBe(
+          'This website address is already used by another organization.',
+        );
         if (error._tag !== 'RpcBadRequestError') {
           return yield* Effect.die(
             new Error('Expected a typed bad-request error'),
@@ -1763,7 +1788,9 @@ describe('globalAdminHandlers', () => {
         .pipe(Effect.provide(provideDatabase(database)), Effect.flip);
 
       expect(error['_tag']).toBe('RpcBadRequestError');
-      expect(error.message).toBe('Invalid tenant settings');
+      expect(error.message).toBe(
+        'The organization settings are not valid. Review them and try again.',
+      );
     }),
   );
 
@@ -1814,7 +1841,9 @@ describe('globalAdminHandlers', () => {
           .pipe(Effect.provide(provideDatabase(database)), Effect.flip);
 
         expect(error['_tag']).toBe('RpcBadRequestError');
-        expect(error.message).toBe('Invalid tenant settings');
+        expect(error.message).toBe(
+          'The organization settings are not valid. Review them and try again.',
+        );
         if (error._tag !== 'RpcBadRequestError') {
           return yield* Effect.die(
             new Error('Expected a typed bad-request error'),

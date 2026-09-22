@@ -26,6 +26,7 @@ export * from './template-event-addons';
 export * from './template-registration-option-discounts';
 export * from './template-registration-options';
 export * from './template-registration-questions';
+export * from './tenant-brand-asset-uploads';
 export * from './tenant-onboarding';
 export * from './tenant-stripe-tax-rates';
 export * from './tenants';

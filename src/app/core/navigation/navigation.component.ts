@@ -98,6 +98,7 @@ export class NavigationComponent {
   protected readonly adminNavigationPermissions: Permission[] = [
     'admin:manageRoles',
     'admin:changeSettings',
+    'admin:managePayments',
     'admin:tax',
     'users:viewAll',
     'events:review',

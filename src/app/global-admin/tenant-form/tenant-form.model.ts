@@ -95,22 +95,18 @@ export const globalAdminTenantDomainValidationMessage = (
 };
 
 export const globalAdminTenantUpdateErrorMessage = (error: unknown): string => {
-  const message = getErrorMessage(error, 'Failed to update organization', [
-    'RpcBadRequestError',
-    'TenantSettingsConflictError',
-  ]);
-  if (
-    !error ||
-    typeof error !== 'object' ||
-    Reflect.get(error, '_tag') !== 'GlobalAdminTenantUrlMigrationBlockedError'
-  ) {
-    return message;
+  const errorTag =
+    typeof error === 'object' && error !== null && '_tag' in error
+      ? error._tag
+      : undefined;
+  if (errorTag !== 'GlobalAdminTenantUrlMigrationBlockedError') {
+    return getErrorMessage(
+      error,
+      'The organization could not be updated. Try again.',
+      ['RpcBadRequestError', 'TenantSettingsConflictError'],
+    );
   }
-
-  const reason = Reflect.get(error, 'reason');
-  return typeof reason === 'string' && reason.trim().length > 0
-    ? `${message}. ${reason}`
-    : message;
+  return 'The website address cannot be changed while payments, refunds, or ticket transfers are unfinished. Finish or cancel them and try again.';
 };
 
 export const globalAdminTenantPayloadFromForm = (

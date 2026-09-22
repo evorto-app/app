@@ -1,5 +1,5 @@
 import { describe, expect, it } from '@effect/vitest';
-import { getTableConfig } from 'drizzle-orm/pg-core';
+import { getTableConfig, PgDialect } from 'drizzle-orm/pg-core';
 
 import { emailOutbox, emailOutboxKind } from './email-outbox';
 
@@ -71,5 +71,29 @@ describe('email outbox schema', () => {
       { indexConfig: { nulls: 'last', order: 'asc' }, name: 'id' },
     ]);
     expect(singleDispatchCheck).toBeDefined();
+  });
+
+  it('indexes incomplete terminal diagnostics separately from ordinary sent history', () => {
+    const incompleteIndex = getTableConfig(emailOutbox).indexes.find(
+      (index) => index.config.name === 'email_outbox_incomplete_terminal_idx',
+    );
+    expect(incompleteIndex?.config.columns).toMatchObject([
+      { indexConfig: { nulls: 'last', order: 'asc' }, name: 'status' },
+      { indexConfig: { nulls: 'first', order: 'desc' }, name: 'updatedAt' },
+      { indexConfig: { nulls: 'last', order: 'asc' }, name: 'id' },
+    ]);
+    const predicate = incompleteIndex?.config.where;
+    if (!predicate)
+      throw new Error('Expected the incomplete-terminal index predicate');
+    const statement = new PgDialect()
+      .sqlToQuery(predicate)
+      .sql.replaceAll(/\s+/g, ' ')
+      .trim();
+    expect(statement).toContain(
+      '"email_outbox"."status" = \'sent\' and "email_outbox"."sent_at" is null',
+    );
+    expect(statement).toContain(
+      '"email_outbox"."status" = \'suppressed\' and ("email_outbox"."suppressed_at" is null or "email_outbox"."last_attempt_at" is null)',
+    );
   });
 });

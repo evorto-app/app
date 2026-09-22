@@ -145,7 +145,7 @@ describe('platform authority source', () => {
     expect(databaseDeploymentBoundary).not.toMatch(
       /\b(?:grant|revoke)\b[^;]*\bplatform_audit_entries\b/iu,
     );
-    expect(createTemplate).toContain('Reason for platform change');
+    expect(createTemplate).toContain('Reason for this change');
     expect(createTemplate).toContain('Initial privacy policy');
     expect(createTemplate).toContain("organization's change");
     expect(createTemplate).toContain('history');

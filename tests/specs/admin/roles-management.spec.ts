@@ -232,6 +232,7 @@ test('preserves wildcard grants through a rename and revokes only the selected c
     .where(rolePredicate);
   expect(revokedRows).toHaveLength(1);
   expect(revokedRows[0]?.permissions.toSorted()).toEqual([
+    'admin:managePayments',
     'admin:manageRoles',
     'admin:manageTaxes',
     'users:*',
