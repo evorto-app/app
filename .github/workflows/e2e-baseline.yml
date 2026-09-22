@@ -218,17 +218,7 @@ jobs:
             trap cleanup EXIT
           fi
 
-          E2E_SELECTED_PROJECTS=local-chrome-baseline \
-          PLAYWRIGHT_SELECTED_PROJECTS=local-chrome-baseline \
-          bun run test:e2e -- --trace=off
-
-          DOCS_OUT_DIR=test-results/docs \
-          DOCS_IMG_OUT_DIR=test-results/docs/images \
-          E2E_SELECTED_PROJECTS=docs-baseline \
-          PLAYWRIGHT_SELECTED_PROJECTS=docs-baseline \
-          bunx playwright test --project=docs-baseline \
-            --trace=off \
-            --reporter=./tests/support/reporters/protected-value-sanitizer-reporter.ts,github,dot,./tests/support/reporters/documentation-reporter.ts,./tests/support/reporters/complete-playwright-run-reporter.ts
+          bun run test:e2e:baseline -- --trace=off
 
       - name: Collect Docker logs
         if: always()

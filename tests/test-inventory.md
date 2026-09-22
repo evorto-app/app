@@ -10,6 +10,11 @@ Use this file as a quick orientation map before adding or trusting Playwright
 coverage. `tests/README.md` remains the workflow reference for commands,
 runtime variables, Docker behavior, and browser installation.
 
+The complete deterministic gate is `bun run test:e2e:baseline`. It collects
+both baseline projects and executes their shared setup once. Documentation
+export, protected-value redaction and completeness checks run in that same
+invocation.
+
 The current suite has two durable purposes:
 
 - `tests/specs/**` proves product behavior and regression paths.

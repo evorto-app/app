@@ -24,6 +24,8 @@ are covered by `docs/profile/discounts.doc.ts`. These journeys retain database
 readback, field normalization and action-state assertions. Keep both complete
 functional and documentation suites in the release gate, and add separate
 functional cases when they protect a distinct regression.
+`bun run test:e2e:baseline` collects both complete projects in one invocation,
+so their shared database and authentication setup executes once.
 
 ## Generated Documentation Authoring Contract
 
@@ -271,6 +273,7 @@ with `CI=true`, alongside protected-value redaction and completeness checks.
 It verifies the journeys and writes the generated guides in the same run.
 
 ```bash
+bun run test:e2e:baseline
 bun run test:e2e
 bun run test:e2e:ui
 AUTH0_MANAGEMENT_CLIENT_ID=... AUTH0_MANAGEMENT_CLIENT_SECRET=... PUBLIC_GOOGLE_MAPS_API_KEY=... bun run test:e2e:integration
