@@ -102,7 +102,7 @@ const visibleEsnCardStatus = (
   validTo: Date | null,
   timeZone: string,
 ): string => {
-  const label = esnCardStatusLabel(status);
+  const label = status === 'verified' ? 'Verified' : 'Expired';
   if (!validTo) {
     return label;
   }
@@ -144,8 +144,8 @@ test('Manage ESNcard @finance', async ({
       userId: regularUser.id,
     },
   });
-  if (!seededEsnCard) {
-    throw new Error('Expected seeded ESNcard');
+  if (!seededEsnCard?.validTo) {
+    throw new Error('Expected seeded ESNcard with a validity date');
   }
   expect(seededEsnCard).toEqual(
     expect.objectContaining({

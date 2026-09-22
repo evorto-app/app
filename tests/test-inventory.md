@@ -2,7 +2,7 @@
 
 Scope: Current Playwright tests and documentation journeys.
 
-Updated: 2026-09-21
+Updated: 2026-09-22
 
 ## How to Use This Inventory
 
@@ -13,8 +13,9 @@ runtime variables, Docker behavior, and browser installation.
 The current suite has two durable purposes:
 
 - `tests/specs/**` proves product behavior and regression paths.
-- `tests/docs/**` generates product-facing walkthrough documentation from real
-  browser flows.
+- `tests/docs/**` verifies product behavior while generating walkthrough
+  documentation from real browser flows. A separate functional spec is only
+  needed when it protects a distinct regression.
 
 Real test titles should stay readable and should not carry placeholder
 `@track(...)`, `@req(...)`, or `@doc(...)` metadata. Keep semantic tags such as
@@ -93,11 +94,7 @@ component regressions retain retry recovery for temporary failures.
   - specs/permissions/tenant-isolation-tax-rates.spec.ts [permissions, finance]
   - specs/profile/create-account.spec.ts [@needs-auth0-management]
   - specs/profile/tenant-onboarding.spec.ts [admin]
-  - specs/profile/user-profile-discounts.spec.ts [finance]
-  - specs/profile/user-profile-edit.spec.ts
-  - specs/profile/user-profile-events.spec.ts
   - specs/profile/user-profile-live-esncard.spec.ts [@needs-live-esncard]
-  - specs/profile/user-profile-receipts.spec.ts [finance]
   - specs/resilience/core-load-recovery.spec.ts [admin, finance, resilience, templates]
   - specs/reporting/reporter-paths.test.ts
   - specs/scanning/scanner.test.ts
@@ -461,21 +458,18 @@ verification gates here are the in-app review queue and the release-gated live
 ESNcard provider credential path.
 
 - Profile/account:
-  - Docker-backed system-Chrome profile edit persistence now passes against the
-    rebuilt app. Generated docs exercise the email for updates plus IBAN/PayPal
-    edit/restore path with database readback,
-    `specs/profile/user-profile-edit.spec.ts` functionally covers the email
-    for updates plus IBAN/PayPal persistence with explicit database readback and
-    cleanup, and app helper coverage proves payload trimming, blank-value
-    normalization, and visible profile-cache refresh after save.
-  - Docker-backed system-Chrome profile event-card review now passes against the
-    rebuilt app. Generated profile docs seed confirmed, pending-checkout,
+  - `docs/profile/user-profile.doc.ts` covers email for updates plus IBAN/PayPal
+    editing with database readback and cleanup. It retains invalid-name
+    recovery, signal-backed field stability, reimbursement whitespace
+    normalization and the unchanged sign-in email. App helper coverage also
+    proves payload trimming, blank-value normalization and visible
+    profile-cache refresh after save.
+  - Generated profile docs seed confirmed, pending-checkout,
     waitlisted, and checked-in registrations with free add-ons where applicable,
     then assert event link, registration status, guest quantity, purchased add-on
     summary, payment state, checkout continuation, waitlist routing,
     ticket-routing copy, checked-in copy, and that checked-in cards do not show
-    ticket availability copy. `specs/profile/user-profile-events.spec.ts`
-    reuses the same seeded card states as functional Playwright coverage.
+    ticket availability copy.
     App/server coverage already proves event-detail action copy,
     guest/status/payment labels, profile event add-on summaries,
     implemented-action notes, waitlist event-page routing, and the
@@ -483,11 +477,11 @@ ESNcard provider credential path.
     continuation links render only for pending Stripe Checkout HTTPS URLs.
     Checked-in profile cards block cancellation while explaining that a transfer
     preserves the existing attendee and guest check-in history.
-    The generated profile docs and matching profile-event spec now read back the
+    The generated profile docs read back the
     persisted confirmed registration, add-on purchase, pending checkout
     transaction, waitlist registration, and checked-in registration rows behind
     those seeded profile cards.
-    The generated profile docs and functional profile-event spec now pin each
+    The generated profile docs pin each
     seeded confirmed, pending-checkout, waitlisted, and checked-in card to its
     expected event-page link so the recovery route cannot silently drift. They
     also assert that only the
@@ -497,6 +491,13 @@ ESNcard provider credential path.
     Organizer overview app coverage also proves checked-in rows disable
     participant cancellation while transfer preserves existing check-in history;
     in-flight writes continue to disable conflicting actions.
+  - The same profile documentation journey checks submitted receipt status,
+    event context and amount, with a scoped database readback.
+    `docs/profile/discounts.doc.ts` checks the seeded ESNcard, independently
+    formatted validity date, action availability, invalid-save blocking and
+    unchanged persisted card. These four profile journeys were consolidated
+    into the documentation suite to avoid repeating their fixture setup and
+    browser interactions in separate functional specs.
   - Live external ESNcard active-card add/refresh/remove and expired-card status
     outcomes with readable error states are now represented by
     `specs/profile/user-profile-live-esncard.spec.ts`, an external-provider-tagged
@@ -890,17 +891,11 @@ ESNcard provider credential path.
   origin. Use `APP_HOST_PORT=4200 bun run docker:start` on this machine unless
   the generated worktree port has been added to the Auth0 callback URLs.
 - Scenario handles from `seeded.scenario.events.*` are the preferred way to address seeded entities.
-- `tests/specs/scanning/scanner.test.ts`,
-  `tests/specs/profile/user-profile-discounts.spec.ts`, and
-  `tests/specs/events/price-labels-inclusive.spec.ts` passed together against a
-  fresh Docker runtime with system Chrome, covering scanner writes plus
-  organizer checked-in aggregates, stable seeded ESNcard display, invalid
-  discount-card input blocking, and inclusive price-label behavior.
-- `tests/specs/discounts/esn-discounts.test.ts` and
-  `tests/specs/profile/user-profile-discounts.spec.ts` passed together against
-  a rebuilt Docker runtime with system Chrome after the Stripe CLI sidecar
-  update, covering seeded profile discount-card state plus the paid registration
-  ESN discount label, price component, and payment button.
+- Scanner writes and organizer checked-in aggregates remain in
+  `tests/specs/scanning/scanner.test.ts`. Inclusive price labels and paid
+  registration ESN discounts remain in `tests/specs/events/price-labels-inclusive.spec.ts`
+  and `tests/specs/discounts/esn-discounts.test.ts`. Seeded profile card display
+  and invalid-save blocking are covered by `tests/docs/profile/discounts.doc.ts`.
 - `tests/specs/admin/global-admin-tenants.spec.ts` and
   `tests/specs/permissions/global-admin-route-guard.spec.ts` cover the
   global-admin tenant list/create/detail/edit workflow and allow/deny route

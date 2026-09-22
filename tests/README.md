@@ -17,6 +17,14 @@ dispatch; direct CI invocations must supply the same target settings.
 - Setup/auth/database bootstrapping lives in `tests/setup/**`
 - Shared fixtures/utilities/reporters live in `tests/support/fixtures/**`, `tests/support/utils/**`, `tests/support/reporters/**`
 
+Documentation journeys also provide executable behavior coverage. Profile
+editing, event-card actions and receipt display are covered by
+`docs/profile/user-profile.doc.ts`; seeded ESNcard display and invalid input
+are covered by `docs/profile/discounts.doc.ts`. These journeys retain database
+readback, field normalization and action-state assertions. Keep both complete
+functional and documentation suites in the release gate, and add separate
+functional cases when they protect a distinct regression.
+
 ## Generated Documentation Authoring Contract
 
 Each product-facing documentation journey should be understandable without
@@ -257,6 +265,10 @@ filter, project, shard, `--changed`, or reporter arguments make a run partial;
 that result never satisfies the mandatory local CI gate. Before any
 CI-triggering action, use the canonical unfiltered command set in the root
 `README.md` and require every collected test to pass.
+
+`bun run test:e2e:docs` always enables the documentation exporter, including
+with `CI=true`, alongside protected-value redaction and completeness checks.
+It verifies the journeys and writes the generated guides in the same run.
 
 ```bash
 bun run test:e2e

@@ -1,4 +1,5 @@
 import { eq } from 'drizzle-orm';
+import type { Locator } from '@playwright/test';
 
 import { addConsumedFinanceReceiptUpload } from '../../../helpers/add-finance-receipt-upload';
 import { getId } from '../../../helpers/get-id';
@@ -10,6 +11,13 @@ import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 import { seedProfileEventCards } from '../../support/utils/profile-event-cards';
+
+const fillControlledTextField = async (field: Locator, value: string) => {
+  await expect(field).not.toHaveClass(/mat-input-server/);
+  await field.fill(value);
+  await field.blur();
+  await expect(field).toHaveValue(value);
+};
 
 test.use({ storageState: defaultStateFile });
 
@@ -194,16 +202,49 @@ Messages beside each field explain what needs to be corrected, and **Save** beco
     await editProfileButton.click();
     const editDialog = page.getByRole('dialog', { name: 'Edit profile' });
     await expect(editDialog).toBeVisible();
+    const firstNameInput = editDialog.getByRole('textbox', {
+      exact: true,
+      name: 'First name',
+    });
+    const notificationEmailInput = editDialog.getByRole('textbox', {
+      exact: true,
+      name: 'Email for updates',
+    });
+    const ibanInput = editDialog.getByRole('textbox', {
+      exact: true,
+      name: 'IBAN (for reimbursements)',
+    });
+    const paypalEmailInput = editDialog.getByRole('textbox', {
+      exact: true,
+      name: 'PayPal email (for reimbursements)',
+    });
+    const saveButton = editDialog.getByRole('button', {
+      exact: true,
+      name: 'Save',
+    });
+    await expect(editDialog.locator('form')).not.toHaveAttribute(
+      'jsaction',
+      /submit/,
+    );
+    await expect(firstNameInput).toHaveValue(originalUser.firstName);
+    await expect(notificationEmailInput).toHaveValue(
+      originalUser.communicationEmail ?? originalUser.email,
+    );
+    await expect(ibanInput).toHaveValue(originalUser.iban ?? '');
+    await expect(paypalEmailInput).toHaveValue(originalUser.paypalEmail ?? '');
+    await expect(saveButton).toBeEnabled();
     await takeScreenshot(testInfo, editDialog, page, 'Edit profile dialog');
 
-    await page.getByRole('textbox', { name: 'First name' }).fill('');
-    await expect(page.getByRole('button', { name: 'Save' })).toBeDisabled();
+    await fillControlledTextField(firstNameInput, '');
+    await expect(saveButton).toBeDisabled();
     await takeScreenshot(
       testInfo,
       editDialog,
       page,
       'Profile fields that need attention',
     );
+    await fillControlledTextField(firstNameInput, originalUser.firstName);
+    await expect(saveButton).toBeEnabled();
     await page.getByRole('button', { name: 'Cancel' }).click();
     await expect(editDialog).toHaveCount(0);
 
@@ -217,22 +258,26 @@ You can use a different address for updates than for signing in. Optional IBAN a
 
     await editProfileButton.click();
     await expect(editDialog).toBeVisible();
-    await editDialog
-      .getByRole('textbox', { exact: true, name: 'Email for updates' })
-      .fill(documentedNotificationEmail);
-    await editDialog
-      .getByRole('textbox', {
-        exact: true,
-        name: 'IBAN (for reimbursements)',
-      })
-      .fill(documentedIban);
-    await editDialog
-      .getByRole('textbox', {
-        exact: true,
-        name: 'PayPal email (for reimbursements)',
-      })
-      .fill(documentedPaypalEmail);
-    await editDialog.getByRole('button', { exact: true, name: 'Save' }).click();
+    await expect(firstNameInput).toHaveValue(originalUser.firstName);
+    await expect(notificationEmailInput).toHaveValue(
+      originalUser.communicationEmail ?? originalUser.email,
+    );
+    await fillControlledTextField(
+      notificationEmailInput,
+      documentedNotificationEmail,
+    );
+    await fillControlledTextField(ibanInput, ` ${documentedIban} `);
+    // Email inputs trim surrounding whitespace before Angular receives it.
+    await paypalEmailInput.fill(` ${documentedPaypalEmail} `);
+    await paypalEmailInput.blur();
+    await expect(firstNameInput).toHaveValue(originalUser.firstName);
+    await expect(notificationEmailInput).toHaveValue(
+      documentedNotificationEmail,
+    );
+    await expect(ibanInput).toHaveValue(` ${documentedIban} `);
+    await expect(paypalEmailInput).toHaveValue(documentedPaypalEmail);
+    await expect(saveButton).toBeEnabled();
+    await saveButton.click();
     await expect(editDialog).toHaveCount(0);
     await expect(
       page.getByText(documentedNotificationEmail, { exact: true }),
@@ -376,6 +421,9 @@ You can use a different address for updates than for signing in. Optional IBAN a
         'You are checked in. Open the event page for ticket details. You can no longer cancel, but you can still transfer the ticket and its existing check-ins.',
       ),
     ).toBeVisible();
+    await expect(checkedInEventCard).not.toContainText(
+      'transfer is no longer available after check-in',
+    );
     await expect(
       checkedInEventCard.getByText('Available on the event page.'),
     ).toHaveCount(0);
