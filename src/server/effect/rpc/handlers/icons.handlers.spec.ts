@@ -3,7 +3,6 @@ import { Effect, Layer } from 'effect';
 import * as Headers from 'effect/unstable/http/Headers';
 import { Rpc, RpcMessage } from 'effect/unstable/rpc';
 
-import { Database, type DatabaseClient } from '../../../../db';
 import { type Permission } from '../../../../shared/permissions/permissions';
 import {
   CategoryManagementIconUsage,
@@ -17,6 +16,7 @@ import {
   RpcRequestContextMiddleware,
   type RpcRequestContextShape,
 } from '../../../../shared/rpc-contracts/app-rpcs/rpc-request-context.middleware';
+import { createRegistrationDatabaseTestLayer } from '../../../testing/registration-database';
 import {
   buildIconSearchPattern,
   ensureIconCatalogReader,
@@ -75,11 +75,13 @@ const createUser = (permissions: readonly Permission[]) => ({
 });
 
 const createContextLayer = ({
-  database = {},
+  executeValues = () => Effect.die(new Error('Unexpected icon fixture SQL')),
   permissions = [],
   user = null,
 }: {
-  database?: unknown;
+  executeValues?: Parameters<
+    typeof createRegistrationDatabaseTestLayer
+  >[0]['executeValues'];
   permissions?: readonly Permission[];
   user?: null | ReturnType<typeof createUser>;
 }) => {
@@ -95,7 +97,7 @@ const createContextLayer = ({
   return Layer.mergeAll(
     RpcAccess.Default,
     Layer.succeed(RpcRequestContext, requestContext),
-    Layer.succeed(Database, database as DatabaseClient),
+    createRegistrationDatabaseTestLayer({ executeValues }),
   );
 };
 
@@ -105,19 +107,20 @@ describe('icon authoring authorization', () => {
     () =>
       Effect.gen(function* () {
         let databaseTouched = false;
-        const database = Object.defineProperty({}, 'query', {
-          get: () => {
-            databaseTouched = true;
-            throw new Error('Catalog access must not happen');
-          },
-        });
+        const executeValues = () => {
+          databaseTouched = true;
+          return Effect.die(new Error('Catalog access must not happen'));
+        };
         const error = yield* iconHandlers['icons.add'](
           {
             icon: 'calendar',
             usage: EventCreateIconUsage.make({}),
           },
           createRpcOptions(IconsAdd.middleware(RpcRequestContextMiddleware)),
-        ).pipe(Effect.flip, Effect.provide(createContextLayer({ database })));
+        ).pipe(
+          Effect.flip,
+          Effect.provide(createContextLayer({ executeValues })),
+        );
 
         expect(error._tag).toBe('RpcUnauthorizedError');
         expect(databaseTouched).toBe(false);
@@ -153,30 +156,51 @@ describe('icon authoring authorization', () => {
       ),
   );
 
-  it.effect('allows an event owner to add an icon for that event', () => {
-    const database = {
-      query: {
-        eventInstances: {
-          findFirst: () => Effect.succeed({ creatorId: 'user-1' }),
-        },
-      },
-    };
-
-    return ensureIconUsageAuthorized(
+  it.effect('allows an event owner to add an icon for that event', () =>
+    ensureIconUsageAuthorized(
       EventEditIconUsage.make({ eventId: 'event-1' }),
     ).pipe(
-      Effect.provide(createContextLayer({ database, user: createUser([]) })),
-    );
-  });
+      Effect.provide(
+        createContextLayer({
+          executeValues: (statement, parameters) =>
+            Effect.sync(() => {
+              expect(statement).toBe(
+                'select "d0"."creatorId" as "creatorId" from "event_instances" as "d0" where (("d0"."id" = $1) and ("d0"."tenantId" = $2)) limit $3',
+              );
+              expect(parameters).toEqual(['event-1', 'tenant-1', 1]);
+              return [['user-1']];
+            }),
+          user: createUser([]),
+        }),
+      ),
+    ),
+  );
 
   it.effect(
-    'allows an explicitly audited global administrator without a tenant user',
+    'does not let platform authority bypass tenant capability checks',
     () =>
-      ensureIconUsageAuthorized(EventCreateIconUsage.make({})).pipe(
-        Effect.provide(
-          createContextLayer({ permissions: ['globalAdmin:manageTenants'] }),
-        ),
-      ),
+      Effect.gen(function* () {
+        let databaseTouched = false;
+        const error = yield* ensureIconUsageAuthorized(
+          EventCreateIconUsage.make({}),
+        ).pipe(
+          Effect.flip,
+          Effect.provide(
+            createContextLayer({
+              executeValues: () => {
+                databaseTouched = true;
+                return Effect.die(new Error('Catalog access must not happen'));
+              },
+              permissions: ['globalAdmin:manageTenants'],
+              user: createUser([]),
+            }),
+          ),
+        );
+
+        expect(error._tag).toBe('RpcForbiddenError');
+        expect(error).toMatchObject({ permission: 'events:create' });
+        expect(databaseTouched).toBe(false);
+      }),
   );
 });
 
@@ -186,17 +210,18 @@ describe('icon search bounds', () => {
     () =>
       Effect.gen(function* () {
         let databaseTouched = false;
-        const database = Object.defineProperty({}, 'select', {
-          get: () => {
-            databaseTouched = true;
-            throw new Error('Catalog access must not happen');
-          },
-        });
+        const executeValues = () => {
+          databaseTouched = true;
+          return Effect.die(new Error('Catalog access must not happen'));
+        };
 
         const error = yield* iconHandlers['icons.search'](
           { search: 'calendar' },
           createRpcOptions(IconsSearch.middleware(RpcRequestContextMiddleware)),
-        ).pipe(Effect.flip, Effect.provide(createContextLayer({ database })));
+        ).pipe(
+          Effect.flip,
+          Effect.provide(createContextLayer({ executeValues })),
+        );
 
         expect(error._tag).toBe('RpcUnauthorizedError');
         expect(databaseTouched).toBe(false);
@@ -228,30 +253,46 @@ describe('icon search bounds', () => {
         id: `icon-${index}`,
         sourceColor: null,
       }));
-      const database = {
-        select: () => ({
-          from: () => ({
-            where: () => ({
-              orderBy: () => ({
-                limit: (limit: number) => {
-                  appliedLimit = limit;
-                  return Effect.succeed(rows.slice(0, limit));
-                },
-              }),
-            }),
-          }),
-        }),
-      };
 
       const result = yield* iconHandlers['icons.search'](
         { search: ' Icon ' },
         createRpcOptions(IconsSearch.middleware(RpcRequestContextMiddleware)),
       ).pipe(
-        Effect.provide(createContextLayer({ database, user: createUser([]) })),
+        Effect.provide(
+          createContextLayer({
+            executeValues: (statement, parameters) =>
+              Effect.sync(() => {
+                expect(statement).toBe(
+                  'select "commonName", "friendlyName", "id", "sourceColor" from "icons" where (("icons"."tenantId" = $1) and ((("icons"."commonName" ilike $2) or ("icons"."friendlyName" ilike $3)))) order by "icons"."commonName" asc limit $4',
+                );
+                expect(parameters).toEqual([
+                  'tenant-1',
+                  '%Icon%',
+                  '%Icon%',
+                  ICON_SEARCH_LIMIT,
+                ]);
+                const limit = parameters[3];
+                if (typeof limit !== 'number') {
+                  throw new TypeError('Expected an icon search row limit');
+                }
+                appliedLimit = limit;
+                return rows
+                  .slice(0, limit)
+                  .map((row) => [
+                    row.commonName,
+                    row.friendlyName,
+                    row.id,
+                    row.sourceColor,
+                  ]);
+              }),
+            user: createUser([]),
+          }),
+        ),
       );
 
       expect(appliedLimit).toBe(ICON_SEARCH_LIMIT);
       expect(result).toHaveLength(50);
+      expect(result).toEqual(rows.slice(0, ICON_SEARCH_LIMIT));
     }),
   );
 });

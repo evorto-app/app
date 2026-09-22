@@ -66,11 +66,11 @@ export const addTemplateCategories = async (
         title: 'Weekend Trips',
       },
       {
-        description: 'Collection of example configurations',
+        description: 'Collection of example event setups',
         icon: createIconObject('user-manual'),
         id: getId(),
         tenantId: tenant.id,
-        title: 'Example configurations',
+        title: 'Example setups',
       },
     ])
     .returning();

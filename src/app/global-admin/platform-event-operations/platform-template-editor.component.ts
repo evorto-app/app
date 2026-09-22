@@ -124,7 +124,7 @@ export const platformTemplateModeTransitionIssue = (
 ): null | string => {
   if (targetMode === 'advanced') return null;
   if (!isSimpleCompatibleRegistrationOptions(currentOptions)) {
-    return 'Simple configuration requires exactly one organizing and one non-organizing option. Reclassify or remove options first; nothing was deleted.';
+    return 'Simple setup requires exactly one organizer choice and one attendee choice. Change or remove choices first; nothing was deleted.';
   }
   return null;
 };
@@ -284,7 +284,7 @@ export class PlatformTemplateEditorComponent {
   );
   protected readonly faPlus = faPlus;
   protected readonly faTrashCan = faTrashCan;
-  private readonly templateModel = signal(createPlatformTemplateFormModel());
+  protected readonly templateModel = signal(createPlatformTemplateFormModel());
   private readonly savedTemplateSnapshot = signal(
     JSON.stringify(this.templateModel()),
   );
@@ -387,7 +387,7 @@ export class PlatformTemplateEditorComponent {
       when: ({ valueOf }) => valueOf(template.location.type) === 'google',
     });
     required(template.location.meetingUrl, {
-      message: 'Enter a meeting URL.',
+      message: 'Enter an online meeting link.',
       when: ({ valueOf }) => valueOf(template.location.type) === 'online',
     });
 
@@ -451,7 +451,7 @@ export class PlatformTemplateEditorComponent {
         : {
             kind: 'simpleModeShape',
             message:
-              'Simple configuration requires exactly one organizing and one non-organizing option.',
+              'Simple setup requires exactly one organizer choice and one attendee choice.',
           },
     );
 
@@ -618,7 +618,7 @@ export class PlatformTemplateEditorComponent {
       ...model,
       registrationOptions: [
         ...model.registrationOptions,
-        emptyRegistration('Registration option', 20, false),
+        emptyRegistration('Sign-up choice', 20, false),
       ],
     }));
   }
@@ -933,9 +933,9 @@ export class PlatformTemplateEditorComponent {
   }
 
   protected taxRateLabel(rate: PlatformStripeTaxRateRecord): string {
-    const name = rate.displayName?.trim() || 'Unnamed tax rate';
+    const name = rate.displayName?.trim() || 'Tax rate name unavailable';
     return rate.percentage === null
-      ? 'Percentage unavailable; this rate cannot be selected'
+      ? `${name} · Percentage unavailable; this rate cannot be selected`
       : `${name} · ${rate.percentage}%`;
   }
 

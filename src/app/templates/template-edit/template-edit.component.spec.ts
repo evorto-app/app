@@ -15,6 +15,8 @@ import {
   provideTanStackQuery,
   QueryClient,
 } from '@tanstack/angular-query-experimental';
+import { readFileSync } from 'node:fs';
+import nodePath from 'node:path';
 import { firstValueFrom, Subject } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -31,7 +33,11 @@ import {
 } from '../../shared/components/forms/template-graph-editor/template-graph-form.model';
 import { TemplateRegistrationOptionEditorComponent } from '../../shared/components/forms/template-graph-editor/template-registration-option-editor.component';
 import { TemplateGeneralFormComponent } from '../shared/template-form/template-general-form.component';
-import { TemplateEditComponent } from './template-edit.component';
+import {
+  TemplateEditComponent,
+  templateEditLoadErrorMessage,
+  templateEditSaveErrorMessage,
+} from './template-edit.component';
 
 type RoleQueryOptions = RpcClient['roles']['findMany']['queryOptions'];
 type RpcClient = ReturnType<typeof AppRpc.injectClient>;
@@ -111,7 +117,6 @@ const savedTemplate: TemplateGraphRecord = {
   ],
   simpleModeEnabled: false,
   title: 'Saved template',
-  unlisted: false,
 };
 const findTemplate = vi.fn<() => Promise<TemplateGraphRecord>>();
 const templateQueryOptions = vi.fn(
@@ -585,6 +590,52 @@ describe('TemplateEditComponent role catalog defaults', () => {
   });
 });
 
+describe('template edit error messages', () => {
+  it('uses the organization payment connection when validating prices', () => {
+    const source = readFileSync(
+      nodePath.join(
+        process.cwd(),
+        'src/app/templates/template-edit/template-edit.component.ts',
+      ),
+      'utf8',
+    );
+
+    expect(source).toContain('paymentsConfigured');
+  });
+
+  it('shows when the requested template is no longer available', () => {
+    expect(
+      templateEditLoadErrorMessage({
+        _tag: 'RpcBadRequestError',
+        message: 'This template could not be found.',
+        reason: 'templateNotFound',
+      }),
+    ).toBe('This template could not be found.');
+  });
+
+  it('shows an actionable form problem', () => {
+    expect(
+      templateEditSaveErrorMessage({
+        _tag: 'RpcBadRequestError',
+        message: 'Choose an available tax rate for each paid add-on.',
+      }),
+    ).toBe('Choose an available tax rate for each paid add-on.');
+  });
+
+  it.each([
+    new Error('database failed'),
+    { _tag: 'RpcInternalError', message: 'database failed' },
+    { _tag: 'RpcUnauthorizedError', message: 'token expired' },
+  ])('keeps technical and access failures behind plain copy', (error) => {
+    expect(templateEditLoadErrorMessage(error)).toBe(
+      'This template could not be loaded. Try again.',
+    );
+    expect(templateEditSaveErrorMessage(error)).toBe(
+      'The save outcome could not be confirmed. Load this template again to check the saved details before trying again.',
+    );
+  });
+});
+
 describe('TemplateEditComponent save outcomes', () => {
   type OutcomeRpcClient = ReturnType<typeof AppRpc.injectClient>;
   type SaveInput = Parameters<
@@ -647,7 +698,6 @@ describe('TemplateEditComponent save outcomes', () => {
     registrationOptions: [option(true), option(false)],
     simpleModeEnabled: false,
     title: 'Original template title',
-    unlisted: false,
   };
   const tenant = new ClientTenantConfig({
     cancellationDeadlineHoursBeforeStart: 24,

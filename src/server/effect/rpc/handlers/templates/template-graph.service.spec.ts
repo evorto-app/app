@@ -105,7 +105,6 @@ const validGraph = (): MutableFixture<TemplateGraphInput> => ({
   ],
   simpleModeEnabled: false,
   title: 'Advanced template',
-  unlisted: false,
 });
 
 const persistedGraph = (
@@ -223,6 +222,8 @@ describe('TemplateGraphService structural validation', () => {
         },
       }),
     ).toMatchObject({
+      message:
+        'Simple setup needs exactly one organizer choice and one attendee choice.',
       reason: 'invalidSimpleTemplateConfiguration',
     });
   });
@@ -339,6 +340,7 @@ describe('TemplateGraphService structural validation', () => {
     expect(error).toBeInstanceOf(RpcBadRequestError);
     expect(error).toMatchObject({
       _tag: 'RpcBadRequestError',
+      message: 'Enter a price greater than zero for each paid sign-up choice.',
       reason: 'paidTemplateRegistrationOptionRequiresPositivePrice',
     });
   });
@@ -366,7 +368,88 @@ describe('TemplateGraphService structural validation', () => {
     });
   });
 
-  it('rejects dangling and duplicate graph references', () => {
+  it.each(['registrationOptions', 'addOns', 'questions'] as const)(
+    'identifies repeated %s IDs without claiming a concurrent change',
+    (collection) => {
+      const input = validGraph();
+      if (collection === 'registrationOptions') {
+        const [entry] = input.registrationOptions;
+        if (!entry) throw new Error('Expected a sign-up choice');
+        input.registrationOptions = [
+          { ...entry, id: 'duplicate-id' },
+          { ...entry, id: 'duplicate-id', key: 'second-key' },
+        ];
+      } else if (collection === 'addOns') {
+        const [entry] = input.addOns;
+        if (!entry) throw new Error('Expected an add-on');
+        input.addOns = [
+          { ...entry, id: 'duplicate-id' },
+          { ...entry, id: 'duplicate-id', key: 'second-key' },
+        ];
+      } else {
+        const [entry] = input.questions;
+        if (!entry) throw new Error('Expected a question');
+        input.questions = [
+          { ...entry, id: 'duplicate-id' },
+          { ...entry, id: 'duplicate-id', key: 'second-key' },
+        ];
+      }
+      expect(
+        validateTemplateGraphStructure({ esnCardEnabled: false, input }),
+      ).toMatchObject({
+        _tag: 'RpcBadRequestError',
+        message:
+          'This template contains duplicate entries. Nothing was saved. Remove repeated sign-up choices, add-ons, or questions, then try again.',
+        reason: 'duplicateTemplateGraphId',
+      });
+    },
+  );
+
+  it.each(['registrationOptions', 'addOns', 'questions'] as const)(
+    'identifies repeated %s keys without claiming a concurrent change',
+    (collection) => {
+      const input = validGraph();
+      if (collection === 'registrationOptions') {
+        const [entry] = input.registrationOptions;
+        if (!entry) throw new Error('Expected a sign-up choice');
+        input.registrationOptions.push({ ...entry });
+      } else if (collection === 'addOns') {
+        const [entry] = input.addOns;
+        if (!entry) throw new Error('Expected an add-on');
+        input.addOns.push({ ...entry });
+      } else {
+        const [entry] = input.questions;
+        if (!entry) throw new Error('Expected a question');
+        input.questions.push({ ...entry });
+      }
+      expect(
+        validateTemplateGraphStructure({ esnCardEnabled: false, input }),
+      ).toMatchObject({
+        _tag: 'RpcBadRequestError',
+        message:
+          'This template contains duplicate entries. Nothing was saved. Remove repeated sign-up choices, add-ons, or questions, then try again.',
+        reason: 'duplicateTemplateGraphKey',
+      });
+    },
+  );
+
+  it('retains stale-template recovery for an ID absent from the persisted graph', () => {
+    const before = persistedGraph(false);
+    const input = updateInputFrom(before);
+    const [entry] = input.registrationOptions;
+    if (!entry) throw new Error('Expected a sign-up choice');
+    entry.id = 'missing-option';
+    expect(
+      validateTemplateGraphStructure({ before, esnCardEnabled: false, input }),
+    ).toMatchObject({
+      _tag: 'RpcBadRequestError',
+      message:
+        'Some template details changed while this page was open. Nothing was saved. Reopen the template and review the current details before making your changes again.',
+      reason: 'templateGraphIdMismatch',
+    });
+  });
+
+  it('rejects dangling graph references', () => {
     const source = validGraph();
     const input: TemplateGraphInput = {
       ...source,
@@ -388,6 +471,8 @@ describe('TemplateGraphService structural validation', () => {
         input,
       }),
     ).toMatchObject({
+      message:
+        "Review each add-on's name, availability, quantities, and sign-up choices.",
       reason: 'invalidTemplateAddon',
     });
   });
@@ -438,6 +523,108 @@ describe('TemplateGraphService structural validation', () => {
         input,
       }),
     ).toMatchObject({ reason: 'invalidTemplateAddon' });
+  });
+});
+
+describe('template graph numeric input bounds', () => {
+  it('counts included and optional items together at the per-registration cap', () => {
+    const input = validGraph();
+    const addOn = input.addOns[0];
+    if (!addOn) throw new Error('Missing add-on fixture');
+    const mapping = {
+      includedQuantity: 2,
+      optionalPurchaseQuantity: MAX_REGISTRATION_ADDON_QUANTITY - 2,
+      registrationOptionKey: 'participant-key',
+    };
+    addOn.maxQuantityPerUser = MAX_REGISTRATION_ADDON_QUANTITY;
+    addOn.totalAvailableQuantity = MAX_REGISTRATION_ADDON_QUANTITY + 1;
+    addOn.registrationOptions = [mapping];
+
+    expect(
+      validateTemplateGraphStructure({ esnCardEnabled: false, input }),
+    ).toBeNull();
+    addOn.registrationOptions = [
+      {
+        ...mapping,
+        optionalPurchaseQuantity: mapping.optionalPurchaseQuantity + 1,
+      },
+    ];
+    expect(
+      validateTemplateGraphStructure({ esnCardEnabled: false, input }),
+    ).toMatchObject({
+      _tag: 'RpcBadRequestError',
+      reason: 'invalidTemplateAddon',
+    });
+  });
+
+  it('rejects invalid bounded quantities before persistence', () => {
+    const input = validGraph();
+    const addOn = input.addOns[0];
+    if (!addOn) throw new Error('Missing add-on fixture');
+    for (const quantity of [
+      -1,
+      0.5,
+      Infinity,
+      NaN,
+      MAX_REGISTRATION_ADDON_QUANTITY + 1,
+    ]) {
+      expect(
+        validateTemplateGraphStructure({
+          esnCardEnabled: false,
+          input: {
+            ...input,
+            addOns: [{ ...addOn, maxQuantityPerUser: quantity }],
+          },
+        }),
+      ).toMatchObject({
+        _tag: 'RpcBadRequestError',
+        reason: 'invalidTemplateAddon',
+      });
+      expect(
+        validateTemplateGraphStructure({
+          esnCardEnabled: false,
+          input: {
+            ...input,
+            addOns: [
+              {
+                ...addOn,
+                registrationOptions: addOn.registrationOptions.map(
+                  (mapping) => ({
+                    ...mapping,
+                    includedQuantity: quantity,
+                  }),
+                ),
+              },
+            ],
+          },
+        }),
+      ).toMatchObject({
+        _tag: 'RpcBadRequestError',
+        reason: 'invalidTemplateAddon',
+      });
+      expect(
+        validateTemplateGraphStructure({
+          esnCardEnabled: false,
+          input: {
+            ...input,
+            addOns: [
+              {
+                ...addOn,
+                registrationOptions: addOn.registrationOptions.map(
+                  (mapping) => ({
+                    ...mapping,
+                    optionalPurchaseQuantity: quantity,
+                  }),
+                ),
+              },
+            ],
+          },
+        }),
+      ).toMatchObject({
+        _tag: 'RpcBadRequestError',
+        reason: 'invalidTemplateAddon',
+      });
+    }
   });
 });
 

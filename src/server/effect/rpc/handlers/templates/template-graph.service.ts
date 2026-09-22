@@ -79,6 +79,12 @@ const databaseEffect = <A>(
 const invalidGraph = (message: string, reason: string) =>
   new RpcBadRequestError({ message, reason });
 
+const duplicateTemplateEntryMessage =
+  'This template contains duplicate entries. Nothing was saved. Remove repeated sign-up choices, add-ons, or questions, then try again.';
+
+const templateChangedMessage =
+  'Some template details changed while this page was open. Nothing was saved. Reopen the template and review the current details before making your changes again.';
+
 const hasDuplicates = (values: readonly string[]): boolean =>
   new Set(values).size !== values.length;
 
@@ -96,28 +102,21 @@ const invalidOptionalInteger = (value: null | number): boolean =>
 const validateSubmittedIds = (
   submittedIds: readonly (string | undefined)[],
   existingIds: ReadonlySet<string> | undefined,
-  resourceName: string,
 ): null | RpcBadRequestError => {
   const presentIds = submittedIds.filter(
     (id): id is string => id !== undefined,
   );
   if (hasDuplicates(presentIds)) {
     return invalidGraph(
-      `${resourceName} IDs must be unique`,
+      duplicateTemplateEntryMessage,
       'duplicateTemplateGraphId',
     );
   }
   if (!existingIds && presentIds.length > 0) {
-    return invalidGraph(
-      `New ${resourceName} records cannot include persisted IDs`,
-      'unexpectedTemplateGraphId',
-    );
+    return invalidGraph(templateChangedMessage, 'unexpectedTemplateGraphId');
   }
   if (existingIds && presentIds.some((id) => !existingIds.has(id))) {
-    return invalidGraph(
-      `${resourceName} does not belong to the target template`,
-      'templateGraphIdMismatch',
-    );
+    return invalidGraph(templateChangedMessage, 'templateGraphIdMismatch');
   }
   return null;
 };
@@ -137,7 +136,7 @@ const validateRegistrationOption = (
   }
   if (option.isPaid && option.price <= 0) {
     return invalidGraph(
-      'Paid template registration options require a positive price',
+      'Enter a price greater than zero for each paid sign-up choice.',
       'paidTemplateRegistrationOptionRequiresPositivePrice',
     );
   }
@@ -152,7 +151,7 @@ const validateRegistrationOption = (
     option.openRegistrationOffset < option.closeRegistrationOffset
   ) {
     return invalidGraph(
-      'Template registration option values are invalid',
+      "Review each sign-up choice's name, dates, number of places, and prices.",
       'invalidTemplateRegistrationOption',
     );
   }
@@ -164,7 +163,7 @@ const validateRegistrationOption = (
       option.esnCardDiscountedPrice > option.price)
   ) {
     return invalidGraph(
-      'Template registration option ESNcard discount is invalid',
+      'Review each ESNcard price. Discounts can only be used on paid choices and cannot exceed the regular price.',
       'invalidTemplateRegistrationDiscount',
     );
   }
@@ -177,7 +176,7 @@ const validateAddon = (
 ): null | RpcBadRequestError => {
   if (addOn.isPaid && addOn.price <= 0) {
     return invalidGraph(
-      'Paid template add-ons require a positive price',
+      'Enter a price greater than zero for each paid add-on.',
       'paidTemplateAddonRequiresPositivePrice',
     );
   }
@@ -211,7 +210,7 @@ const validateAddon = (
     )
   ) {
     return invalidGraph(
-      'Template add-on configuration is invalid',
+      "Review each add-on's name, availability, quantities, and sign-up choices.",
       'invalidTemplateAddon',
     );
   }
@@ -231,7 +230,7 @@ const validateQuestion = (
     invalidInteger(question.sortOrder)
   ) {
     return invalidGraph(
-      'Template registration question is invalid',
+      'Review each sign-up question and the sign-up choice it belongs to.',
       'invalidTemplateQuestion',
     );
   }
@@ -274,7 +273,7 @@ export const validateTemplateGraphStructure = ({
   const sanitizedDescription = sanitizeRichTextHtml(input.description);
   if (!input.title.trim() || !isMeaningfulRichTextHtml(sanitizedDescription)) {
     return invalidGraph(
-      'Template title and description are required',
+      'Add a title and description for this template.',
       'invalidTemplateDetails',
     );
   }
@@ -288,7 +287,7 @@ export const validateTemplateGraphStructure = ({
     hasDuplicates(questionKeys)
   ) {
     return invalidGraph(
-      'Template graph keys must be unique within each resource type',
+      duplicateTemplateEntryMessage,
       'duplicateTemplateGraphKey',
     );
   }
@@ -299,19 +298,16 @@ export const validateTemplateGraphStructure = ({
       before
         ? new Set(before.registrationOptions.map((option) => option.id))
         : undefined,
-      'registration option',
     ) ??
     validateSubmittedIds(
       input.addOns.map((addOn) => addOn.id),
       before ? new Set(before.addOns.map((addOn) => addOn.id)) : undefined,
-      'add-on',
     ) ??
     validateSubmittedIds(
       input.questions.map((question) => question.id),
       before
         ? new Set(before.questions.map((question) => question.id))
         : undefined,
-      'question',
     );
   if (idError) return idError;
 
@@ -320,7 +316,7 @@ export const validateTemplateGraphStructure = ({
     !hasSimpleRegistrationOptionShape(input.registrationOptions)
   ) {
     return invalidGraph(
-      'Simple template configuration requires exactly one organizer option and one participant option',
+      'Simple setup needs exactly one organizer choice and one attendee choice.',
       'invalidSimpleTemplateConfiguration',
     );
   }
@@ -427,7 +423,7 @@ export class TemplateGraphService extends Context.Service<TemplateGraphService>(
         );
         if (categoryFound.length === 0) {
           return yield* invalidGraph(
-            'Template category does not belong to the target tenant',
+            'The selected category is no longer available. Nothing was saved. Choose another category in the template form.',
             'templateCategoryNotFound',
           );
         }
@@ -440,7 +436,7 @@ export class TemplateGraphService extends Context.Service<TemplateGraphService>(
         );
         if (!rolesExist) {
           return yield* invalidGraph(
-            'Registration option role does not belong to the target tenant',
+            'One selected role is no longer available. Nothing was saved. Review the roles for each sign-up choice in the template form.',
             'templateRoleNotFound',
           );
         }
@@ -455,7 +451,7 @@ export class TemplateGraphService extends Context.Service<TemplateGraphService>(
           );
           if (!validation.success) {
             return yield* invalidGraph(
-              'Registration option tax rate is invalid for the target tenant',
+              'Choose an available tax rate for each paid sign-up choice.',
               'invalidTemplateRegistrationTaxRate',
             );
           }
@@ -470,7 +466,7 @@ export class TemplateGraphService extends Context.Service<TemplateGraphService>(
           );
           if (!validation.success) {
             return yield* invalidGraph(
-              'Add-on tax rate is invalid for the target tenant',
+              'Choose an available tax rate for each paid add-on.',
               'invalidTemplateAddonTaxRate',
             );
           }
@@ -841,7 +837,6 @@ export class TemplateGraphService extends Context.Service<TemplateGraphService>(
                 simpleModeEnabled: input.simpleModeEnabled,
                 tenantId,
                 title: input.title.trim(),
-                unlisted: input.unlisted,
               })
               .returning({ id: eventTemplates.id }),
           );
@@ -876,7 +871,6 @@ export class TemplateGraphService extends Context.Service<TemplateGraphService>(
                 planningTips: input.planningTips?.trim() || null,
                 simpleModeEnabled: input.simpleModeEnabled,
                 title: input.title.trim(),
-                unlisted: input.unlisted,
               })
               .where(
                 and(
@@ -888,7 +882,7 @@ export class TemplateGraphService extends Context.Service<TemplateGraphService>(
           );
           if (!rows[0]) {
             return yield* invalidGraph(
-              'Template was not found for the target tenant',
+              'This template no longer exists in this organization. No changes were made. Return to Templates and choose an existing template.',
               'templateNotFound',
             );
           }

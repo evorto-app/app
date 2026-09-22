@@ -5,6 +5,16 @@
 }
 <form (submit)="onSubmit($event)">
   <mat-dialog-content>
+    @if (saveMessage()) {
+      <div role="alert" class="body-medium mb-4">
+        <p>{{ saveMessage() }}</p>
+      </div>
+    }
+    @if (saving()) {
+      <p role="status" class="body-medium">
+        Saving category and updating the list…
+      </p>
+    }
     <div class="mt-4 flex flex-col gap-4">
       <app-icon-selector-field
         [formField]="categoryForm.icon"
@@ -17,13 +27,22 @@
     </div>
   </mat-dialog-content>
   <mat-dialog-actions align="end" class="gap-2">
-    <button mat-button mat-dialog-close>Cancel</button>
     <button
       mat-button
-      type="submit"
-      [disabled]="categoryForm().invalid() || categoryForm().submitting()"
+      type="button"
+      mat-dialog-close
+      [disabled]="categoryForm().submitting()"
     >
-      Save
+      {{ saveConfirmed() ? "Close" : "Cancel" }}
     </button>
+    @if (!saveConfirmed()) {
+      <button
+        mat-button
+        type="submit"
+        [disabled]="categoryForm().invalid() || categoryForm().submitting()"
+      >
+        {{ categoryForm().submitting() ? "Saving…" : "Save" }}
+      </button>
+    }
   </mat-dialog-actions>
 </form>

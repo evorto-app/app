@@ -87,7 +87,6 @@ const PlatformTemplateAuditState = Schema.Struct({
   registrationOptions: Schema.Array(PlatformTemplateAuditRegistrationOption),
   simpleModeEnabled: Schema.Boolean,
   title: Schema.NonEmptyString,
-  unlisted: Schema.Boolean,
 });
 
 const databaseEffect = <A, R>(
@@ -158,7 +157,6 @@ export const platformTemplateAuditSnapshot = (
     })),
     simpleModeEnabled: template.simpleModeEnabled,
     title: template.title,
-    unlisted: template.unlisted,
   }),
 });
 
@@ -357,9 +355,7 @@ export const platformTemplateHandlers = {
                 .for('update')
                 .pipe(Effect.orDie);
               if (lockedTemplates.length === 0) {
-                return yield* Effect.fail(
-                  templateGraphNotFoundError(templateId),
-                );
+                return yield* Effect.fail(templateGraphNotFoundError());
               }
               const before = yield* loadTemplateGraphDetail(
                 transaction,

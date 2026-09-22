@@ -1,7 +1,6 @@
 import {
   ChangeDetectionStrategy,
   Component,
-  computed,
   inject,
   signal,
 } from '@angular/core';
@@ -16,7 +15,6 @@ import {
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
-import { getErrorMessage } from '../../core/error-message';
 import { PermissionsService } from '../../core/permissions.service';
 import { IconComponent } from '../../shared/components/icon/icon.component';
 import { IfPermissionDirective } from '../../shared/directives/if-permission.directive';
@@ -48,8 +46,4 @@ export class TemplateListComponent {
   protected templateQuery = injectQuery(() =>
     this.appRpc.templates.groupedByCategory.queryOptions(),
   );
-  protected readonly templateQueryErrorMessage = computed(() => {
-    const error = this.templateQuery.error();
-    return getErrorMessage(error, 'Unknown error');
-  });
 }

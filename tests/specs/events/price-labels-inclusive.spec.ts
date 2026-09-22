@@ -26,7 +26,7 @@ const templateOptionCard = (page: Page, optionTitle: string) =>
     .filter({
       has: page.getByRole('heading', {
         level: 2,
-        name: 'Registration Options',
+        name: 'Sign-up choices',
       }),
     })
     .locator('.bg-surface')
