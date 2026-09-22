@@ -27,6 +27,13 @@ functional cases when they protect a distinct regression.
 `bun run test:e2e:baseline` collects both complete projects in one invocation,
 so their shared database and authentication setup executes once.
 
+Template controls can display saved values in server-rendered markup before
+their event listeners are hydrated. Before keyboard interaction after a full
+template edit navigation, wait for the target control's `jsaction` keyboard
+marker to disappear, as `fillTemplateBasics` already does for click targets.
+Press once and assert the resulting open state; repeating the key can toggle
+an already-open control instead of proving readiness.
+
 ## Generated Documentation Authoring Contract
 
 Each product-facing documentation journey should be understandable without
