@@ -121,7 +121,7 @@ verification without blanket certificate-error overrides.
   and target tenant in the visible platform audit log. The guide explicitly
   separates participant-owned flows and names the adjacent finance, lifecycle,
   tax-import, approval, and cancellation operations that it does not execute.
-- The separate **Restore an existing sign-up payment** guide follows the same
+- The organization guide also documents payment restoration through the same
   real test-mode provider read and audited page action. PostgreSQL recovery
   coverage proves concurrent changes, tenant boundaries, discovery pagination,
   audit rollback, email preservation and canonical paid/expired reconciliation,
