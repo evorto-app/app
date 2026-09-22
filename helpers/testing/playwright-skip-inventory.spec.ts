@@ -59,80 +59,6 @@ const collectActiveInventoryFiles = () => {
     .filter((path): path is string => path !== undefined);
 };
 
-interface ExecutableSourceContract {
-  readonly categories: readonly string[];
-  readonly files: number;
-  readonly suite: 'docs' | 'specs';
-}
-
-const executableSourceContract = (): readonly ExecutableSourceContract[] => {
-  const source = readFileSync(testInventoryPath, 'utf8');
-  const contractSection = source.match(
-    /## Executable Source Contract\n(?<section>[\s\S]*?)\n## Suite Ownership/u,
-  )?.groups?.['section'];
-  if (contractSection === undefined) {
-    throw new Error(
-      'tests/test-inventory.md is missing the Executable Source Contract',
-    );
-  }
-
-  const contracts = [
-    ...contractSection.matchAll(
-      /^\| `(?<suite>docs|specs)`\s+\|\s+(?<files>\d+) \| (?<categories>[^|]+)\|$/gmu,
-    ),
-  ].map((match) => {
-    const categories = match.groups?.['categories'];
-    const fileCount = Number(match.groups?.['files']);
-    const suite = match.groups?.['suite'];
-    if (
-      categories === undefined ||
-      !Number.isSafeInteger(fileCount) ||
-      (suite !== 'docs' && suite !== 'specs')
-    ) {
-      throw new Error('Invalid executable source contract row');
-    }
-
-    return {
-      categories: categories
-        .split(',')
-        .map((category) => category.trim().replaceAll('`', '')),
-      files: fileCount,
-      suite,
-    };
-  });
-
-  if (contracts.length !== 2) {
-    throw new Error(
-      'tests/test-inventory.md must define exactly one docs and one specs source contract',
-    );
-  }
-  return contracts;
-};
-
-const currentExecutableSourceContract =
-  (): readonly ExecutableSourceContract[] => {
-    const sourceFiles = collectPlaywrightSpecAndDocFiles();
-    return (['docs', 'specs'] as const).map((suite) => {
-      const files = sourceFiles.filter((sourcePath) =>
-        sourcePath.startsWith(`${suite}/`),
-      );
-      const categories = files.map((sourcePath) => {
-        const category = sourcePath.split('/')[1];
-        if (!category) {
-          throw new Error(
-            `Executable source has no top-level category: ${sourcePath}`,
-          );
-        }
-        return category;
-      });
-      return {
-        categories: [...new Set(categories)].toSorted(),
-        files: files.length,
-        suite,
-      };
-    });
-  };
-
 const collectPlaywrightSkipEntries = () =>
   collectTypeScriptFiles(testsRoot).flatMap((sourcePath) => {
     const source = readFileSync(sourcePath, 'utf8');
@@ -183,12 +109,6 @@ const collectFixedWaitEntries = () =>
   });
 
 describe('Playwright skip inventory', () => {
-  it('keeps documented executable source counts and categories aligned with disk discovery', () => {
-    expect(executableSourceContract()).toEqual(
-      currentExecutableSourceContract(),
-    );
-  });
-
   it('keeps the active test inventory aligned with Playwright docs and specs on disk', () => {
     expect(collectActiveInventoryFiles().toSorted()).toEqual(
       collectPlaywrightSpecAndDocFiles().toSorted(),

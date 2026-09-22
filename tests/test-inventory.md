@@ -10,6 +10,10 @@ Use this file as a quick orientation map before adding or trusting Playwright
 coverage. `tests/README.md` remains the workflow reference for commands,
 runtime variables, Docker behavior, and browser installation.
 
+The Active Files list is checked against disk discovery. Keep that exact list
+current when adding or removing journeys; file counts and categories are
+already determined by those paths and are not maintained separately.
+
 The complete deterministic gate is `bun run test:e2e:baseline`. It collects
 both baseline projects and executes their shared setup once. Documentation
 export, protected-value redaction and completeness checks run in that same
@@ -114,17 +118,6 @@ component regressions retain retry recovery for temporary failures.
   - specs/templates/registration-configuration.spec.ts
   - specs/templates/template-actions-permissions.spec.ts [permissions]
   - specs/templates/templates.test.ts
-
-## Executable Source Contract
-
-The source inventory below is verified against the files on disk. Any added or
-removed journey must update this summary in the same change, so coverage cannot
-silently disappear behind a stale hand-maintained file list.
-
-| Suite   | Files | Top-level categories                                                                                                                                                                  |
-| ------- | ----: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `docs`  |    29 | `admin`, `events`, `finance`, `profile`, `roles`, `scanning`, `template-categories`, `templates`, `users`                                                                             |
-| `specs` |    48 | `admin`, `auth`, `discounts`, `events`, `finance`, `permissions`, `profile`, `reporting`, `resilience`, `scanning`, `screenshot`, `seed`, `smoke`, `template-categories`, `templates` |
 
 ## Suite Ownership
 

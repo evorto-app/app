@@ -3,6 +3,8 @@ import path from 'node:path';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
+import packageJson from '../../package.json';
+
 import {
   listRepositoryTestControlSources,
   listRepositoryTestSources,
@@ -823,10 +825,6 @@ test('name', options, handler);
       path.join(repositoryRoot, 'vitest.angular.config.ts'),
       'utf8',
     );
-    const packageJson = readFileSync(
-      path.join(repositoryRoot, 'package.json'),
-      'utf8',
-    );
     const e2eWorkflow = readFileSync(
       path.join(repositoryRoot, '.github/workflows/e2e-baseline.yml'),
       'utf8',
@@ -839,11 +837,14 @@ test('name', options, handler);
     expect(angularVitestConfig).toMatch(/allowOnly:\s*false/u);
     expect(playwrightConfig).toContain('resolvePlaywrightReporters');
     expect(playwrightConfig).toContain('reporter: reporters');
-    expect(packageJson).toContain(
+    expect(packageJson.scripts['test:e2e:live-esncard:release']).toContain(
       '--reporter=./tests/support/reporters/protected-value-sanitizer-reporter.ts,github,dot,./tests/support/reporters/complete-playwright-run-reporter.ts',
     );
-    expect(e2eWorkflow).toContain(
-      '--reporter=./tests/support/reporters/protected-value-sanitizer-reporter.ts,github,dot,./tests/support/reporters/documentation-reporter.ts,./tests/support/reporters/complete-playwright-run-reporter.ts',
-    );
+    expect(e2eWorkflow).toContain('bun run test:e2e:baseline -- --trace=off');
+    for (const script of ['test:e2e:baseline', 'test:e2e:docs'] as const) {
+      expect(packageJson.scripts[script]).toContain(
+        '--reporter=./tests/support/reporters/protected-value-sanitizer-reporter.ts,github,dot,./tests/support/reporters/documentation-reporter.ts,./tests/support/reporters/complete-playwright-run-reporter.ts',
+      );
+    }
   });
 });
