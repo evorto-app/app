@@ -1,5 +1,5 @@
 import { describe, expect, it } from '@effect/vitest';
-import { Effect } from 'effect';
+import { Effect, Logger } from 'effect';
 
 import {
   analyzeSchemaPlan,
@@ -24,6 +24,68 @@ const emptyPlan = () => ({
 });
 
 describe('ops schema operations', () => {
+  it.each([
+    {
+      commandResult: {
+        exitCode: 17,
+        stderr: 'RAWERR database credentials 🔒',
+        stdout: 'RAWOUT provider details 🔒',
+      },
+      diagnostic: 'command-failed',
+      name: 'failed command',
+    },
+    {
+      commandResult: {
+        exitCode: 0,
+        stderr: 'RAWERR database credentials 🔒',
+        stdout: 'RAWOUT invalid JSON 🔒',
+      },
+      diagnostic: 'drizzle-output-invalid',
+      name: 'invalid JSON',
+    },
+    {
+      commandResult: {
+        exitCode: 0,
+        stderr: 'RAWERR database credentials 🔒',
+        stdout: JSON.stringify({ RAWOUT: 'provider details 🔒' }),
+      },
+      diagnostic: 'drizzle-output-invalid',
+      name: 'invalid Drizzle envelope',
+    },
+  ])(
+    'logs bounded diagnostics without command output for $name',
+    async ({ commandResult, diagnostic }) => {
+      const logs: ReturnType<typeof Logger.formatStructured.log>[] = [];
+      const logger = Logger.make((options) => {
+        logs.push(Logger.formatStructured.log(options));
+      });
+      const commands: (readonly string[])[] = [];
+      const runner: OpsCommandRunner = {
+        run: (command) => {
+          commands.push(command);
+          return Effect.succeed(commandResult);
+        },
+      };
+
+      const failure = await Effect.runPromise(
+        explainSchema(runner).pipe(
+          Effect.flip,
+          Effect.provide(Logger.layer([logger])),
+        ),
+      );
+
+      expect(failure.diagnostic).toBe(diagnostic);
+      expect(commands).toHaveLength(1);
+      expect(logs).toHaveLength(1);
+      expect(logs[0]?.annotations).toMatchObject({
+        command: commands[0]?.join(' '),
+        stderrBytes: new TextEncoder().encode(commandResult.stderr).byteLength,
+        stdoutBytes: new TextEncoder().encode(commandResult.stdout).byteLength,
+      });
+      expect(JSON.stringify(logs)).not.toMatch(/RAWOUT|RAWERR/u);
+    },
+  );
+
   it.each([
     { message: 'Missing STRIPE_TEST_ACCOUNT_ID', operation: 'initialize' },
     { message: 'Missing STRIPE_TEST_ACCOUNT_ID', operation: 'reset' },

@@ -47,6 +47,8 @@
 
 - Use Effect platform logging (`Effect.log`, `Effect.logInfo`, `Effect.logWarning`, `Effect.logError`).
 - Prefer structured log annotations (`Effect.annotateLogs`) over interpolated log strings.
+- Do not log raw child-process output or parse/schema error strings that echo
+  it. Keep command identity, exit codes, diagnostic labels, and output byte counts.
 - Do not use `consola` or direct `console.*` in server runtime code.
 - After every server file edit, run `bun run lint` and `bun run format:write`.
 - Before calling WebStorm `get_file_problems` on edited server files, run `bun run lint` first.

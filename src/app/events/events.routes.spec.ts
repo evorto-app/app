@@ -224,19 +224,44 @@ describe('event route access outcomes', () => {
     expect(canOrganize).toHaveBeenCalledOnce();
   });
 
-  it('fails closed before any RPC read when the event id is missing', async () => {
-    const route = new ActivatedRouteSnapshot();
-    route.params = {};
-    const router = TestBed.inject(Router);
+  it.each([
+    ['edit', eventEditGuard],
+    ['organize', eventOrganizerGuard],
+  ] satisfies [string, CanActivateFn][])(
+    'fails closed before any RPC read when the %s event id is missing',
+    async (_name, guard) => {
+      const route = new ActivatedRouteSnapshot();
+      route.params = {};
+      const router = TestBed.inject(Router);
 
-    const result = await TestBed.runInInjectionContext(() =>
-      eventEditGuard(route, router.routerState.snapshot),
-    );
+      const result = await TestBed.runInInjectionContext(() =>
+        guard(route, router.routerState.snapshot),
+      );
 
-    expect(destination(result)).toBe('/404');
-    expect(findGraphForEdit).not.toHaveBeenCalled();
-    expect(findEvent).not.toHaveBeenCalled();
-    expect(canOrganize).not.toHaveBeenCalled();
-    expect(queryClient.getQueryCache().getAll()).toEqual([]);
-  });
+      expect(destination(result)).toBe('/404');
+      expect(findGraphForEdit).not.toHaveBeenCalled();
+      expect(findEvent).not.toHaveBeenCalled();
+      expect(canOrganize).not.toHaveBeenCalled();
+      expect(queryClient.getQueryCache().getAll()).toEqual([]);
+    },
+  );
+
+  it.each(['', 42])(
+    'rejects an invalid organizer event id: %s',
+    async (eventId) => {
+      const route = new ActivatedRouteSnapshot();
+      route.params = { eventId };
+      const router = TestBed.inject(Router);
+
+      const result = await TestBed.runInInjectionContext(() =>
+        eventOrganizerGuard(route, router.routerState.snapshot),
+      );
+
+      expect(destination(result)).toBe('/404');
+      expect(findGraphForEdit).not.toHaveBeenCalled();
+      expect(findEvent).not.toHaveBeenCalled();
+      expect(canOrganize).not.toHaveBeenCalled();
+      expect(queryClient.getQueryCache().getAll()).toEqual([]);
+    },
+  );
 });

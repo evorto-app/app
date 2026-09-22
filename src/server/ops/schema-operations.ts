@@ -54,9 +54,7 @@ const failOpsCommand = Effect.fn('failOpsCommand')(function* (
       command: command.join(' '),
       exitCode: result.exitCode,
       operation,
-      stderr: result.stderr,
       stderrBytes: outputByteLength(result.stderr),
-      stdout: result.stdout,
       stdoutBytes: outputByteLength(result.stdout),
     }),
   );
@@ -443,10 +441,11 @@ const logInvalidDrizzleOutput = (
 ) =>
   Effect.logError('Drizzle output did not match the pinned contract').pipe(
     Effect.annotateLogs({
-      cause: String(error.cause),
       command: command.join(' '),
-      stderr: result.stderr,
-      stdout: result.stdout,
+      diagnostic: error.diagnostic,
+      exitCode: result.exitCode,
+      stderrBytes: outputByteLength(result.stderr),
+      stdoutBytes: outputByteLength(result.stdout),
     }),
   );
 

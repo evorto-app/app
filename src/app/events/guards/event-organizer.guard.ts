@@ -11,6 +11,10 @@ export const eventOrganizerGuard: CanActivateFn = async (route) => {
   const rpc = AppRpc.injectClient();
   const eventId = route.params['eventId'];
 
+  if (typeof eventId !== 'string' || !eventId) {
+    return router.createUrlTree(['/404']);
+  }
+
   try {
     // Verify the event exists
     await queryClient.fetchQuery(
