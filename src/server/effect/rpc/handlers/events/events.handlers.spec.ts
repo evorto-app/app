@@ -5,7 +5,9 @@ import {
   DEFAULT_TENANT_RECEIPT_ALLOW_OTHER,
   DEFAULT_TENANT_RECEIPT_COUNTRIES,
 } from '@shared/tenant-config';
-import { Effect, Layer } from 'effect';
+import { type SQL } from 'drizzle-orm';
+import { PgDialect } from 'drizzle-orm/pg-core';
+import { Effect, Layer, Result } from 'effect';
 import * as Headers from 'effect/unstable/http/Headers';
 import { Rpc, RpcMessage } from 'effect/unstable/rpc';
 
@@ -17,6 +19,7 @@ import {
   eventRegistrationOptions,
   eventRegistrationQuestions,
   eventRegistrations,
+  tenantStripeTaxRates,
 } from '../../../../../db/schema';
 import { type Permission } from '../../../../../shared/permissions/permissions';
 import {
@@ -147,135 +150,381 @@ const createContextLayer = ({
 };
 
 describe('event discount tenant isolation', () => {
-  it.effect('ignores a verified ESN card that belongs to another tenant', () =>
-    Effect.gen(function* () {
-      const findCards = vi.fn((query: { where: { tenantId?: string } }) =>
-        Effect.succeed(
-          query.where.tenantId === tenant.id
-            ? []
-            : [
-                {
-                  validFrom: new Date('2000-01-01T00:00:00.000Z'),
-                  validTo: new Date('2100-01-01T00:00:00.000Z'),
-                },
-              ],
-        ),
-      );
-      const select = vi.fn(() => ({
-        from: (table: unknown) => {
-          if (table === eventAddons) {
-            return {
-              innerJoin: () => ({
-                where: () => Effect.succeed([]),
-              }),
-            };
-          }
-          if (table === eventRegistrationQuestions) {
-            return {
-              where: () => ({
-                orderBy: () => Effect.succeed([]),
-              }),
-            };
-          }
-          if (table === eventRegistrationOptionDiscounts) {
-            return {
-              where: () =>
-                Effect.succeed([
-                  {
-                    discountedPrice: 1000,
-                    discountType: 'esnCard' as const,
-                    registrationOptionId: 'option-1',
-                  },
-                ]),
-            };
-          }
-          throw new Error('Unexpected event detail table');
-        },
-      }));
-      const database = {
-        query: {
-          eventInstances: {
-            findFirst: () =>
-              Effect.succeed({
-                creatorId: 'organizer-1',
-                description: 'Tenant-scoped event',
-                end: new Date('2099-01-02T00:00:00.000Z'),
-                icon: 'calendar',
-                id: 'event-1',
-                location: null,
-                registrationOptions: [
-                  {
-                    checkedInSpots: 0,
-                    closeRegistrationTime: new Date('2099-01-01T00:00:00.000Z'),
-                    confirmedSpots: 0,
-                    description: null,
-                    eventId: 'event-1',
-                    id: 'option-1',
-                    isPaid: true,
-                    openRegistrationTime: new Date('2098-01-01T00:00:00.000Z'),
-                    organizingRegistration: false,
-                    price: 2000,
-                    registeredDescription: null,
-                    registrationMode: 'fcfs' as const,
-                    reservedSpots: 0,
-                    roleIds: [],
-                    spots: 20,
-                    stripeTaxRateId: null,
-                    title: 'Participant',
-                  },
-                ],
-                reviewer: null,
-                start: new Date('2099-01-01T12:00:00.000Z'),
-                status: 'APPROVED' as const,
-                statusComment: null,
-                title: 'Tenant-scoped event',
-                unlisted: false,
-              }),
-          },
-          userDiscountCards: {
-            findMany: findCards,
-          },
-        },
-        select,
-      };
-
-      const event = yield* eventQueryHandlers['events.findOne'](
-        { id: 'event-1' },
-        createRpcOptions(
-          EventsRpcs.EventsFindOne.middleware(RpcRequestContextMiddleware),
-        ),
-      ).pipe(
-        Effect.provide(
-          createContextLayer({
-            database,
-            tenantOverride: {
-              ...tenant,
-              discountProviders: {
-                esnCard: { config: {}, status: 'enabled' },
+  for (const {
+    addonCount,
+    hiddenOptions,
+    mappingCount,
+    questionCount,
+    status,
+    taxScenario,
+  } of [
+    {
+      addonCount: 0,
+      hiddenOptions: false,
+      mappingCount: 0,
+      questionCount: 0,
+      status: 'APPROVED',
+      taxScenario: 'valid',
+    },
+    {
+      addonCount: 0,
+      hiddenOptions: false,
+      mappingCount: 0,
+      questionCount: 25,
+      status: 'APPROVED',
+      taxScenario: 'valid',
+    },
+    {
+      addonCount: 0,
+      hiddenOptions: false,
+      mappingCount: 0,
+      questionCount: 26,
+      status: 'APPROVED',
+      taxScenario: 'valid',
+    },
+    {
+      addonCount: 20,
+      hiddenOptions: false,
+      mappingCount: 40,
+      questionCount: 0,
+      status: 'APPROVED',
+      taxScenario: 'valid',
+    },
+    {
+      addonCount: 21,
+      hiddenOptions: false,
+      mappingCount: 0,
+      questionCount: 0,
+      status: 'APPROVED',
+      taxScenario: 'valid',
+    },
+    {
+      addonCount: 21,
+      hiddenOptions: true,
+      mappingCount: 0,
+      questionCount: 0,
+      status: 'APPROVED',
+      taxScenario: 'valid',
+    },
+    {
+      addonCount: 21,
+      hiddenOptions: false,
+      mappingCount: 0,
+      questionCount: 0,
+      status: 'DRAFT',
+      taxScenario: 'valid',
+    },
+    ...[
+      'missingId',
+      'missingRow',
+      'nullPercentage',
+      'zeroPercentage',
+      'nullDisplayName',
+      'free',
+      'hiddenInvalid',
+      'optionalAddonWithoutTax',
+    ].map((taxScenario) => ({
+      addonCount: taxScenario === 'optionalAddonWithoutTax' ? 1 : 0,
+      hiddenOptions: taxScenario === 'hiddenInvalid',
+      mappingCount: taxScenario === 'optionalAddonWithoutTax' ? 1 : 0,
+      questionCount: 0,
+      status: 'APPROVED',
+      taxScenario,
+    })),
+  ]) {
+    it.effect(
+      `bounds visible events before registration: questions=${questionCount}, add-ons=${addonCount}, mappings=${mappingCount}, hidden=${hiddenOptions}, status=${status}, tax=${taxScenario}`,
+      () =>
+        Effect.gen(function* () {
+          const freeOption =
+            taxScenario === 'free' || taxScenario === 'optionalAddonWithoutTax';
+          const optionTaxRateId =
+            freeOption || taxScenario === 'missingId' ? null : 'txr_option';
+          const taxPercentage = taxScenario === 'zeroPercentage' ? '0' : '19';
+          const readTaxRates = vi.fn((condition: SQL) => {
+            const query = new PgDialect().sqlToQuery(condition);
+            expect(query.sql).toContain('"tenant_stripe_tax_rates"."tenantId"');
+            expect(query.sql).toContain(
+              '"tenant_stripe_tax_rates"."stripeAccountId"',
+            );
+            expect(query.params).toEqual([
+              tenant.id,
+              'acct_tenant',
+              'txr_option',
+            ]);
+            return Effect.succeed(
+              taxScenario === 'missingRow'
+                ? []
+                : [
+                    {
+                      displayName:
+                        taxScenario === 'nullDisplayName' ? null : 'VAT',
+                      percentage:
+                        taxScenario === 'nullPercentage' ? null : taxPercentage,
+                      stripeTaxRateId: 'txr_option',
+                    },
+                  ],
+            );
+          });
+          const findCards = vi.fn((query: { where: { tenantId?: string } }) =>
+            Effect.succeed(
+              query.where.tenantId === tenant.id
+                ? []
+                : [
+                    {
+                      validFrom: new Date('2000-01-01T00:00:00.000Z'),
+                      validTo: new Date('2100-01-01T00:00:00.000Z'),
+                    },
+                  ],
+            ),
+          );
+          const findAddons = vi.fn(() =>
+            Effect.succeed(
+              Array.from({ length: addonCount }, (_, index) => ({
+                id: `addon-${index}`,
+              })),
+            ),
+          );
+          const addonMappings = Array.from(
+            { length: mappingCount },
+            (_, index) => ({
+              allowMultiple: true,
+              allowPurchaseBeforeEvent: false,
+              allowPurchaseDuringEvent: false,
+              allowPurchaseDuringRegistration: true,
+              description: null,
+              id: `addon-${index % 20}`,
+              includedQuantity:
+                taxScenario === 'optionalAddonWithoutTax' ? 0 : 1,
+              isPaid: taxScenario === 'optionalAddonWithoutTax',
+              maxQuantityPerUser: 1,
+              optionalPurchaseQuantity:
+                taxScenario === 'optionalAddonWithoutTax' ? 1 : 0,
+              price: taxScenario === 'optionalAddonWithoutTax' ? 500 : 0,
+              registrationOptionId: `option-${1 + Math.floor(index / 20)}`,
+              stripeTaxRateId: null,
+              title: 'Included item',
+              totalAvailableQuantity: 100,
+            }),
+          );
+          const select = vi.fn(() => ({
+            from: (table: unknown) => {
+              if (table === eventAddons) {
+                return {
+                  innerJoin: () => ({
+                    where: () => Effect.succeed(addonMappings),
+                  }),
+                };
+              }
+              if (table === eventRegistrationQuestions) {
+                return {
+                  where: () => ({
+                    orderBy: () =>
+                      Effect.succeed(
+                        Array.from({ length: questionCount }, (_, index) => ({
+                          description: null,
+                          id: `question-${index}`,
+                          registrationOptionId: 'option-1',
+                          required: true,
+                          sortOrder: index,
+                          title: `Question ${index}`,
+                        })),
+                      ),
+                  }),
+                };
+              }
+              if (table === eventRegistrationOptionDiscounts) {
+                return {
+                  where: () =>
+                    Effect.succeed([
+                      {
+                        discountedPrice: 1000,
+                        discountType: 'esnCard' as const,
+                        registrationOptionId: 'option-1',
+                      },
+                    ]),
+                };
+              }
+              if (table === tenantStripeTaxRates) {
+                return { where: readTaxRates };
+              }
+              throw new Error('Unexpected event detail table');
+            },
+          }));
+          const database = {
+            query: {
+              eventAddons: { findMany: findAddons },
+              eventInstances: {
+                findFirst: () =>
+                  Effect.succeed({
+                    creatorId: 'organizer-1',
+                    description: 'Tenant-scoped event',
+                    end: new Date('2099-01-02T00:00:00.000Z'),
+                    icon: 'calendar',
+                    id: 'event-1',
+                    location: null,
+                    registrationOptions: hiddenOptions
+                      ? []
+                      : [
+                          {
+                            checkedInSpots: 0,
+                            closeRegistrationTime: new Date(
+                              '2099-01-01T00:00:00.000Z',
+                            ),
+                            confirmedSpots: 0,
+                            description: null,
+                            eventId: 'event-1',
+                            id: 'option-1',
+                            isPaid: !freeOption,
+                            openRegistrationTime: new Date(
+                              '2098-01-01T00:00:00.000Z',
+                            ),
+                            organizingRegistration: false,
+                            price: freeOption ? 0 : 2000,
+                            registeredDescription: null,
+                            registrationMode: 'fcfs' as const,
+                            reservedSpots: 0,
+                            roleIds: [],
+                            spots: 20,
+                            stripeTaxRateId: optionTaxRateId,
+                            title: 'Participant',
+                          },
+                        ],
+                    reviewer: null,
+                    start: new Date('2099-01-01T12:00:00.000Z'),
+                    status,
+                    statusComment: null,
+                    title: 'Tenant-scoped event',
+                    unlisted: false,
+                  }),
+              },
+              eventRegistrationOptions: {
+                findFirst: () => Effect.succeed({ id: 'hidden-option' }),
+              },
+              userDiscountCards: {
+                findMany: findCards,
               },
             },
-          }),
-        ),
-      );
+            select,
+          };
 
-      expect(event.registrationOptions[0]).toMatchObject({
-        appliedDiscountType: null,
-        discountApplied: false,
-        effectivePrice: 2000,
-        esnCardDiscountedPrice: null,
-      });
-      expect(findCards).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: {
-            status: 'verified',
-            tenantId: tenant.id,
-            type: 'esnCard',
-            userId: 'user-1',
-          },
+          const result = yield* eventQueryHandlers['events.findOne'](
+            { id: 'event-1' },
+            createRpcOptions(
+              EventsRpcs.EventsFindOne.middleware(RpcRequestContextMiddleware),
+            ),
+          ).pipe(
+            Effect.result,
+            Effect.provide(
+              createContextLayer({
+                database,
+                tenantOverride: {
+                  ...tenant,
+                  discountProviders: {
+                    esnCard: { config: {}, status: 'enabled' },
+                  },
+                  stripeAccountId: 'acct_tenant',
+                },
+              }),
+            ),
+          );
+
+          if (status === 'DRAFT') {
+            expect(Result.isFailure(result)).toBe(true);
+            if (Result.isFailure(result))
+              expect(result.failure).toMatchObject({
+                _tag: 'EventNotFoundError',
+              });
+            expect(findAddons).not.toHaveBeenCalled();
+            return;
+          }
+          expect(findAddons).toHaveBeenCalledExactlyOnceWith({
+            columns: { id: true },
+            limit: 21,
+            where: { event: { tenantId: tenant.id }, eventId: 'event-1' },
+          });
+          if (addonCount > 20) {
+            expect(Result.isFailure(result)).toBe(true);
+            if (Result.isFailure(result))
+              expect(result.failure).toMatchObject({
+                _tag: 'EventConflictError',
+                message:
+                  'Registration is unavailable because its add-on settings need to be corrected. Contact the organizer.',
+              });
+            expect(select).not.toHaveBeenCalled();
+            expect(findCards).not.toHaveBeenCalled();
+            return;
+          }
+          if (questionCount > 25) {
+            expect(Result.isFailure(result)).toBe(true);
+            if (Result.isFailure(result))
+              expect(result.failure).toMatchObject({
+                _tag: 'EventConflictError',
+              });
+            expect(findCards).not.toHaveBeenCalled();
+            return;
+          }
+          if (!hiddenOptions && optionTaxRateId) {
+            expect(readTaxRates).toHaveBeenCalledTimes(1);
+          } else {
+            expect(readTaxRates).not.toHaveBeenCalled();
+          }
+          if (
+            ['missingId', 'missingRow', 'nullPercentage'].includes(taxScenario)
+          ) {
+            expect(Result.isFailure(result)).toBe(true);
+            if (Result.isFailure(result)) {
+              expect(result.failure).toMatchObject({
+                _tag: 'EventConflictError',
+                message:
+                  'Registration is unavailable because its tax settings need to be corrected. Contact the organizer.',
+              });
+            }
+            expect(findCards).not.toHaveBeenCalled();
+            return;
+          }
+          expect(Result.isSuccess(result)).toBe(true);
+          if (!Result.isSuccess(result)) return;
+          const event = result.success;
+          if (hiddenOptions) {
+            expect(event.registrationOptions).toEqual([]);
+            expect(event.registrationOptionsHiddenByEligibility).toBe(true);
+            return;
+          }
+          expect(event.addOns).toHaveLength(Math.min(mappingCount, 20));
+          expect(event.registrationOptions[0]?.questions).toHaveLength(
+            questionCount,
+          );
+          expect(event.registrationOptions[0]).toMatchObject({
+            appliedDiscountType: null,
+            discountApplied: false,
+            effectivePrice: freeOption ? 0 : 2000,
+            esnCardDiscountedPrice: null,
+            taxRateDisplayName:
+              freeOption || taxScenario === 'nullDisplayName' ? null : 'VAT',
+            taxRatePercentage: freeOption ? null : taxPercentage,
+          });
+          if (taxScenario === 'optionalAddonWithoutTax') {
+            expect(event.addOns[0]).toMatchObject({
+              isPaid: true,
+              price: 500,
+              stripeTaxRateId: null,
+              taxRatePercentage: null,
+            });
+          }
+          expect(findCards).toHaveBeenCalledWith(
+            expect.objectContaining({
+              where: {
+                status: 'verified',
+                tenantId: tenant.id,
+                type: 'esnCard',
+                userId: 'user-1',
+              },
+            }),
+          );
         }),
-      );
-    }),
-  );
+    );
+  }
 });
 
 describe('eventHandlers composition', () => {

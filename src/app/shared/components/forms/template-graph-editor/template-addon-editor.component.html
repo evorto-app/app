@@ -130,6 +130,9 @@
     <mat-form-field>
       <mat-label>Maximum per user</mat-label>
       <input matInput type="number" [formField]="addOn.maxQuantityPerUser" />
+      <mat-hint
+        >At most {{ maxRegistrationAddonQuantity }} items per sign-up.</mat-hint
+      >
       @for (error of addOn.maxQuantityPerUser().errors(); track error) {
         <mat-error>{{ error.message }}</mat-error>
       }

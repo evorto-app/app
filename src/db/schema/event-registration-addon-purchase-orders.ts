@@ -1,3 +1,4 @@
+import { MAX_REGISTRATION_ADDON_QUANTITY } from '@shared/registration-quantity-limits';
 import { sql } from 'drizzle-orm';
 import {
   boolean,
@@ -92,6 +93,10 @@ export const eventRegistrationAddonPurchaseOrders = pgTable(
     check(
       'event_registration_addon_purchase_orders_amount_shape',
       sql`${table.quantity} > 0 AND ${table.unitPrice} >= 0 AND ${table.baseAmount} = ${table.unitPrice} * ${table.quantity} AND ${table.expectedGrossAmount} >= ${table.baseAmount} AND ${table.applicationFeeAmount} >= 0 AND ${table.applicationFeeAmount} <= ${table.expectedGrossAmount}`,
+    ),
+    check(
+      'event_registration_addon_purchase_orders_quantity_bounded',
+      sql`${table.quantity} <= ${MAX_REGISTRATION_ADDON_QUANTITY}`,
     ),
     check(
       'event_registration_addon_purchase_orders_tax_snapshot_shape',

@@ -1,6 +1,16 @@
 import type * as SqlConnection from 'effect/unstable/sql/SqlConnection';
 
 import { describe, expect, it, vi } from '@effect/vitest';
+import {
+  MAX_EVENT_ADDON_TYPES,
+  MAX_REGISTRATION_ADDON_QUANTITY,
+  MAX_REGISTRATION_GUESTS,
+  MAX_STRIPE_CHECKOUT_LINE_ITEMS,
+} from '@shared/registration-quantity-limits';
+import {
+  MAX_REGISTRATION_ANSWER_LENGTH,
+  MAX_REGISTRATION_QUESTIONS,
+} from '@shared/registration-question-limits';
 import { getTableName } from 'drizzle-orm';
 import {
   Cause,
@@ -1077,6 +1087,7 @@ const createDirectCheckoutDatabase = ({
   bindingSucceeds = true,
   configuredStripeTaxRateId = 'txr_19',
   discountSettings,
+  existingClaim = null,
   lockedStripeAccountId = 'acct_123',
   operationOrder = [],
   registrationOption = {},
@@ -1086,6 +1097,7 @@ const createDirectCheckoutDatabase = ({
   discountSettings?: {
     tenantRecord: undefined | { discountProviders: null | object };
   };
+  existingClaim?: ManualApprovalClaim | null;
   lockedStripeAccountId?: string;
   operationOrder?: string[];
   registrationOption?: {
@@ -1107,7 +1119,7 @@ const createDirectCheckoutDatabase = ({
   };
   let bindingUpdateCount = 0;
   let tenantSettingsReadCount = 0;
-  let claim: ManualApprovalClaim | null = null;
+  let claim: ManualApprovalClaim | null = existingClaim;
   let claimInsertCount = 0;
   let claimStatus: 'cancelled' | 'pending' = 'pending';
   let registration:
@@ -1120,7 +1132,16 @@ const createDirectCheckoutDatabase = ({
         | 'status'
         | 'userId'
       >
-    | undefined;
+    | undefined = existingClaim
+    ? {
+        eventId: 'event-1',
+        guestCount: 0,
+        id: 'registration-direct',
+        registrationOptionId: 'option-1',
+        status: 'PENDING',
+        userId: 'user-1',
+      }
+    : undefined;
   let reservationUpdateCount = 0;
   let acquisitionId: string | undefined;
   let transactionSnapshot:
@@ -5875,6 +5896,138 @@ describe('EventRegistrationService', () => {
       totalAvailableQuantity: 5,
     } as const;
 
+    it('accepts the combined item cap and rejects one more included or selected item', () => {
+      const addOn = {
+        ...availableAddOn,
+        includedQuantity: 2,
+        maxQuantityPerUser: MAX_REGISTRATION_ADDON_QUANTITY,
+        optionalPurchaseQuantity: MAX_REGISTRATION_ADDON_QUANTITY - 2,
+        totalAvailableQuantity: 30,
+      };
+      const addOns = [
+        {
+          addOnId: addOn.addOnId,
+          quantity: MAX_REGISTRATION_ADDON_QUANTITY - addOn.includedQuantity,
+        },
+      ];
+      expect(
+        validateRegistrationAddons({ addOns, availableAddOns: [addOn] }),
+      ).toMatchObject([
+        {
+          fulfilledQuantity: MAX_REGISTRATION_ADDON_QUANTITY,
+          selectedQuantity: MAX_REGISTRATION_ADDON_QUANTITY - 2,
+        },
+      ]);
+      expect(() =>
+        validateRegistrationAddons({
+          addOns: [
+            { ...addOns[0], quantity: MAX_REGISTRATION_ADDON_QUANTITY - 1 },
+          ],
+          availableAddOns: [addOn],
+        }),
+      ).toThrow('Add-on quantity exceeds this registration option limit');
+    });
+
+    it.each([
+      { includedQuantity: 1, optionalPurchaseQuantity: 10 },
+      { includedQuantity: 0, optionalPurchaseQuantity: 11 },
+    ])(
+      'rejects an oversized stored mapping before selecting any quantity: %j',
+      (mapping) => {
+        expect(() =>
+          validateRegistrationAddons({
+            addOns: [],
+            availableAddOns: [
+              {
+                ...availableAddOn,
+                ...mapping,
+                maxQuantityPerUser: MAX_REGISTRATION_ADDON_QUANTITY,
+                totalAvailableQuantity: 30,
+              },
+            ],
+          }),
+        ).toThrow(EventRegistrationConflictError);
+      },
+    );
+
+    it('accepts the stored combined quantity boundary with no optional selections', () => {
+      expect(
+        validateRegistrationAddons({
+          addOns: [],
+          availableAddOns: [
+            {
+              ...availableAddOn,
+              includedQuantity: 1,
+              maxQuantityPerUser: MAX_REGISTRATION_ADDON_QUANTITY,
+              optionalPurchaseQuantity: MAX_REGISTRATION_ADDON_QUANTITY - 1,
+              totalAvailableQuantity: 30,
+            },
+          ],
+        }),
+      ).toMatchObject([{ fulfilledQuantity: 1, selectedQuantity: 0 }]);
+    });
+
+    it('bounds implicit included add-on types even with no submitted selections', () => {
+      const availableAddOns = Array.from(
+        { length: MAX_EVENT_ADDON_TYPES + 1 },
+        (_, index) => ({
+          ...availableAddOn,
+          addOnId: `included-${index}`,
+          includedQuantity: 1,
+        }),
+      );
+      expect(
+        validateRegistrationAddons({
+          addOns: [],
+          availableAddOns: availableAddOns.slice(0, MAX_EVENT_ADDON_TYPES),
+        }),
+      ).toHaveLength(MAX_EVENT_ADDON_TYPES);
+      expect(() =>
+        validateRegistrationAddons({ addOns: [], availableAddOns }),
+      ).toThrow(EventRegistrationConflictError);
+    });
+
+    it('accepts the add-on type cap and rejects cap plus one', () => {
+      const availableAddOns = Array.from(
+        { length: MAX_EVENT_ADDON_TYPES + 1 },
+        (_, index) => ({
+          ...availableAddOn,
+          addOnId: `addon-${index}`,
+          includedQuantity: 0,
+        }),
+      );
+      const addOns = availableAddOns.map(({ addOnId }) => ({
+        addOnId,
+        quantity: 1,
+      }));
+      expect(
+        validateRegistrationAddons({
+          addOns: addOns.slice(0, MAX_EVENT_ADDON_TYPES),
+          availableAddOns: availableAddOns.slice(0, MAX_EVENT_ADDON_TYPES),
+        }),
+      ).toHaveLength(MAX_EVENT_ADDON_TYPES);
+      expect(() =>
+        validateRegistrationAddons({ addOns, availableAddOns }),
+      ).toThrow('Choose no more than 20 different add-ons');
+    });
+
+    it('rejects invalid individual quantities before combining repeated add-on selections', () => {
+      for (const quantity of [
+        -1,
+        0.5,
+        Infinity,
+        NaN,
+        MAX_REGISTRATION_ADDON_QUANTITY + 1,
+      ]) {
+        expect(() =>
+          validateRegistrationAddons({
+            addOns: [{ addOnId: availableAddOn.addOnId, quantity }],
+            availableAddOns: [availableAddOn],
+          }),
+        ).toThrow('Choose between 0 and 10 of each add-on');
+      }
+    });
+
     it('normalizes selected registration add-ons', () => {
       expect(
         validateRegistrationAddons({
@@ -6428,6 +6581,77 @@ describe('EventRegistrationService', () => {
   );
 
   it.effect(
+    'accepts the guest cap and reserves the participant plus all guests',
+    () =>
+      Effect.gen(function* () {
+        const fixture = yield* createCurrentReservationDatabaseFixture({
+          guestCount: MAX_REGISTRATION_GUESTS,
+          option: {
+            ...approvedRegistrationOption,
+            spots: MAX_REGISTRATION_GUESTS + 1,
+          },
+          steps: [
+            ...currentReservationInitialReadSteps,
+            'readActiveRegistration',
+            'reserveCapacity',
+            'insertRegistration',
+            ...currentReservationFreeConfirmationSteps,
+          ],
+        });
+
+        const program = EventRegistrationService.registerForEvent({
+          eventId: 'event-1',
+          guestCount: MAX_REGISTRATION_GUESTS,
+          registrationOptionId: 'option-1',
+          tenant: {
+            ...tenantPublicOrigin,
+            currency: 'EUR',
+            emailSenderEmail: null,
+            emailSenderName: null,
+            id: 'tenant-1',
+            name: 'Tenant',
+            stripeAccountId: undefined,
+          },
+          user: {
+            communicationEmail: 'alice@example.com',
+            email: 'alice@example.com',
+            id: 'user-1',
+            roleIds: ['role-1'],
+          },
+        }).pipe(
+          Effect.provide(EventRegistrationService.Default),
+          Effect.provide(Layer.succeed(Database, fixture.database)),
+          Effect.provideService(StripeClient, stripeClient),
+          Effect.provide(configProviderLayer),
+        );
+
+        yield* program;
+        const insertedRegistration = fixture.registrationInserts[0];
+        const insertedAcquisition = fixture.acquisitionInserts[0];
+        expect(insertedRegistration).toEqual(
+          expect.objectContaining({
+            appliedDiscountedPrice: null,
+            appliedDiscountType: null,
+            basePriceAtRegistration: 0,
+            discountAmount: 0,
+            guestCount: MAX_REGISTRATION_GUESTS,
+            status: 'CONFIRMED',
+          }),
+        );
+        expect(insertedAcquisition).toEqual(
+          expect.objectContaining({
+            kind: 'initial',
+            operationKey: `registration-initial:${fixture.registrationId}`,
+            ordinal: 0,
+            ownerUserId: 'user-1',
+            spotCount: MAX_REGISTRATION_GUESTS + 1,
+          }),
+        );
+        fixture.expectComplete();
+      }),
+  );
+
+  it.effect(
     'saves a direct registration answer with its complete question and registration owner tuple',
     () =>
       Effect.gen(function* () {
@@ -6875,6 +7099,77 @@ describe('EventRegistrationService', () => {
         );
       }),
   );
+
+  for (const mode of ['direct', 'approval'] as const) {
+    for (const lineCount of [
+      MAX_STRIPE_CHECKOUT_LINE_ITEMS,
+      MAX_STRIPE_CHECKOUT_LINE_ITEMS + 1,
+    ]) {
+      it.effect(
+        `${mode} resume validates ${lineCount} persisted checkout lines before Stripe`,
+        () =>
+          Effect.gen(function* () {
+            const snapshot = {
+              customerEmail: 'stored@example.com',
+              eventTitle: 'Stored event',
+              eventUrl: 'https://tenant.example.com/events/event-1',
+              expiresAt: 1_900_000_000,
+              lineItems: Array.from({ length: lineCount }, (_, index) => ({
+                name: `Stored item ${index}`,
+                quantity: 1,
+                taxRateId: 'txr_19',
+                unitAmount: 1000,
+              })),
+              notificationEmail: 'stored@example.com',
+            };
+            const existingClaim: ManualApprovalClaim = {
+              appFee: 35,
+              currency: 'EUR',
+              id: 'transaction-existing',
+              stripeAccountId: 'acct_123',
+              stripeCheckoutRequest: snapshot,
+              stripeCheckoutSessionId: null,
+              stripeCheckoutUrl: null,
+            };
+            const fixture =
+              mode === 'direct'
+                ? yield* createDirectCheckoutDatabase({ existingClaim })
+                : yield* createManualApprovalDatabase({ existingClaim });
+            const stripe = createStripeTestClient();
+            const createSession = vi
+              .spyOn(stripe.checkout.sessions, 'create')
+              .mockResolvedValue(
+                checkoutSessionResponse({
+                  id: 'cs_stored',
+                  paymentIntent: null,
+                  url: 'https://checkout.stripe.test/stored',
+                }),
+              );
+            const run =
+              mode === 'direct'
+                ? runDirectCheckout({ database: fixture.database, stripe })
+                : runManualApproval({ database: fixture.database, stripe });
+            if (lineCount > MAX_STRIPE_CHECKOUT_LINE_ITEMS) {
+              const error = yield* run.pipe(Effect.flip);
+              expect(error).toBeInstanceOf(EventRegistrationInternalError);
+              expect(createSession).not.toHaveBeenCalled();
+              expect(fixture.bindingUpdateCount()).toBe(0);
+              expect(fixture.getClaim()?.stripeCheckoutRequest).toEqual(
+                snapshot,
+              );
+            } else {
+              yield* run;
+              expect(createSession).toHaveBeenCalledTimes(1);
+              expect(createSession.mock.calls[0]?.[0]?.line_items).toHaveLength(
+                MAX_STRIPE_CHECKOUT_LINE_ITEMS,
+              );
+            }
+            expect(fixture.claimInsertCount()).toBe(0);
+            expect(fixture.reservationUpdateCount()).toBe(0);
+          }),
+      );
+    }
+  }
 
   it.effect(
     'resumes an incomplete claim with its stored snapshot and no second reservation',
@@ -7823,5 +8118,122 @@ describe('EventRegistrationService', () => {
       );
       expect(transactionCommands).toEqual([]);
     }),
+  );
+});
+
+describe('registration input boundaries', () => {
+  it('rejects an oversized stored question set even when no answers are required', () => {
+    const questions = Array.from(
+      { length: MAX_REGISTRATION_QUESTIONS + 1 },
+      (_, index) => ({ id: `question-${index}`, required: false }),
+    );
+    expect(
+      validateRegistrationQuestionAnswers({
+        answers: [],
+        questions: questions.slice(0, MAX_REGISTRATION_QUESTIONS),
+      }),
+    ).toEqual([]);
+    expect(() =>
+      validateRegistrationQuestionAnswers({ answers: [], questions }),
+    ).toThrow(EventRegistrationConflictError);
+  });
+
+  it('accepts the answer count and raw text caps and rejects their overflow', () => {
+    const answers = Array.from(
+      { length: MAX_REGISTRATION_QUESTIONS },
+      (_, index) => ({
+        answer: 'a'.repeat(MAX_REGISTRATION_ANSWER_LENGTH),
+        questionId: `question-${index}`,
+      }),
+    );
+    const questions = answers.map(({ questionId }) => ({
+      id: questionId,
+      required: true,
+    }));
+    expect(validateRegistrationQuestionAnswers({ answers, questions })).toEqual(
+      answers,
+    );
+    expect(() =>
+      validateRegistrationQuestionAnswers({
+        answers: [...answers, { answer: 'extra', questionId: 'extra' }],
+        questions,
+      }),
+    ).toThrow('You can answer up to 25 sign-up questions');
+    expect(() =>
+      validateRegistrationQuestionAnswers({
+        answers: [
+          {
+            answer: ` ${answers[0].answer}`,
+            questionId: answers[0].questionId,
+          },
+        ],
+        questions: [questions[0]],
+      }),
+    ).toThrow('Each answer must be 2000 characters or fewer');
+  });
+
+  it.effect(
+    'rejects invalid guest quantities before database or payment work',
+    () =>
+      Effect.gen(function* () {
+        const executeValues = vi.fn<SqlConnection.Connection['executeValues']>(
+          () =>
+            Effect.die(
+              new Error(
+                'Unexpected database operation for invalid guest count',
+              ),
+            ),
+        );
+        const transactionControl = vi.fn(() =>
+          Effect.die(
+            new Error('Unexpected transaction for invalid guest count'),
+          ),
+        );
+        const boundaryStripeClient = createStripeTestClient();
+        for (const guestCount of [
+          -1,
+          0.5,
+          Infinity,
+          NaN,
+          MAX_REGISTRATION_GUESTS + 1,
+        ]) {
+          const error = yield* EventRegistrationService.registerForEvent({
+            eventId: 'event-1',
+            guestCount,
+            registrationOptionId: 'option-1',
+            tenant: {
+              ...tenantPublicOrigin,
+              currency: 'EUR',
+              id: 'tenant-1',
+              stripeAccountId: undefined,
+            },
+            user: {
+              email: 'alice@example.com',
+              id: 'user-1',
+              roleIds: ['role-1'],
+            },
+          }).pipe(
+            Effect.flip,
+            Effect.provide(EventRegistrationService.Default),
+            Effect.provide(
+              createRegistrationDatabaseTestLayer({
+                executeValues,
+                transactionControl,
+              }),
+            ),
+            Effect.provideService(StripeClient, boundaryStripeClient),
+            Effect.provide(configProviderLayer),
+          );
+          expect(error).toMatchObject({
+            _tag: 'EventRegistrationConflictError',
+            message: 'Choose between 0 and 10 guests',
+          });
+        }
+        expect(executeValues).not.toHaveBeenCalled();
+        expect(transactionControl).not.toHaveBeenCalled();
+        expect(
+          boundaryStripeClient.checkout.sessions.create,
+        ).not.toHaveBeenCalled();
+      }),
   );
 });

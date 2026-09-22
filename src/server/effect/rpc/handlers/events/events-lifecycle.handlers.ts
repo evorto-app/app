@@ -4,6 +4,8 @@ import {
   RpcInternalServerError,
   RpcUnauthorizedError,
 } from '@shared/errors/rpc-errors';
+import { MAX_EVENT_ADDON_TYPES } from '@shared/registration-quantity-limits';
+import { MAX_REGISTRATION_QUESTIONS } from '@shared/registration-question-limits';
 import {
   EventConflictError,
   EventNotFoundError,
@@ -508,6 +510,22 @@ export const createEventGraph = (input: EventCreateInput) =>
             }),
           )
         : [];
+    if (templateAddons.length > MAX_EVENT_ADDON_TYPES) {
+      return yield* Effect.fail(
+        new RpcBadRequestError({
+          message: `An event can have at most ${MAX_EVENT_ADDON_TYPES} add-on types.`,
+          reason: 'eventAddonTypeLimitExceeded',
+        }),
+      );
+    }
+    if (templateQuestions.length > MAX_REGISTRATION_QUESTIONS) {
+      return yield* Effect.fail(
+        new RpcBadRequestError({
+          message: `An event can have at most ${MAX_REGISTRATION_QUESTIONS} sign-up questions.`,
+          reason: 'eventQuestionLimitExceeded',
+        }),
+      );
+    }
     const addonIds = templateAddons.map((addOn) => addOn.id);
     const templateAddonRegistrationOptions =
       addonIds.length === 0 || sourceTemplateOptionIds.length === 0

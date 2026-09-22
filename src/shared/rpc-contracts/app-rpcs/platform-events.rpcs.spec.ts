@@ -1,6 +1,18 @@
 import { describe, expect, it } from '@effect/vitest';
+import {
+  MAX_EVENT_ADDON_TYPES,
+  MAX_REGISTRATION_ADDON_QUANTITY,
+} from '@shared/registration-quantity-limits';
+import {
+  MAX_REGISTRATION_QUESTION_TITLE_LENGTH,
+  MAX_REGISTRATION_QUESTIONS,
+} from '@shared/registration-question-limits';
 import { Effect, Schema } from 'effect';
 
+import {
+  PlatformEventAddonRecord,
+  PlatformEventQuestionRecord,
+} from './platform-events.rpcs';
 import {
   PlatformEventDetailRecord,
   PlatformEventFormOptionsRecord,
@@ -411,4 +423,71 @@ describe('platform event administration RPC schemas', () => {
         expect(templateError['_tag']).toBe('SchemaError');
       }),
   );
+
+  it('bounds sign-up questions at the RPC boundary', () => {
+    const question = {
+      description: null,
+      registrationOptionId: 'option-1',
+      required: false,
+      sortOrder: 0,
+      title: 'Dietary requirements',
+    };
+    const decodeQuestions = Schema.decodeUnknownSync(
+      PlatformEventsUpdateInput.fields.questions,
+    );
+
+    expect(
+      decodeQuestions(
+        Array.from({ length: MAX_REGISTRATION_QUESTIONS }, () => question),
+      ),
+    ).toHaveLength(MAX_REGISTRATION_QUESTIONS);
+    expect(() =>
+      decodeQuestions(
+        Array.from({ length: MAX_REGISTRATION_QUESTIONS + 1 }, () => question),
+      ),
+    ).toThrow();
+  });
+
+  it('bounds add-ons and question text at the RPC boundary', () => {
+    const addOn = {
+      allowMultiple: true,
+      allowPurchaseBeforeEvent: true,
+      allowPurchaseDuringEvent: true,
+      allowPurchaseDuringRegistration: true,
+      description: null,
+      id: 'addon-1',
+      isPaid: false,
+      maxQuantityPerUser: 1,
+      price: 0,
+      registrationOptions: [],
+      stripeTaxRateId: null,
+      title: 'Equipment',
+      totalAvailableQuantity: 10,
+    };
+
+    expect(() =>
+      Schema.decodeUnknownSync(PlatformEventsUpdateInput.fields.addOns)(
+        Array.from({ length: MAX_EVENT_ADDON_TYPES + 1 }, (_, index) => ({
+          ...addOn,
+          id: `addon-${index}`,
+        })),
+      ),
+    ).toThrow();
+    expect(() =>
+      Schema.decodeUnknownSync(PlatformEventAddonRecord)({
+        ...addOn,
+        maxQuantityPerUser: MAX_REGISTRATION_ADDON_QUANTITY + 1,
+      }),
+    ).toThrow();
+    expect(() =>
+      Schema.decodeUnknownSync(PlatformEventQuestionRecord)({
+        description: null,
+        id: 'question-1',
+        registrationOptionId: 'option-1',
+        required: false,
+        sortOrder: 0,
+        title: 'q'.repeat(MAX_REGISTRATION_QUESTION_TITLE_LENGTH + 1),
+      }),
+    ).toThrow();
+  });
 });

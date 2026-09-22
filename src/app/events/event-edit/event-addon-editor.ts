@@ -10,6 +10,7 @@ import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
+import { MAX_REGISTRATION_ADDON_QUANTITY } from '@shared/registration-quantity-limits';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
 import type { EventGraphAddonFormModel } from './event-graph-form.model';
@@ -45,6 +46,8 @@ export class EventAddonEditor {
   readonly optionChoices = input.required<readonly EventGraphOptionChoice[]>();
   readonly removeMappingRequested = output<number>();
   readonly removeRequested = output();
+  protected readonly maxRegistrationAddonQuantity =
+    MAX_REGISTRATION_ADDON_QUANTITY;
 
   private readonly rpc = AppRpc.injectClient();
   protected readonly taxRatesQuery = injectQuery(() =>

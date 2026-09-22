@@ -1,6 +1,15 @@
 import { Injector, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { form } from '@angular/forms/signals';
+import {
+  MAX_EVENT_ADDON_TYPES,
+  MAX_REGISTRATION_ADDON_QUANTITY,
+} from '@shared/registration-quantity-limits';
+import {
+  MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH,
+  MAX_REGISTRATION_QUESTION_TITLE_LENGTH,
+  MAX_REGISTRATION_QUESTIONS,
+} from '@shared/registration-question-limits';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
@@ -198,5 +207,127 @@ describe('eventGraphFormSchema', () => {
 
     expect(graph.addOns[0].isPaid().disabled()).toBe(false);
     expect(graph.addOns[0].price().disabled()).toBe(false);
+  });
+  it('accepts add-on quantity caps and rejects cap plus one', () => {
+    const model = createEmptyEventGraphFormModel('Europe/Berlin');
+    const option = createEventGraphRegistrationOption(model);
+    const addOn = createEventGraphAddon(option.key);
+    const mapping = addOn.registrationOptions[0];
+    if (!mapping) throw new Error('Expected an add-on mapping');
+    addOn.maxQuantityPerUser = MAX_REGISTRATION_ADDON_QUANTITY;
+    addOn.totalAvailableQuantity = 20;
+    mapping.includedQuantity = 4;
+    mapping.optionalPurchaseQuantity = MAX_REGISTRATION_ADDON_QUANTITY - 4;
+    model.registrationOptions = [option];
+    model.addOns = [addOn];
+
+    const graph = form(signal(model), eventGraphFormSchema, {
+      injector: TestBed.inject(Injector),
+    });
+
+    expect(graph.addOns[0].maxQuantityPerUser().errors()).toEqual([]);
+    expect(
+      graph.addOns[0].registrationOptions[0].includedQuantity().errors(),
+    ).toEqual([]);
+
+    graph.addOns[0]
+      .maxQuantityPerUser()
+      .value.set(MAX_REGISTRATION_ADDON_QUANTITY + 1);
+    expect(
+      graph.addOns[0]
+        .maxQuantityPerUser()
+        .errors()
+        .map((error) => error.message),
+    ).toContain(
+      `Each person can get at most ${MAX_REGISTRATION_ADDON_QUANTITY} items.`,
+    );
+
+    graph.addOns[0]
+      .maxQuantityPerUser()
+      .value.set(MAX_REGISTRATION_ADDON_QUANTITY);
+    graph.addOns[0].registrationOptions[0]
+      .optionalPurchaseQuantity()
+      .value.set(MAX_REGISTRATION_ADDON_QUANTITY - 3);
+    expect(
+      graph.addOns[0].registrationOptions[0]
+        .includedQuantity()
+        .errors()
+        .map((error) => error.message),
+    ).toContain(
+      `Included and optional items cannot exceed ${MAX_REGISTRATION_ADDON_QUANTITY} per sign-up.`,
+    );
+  });
+
+  it('enforces add-on and sign-up question limits', () => {
+    const model = createEmptyEventGraphFormModel('Europe/Berlin');
+    const option = createEventGraphRegistrationOption(model);
+    model.registrationOptions = [option];
+    model.addOns = Array.from({ length: MAX_EVENT_ADDON_TYPES }, () =>
+      createEventGraphAddon(),
+    );
+    model.questions = Array.from({ length: MAX_REGISTRATION_QUESTIONS }, () =>
+      createEventGraphQuestion(option.key, 0),
+    );
+    const graph = form(signal(model), eventGraphFormSchema, {
+      injector: TestBed.inject(Injector),
+    });
+
+    expect(graph.addOns().errors()).toEqual([]);
+    expect(graph.questions().errors()).toEqual([]);
+
+    graph.addOns().value.set([...model.addOns, createEventGraphAddon()]);
+    graph
+      .questions()
+      .value.set([...model.questions, createEventGraphQuestion(option.key, 0)]);
+
+    expect(
+      graph
+        .addOns()
+        .errors()
+        .map((error) => error.message),
+    ).toContain(`An event can have at most ${MAX_EVENT_ADDON_TYPES} add-ons.`);
+    expect(
+      graph
+        .questions()
+        .errors()
+        .map((error) => error.message),
+    ).toContain(
+      `An event can have at most ${MAX_REGISTRATION_QUESTIONS} sign-up questions.`,
+    );
+  });
+
+  it('enforces sign-up question text limits', () => {
+    const model = createEmptyEventGraphFormModel('Europe/Berlin');
+    const option = createEventGraphRegistrationOption(model);
+    const question = createEventGraphQuestion(option.key, 0);
+    model.registrationOptions = [option];
+    model.questions = [question];
+    const graph = form(signal(model), eventGraphFormSchema, {
+      injector: TestBed.inject(Injector),
+    });
+
+    graph.questions[0]
+      .title()
+      .value.set('Q'.repeat(MAX_REGISTRATION_QUESTION_TITLE_LENGTH + 1));
+    graph.questions[0]
+      .description()
+      .value.set('D'.repeat(MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH + 1));
+
+    expect(
+      graph.questions[0]
+        .title()
+        .errors()
+        .map((error) => error.message),
+    ).toContain(
+      `Questions must be ${MAX_REGISTRATION_QUESTION_TITLE_LENGTH} characters or fewer.`,
+    );
+    expect(
+      graph.questions[0]
+        .description()
+        .errors()
+        .map((error) => error.message),
+    ).toContain(
+      `Question descriptions must be ${MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH} characters or fewer.`,
+    );
   });
 });

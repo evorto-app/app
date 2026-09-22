@@ -15,6 +15,7 @@ import {
 } from '../../../../shared/rpc-contracts/app-rpcs';
 import { TaxRatesListActive } from '../../../../shared/rpc-contracts/app-rpcs/tax-rates.rpcs';
 import { Tenant } from '../../../../types/custom/tenant';
+import { createRegistrationDatabaseTestLayer } from '../../../testing/registration-database';
 import { RpcAccess } from './shared/rpc-access.service';
 import { taxRateHandlers } from './tax-rates.handlers';
 
@@ -89,33 +90,41 @@ const taxRateHandlerLayer = Layer.mergeAll(
 
 layer(taxRateHandlerLayer)('taxRateHandlers permissions', (it) => {
   it.effect(
-    'lists only compatible active inclusive rates for the current tenant',
+    'lists percentage-based active inclusive rates including zero for the current tenant account',
     () =>
       Effect.gen(function* () {
-        const findMany = vi.fn(() =>
-          Effect.succeed([
-            {
-              country: 'NL',
-              displayName: 'Dutch VAT',
-              id: 'tax-rate-1',
-              percentage: '21',
-              state: null,
-              stripeTaxRateId: 'txr_vat_21',
-            },
-          ]),
-        );
-        const database = {
-          query: {
-            tenantStripeTaxRates: {
-              findMany,
-            },
-          },
-        };
+        const databaseLayer = createRegistrationDatabaseTestLayer({
+          executeValues: (statement, parameters) =>
+            Effect.sync(() => {
+              expect(statement).toContain('from "tenant_stripe_tax_rates"');
+              expect(
+                statement
+                  .split(' where ', 2)[1]
+                  ?.split(' order by ', 1)[0]
+                  ?.replaceAll(/[()]/gu, ''),
+              ).toBe(
+                '"d0"."active" = $1 and "d0"."inclusive" = $2 and "d0"."percentage" is not null and "d0"."stripeAccountId" = $3 and "d0"."tenantId" = $4',
+              );
+              expect(statement).toContain(
+                'order by "d0"."displayName" asc, "d0"."stripeTaxRateId" asc',
+              );
+              expect(parameters).toEqual([
+                true,
+                true,
+                'acct_current',
+                'tenant-1',
+              ]);
+              return [
+                ['NL', 'Dutch VAT', 'tax-rate-1', '21', null, 'txr_vat_21'],
+                ['NL', 'Zero VAT', 'tax-rate-0', '0', null, 'txr_vat_0'],
+              ];
+            }),
+        });
 
         const result = yield* taxRateHandlers['taxRates.listActive'](
           undefined,
           rpcOptions,
-        ).pipe(Effect.provide(Layer.succeed(Database, database as never)));
+        ).pipe(Effect.provide(databaseLayer));
 
         expect(result).toEqual([
           {
@@ -126,21 +135,15 @@ layer(taxRateHandlerLayer)('taxRateHandlers permissions', (it) => {
             state: null,
             stripeTaxRateId: 'txr_vat_21',
           },
+          {
+            country: 'NL',
+            displayName: 'Zero VAT',
+            id: 'tax-rate-0',
+            percentage: '0',
+            state: null,
+            stripeTaxRateId: 'txr_vat_0',
+          },
         ]);
-        expect(findMany).toHaveBeenCalledWith(
-          expect.objectContaining({
-            columns: expect.objectContaining({
-              displayName: true,
-              stripeTaxRateId: true,
-            }),
-            where: {
-              active: true,
-              inclusive: true,
-              stripeAccountId: 'acct_current',
-              tenantId: 'tenant-1',
-            },
-          }),
-        );
       }),
   );
 

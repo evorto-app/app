@@ -7,6 +7,23 @@ const eventRpcErrorTag = (error: unknown): string | undefined => {
   return typeof tag === 'string' ? tag : undefined;
 };
 
+export const eventRouteErrorPath = (
+  error: unknown,
+): '/403' | '/404' | '/500' => {
+  switch (eventRpcErrorTag(error)) {
+    case 'EventNotFoundError': {
+      return '/404';
+    }
+    case 'RpcForbiddenError':
+    case 'RpcUnauthorizedError': {
+      return '/403';
+    }
+    default: {
+      return '/500';
+    }
+  }
+};
+
 export const eventReviewActionErrorRequiresRefresh = (
   error: unknown,
 ): boolean => {

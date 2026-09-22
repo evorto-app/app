@@ -1,4 +1,4 @@
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import type { Locator, Page } from '@playwright/test';
 
 import { getId } from '../../../helpers/get-id';
@@ -6,8 +6,10 @@ import { userStateFile, usersToAuthenticate } from '../../../helpers/user-data';
 import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/axe-test';
 import { seedPostRegistrationAddonPurchaseScenario } from '../../support/utils/post-registration-addon-purchase-scenario';
-import { deleteRegistrationAcquisitionLedger } from '../../support/utils/registration-acquisition-cleanup';
-import { seedFreeRegistrationAddon } from '../../support/utils/seed-registration-addons';
+import {
+  seedFreeAddonRegistrationEvent,
+  seedFreeRegistrationAddon,
+} from '../../support/utils/seed-registration-addons';
 import { futureServerEventWindow } from '../../support/utils/server-test-clock';
 import { waitForRegistrationPage } from '../../support/utils/event-registration-page';
 
@@ -38,6 +40,7 @@ const registrationAddOnCount = (addOnRow: Locator, label: string): Locator =>
 test('registers with a free add-on and required registration question', async ({
   database,
   page,
+  registerDatabaseCleanup,
   seeded,
   tenant,
 }) => {
@@ -45,304 +48,170 @@ test('registers with a free add-on and required registration question', async ({
     throw new Error('Expected regular user fixture');
   }
 
-  const targetEventId = seeded.scenario.events.freeOpen.eventId;
-  const targetOptionId = seeded.scenario.events.freeOpen.optionId;
+  const { eventId: targetEventId, optionId: targetOptionId } =
+    await seedFreeAddonRegistrationEvent({
+      database,
+      registerDatabaseCleanup,
+      sourceEventId: seeded.scenario.events.freeOpen.eventId,
+      sourceOptionId: seeded.scenario.events.freeOpen.optionId,
+      tenantId: tenant.id,
+      window: futureServerEventWindow(),
+    });
   const addOnId = `addon-${getId().slice(0, 14)}`;
   const questionId = `q-${getId().slice(0, 18)}`;
   const questionTitle = 'Anything organizers should know?';
-  const serverEventWindow = futureServerEventWindow();
-  const [targetEvent] = await database
-    .select()
-    .from(schema.eventInstances)
-    .where(eq(schema.eventInstances.id, targetEventId))
-    .limit(1);
-  if (!targetEvent) {
-    throw new Error(
-      'Expected seeded freeOpen event for add-on registration flow',
-    );
-  }
-  const [targetOption] = await database
-    .select()
-    .from(schema.eventRegistrationOptions)
-    .where(
-      and(
-        eq(schema.eventRegistrationOptions.eventId, targetEventId),
-        eq(schema.eventRegistrationOptions.id, targetOptionId),
-      ),
-    )
-    .limit(1);
-  if (!targetOption) {
-    throw new Error(
-      'Expected seeded freeOpen event registration option for add-on registration flow',
-    );
-  }
-  const originalRegistrations = await database
+  await seedFreeRegistrationAddon({
+    addonId: addOnId,
+    database,
+    eventId: targetEventId,
+    registrationOptionId: targetOptionId,
+    title: 'Snack voucher',
+  });
+  await database.insert(schema.eventRegistrationQuestions).values({
+    description: 'Tell organizers anything they need to know before the event.',
+    eventId: targetEventId,
+    id: questionId,
+    registrationOptionId: targetOptionId,
+    required: true,
+    sortOrder: 0,
+    title: questionTitle,
+  });
+
+  await page.goto(`/events/${targetEventId}`);
+  await waitForRegistrationPage(page);
+
+  const participantRegistrationCard = page
+    .locator('app-event-registration-option')
+    .filter({ hasText: 'Participant registration' })
+    .first();
+  await expect(participantRegistrationCard.getByText('Add-ons')).toBeVisible();
+  await expect(
+    participantRegistrationCard.getByText('Snack voucher'),
+  ).toBeVisible();
+  await expect(
+    participantRegistrationCard.getByLabel(questionTitle),
+  ).toBeVisible();
+  await expect(
+    participantRegistrationCard.getByRole('button', { name: 'Register' }),
+  ).toBeDisabled();
+  const quantityInput = participantRegistrationCard.getByLabel('Quantity');
+  const questionInput = participantRegistrationCard.getByLabel(questionTitle);
+  const registerButton = participantRegistrationCard.getByRole('button', {
+    name: 'Register',
+  });
+  await expect(participantRegistrationCard).toHaveAttribute(
+    'aria-busy',
+    'false',
+    { timeout: 20_000 },
+  );
+  await expect(questionInput).toBeEditable();
+  const guestInput = participantRegistrationCard.getByLabel('Guests');
+  await expect(guestInput).toHaveAttribute('max', '10');
+  await guestInput.fill('15');
+  await expect(guestInput).toHaveValue('10');
+  await guestInput.fill('11');
+  await expect(guestInput).toHaveValue('10');
+  await expect(
+    participantRegistrationCard.getByText('+ you = 11 spots', { exact: true }),
+  ).toBeVisible();
+  await guestInput.fill('0');
+  await expect(guestInput).toHaveValue('0');
+  await expect(
+    participantRegistrationCard.getByText('+ you = 1 spot', { exact: true }),
+  ).toBeVisible();
+  await quantityInput.fill('2');
+  await expect(quantityInput).toHaveValue('2');
+  await expect(questionInput).toHaveAttribute('maxlength', '2000');
+  await questionInput.fill('a'.repeat(1999));
+  await questionInput.press('b');
+  await questionInput.press('c');
+  await expect(questionInput).toHaveValue(`${'a'.repeat(1999)}b`);
+  await expect(registerButton).toBeEnabled();
+  await questionInput.fill('Vegetarian snack, please.');
+  await expect(questionInput).toHaveValue('Vegetarian snack, please.');
+  await expect(registerButton).toBeEnabled({ timeout: 20_000 });
+  await registerButton.click();
+
+  await waitForRegistrationStatus(page);
+  const activeRegistration = page.locator('app-event-active-registration');
+  await expect(
+    activeRegistration.getByText('You are registered', { exact: true }),
+  ).toBeVisible();
+  const snackVoucherRow = registrationAddOnRow(page, 'Snack voucher');
+  await expect(
+    activeRegistration.getByRole('heading', {
+      exact: true,
+      level: 4,
+      name: 'Add-ons',
+    }),
+  ).toBeVisible();
+  await expect(snackVoucherRow).toBeVisible();
+  await expect(registrationAddOnCount(snackVoucherRow, 'Purchased')).toHaveText(
+    '2',
+  );
+  await expect(
+    registrationAddOnCount(snackVoucherRow, 'Available to use'),
+  ).toHaveText('2');
+
+  const [registration] = await database
     .select()
     .from(schema.eventRegistrations)
     .where(
       and(
         eq(schema.eventRegistrations.eventId, targetEventId),
+        eq(schema.eventRegistrations.registrationOptionId, targetOptionId),
+        eq(schema.eventRegistrations.status, 'CONFIRMED'),
         eq(schema.eventRegistrations.tenantId, tenant.id),
         eq(schema.eventRegistrations.userId, regularUser.id),
       ),
+    )
+    .limit(1);
+  if (!registration) {
+    throw new Error(
+      'Expected add-on registration flow to persist a confirmed registration',
     );
-  const originalRegistrationIds = originalRegistrations.map(
-    (registration) => registration.id,
-  );
-  const originalAddonPurchases = originalRegistrationIds.length
-    ? await database
-        .select()
-        .from(schema.eventRegistrationAddonPurchases)
-        .where(
-          inArray(
-            schema.eventRegistrationAddonPurchases.registrationId,
-            originalRegistrationIds,
-          ),
-        )
-    : [];
-  const originalQuestionAnswers = originalRegistrationIds.length
-    ? await database
-        .select()
-        .from(schema.eventRegistrationQuestionAnswers)
-        .where(
-          inArray(
-            schema.eventRegistrationQuestionAnswers.registrationId,
-            originalRegistrationIds,
-          ),
-        )
-    : [];
-
-  try {
-    await database
-      .delete(schema.eventRegistrations)
-      .where(
-        and(
-          eq(schema.eventRegistrations.eventId, targetEventId),
-          eq(schema.eventRegistrations.tenantId, tenant.id),
-          eq(schema.eventRegistrations.userId, regularUser.id),
-        ),
-      );
-    await database
-      .update(schema.eventRegistrationOptions)
-      .set({
-        closeRegistrationTime: serverEventWindow.closeRegistrationTime,
-        confirmedSpots: 0,
-        openRegistrationTime: serverEventWindow.openRegistrationTime,
-        reservedSpots: 0,
-        waitlistSpots: 0,
-      })
-      .where(eq(schema.eventRegistrationOptions.id, targetOptionId));
-    await database
-      .update(schema.eventInstances)
-      .set({
-        end: serverEventWindow.end,
-        start: serverEventWindow.start,
-      })
-      .where(eq(schema.eventInstances.id, targetEventId));
-    await seedFreeRegistrationAddon({
-      addonId: addOnId,
-      database,
-      eventId: targetEventId,
-      registrationOptionId: targetOptionId,
-      title: 'Snack voucher',
-    });
-    await database.insert(schema.eventRegistrationQuestions).values({
-      description:
-        'Tell organizers anything they need to know before the event.',
-      eventId: targetEventId,
-      id: questionId,
-      registrationOptionId: targetOptionId,
-      required: true,
-      sortOrder: 0,
-      title: questionTitle,
-    });
-
-    await page.goto(`/events/${targetEventId}`);
-    await waitForRegistrationPage(page);
-
-    const participantRegistrationCard = page
-      .locator('app-event-registration-option')
-      .filter({ hasText: 'Participant registration' })
-      .first();
-    await expect(
-      participantRegistrationCard.getByText('Add-ons'),
-    ).toBeVisible();
-    await expect(
-      participantRegistrationCard.getByText('Snack voucher'),
-    ).toBeVisible();
-    await expect(
-      participantRegistrationCard.getByLabel(questionTitle),
-    ).toBeVisible();
-    await expect(
-      participantRegistrationCard.getByRole('button', { name: 'Register' }),
-    ).toBeDisabled();
-    const quantityInput = participantRegistrationCard.getByLabel('Quantity');
-    const questionInput = participantRegistrationCard.getByLabel(questionTitle);
-    const registerButton = participantRegistrationCard.getByRole('button', {
-      name: 'Register',
-    });
-    await expect(participantRegistrationCard).toHaveAttribute(
-      'aria-busy',
-      'false',
-      { timeout: 20_000 },
-    );
-    await expect(questionInput).toBeEditable();
-    await quantityInput.fill('2');
-    await expect(quantityInput).toHaveValue('2');
-    await questionInput.fill('Vegetarian snack, please.');
-    await expect(questionInput).toHaveValue('Vegetarian snack, please.');
-    await expect(registerButton).toBeEnabled({ timeout: 20_000 });
-    await registerButton.click();
-
-    await waitForRegistrationStatus(page);
-    const activeRegistration = page.locator('app-event-active-registration');
-    await expect(
-      activeRegistration.getByText('You are registered', { exact: true }),
-    ).toBeVisible();
-    const snackVoucherRow = registrationAddOnRow(page, 'Snack voucher');
-    await expect(
-      activeRegistration.getByRole('heading', {
-        exact: true,
-        level: 4,
-        name: 'Add-ons',
-      }),
-    ).toBeVisible();
-    await expect(snackVoucherRow).toBeVisible();
-    await expect(
-      registrationAddOnCount(snackVoucherRow, 'Purchased'),
-    ).toHaveText('2');
-    await expect(
-      registrationAddOnCount(snackVoucherRow, 'Available to use'),
-    ).toHaveText('2');
-
-    const [registration] = await database
-      .select()
-      .from(schema.eventRegistrations)
-      .where(
-        and(
-          eq(schema.eventRegistrations.eventId, targetEventId),
-          eq(schema.eventRegistrations.registrationOptionId, targetOptionId),
-          eq(schema.eventRegistrations.status, 'CONFIRMED'),
-          eq(schema.eventRegistrations.tenantId, tenant.id),
-          eq(schema.eventRegistrations.userId, regularUser.id),
-        ),
-      )
-      .limit(1);
-    if (!registration) {
-      throw new Error(
-        'Expected add-on registration flow to persist a confirmed registration',
-      );
-    }
-    const addonPurchases = await database
-      .select()
-      .from(schema.eventRegistrationAddonPurchases)
-      .where(
-        eq(
-          schema.eventRegistrationAddonPurchases.registrationId,
-          registration.id,
-        ),
-      );
-    const questionAnswers = await database
-      .select()
-      .from(schema.eventRegistrationQuestionAnswers)
-      .where(
-        eq(
-          schema.eventRegistrationQuestionAnswers.registrationId,
-          registration.id,
-        ),
-      );
-    expect(addonPurchases).toEqual([
-      expect.objectContaining({
-        addonId: addOnId,
-        quantity: 2,
-        unitPrice: 0,
-      }),
-    ]);
-    expect(questionAnswers).toEqual([
-      expect.objectContaining({
-        answer: 'Vegetarian snack, please.',
-        questionId,
-      }),
-    ]);
-
-    const [addOn] = await database
-      .select()
-      .from(schema.eventAddons)
-      .where(eq(schema.eventAddons.id, addOnId))
-      .limit(1);
-    if (!addOn) {
-      throw new Error('Expected seeded registration add-on to remain readable');
-    }
-    expect(addOn.totalAvailableQuantity).toBe(3);
-  } finally {
-    const createdRegistrations =
-      await database.query.eventRegistrations.findMany({
-        columns: { id: true },
-        where: {
-          eventId: targetEventId,
-          tenantId: tenant.id,
-          userId: regularUser.id,
-        },
-      });
-    await deleteRegistrationAcquisitionLedger({
-      database,
-      registrationIds: createdRegistrations.map(
-        (registration) => registration.id,
-      ),
-      tenantId: tenant.id,
-    });
-    await database
-      .delete(schema.eventRegistrations)
-      .where(
-        and(
-          eq(schema.eventRegistrations.eventId, targetEventId),
-          eq(schema.eventRegistrations.tenantId, tenant.id),
-          eq(schema.eventRegistrations.userId, regularUser.id),
-        ),
-      );
-    if (originalRegistrations.length) {
-      await database
-        .insert(schema.eventRegistrations)
-        .values(originalRegistrations);
-    }
-    if (originalAddonPurchases.length) {
-      await database
-        .insert(schema.eventRegistrationAddonPurchases)
-        .values(originalAddonPurchases);
-    }
-    if (originalQuestionAnswers.length) {
-      await database
-        .insert(schema.eventRegistrationQuestionAnswers)
-        .values(originalQuestionAnswers);
-    }
-    await database
-      .delete(schema.eventRegistrationQuestions)
-      .where(eq(schema.eventRegistrationQuestions.id, questionId));
-    await database
-      .delete(schema.addonToEventRegistrationOptions)
-      .where(eq(schema.addonToEventRegistrationOptions.addonId, addOnId));
-    await database
-      .delete(schema.eventAddons)
-      .where(eq(schema.eventAddons.id, addOnId));
-    await database
-      .update(schema.eventRegistrationOptions)
-      .set({
-        checkedInSpots: targetOption.checkedInSpots,
-        closeRegistrationTime: targetOption.closeRegistrationTime,
-        confirmedSpots: targetOption.confirmedSpots,
-        openRegistrationTime: targetOption.openRegistrationTime,
-        reservedSpots: targetOption.reservedSpots,
-        waitlistSpots: targetOption.waitlistSpots,
-      })
-      .where(eq(schema.eventRegistrationOptions.id, targetOptionId));
-    await database
-      .update(schema.eventInstances)
-      .set({
-        end: targetEvent.end,
-        start: targetEvent.start,
-      })
-      .where(eq(schema.eventInstances.id, targetEventId));
   }
+  const addonPurchases = await database
+    .select()
+    .from(schema.eventRegistrationAddonPurchases)
+    .where(
+      eq(
+        schema.eventRegistrationAddonPurchases.registrationId,
+        registration.id,
+      ),
+    );
+  const questionAnswers = await database
+    .select()
+    .from(schema.eventRegistrationQuestionAnswers)
+    .where(
+      eq(
+        schema.eventRegistrationQuestionAnswers.registrationId,
+        registration.id,
+      ),
+    );
+  expect(addonPurchases).toEqual([
+    expect.objectContaining({
+      addonId: addOnId,
+      quantity: 2,
+      unitPrice: 0,
+    }),
+  ]);
+  expect(questionAnswers).toEqual([
+    expect.objectContaining({
+      answer: 'Vegetarian snack, please.',
+      questionId,
+    }),
+  ]);
+
+  const [addOn] = await database
+    .select()
+    .from(schema.eventAddons)
+    .where(eq(schema.eventAddons.id, addOnId))
+    .limit(1);
+  if (!addOn) {
+    throw new Error('Expected seeded registration add-on to remain readable');
+  }
+  expect(addOn.totalAvailableQuantity).toBe(3);
 });
 
 test('buys a free add-on after registration on mobile and explains the before-event block', async ({

@@ -1,14 +1,19 @@
 import { Injector, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { form } from '@angular/forms/signals';
+import { provideRouter } from '@angular/router';
+import { MAX_REGISTRATION_ANSWER_LENGTH } from '@shared/registration-question-limits';
+import { RegistrationTransferClaimRecord } from '@shared/rpc-contracts/app-rpcs/registration-transfers.rpcs';
 import {
   provideTanStackQuery,
   QueryClient,
 } from '@tanstack/angular-query-experimental';
+import { Schema } from 'effect';
 import { readFileSync } from 'node:fs';
 import nodePath from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { TENANT_DATE_PIPE_TIMEZONE } from '../core/tenant-date.pipe';
 import {
   reconcileTransferClaimAnswers,
   registrationTransferCheckoutUrl,
@@ -308,7 +313,192 @@ describe('RegistrationTransferClaimComponent form synchronization', () => {
   });
 });
 
+describe('RegistrationTransferClaimComponent answer guidance', () => {
+  let queryClient: QueryClient;
+
+  afterEach(() => {
+    queryClient?.clear();
+    TestBed.resetTestingModule();
+  });
+
+  it.each([null, 'Tell the organizer about dietary needs.'])(
+    'shows an accessible limit with organizer guidance %j and blocks invalid submission',
+    async (description) => {
+      const claim = Schema.decodeUnknownSync(RegistrationTransferClaimRecord)({
+        bundle: {
+          addOns: [],
+          checkedInGuestCount: 0,
+          checkInTime: null,
+          guestCount: 0,
+          guestUnitPrice: 0,
+        },
+        event: {
+          end: '2099-01-02T00:00:00.000Z',
+          id: 'event-1',
+          start: '2099-01-01T00:00:00.000Z',
+          title: 'Community event',
+        },
+        expiresAt: '2098-12-31T00:00:00.000Z',
+        recipientBundlePrice: 0,
+        refundLifecycle: null,
+        registrationOption: {
+          appliedDiscountType: null,
+          basePrice: 0,
+          currency: 'EUR',
+          currentPrice: 0,
+          description: null,
+          discountAmount: null,
+          id: 'option-1',
+          isPaid: false,
+          questions: [
+            {
+              description,
+              id: 'question-1',
+              required: true,
+              title: 'Dietary needs',
+            },
+          ],
+          title: 'Participant',
+        },
+        status: 'open',
+        transferId: 'transfer-1',
+      });
+      const submitClaim = vi.fn(async () => ({
+        eventId: 'event-1',
+        registrationId: 'registration-1',
+        status: 'confirmed',
+      }));
+      queryClient = new QueryClient({
+        defaultOptions: {
+          mutations: { retry: false },
+          queries: { gcTime: 0, retry: false },
+        },
+      });
+      await TestBed.configureTestingModule({
+        imports: [RegistrationTransferClaimComponent],
+        providers: [
+          provideRouter([]),
+          { provide: TENANT_DATE_PIPE_TIMEZONE, useValue: 'Europe/Berlin' },
+          provideTanStackQuery(queryClient),
+          {
+            provide: RegistrationTransferClaimOperations,
+            useValue: {
+              claim: () => ({
+                mutationFn: submitClaim,
+                mutationKey: ['answer-guidance-claim'],
+              }),
+              getClaim: () => ({
+                queryFn: async () => claim,
+                queryKey: ['answer-guidance'],
+              }),
+              retryCheckout: () => ({
+                mutationFn: async () => ({ status: 'reconciled' }),
+                mutationKey: ['answer-guidance-retry'],
+              }),
+            },
+          },
+        ],
+      }).compileComponents();
+      const fixture = TestBed.createComponent(
+        RegistrationTransferClaimComponent,
+      );
+      fixture.componentRef.setInput('credential', 'offer-a');
+      fixture.detectChanges();
+      const root: HTMLElement = fixture.nativeElement;
+      await vi.waitFor(() => {
+        fixture.detectChanges();
+        expect(root.querySelector('textarea')).not.toBeNull();
+      });
+      const input = root.querySelector('textarea');
+      const submitButton = root.querySelector<HTMLButtonElement>(
+        'button[type="submit"]',
+      );
+      const claimForm = root.querySelector('form');
+      expect(input).not.toBeNull();
+      expect(submitButton).not.toBeNull();
+      expect(claimForm).not.toBeNull();
+      if (!input || !submitButton || !claimForm)
+        throw new Error('Claim form did not render');
+      expect(input.maxLength).toBe(MAX_REGISTRATION_ANSWER_LENGTH);
+      const describedBy = (input.getAttribute('aria-describedby') ?? '')
+        .split(/\s+/)
+        .filter(Boolean);
+      const descriptions = describedBy
+        .map(
+          (id) => root.querySelector(`[id="${CSS.escape(id)}"]`)?.textContent,
+        )
+        .join(' ');
+      expect(descriptions).toContain(
+        `${MAX_REGISTRATION_ANSWER_LENGTH} characters maximum`,
+      );
+      if (description) expect(descriptions).toContain(description);
+      expect(submitButton.disabled).toBe(true);
+
+      input.value = 'x'.repeat(MAX_REGISTRATION_ANSWER_LENGTH + 1);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('blur'));
+      fixture.detectChanges();
+      await fixture.whenStable();
+      expect(submitButton.disabled).toBe(true);
+      claimForm.dispatchEvent(
+        new Event('submit', { bubbles: true, cancelable: true }),
+      );
+      await fixture.whenStable();
+      expect(submitClaim).not.toHaveBeenCalled();
+      expect(root.textContent).toContain(
+        `Keep answers to ${MAX_REGISTRATION_ANSWER_LENGTH} characters or fewer.`,
+      );
+
+      input.value = 'x'.repeat(MAX_REGISTRATION_ANSWER_LENGTH);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      fixture.detectChanges();
+      await fixture.whenStable();
+      expect(submitButton.disabled).toBe(false);
+      submitButton.click();
+      await fixture.whenStable();
+      expect(submitClaim).toHaveBeenCalledOnce();
+      expect(submitClaim).toHaveBeenCalledWith(
+        {
+          answers: [{ answer: input.value, questionId: 'question-1' }],
+          credential: 'offer-a',
+        },
+        expect.anything(),
+      );
+    },
+  );
+});
+
 describe('transferClaimFormSchema', () => {
+  it('accepts the answer length boundary and blocks an overlong recipient answer', () => {
+    TestBed.configureTestingModule({});
+    const claimForm = form(
+      signal({
+        answers: [
+          {
+            answer: 'a'.repeat(MAX_REGISTRATION_ANSWER_LENGTH),
+            questionId: 'question',
+            required: true,
+          },
+        ],
+      }),
+      transferClaimFormSchema,
+      { injector: TestBed.inject(Injector) },
+    );
+    expect(claimForm().valid()).toBe(true);
+    claimForm.answers[0]
+      .answer()
+      .value.set('a'.repeat(MAX_REGISTRATION_ANSWER_LENGTH + 1));
+    expect(claimForm().invalid()).toBe(true);
+    expect(claimForm.answers[0].answer().errors()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'maxLength',
+          message: `Keep answers to ${MAX_REGISTRATION_ANSWER_LENGTH} characters or fewer.`,
+        }),
+      ]),
+    );
+  });
+
   beforeEach(() => {
     TestBed.configureTestingModule({});
   });

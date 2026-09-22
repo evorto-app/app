@@ -95,7 +95,10 @@ export type EventsFindOneForEditRpcError = Schema.Schema.Type<
   typeof EventsFindOneForEditRpcError
 >;
 
-export const EventsFindOneRpcError = EventNotFoundError;
+export const EventsFindOneRpcError = Schema.Union([
+  EventConflictError,
+  EventNotFoundError,
+]);
 export type EventsFindOneRpcError = Schema.Schema.Type<
   typeof EventsFindOneRpcError
 >;

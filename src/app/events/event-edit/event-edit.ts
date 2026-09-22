@@ -25,6 +25,12 @@ import {
   faArrowLeft,
   faEllipsisVertical,
 } from '@fortawesome/duotone-regular-svg-icons';
+import { MAX_EVENT_ADDON_TYPES } from '@shared/registration-quantity-limits';
+import {
+  MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH,
+  MAX_REGISTRATION_QUESTION_TITLE_LENGTH,
+  MAX_REGISTRATION_QUESTIONS,
+} from '@shared/registration-question-limits';
 import { EventEditIconUsage } from '@shared/rpc-contracts/app-rpcs/icons.rpcs';
 import {
   injectMutation,
@@ -133,7 +139,6 @@ export const eventOptionRemovalBlockReason = (
 })
 export class EventEdit {
   readonly eventId = input.required<string>();
-
   private readonly config = inject(ConfigService);
   private readonly tenantTimezone = resolveTenantRuntimeTimezone(
     this.config.tenantSignal()?.timezone,
@@ -146,6 +151,7 @@ export class EventEdit {
       ? []
       : advancedEventGraphWarnings(this.eventModel().registrationOptions),
   );
+
   private readonly rpc = AppRpc.injectClient();
   protected readonly discountProvidersQuery = injectQuery(() =>
     this.rpc.discounts.getTenantProviders.queryOptions(),
@@ -169,7 +175,6 @@ export class EventEdit {
           provider.type === 'esnCard' && provider.status === 'enabled',
       );
   });
-
   protected readonly eventEditSubmitDisabled = eventEditSubmitDisabled;
   protected readonly stripeConnected = computed(() =>
     Boolean(this.config.tenantSignal()?.stripeAccountId),
@@ -181,6 +186,7 @@ export class EventEdit {
   protected readonly eventQuery = injectQuery(() =>
     this.rpc.events.findGraphForEdit.queryOptions({ id: this.eventId() }),
   );
+
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly faEllipsisVertical = faEllipsisVertical;
   protected readonly graphActionMessage = signal<null | string>(null);
@@ -188,6 +194,12 @@ export class EventEdit {
     EventEditIconUsage.make({ eventId: this.eventId() }),
   );
   protected readonly loadBlock = signal<null | string>(null);
+  protected readonly maxEventAddonTypes = MAX_EVENT_ADDON_TYPES;
+  protected readonly maxRegistrationQuestionDescriptionLength =
+    MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH;
+  protected readonly maxRegistrationQuestions = MAX_REGISTRATION_QUESTIONS;
+  protected readonly maxRegistrationQuestionTitleLength =
+    MAX_REGISTRATION_QUESTION_TITLE_LENGTH;
   protected readonly modeControlsInteractive = signal(false);
   protected readonly optionChoices = computed(() =>
     this.eventModel().registrationOptions.map((option) => ({
@@ -254,7 +266,11 @@ export class EventEdit {
   }
 
   protected addAddOn(): void {
-    if (this.eventModel().simpleModeEnabled) return;
+    if (
+      this.eventModel().simpleModeEnabled ||
+      this.eventModel().addOns.length >= MAX_EVENT_ADDON_TYPES
+    )
+      return;
     const optionKey = this.eventModel().registrationOptions[0]?.key;
     this.eventModel.update((model) => ({
       ...model,
@@ -298,7 +314,11 @@ export class EventEdit {
 
   protected addQuestion(): void {
     const optionKey = this.eventModel().registrationOptions[0]?.key;
-    if (!optionKey) return;
+    if (
+      !optionKey ||
+      this.eventModel().questions.length >= MAX_REGISTRATION_QUESTIONS
+    )
+      return;
     this.eventModel.update((model) => ({
       ...model,
       questions: [
@@ -323,7 +343,8 @@ export class EventEdit {
   protected duplicateQuestion(questionIndex: number): void {
     this.eventModel.update((model) => {
       const source = model.questions[questionIndex];
-      if (!source) return model;
+      if (!source || model.questions.length >= MAX_REGISTRATION_QUESTIONS)
+        return model;
       return {
         ...model,
         questions: [

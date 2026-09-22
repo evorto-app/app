@@ -1,3 +1,4 @@
+import { MAX_REGISTRATION_ADDON_QUANTITY } from '@shared/registration-quantity-limits';
 import { sql } from 'drizzle-orm';
 import {
   boolean,
@@ -46,6 +47,10 @@ export const templateEventAddons = pgTable(
     check(
       'template_event_addons_max_quantity_per_user_positive',
       sql`${table.maxQuantityPerUser} > 0`,
+    ),
+    check(
+      'template_event_addons_max_quantity_per_user_bounded',
+      sql`${table.maxQuantityPerUser} <= ${MAX_REGISTRATION_ADDON_QUANTITY}`,
     ),
     check('template_event_addons_price_nonnegative', sql`${table.price} >= 0`),
     check(

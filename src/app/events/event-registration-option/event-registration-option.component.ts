@@ -12,6 +12,8 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+import { MAX_REGISTRATION_GUESTS } from '@shared/registration-quantity-limits';
+import { MAX_REGISTRATION_ANSWER_LENGTH } from '@shared/registration-question-limits';
 import {
   injectMutation,
   injectQuery,
@@ -288,11 +290,22 @@ export const registrationQuestionsMissingRequired = (
     (question) => question.required && !(answers[question.id] ?? '').trim(),
   );
 
+export const registrationQuestionsHaveOverlongAnswers = (
+  option: Pick<EventRegistrationOptionView, 'questions'>,
+  answers: Readonly<Record<string, string>>,
+): boolean =>
+  option.questions.some(
+    (question) =>
+      (answers[question.id] ?? '').length > MAX_REGISTRATION_ANSWER_LENGTH,
+  );
+
 export const registrationOptionWriteActionDisabled = (input: {
+  answersTooLong: boolean;
   controlsInteractive: boolean;
   missingRequiredAnswers?: boolean;
   mutationPending: boolean;
 }): boolean =>
+  input.answersTooLong === true ||
   !input.controlsInteractive ||
   input.mutationPending ||
   input.missingRequiredAnswers === true;
@@ -357,8 +370,13 @@ export class EventRegistrationOptionComponent {
   protected readonly maxGuestCount = computed(() =>
     this.registrationOption().organizingRegistration
       ? 0
-      : Math.max(0, this.availableSpots() - 1),
+      : Math.min(
+          MAX_REGISTRATION_GUESTS,
+          Math.max(0, this.availableSpots() - 1),
+        ),
   );
+  protected readonly maxRegistrationAnswerLength =
+    MAX_REGISTRATION_ANSWER_LENGTH;
   protected readonly registrationMutation = injectMutation(() =>
     this.rpc.events.registerForEvent.mutationOptions(),
   );
@@ -413,6 +431,12 @@ export class EventRegistrationOptionComponent {
   );
   protected readonly registrationQuestionAnswersMissingRequired = computed(() =>
     registrationQuestionsMissingRequired(
+      this.registrationOption(),
+      this.registrationQuestionAnswers(),
+    ),
+  );
+  protected readonly registrationQuestionAnswersTooLong = computed(() =>
+    registrationQuestionsHaveOverlongAnswers(
       this.registrationOption(),
       this.registrationQuestionAnswers(),
     ),
@@ -478,6 +502,7 @@ export class EventRegistrationOptionComponent {
   joinWaitlist(registrationOption: { eventId: string; id: string }) {
     if (
       registrationOptionWriteActionDisabled({
+        answersTooLong: this.registrationQuestionAnswersTooLong(),
         controlsInteractive: this.controlsInteractive(),
         missingRequiredAnswers:
           this.registrationQuestionAnswersMissingRequired(),
@@ -507,6 +532,7 @@ export class EventRegistrationOptionComponent {
   register(registrationOption: { eventId: string; id: string }) {
     if (
       registrationOptionWriteActionDisabled({
+        answersTooLong: this.registrationQuestionAnswersTooLong(),
         controlsInteractive: this.controlsInteractive(),
         missingRequiredAnswers:
           this.registrationQuestionAnswersMissingRequired(),
@@ -565,15 +591,15 @@ export class EventRegistrationOptionComponent {
       return;
     }
     const nextGuestCount = Number.parseInt(input.value, 10);
-    this.guestCount.set(
-      Math.max(
-        0,
-        Math.min(
-          Number.isNaN(nextGuestCount) ? 0 : nextGuestCount,
-          this.maxGuestCount(),
-        ),
+    const boundedGuestCount = Math.max(
+      0,
+      Math.min(
+        Number.isNaN(nextGuestCount) ? 0 : nextGuestCount,
+        this.maxGuestCount(),
       ),
     );
+    this.guestCount.set(boundedGuestCount);
+    input.value = String(boundedGuestCount);
   }
 
   updateRegistrationQuestionAnswer(questionId: string, event: Event) {

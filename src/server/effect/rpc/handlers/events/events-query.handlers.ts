@@ -3,6 +3,8 @@ import {
   includesPermission,
   type Permission,
 } from '@shared/permissions/permissions';
+import { MAX_EVENT_ADDON_TYPES } from '@shared/registration-quantity-limits';
+import { MAX_REGISTRATION_QUESTIONS } from '@shared/registration-question-limits';
 import {
   EventConflictError,
   EventNotFoundError,
@@ -501,6 +503,22 @@ export const eventQueryHandlers = {
         );
       }
 
+      // Count event-wide types, including add-ons without a visible option.
+      // Reading the add-on table avoids counting one type once per mapping.
+      const eventAddOnTypes = yield* databaseEffect((database) =>
+        database.query.eventAddons.findMany({
+          columns: { id: true },
+          limit: MAX_EVENT_ADDON_TYPES + 1,
+          where: { event: { tenantId: tenant.id }, eventId: event.id },
+        }),
+      );
+      if (eventAddOnTypes.length > MAX_EVENT_ADDON_TYPES) {
+        return yield* new EventConflictError({
+          message:
+            'Registration is unavailable because its add-on settings need to be corrected. Contact the organizer.',
+        });
+      }
+
       const hasAnyRegistrationOption =
         event.registrationOptions.length > 0
           ? true
@@ -596,6 +614,26 @@ export const eventQueryHandlers = {
                   asc(eventRegistrationQuestions.id),
                 ),
             );
+      const questionsByRegistrationOptionId = groupBy(
+        eventQuestionRows.toSorted((left, right) => {
+          if (left.sortOrder !== right.sortOrder) {
+            return left.sortOrder - right.sortOrder;
+          }
+
+          return left.title.localeCompare(right.title);
+        }),
+        (question) => question.registrationOptionId,
+      );
+      if (
+        Object.values(questionsByRegistrationOptionId).some(
+          (questions) => questions.length > MAX_REGISTRATION_QUESTIONS,
+        )
+      ) {
+        return yield* new EventConflictError({
+          message:
+            'Registration is unavailable because its sign-up questions need to be corrected. Contact the organizer.',
+        });
+      }
       const registrationOptionTaxRateIds = [
         ...new Set(
           event.registrationOptions
@@ -664,18 +702,22 @@ export const eventQueryHandlers = {
       const taxRateByStripeId = new Map(
         taxRates.map((taxRate) => [taxRate.stripeTaxRateId, taxRate]),
       );
+      if (
+        event.registrationOptions.some((registrationOption) => {
+          if (!registrationOption.isPaid) return false;
+          const taxRate = registrationOption.stripeTaxRateId
+            ? taxRateByStripeId.get(registrationOption.stripeTaxRateId)
+            : undefined;
+          return !taxRate || taxRate.percentage === null;
+        })
+      ) {
+        return yield* new EventConflictError({
+          message:
+            'Registration is unavailable because its tax settings need to be corrected. Contact the organizer.',
+        });
+      }
       const esnCardDiscountedPriceByOptionId =
         getEsnCardDiscountedPriceByOptionId(optionDiscounts);
-      const questionsByRegistrationOptionId = groupBy(
-        eventQuestionRows.toSorted((left, right) => {
-          if (left.sortOrder !== right.sortOrder) {
-            return left.sortOrder - right.sortOrder;
-          }
-
-          return left.title.localeCompare(right.title);
-        }),
-        (question) => question.registrationOptionId,
-      );
       const addOnsById = new Map<
         string,
         {

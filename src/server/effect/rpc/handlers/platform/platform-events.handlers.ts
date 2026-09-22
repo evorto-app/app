@@ -8,6 +8,7 @@ import {
   isWritableRegistrationMode,
   requireWritableRegistrationMode,
 } from '@shared/registration-modes';
+import { MAX_REGISTRATION_ADDON_QUANTITY } from '@shared/registration-quantity-limits';
 import {
   PlatformEventAddonRecord,
   type PlatformEventDetailRecord,
@@ -1489,6 +1490,22 @@ export const platformEventHandlers = {
       input.registrationOptions.map((option) => option.registrationMode),
     );
     if (modeError) return Effect.fail(modeError);
+    if (
+      input.addOns.some((addOn) =>
+        addOn.registrationOptions.some(
+          (mapping) =>
+            mapping.includedQuantity + mapping.optionalPurchaseQuantity >
+            MAX_REGISTRATION_ADDON_QUANTITY,
+        ),
+      )
+    ) {
+      return Effect.fail(
+        new RpcBadRequestError({
+          message: `Included and optional add-on quantities cannot exceed ${MAX_REGISTRATION_ADDON_QUANTITY} per sign-up.`,
+          reason: 'invalidEventAddon',
+        }),
+      );
+    }
     const title = input.title.trim();
     const start = new Date(input.start);
     const end = new Date(input.end);

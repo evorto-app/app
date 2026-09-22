@@ -1,3 +1,12 @@
+import {
+  MAX_EVENT_ADDON_TYPES,
+  MAX_REGISTRATION_ADDON_QUANTITY,
+} from '@shared/registration-quantity-limits';
+import {
+  MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH,
+  MAX_REGISTRATION_QUESTION_TITLE_LENGTH,
+  MAX_REGISTRATION_QUESTIONS,
+} from '@shared/registration-question-limits';
 import { and, eq, inArray } from 'drizzle-orm';
 import { Context, Effect, Layer } from 'effect';
 
@@ -413,6 +422,50 @@ const validateTemplateQuestion = ({
   return Effect.void;
 };
 
+export const validateSimpleTemplateInputBounds = (
+  input: Pick<SimpleTemplateValidationInput, 'addOns' | 'questions'>,
+): null | TemplateSimpleBadRequestError => {
+  if ((input.addOns?.length ?? 0) > MAX_EVENT_ADDON_TYPES) {
+    return new TemplateSimpleBadRequestError({
+      message: `A template can have at most ${MAX_EVENT_ADDON_TYPES} add-on types.`,
+    });
+  }
+  if ((input.questions?.length ?? 0) > MAX_REGISTRATION_QUESTIONS) {
+    return new TemplateSimpleBadRequestError({
+      message: `A template can have at most ${MAX_REGISTRATION_QUESTIONS} sign-up questions.`,
+    });
+  }
+  for (const addon of input.addOns ?? []) {
+    if (
+      !Number.isInteger(addon.maxQuantityPerUser) ||
+      addon.maxQuantityPerUser <= 0 ||
+      addon.maxQuantityPerUser > MAX_REGISTRATION_ADDON_QUANTITY ||
+      !Number.isInteger(addon.includedQuantity) ||
+      addon.includedQuantity < 0 ||
+      !Number.isInteger(addon.optionalPurchaseQuantity) ||
+      addon.optionalPurchaseQuantity < 0 ||
+      addon.includedQuantity + addon.optionalPurchaseQuantity >
+        MAX_REGISTRATION_ADDON_QUANTITY
+    ) {
+      return new TemplateSimpleBadRequestError({
+        message: `Template add-on quantities must be whole numbers, with at most ${MAX_REGISTRATION_ADDON_QUANTITY} included and optional items combined.`,
+      });
+    }
+  }
+  for (const question of input.questions ?? []) {
+    if (
+      question.title.length > MAX_REGISTRATION_QUESTION_TITLE_LENGTH ||
+      (question.description?.length ?? 0) >
+        MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH
+    ) {
+      return new TemplateSimpleBadRequestError({
+        message: `Question titles must be ${MAX_REGISTRATION_QUESTION_TITLE_LENGTH} characters or fewer and descriptions ${MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH} characters or fewer.`,
+      });
+    }
+  }
+  return null;
+};
+
 export class SimpleTemplateService extends Context.Service<SimpleTemplateService>()(
   '@server/effect/rpc/handlers/templates/SimpleTemplateService',
   {
@@ -428,6 +481,8 @@ export class SimpleTemplateService extends Context.Service<SimpleTemplateService
         input: SimpleTemplateValidationInput;
         tenantId: string;
       }) {
+        const boundsError = validateSimpleTemplateInputBounds(input);
+        if (boundsError) return yield* Effect.fail(boundsError);
         const validateRegistrationTaxRate = Effect.fn(
           'SimpleTemplateService.validateSimpleTemplateInput.validateRegistrationTaxRate',
         )(function* ({

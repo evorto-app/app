@@ -1,8 +1,9 @@
-import '@angular/compiler';
 import { Component, input, signal } from '@angular/core';
+import '@angular/compiler';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MatDialog } from '@angular/material/dialog';
 import { provideRouter } from '@angular/router';
+import { EventConflictError } from '@shared/rpc-contracts/app-rpcs/events.errors';
 import { EventNotFoundError } from '@shared/rpc-contracts/app-rpcs/events.errors';
 import {
   provideTanStackQuery,
@@ -527,6 +528,32 @@ describe('EventDetailsComponent load recovery', () => {
     fixture.detectChanges();
     return fixture;
   };
+
+  it('explains a stored registration-settings conflict without offering a registration form', async () => {
+    findEvent.mockRejectedValue(
+      new EventConflictError({
+        message: 'internal question count must not leak',
+      }),
+    );
+    findRegistrationStatus.mockResolvedValue({
+      isRegistered: false,
+      outgoingTransfers: [],
+      registrations: [],
+    });
+    const fixture = render();
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      const text = normalizeText(fixture);
+      expect(text).toContain('Registration unavailable');
+      expect(text).toContain('Contact the organizer');
+      expect(text).not.toContain('Check your connection');
+      expect(text).not.toContain('internal question count');
+    });
+    const root: HTMLElement = fixture.nativeElement;
+    expect(root.querySelector('[role="alert"]')).not.toBeNull();
+    expect(root.querySelector('app-event-registration-option')).toBeNull();
+    expect(findEvent).toHaveBeenCalledTimes(1);
+  });
 
   it('retries a failed event load and recovers the event details', async () => {
     findEvent

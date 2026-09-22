@@ -1,16 +1,20 @@
-import '@angular/compiler';
-
 import type { TemplateGraphRecord } from '@shared/rpc-contracts/app-rpcs/templates.rpcs';
 import type { IconValue } from '@shared/types/icon';
 
 import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
 import { Component, input, output } from '@angular/core';
+import '@angular/compiler';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { FormField } from '@angular/forms/signals';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSelectHarness } from '@angular/material/select/testing';
 import { By } from '@angular/platform-browser';
 import { provideRouter } from '@angular/router';
+import { MAX_EVENT_ADDON_TYPES } from '@shared/registration-quantity-limits';
+import {
+  MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH,
+  MAX_REGISTRATION_QUESTIONS,
+} from '@shared/registration-question-limits';
 import {
   provideTanStackQuery,
   QueryClient,
@@ -27,6 +31,7 @@ import { LocationSelectorField } from '../../shared/components/controls/location
 import { IconComponent } from '../../shared/components/icon/icon.component';
 import { PlatformTenantPageHeaderComponent } from '../platform-tenant-admin/platform-tenant-page-header.component';
 import { PLATFORM_EVENT_OPERATION_ROUTES } from './platform-event-operations.routes';
+import { platformTemplateAddonTypeLimitIssue } from './platform-template-editor.component';
 import {
   PlatformTemplateEditorComponent,
   platformTemplateEditorDataReady,
@@ -118,6 +123,18 @@ describe('platform template editor readiness', () => {
         templateResolved: false,
       }),
     ).toBe(true);
+  });
+  it('accepts the add-on cap and rejects cap plus one', () => {
+    expect(
+      platformTemplateAddonTypeLimitIssue(
+        Array.from({ length: MAX_EVENT_ADDON_TYPES }),
+      ),
+    ).toBeNull();
+    expect(
+      platformTemplateAddonTypeLimitIssue(
+        Array.from({ length: MAX_EVENT_ADDON_TYPES + 1 }),
+      ),
+    ).toBe(`Templates support at most ${MAX_EVENT_ADDON_TYPES} add-on types.`);
   });
 });
 
@@ -639,6 +656,73 @@ describe('PlatformTemplateEditorComponent recovery', () => {
       }
     },
   );
+
+  it('keeps add-on creation independent of the question cap and explains overlong help text', async () => {
+    const template = completeTemplate();
+    const [question] = template.questions;
+    if (!question) throw new Error('Expected a persisted template question');
+    loadTemplate.mockResolvedValue({
+      ...template,
+      questions: Array.from(
+        { length: MAX_REGISTRATION_QUESTIONS - 1 },
+        (_, index) => ({
+          ...question,
+          id: `question-${index + 1}`,
+          sortOrder: index,
+        }),
+      ),
+    });
+    const fixture = render();
+    fixture.componentRef.setInput('templateId', 'template-1');
+    const element: unknown = fixture.nativeElement;
+    if (!(element instanceof HTMLElement))
+      throw new Error('Expected the platform template root');
+    const button = (label: string) => {
+      const found = [...element.querySelectorAll('button')].find(
+        (node) => node.textContent?.trim() === label,
+      );
+      if (!found) throw new Error(`Expected ${label} button`);
+      return found;
+    };
+    await vi.waitFor(async () => {
+      await fixture.whenStable();
+      expect(
+        element.querySelector('[aria-labelledby="template-questions-title"]'),
+      ).not.toBeNull();
+    });
+    const questionSection = element.querySelector(
+      '[aria-labelledby="template-questions-title"]',
+    );
+    if (!questionSection) throw new Error('Expected question section');
+    const help = questionSection.querySelector('textarea');
+    if (!(help instanceof HTMLTextAreaElement))
+      throw new Error('Expected question help input');
+    help.value = 'a'.repeat(MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH + 1);
+    help.dispatchEvent(new Event('input', { bubbles: true }));
+    help.dispatchEvent(new Event('blur'));
+    await fixture.whenStable();
+    expect(help.closest('mat-form-field')?.textContent).toContain(
+      `Question descriptions must be ${MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH} characters or fewer.`,
+    );
+    expect(questionSection.querySelectorAll('legend')).toHaveLength(
+      MAX_REGISTRATION_QUESTIONS - 1,
+    );
+    expect(button('Add question').disabled).toBe(false);
+    button('Add question').click();
+    fixture.detectChanges();
+    expect(questionSection.querySelectorAll('legend')).toHaveLength(
+      MAX_REGISTRATION_QUESTIONS,
+    );
+    expect(button('Add question').disabled).toBe(true);
+    const addOnSection = element.querySelector(
+      '[aria-labelledby="template-add-ons-title"]',
+    );
+    expect(addOnSection?.querySelectorAll('legend')).toHaveLength(1);
+    expect(button('Add add-on').disabled).toBe(false);
+    button('Add add-on').click();
+    fixture.detectChanges();
+    expect(addOnSection?.querySelectorAll('legend')).toHaveLength(2);
+  });
 
   it('retries failed target-organization form options from the page', async () => {
     optionFailuresRemaining = 1;

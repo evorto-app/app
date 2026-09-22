@@ -2,12 +2,12 @@ import {
   foreignKey,
   index,
   pgTable,
-  text,
   timestamp,
   unique,
   varchar,
 } from 'drizzle-orm/pg-core';
 
+import { MAX_REGISTRATION_ANSWER_LENGTH } from '../../shared/registration-question-limits';
 import { createId } from '../create-id';
 import { eventRegistrationQuestions } from './event-registration-questions';
 import { eventRegistrations } from './event-registrations';
@@ -22,7 +22,7 @@ export const eventRegistrationAnswerRegistrationQuestionUniqueConstraintName =
 export const eventRegistrationQuestionAnswers = pgTable(
   'event_registration_question_answers',
   {
-    answer: text().notNull(),
+    answer: varchar({ length: MAX_REGISTRATION_ANSWER_LENGTH }).notNull(),
     createdAt: timestamp().notNull().defaultNow(),
     eventId: varchar({ length: 20 }).notNull(),
     id: varchar({ length: 20 })

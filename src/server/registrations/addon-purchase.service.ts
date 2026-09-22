@@ -16,6 +16,7 @@ import {
   transactions,
   users,
 } from '@db/schema';
+import { MAX_REGISTRATION_ADDON_QUANTITY } from '@shared/registration-quantity-limits';
 import {
   EventRegistrationConflictError,
   EventRegistrationInternalError,
@@ -155,6 +156,7 @@ export const resolveRegistrationAddonPurchaseWindow = (input: {
 
 export const registrationAddonPurchaseCapacity = (input: {
   readonly allowMultiple: boolean;
+  readonly includedQuantity: number;
   readonly maxQuantityPerUser: number;
   readonly optionalPurchaseQuantity: number;
   readonly pendingOptionalQuantity: number;
@@ -163,6 +165,7 @@ export const registrationAddonPurchaseCapacity = (input: {
   readonly stock: number;
 }): RegistrationAddonPurchaseCapacity => {
   const integers = [
+    input.includedQuantity,
     input.maxQuantityPerUser,
     input.optionalPurchaseQuantity,
     input.pendingOptionalQuantity,
@@ -172,7 +175,8 @@ export const registrationAddonPurchaseCapacity = (input: {
   ];
   if (
     integers.some((value) => !Number.isSafeInteger(value) || value < 0) ||
-    input.requestedQuantity === 0
+    input.requestedQuantity === 0 ||
+    input.requestedQuantity > MAX_REGISTRATION_ADDON_QUANTITY
   ) {
     return 'invalid_quantity';
   }
@@ -180,6 +184,8 @@ export const registrationAddonPurchaseCapacity = (input: {
     input.purchasedOptionalQuantity + input.pendingOptionalQuantity;
   const requestedTotal = existingOptionalQuantity + input.requestedQuantity;
   if (!Number.isSafeInteger(requestedTotal)) return 'invalid_quantity';
+  if (input.includedQuantity + requestedTotal > MAX_REGISTRATION_ADDON_QUANTITY)
+    return 'user_limit_exceeded';
   if (!input.allowMultiple && requestedTotal > 1) {
     return 'multiple_not_allowed';
   }
@@ -561,7 +567,10 @@ const reserveRegistrationAddonPurchase = Effect.fn(
           .for('update')
       : [];
   const taxRate = taxRows[0];
-  if (addon.stripeTaxRateId && (!taxRate || taxRate.percentage === null)) {
+  if (
+    (addon.isPaid && !addon.stripeTaxRateId) ||
+    (addon.stripeTaxRateId && (!taxRate || taxRate.percentage === null))
+  ) {
     return yield* conflict(
       'This add-on has an incomplete or inactive Stripe tax configuration',
     );
@@ -570,6 +579,7 @@ const reserveRegistrationAddonPurchase = Effect.fn(
   const taxRatePercentage = taxRate?.percentage ?? null;
   const capacity = registrationAddonPurchaseCapacity({
     allowMultiple: addon.allowMultiple,
+    includedQuantity: existingPurchase?.includedQuantity ?? 0,
     maxQuantityPerUser: addon.maxQuantityPerUser,
     optionalPurchaseQuantity: addon.optionalPurchaseQuantity,
     pendingOptionalQuantity: 0,

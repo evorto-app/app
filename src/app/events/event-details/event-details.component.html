@@ -168,11 +168,19 @@
         class="bg-error-container text-on-error-container flex flex-col items-start gap-3 rounded-xl p-4"
       >
         <div>
-          <h2 class="title-medium">Event could not be loaded</h2>
-          <p class="body-medium mt-1">
-            The event details are temporarily unavailable. Check your connection
-            and try again.
-          </p>
+          @if (registrationUnavailable()) {
+            <h2 class="title-medium">Registration unavailable</h2>
+            <p class="body-medium mt-1">
+              This event's sign-up settings need to be corrected. Contact the
+              organizer before trying to register.
+            </p>
+          } @else {
+            <h2 class="title-medium">Event could not be loaded</h2>
+            <p class="body-medium mt-1">
+              The event details are temporarily unavailable. Check your
+              connection and try again.
+            </p>
+          }
         </div>
         <button
           mat-stroked-button
