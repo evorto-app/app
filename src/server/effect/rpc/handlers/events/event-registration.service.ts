@@ -3340,7 +3340,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
               addOn.price > 0 &&
               (!addOn.stripeTaxRateId ||
                 addOn.taxRateInclusive !== true ||
-                addOn.taxRatePercentage === null),
+                !addOn.taxRatePercentage?.trim()),
           )
         ) {
           return yield* Effect.fail(
