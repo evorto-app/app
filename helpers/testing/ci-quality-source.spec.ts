@@ -2,6 +2,8 @@ import {
   DEFAULT_E2E_NOW_ISO,
   DEFAULT_E2E_SEED_KEY,
 } from '@shared/testing/deterministic-test-defaults';
+import { serverConfig } from '@server/config/server-config';
+import { ConfigProvider, Effect } from 'effect';
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -64,6 +66,36 @@ const actionStepBlocks = (workflow: string): readonly string[] => {
 };
 
 describe('CI quality source', () => {
+  for (const sourcePath of [
+    '.github/workflows/e2e-baseline.yml',
+    '.github/workflows/esncard-release-certification.yml',
+  ]) {
+    it(`supplies valid web configuration when ${sourcePath} starts the application`, async () => {
+      const startup = actionStepBlocks(readSource(sourcePath)).find((step) =>
+        step.includes('run: docker compose up -d worker evorto'),
+      );
+      expect(startup).toBeDefined();
+      if (!startup)
+        throw new Error('Expected the E2E application startup step');
+      const suppliedSecrets: Record<string, string> = {};
+      for (const match of startup.matchAll(
+        /^\s+(\w+): \$\{\{ secrets\.(\w+) \}\}$/gmu,
+      )) {
+        const [, variableName, secretName] = match;
+        if (!variableName || !secretName) {
+          throw new Error('Expected a named step-scoped secret binding');
+        }
+        suppliedSecrets[variableName] = `configured-${secretName}`;
+      }
+      const config = await Effect.runPromise(
+        serverConfig.parse(ConfigProvider.fromEnv({ env: suppliedSecrets })),
+      );
+      expect(config.PUBLIC_GOOGLE_MAPS_API_KEY).toBe(
+        'configured-PUBLIC_GOOGLE_MAPS_API_KEY',
+      );
+    });
+  }
+
   it('pins every external workflow action and keeps secrets out of broad env', () => {
     for (const sourcePath of workflowPaths) {
       const workflow = readSource(sourcePath);
