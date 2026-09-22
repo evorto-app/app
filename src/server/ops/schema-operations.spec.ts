@@ -1,4 +1,9 @@
+import * as OtelNodeSdk from '@effect/opentelemetry/NodeSdk';
 import { describe, expect, it } from '@effect/vitest';
+import {
+  InMemorySpanExporter,
+  SimpleSpanProcessor,
+} from '@opentelemetry/sdk-trace-base';
 import { Effect, Logger } from 'effect';
 
 import {
@@ -33,6 +38,7 @@ describe('ops schema operations', () => {
       },
       diagnostic: 'command-failed',
       name: 'failed command',
+      operation: 'explain',
     },
     {
       commandResult: {
@@ -42,47 +48,105 @@ describe('ops schema operations', () => {
       },
       diagnostic: 'drizzle-output-invalid',
       name: 'invalid JSON',
+      operation: 'explain',
     },
     {
       commandResult: {
         exitCode: 0,
         stderr: 'RAWERR database credentials 🔒',
-        stdout: JSON.stringify({ RAWOUT: 'provider details 🔒' }),
+        stdout: JSON.stringify({ ...emptyPlan(), dialect: 'RAWOUT 🔒' }),
       },
       diagnostic: 'drizzle-output-invalid',
       name: 'invalid Drizzle envelope',
+      operation: 'explain',
+    },
+    {
+      commandResult: {
+        exitCode: 0,
+        stderr: 'RAWERR database credentials 🔒',
+        stdout: 'RAWOUT invalid JSON 🔒',
+      },
+      diagnostic: 'drizzle-output-invalid',
+      name: 'invalid JSON',
+      operation: 'apply',
+    },
+    {
+      commandResult: {
+        exitCode: 0,
+        stderr: 'RAWERR database credentials 🔒',
+        stdout: JSON.stringify({ dialect: 'RAWOUT 🔒', status: 'ok' }),
+      },
+      diagnostic: 'drizzle-output-invalid',
+      name: 'invalid Drizzle envelope',
+      operation: 'apply',
     },
   ])(
-    'logs bounded diagnostics without command output for $name',
-    async ({ commandResult, diagnostic }) => {
+    'keeps command output out of logs and traces for $operation $name',
+    async ({ commandResult, diagnostic, operation }) => {
       const logs: ReturnType<typeof Logger.formatStructured.log>[] = [];
       const logger = Logger.make((options) => {
         logs.push(Logger.formatStructured.log(options));
       });
+      const exporter = new InMemorySpanExporter();
+      const spanProcessor = new SimpleSpanProcessor(exporter);
       const commands: (readonly string[])[] = [];
       const runner: OpsCommandRunner = {
         run: (command) => {
           commands.push(command);
+          if (operation === 'apply' && command.includes('--explain')) {
+            return Effect.succeed(result(emptyPlan()));
+          }
+          if (command[1] === 'dist/evorto/ops/database-prerequisites.mjs') {
+            return Effect.succeed({ exitCode: 0, stderr: '', stdout: '' });
+          }
           return Effect.succeed(commandResult);
         },
       };
 
-      const failure = await Effect.runPromise(
-        explainSchema(runner).pipe(
-          Effect.flip,
+      const { failure, spans } = await Effect.runPromise(
+        Effect.gen(function* () {
+          const operationEffect =
+            operation === 'apply'
+              ? applySchema(analyzeSchemaPlan(emptyPlan()).digest, runner).pipe(
+                  Effect.asVoid,
+                )
+              : explainSchema(runner).pipe(Effect.asVoid);
+          const failure = yield* operationEffect.pipe(Effect.flip);
+          yield* Effect.promise(() => spanProcessor.forceFlush());
+          return {
+            failure,
+            spans: exporter.getFinishedSpans().map((span) => ({
+              events: span.events,
+              name: span.name,
+              status: span.status,
+            })),
+          };
+        }).pipe(
           Effect.provide(Logger.layer([logger])),
+          Effect.provide(
+            OtelNodeSdk.layer(() => ({
+              resource: { serviceName: 'ops-command-output-test' },
+              spanProcessor: [spanProcessor],
+            })),
+          ),
         ),
       );
 
       expect(failure.diagnostic).toBe(diagnostic);
-      expect(commands).toHaveLength(1);
+      expect(commands).toHaveLength(operation === 'apply' ? 3 : 1);
       expect(logs).toHaveLength(1);
       expect(logs[0]?.annotations).toMatchObject({
-        command: commands[0]?.join(' '),
+        command: commands.at(-1)?.join(' '),
         stderrBytes: new TextEncoder().encode(commandResult.stderr).byteLength,
         stdoutBytes: new TextEncoder().encode(commandResult.stdout).byteLength,
       });
       expect(JSON.stringify(logs)).not.toMatch(/RAWOUT|RAWERR/u);
+      expect(
+        spans.some((span) =>
+          span.events.some((event) => event.name === 'exception'),
+        ),
+      ).toBe(true);
+      expect(JSON.stringify(spans)).not.toMatch(/RAWOUT|RAWERR/u);
     },
   );
 
