@@ -1,5 +1,9 @@
 # Latency Monitoring Runbook
 
+Scaleway operational work is currently deferred. The standalone latency workflow
+has a manual trigger only; merging this code does not start scheduled probes.
+Resume these procedures only when Scaleway work is explicitly resumed.
+
 Use this runbook to detect and diagnose warm-path latency regressions on
 `staging.evorto.app` and, after production is enabled, the equivalent production
 hostname. Improvement work follows
