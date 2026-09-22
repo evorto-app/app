@@ -41,7 +41,6 @@ import {
   createEventGeneralFormModel,
   EventGeneralFormModel,
   eventGeneralFormSchemaWithPaymentAvailability,
-  resetEventGeneralFormPayments,
 } from '../../shared/components/forms/event-general-form/event-general-form.schema';
 import { RegistrationOptionForm } from '../../shared/components/forms/registration-option-form/registration-option-form';
 import { createEventFormModelFromTemplate } from './template-create-event.mapper';
@@ -65,20 +64,36 @@ export class TemplateCreateEventOperations {
   findTemplate(id: string) {
     return this.rpc.templates.findOne.queryOptions({ id });
   }
+
+  taxRates() {
+    return this.rpc.taxRates.listActive.queryOptions();
+  }
 }
 
 export const templateCreateEventSubmitDisabled = ({
+  discountProvidersReady,
   formInvalid,
   formSubmitting,
   legacyRandomBlocked,
   mutationPending,
+  paidGraphBlocked,
+  taxRatesReady,
 }: {
+  discountProvidersReady: boolean;
   formInvalid: boolean;
   formSubmitting: boolean;
   legacyRandomBlocked: boolean;
   mutationPending: boolean;
+  paidGraphBlocked: boolean;
+  taxRatesReady: boolean;
 }): boolean =>
-  formInvalid || formSubmitting || legacyRandomBlocked || mutationPending;
+  !discountProvidersReady ||
+  !taxRatesReady ||
+  paidGraphBlocked ||
+  formInvalid ||
+  formSubmitting ||
+  legacyRandomBlocked ||
+  mutationPending;
 
 export const templateHasLegacyRandomRegistration = (
   registrationOptions: readonly { registrationMode: string }[],
@@ -96,7 +111,7 @@ export const templateAddOnCopyNotice = (addOnCount: number): null | string =>
 export const templateCreateEventErrorMessage = (error: unknown): string =>
   getErrorMessage(
     error,
-    'The event could not be created. Review the form and try again.',
+    'The event creation outcome could not be confirmed. Open the event list, load the page again and check for this event before trying again.',
     ['RpcBadRequestError'],
   );
 
@@ -124,6 +139,14 @@ export class TemplateCreateEventComponent {
         : 0,
     ),
   );
+  protected readonly taxRatesQuery = injectQuery(() =>
+    this.operations.taxRates(),
+  );
+  protected readonly availableTaxRates = computed(() =>
+    this.taxRatesQuery.isSuccess() && !this.taxRatesQuery.isFetching()
+      ? this.taxRatesQuery.data()
+      : undefined,
+  );
   private readonly config = inject(ConfigService);
   private readonly tenantTimezone = resolveTenantRuntimeTimezone(
     this.config.tenantSignal()?.timezone,
@@ -141,17 +164,35 @@ export class TemplateCreateEventComponent {
   protected readonly createEventMutation = injectMutation(() =>
     this.operations.createEvent(),
   );
+  protected readonly creationOutcomeMessage = signal<null | string>(null);
   protected readonly discountProvidersQuery = injectQuery(() =>
     this.operations.discountProviders(),
   );
-  protected readonly esnEnabled = computed(() => {
-    if (!this.discountProvidersQuery.isSuccess()) return false;
-    const providers = this.discountProvidersQuery.data();
-    return (
-      providers.find((provider) => provider.type === 'esnCard')?.status ===
-      'enabled'
-    );
+  protected readonly discountProviderState = computed(() => {
+    if (this.discountProvidersQuery.isError()) return 'error' as const;
+    if (
+      !this.discountProvidersQuery.isSuccess() ||
+      this.discountProvidersQuery.isFetching()
+    ) {
+      return 'loading' as const;
+    }
+    return this.discountProvidersQuery
+      .data()
+      .some(
+        (provider) =>
+          provider.type === 'esnCard' && provider.status === 'enabled',
+      )
+      ? ('esnEnabled' as const)
+      : ('ready' as const);
   });
+  protected readonly discountProvidersReady = computed(
+    () =>
+      this.discountProviderState() === 'ready' ||
+      this.discountProviderState() === 'esnEnabled',
+  );
+  protected readonly esnEnabled = computed(
+    () => this.discountProviderState() === 'esnEnabled',
+  );
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly faCircleInfo = faCircleInfo;
   protected readonly iconUsage = EventCreateIconUsage.make({});
@@ -170,7 +211,26 @@ export class TemplateCreateEventComponent {
   protected readonly paidControlsUnavailable = computed(
     () => this.stripeConnectionKnown() && !this.stripeConnected(),
   );
+  protected readonly paidGraphBlocked = computed(
+    () =>
+      this.paidControlsUnavailable() &&
+      (this.createEventModel().registrationOptions.some(
+        (option) => option.isPaid,
+      ) ||
+        (this.templateQuery.isSuccess() &&
+          this.templateQuery.data().addOns.some((addOn) => addOn.isPaid))),
+  );
   protected readonly registrationModes = writableRegistrationModes;
+  protected readonly taxRatesReady = computed(
+    () => this.availableTaxRates() !== undefined,
+  );
+  protected readonly taxRateState = computed(() =>
+    this.taxRatesQuery.isError()
+      ? ('error' as const)
+      : this.availableTaxRates() === undefined
+        ? ('loading' as const)
+        : ('ready' as const),
+  );
   protected readonly templateCreateEventSubmitDisabled =
     templateCreateEventSubmitDisabled;
   private readonly initializedTemplateId = signal<null | string>(null);
@@ -193,11 +253,7 @@ export class TemplateCreateEventComponent {
         untracked(() => this.createEventForm.start().value()),
       );
       const model = createEventFormModelFromTemplate(template, startDateTime);
-      this.createEventModel.set(
-        this.paidControlsUnavailable()
-          ? resetEventGeneralFormPayments(model)
-          : model,
-      );
+      this.createEventModel.set(model);
       this.lastStart.set(startDateTime);
       this.initializedTemplateId.set(template.id);
     });
@@ -243,37 +299,39 @@ export class TemplateCreateEventComponent {
         );
       }
     });
-    effect(() => {
-      if (!this.paidControlsUnavailable()) return;
-      const model = this.createEventModel();
-      const resetModel = resetEventGeneralFormPayments(model);
-      if (resetModel === model) return;
-      untracked(() => this.createEventModel.set(resetModel));
-    });
   }
 
   async onSubmit(event: Event) {
     event.preventDefault();
     if (
       templateCreateEventSubmitDisabled({
+        discountProvidersReady: this.discountProvidersReady(),
         formInvalid: this.createEventForm().invalid(),
         formSubmitting: this.createEventForm().submitting(),
         legacyRandomBlocked: this.legacyRandomBlocked(),
         mutationPending: this.createEventMutation.isPending(),
+        paidGraphBlocked: this.paidGraphBlocked(),
+        taxRatesReady: this.taxRatesReady(),
       })
     ) {
       return;
     }
 
     await submit(this.createEventForm, async (formState) => {
-      const formValue = this.paidControlsUnavailable()
-        ? resetEventGeneralFormPayments(formState().value())
-        : formState().value();
+      if (
+        !this.discountProvidersReady() ||
+        !this.taxRatesReady() ||
+        this.paidGraphBlocked()
+      )
+        return;
+      const formValue = formState().value();
       if (!formValue.icon) {
         return;
       }
-      this.createEventMutation.mutate(
-        {
+      this.creationOutcomeMessage.set(null);
+      let phase: 'list' | 'mutation' | 'navigation' = 'mutation';
+      try {
+        const data = await this.createEventMutation.mutateAsync({
           ...formValue,
           end: this.toDateTime(formValue.end).toJSDate().toISOString(),
           icon: formValue.icon,
@@ -284,6 +342,12 @@ export class TemplateCreateEventComponent {
               .toJSDate()
               .toISOString(),
             description: option.description?.trim() ? option.description : null,
+            esnCardDiscountedPrice:
+              option.isPaid &&
+              this.esnEnabled() &&
+              option.esnCardDiscountedPrice !== ''
+                ? option.esnCardDiscountedPrice
+                : null,
             isPaid: option.isPaid,
             openRegistrationTime: this.toDateTime(option.openRegistrationTime)
               .toJSDate()
@@ -309,21 +373,61 @@ export class TemplateCreateEventComponent {
           })),
           start: this.toDateTime(formValue.start).toJSDate().toISOString(),
           templateId: this.templateId(),
-        },
-        {
-          onSuccess: async (data) => {
-            await this.queryClient.invalidateQueries(
-              this.operations.eventListFilter(),
-            );
-            this.router.navigate(['/events', data.id]);
-          },
-        },
-      );
+        });
+        phase = 'list';
+        const filter = this.operations.eventListFilter();
+        const invalidation = this.queryClient.invalidateQueries(filter, {
+          throwOnError: true,
+        });
+        // Invalidation can reject before another active event-list read settles.
+        const siblingReads = this.queryClient
+          .getQueryCache()
+          .findAll({ ...filter, type: 'active' })
+          .filter(
+            (query) =>
+              !query.isDisabled() &&
+              !query.isStatic() &&
+              query.state.fetchStatus === 'fetching',
+          )
+          .map((query) => query.promise);
+        const results = await Promise.allSettled([
+          invalidation,
+          ...siblingReads,
+        ]);
+        const failures: unknown[] = [];
+        for (const result of results) {
+          if (result.status === 'rejected') failures.push(result.reason);
+        }
+        if (failures.length > 0) {
+          throw new AggregateError(
+            failures,
+            'Event-list follow-up reads failed',
+          );
+        }
+        phase = 'navigation';
+        const opened = await this.router.navigate(['/events', data.id]);
+        if (!opened) {
+          this.creationOutcomeMessage.set(
+            'The event was created, but its page could not be opened. Open it from the event list before making further changes.',
+          );
+        }
+      } catch (error) {
+        this.creationOutcomeMessage.set(
+          phase === 'mutation'
+            ? templateCreateEventErrorMessage(error)
+            : phase === 'list'
+              ? 'The event was created, but the event list could not be updated. Open the event list and load the page again to see it.'
+              : 'The event was created, but its page could not be opened. Open it from the event list before making further changes.',
+        );
+      }
     });
   }
 
   protected createEventErrorMessage(): string {
-    return templateCreateEventErrorMessage(this.createEventMutation.error());
+    return (
+      this.creationOutcomeMessage() ??
+      templateCreateEventErrorMessage(this.createEventMutation.error())
+    );
   }
 
   private toDateTime(value: Date | DateTime): DateTime {

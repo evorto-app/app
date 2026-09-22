@@ -24,16 +24,24 @@ import consola from 'consola/browser';
 
 import { ConfigService } from '../../core/config.service';
 import { AppRpc } from '../../core/effect-rpc-angular-client';
+import { getErrorMessage } from '../../core/error-message';
+import { graphHasPaidConfiguration } from '../../shared/components/forms/payment-configuration';
 import {
   createOrdinaryTemplateGraphFormModel,
   ordinaryTemplateGraphFormToPayload,
 } from '../../shared/components/forms/template-graph-editor/ordinary-template-graph-form';
 import { ordinaryTemplateGraphFormSchemaWithPaymentAvailability } from '../../shared/components/forms/template-graph-editor/ordinary-template-graph-form.schema';
 import { TemplateGraphEditorComponent } from '../../shared/components/forms/template-graph-editor/template-graph-editor.component';
-import { resetTemplateGraphPayments } from '../../shared/components/forms/template-graph-editor/template-graph-form.model';
 import { TemplateGeneralFormComponent } from '../shared/template-form/template-general-form.component';
 
 const logger = consola.withTag('app/templates/create');
+
+export const templateCreateErrorMessage = (error: unknown): string =>
+  getErrorMessage(
+    error,
+    'The save outcome could not be confirmed. Load the template list again to check whether the template was saved before trying again.',
+    ['RpcBadRequestError'],
+  );
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -51,6 +59,40 @@ const logger = consola.withTag('app/templates/create');
 })
 export class TemplateCreateComponent {
   private readonly rpc = AppRpc.injectClient();
+  protected readonly taxRatesQuery = injectQuery(() =>
+    this.rpc.taxRates.listActive.queryOptions(),
+  );
+  protected readonly availableTaxRates = computed(() =>
+    this.taxRatesQuery.isSuccess() && !this.taxRatesQuery.isFetching()
+      ? this.taxRatesQuery.data()
+      : undefined,
+  );
+  protected readonly discountProvidersQuery = injectQuery(() =>
+    this.rpc.discounts.getTenantProviders.queryOptions(),
+  );
+  protected readonly discountProviderState = computed(() => {
+    if (this.discountProvidersQuery.isError()) return 'error' as const;
+    if (
+      !this.discountProvidersQuery.isSuccess() ||
+      this.discountProvidersQuery.isFetching()
+    ) {
+      return 'loading' as const;
+    }
+    return this.discountProvidersQuery
+      .data()
+      .some(
+        (provider) =>
+          provider.type === 'esnCard' && provider.status === 'enabled',
+      )
+      ? ('esnEnabled' as const)
+      : ('ready' as const);
+  });
+  protected readonly authoringProvidersReady = computed(
+    () =>
+      (this.discountProviderState() === 'ready' ||
+        this.discountProviderState() === 'esnEnabled') &&
+      this.availableTaxRates() !== undefined,
+  );
   protected readonly createTemplateMutation = injectMutation(() =>
     this.rpc.templates.create.mutationOptions(),
   );
@@ -58,15 +100,23 @@ export class TemplateCreateComponent {
     this.rpc.roles.findMany.queryOptions({}),
   );
   protected readonly defaultsReady = signal(false);
-  protected readonly discountProvidersQuery = injectQuery(() =>
-    this.rpc.discounts.getTenantProviders.queryOptions(),
-  );
   private readonly config = inject(ConfigService);
   protected readonly stripeConnected = computed(() =>
     Boolean(this.config.tenantSignal()?.paymentsConfigured),
   );
+  protected readonly stripeConnectionKnown = computed(
+    () => this.config.tenantSignal() !== null,
+  );
+  protected readonly paidControlsUnavailable = computed(
+    () => this.stripeConnectionKnown() && !this.stripeConnected(),
+  );
   private readonly templateModel = signal(
     createOrdinaryTemplateGraphFormModel(),
+  );
+  protected readonly paidGraphBlocked = computed(
+    () =>
+      this.paidControlsUnavailable() &&
+      graphHasPaidConfiguration(this.templateModel()),
   );
   protected readonly templateForm = form(
     this.templateModel,
@@ -78,12 +128,16 @@ export class TemplateCreateComponent {
     () =>
       this.defaultsReady() &&
       this.rolesQuery.isSuccess() &&
-      this.discountProvidersQuery.isSuccess() &&
+      this.authoringProvidersReady() &&
+      !this.paidGraphBlocked() &&
       !this.templateForm().invalid() &&
       !this.templateForm().submitting() &&
       !this.createTemplateMutation.isPending(),
   );
   protected readonly categoryId = input<string>();
+  protected readonly createErrorMessage = computed(() =>
+    templateCreateErrorMessage(this.createTemplateMutation.error()),
+  );
   protected readonly defaultParticipantRoleIds = computed(() =>
     this.rolesQuery.isSuccess()
       ? this.rolesQuery
@@ -92,30 +146,17 @@ export class TemplateCreateComponent {
           .map((role) => role.id)
       : [],
   );
-  protected readonly esnEnabled = computed(() => {
-    if (!this.discountProvidersQuery.isSuccess()) return false;
-    return (
-      this.discountProvidersQuery
-        .data()
-        .find((provider) => provider.type === 'esnCard')?.status === 'enabled'
-    );
-  });
+  protected readonly esnEnabled = computed(
+    () => this.discountProviderState() === 'esnEnabled',
+  );
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly iconUsage = TemplateCreateIconUsage.make({});
-  protected readonly stripeConnectionKnown = computed(
-    () => this.config.tenantSignal() !== null,
-  );
-  protected readonly paidControlsUnavailable = computed(
-    () => this.stripeConnectionKnown() && !this.stripeConnected(),
-  );
-  protected readonly taxRatesQuery = injectQuery(() =>
-    this.rpc.taxRates.listActive.queryOptions(),
-  );
+  protected readonly saveFollowUpMessage = signal('');
   protected readonly taxRateState = computed(() =>
-    this.taxRatesQuery.isPending()
-      ? ('loading' as const)
-      : this.taxRatesQuery.isError()
-        ? ('error' as const)
+    this.taxRatesQuery.isError()
+      ? ('error' as const)
+      : this.availableTaxRates() === undefined
+        ? ('loading' as const)
         : ('ready' as const),
   );
 
@@ -150,13 +191,6 @@ export class TemplateCreateComponent {
         this.defaultsReady.set(true);
       });
     });
-    effect(() => {
-      if (!this.paidControlsUnavailable()) return;
-      const model = this.templateModel();
-      const resetModel = resetTemplateGraphPayments(model);
-      if (resetModel === model) return;
-      untracked(() => this.templateModel.set(resetModel));
-    });
   }
 
   protected async onSubmit(event: Event) {
@@ -164,22 +198,47 @@ export class TemplateCreateComponent {
     if (!this.canSubmit()) return;
 
     await submit(this.templateForm, async (formState) => {
-      const value = this.paidControlsUnavailable()
-        ? resetTemplateGraphPayments(formState().value())
-        : formState().value();
-      if (!value.icon || !this.discountProvidersQuery.isSuccess()) return;
+      const value = formState().value();
+      if (
+        !value.icon ||
+        !this.authoringProvidersReady() ||
+        this.paidGraphBlocked()
+      )
+        return;
       const payload = ordinaryTemplateGraphFormToPayload(
         { ...value, icon: value.icon },
         this.esnEnabled(),
       );
+      this.saveFollowUpMessage.set('');
+      let saveStep: 'mutation' | 'navigation' | 'refresh' = 'mutation';
       try {
         const template = await this.createTemplateMutation.mutateAsync(payload);
+        saveStep = 'refresh';
         await this.queryClient.invalidateQueries(
           this.rpc.queryFilter(['templates', 'groupedByCategory']),
+          { throwOnError: true },
         );
         logger.info('Template graph created', { templateId: template.id });
-        await this.router.navigate(['/templates', template.id]);
+        saveStep = 'navigation';
+        const navigated = await this.router.navigate([
+          '/templates',
+          template.id,
+        ]);
+        if (!navigated) {
+          this.saveFollowUpMessage.set(
+            'The template was saved, but its page could not be opened. Open it from the template list.',
+          );
+        }
       } catch (error) {
+        if (saveStep === 'refresh') {
+          this.saveFollowUpMessage.set(
+            'The template was saved, but the template list could not be updated. Load the template list again to see the saved template.',
+          );
+        } else if (saveStep === 'navigation') {
+          this.saveFollowUpMessage.set(
+            'The template was saved, but its page could not be opened. Open it from the template list.',
+          );
+        }
         logger.error('Template graph create failed', error);
       }
     });

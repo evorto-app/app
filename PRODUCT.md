@@ -237,9 +237,10 @@ starts as a snapshot of its template's mode and options, then remains
 independently editable; later template edits never rewrite an existing event.
 Moving from simple to advanced preserves the current options. Every mode change
 requires an explicit warning/confirmation. Moving from advanced to simple is
-allowed only after the user has saved the advanced configuration with exactly
-one organizing and one non-organizing option; the mode change is a separate
-save and never silently replaces option IDs. Advanced setup warns when either
+allowed when the submitted configuration contains exactly one organizing and
+one non-organizing option. The user can move question and add-on references,
+remove extra options, and confirm the mode change in one save. The change never
+silently removes options or replaces retained option IDs. Advanced setup warns when either
 category is missing but does not block saving or publishing: operational events
 without registrations remain valid.
 

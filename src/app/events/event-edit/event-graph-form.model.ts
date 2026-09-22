@@ -12,10 +12,6 @@ import type { SupportedTenantTimezone } from '../../../types/custom/tenant';
 import type { EventLocationType } from '../../../types/location';
 
 import { tenantNow, toTenantDateTime } from '../../core/tenant-runtime';
-import {
-  resetAddOnPayment,
-  resetRegistrationPayment,
-} from '../../shared/components/forms/payment-configuration';
 
 export interface EventGraphAddonFormModel {
   allowMultiple: boolean;
@@ -103,22 +99,6 @@ export interface EventGraphUpdatePayload {
   title: string;
 }
 
-export const resetEventGraphPayments = (
-  model: EventGraphFormModel,
-): EventGraphFormModel => {
-  const addOns = model.addOns.map((addOn) => resetAddOnPayment(addOn, null));
-  const registrationOptions = model.registrationOptions.map((option) =>
-    resetRegistrationPayment(option, null, ''),
-  );
-  const unchanged =
-    addOns.every((addOn, index) => addOn === model.addOns[index]) &&
-    registrationOptions.every(
-      (option, index) => option === model.registrationOptions[index],
-    );
-
-  return unchanged ? model : { ...model, addOns, registrationOptions };
-};
-
 export const legacyRandomEventEditMessage =
   'Random allocation is unavailable. An authorized event editor must choose First come, first served or Manual approval before anyone can edit this registration setup.';
 
@@ -141,7 +121,7 @@ export const simpleEventGraphIssue = (
   ) {
     return null;
   }
-  return 'Simple mode requires exactly one organizing and one non-organizing registration option. Add a missing option or move questions and add-ons before removing extra options, then try again.';
+  return 'Simple setup needs exactly one organizer choice and one attendee choice. Add a missing choice or move questions and add-ons before removing extra choices, then try again.';
 };
 
 export const advancedEventGraphWarnings = (
@@ -152,10 +132,10 @@ export const advancedEventGraphWarnings = (
 ): string[] => {
   const warnings: string[] = [];
   if (registrationOptions.every((option) => !option.organizingRegistration)) {
-    warnings.push('No organizing registration option is configured.');
+    warnings.push('This event has no organizer sign-up choice.');
   }
   if (registrationOptions.every((option) => option.organizingRegistration)) {
-    warnings.push('No non-organizing registration option is configured.');
+    warnings.push('This event has no attendee sign-up choice.');
   }
   return warnings;
 };
@@ -191,7 +171,7 @@ export const eventGraphRecordToFormModel = (
   if (hasInvalidReference) {
     return {
       error:
-        'A registration question or add-on is assigned to an option that no longer exists. Editing is unavailable until a platform administrator repairs the event.',
+        'A sign-up question or add-on points to a choice that no longer exists. Ask Evorto support to repair this event before editing it.',
     };
   }
 
@@ -199,7 +179,7 @@ export const eventGraphRecordToFormModel = (
     const issue = simpleEventGraphIssue(event.registrationOptions);
     if (issue) {
       return {
-        error: `This event is set to simple mode, but its registration options do not match that mode. ${issue}`,
+        error: `This event cannot use simple setup because its sign-up choices are incomplete. ${issue} Ask Evorto support to repair the event before editing it.`,
       };
     }
   }
@@ -295,7 +275,7 @@ export const createEventGraphRegistrationOption = (
     roleIds: [],
     spots: 1,
     stripeTaxRateId: null,
-    title: 'New registration option',
+    title: 'New sign-up choice',
     transferDeadlineHoursBeforeStart: null,
   };
 };

@@ -15,7 +15,7 @@ const templateOptionEditorByTitle = async (
   title: string,
 ): Promise<Locator> => {
   const editors = page.locator('app-template-registration-option-editor');
-  const inputs = editors.getByLabel('Registration option name', {
+  const inputs = editors.getByLabel('Sign-up choice name', {
     exact: true,
   });
   let matchingIndex = -1;
@@ -226,19 +226,19 @@ There are a few general settings that are required for templates:
 Simple mode is the default and splits registration settings in two.
 There are the settings for participants, and separately, those for organizers.
 Both have the same structure, but you can see that different roles are preselected.
-Simple mode intentionally keeps exactly one organizer registration block and one participant registration block. Advanced configuration supports any number of named options and lets you choose which registration options can use each reusable add-on. Every mode change asks for confirmation. To return to simple mode, first save the advanced setup with exactly one organizing and one non-organizing option; switching modes never silently replaces saved options.
+Simple mode intentionally keeps exactly one organizer registration block and one participant registration block. Advanced configuration supports any number of named options and lets you choose which registration options can use each reusable add-on. Every mode change asks for confirmation. To return to simple mode, keep exactly one organizing and one non-organizing option. Move any questions and add-on assignments before removing extra options, then confirm the mode change and save the option changes and simple mode together; switching modes never silently replaces saved options.
 Paid event registrations and add-ons use Stripe only. If the organization has no connected Stripe account, keep every registration fee and add-on price at zero; there is no cash or manually settled paid-event fallback.
 The registration consists of the following settings:
-- **Registration option name**: The reusable label copied into events created
+- **Sign-up choice name**: The reusable label copied into events created
   from this template.
-- **Description** and **description for registered users**: Optional reusable
+- **Description** and **Description after sign-up**: Optional reusable
   public and attendee-only copy that is copied into the event registration
   option.
 - **Payment required**: Is a payment required for this registration?
 - **Registration fee**: The registration fee for this registration. This field is only visible if the payment is required.
-- **ESNcard discounted price**: Optional discounted pricing for organizations with ESNcard discounts enabled. Leave it empty when this template registration should use the standard price only.
+- **ESNcard price**: Optional discounted pricing for organizations with ESNcard discounts enabled. Leave it empty when this template registration should use the standard price only.
 - **Selected roles**: The roles that are selected for this registration. Users can only see and use the registration if they have one of the selected roles.
-- **Registration mode**: **First come, first served** confirms an eligible signup when capacity is available. **Manual approval** saves a pending application for an organizer to review; if the option is paid, payment starts only after approval and confirmation waits for successful payment.
+- **How sign-ups are confirmed**: **First come, first served** confirms an eligible signup when capacity is available. **Manual approval** saves a pending application for an organizer to review; if the option is paid, payment starts only after approval and confirmation waits for successful payment.
 - **Registration start**: The offset in hours for when the registration should start. For example 168 hours means that the registration will start 7 days before the event starts.
 - **Registration end**: The offset in hours for when the registration should end. For example 24 hours means that the registration will end 1 day before the event starts.
 - **Role picker behavior**: Roles that are already selected are hidden from autocomplete suggestions to prevent duplicates.
@@ -290,7 +290,7 @@ Choose **Manual approval** when an organizer must review this category before co
   });
   const organizerRegistrationMode = organizerRegistrationForm.getByRole(
     'combobox',
-    { name: 'Registration mode' },
+    { name: 'How sign-ups are confirmed' },
   );
   await organizerRegistrationMode.click();
   await page
@@ -344,23 +344,22 @@ Add-ons can be free or paid, mapped to one or more registration options, and can
 When a template creates an event, those reusable add-ons are copied into the event and shown on matching registration cards for registration-time purchase.
 `,
   });
-  await page
-    .getByRole('button', { name: 'Use advanced configuration' })
-    .click();
+  await page.getByRole('button', { name: 'Use advanced setup' }).click();
   await expect(
     page.getByRole('heading', {
-      name: 'Switch to advanced configuration?',
+      name: 'Switch to advanced setup?',
     }),
   ).toBeVisible();
   await page
-    .getByRole('button', { name: 'Switch to advanced', exact: true })
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Use advanced setup', exact: true })
     .click();
   await page.getByRole('button', { name: 'Add add-on' }).click();
   const addOnEditor = page.locator('app-template-addon-editor').first();
   await expect(addOnEditor.getByLabel('Add-on name')).toBeVisible();
   await expect(
     addOnEditor.getByRole('combobox', {
-      name: 'Registration option',
+      name: 'Sign-up choice',
       exact: true,
     }),
   ).toBeVisible();
@@ -411,21 +410,21 @@ You will be redirected to the detail page for that template.
   await addOnEditor.getByLabel('Add-on name').fill(addOnTitle);
   await addOnEditor.getByLabel('Description').fill(addOnDescription);
   await addOnEditor
-    .getByRole('combobox', { name: 'Registration option', exact: true })
+    .getByRole('combobox', { name: 'Sign-up choice', exact: true })
     .click();
   await page
-    .getByRole('option', { name: 'Participant registration', exact: true })
+    .getByRole('option', { name: 'Attendee sign-up', exact: true })
     .click();
-  await addOnEditor.getByLabel('Included quantity').fill('2');
-  await addOnEditor.getByLabel('Optional purchase quantity').fill('1');
-  await addOnEditor.getByLabel('Available quantity').fill('8');
-  await addOnEditor.getByLabel('Maximum per user').fill('3');
+  await addOnEditor.getByLabel('Included items').fill('2');
+  await addOnEditor.getByLabel('Items people can buy').fill('1');
+  await addOnEditor.getByLabel('Items available').fill('8');
+  await addOnEditor.getByLabel('Maximum each person can get').fill('3');
   await questionEditor
     .getByRole('textbox', { name: 'Question' })
     .fill(questionTitle);
   await questionEditor.getByLabel('Ask during').click();
   await page
-    .getByRole('option', { name: 'Participant registration', exact: true })
+    .getByRole('option', { name: 'Attendee sign-up', exact: true })
     .click();
   await questionEditor.getByLabel('Help text').fill(questionDescription);
   await questionEditor
@@ -552,7 +551,11 @@ Open the template detail page and click **Create event**. The event form starts 
 
 Dates use the fixed **de-DE** format. Enter times in the organization's time zone; Evorto preserves that meaning even when an organizer's browser is set to another time zone.
 
-If **Event could not be created** appears, your entries remain in the form. Read the reason. For a temporary connection error, correct any affected field and click **Create event** again. If the reason says a registration option no longer belongs to the selected template, copy any unsaved entries you need, use **Back to template**, and start again from the latest template. If it mentions random allocation, return to the template, change every option to **First come, first served** or **Manual approval**, save the template, and then start event creation again. A restarted form does not retain unsaved event entries. Do not assume the event exists until its detail page opens and shows the event title.
+If **Review event creation** appears, your entries remain in the form. Read the message before submitting again. For a specific validation problem, correct the named field before trying again. If the event creation outcome could not be confirmed, open the event list, load the page again and check for this event before trying again.
+
+If the message says the event was created but the event list could not be updated, open the event list and load the page again to see it. If the event was created but its page could not be opened, open it from the event list before making further changes. Do not create the event again after a confirmed creation.
+
+If the reason says a registration option no longer belongs to the selected template, copy any unsaved entries you need, use **Back to template**, and start again from the latest template. If it mentions random allocation, use **Back to template**, then choose or create a new template using **First come, first served** or **Manual approval**. Legacy random templates stay read-only. A restarted form does not retain unsaved event entries.
 `,
   });
   await page.getByRole('link', { name: 'Create event' }).click();
@@ -688,18 +691,18 @@ The event now has its own copy of the registration setup. Editing the template c
   });
   const participantOptionEditor = await templateOptionEditorByTitle(
     page,
-    'Participant registration',
+    'Attendee sign-up',
   );
   const updatedParticipantTitle = 'Participant registration updated';
   const participantTitleInput = participantOptionEditor.getByLabel(
-    'Registration option name',
+    'Sign-up choice name',
   );
   await participantTitleInput.fill(updatedParticipantTitle);
   await expect(participantTitleInput).toHaveValue(updatedParticipantTitle);
   await page
     .locator('app-template-addon-editor')
     .filter({ hasText: addOnTitle })
-    .getByLabel('Included quantity')
+    .getByLabel('Included items')
     .fill('3');
   await page.getByTestId('save-template-graph').click();
   await expect(page).toHaveURL(`/templates/${createdTemplate.id}`, {

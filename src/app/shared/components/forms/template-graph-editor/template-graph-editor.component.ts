@@ -1,5 +1,4 @@
 import type { TaxRatesListActiveRecord } from '@shared/rpc-contracts/app-rpcs/tax-rates.rpcs';
-import type { TemplateGraphRecord } from '@shared/rpc-contracts/app-rpcs/templates.rpcs';
 
 import {
   ChangeDetectionStrategy,
@@ -20,7 +19,6 @@ import { firstValueFrom } from 'rxjs';
 
 import { ConfigService } from '../../../../core/config.service';
 import { tenantCurrencyCode } from '../../../../core/tenant-runtime';
-import { persistedAdvancedToSimpleModeIssue } from '../registration-mode-transition';
 import { OrdinaryTemplateGraphFormModel } from './ordinary-template-graph-form';
 import { TemplateAddonEditorComponent } from './template-addon-editor.component';
 import { isSimpleCompatibleRegistrationOptions } from './template-graph-form.mapper';
@@ -57,12 +55,11 @@ export class TemplateGraphEditorComponent {
   readonly esnEnabled = input(false);
   readonly graphForm =
     input.required<FieldTree<OrdinaryTemplateGraphFormModel>>();
-  readonly persistedTemplate = input<TemplateGraphRecord>();
   readonly taxRates = input<readonly TaxRatesListActiveRecord[]>([]);
   readonly taxRateState = input<TemplateTaxRateLoadState>('loading');
+
   protected readonly faPlus = faPlus;
   protected readonly maxEventAddonTypes = MAX_EVENT_ADDON_TYPES;
-
   protected readonly maxRegistrationQuestions = MAX_REGISTRATION_QUESTIONS;
   protected readonly modeBlockMessage = signal('');
   protected readonly optionChoices = computed(() =>
@@ -70,7 +67,7 @@ export class TemplateGraphEditorComponent {
       .value()
       .registrationOptions.map((option, index) => ({
         key: option.key,
-        title: option.title.trim() || `Registration option ${index + 1}`,
+        title: option.title.trim() || `Sign-up choice ${index + 1}`,
       })),
   );
   protected readonly optionKindWarnings = computed(() => {
@@ -78,12 +75,12 @@ export class TemplateGraphEditorComponent {
     const warnings: string[] = [];
     if (options.every((option) => !option.organizingRegistration)) {
       warnings.push(
-        'No organizing option is configured. This is allowed, but nobody can register as an organizer through this template.',
+        'No organizer sign-up choice has been added. Organizers will not be able to sign up for events created with this template.',
       );
     }
     if (options.every((option) => option.organizingRegistration)) {
       warnings.push(
-        'No non-organizing option is configured. This is allowed, but ordinary participants cannot register through this template.',
+        'No attendee sign-up choice has been added. Attendees will not be able to sign up for events created with this template.',
       );
     }
     return warnings;
@@ -96,8 +93,9 @@ export class TemplateGraphEditorComponent {
   private readonly dialog = inject(MatDialog);
 
   protected addAddOn(): void {
-    if (this.graphForm()().value().addOns.length >= MAX_EVENT_ADDON_TYPES)
+    if (this.graphForm()().value().addOns.length >= MAX_EVENT_ADDON_TYPES) {
       return;
+    }
     const firstOptionKey = this.optionChoices()[0]?.key;
     this.updateModel((model) => ({
       ...model,
@@ -147,8 +145,9 @@ export class TemplateGraphEditorComponent {
     if (
       !firstOptionKey ||
       this.graphForm()().value().questions.length >= MAX_REGISTRATION_QUESTIONS
-    )
+    ) {
       return;
+    }
     this.updateModel((model) => ({
       ...model,
       questions: [
@@ -168,7 +167,7 @@ export class TemplateGraphEditorComponent {
         ...model.registrationOptions,
         {
           ...createTemplateGraphRegistrationOptionFormModel(
-            `Registration option ${model.registrationOptions.length + 1}`,
+            `Sign-up choice ${model.registrationOptions.length + 1}`,
             20,
             false,
           ),
@@ -253,17 +252,8 @@ export class TemplateGraphEditorComponent {
         this.graphForm()().value().registrationOptions;
       if (!isSimpleCompatibleRegistrationOptions(registrationOptions)) {
         this.modeBlockMessage.set(
-          'Simple configuration requires exactly one organizing and one non-organizing option. Reclassify or remove options first; nothing was deleted.',
+          'Simple setup needs exactly one organizer choice and one attendee choice. Change or remove choices first; nothing was deleted.',
         );
-        return;
-      }
-
-      const persistedTransitionIssue = persistedAdvancedToSimpleModeIssue(
-        this.persistedTemplate(),
-        registrationOptions,
-      );
-      if (persistedTransitionIssue) {
-        this.modeBlockMessage.set(persistedTransitionIssue);
         return;
       }
     }
