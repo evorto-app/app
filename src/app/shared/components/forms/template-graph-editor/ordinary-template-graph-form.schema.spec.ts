@@ -287,10 +287,14 @@ describe('ordinaryTemplateGraphFormSchema', () => {
         state: null,
         stripeTaxRateId: 'txr-retained',
       };
-      rates.set([rate]);
-      expect(selected.stripeTaxRateId().invalid()).toBe(true);
-      rates.set([{ ...rate, percentage: '19' }]);
-      expect(selected.stripeTaxRateId().valid()).toBe(true);
+      for (const percentage of [null, '', ' '.repeat(3), '\t\n']) {
+        rates.set([{ ...rate, percentage }]);
+        expect(selected.stripeTaxRateId().invalid()).toBe(true);
+      }
+      for (const percentage of ['0', '19', ' 7.5 ']) {
+        rates.set([{ ...rate, percentage }]);
+        expect(selected.stripeTaxRateId().valid()).toBe(true);
+      }
       rates.set([]);
       expect(selected.stripeTaxRateId().invalid()).toBe(true);
       selected.isPaid().value.set(false);

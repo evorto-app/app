@@ -37,7 +37,7 @@ const createDatabase = (
 };
 
 describe('compatible tax-rate selectors', () => {
-  for (const percentage of ['0', '19', null]) {
+  for (const percentage of ['0', '19', '', ' '.repeat(3), '\t\n', null]) {
     it.layer(
       createRegistrationDatabaseTestLayer({
         executeValues: (statement, parameters) =>
@@ -92,10 +92,10 @@ describe('compatible tax-rate selectors', () => {
           const rates = yield* getCompatibleTaxRates(database, 'tenant-1');
 
           expect(rates.map((rate) => rate.percentage)).toEqual(
-            percentage === null ? [] : [percentage],
+            percentage?.trim() ? [percentage] : [],
           );
           expect(yield* hasCompatibleTaxRates(database, 'tenant-1')).toBe(
-            percentage !== null,
+            Boolean(percentage?.trim()),
           );
         }),
       );
@@ -104,6 +104,60 @@ describe('compatible tax-rate selectors', () => {
 });
 
 describe('validateTaxRate', () => {
+  for (const percentage of ['', ' '.repeat(3), '\t\n']) {
+    it.layer(
+      createRegistrationDatabaseTestLayer({
+        executeValues: (statement, parameters) =>
+          Effect.sync(() => {
+            if (statement.includes('from "tenants"')) {
+              expect(parameters).toEqual(['tenant-1', 1]);
+              return [['acct_current']];
+            }
+            expect(statement).toContain('from "tenant_stripe_tax_rates"');
+            expect(parameters).toEqual([
+              'acct_current',
+              'txr_blank',
+              'tenant-1',
+              1,
+            ]);
+            return [
+              [
+                '2026-09-16T00:00:00.000Z',
+                'tax-rate-blank',
+                '2026-09-16T00:00:00.000Z',
+                'tenant-1',
+                true,
+                'NL',
+                'VAT',
+                true,
+                percentage,
+                null,
+                'acct_current',
+                'txr_blank',
+              ],
+            ];
+          }),
+      }),
+    )(`blank percentage ${JSON.stringify(percentage)}`, (it) => {
+      it.effect('rejects a paid choice before it can be saved', () =>
+        Effect.gen(function* () {
+          const database = yield* Database;
+          const result = yield* validateTaxRate(database, {
+            isPaid: true,
+            stripeTaxRateId: 'txr_blank',
+            tenantId: 'tenant-1',
+          });
+          expect(result).toMatchObject({
+            error: {
+              code: TAX_RATE_ERROR_CODES.ERR_TAX_RATE_PERCENTAGE_REQUIRED,
+            },
+            success: false,
+          });
+        }),
+      );
+    });
+  }
+
   it('keeps compatible tax-rate lookup on a named Effect boundary', () => {
     const source = readFileSync(
       new URL('validate-tax-rate.ts', import.meta.url),

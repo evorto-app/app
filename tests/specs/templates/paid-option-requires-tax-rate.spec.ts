@@ -83,104 +83,116 @@ test.describe('Template Tax Rate Validation', () => {
     await expect(saveButton).toBeDisabled();
   });
 
-  test('creator can save paid registration option with a seeded inclusive tax rate', async ({
-    database,
-    page,
-    permissionOverride,
-    roles,
-    templateCategories,
-    tenant,
-  }) => {
-    const category = templateCategories[0];
-    if (!category) {
-      throw new Error(
-        'Expected seeded template category before paid template save',
+  for (const unusableRate of [
+    { label: 'inactive', change: { active: false } },
+    { label: 'empty percentage', change: { percentage: '' } },
+    { label: 'whitespace percentage', change: { percentage: ' \t\n' } },
+  ]) {
+    test(`creator saves a paid choice and replaces its ${unusableRate.label} tax rate`, async ({
+      database,
+      page,
+      permissionOverride,
+      roles,
+      templateCategories,
+      tenant,
+    }) => {
+      const category = templateCategories[0];
+      if (!category) {
+        throw new Error(
+          'Expected seeded template category before paid template save',
+        );
+      }
+      const taxRate = await database.query.tenantStripeTaxRates.findFirst({
+        where: {
+          active: true,
+          inclusive: true,
+          tenantId: tenant.id,
+        },
+      });
+      if (!taxRate) {
+        throw new Error('Expected seeded active inclusive tax rate');
+      }
+      const defaultUserRole = roles.find((role) => role.defaultUserRole);
+      if (!defaultUserRole) {
+        throw new Error('Expected seeded default user role');
+      }
+      const taxRateLabel = `${taxRate.displayName || taxRate.stripeTaxRateId} — ${
+        taxRate.percentage ?? '?'
+      }%`;
+      const templateTitle = `Paid template ${getId().slice(0, 6)}`;
+
+      await page.goto(`/templates/create/${category.id}`);
+      await fillTemplateBasics(page, {
+        title: templateTitle,
+      });
+      await enablePaymentForLastRegistrationOption(page);
+      await waitForLastRegistrationOptionRole(page, defaultUserRole.name);
+      const participantOptionForm = page
+        .locator('app-template-registration-option-editor')
+        .last();
+      await priceInputForRegistrationOption(participantOptionForm).fill(
+        '10.00',
       );
-    }
-    const taxRate = await database.query.tenantStripeTaxRates.findFirst({
-      where: {
-        active: true,
-        inclusive: true,
-        tenantId: tenant.id,
-      },
-    });
-    if (!taxRate) {
-      throw new Error('Expected seeded active inclusive tax rate');
-    }
-    const defaultUserRole = roles.find((role) => role.defaultUserRole);
-    if (!defaultUserRole) {
-      throw new Error('Expected seeded default user role');
-    }
-    const taxRateLabel = `${taxRate.displayName || taxRate.stripeTaxRateId} — ${
-      taxRate.percentage ?? '?'
-    }%`;
-    const templateTitle = `Paid template ${getId().slice(0, 6)}`;
-
-    await page.goto(`/templates/create/${category.id}`);
-    await fillTemplateBasics(page, {
-      title: templateTitle,
-    });
-    await enablePaymentForLastRegistrationOption(page);
-    await waitForLastRegistrationOptionRole(page, defaultUserRole.name);
-    const participantOptionForm = page
-      .locator('app-template-registration-option-editor')
-      .last();
-    await priceInputForRegistrationOption(participantOptionForm).fill('10.00');
-    const taxRateSelect = taxRateSelectForRegistrationOption(
-      participantOptionForm,
-    );
-    await taxRateSelect.press('Enter');
-    await expect(taxRateSelect).toHaveAttribute('aria-expanded', 'true');
-    await expect(
-      page.getByRole('option', { exact: true, name: taxRateLabel }),
-    ).toBeVisible();
-    await page.getByRole('option', { exact: true, name: taxRateLabel }).click();
-
-    const saveButton = page.getByTestId('save-template-graph');
-    await expect(saveButton).toBeEnabled();
-    await saveButton.click();
-    await expect(page).toHaveURL(/\/templates\/(?!create(?:\/|$))[^/]+$/, {
-      timeout: 15_000,
-    });
-    await expect(page.getByRole('link', { name: templateTitle })).toBeVisible();
-
-    // The fixture grants editing only after proving an ordinary organizer can create it.
-    await permissionOverride({
-      add: ['templates:editAll'],
-      roleName: 'Section member',
-    });
-    await database
-      .update(tenantStripeTaxRates)
-      .set({ active: false })
-      .where(
-        and(
-          eq(tenantStripeTaxRates.id, taxRate.id),
-          eq(tenantStripeTaxRates.tenantId, tenant.id),
-        ),
+      const taxRateSelect = taxRateSelectForRegistrationOption(
+        participantOptionForm,
       );
-    const templateUrl = page.url();
-    await page.goto(`${templateUrl}/edit`);
-    await expect(taxRateSelect).toHaveText(
-      'Previously selected tax rate (no longer available)',
-    );
-    await expect(saveButton).toBeDisabled();
-    const replacement = (
-      await database.query.tenantStripeTaxRates.findMany({
-        where: { active: true, inclusive: true, tenantId: tenant.id },
-      })
-    ).find((rate) => rate.percentage !== null);
-    if (!replacement)
-      throw new Error('Expected another usable seeded tax rate');
-    const replacementLabel = `${replacement.displayName || 'Tax rate name unavailable'} — ${replacement.percentage}%`;
-    await taxRateSelect.press('Enter');
-    await page
-      .getByRole('option', { exact: true, name: replacementLabel })
-      .click();
-    await expect(saveButton).toBeEnabled();
-    await saveButton.click();
-    await expect(page).toHaveURL(templateUrl);
-    await page.goto(`${templateUrl}/edit`);
-    await expect(taxRateSelect).toHaveText(replacementLabel);
-    await expect(saveButton).toBeEnabled();
-  });
+      await taxRateSelect.press('Enter');
+      await expect(taxRateSelect).toHaveAttribute('aria-expanded', 'true');
+      await expect(
+        page.getByRole('option', { exact: true, name: taxRateLabel }),
+      ).toBeVisible();
+      await page
+        .getByRole('option', { exact: true, name: taxRateLabel })
+        .click();
+
+      const saveButton = page.getByTestId('save-template-graph');
+      await expect(saveButton).toBeEnabled();
+      await saveButton.click();
+      await expect(page).toHaveURL(/\/templates\/(?!create(?:\/|$))[^/]+$/, {
+        timeout: 15_000,
+      });
+      await expect(
+        page.getByRole('link', { name: templateTitle }),
+      ).toBeVisible();
+
+      // The fixture grants editing only after proving an ordinary organizer can create it.
+      await permissionOverride({
+        add: ['templates:editAll'],
+        roleName: 'Section member',
+      });
+      await database
+        .update(tenantStripeTaxRates)
+        .set(unusableRate.change)
+        .where(
+          and(
+            eq(tenantStripeTaxRates.id, taxRate.id),
+            eq(tenantStripeTaxRates.tenantId, tenant.id),
+          ),
+        );
+      const templateUrl = page.url();
+      await page.goto(`${templateUrl}/edit`);
+      await expect(taxRateSelect).toHaveText(
+        'Previously selected tax rate (no longer available)',
+      );
+      await expect(saveButton).toBeDisabled();
+      const replacement = (
+        await database.query.tenantStripeTaxRates.findMany({
+          where: { active: true, inclusive: true, tenantId: tenant.id },
+        })
+      ).find((rate) => Boolean(rate.percentage?.trim()));
+      if (!replacement)
+        throw new Error('Expected another usable seeded tax rate');
+      const replacementLabel = `${replacement.displayName || 'Tax rate name unavailable'} — ${replacement.percentage}%`;
+      await taxRateSelect.press('Enter');
+      await page
+        .getByRole('option', { exact: true, name: replacementLabel })
+        .click();
+      await expect(saveButton).toBeEnabled();
+      await saveButton.click();
+      await expect(page).toHaveURL(templateUrl);
+      await page.goto(`${templateUrl}/edit`);
+      await expect(taxRateSelect).toHaveText(replacementLabel);
+      await expect(saveButton).toBeEnabled();
+    });
+  }
 });

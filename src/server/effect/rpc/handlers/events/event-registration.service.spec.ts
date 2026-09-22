@@ -5057,6 +5057,48 @@ describe('EventRegistrationService', () => {
         }),
     );
 
+    it.effect.each([null, '', ' '.repeat(3), '\t\n'])(
+      'rejects a locked tax rate without a usable percentage (%s)',
+      (percentage) =>
+        Effect.gen(function* () {
+          const fixture = createDatabase({
+            taxRates: [
+              {
+                displayName: 'Registration VAT',
+                inclusive: true,
+                percentage: '19',
+                stripeTaxRateId: 'txr_registration',
+              },
+              {
+                displayName: 'Add-on VAT',
+                inclusive: true,
+                percentage,
+                stripeTaxRateId: 'txr_addon',
+              },
+            ],
+          });
+          const error = yield* fixture
+            .run({
+              addOns: [
+                {
+                  addOnId: 'addon-1',
+                  requiresTaxRate: true,
+                  stripeTaxRateId: 'txr_addon',
+                },
+              ],
+              eventId: 'event-1',
+              optionRequiresTaxRate: true,
+              optionStripeTaxRateId: 'txr_registration',
+              registrationOptionId: 'option-1',
+              stripeAccountId: 'acct_current',
+              tenantId: 'tenant-1',
+            })
+            .pipe(Effect.flip);
+          expect(error).toBeInstanceOf(EventRegistrationConflictError);
+          expect(fixture.lockOrder).toEqual(['option', 'addon', 'tax-rate']);
+        }),
+    );
+
     it.effect(
       'fails closed when referenced rates are absent from the locked account',
       () =>

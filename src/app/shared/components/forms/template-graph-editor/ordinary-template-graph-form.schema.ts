@@ -210,7 +210,8 @@ export const ordinaryTemplateGraphFormSchemaWithPaymentAvailability = (
       const rates = availableTaxRates();
       if (!paymentAllowed() || rates === undefined || !value()) return;
       return rates.some(
-        (rate) => rate.stripeTaxRateId === value() && rate.percentage !== null,
+        (rate) =>
+          rate.stripeTaxRateId === value() && Boolean(rate.percentage?.trim()),
       )
         ? undefined
         : {

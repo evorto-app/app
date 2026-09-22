@@ -891,7 +891,7 @@ export const eventQueryHandlers = {
           const taxRate = registrationOption.stripeTaxRateId
             ? taxRateByStripeId.get(registrationOption.stripeTaxRateId)
             : undefined;
-          return !taxRate || taxRate.percentage === null;
+          return !taxRate?.percentage?.trim();
         })
       ) {
         return yield* new EventConflictError({

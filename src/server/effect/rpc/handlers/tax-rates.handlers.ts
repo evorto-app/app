@@ -57,6 +57,6 @@ export const taxRateHandlers = {
         }),
       );
 
-      return activeTaxRates;
+      return activeTaxRates.filter((rate) => Boolean(rate.percentage?.trim()));
     }),
 } satisfies Partial<AppRpcHandlers>;
