@@ -114,6 +114,7 @@ export const serverConfig = Config.all({
   PORT: portConfig,
   PUBLIC_GOOGLE_MAPS_API_KEY: publicGoogleMapsApiKeyConfig,
   SERVER_LOG_LEVEL: serverLogLevelConfig,
+  SSR_RPC_ORIGIN: optionalTrimmedString('SSR_RPC_ORIGIN'),
 });
 
 export type ServerClockConfig = Config.Success<typeof serverClockConfig>;

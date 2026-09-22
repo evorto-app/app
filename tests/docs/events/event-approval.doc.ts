@@ -147,7 +147,7 @@ test('Event approval workflow', async ({
       .delete(schema.roles)
       .where(eq(schema.roles.id, reviewerRoleId));
   });
-  registerDatabaseCleanup(async () => reviewerPage?.context.close());
+  registerDatabaseCleanup(async () => reviewerPage?.close());
 
   const readGeneratedEvent = async () => {
     const [generatedEvent] = await database

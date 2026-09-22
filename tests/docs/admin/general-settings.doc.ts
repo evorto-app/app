@@ -3,6 +3,10 @@ import { Buffer } from 'node:buffer';
 import { adminStateFile } from '../../../helpers/user-data';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
+import {
+  closeTenantRequestContext,
+  routeLocalTenantRequests,
+} from '../../support/utils/tenant-request-routing';
 
 test.use({ storageState: adminStateFile });
 
@@ -301,6 +305,7 @@ test('Publish hosted legal pages and verify the signed-out footer @admin', async
   browser,
   database,
   page,
+  registerDatabaseCleanup,
   tenant,
 }, testInfo) => {
   const legalNoticeText = `Imprint for ${tenant.name}: contact the organization board for legal notices.`;
@@ -420,15 +425,12 @@ When both fields are saved, the public footer gives the external URL precedence 
   const publicContext = await browser.newContext({
     storageState: { cookies: [], origins: [] },
   });
-  await publicContext.addCookies([
-    {
-      domain: tenantUrl.hostname,
-      expires: -1,
-      name: 'evorto-tenant',
-      path: '/',
-      value: tenant.domain,
-    },
-  ]);
+  registerDatabaseCleanup(async () => closeTenantRequestContext(publicContext));
+  await routeLocalTenantRequests({
+    baseUrl: tenantUrl.origin,
+    context: publicContext,
+    tenantDomain: tenant.domain,
+  });
   const publicPage = await publicContext.newPage();
   await publicPage.goto(`${tenantUrl.origin}/events`);
   await expect(
@@ -471,7 +473,6 @@ When both fields are saved, the public footer gives the external URL precedence 
     publicPage,
     'Signed-out hosted terms page',
   );
-  await publicContext.close();
 
   await testInfo.attach('markdown', {
     body: `

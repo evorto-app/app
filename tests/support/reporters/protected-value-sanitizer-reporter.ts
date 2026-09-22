@@ -6,6 +6,7 @@ import type {
 } from '@playwright/test/reporter';
 import { readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+import { stripVTControlCharacters } from 'node:util';
 
 import { protectedEnvironmentVariables } from '../protected-values';
 
@@ -30,7 +31,10 @@ export const redactProtectedValues = (
   secrets.reduce(
     (sanitized, secret) =>
       sanitized.split(secret).join(protectedValueReplacement),
-    value,
+    stripVTControlCharacters(value).replace(
+      /^([ \t]*(?:-[ \t]*)?(?:cookie|set-cookie|authorization|proxy-authorization)[ \t]*:)[^\r\n]*/gimu,
+      '$1 [protected header]',
+    ),
   );
 
 const sanitizeError = (
@@ -49,7 +53,13 @@ const sanitizeError = (
 const bufferContainsProtectedValue = (
   value: Buffer,
   secrets: readonly string[],
-): boolean => secrets.some((secret) => value.includes(Buffer.from(secret)));
+): boolean => {
+  const text = value.toString('utf8');
+  return (
+    secrets.some((secret) => text.includes(secret)) ||
+    redactProtectedValues(text, secrets) !== stripVTControlCharacters(text)
+  );
+};
 
 const sanitizeAttachment = (
   attachment: TestResult['attachments'][number],
@@ -121,43 +131,69 @@ const sanitizeAttachment = (
 
 class ProtectedValueSanitizerReporter implements Reporter {
   private attachmentSanitizationFailures = 0;
+  private readonly pendingOutput = {
+    stderr: Buffer.alloc(0),
+    stdout: Buffer.alloc(0),
+  };
+
+  private writeOutput(
+    stream: 'stderr' | 'stdout',
+    chunk: string | Buffer,
+  ): void {
+    const pending = Buffer.concat([
+      this.pendingOutput[stream],
+      Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk),
+    ]);
+    const newline = pending.lastIndexOf(10);
+    if (newline >= 0) {
+      process[stream].write(
+        redactProtectedValues(
+          pending.subarray(0, newline + 1).toString('utf8'),
+          protectedValues(),
+        ),
+      );
+    }
+    this.pendingOutput[stream] = pending.subarray(newline + 1);
+  }
+
+  private flushOutput(): void {
+    for (const stream of ['stdout', 'stderr'] as const) {
+      if (this.pendingOutput[stream].length === 0) continue;
+      process[stream].write(
+        redactProtectedValues(
+          this.pendingOutput[stream].toString('utf8'),
+          protectedValues(),
+        ),
+      );
+      this.pendingOutput[stream] = Buffer.alloc(0);
+    }
+  }
 
   onError(error: TestError): void {
     sanitizeError(error, protectedValues());
   }
 
   onStdErr(chunk: string | Buffer): void {
-    const secrets = protectedValues();
-    process.stderr.write(
-      Buffer.isBuffer(chunk)
-        ? Buffer.from(redactProtectedValues(chunk.toString('utf8'), secrets))
-        : redactProtectedValues(chunk, secrets),
-    );
+    this.writeOutput('stderr', chunk);
   }
 
   onStdOut(chunk: string | Buffer): void {
-    const secrets = protectedValues();
-    process.stdout.write(
-      Buffer.isBuffer(chunk)
-        ? Buffer.from(redactProtectedValues(chunk.toString('utf8'), secrets))
-        : redactProtectedValues(chunk, secrets),
-    );
+    this.writeOutput('stdout', chunk);
   }
 
   onTestEnd(_test: unknown, result: TestResult): void {
     const secrets = protectedValues();
     for (const error of result.errors) sanitizeError(error, secrets);
     sanitizeError(result.error, secrets);
-    result.stdout = result.stdout.map((value) =>
-      Buffer.isBuffer(value)
-        ? Buffer.from(redactProtectedValues(value.toString('utf8'), secrets))
-        : redactProtectedValues(value, secrets),
-    );
-    result.stderr = result.stderr.map((value) =>
-      Buffer.isBuffer(value)
-        ? Buffer.from(redactProtectedValues(value.toString('utf8'), secrets))
-        : redactProtectedValues(value, secrets),
-    );
+    for (const stream of ['stdout', 'stderr'] as const) {
+      if (result[stream].length === 0) continue;
+      const text = Buffer.concat(
+        result[stream].map((chunk) =>
+          Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk),
+        ),
+      ).toString('utf8');
+      result[stream] = [redactProtectedValues(text, secrets)];
+    }
     result.attachments.splice(
       0,
       result.attachments.length,
@@ -169,7 +205,8 @@ class ProtectedValueSanitizerReporter implements Reporter {
     );
   }
 
-  onEnd(): { status?: FullResult['status'] } | undefined {
+  async onEnd(): Promise<{ status?: FullResult['status'] } | undefined> {
+    this.flushOutput();
     if (this.attachmentSanitizationFailures === 0) return undefined;
 
     process.stderr.write(

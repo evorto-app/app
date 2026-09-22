@@ -1,19 +1,24 @@
+import * as PgClient from '@effect/sql-pg/PgClient';
 import { describe, expect, it, vi } from '@effect/vitest';
-import { AdminRolesFindHubRoles } from '@shared/rpc-contracts/app-rpcs/admin.rpcs';
-import { RpcRequestContextMiddleware } from '@shared/rpc-contracts/app-rpcs/rpc-request-context.middleware';
-import { Effect, Layer } from 'effect';
+import * as PgDrizzle from 'drizzle-orm/effect-postgres';
+import { Effect, Layer, Schema } from 'effect';
 import * as Headers from 'effect/unstable/http/Headers';
-import * as Rpc from 'effect/unstable/rpc/Rpc';
-import * as RpcMessage from 'effect/unstable/rpc/RpcMessage';
+import { Rpc, RpcMessage } from 'effect/unstable/rpc';
 import Stripe from 'stripe';
 
 import { Database, type DatabaseClient } from '../../../../db';
-import { StripeClient } from '../../../stripe-client';
+import { relations } from '../../../../db/relations';
+import { type Permission } from '../../../../shared/permissions/permissions';
 import {
-  encodeRpcContextHeaderJson,
-  RPC_CONTEXT_HEADERS,
-} from '../rpc-context-headers';
+  RpcRequestContext,
+  RpcRequestContextMiddleware,
+  type RpcRequestContextShape,
+} from '../../../../shared/rpc-contracts/app-rpcs';
+import * as AdminRpcs from '../../../../shared/rpc-contracts/app-rpcs/admin.rpcs';
+import { Tenant } from '../../../../types/custom/tenant';
+import { StripeClient } from '../../../stripe-client';
 import { adminHandlers } from './admin.handlers';
+import { RpcAccess } from './shared/rpc-access.service';
 
 const createTenant = (id = 'tenant-1') => ({
   cancellationDeadlineHoursBeforeStart: 120,
@@ -42,40 +47,6 @@ const createTenant = (id = 'tenant-1') => ({
   theme: 'evorto' as const,
   timezone: 'Europe/Amsterdam',
   transferDeadlineHoursBeforeStart: 0,
-});
-
-const createAdminHeaders = () => ({
-  [RPC_CONTEXT_HEADERS.AUTHENTICATED]: 'true',
-  [RPC_CONTEXT_HEADERS.PERMISSIONS]: encodeRpcContextHeaderJson([
-    'admin:manageRoles',
-  ]),
-  [RPC_CONTEXT_HEADERS.TENANT]: encodeRpcContextHeaderJson(createTenant()),
-});
-
-const createAdminOptions = () => ({
-  headers: Headers.fromInput(createAdminHeaders()),
-});
-
-const createHubOptions = (headers: Record<string, string>) => ({
-  client: new Rpc.ServerClient(1),
-  headers: Headers.fromInput(headers),
-  requestId: RpcMessage.RequestId(1),
-  rpc: AdminRolesFindHubRoles.middleware(RpcRequestContextMiddleware),
-});
-
-const createSettingsAdminHeaders = (stripeAccountId: null | string = null) => ({
-  [RPC_CONTEXT_HEADERS.AUTHENTICATED]: 'true',
-  [RPC_CONTEXT_HEADERS.PERMISSIONS]: encodeRpcContextHeaderJson([
-    'admin:changeSettings',
-  ]),
-  [RPC_CONTEXT_HEADERS.TENANT]: encodeRpcContextHeaderJson({
-    ...createTenant(),
-    stripeAccountId,
-  }),
-});
-
-const createSettingsAdminOptions = (stripeAccountId: null | string = null) => ({
-  headers: Headers.fromInput(createSettingsAdminHeaders(stripeAccountId)),
 });
 
 const createSettingsInput = () => ({
@@ -203,12 +174,85 @@ const withTenantSettingsTransaction = <T extends object>(
   };
 };
 
+const createRequestContext = (
+  permissions: readonly Permission[],
+  stripeAccountId: null | string = null,
+) =>
+  ({
+    authData: {},
+    authenticated: true,
+    permissions,
+    platformAuthority: null,
+    tenant: Schema.decodeUnknownSync(Tenant)({
+      ...createTenant(),
+      stripeAccountId,
+    }),
+    user: null,
+    userAssigned: false,
+  }) satisfies RpcRequestContextShape;
+
+const requestContextLayer = (context: RpcRequestContextShape) =>
+  Layer.mergeAll(RpcAccess.Default, Layer.succeed(RpcRequestContext, context));
+
+const createRpcOptions = <R extends Rpc.Any>(rpc: R) => ({
+  client: new Rpc.ServerClient(1),
+  headers: Headers.empty,
+  requestId: RpcMessage.RequestId(1),
+  rpc,
+});
+
 const provideDatabase = (database: object) =>
   Layer.succeed(Database, database as DatabaseClient);
+
+const unexpectedDatabaseAccess = Effect.die(
+  new Error('Database should not be accessed before permission validation'),
+);
+const unavailableDatabaseLayer = Layer.effect(
+  Database,
+  PgDrizzle.makeWithDefaults({ relations }),
+).pipe(
+  Layer.provide(
+    PgClient.layerFrom(
+      PgClient.makeWith({
+        acquirer: unexpectedDatabaseAccess,
+        config: {},
+        listenAcquirer: unexpectedDatabaseAccess,
+        transactionAcquirer: unexpectedDatabaseAccess,
+      }),
+    ),
+  ),
+);
 
 type StripeHttpRequestArguments = Parameters<
   InstanceType<typeof Stripe.HttpClient>['makeRequest']
 >;
+
+class UnexpectedStripeHttpClient extends Stripe.HttpClient {
+  override getClientName(): string {
+    return 'evorto-admin-no-stripe-test';
+  }
+
+  override makeRequest(
+    ...arguments_: StripeHttpRequestArguments
+  ): Promise<Stripe.HttpClientResponse> {
+    const [host, , path, method] = arguments_;
+    return Promise.reject(
+      new Error(`Unexpected Stripe request: ${method} ${host}${path}`),
+    );
+  }
+}
+
+const tenantSettingsLayer = (database: object) =>
+  Layer.mergeAll(
+    provideDatabase(database),
+    Layer.succeed(
+      StripeClient,
+      new Stripe('sk_test_admin_no_stripe', {
+        httpClient: new UnexpectedStripeHttpClient(),
+        maxNetworkRetries: 0,
+      }),
+    ),
+  );
 
 class TaxRateStripeHttpClient extends Stripe.HttpClient {
   override getClientName(): string {
@@ -269,19 +313,6 @@ class TaxRateStripeResponse extends Stripe.HttpClientResponse {
   }
 }
 
-const createTaxRateAdminOptions = () => ({
-  headers: Headers.fromInput({
-    [RPC_CONTEXT_HEADERS.AUTHENTICATED]: 'true',
-    [RPC_CONTEXT_HEADERS.PERMISSIONS]: encodeRpcContextHeaderJson([
-      'admin:tax',
-    ]),
-    [RPC_CONTEXT_HEADERS.TENANT]: encodeRpcContextHeaderJson({
-      ...createTenant(),
-      stripeAccountId: 'acct_current',
-    }),
-  }),
-});
-
 const createTaxRateImportDatabase = (input: {
   readonly existingRateStripeAccountId?: string | undefined;
   readonly lockedStripeAccountId: null | string;
@@ -331,40 +362,34 @@ const taxRateImportLayer = (database: object) =>
 describe('adminHandlers role permissions', () => {
   it.effect.each([
     {
-      authenticated: 'true',
+      context: createRequestContext([]),
       errorTag: 'RpcForbiddenError',
       label: 'an authenticated user without Members Hub permission',
-      permissions: [],
     },
     {
-      authenticated: 'false',
+      context: {
+        ...createRequestContext(['internal:viewInternalPages']),
+        authenticated: false,
+      },
       errorTag: 'RpcUnauthorizedError',
-      label: 'an unauthenticated request even with a permission header',
-      permissions: ['internal:viewInternalPages'],
+      label: 'an unauthenticated request even with a permission in context',
     },
   ])('findHubRoles denies $label before querying roles', (scenario) =>
     Effect.gen(function* () {
-      const findMany = vi.fn(() => Effect.succeed([]));
-      const result = yield* adminHandlers['admin.roles.findHubRoles'](
+      const error = yield* adminHandlers['admin.roles.findHubRoles'](
         undefined,
-        createHubOptions({
-          [RPC_CONTEXT_HEADERS.AUTHENTICATED]: scenario.authenticated,
-          [RPC_CONTEXT_HEADERS.PERMISSIONS]: encodeRpcContextHeaderJson(
-            scenario.permissions,
+        createRpcOptions(
+          AdminRpcs.AdminRolesFindHubRoles.middleware(
+            RpcRequestContextMiddleware,
           ),
-          [RPC_CONTEXT_HEADERS.TENANT]:
-            encodeRpcContextHeaderJson(createTenant()),
-        }),
+        ),
       ).pipe(
-        Effect.provide(provideDatabase({ query: { roles: { findMany } } })),
-        Effect.result,
+        Effect.provide(requestContextLayer(scenario.context)),
+        Effect.provide(unavailableDatabaseLayer),
+        Effect.flip,
       );
 
-      expect(result).toMatchObject({
-        _tag: 'Failure',
-        failure: { _tag: scenario.errorTag },
-      });
-      expect(findMany).not.toHaveBeenCalled();
+      expect(error).toMatchObject({ _tag: scenario.errorTag });
     }),
   );
 
@@ -385,15 +410,17 @@ describe('adminHandlers role permissions', () => {
         );
         const roles = yield* adminHandlers['admin.roles.findHubRoles'](
           undefined,
-          createHubOptions({
-            [RPC_CONTEXT_HEADERS.AUTHENTICATED]: 'true',
-            [RPC_CONTEXT_HEADERS.PERMISSIONS]: encodeRpcContextHeaderJson([
-              'internal:viewInternalPages',
-            ]),
-            [RPC_CONTEXT_HEADERS.TENANT]:
-              encodeRpcContextHeaderJson(createTenant()),
-          }),
+          createRpcOptions(
+            AdminRpcs.AdminRolesFindHubRoles.middleware(
+              RpcRequestContextMiddleware,
+            ),
+          ),
         ).pipe(
+          Effect.provide(
+            requestContextLayer(
+              createRequestContext(['internal:viewInternalPages']),
+            ),
+          ),
           Effect.provide(provideDatabase({ query: { roles: { findMany } } })),
         );
 
@@ -418,16 +445,20 @@ describe('adminHandlers role permissions', () => {
     Effect.gen(function* () {
       const error = yield* adminHandlers['admin.roles.findMany'](
         {},
-        {
-          headers: Headers.fromInput({
-            [RPC_CONTEXT_HEADERS.AUTHENTICATED]: 'true',
-            [RPC_CONTEXT_HEADERS.PERMISSIONS]: encodeRpcContextHeaderJson([]),
-          }),
-        },
-      ).pipe(Effect.flip);
+        createRpcOptions(
+          AdminRpcs.AdminRolesFindMany.middleware(RpcRequestContextMiddleware),
+        ),
+      )
+        .pipe(
+          Effect.provide(requestContextLayer(createRequestContext([]))),
+          Effect.provide(unavailableDatabaseLayer),
+        )
+        .pipe(Effect.flip);
 
-      expect(error['_tag']).toBe('RpcForbiddenError');
-      expect(error.permission).toBe('admin:manageRoles');
+      expect(error).toMatchObject({
+        _tag: 'RpcForbiddenError',
+        permission: 'admin:manageRoles',
+      });
     }),
   );
 
@@ -458,8 +489,16 @@ describe('adminHandlers role permissions', () => {
 
       const role = yield* adminHandlers['admin.roles.findOne'](
         { id: 'role-1' },
-        createAdminOptions(),
-      ).pipe(Effect.provide(provideDatabase(database)));
+        createRpcOptions(
+          AdminRpcs.AdminRolesFindOne.middleware(RpcRequestContextMiddleware),
+        ),
+      )
+        .pipe(
+          Effect.provide(
+            requestContextLayer(createRequestContext(['admin:manageRoles'])),
+          ),
+        )
+        .pipe(Effect.provide(provideDatabase(database)));
 
       expect(role).toMatchObject({
         displayInHub: true,
@@ -479,17 +518,29 @@ describe('adminHandlers Stripe tax-rate import', () => {
       Effect.gen(function* () {
         const error = yield* adminHandlers['admin.tenant.importStripeTaxRates'](
           { ids: ['txr_admin'] },
-          createTaxRateAdminOptions(),
-        ).pipe(
-          Effect.provide(
-            taxRateImportLayer(
-              createTaxRateImportDatabase({
-                lockedStripeAccountId: 'acct_changed',
-              }),
+          createRpcOptions(
+            AdminRpcs.AdminTenantImportStripeTaxRates.middleware(
+              RpcRequestContextMiddleware,
             ),
           ),
-          Effect.flip,
-        );
+        )
+          .pipe(
+            Effect.provide(
+              requestContextLayer(
+                createRequestContext(['admin:tax'], 'acct_current'),
+              ),
+            ),
+          )
+          .pipe(
+            Effect.provide(
+              taxRateImportLayer(
+                createTaxRateImportDatabase({
+                  lockedStripeAccountId: 'acct_changed',
+                }),
+              ),
+            ),
+            Effect.flip,
+          );
 
         expect(error).toMatchObject({
           _tag: 'RpcBadRequestError',
@@ -505,18 +556,30 @@ describe('adminHandlers Stripe tax-rate import', () => {
       Effect.gen(function* () {
         const error = yield* adminHandlers['admin.tenant.importStripeTaxRates'](
           { ids: ['txr_admin'] },
-          createTaxRateAdminOptions(),
-        ).pipe(
-          Effect.provide(
-            taxRateImportLayer(
-              createTaxRateImportDatabase({
-                existingRateStripeAccountId: 'acct_foreign',
-                lockedStripeAccountId: 'acct_current',
-              }),
+          createRpcOptions(
+            AdminRpcs.AdminTenantImportStripeTaxRates.middleware(
+              RpcRequestContextMiddleware,
             ),
           ),
-          Effect.flip,
-        );
+        )
+          .pipe(
+            Effect.provide(
+              requestContextLayer(
+                createRequestContext(['admin:tax'], 'acct_current'),
+              ),
+            ),
+          )
+          .pipe(
+            Effect.provide(
+              taxRateImportLayer(
+                createTaxRateImportDatabase({
+                  existingRateStripeAccountId: 'acct_foreign',
+                  lockedStripeAccountId: 'acct_current',
+                }),
+              ),
+            ),
+            Effect.flip,
+          );
 
         expect(error).toMatchObject({
           _tag: 'RpcBadRequestError',
@@ -591,8 +654,20 @@ describe('adminHandlers tenant settings', () => {
             timezone: 'Australia/Brisbane',
             transferDeadlineHoursBeforeStart: 12,
           },
-          createSettingsAdminOptions(),
-        ).pipe(Effect.provide(provideDatabase(database)));
+          createRpcOptions(
+            AdminRpcs.AdminTenantUpdateSettings.middleware(
+              RpcRequestContextMiddleware,
+            ),
+          ),
+        )
+          .pipe(
+            Effect.provide(
+              requestContextLayer(
+                createRequestContext(['admin:changeSettings']),
+              ),
+            ),
+          )
+          .pipe(Effect.provide(tenantSettingsLayer(database)));
 
         expect(capturedUpdate).toMatchObject({
           cancellationDeadlineHoursBeforeStart: 96,
@@ -667,8 +742,18 @@ describe('adminHandlers tenant settings', () => {
           ...createSettingsInput(),
           defaultLocation,
         },
-        createSettingsAdminOptions(),
-      ).pipe(Effect.provide(provideDatabase(database)));
+        createRpcOptions(
+          AdminRpcs.AdminTenantUpdateSettings.middleware(
+            RpcRequestContextMiddleware,
+          ),
+        ),
+      )
+        .pipe(
+          Effect.provide(
+            requestContextLayer(createRequestContext(['admin:changeSettings'])),
+          ),
+        )
+        .pipe(Effect.provide(tenantSettingsLayer(database)));
 
       expect(capturedUpdate).toMatchObject({ defaultLocation });
       expect(result.defaultLocation).toEqual(defaultLocation);
@@ -685,17 +770,24 @@ describe('adminHandlers tenant settings', () => {
 
       const error = yield* adminHandlers['admin.tenant.updateSettings'](
         {
-          allowOther: true,
-          currency: 'EUR',
-          defaultLocation: null,
-          esnCardEnabled: false,
+          ...createSettingsInput(),
           legalNoticeUrl: 'not a url',
           receiptCountries: ['NL'],
           theme: 'evorto',
           timezone: 'Europe/Berlin',
         },
-        createSettingsAdminOptions(),
-      ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
+        createRpcOptions(
+          AdminRpcs.AdminTenantUpdateSettings.middleware(
+            RpcRequestContextMiddleware,
+          ),
+        ),
+      )
+        .pipe(
+          Effect.provide(
+            requestContextLayer(createRequestContext(['admin:changeSettings'])),
+          ),
+        )
+        .pipe(Effect.provide(tenantSettingsLayer(database)), Effect.flip);
 
       expect(error['_tag']).toBe('RpcBadRequestError');
       expect(error.message).toBe('Invalid tenant legal links');
@@ -728,8 +820,18 @@ describe('adminHandlers tenant settings', () => {
           faviconUrl: ' /tenant-assets/tenant-1/favicon/favicon.ico ',
           logoUrl: '/tenant-assets/tenant-1/logo/logo.png',
         },
-        createSettingsAdminOptions(),
-      ).pipe(Effect.provide(provideDatabase(database)));
+        createRpcOptions(
+          AdminRpcs.AdminTenantUpdateSettings.middleware(
+            RpcRequestContextMiddleware,
+          ),
+        ),
+      )
+        .pipe(
+          Effect.provide(
+            requestContextLayer(createRequestContext(['admin:changeSettings'])),
+          ),
+        )
+        .pipe(Effect.provide(tenantSettingsLayer(database)));
 
       expect(capturedUpdate).toMatchObject({
         faviconUrl: '/tenant-assets/tenant-1/favicon/favicon.ico',
@@ -752,17 +854,24 @@ describe('adminHandlers tenant settings', () => {
 
       const error = yield* adminHandlers['admin.tenant.updateSettings'](
         {
-          allowOther: true,
-          currency: 'EUR',
-          defaultLocation: null,
-          esnCardEnabled: false,
+          ...createSettingsInput(),
           logoUrl: 'file:///tmp/logo.svg',
           receiptCountries: ['NL'],
           theme: 'evorto',
           timezone: 'Europe/Berlin',
         },
-        createSettingsAdminOptions(),
-      ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
+        createRpcOptions(
+          AdminRpcs.AdminTenantUpdateSettings.middleware(
+            RpcRequestContextMiddleware,
+          ),
+        ),
+      )
+        .pipe(
+          Effect.provide(
+            requestContextLayer(createRequestContext(['admin:changeSettings'])),
+          ),
+        )
+        .pipe(Effect.provide(tenantSettingsLayer(database)), Effect.flip);
 
       expect(error['_tag']).toBe('RpcBadRequestError');
       expect(error.message).toBe('Invalid tenant brand assets');
@@ -781,17 +890,26 @@ describe('adminHandlers tenant settings', () => {
 
         const error = yield* adminHandlers['admin.tenant.updateSettings'](
           {
-            allowOther: true,
-            currency: 'EUR',
-            defaultLocation: null,
-            esnCardEnabled: false,
+            ...createSettingsInput(),
             logoUrl: '/tenant-assets/tenant-1/logo/..%2Fsecret.png',
             receiptCountries: ['NL'],
             theme: 'evorto',
             timezone: 'Europe/Berlin',
           },
-          createSettingsAdminOptions(),
-        ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
+          createRpcOptions(
+            AdminRpcs.AdminTenantUpdateSettings.middleware(
+              RpcRequestContextMiddleware,
+            ),
+          ),
+        )
+          .pipe(
+            Effect.provide(
+              requestContextLayer(
+                createRequestContext(['admin:changeSettings']),
+              ),
+            ),
+          )
+          .pipe(Effect.provide(tenantSettingsLayer(database)), Effect.flip);
 
         expect(error['_tag']).toBe('RpcBadRequestError');
         expect(error.message).toBe('Invalid tenant brand assets');
@@ -817,10 +935,25 @@ describe('adminHandlers tenant settings', () => {
               ...createSettingsInput(),
               logoUrl,
             },
-            createSettingsAdminOptions(),
-          ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
+            createRpcOptions(
+              AdminRpcs.AdminTenantUpdateSettings.middleware(
+                RpcRequestContextMiddleware,
+              ),
+            ),
+          )
+            .pipe(
+              Effect.provide(
+                requestContextLayer(
+                  createRequestContext(['admin:changeSettings']),
+                ),
+              ),
+            )
+            .pipe(Effect.provide(tenantSettingsLayer(database)), Effect.flip);
 
           expect(error['_tag']).toBe('RpcBadRequestError');
+          if (error._tag !== 'RpcBadRequestError') {
+            return yield* Effect.die(error);
+          }
           expect(error.message).toBe('Invalid tenant brand assets');
           expect(error.reason).toContain(
             'uploaded logo path for the current tenant',
@@ -860,8 +993,18 @@ describe('adminHandlers tenant settings', () => {
           ...createSettingsInput(),
           currency: 'CZK',
         },
-        createSettingsAdminOptions(),
-      ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
+        createRpcOptions(
+          AdminRpcs.AdminTenantUpdateSettings.middleware(
+            RpcRequestContextMiddleware,
+          ),
+        ),
+      )
+        .pipe(
+          Effect.provide(
+            requestContextLayer(createRequestContext(['admin:changeSettings'])),
+          ),
+        )
+        .pipe(Effect.provide(tenantSettingsLayer(database)), Effect.flip);
 
       expect(error['_tag']).toBe('RpcBadRequestError');
       expect(error.message).toBe(
@@ -903,10 +1046,23 @@ describe('adminHandlers tenant settings', () => {
           ...createSettingsInput(),
           currency: 'AUD',
         },
-        createSettingsAdminOptions(),
-      ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
+        createRpcOptions(
+          AdminRpcs.AdminTenantUpdateSettings.middleware(
+            RpcRequestContextMiddleware,
+          ),
+        ),
+      )
+        .pipe(
+          Effect.provide(
+            requestContextLayer(createRequestContext(['admin:changeSettings'])),
+          ),
+        )
+        .pipe(Effect.provide(tenantSettingsLayer(database)), Effect.flip);
 
       expect(error['_tag']).toBe('RpcBadRequestError');
+      if (error._tag !== 'RpcBadRequestError') {
+        return yield* Effect.die(error);
+      }
       expect(error.reason).toContain('dedicated currency migration');
     }),
   );
@@ -948,10 +1104,25 @@ describe('adminHandlers tenant settings', () => {
             ...createSettingsInput(),
             currency: 'CZK',
           },
-          createSettingsAdminOptions(),
-        ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
+          createRpcOptions(
+            AdminRpcs.AdminTenantUpdateSettings.middleware(
+              RpcRequestContextMiddleware,
+            ),
+          ),
+        )
+          .pipe(
+            Effect.provide(
+              requestContextLayer(
+                createRequestContext(['admin:changeSettings']),
+              ),
+            ),
+          )
+          .pipe(Effect.provide(tenantSettingsLayer(database)), Effect.flip);
 
         expect(error['_tag']).toBe('RpcBadRequestError');
+        if (error._tag !== 'RpcBadRequestError') {
+          return yield* Effect.die(error);
+        }
         expect(error.reason).toContain('dedicated currency migration');
       }),
   );
@@ -977,8 +1148,18 @@ describe('adminHandlers tenant settings', () => {
           ...createSettingsInput(),
           timezone: 'Europe/Prague',
         },
-        createSettingsAdminOptions(),
-      ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
+        createRpcOptions(
+          AdminRpcs.AdminTenantUpdateSettings.middleware(
+            RpcRequestContextMiddleware,
+          ),
+        ),
+      )
+        .pipe(
+          Effect.provide(
+            requestContextLayer(createRequestContext(['admin:changeSettings'])),
+          ),
+        )
+        .pipe(Effect.provide(tenantSettingsLayer(database)), Effect.flip);
 
       expect(error['_tag']).toBe('RpcBadRequestError');
       expect(error.message).toBe(
@@ -1017,8 +1198,20 @@ describe('adminHandlers tenant settings', () => {
             ...createSettingsInput(),
             timezone: 'Europe/Amsterdam',
           },
-          createSettingsAdminOptions(),
-        ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
+          createRpcOptions(
+            AdminRpcs.AdminTenantUpdateSettings.middleware(
+              RpcRequestContextMiddleware,
+            ),
+          ),
+        )
+          .pipe(
+            Effect.provide(
+              requestContextLayer(
+                createRequestContext(['admin:changeSettings']),
+              ),
+            ),
+          )
+          .pipe(Effect.provide(tenantSettingsLayer(database)), Effect.flip);
 
         expect(error['_tag']).toBe('RpcBadRequestError');
         expect(error.message).toBe(
@@ -1048,8 +1241,20 @@ describe('adminHandlers tenant settings', () => {
             ...createSettingsInput(),
             timezone: 'Europe/Amsterdam',
           },
-          createSettingsAdminOptions(),
-        ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
+          createRpcOptions(
+            AdminRpcs.AdminTenantUpdateSettings.middleware(
+              RpcRequestContextMiddleware,
+            ),
+          ),
+        )
+          .pipe(
+            Effect.provide(
+              requestContextLayer(
+                createRequestContext(['admin:changeSettings']),
+              ),
+            ),
+          )
+          .pipe(Effect.provide(tenantSettingsLayer(database)), Effect.flip);
 
         expect(error['_tag']).toBe('RpcBadRequestError');
         expect(error.message).toBe(
@@ -1076,10 +1281,25 @@ describe('adminHandlers tenant settings', () => {
 
         const error = yield* adminHandlers['admin.tenant.updateSettings'](
           createSettingsInput(),
-          createSettingsAdminOptions(),
-        ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
+          createRpcOptions(
+            AdminRpcs.AdminTenantUpdateSettings.middleware(
+              RpcRequestContextMiddleware,
+            ),
+          ),
+        )
+          .pipe(
+            Effect.provide(
+              requestContextLayer(
+                createRequestContext(['admin:changeSettings']),
+              ),
+            ),
+          )
+          .pipe(Effect.provide(tenantSettingsLayer(database)), Effect.flip);
 
         expect(error['_tag']).toBe('RpcBadRequestError');
+        if (error._tag !== 'RpcBadRequestError') {
+          return yield* Effect.die(error);
+        }
         expect(error.message).toBe(
           'Stripe account cannot be disconnected while paid event configuration exists',
         );
@@ -1121,8 +1341,20 @@ describe('adminHandlers tenant settings', () => {
             stripeAccountId: 'acct_next',
             timezone: 'Europe/Amsterdam',
           },
-          createSettingsAdminOptions('acct_existing'),
-        ).pipe(Effect.provide(taxRateImportLayer(database)));
+          createRpcOptions(
+            AdminRpcs.AdminTenantUpdateSettings.middleware(
+              RpcRequestContextMiddleware,
+            ),
+          ),
+        )
+          .pipe(
+            Effect.provide(
+              requestContextLayer(
+                createRequestContext(['admin:changeSettings'], 'acct_existing'),
+              ),
+            ),
+          )
+          .pipe(Effect.provide(taxRateImportLayer(database)));
 
         expect(deletedTaxMetadata).toBe(true);
         expect(result.stripeAccountId).toBe('acct_next');
@@ -1151,10 +1383,25 @@ describe('adminHandlers tenant settings', () => {
             stripeAccountId: undefined,
             timezone: 'Europe/Amsterdam',
           },
-          createSettingsAdminOptions(),
-        ).pipe(Effect.provide(provideDatabase(database)), Effect.flip);
+          createRpcOptions(
+            AdminRpcs.AdminTenantUpdateSettings.middleware(
+              RpcRequestContextMiddleware,
+            ),
+          ),
+        )
+          .pipe(
+            Effect.provide(
+              requestContextLayer(
+                createRequestContext(['admin:changeSettings']),
+              ),
+            ),
+          )
+          .pipe(Effect.provide(tenantSettingsLayer(database)), Effect.flip);
 
         expect(error['_tag']).toBe('RpcBadRequestError');
+        if (error._tag !== 'RpcBadRequestError') {
+          return yield* Effect.die(error);
+        }
         expect(error.message).toBe(
           'Stripe account cannot be disconnected while tax rates remain assigned',
         );
@@ -1194,8 +1441,20 @@ describe('adminHandlers tenant settings', () => {
             stripeAccountId: 'acct_new',
             timezone: 'Europe/Amsterdam',
           },
-          createSettingsAdminOptions(),
-        ).pipe(Effect.provide(provideDatabase(database)));
+          createRpcOptions(
+            AdminRpcs.AdminTenantUpdateSettings.middleware(
+              RpcRequestContextMiddleware,
+            ),
+          ),
+        )
+          .pipe(
+            Effect.provide(
+              requestContextLayer(
+                createRequestContext(['admin:changeSettings']),
+              ),
+            ),
+          )
+          .pipe(Effect.provide(tenantSettingsLayer(database)));
 
         expect(deletedTaxMetadata).toBe(true);
         expect(result.stripeAccountId).toBe('acct_new');
@@ -1230,8 +1489,20 @@ describe('adminHandlers tenant settings', () => {
             stripeAccountId: 'acct_existing',
             timezone: 'Europe/Amsterdam',
           },
-          createSettingsAdminOptions(),
-        ).pipe(Effect.provide(provideDatabase(database)));
+          createRpcOptions(
+            AdminRpcs.AdminTenantUpdateSettings.middleware(
+              RpcRequestContextMiddleware,
+            ),
+          ),
+        )
+          .pipe(
+            Effect.provide(
+              requestContextLayer(
+                createRequestContext(['admin:changeSettings']),
+              ),
+            ),
+          )
+          .pipe(Effect.provide(tenantSettingsLayer(database)));
 
         expect(updateCalled).toBe(true);
         expect(result.seoTitle).toBe('Updated title');

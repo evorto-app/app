@@ -3,12 +3,12 @@ import { and, eq } from 'drizzle-orm';
 
 import { relations } from '../../../src/db/relations';
 import * as schema from '../../../src/db/schema';
-import { Permission } from '../../../src/shared/permissions/permissions';
+import type { TenantRolePermission } from '../../../src/shared/permissions/permissions';
 
 export type PermissionDiff = {
   roleName: string | string[];
-  add?: Permission[];
-  remove?: Permission[];
+  add?: TenantRolePermission[];
+  remove?: TenantRolePermission[];
 };
 
 export async function applyPermissionDiff(
@@ -35,7 +35,7 @@ export async function applyPermissionDiff(
     }
 
     for (const role of rolesToUpdate) {
-      const current = new Set<Permission>(role.permissions);
+      const current = new Set<TenantRolePermission>(role.permissions);
       for (const p of diff.add ?? []) current.add(p);
       for (const p of diff.remove ?? []) current.delete(p);
       const next = Array.from(current);

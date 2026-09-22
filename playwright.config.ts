@@ -254,6 +254,8 @@ export default defineConfig({
     ...(resolvedBaseUrl && { baseURL: resolvedBaseUrl }),
     /* Base URL to use in actions like `await page.goto('/')`. */
     colorScheme: 'light',
+    // Playwright's API client shares idle connections across test contexts.
+    extraHTTPHeaders: { connection: 'close' },
 
     /* Ignore SSL errors when connecting to Auth0 and other external services */
     ignoreHTTPSErrors: true,

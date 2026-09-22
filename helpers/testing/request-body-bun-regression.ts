@@ -1,12 +1,15 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
 import { Effect } from 'effect';
+import { HttpServerRequest, HttpServerResponse } from 'effect/unstable/http';
+import assert from 'node:assert/strict';
 import { request as createHttpRequest, createServer } from 'node:http';
 
 import {
   discardNodeRequestBody,
   readNodeRequestBody,
 } from '../../src/server/http/request-body';
+import { makeRequestBoundaryMiddleware } from '../../src/server/http/request-boundary';
 
 const decoder = new TextDecoder();
 const unhandledRejections: unknown[] = [];
@@ -23,11 +26,38 @@ process.on('uncaughtExceptionMonitor', onUncaughtException);
 const abortResult = Promise.withResolvers<string>();
 const abortRequestStarted = Promise.withResolvers<void>();
 const oversizedResult = Promise.withResolvers<string>();
+const bodylessDrains: boolean[] = [];
+const bodylessDrainCleanup: Promise<boolean>[] = [];
+let bunUnsupportedBodyCancelled = false;
+let bunUnsupportedDownstreamInvoked = false;
+let bunInvalidAddressBodyCancelled = false;
+let bunInvalidAddressDownstreamInvoked = false;
+const bunBodylessRequests: {
+  bodyCancelled: boolean;
+  bodyExposed: boolean;
+  method: string;
+  normalizedBodyAbsent: boolean;
+}[] = [];
 
 const handleRequest = async (
   request: IncomingMessage,
   response: ServerResponse,
 ) => {
+  if (request.url === '/bodyless') {
+    const initialErrorListeners = request.listenerCount('error');
+    discardNodeRequestBody(request);
+    bodylessDrains.push(request.readableFlowing === true);
+    bodylessDrainCleanup.push(
+      new Promise((resolve) => {
+        request.once('close', () => {
+          resolve(request.listenerCount('error') === initialErrorListeners);
+        });
+      }),
+    );
+    response.end('bodyless response');
+    return;
+  }
+
   if (request.url === '/abort') {
     const resultPromise = Effect.runPromise(
       readNodeRequestBody(request, 10).pipe(
@@ -92,6 +122,54 @@ const serverFailure = Promise.withResolvers<never>();
 const server = createServer((request, response) => {
   void handleRequest(request, response).catch(serverFailure.reject);
 });
+const bunServer = Bun.serve({
+  async fetch(request) {
+    const pathname = new URL(request.url).pathname;
+    const bodyExposed = request.body !== null;
+    let normalizedBodyAbsent = false;
+    const response = await Effect.runPromise(
+      makeRequestBoundaryMiddleware({
+        requestBodyLimit: () => undefined,
+        transportProtocol: 'http',
+        trustPlatformProxy: false,
+      })(
+        Effect.gen(function* () {
+          if (pathname === '/unsupported') {
+            bunUnsupportedDownstreamInvoked = true;
+          } else if (pathname === '/invalid-address') {
+            bunInvalidAddressDownstreamInvoked = true;
+          } else if (pathname === '/bodyless') {
+            const normalized = yield* HttpServerRequest.HttpServerRequest;
+            const webRequest = yield* HttpServerRequest.toWeb(normalized);
+            assert.equal(webRequest.method, request.method);
+            normalizedBodyAbsent = webRequest.body === null;
+          }
+          return HttpServerResponse.empty({ status: 204 });
+        }),
+      ).pipe(
+        Effect.provideService(
+          HttpServerRequest.HttpServerRequest,
+          HttpServerRequest.fromWeb(request),
+        ),
+      ),
+    );
+    if (pathname === '/unsupported') {
+      bunUnsupportedBodyCancelled = request.bodyUsed;
+    } else if (pathname === '/invalid-address') {
+      bunInvalidAddressBodyCancelled = request.bodyUsed;
+    } else if (pathname === '/bodyless') {
+      bunBodylessRequests.push({
+        bodyCancelled: request.bodyUsed,
+        bodyExposed,
+        method: request.method,
+        normalizedBodyAbsent,
+      });
+    }
+    return HttpServerResponse.toWeb(response);
+  },
+  hostname: '127.0.0.1',
+  port: 0,
+});
 
 const withTimeout = async <A>(promise: Promise<A>, label: string) => {
   let timeout: ReturnType<typeof setTimeout> | undefined;
@@ -143,6 +221,49 @@ const responseBody = (
       request.end(body);
     },
   );
+
+const responseBeforeRequestEnd = async (
+  port: number,
+  path: string,
+  method: string,
+  hostHeader?: string,
+) => {
+  const request = createHttpRequest({
+    agent: false,
+    headers: {
+      ...(hostHeader && { host: hostHeader }),
+      'transfer-encoding': 'chunked',
+    },
+    host: '127.0.0.1',
+    method,
+    path,
+    port,
+  });
+  const response = new Promise<{ body: string; status: number }>(
+    (resolve, reject) => {
+      request.once('error', reject);
+      request.once('response', (response) => {
+        const chunks: Uint8Array[] = [];
+        response.on('data', (chunk: Uint8Array) => {
+          chunks.push(chunk);
+        });
+        response.once('error', reject);
+        response.once('end', () => {
+          resolve({
+            body: decoder.decode(Buffer.concat(chunks)),
+            status: response.statusCode ?? 0,
+          });
+        });
+      });
+    },
+  );
+  try {
+    request.write('held-open');
+    return await withTimeout(response, `${method} ${path} before request end`);
+  } finally {
+    request.destroy();
+  }
+};
 
 try {
   await new Promise<void>((resolve, reject) => {
@@ -201,32 +322,77 @@ try {
     }),
     'exact-limit request',
   );
-  const unsupportedClient = createHttpRequest({
-    agent: false,
-    headers: { 'transfer-encoding': 'chunked' },
-    host: '127.0.0.1',
-    method: 'POST',
-    path: '/unsupported',
-    port: address.port,
-  });
-  const unsupportedResponse = new Promise<number>((resolve, reject) => {
-    unsupportedClient.once('error', reject);
-    unsupportedClient.once('response', (response) => {
-      response.resume();
-      response.once('end', () => resolve(response.statusCode ?? 0));
-    });
-  });
-  unsupportedClient.write('held-open');
-  const unsupportedStatus = await withTimeout(
-    unsupportedResponse,
-    'unsupported response before request end',
+  const { status: unsupportedStatus } = await responseBeforeRequestEnd(
+    address.port,
+    '/unsupported',
+    'POST',
   );
-  unsupportedClient.destroy();
+  const bodylessGet = await responseBeforeRequestEnd(
+    address.port,
+    '/bodyless',
+    'GET',
+  );
+  const bodylessHead = await responseBeforeRequestEnd(
+    address.port,
+    '/bodyless',
+    'HEAD',
+  );
+  const bodylessCleanup = await withTimeout(
+    Promise.all(bodylessDrainCleanup),
+    'bodyless request drain cleanup',
+  );
+  if (bunServer.port === undefined) {
+    throw new Error('Bun request boundary did not expose a TCP port');
+  }
+  const { status: bunUnsupportedStatus } = await responseBeforeRequestEnd(
+    bunServer.port,
+    '/unsupported',
+    'POST',
+  );
+  for (const method of ['GET', 'HEAD']) {
+    const response = await responseBeforeRequestEnd(
+      bunServer.port,
+      '/bodyless',
+      method,
+    );
+    assert.deepEqual(response, { body: '', status: 204 });
+  }
+  assert.deepEqual(
+    bunBodylessRequests.map(({ method, normalizedBodyAbsent }) => ({
+      method,
+      normalizedBodyAbsent,
+    })),
+    [
+      { method: 'GET', normalizedBodyAbsent: true },
+      { method: 'HEAD', normalizedBodyAbsent: true },
+    ],
+  );
+  // Bun 1.4.2 hides GET/HEAD bodies. Any exposed stream must be cancelled;
+  // the boundary unit cases exercise that branch independently of Bun's policy.
+  for (const request of bunBodylessRequests) {
+    assert.equal(request.bodyCancelled, request.bodyExposed);
+  }
+  const bunInvalidAddress = await responseBeforeRequestEnd(
+    bunServer.port,
+    '/invalid-address',
+    'POST',
+    'tenant..example.com',
+  );
+  assert.equal(bunInvalidAddress.status, 400);
+  assert.equal(bunInvalidAddressBodyCancelled, true);
+  assert.equal(bunInvalidAddressDownstreamInvoked, false);
   await Bun.sleep(100);
 
   process.stdout.write(
     JSON.stringify({
       aborted,
+      bodylessCleanup,
+      bodylessDrains,
+      bodylessGet,
+      bodylessHead,
+      bunUnsupportedBodyCancelled,
+      bunUnsupportedDownstreamInvoked,
+      bunUnsupportedStatus,
       exact,
       oversized,
       oversizedStatus,
@@ -236,6 +402,7 @@ try {
     }),
   );
 } finally {
+  await bunServer.stop(true);
   process.off('unhandledRejection', onUnhandledRejection);
   process.off('uncaughtExceptionMonitor', onUncaughtException);
   server.closeAllConnections();

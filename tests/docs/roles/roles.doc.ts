@@ -482,7 +482,7 @@ Return to **Admin tools** → **Users**, search for the member, and select the n
         'Members Hub for an eligible organization member',
       );
     } finally {
-      await memberSession.context.close();
+      await memberSession.close();
     }
 
     await testInfo.attach('markdown', {

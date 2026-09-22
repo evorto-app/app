@@ -51,6 +51,7 @@ describe('server-config', () => {
           ['E2E_NOW_ISO', '2026-03-01T12:00:00.000Z'],
           ['npm_package_version', '1.2.3'],
           ['SERVER_LOG_LEVEL', ' warning '],
+          ['SSR_RPC_ORIGIN', ' http://127.0.0.1:4000 '],
         ]);
 
         const config = yield* readServerConfig(provider);
@@ -60,6 +61,9 @@ describe('server-config', () => {
         );
         expect(config.PACKAGE_VERSION).toEqual(Option.some('1.2.3'));
         expect(config.SERVER_LOG_LEVEL).toEqual(Option.some('Warn'));
+        expect(config.SSR_RPC_ORIGIN).toEqual(
+          Option.some('http://127.0.0.1:4000'),
+        );
       }),
   );
 
@@ -82,6 +86,7 @@ describe('server-config', () => {
       const config = yield* readServerConfig(providerFromEntries([]));
 
       expect(config.PUBLIC_GOOGLE_MAPS_API_KEY).toEqual(Option.none());
+      expect(config.SSR_RPC_ORIGIN).toEqual(Option.none());
     }),
   );
 });

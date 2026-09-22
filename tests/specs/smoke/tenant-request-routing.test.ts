@@ -1,0 +1,1035 @@
+import { once } from 'node:events';
+import { setImmediate } from 'node:timers/promises';
+import {
+  createServer,
+  type RequestListener,
+  type Server,
+  type ServerResponse,
+} from 'node:http';
+
+import { expect, test, type BrowserContext } from '@playwright/test';
+
+import { localTestTenantDomainHeader } from '../../../src/shared/request-routing';
+import {
+  closeTenantRequestContext,
+  closeTenantRequestPages,
+  routeLocalTenantRequests,
+  stopTenantRequestRouting,
+} from '../../support/utils/tenant-request-routing';
+
+interface ListeningServer {
+  readonly close: () => Promise<void>;
+  readonly origin: string;
+}
+
+const listen = async (listener: RequestListener): Promise<ListeningServer> => {
+  const server: Server = createServer(listener);
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+
+  const address = server.address();
+  if (!address || typeof address === 'string') {
+    await close(server);
+    throw new Error('Expected a local HTTP server address');
+  }
+
+  return {
+    close: () => close(server),
+    origin: `http://127.0.0.1:${address.port}`,
+  };
+};
+
+const close = (server: Server): Promise<void> =>
+  new Promise((resolve, reject) => {
+    server.close((error) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+      resolve();
+    });
+  });
+
+test('keeps the local tenant header away from external requests', async ({
+  browser,
+}) => {
+  const receivedTenant = (
+    headers: Readonly<Record<string, unknown>>,
+  ): string =>
+    typeof headers[localTestTenantDomainHeader] === 'string'
+      ? headers[localTestTenantDomainHeader]
+      : 'none';
+  const external = await listen((request, response) => {
+    response.end(receivedTenant(request.headers));
+  });
+  let local: ListeningServer | undefined;
+  let context: BrowserContext | undefined;
+  const errors: unknown[] = [];
+
+  try {
+    local = await listen((request, response) => {
+      if (request.url === '/iframe') {
+        response.writeHead(200, { 'content-type': 'text/html' });
+        response.end(
+          `<iframe title="Local storage" src="${external.origin}/embedded"></iframe>`,
+        );
+        return;
+      }
+      if (request.url === '/redirect') {
+        response.writeHead(302, { location: `${external.origin}/redirected` });
+        response.end();
+        return;
+      }
+      response.end(receivedTenant(request.headers));
+    });
+    context = await browser.newContext();
+    await routeLocalTenantRequests({
+      baseUrl: local.origin,
+      context,
+      tenantDomain: 'north-river.evorto.app',
+    });
+    const page = await context.newPage();
+
+    await page.goto(`${local.origin}/tenant`);
+    await expect(page.locator('body')).toHaveText('north-river.evorto.app');
+
+    const embeddedResponse = page.waitForResponse(
+      `${external.origin}/embedded`,
+    );
+    await page.goto(`${local.origin}/iframe`);
+    expect((await embeddedResponse).status()).toBe(200);
+    await expect(
+      page.frameLocator('iframe[title="Local storage"]').locator('body'),
+    ).toHaveText('none');
+
+    await page.goto(`${external.origin}/direct`);
+    await expect(page.locator('body')).toHaveText('none');
+
+    await page.goto(`${local.origin}/redirect`);
+    await expect(page).toHaveURL(`${external.origin}/redirected`);
+    await expect(page.locator('body')).toHaveText('none');
+  } catch (error) {
+    errors.push(error);
+  } finally {
+    try {
+      if (context) await closeTenantRequestContext(context);
+    } catch (error) {
+      errors.push(error);
+    }
+    const serverClosures = await Promise.allSettled([
+      ...(local ? [local.close()] : []),
+      external.close(),
+    ]);
+    for (const closure of serverClosures) {
+      if (closure.status === 'rejected') errors.push(closure.reason);
+    }
+  }
+  if (errors.length === 1) throw errors[0];
+  if (errors.length > 1) {
+    throw new AggregateError(
+      errors,
+      'Tenant request routing smoke test and cleanup failed',
+      { cause: errors[0] },
+    );
+  }
+});
+
+test('drains concurrent tenant requests before unregistering the handler', async ({
+  browser,
+}) => {
+  const responses = new Map<string, ServerResponse>();
+  const started = Promise.withResolvers<void>();
+  const received: string[] = [];
+  const local = await listen((request, response) => {
+    const path = request.url ?? '/';
+    received.push(path);
+    if (path === '/first' || path === '/second') {
+      if (responses.has(path)) {
+        response.end('unexpected duplicate request');
+        return;
+      }
+      responses.set(path, response);
+      if (responses.size === 2) started.resolve();
+      return;
+    }
+    response.setHeader('content-type', 'text/html');
+    response.end('<body>Local routing regression</body>');
+  });
+  let context: BrowserContext | undefined;
+  const errors: unknown[] = [];
+  try {
+    context = await browser.newContext();
+    await routeLocalTenantRequests({
+      baseUrl: local.origin,
+      context,
+      tenantDomain: 'north-river.evorto.app',
+    });
+    const page = await context.newPage();
+    await page.goto(local.origin);
+    const completed = page.evaluate(async () =>
+      Promise.all(
+        ['/first', '/second'].map(async (path) => (await fetch(path)).text()),
+      ),
+    );
+    await started.promise;
+    const stopped = stopTenantRequestRouting(context);
+    const lateRequest = await page.evaluate(async () => {
+      try {
+        await fetch('/late');
+        return 'unexpectedly admitted';
+      } catch {
+        return 'aborted during cleanup';
+      }
+    });
+    expect(lateRequest).toBe('aborted during cleanup');
+    expect(received).not.toContain('/late');
+    const firstCompleted = page.waitForResponse(`${local.origin}/first`);
+    responses.get('/first')?.end('first completed');
+    await (await firstCompleted).finished();
+    // A browser protocol round trip lets the first route complete while its
+    // sibling is still inside route.fetch, reproducing the teardown ordering.
+    await page.title();
+    responses.get('/second')?.end('second completed');
+    await stopped;
+    expect(await completed).toEqual(['first completed', 'second completed']);
+    expect(
+      received.filter((path) => path === '/first' || path === '/second'),
+    ).toEqual(['/first', '/second']);
+  } catch (error) {
+    errors.push(error);
+  } finally {
+    for (const response of responses.values()) {
+      if (!response.writableEnded) response.end('cleanup');
+    }
+    try {
+      if (context) await closeTenantRequestContext(context);
+    } catch (error) {
+      errors.push(error);
+    }
+    try {
+      await local.close();
+    } catch (error) {
+      errors.push(error);
+    }
+  }
+  if (errors.length === 1) throw errors[0];
+  if (errors.length > 1)
+    throw new AggregateError(
+      errors,
+      'Concurrent tenant routing test and cleanup failed',
+      { cause: errors[0] },
+    );
+});
+
+test('preserves unrelated context and page handlers after tenant routing stops', async ({
+  browser,
+}) => {
+  const local = await listen((_request, response) => {
+    response.setHeader('content-type', 'text/html');
+    response.end('<body>Local routing regression</body>');
+  });
+  let context: BrowserContext | undefined;
+  const errors: unknown[] = [];
+  try {
+    context = await browser.newContext();
+    await routeLocalTenantRequests({
+      baseUrl: local.origin,
+      context,
+      tenantDomain: 'north-river.evorto.app',
+    });
+    await context.route(`${local.origin}/context-handler`, (route) =>
+      route.fulfill({ body: 'context handler' }),
+    );
+    const page = await context.newPage();
+    await page.route(`${local.origin}/page-handler`, (route) =>
+      route.fulfill({ body: 'page handler' }),
+    );
+    await page.goto(local.origin);
+    await stopTenantRequestRouting(context);
+    expect(
+      await page.evaluate(async () =>
+        Promise.all(
+          ['/context-handler', '/page-handler'].map(async (path) =>
+            (await fetch(path)).text(),
+          ),
+        ),
+      ),
+    ).toEqual(['context handler', 'page handler']);
+  } catch (error) {
+    errors.push(error);
+  } finally {
+    try {
+      if (context) await closeTenantRequestContext(context);
+    } catch (error) {
+      errors.push(error);
+    }
+    try {
+      await local.close();
+    } catch (error) {
+      errors.push(error);
+    }
+  }
+  if (errors.length === 1) throw errors[0];
+  if (errors.length > 1)
+    throw new AggregateError(
+      errors,
+      'Handler ownership test and cleanup failed',
+      { cause: errors[0] },
+    );
+});
+
+interface FailureDatabase {
+  cleanup: () => Promise<void>;
+  events: string[];
+  startFixtureTeardown: () => void;
+}
+
+const failureTest = test.extend<{
+  failureDatabase: FailureDatabase;
+  failedRequestPage: { context: BrowserContext; origin: string };
+}>({
+  failureDatabase: async ({}, use) => {
+    const events: string[] = [];
+    let closed = false;
+    let teardownStarted = false;
+    try {
+      await use({
+        cleanup: async () => {
+          events.push('body cleanup started');
+          await setImmediate();
+          if (closed) throw new Error('Test cleanup used a closed database');
+          if (teardownStarted)
+            throw new Error('Test cleanup outlived its test body scope');
+          events.push('body cleanup completed');
+        },
+        events,
+        startFixtureTeardown: () => {
+          teardownStarted = true;
+          events.push('fixture teardown started');
+        },
+      });
+    } finally {
+      closed = true;
+      events.push('database closed');
+      expect(events).toEqual([
+        'body cleanup started',
+        'body cleanup completed',
+        'fixture teardown started',
+        'routing owner reported failure',
+        'database closed',
+      ]);
+    }
+  },
+  failedRequestPage: async ({ browser, failureDatabase }, use) => {
+    let requests = 0;
+    const local = await listen((request) => {
+      requests += 1;
+      request.socket.destroy();
+    });
+    let context: BrowserContext | undefined;
+    const errors: unknown[] = [];
+    try {
+      context = await browser.newContext();
+      await routeLocalTenantRequests({
+        baseUrl: local.origin,
+        context,
+        tenantDomain: 'north-river.evorto.app',
+      });
+      await use({ context, origin: local.origin });
+    } catch (error) {
+      errors.push(error);
+    } finally {
+      failureDatabase.startFixtureTeardown();
+      try {
+        if (context) {
+          if (requests > 0) {
+            await expect(closeTenantRequestContext(context)).rejects.toThrow(
+              'socket hang up',
+            );
+            failureDatabase.events.push('routing owner reported failure');
+            expect(requests).toBe(1);
+          } else {
+            await closeTenantRequestContext(context);
+          }
+        }
+      } catch (error) {
+        errors.push(error);
+      }
+      try {
+        await local.close();
+      } catch (error) {
+        errors.push(error);
+      }
+    }
+    if (errors.length > 0)
+      throw new AggregateError(
+        errors,
+        'Route failure regression cleanup failed',
+      );
+  },
+});
+
+failureTest(
+  'keeps asynchronous test cleanup inside the fixture lifetime after a failed fetch',
+  async ({ failedRequestPage, failureDatabase }) => {
+    const page = await failedRequestPage.context.newPage();
+    try {
+      await expect(page.goto(failedRequestPage.origin)).rejects.toThrow(
+        'net::ERR_FAILED',
+      );
+    } finally {
+      await failureDatabase.cleanup();
+    }
+  },
+);
+
+for (const closeFails of [false, true]) {
+  test(`retains request settlement${closeFails ? ' and context-close' : ''} failure without replaying the request`, async ({
+    browser,
+  }) => {
+    let requests = 0;
+    const local = await listen((request) => {
+      requests += 1;
+      request.socket.destroy();
+    });
+    let context: BrowserContext | undefined;
+    let originalClose: BrowserContext['close'] | undefined;
+    const settlementFailure = new Error('Synthetic request abort failure');
+    const closeFailure = new Error('Synthetic context close reporting failure');
+    let closeCalls = 0;
+    const errors: unknown[] = [];
+    try {
+      context = await browser.newContext();
+      const closeContext = context.close.bind(context);
+      originalClose = closeContext;
+      context.close = async (options) => {
+        closeCalls += 1;
+        await closeContext(options);
+        if (closeFails) throw closeFailure;
+      };
+      await routeLocalTenantRequests({
+        baseUrl: local.origin,
+        context,
+        tenantDomain: 'north-river.evorto.app',
+      });
+      // A real routed request with a controlled settlement failure exercises
+      // the context-close boundary without depending on a browser protocol fault.
+      await context.route(`${local.origin}/**`, async (route) => {
+        route.abort = async () => {
+          throw settlementFailure;
+        };
+        await route.fallback();
+      });
+      const page = await context.newPage();
+      await expect(page.goto(local.origin)).rejects.toThrow();
+      await expect(stopTenantRequestRouting(context)).rejects.toMatchObject({
+        errors: [
+          expect.objectContaining({
+            message: expect.stringContaining('socket hang up'),
+          }),
+          settlementFailure,
+          ...(closeFails ? [closeFailure] : []),
+        ],
+      });
+      expect(context.isClosed()).toBe(true);
+      expect(closeCalls).toBe(1);
+      expect(requests).toBe(1);
+    } catch (error) {
+      errors.push(error);
+    } finally {
+      try {
+        if (context) await closeTenantRequestContext(context);
+      } catch (error) {
+        errors.push(error);
+      } finally {
+        if (context && originalClose) context.close = originalClose;
+      }
+      try {
+        await local.close();
+      } catch (error) {
+        errors.push(error);
+      }
+    }
+    if (errors.length > 0)
+      throw new AggregateError(errors, 'Request settlement regression failed');
+    expect(closeCalls).toBe(1);
+  });
+}
+
+test('retains routing ownership when emergency close rejects before closing the context', async ({
+  browser,
+}) => {
+  let requests = 0;
+  const local = await listen((request) => {
+    requests += 1;
+    request.socket.destroy();
+  });
+  let context: BrowserContext | undefined;
+  let originalClose: BrowserContext['close'] | undefined;
+  let navigation: Promise<unknown> | undefined;
+  const closeRequested = Promise.withResolvers<void>();
+  const settlementFailure = new Error('Synthetic request abort failure');
+  const closeFailure = new Error('Synthetic context close rejection');
+  let closeCalls = 0;
+  const errors: unknown[] = [];
+  try {
+    context = await browser.newContext();
+    originalClose = context.close.bind(context);
+    context.close = async () => {
+      closeCalls += 1;
+      closeRequested.resolve();
+      throw closeFailure;
+    };
+    await routeLocalTenantRequests({
+      baseUrl: local.origin,
+      context,
+      tenantDomain: 'north-river.evorto.app',
+    });
+    await context.route(`${local.origin}/**`, async (route) => {
+      route.abort = async () => {
+        throw settlementFailure;
+      };
+      await route.fallback();
+    });
+    const page = await context.newPage();
+    navigation = page.goto(local.origin).catch((error: unknown) => error);
+    await closeRequested.promise;
+    const retainedFailure = await stopTenantRequestRouting(context).catch(
+      (error: unknown) => error,
+    );
+    expect(retainedFailure).toMatchObject({
+      errors: [
+        expect.objectContaining({
+          message: expect.stringContaining('socket hang up'),
+        }),
+        settlementFailure,
+        closeFailure,
+      ],
+      message:
+        'Tenant request routing cleanup failed; context remains open and routing remains installed',
+    });
+    expect(context.isClosed()).toBe(false);
+    await expect(
+      routeLocalTenantRequests({
+        baseUrl: local.origin,
+        context,
+        tenantDomain: 'replacement.example.org',
+      }),
+    ).rejects.toThrow('Tenant request routing is already installed');
+    await expect(closeTenantRequestContext(context)).rejects.toBe(
+      retainedFailure,
+    );
+    expect(context.isClosed()).toBe(false);
+    expect(closeCalls).toBe(1);
+    expect(requests).toBe(1);
+  } catch (error) {
+    errors.push(error);
+  } finally {
+    // The probe owns this deliberately unclosed context. Restore the real
+    // close operation solely to release its browser resource after assertions.
+    try {
+      if (context && originalClose) {
+        context.close = originalClose;
+        await originalClose();
+      }
+      if (navigation) await navigation;
+    } catch (error) {
+      errors.push(error);
+    }
+    try {
+      await local.close();
+    } catch (error) {
+      errors.push(error);
+    }
+  }
+  if (errors.length > 0)
+    throw new AggregateError(
+      errors,
+      'Unclosed routing owner regression failed',
+    );
+});
+
+for (const cleanupMode of ['pages', 'context'] as const) {
+  test(`closes tenant pages before draining their held request without browser errors (${cleanupMode})`, async ({
+    browser,
+  }) => {
+    const started = Promise.withResolvers<void>();
+    const pageErrors: Error[] = [];
+    const errors: unknown[] = [];
+    let response: ServerResponse | undefined;
+    let heldRequests = 0;
+    let context: BrowserContext | undefined;
+    let evaluation: Promise<PromiseSettledResult<string>[]> | undefined;
+    let closing: Promise<PromiseSettledResult<void>[]> | undefined;
+    const recordFailure = (error: unknown) => {
+      if (!errors.includes(error)) errors.push(error);
+    };
+    const release = () => {
+      if (response && !response.writableEnded && !response.destroyed)
+        response.end('held response completed');
+    };
+    const local = await listen((request, currentResponse) => {
+      currentResponse.on('error', recordFailure);
+      if (request.url === '/held-page-request') {
+        heldRequests += 1;
+        if (response) {
+          recordFailure(new Error('Duplicate held tenant request'));
+          currentResponse.end('duplicate request');
+          return;
+        }
+        response = currentResponse;
+        started.resolve();
+        return;
+      }
+      currentResponse.setHeader('content-type', 'text/html');
+      currentResponse.end('<body>Tenant page lifetime regression</body>');
+    });
+    try {
+      context = await browser.newContext();
+      await routeLocalTenantRequests({
+        baseUrl: local.origin,
+        context,
+        tenantDomain: 'north-river.evorto.app',
+      });
+      const page = await context.newPage();
+      page.on('pageerror', (error) => {
+        pageErrors.push(error);
+      });
+      await page.goto(local.origin);
+      evaluation = Promise.allSettled([
+        page.evaluate(async () => (await fetch('/held-page-request')).text()),
+      ]);
+      await started.promise;
+      const pageClosed = page.waitForEvent('close', { timeout: 10_000 });
+      closing = Promise.allSettled([
+        cleanupMode === 'pages'
+          ? closeTenantRequestPages(context)
+          : closeTenantRequestContext(context),
+      ]);
+      await pageClosed;
+      expect(page.isClosed()).toBe(true);
+      expect(context.isClosed()).toBe(false);
+      expect(response?.writableEnded).toBe(false);
+      const [browserResult] = await evaluation;
+      if (!browserResult || browserResult.status !== 'rejected') {
+        throw new Error(
+          'Held browser evaluation did not end with page closure',
+        );
+      }
+      if (!(browserResult.reason instanceof Error)) throw browserResult.reason;
+      expect(browserResult.reason.message).toContain(
+        'Target page, context or browser has been closed',
+      );
+      release();
+      const [closeResult] = await closing;
+      if (!closeResult)
+        throw new Error('Tenant page cleanup result is missing');
+      if (closeResult.status === 'rejected') throw closeResult.reason;
+      expect(context.isClosed()).toBe(cleanupMode === 'context');
+      expect(heldRequests).toBe(1);
+      expect(pageErrors).toEqual([]);
+    } catch (error) {
+      recordFailure(error);
+    } finally {
+      try {
+        release();
+      } catch (error) {
+        recordFailure(error);
+      }
+      try {
+        if (closing) {
+          for (const result of await closing) {
+            if (result.status === 'rejected') recordFailure(result.reason);
+          }
+        }
+      } catch (error) {
+        recordFailure(error);
+      }
+      try {
+        if (context && (cleanupMode === 'pages' || !closing)) {
+          await closeTenantRequestContext(context);
+        }
+      } catch (error) {
+        recordFailure(error);
+      }
+      try {
+        if (evaluation) {
+          for (const result of await evaluation) {
+            if (
+              result.status === 'rejected' &&
+              (!(result.reason instanceof Error) ||
+                !result.reason.message.includes(
+                  'Target page, context or browser has been closed',
+                ))
+            ) {
+              recordFailure(result.reason);
+            }
+          }
+        }
+      } catch (error) {
+        recordFailure(error);
+      }
+      try {
+        await local.close();
+      } catch (error) {
+        recordFailure(error);
+      }
+      for (const error of pageErrors) recordFailure(error);
+    }
+    if (errors.length === 1) throw errors[0];
+    if (errors.length > 1)
+      throw new AggregateError(
+        errors,
+        'Tenant page lifetime regression and cleanup failed',
+      );
+  });
+}
+
+test('uses fresh upstream connections for tenant requests across owned contexts', async ({
+  browser,
+}) => {
+  const tenantDomain = 'connection-policy.evorto.app';
+  const socketIds = new WeakMap<object, number>();
+  let nextSocketId = 0;
+  const received: {
+    connection: string | undefined;
+    path: string;
+    socketId: number;
+    tenant: string | string[] | undefined;
+  }[] = [];
+  const externalTenants: (string | string[] | undefined)[] = [];
+  const external = await listen((request, response) => {
+    externalTenants.push(request.headers[localTestTenantDomainHeader]);
+    response.writeHead(200, { 'content-type': 'text/html' });
+    response.end(
+      '<!doctype html><link rel="icon" href="data:,"><body>external</body>',
+    );
+  });
+  let local: ListeningServer | undefined;
+  const errors: unknown[] = [];
+
+  try {
+    local = await listen((request, response) => {
+      let socketId = socketIds.get(request.socket);
+      if (socketId === undefined) {
+        socketId = ++nextSocketId;
+        socketIds.set(request.socket, socketId);
+      }
+      const requestPath = request.url ?? '/';
+      received.push({
+        connection: request.headers.connection,
+        path: requestPath,
+        socketId,
+        tenant: request.headers[localTestTenantDomainHeader],
+      });
+      if (requestPath === '/redirect') {
+        response.writeHead(302, { location: `${external.origin}/outside` });
+        response.end();
+      } else if (requestPath.startsWith('/document-')) {
+        response.writeHead(200, { 'content-type': 'text/html' });
+        response.end(
+          '<!doctype html><link rel="icon" href="data:,"><title>Connection policy</title>',
+        );
+      } else {
+        response.writeHead(200, { 'content-type': 'text/plain' });
+        response.end(requestPath);
+      }
+    });
+    const localOrigin = local.origin;
+    const runOwnedContext = async (
+      documentPath: string,
+      requestPaths: string[],
+      followExternalRedirect: boolean,
+    ) => {
+      // A request-level keep-alive value must not override the local helper's
+      // close policy. This also makes the test independent of project defaults.
+      const context = await browser.newContext({
+        extraHTTPHeaders: { connection: 'keep-alive' },
+      });
+      const contextErrors: unknown[] = [];
+      try {
+        await routeLocalTenantRequests({
+          baseUrl: localOrigin,
+          context,
+          tenantDomain,
+        });
+        const page = await context.newPage();
+        await page.goto(`${localOrigin}${documentPath}`);
+        for (const requestPath of requestPaths) {
+          const body = await page.evaluate(async (url) => {
+            const response = await fetch(url);
+            if (response.status !== 200) {
+              throw new Error('Expected a successful local request');
+            }
+            return response.text();
+          }, requestPath);
+          expect(body).toBe(requestPath);
+        }
+        if (followExternalRedirect) {
+          await page.goto(`${localOrigin}/redirect`);
+          await expect(page).toHaveURL(`${external.origin}/outside`);
+          await expect(page.locator('body')).toHaveText('external');
+        }
+      } catch (error) {
+        contextErrors.push(error);
+      } finally {
+        try {
+          await closeTenantRequestContext(context);
+        } catch (error) {
+          contextErrors.push(error);
+        }
+      }
+      if (contextErrors.length) {
+        throw new AggregateError(
+          contextErrors,
+          'Owned connection-policy context failed',
+        );
+      }
+    };
+
+    await runOwnedContext('/document-first', ['/first', '/second'], false);
+    await runOwnedContext('/document-second', ['/third'], true);
+
+    expect(received.map(({ path }) => path)).toEqual([
+      '/document-first',
+      '/first',
+      '/second',
+      '/document-second',
+      '/third',
+      '/redirect',
+    ]);
+    expect(received.map(({ connection }) => connection)).toEqual(
+      Array.from({ length: 6 }, () => 'close'),
+    );
+    expect(received.map(({ tenant }) => tenant)).toEqual(
+      Array.from({ length: 6 }, () => tenantDomain),
+    );
+    expect(new Set(received.map(({ socketId }) => socketId)).size).toBe(6);
+    expect(externalTenants).toEqual([undefined]);
+  } catch (error) {
+    errors.push(error);
+  } finally {
+    const closures = await Promise.allSettled([
+      ...(local ? [local.close()] : []),
+      external.close(),
+    ]);
+    for (const closure of closures) {
+      if (closure.status === 'rejected') errors.push(closure.reason);
+    }
+  }
+  if (errors.length) {
+    throw new AggregateError(
+      errors,
+      'Tenant upstream connection isolation failed',
+    );
+  }
+});
+
+test('inherits project connection-close headers in browser and API request contexts', async ({
+  browser,
+  request,
+}) => {
+  const socketIds = new WeakMap<object, number>();
+  let nextSocketId = 0;
+  const received: {
+    connection: string | undefined;
+    path: string;
+    socketId: number;
+    tenant: string | string[] | undefined;
+  }[] = [];
+  const server = await listen((incoming, response) => {
+    let socketId = socketIds.get(incoming.socket);
+    if (socketId === undefined) {
+      socketId = ++nextSocketId;
+      socketIds.set(incoming.socket, socketId);
+    }
+    const requestPath = incoming.url ?? '/';
+    received.push({
+      connection: incoming.headers.connection,
+      path: requestPath,
+      socketId,
+      tenant: incoming.headers[localTestTenantDomainHeader],
+    });
+    if (requestPath === '/browser') {
+      response.writeHead(200, { 'content-type': 'text/html' });
+      response.end(
+        '<!doctype html><link rel="icon" href="data:,"><body>/browser</body>',
+      );
+    } else {
+      response.writeHead(200, { 'content-type': 'text/plain' });
+      response.end(requestPath);
+    }
+  });
+  let context: BrowserContext | undefined;
+  const responses: Awaited<ReturnType<typeof request.get>>[] = [];
+  const errors: unknown[] = [];
+  try {
+    for (const requestPath of ['/fixture-first', '/fixture-second']) {
+      const response = await request.get(`${server.origin}${requestPath}`, {
+        maxRedirects: 0,
+        maxRetries: 0,
+      });
+      responses.push(response);
+      expect(response.status()).toBe(200);
+      expect(await response.text()).toBe(requestPath);
+    }
+    // Omit extraHTTPHeaders: Playwright Test must supply the project defaults
+    // to both this custom browser context and its associated API client.
+    context = await browser.newContext();
+    for (const requestPath of ['/context-first', '/context-second']) {
+      const response = await context.request.get(
+        `${server.origin}${requestPath}`,
+        { maxRedirects: 0, maxRetries: 0 },
+      );
+      responses.push(response);
+      expect(response.status()).toBe(200);
+      expect(await response.text()).toBe(requestPath);
+    }
+    const page = await context.newPage();
+    await page.goto(`${server.origin}/browser`);
+    await expect(page.locator('body')).toHaveText('/browser');
+
+    expect(received.map(({ path }) => path)).toEqual([
+      '/fixture-first',
+      '/fixture-second',
+      '/context-first',
+      '/context-second',
+      '/browser',
+    ]);
+    expect(received.map(({ connection }) => connection)).toEqual(
+      Array.from({ length: 5 }, () => 'close'),
+    );
+    expect(received.map(({ tenant }) => tenant)).toEqual(
+      Array.from({ length: 5 }, () => undefined),
+    );
+    expect(new Set(received.map(({ socketId }) => socketId)).size).toBe(5);
+  } catch (error) {
+    errors.push(error);
+  } finally {
+    for (const disposal of await Promise.allSettled(
+      responses.map((response) => response.dispose()),
+    )) {
+      if (disposal.status === 'rejected') errors.push(disposal.reason);
+    }
+    if (context) {
+      try {
+        await closeTenantRequestContext(context);
+      } catch (error) {
+        errors.push(error);
+      }
+    }
+    try {
+      await server.close();
+    } catch (error) {
+      errors.push(error);
+    }
+  }
+  if (errors.length) {
+    throw new AggregateError(
+      errors,
+      'Project connection-header inheritance failed',
+    );
+  }
+});
+
+test('preserves the browser-selected cookie and authorization when the cookie jar changes', async ({
+  browser,
+}) => {
+  const received: {
+    authorization: string | undefined;
+    cookie: string | undefined;
+    tenant: string | undefined;
+  }[] = [];
+  const local = await listen((request, response) => {
+    if (request.url === '/selected-headers') {
+      received.push({
+        authorization: request.headers.authorization,
+        cookie: request.headers.cookie,
+        tenant:
+          typeof request.headers[localTestTenantDomainHeader] === 'string'
+            ? request.headers[localTestTenantDomainHeader]
+            : undefined,
+      });
+      response.setHeader('content-type', 'application/json');
+      response.end(JSON.stringify({ received: true }));
+      return;
+    }
+    response.setHeader('content-type', 'text/html');
+    response.end('<body>Synthetic header routing regression</body>');
+  });
+  let context: BrowserContext | undefined;
+  const errors: unknown[] = [];
+  try {
+    const cookie = {
+      domain: '127.0.0.1',
+      expires: -1,
+      httpOnly: true,
+      name: 'synthetic-session',
+      path: '/',
+      sameSite: 'Lax' as const,
+      secure: false,
+      value: 'browser-selected-value',
+    };
+    context = await browser.newContext({
+      storageState: { cookies: [cookie], origins: [] },
+    });
+    const ownedContext = context;
+    await routeLocalTenantRequests({
+      baseUrl: local.origin,
+      context,
+      tenantDomain: 'north-river.evorto.app',
+    });
+    await context.route(`${local.origin}/selected-headers`, async (route) => {
+      const selected = await route.request().allHeaders();
+      expect(selected['cookie']).toBe(
+        'synthetic-session=browser-selected-value',
+      );
+      expect(selected['authorization']).toBe(
+        'Bearer synthetic-request-authority',
+      );
+      // Hold the intercepted request while changing the context cookie jar.
+      // A fetch rebuilt from the jar would send a different session selection.
+      await ownedContext.addCookies([
+        { ...cookie, value: 'later-cookie-jar-value' },
+      ]);
+      await route.fallback();
+    });
+    const page = await context.newPage();
+    await page.goto(local.origin);
+    const result = await page.evaluate(async () => {
+      const response = await fetch('/selected-headers', {
+        headers: { authorization: 'Bearer synthetic-request-authority' },
+      });
+      return response.json();
+    });
+    expect(result).toEqual({ received: true });
+    expect(received).toEqual([
+      {
+        authorization: 'Bearer synthetic-request-authority',
+        cookie: 'synthetic-session=browser-selected-value',
+        tenant: 'north-river.evorto.app',
+      },
+    ]);
+  } catch (error) {
+    errors.push(error);
+  } finally {
+    try {
+      if (context) await closeTenantRequestContext(context);
+    } catch (error) {
+      errors.push(error);
+    }
+    try {
+      await local.close();
+    } catch (error) {
+      errors.push(error);
+    }
+  }
+  if (errors.length === 1) throw errors[0];
+  if (errors.length > 1) {
+    throw new AggregateError(
+      errors,
+      'Browser header preservation and cleanup failed',
+      { cause: errors[0] },
+    );
+  }
+});

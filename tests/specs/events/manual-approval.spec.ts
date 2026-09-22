@@ -248,7 +248,7 @@ test.describe('Manual approval registrations', () => {
         await approvalOutboxRows(database, registration.id, scenario.tenant.id),
       ).toHaveLength(1);
     } finally {
-      await organizer?.context.close();
+      await organizer?.close();
       await scenario.cleanup();
     }
   });
@@ -431,7 +431,7 @@ test.describe('Manual approval registrations', () => {
         await approvalOutboxRows(database, registration.id, scenario.tenant.id),
       ).toHaveLength(1);
     } finally {
-      await organizer?.context.close();
+      await organizer?.close();
       await scenario.cleanup();
     }
   });
@@ -623,7 +623,7 @@ test.describe('Manual approval registrations', () => {
           ),
       ).toHaveLength(1);
     } finally {
-      await organizer?.context.close();
+      await organizer?.close();
       await scenario.cleanup();
     }
   });

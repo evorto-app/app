@@ -57,8 +57,10 @@ export class DocumentationGroupRegistry {
     const existing = this.docsByGroup.get(info.groupKey);
     if (existing) return existing;
     const created: TestGroupDocument = {
-      describeTitle: info.describeTitle,
-      filePath: info.filePath,
+      ...(info.describeTitle === undefined
+        ? {}
+        : { describeTitle: info.describeTitle }),
+      ...(info.filePath === undefined ? {} : { filePath: info.filePath }),
       folderName: info.folderName,
       sections: [],
     };
@@ -90,7 +92,7 @@ export class DocumentationGroupRegistry {
     let filePath = test.location?.file;
     const describeTitles: string[] = [];
 
-    let suiteCursor = test.parent;
+    let suiteCursor: Suite | undefined = test.parent;
     while (suiteCursor) {
       if (suiteCursor.type === 'file' && !filePath) {
         filePath = suiteCursor.title;
@@ -127,8 +129,8 @@ export class DocumentationGroupRegistry {
       : `test:${filePath ?? 'unknown'}:${slugifyTestTitle(sanitizedTitle)}`;
 
     return {
-      describeTitle,
-      filePath,
+      ...(describeTitle === undefined ? {} : { describeTitle }),
+      ...(filePath === undefined ? {} : { filePath }),
       folderName: slugifyFolderNameFromTitle(describeTitle ?? sanitizedTitle),
       groupKey,
     };

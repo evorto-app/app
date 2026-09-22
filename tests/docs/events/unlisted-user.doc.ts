@@ -98,14 +98,7 @@ The shared link opens the normal event page and registration area. If the link f
       'Unlisted event opened from its direct link',
     );
 
-    const tenantCookie = (await page.context().cookies()).find(
-      (cookie) => cookie.name === 'evorto-tenant',
-    );
-    if (!tenantCookie) {
-      throw new Error('Expected the isolated tenant routing cookie');
-    }
     await page.context().clearCookies();
-    await page.context().addCookies([tenantCookie]);
     await page.goto(`/events/${target.id}`);
     await expect(
       page.getByRole('heading', { level: 1, name: target.title }),

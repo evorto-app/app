@@ -125,7 +125,7 @@ const openAdminOrganizerOverview = async ({
     await openOrganizerOverview(reviewer.page, scenario);
     return reviewer;
   } catch (error) {
-    await reviewer.context.close();
+    await reviewer.close();
     throw error;
   }
 };
@@ -342,7 +342,7 @@ test('simple organizer signup grants and revokes event-scoped access while prese
       fullOrganizerCard.getByRole('button', { name: 'Join waitlist' }),
     ).toHaveCount(0);
     await expect(fullOrganizerCard.getByLabel('Guests')).toHaveCount(0);
-    await capacityViewer.context.close();
+    await capacityViewer.close();
     capacityViewer = undefined;
 
     await page
@@ -550,7 +550,7 @@ test('simple organizer signup grants and revokes event-scoped access while prese
       page.getByRole('heading', { exact: true, name: 'Access not allowed' }),
     ).toBeVisible();
   } finally {
-    await capacityViewer?.context.close();
+    await capacityViewer?.close();
   }
 });
 
@@ -787,6 +787,6 @@ test('advanced organizer application stays pending until an administrator approv
       }),
     ]);
   } finally {
-    await reviewer?.context.close();
+    await reviewer?.close();
   }
 });

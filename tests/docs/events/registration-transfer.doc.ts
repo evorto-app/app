@@ -444,7 +444,7 @@ Continue with [Complete a paid transfer and retry a failed refund](/docs/complet
 `,
     });
   } finally {
-    await recipientPage?.context.close();
+    await recipientPage?.close();
     await database
       .delete(schema.emailOutbox)
       .where(
@@ -1718,8 +1718,8 @@ When every original Stripe refund succeeds, the previous owner's event page chan
       'Previous-owner refund completed without restoring ticket actions',
     );
   } finally {
-    await operatorPage?.context.close();
-    await recipientPage?.context.close();
+    await operatorPage?.close();
+    await recipientPage?.close();
     await database
       .delete(schema.platformAuditEntries)
       .where(

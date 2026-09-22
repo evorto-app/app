@@ -555,7 +555,7 @@ This completes only the in-app follow-up. The earlier email still promised no re
         'Waitlist recipient completes a confirmed registration',
       );
     } finally {
-      await waitlistRecipientPage?.context.close();
+      await waitlistRecipientPage?.close();
       const persistedRegistrationIds = (
         await database.query.eventRegistrations.findMany({
           columns: { id: true },
@@ -723,8 +723,8 @@ This completes only the in-app follow-up. The earlier email still promised no re
         );
     });
     registerDatabaseCleanup(async () => {
-      await recoveryPage?.context.close();
-      await scannerPage?.context.close();
+      await recoveryPage?.close();
+      await scannerPage?.close();
     });
 
     const settledCheckout = await scenario.beginPaidCheckout(2);

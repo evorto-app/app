@@ -1,5 +1,0 @@
-User-agent: *
-Allow: /
-
-# Future production canonical domain. Staging responses remain noindex.
-Sitemap: https://alpha.evorto.app/sitemap.xml

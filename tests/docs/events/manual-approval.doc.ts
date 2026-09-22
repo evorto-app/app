@@ -346,7 +346,7 @@ The application and approval actions disappear after completion. Refreshing or s
         ),
       ).toHaveLength(1);
     } finally {
-      await organizer?.context.close();
+      await organizer?.close();
       await scenario.cleanup();
     }
   });
@@ -837,7 +837,7 @@ After Stripe reports successful payment, Evorto moves the reserved spot to confi
         }),
       ).toEqual({ confirmedSpots: 1, reservedSpots: 0 });
     } finally {
-      await organizer?.context.close();
+      await organizer?.close();
       await scenario.cleanup();
     }
   });
@@ -1014,7 +1014,7 @@ After Stripe confirms the pending Checkout is expired, Evorto cancels the local 
         'Cancelled payment returns to application choice',
       );
     } finally {
-      await organizer?.context.close();
+      await organizer?.close();
       await scenario.cleanup();
     }
   });

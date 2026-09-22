@@ -228,7 +228,7 @@ test('transfers a free registration through a private claim URL', async ({
         ),
     ).toHaveLength(2);
   } finally {
-    await recipientPage?.context.close();
+    await recipientPage?.close();
     await database
       .delete(schema.emailOutbox)
       .where(
@@ -561,7 +561,7 @@ test('offers a paid registration privately while rejecting a source self-claim',
       recipientPage.page.getByRole('button', { name: 'Claim registration' }),
     ).toBeVisible();
   } finally {
-    await recipientPage?.context.close();
+    await recipientPage?.close();
     await database
       .delete(schema.registrationTransferRefundPlanAcquisitionLinks)
       .where(
@@ -1325,7 +1325,7 @@ test('completes a paid transfer and preserves its failed refund for operator req
       )?.stripeRefundNextAttemptAt,
     ).not.toBeNull();
   } finally {
-    await recipientPage?.context.close();
+    await recipientPage?.close();
     await scenario.cleanup();
   }
 });

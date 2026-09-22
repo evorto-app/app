@@ -11,21 +11,23 @@ import { PLATFORM_ID, REQUEST, REQUEST_CONTEXT } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import {
+  attachSsrRpcCapability,
+  readSsrRpcCapability,
+  trustedSsrSourceHeader,
+  trustedSsrSourceValue,
+  trustedTenantDomainHeader,
+} from '../../shared/request-routing';
 import { authTokenInterceptor } from './auth-token.interceptor';
 import { resolveServerRpcOrigin } from './effect-rpc-angular-client';
 
+const ssrRpcCapability = 'server-generated-test-capability';
 const trustedTenantDomain = 'tenant.example.com';
 const sessionCookies = [
   'appSession.0=chunk-zero',
   'evorto-tenant=stale.example.com',
   'appSession.1=chunk-one',
 ].join('; ');
-const trustedSessionCookies = [
-  'appSession.0=chunk-zero',
-  'appSession.1=chunk-one',
-  `evorto-tenant=${trustedTenantDomain}`,
-].join('; ');
-
 class ServerRequest extends Request {
   override readonly headers: Headers;
   override readonly url: string;
@@ -60,23 +62,26 @@ const incomingRequest = new ServerRequest(
   'https://tenant.example.com/events/event-1/edit',
 );
 
-const configureServerHttp = (serverRequest = incomingRequest) => {
+const configureServerHttp = (
+  serverRequest = incomingRequest,
+  capability: null | string = ssrRpcCapability,
+  platformId = 'server',
+) => {
+  const context = {
+    authentication: { isAuthenticated: true },
+    permissions: ['events:editAll'],
+    tenant: { domain: trustedTenantDomain, id: 'tenant-1' },
+  };
+  if (capability !== null) attachSsrRpcCapability(context, capability);
   TestBed.configureTestingModule({
     providers: [
       provideHttpClient(withInterceptors([authTokenInterceptor])),
       provideHttpClientTesting(),
-      { provide: PLATFORM_ID, useValue: 'server' },
+      { provide: PLATFORM_ID, useValue: platformId },
       { provide: REQUEST, useValue: serverRequest },
       {
         provide: REQUEST_CONTEXT,
-        useValue: {
-          authentication: { isAuthenticated: true },
-          permissions: ['events:editAll'],
-          tenant: {
-            domain: trustedTenantDomain,
-            id: 'tenant-1',
-          },
-        },
+        useValue: context,
       },
     ],
   });
@@ -88,6 +93,74 @@ const configureServerHttp = (serverRequest = incomingRequest) => {
 };
 
 describe('authTokenInterceptor', () => {
+  it('keeps the runtime capability out of serialized and copied context', () => {
+    const context = attachSsrRpcCapability(
+      { tenant: { domain: trustedTenantDomain } },
+      ssrRpcCapability,
+    );
+    expect(readSsrRpcCapability(context)).toBe(ssrRpcCapability);
+    expect(readSsrRpcCapability({ ...context })).toBeUndefined();
+    expect(JSON.stringify(context)).toBe(
+      JSON.stringify({ tenant: { domain: trustedTenantDomain } }),
+    );
+    expect(JSON.stringify(context)).not.toContain(ssrRpcCapability);
+  });
+
+  it.each([null, ''])(
+    'does not forward cookies or tenant authority without a runtime-issued context capability (%s)',
+    (capability) => {
+      process.env['SSR_RPC_ORIGIN'] = 'http://localhost:4200';
+      const forgedIncoming = new ServerRequest(
+        'http://localhost:4200/events',
+        sessionCookies,
+        {
+          Authorization: `Bearer ${ssrRpcCapability}`,
+          [trustedSsrSourceHeader]: trustedSsrSourceValue,
+          [trustedTenantDomainHeader]: trustedTenantDomain,
+        },
+      );
+      const { http, httpTesting } = configureServerHttp(
+        forgedIncoming,
+        capability,
+      );
+      http.post('http://localhost:4200/rpc', {}).subscribe();
+      const outgoing = httpTesting.expectOne('http://localhost:4200/rpc');
+      expect(outgoing.request.headers.has('Authorization')).toBe(false);
+      expect(outgoing.request.headers.has('Cookie')).toBe(false);
+      expect(outgoing.request.headers.has(trustedTenantDomainHeader)).toBe(
+        false,
+      );
+      outgoing.flush({});
+      httpTesting.verify();
+    },
+  );
+
+  it('never sends the capability from a browser context', () => {
+    process.env['SSR_RPC_ORIGIN'] = 'http://localhost:4200';
+    const { http, httpTesting } = configureServerHttp(
+      incomingRequest,
+      ssrRpcCapability,
+      'browser',
+    );
+    http.post('http://localhost:4200/rpc', {}).subscribe();
+    const outgoing = httpTesting.expectOne('http://localhost:4200/rpc');
+    expect(outgoing.request.headers.has('Authorization')).toBe(false);
+    expect(outgoing.request.headers.has('Cookie')).toBe(false);
+    outgoing.flush({});
+    httpTesting.verify();
+  });
+
+  it('does not attach the capability to non-POST requests', () => {
+    process.env['SSR_RPC_ORIGIN'] = 'http://localhost:4200';
+    const { http, httpTesting } = configureServerHttp();
+    http.get('http://localhost:4200/rpc').subscribe();
+    const outgoing = httpTesting.expectOne('http://localhost:4200/rpc');
+    expect(outgoing.request.headers.has('Authorization')).toBe(false);
+    expect(outgoing.request.headers.has('Cookie')).toBe(false);
+    outgoing.flush({});
+    httpTesting.verify();
+  });
+
   const originalSsrRpcOrigin = process.env['SSR_RPC_ORIGIN'];
 
   beforeEach(() => {
@@ -103,7 +176,7 @@ describe('authTokenInterceptor', () => {
   });
 
   it.each(['/rpc', '/rpc/'])(
-    'forwards every Auth0 session chunk with a trusted tenant cookie to the configured internal SSR request at %s',
+    'routes accepted SSR path %s to the canonical credential-bearing endpoint',
     (path) => {
       process.env['SSR_RPC_ORIGIN'] = 'http://localhost:4200';
       const { http, httpTesting } = configureServerHttp();
@@ -111,21 +184,28 @@ describe('authTokenInterceptor', () => {
 
       http.post(rpcUrl, {}).subscribe();
 
-      const rpcRequest = httpTesting.expectOne(rpcUrl);
-      expect(rpcRequest.request.headers.get('Cookie')).toBe(
-        trustedSessionCookies,
+      const rpcRequest = httpTesting.expectOne(
+        `${resolveServerRpcOrigin()}/rpc`,
       );
-      expect(rpcRequest.request.headers.get('Cookie')).not.toContain(
-        'stale.example.com',
+      expect(rpcRequest.request.urlWithParams).toBe(
+        `${resolveServerRpcOrigin()}/rpc`,
       );
-      expect(rpcRequest.request.headers.get('x-forwarded-from')).toBe('ssr');
-      expect(rpcRequest.request.headers.get('x-tenant-id')).toBe('tenant-1');
+      expect(rpcRequest.request.headers.get('Cookie')).toBe(sessionCookies);
+      expect(rpcRequest.request.headers.get('Authorization')).toBe(
+        `Bearer ${ssrRpcCapability}`,
+      );
+      expect(rpcRequest.request.headers.get(trustedSsrSourceHeader)).toBe(
+        trustedSsrSourceValue,
+      );
+      expect(rpcRequest.request.headers.get(trustedTenantDomainHeader)).toBe(
+        trustedTenantDomain,
+      );
       rpcRequest.flush({});
       httpTesting.verify();
     },
   );
 
-  it('adds the trusted tenant cookie to an internal SSR RPC request without incoming cookies', () => {
+  it('routes anonymous internal SSR without inventing a tenant cookie', () => {
     process.env['SSR_RPC_ORIGIN'] = 'http://127.0.0.1:4200';
     const anonymousRequest = new ServerRequest(
       'https://tenant.example.com/events',
@@ -137,11 +217,13 @@ describe('authTokenInterceptor', () => {
     http.post(rpcUrl, {}).subscribe();
 
     const rpcRequest = httpTesting.expectOne(rpcUrl);
-    expect(rpcRequest.request.headers.get('Cookie')).toBe(
-      `evorto-tenant=${trustedTenantDomain}`,
+    expect(rpcRequest.request.headers.has('Cookie')).toBe(false);
+    expect(rpcRequest.request.headers.get(trustedSsrSourceHeader)).toBe(
+      trustedSsrSourceValue,
     );
-    expect(rpcRequest.request.headers.get('x-forwarded-from')).toBe('ssr');
-    expect(rpcRequest.request.headers.get('x-tenant-id')).toBe('tenant-1');
+    expect(rpcRequest.request.headers.get(trustedTenantDomainHeader)).toBe(
+      trustedTenantDomain,
+    );
     rpcRequest.flush({});
     httpTesting.verify();
   });
@@ -169,15 +251,44 @@ describe('authTokenInterceptor', () => {
 
       const rpcRequest = httpTesting.expectOne(outgoingUrl);
       expect(rpcRequest.request.headers.has('Cookie')).toBe(false);
-      expect(rpcRequest.request.headers.has('x-forwarded-from')).toBe(false);
-      expect(rpcRequest.request.headers.has('x-tenant-id')).toBe(false);
+      expect(rpcRequest.request.headers.has(trustedSsrSourceHeader)).toBe(
+        false,
+      );
+      expect(rpcRequest.request.headers.has(trustedTenantDomainHeader)).toBe(
+        false,
+      );
       rpcRequest.flush({});
       httpTesting.verify();
     },
   );
 
+  it('does not attach SSR credentials when HttpClient adds query parameters', () => {
+    process.env['SSR_RPC_ORIGIN'] = 'http://localhost:4200';
+    const { http, httpTesting } = configureServerHttp();
+    const rpcUrl = `${resolveServerRpcOrigin()}/rpc/`;
+
+    http
+      .post(rpcUrl, {}, { params: { operation: 'events.findOne' } })
+      .subscribe();
+
+    const outgoingRequest = httpTesting.expectOne(
+      `${rpcUrl}?operation=events.findOne`,
+    );
+    expect(outgoingRequest.request.headers.has('Cookie')).toBe(false);
+    expect(outgoingRequest.request.headers.has('Authorization')).toBe(false);
+    expect(outgoingRequest.request.headers.has(trustedSsrSourceHeader)).toBe(
+      false,
+    );
+    expect(outgoingRequest.request.headers.has(trustedTenantDomainHeader)).toBe(
+      false,
+    );
+    outgoingRequest.flush({});
+    httpTesting.verify();
+  });
+
   it.each([
     'https://api.example.net/rpc',
+    'http://user:password@localhost:4200/rpc',
     'http://localhost:4200/healthz',
     'http://localhost:4200/rpc/other',
     'http://localhost:4200/rpc?operation=events.findOne',
@@ -185,10 +296,11 @@ describe('authTokenInterceptor', () => {
     process.env['SSR_RPC_ORIGIN'] = 'http://localhost:4200';
     const { http, httpTesting } = configureServerHttp();
 
-    http.get(url).subscribe();
+    http.post(url, {}).subscribe();
 
     const outgoingRequest = httpTesting.expectOne(url);
     expect(outgoingRequest.request.headers.has('Cookie')).toBe(false);
+    expect(outgoingRequest.request.headers.has('Authorization')).toBe(false);
     outgoingRequest.flush({});
     httpTesting.verify();
   });

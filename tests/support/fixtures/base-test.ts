@@ -21,6 +21,12 @@ import {
   auth0ManagementEnvironment,
   playwrightEnvironmentConfig,
 } from '../config/environment';
+import { runDatabaseCleanups } from '../utils/database-cleanup';
+import { validateStorageStateBeforeUse } from '../utils/storage-state';
+import {
+  routeLocalTenantRequests,
+  closeTenantRequestPages,
+} from '../utils/tenant-request-routing';
 import { withProtectedValueCaptureOptions } from '../utils/fill-protected-value';
 
 const dedupeLength = 4;
@@ -65,6 +71,7 @@ process.env['E2E_SEED_KEY'] ??= environment.E2E_SEED_KEY;
 
 interface BaseFixtures {
   database: NodePgDatabase<typeof relations>;
+  databaseCleanups: Array<() => Promise<void>>;
   requirePlatformAdministratorClaim: (auth0Id: string) => Promise<void>;
   falsoSeed: string;
   newUser: {
@@ -78,26 +85,33 @@ interface BaseFixtures {
   ) => void;
   protectedValueCapturePolicy: void;
   seedDate: Date;
+  storageStateValidation: void;
   testClock: DateTime;
   tenantDomain?: string;
 }
 
 export const test = base.extend<BaseFixtures>({
-  database: async ({}, use) => {
-    const { databaseUrl } = resolveLocalHostDatabaseEnvironment({
-      ...process.env,
-      DATABASE_URL: environment.DATABASE_URL,
-    });
-    const pool = new Pool(createNodePgPoolConfig({ databaseUrl }));
-    const database = drizzle({
-      client: pool,
-      relations,
-    });
-    try {
-      await use(database);
-    } finally {
-      await pool.end();
-    }
+  database: [
+    async ({ databaseCleanups }, use) => {
+      const { databaseUrl } = resolveLocalHostDatabaseEnvironment({
+        ...process.env,
+        DATABASE_URL: environment.DATABASE_URL,
+      });
+      const pool = new Pool(createNodePgPoolConfig({ databaseUrl }));
+      const database = drizzle({
+        client: pool,
+        relations,
+      });
+      try {
+        await use(database);
+      } finally {
+        await runDatabaseCleanups(databaseCleanups, () => pool.end());
+      }
+    },
+    { timeout: 60_000 },
+  ],
+  databaseCleanups: async ({}, use) => {
+    await use([]);
   },
   requirePlatformAdministratorClaim: async ({}, use) => {
     await use(async (auth0Id) => {
@@ -116,6 +130,7 @@ export const test = base.extend<BaseFixtures>({
         testInfo.project.name,
         testInfo.file,
         ...testInfo.titlePath,
+        `repeat:${testInfo.repeatEachIndex}`,
         `retry:${testInfo.retry}`,
       ].join(':');
       const seed = seedFalsoForScope(scope, seedDate);
@@ -151,63 +166,64 @@ export const test = base.extend<BaseFixtures>({
       await auth0.users.delete(user.user_id);
     }
   },
-  page: async ({ page, tenantDomain, testClock }, use) => {
-    const fixedNow = testClock.toMillis();
-    await page.addInitScript((value) => {
-      const hostname = globalThis.location?.hostname ?? '';
-      if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
-        return;
-      }
-      const realDate = Date;
-      const startedAt = performance.now();
-      const currentTime = () =>
-        Math.floor(value + (performance.now() - startedAt));
-      class FixedDate extends realDate {
-        constructor(...args: [] | ConstructorParameters<typeof realDate>) {
-          if (args.length === 0) {
-            super(currentTime());
-            return;
+  page: [
+    async ({ page, tenantDomain, testClock }, use) => {
+      const fixedNow = testClock.toMillis();
+      await page.addInitScript((value) => {
+        const hostname = globalThis.location?.hostname ?? '';
+        if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
+          return;
+        }
+        const realDate = Date;
+        const startedAt = performance.now();
+        const currentTime = () =>
+          Math.floor(value + (performance.now() - startedAt));
+        class FixedDate extends realDate {
+          constructor(...args: [] | ConstructorParameters<typeof realDate>) {
+            if (args.length === 0) {
+              super(currentTime());
+              return;
+            }
+            super(...args);
           }
-          super(...args);
+
+          static override now() {
+            return currentTime();
+          }
         }
 
-        static override now() {
-          return currentTime();
-        }
+        FixedDate.parse = realDate.parse;
+        FixedDate.UTC = realDate.UTC;
+        // @ts-expect-error Browser runtime override for deterministic tests.
+        globalThis.Date = FixedDate;
+      }, fixedNow);
+
+      if (tenantDomain) {
+        await routeLocalTenantRequests({
+          baseUrl: environment.BASE_URL,
+          context: page.context(),
+          tenantDomain,
+        });
       }
-
-      FixedDate.parse = realDate.parse;
-      FixedDate.UTC = realDate.UTC;
-      // @ts-expect-error Browser runtime override for deterministic tests.
-      globalThis.Date = FixedDate;
-    }, fixedNow);
-
-    if (tenantDomain) {
+      page.on('pageerror', (error) => {
+        const url = page.url();
+        if (url && url.includes('localhost')) {
+          throw error;
+        } else {
+          console.warn(
+            'Page error occurred but not throwing (non-localhost environment):',
+            error,
+          );
+        }
+      });
       try {
-        await page.context().addCookies([
-          {
-            domain: 'localhost',
-            expires: -1,
-            name: 'evorto-tenant',
-            path: '/',
-            value: tenantDomain,
-          },
-        ]);
-      } catch {}
-    }
-    page.on('pageerror', (error) => {
-      const url = page.url();
-      if (url && url.includes('localhost')) {
-        throw error;
-      } else {
-        console.warn(
-          'Page error occurred but not throwing (non-localhost environment):',
-          error,
-        );
+        await use(page);
+      } finally {
+        await closeTenantRequestPages(page.context());
       }
-    });
-    await use(page);
-  },
+    },
+    { scope: 'test', timeout: 60_000 },
+  ],
   protectedValueCapturePolicy: [
     async ({ contextOptions, screenshot, trace, video }, use) => {
       await withProtectedValueCaptureOptions(
@@ -222,34 +238,16 @@ export const test = base.extend<BaseFixtures>({
     },
     { auto: true },
   ],
-  registerDatabaseCleanup: [
-    async ({ database }, use) => {
-      const cleanups: Array<
-        (database: NodePgDatabase<typeof relations>) => Promise<void>
-      > = [];
-      await use((cleanup) => cleanups.push(cleanup));
-
-      const errors: unknown[] = [];
-      for (const cleanup of cleanups.toReversed()) {
-        try {
-          await cleanup(database);
-        } catch (error) {
-          errors.push(error);
-        }
-      }
-
-      if (errors.length > 0) {
-        throw new AggregateError(errors, 'Database test cleanup failed');
-      }
-    },
-    { timeout: 60_000 },
-  ],
+  registerDatabaseCleanup: async ({ database, databaseCleanups }, use) => {
+    await use((cleanup) => databaseCleanups.push(() => cleanup(database)));
+  },
   seedDate: [
     async ({}, use) => {
       await use(getSeedDate());
     },
     { auto: true },
   ],
+  storageStateValidation: [validateStorageStateBeforeUse, { auto: true }],
   tenantDomain: async ({}, use) => {
     try {
       const runtimePath = path.resolve('.e2e-runtime.json');

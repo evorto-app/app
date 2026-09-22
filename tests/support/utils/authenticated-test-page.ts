@@ -1,7 +1,15 @@
 import type { Browser, BrowserContext, Page } from '@playwright/test';
 import type { DateTime } from 'luxon';
 
+import { resolveStorageState } from './storage-state';
+
+import {
+  closeTenantRequestContext,
+  routeLocalTenantRequests,
+} from './tenant-request-routing';
+
 export interface AuthenticatedTestPage {
+  close: () => Promise<void>;
   context: BrowserContext;
   page: Page;
 }
@@ -14,20 +22,26 @@ export const openAuthenticatedTestPage = async ({
   testClock,
 }: {
   baseUrl: string;
-  browser: Browser;
+  browser: Pick<Browser, 'newContext'>;
   storageState: string;
   tenantDomain: string;
   testClock: DateTime;
 }): Promise<AuthenticatedTestPage> => {
   const resolvedBaseUrl = new URL(baseUrl);
+  const savedState = resolveStorageState(storageState);
   const context = await browser.newContext({
     baseURL: resolvedBaseUrl.origin,
     colorScheme: 'light',
     ignoreHTTPSErrors: true,
-    storageState,
+    storageState: savedState,
   });
 
   try {
+    await routeLocalTenantRequests({
+      baseUrl: resolvedBaseUrl.origin,
+      context,
+      tenantDomain,
+    });
     await context.addInitScript((fixedNow) => {
       const hostname = globalThis.location?.hostname ?? '';
       if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
@@ -53,22 +67,21 @@ export const openAuthenticatedTestPage = async ({
       // @ts-expect-error Browser runtime override for deterministic tests.
       globalThis.Date = FixedDate;
     }, testClock.toMillis());
-    await context.addCookies([
-      {
-        domain: resolvedBaseUrl.hostname,
-        expires: -1,
-        name: 'evorto-tenant',
-        path: '/',
-        value: tenantDomain,
-      },
-    ]);
-
     return {
+      close: () => closeTenantRequestContext(context),
       context,
       page: await context.newPage(),
     };
   } catch (error) {
-    await context.close();
+    try {
+      await closeTenantRequestContext(context);
+    } catch (cleanupError) {
+      throw new AggregateError(
+        [error, cleanupError],
+        'Authenticated test page setup and cleanup failed',
+        { cause: cleanupError },
+      );
+    }
     throw error;
   }
 };
