@@ -167,7 +167,7 @@ test('Manage ESNcard @finance', async ({
   await testInfo.attach('markdown', {
     body: `
 
-Open your profile's **Discounts** page in an organization that enables ESNcard discounts. The page shows the card saved to your account, including a card you added through another organization. Evorto checks the card with esncard.org, and the discount applies only while the card is valid.
+Open your profile's **Discounts** page in an organization that enables ESNcard discounts. If you have saved an ESNcard, this page shows it, including a card you added through another organization. Evorto checks the card with esncard.org, and the discount applies only while the card is valid.
 `,
   });
 
@@ -400,7 +400,7 @@ test.describe('Check your ESNcard', () => {
 - Have your current ESNcard number ready.
 {% /callout %}
 
-Your Evorto account has one ESNcard shared across your organizations. You can manage that same card through any organization that enables ESNcard discounts. Each organization decides whether it offers those discounts, and the card must be **Verified** to qualify. An expired card remains visible as **Expired** and does not receive a discount.
+You can save one ESNcard to your Evorto account for use across your organizations. Manage a saved card through any organization that enables ESNcard discounts. Each organization decides whether it offers those discounts, and the card must be **Verified** to qualify. An expired card remains visible as **Expired** and does not receive a discount.
 
 From the main navigation, select **Profile**, then choose **Discounts**. Before saving, check that you entered the intended card number. Selecting **Save ESNcard** checks whether it is currently valid.
 `,
