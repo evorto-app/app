@@ -2,7 +2,7 @@
 
 Scope: Current Playwright tests and documentation journeys.
 
-Updated: 2026-09-22
+Updated: 2026-09-23
 
 ## How to Use This Inventory
 
@@ -491,10 +491,11 @@ ESNcard provider credential path.
     in-flight writes continue to disable conflicting actions.
   - The same profile documentation journey checks submitted receipt status,
     event context and amount, with a scoped database readback.
-    `docs/profile/discounts.doc.ts` checks the seeded ESNcard, independently
-    formatted validity date, action availability, invalid-save blocking and
-    unchanged persisted card. These four profile journeys were consolidated
-    into the documentation suite to avoid repeating their fixture setup and
+    `docs/profile/discounts.doc.ts` checks `/profile/discounts`, the seeded
+    ESNcard, independently formatted validity date, action availability,
+    invalid-save blocking and the unchanged original persisted row. These four
+    profile journeys were consolidated into the documentation suite to avoid
+    repeating their fixture setup and
     browser interactions in separate functional specs.
   - Live external ESNcard active-card add/refresh/remove and expired-card status
     outcomes with readable error states are now represented by
@@ -512,21 +513,15 @@ ESNcard provider credential path.
     add/refresh/remove lifecycles. The same file also includes a helper-backed baseline note for
     readable ESNcard statuses, pending save/refresh/remove labels, shared
     in-flight write guards, trimmed save payloads, and provider-unavailable
-    retry copy. The page-backed discounts doc asserts direct `#discounts`
-    routing, the seeded verified ESNcard identifier/status, database readback,
-    refresh/remove action visibility, the invalid-card-number save guard, and
-    that invalid input leaves the seeded row unchanged. The profile discounts
-    spec functionally covers the same seeded direct-link discount-card journey
-    with database readback. App and server
-    coverage already prove upsert payload normalization, readable mutation
-    errors, readable status labels, save/refresh/remove action states, global
-    per-user card reads/upserts, refresh persistence, provider-outage upsert
+    retry copy. The seeded card journey belongs to the documentation coverage
+    described above. App and server tests cover upsert payload normalization, readable mutation
+    errors, readable status labels, save/refresh/remove action states,
+    tenant-scoped per-user card reads/upserts, refresh persistence, provider-outage upsert
     rejection before inserting or updating the stored card, and scoped removal.
     Local app coverage also proves that save, refresh, and remove actions share
     an in-flight guard so profile discount-card writes do not overlap. App
-    coverage also proves the
-    `#discounts` profile fragment waits for tenant ESNcard provider availability
-    before selecting the section. Generated-doc source coverage keeps the
+    route coverage keeps the profile on child routes without fragment redirects
+    or compatibility routes. Generated-doc source coverage keeps the
     discounts guide tied to the local ESNcard helper functions and provider
     outage retry semantics.
   - Tenant onboarding, account-creation retry, and cross-tenant join behavior.
@@ -576,12 +571,11 @@ ESNcard provider credential path.
     credential-gated integration path executable under the local runtime; the
     live Auth0 path still requires Auth0 Management credentials to satisfy its
     fail-fast precondition.
-  - Submitted-receipt visibility after receipt submission. Manual Browser
-    review remains useful after signing in to the in-app Browser, but
-    the Docker-backed Playwright profile pass now verifies the deterministic
-    profile receipt flow through both generated docs and the functional spec:
-    filename, submitted status, event title, amount, persisted database row, and
-    cleanup. Local app/server coverage already proves readable
+  - Submitted-receipt visibility belongs to two distinct documentation journeys:
+    `docs/profile/user-profile.doc.ts` checks the seeded profile receipt card,
+    while `docs/finance/receipt-submission.doc.ts` follows a newly submitted
+    organizer receipt into the personal profile. Both verify status, event,
+    amount and persisted database rows. Local app/server coverage proves readable
     submitted-receipt status labels, amount formatting, and
     `finance.receipts.my` profile-card row normalization.
 - Finance/receipts:
