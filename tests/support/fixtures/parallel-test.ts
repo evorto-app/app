@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 
-import { and, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { getId } from '../../../helpers/get-id';
 import {
   seedTenant,
@@ -8,6 +8,12 @@ import {
 } from '../../../helpers/seed-tenant';
 import { usersToAuthenticate } from '../../../helpers/user-data';
 import * as schema from '../../../src/db/schema';
+import { userDiscountCardLockStatement } from '../../../src/server/discounts/user-discount-card-lock';
+import {
+  createDiscountCardFixtureLease,
+  discountCardFixtureLeaseTimeoutMs,
+} from '../utils/discount-card-fixture-lease';
+import { captureDiscountCardFixtureSnapshot } from '../utils/discount-card-fixture-snapshot';
 import {
   applyPermissionDiff,
   PermissionDiff,
@@ -23,7 +29,11 @@ const buildRunId = (seed: string) =>
 export const seededEsnCardIdentifier = 'DE-2026-000184';
 
 interface BaseFixtures {
-  discounts?: void;
+  discounts: {
+    database: Awaited<
+      ReturnType<ReturnType<typeof createDiscountCardFixtureLease>['acquire']>
+    >;
+  };
   events: {
     id: string;
     tenantId: string;
@@ -143,7 +153,10 @@ export const test = base.extend<BaseFixtures & { seeded: SeedTenantResult }>({
 
   // Seed discount provider and a verified ESN card for the regular user
   discounts: [
-    async ({ database, registerDatabaseCleanup, seedDate, tenant }, use) => {
+    async (
+      { database, databaseUrl, registerDatabaseCleanup, seedDate, tenant },
+      use,
+    ) => {
       const currentTenant = await database.query.tenants.findFirst({
         where: { id: tenant.id },
       });
@@ -162,14 +175,17 @@ export const test = base.extend<BaseFixtures & { seeded: SeedTenantResult }>({
       if (!currentUser) {
         throw new Error('Expected the seeded regular user for discount setup.');
       }
-      const originalCard = await database.query.userDiscountCards.findFirst({
-        where: {
-          tenantId: tenant.id,
-          type: 'esnCard',
-          userId: regularUser.id,
-        },
+      const lease = createDiscountCardFixtureLease({
+        databaseUrl,
+        userId: regularUser.id,
       });
-      const discountCardId = originalCard?.id ?? getId();
+      registerDatabaseCleanup(() => lease.close());
+      const cardDatabase = await lease.acquire();
+      const snapshot = await captureDiscountCardFixtureSnapshot(
+        cardDatabase,
+        regularUser.id,
+      );
+      const discountCardId = snapshot.originalCardId ?? getId();
 
       // Separate callbacks keep provider restoration independent of card cleanup.
       registerDatabaseCleanup(async (cleanupDatabase) => {
@@ -185,32 +201,7 @@ export const test = base.extend<BaseFixtures & { seeded: SeedTenantResult }>({
           throw new Error('The discount fixture tenant could not be restored.');
         }
       });
-      registerDatabaseCleanup(async (cleanupDatabase) => {
-        if (originalCard) {
-          await cleanupDatabase
-            .insert(schema.userDiscountCards)
-            .values(originalCard)
-            .onConflictDoUpdate({
-              set: originalCard,
-              target: [
-                schema.userDiscountCards.userId,
-                schema.userDiscountCards.tenantId,
-                schema.userDiscountCards.type,
-              ],
-            });
-          return;
-        }
-        await cleanupDatabase
-          .delete(schema.userDiscountCards)
-          .where(
-            and(
-              eq(schema.userDiscountCards.id, discountCardId),
-              eq(schema.userDiscountCards.tenantId, tenant.id),
-              eq(schema.userDiscountCards.userId, regularUser.id),
-              eq(schema.userDiscountCards.type, 'esnCard'),
-            ),
-          );
-      });
+      registerDatabaseCleanup(() => snapshot.restore());
 
       await database
         .update(schema.tenants)
@@ -222,34 +213,41 @@ export const test = base.extend<BaseFixtures & { seeded: SeedTenantResult }>({
         })
         .where(eq(schema.tenants.id, tenant.id));
       const validTo = new Date(seedDate.getTime() + 1000 * 60 * 60 * 24 * 180); // ~6 months
-      await database
-        .insert(schema.userDiscountCards)
-        .values({
-          id: discountCardId,
-          identifier: seededEsnCardIdentifier,
-          status: 'verified',
-          tenantId: tenant.id,
-          type: 'esnCard',
-          userId: regularUser.id,
-          validFrom: seedDate,
-          validTo,
-        })
-        .onConflictDoUpdate({
-          set: {
+      await cardDatabase.transaction(async (transaction) => {
+        await transaction.execute(
+          userDiscountCardLockStatement(regularUser.id, 'exclusive'),
+        );
+        await transaction
+          .insert(schema.userDiscountCards)
+          .values({
+            id: discountCardId,
             identifier: seededEsnCardIdentifier,
+            lastCheckedAt: null,
+            metadata: null,
             status: 'verified',
+            type: 'esnCard',
+            userId: regularUser.id,
             validFrom: seedDate,
             validTo,
-          },
-          target: [
-            schema.userDiscountCards.userId,
-            schema.userDiscountCards.tenantId,
-            schema.userDiscountCards.type,
-          ],
-        });
-      await use();
+          })
+          .onConflictDoUpdate({
+            set: {
+              identifier: seededEsnCardIdentifier,
+              lastCheckedAt: null,
+              metadata: null,
+              status: 'verified',
+              validFrom: seedDate,
+              validTo,
+            },
+            target: [
+              schema.userDiscountCards.userId,
+              schema.userDiscountCards.type,
+            ],
+          });
+      });
+      await use({ database: cardDatabase });
     },
-    { timeout: 30_000 },
+    { timeout: discountCardFixtureLeaseTimeoutMs + 60_000 },
   ],
 });
 export { expect } from '@playwright/test';

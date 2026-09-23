@@ -72,6 +72,7 @@ process.env['E2E_SEED_KEY'] ??= environment.E2E_SEED_KEY;
 interface BaseFixtures {
   database: NodePgDatabase<typeof relations>;
   databaseCleanups: Array<() => Promise<void>>;
+  databaseUrl: string;
   requirePlatformAdministratorClaim: (auth0Id: string) => Promise<void>;
   falsoSeed: string;
   newUser: {
@@ -92,11 +93,7 @@ interface BaseFixtures {
 
 export const test = base.extend<BaseFixtures>({
   database: [
-    async ({ databaseCleanups }, use) => {
-      const { databaseUrl } = resolveLocalHostDatabaseEnvironment({
-        ...process.env,
-        DATABASE_URL: environment.DATABASE_URL,
-      });
+    async ({ databaseCleanups, databaseUrl }, use) => {
       const pool = new Pool(createNodePgPoolConfig({ databaseUrl }));
       const database = drizzle({
         client: pool,
@@ -112,6 +109,13 @@ export const test = base.extend<BaseFixtures>({
   ],
   databaseCleanups: async ({}, use) => {
     await use([]);
+  },
+  databaseUrl: async ({}, use) => {
+    const { databaseUrl } = resolveLocalHostDatabaseEnvironment({
+      ...process.env,
+      DATABASE_URL: environment.DATABASE_URL,
+    });
+    await use(databaseUrl);
   },
   requirePlatformAdministratorClaim: async ({}, use) => {
     await use(async (auth0Id) => {

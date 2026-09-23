@@ -5,8 +5,12 @@
     </h1>
     @if (esnEnabled()) {
       <p class="text-on-surface-variant text-sm">
-        Add your ESNcard to receive discounted prices on events where the
-        discount applies.
+        You can save one ESNcard to your account for use across organizations.
+        Each organization decides whether to offer ESNcard discounts.
+      </p>
+      <p class="text-on-surface-variant text-sm">
+        Changing or removing a saved card affects future discounts in every
+        organization.
       </p>
 
       @if (myCardsQuery.isSuccess()) {

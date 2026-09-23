@@ -106,8 +106,16 @@ loading, anchored search navigation, and light/dark logo checks pass. These
 Pages changes remain uncommitted and unpublished. Their delivery and the exact
 final application-to-Pages publication remain separate release work.
 
-D-009 through D-012 are still unanswered. Their original scope questions and
-release implications remain unchanged; none is resolved by the passing suites.
+D-009 was accepted as separate post-merge work. Historical predecessor
+certification, before the follow-up review corrections: its global-card
+implementation and cross-organization journey passed complete local checks at
+`c5e379cca09fcebc261561c1770df2bdcc436dac` on 2026-09-23: all 11 CI-equivalent
+gates, 5,366 unit/PostgreSQL tests, 233 baseline browser/docs cases, 11 provider
+integration cases, 8 live ESNcard cases, and 14 provider-error units. All 38
+generated guides were verified. PR #191 still requires substantive review
+clearance and landing; follow-up edits require their own exact-head evidence.
+D-010 through D-012 retain their outstanding scope decisions; passing these
+suites does not close them.
 All owned assembly, Pages, and layer-05 runtimes and fixtures were cleaned up.
 
 Two release notes use the single-package `default: patch` key:
@@ -155,8 +163,8 @@ the authoritative status is the table above.
 Current totals: **241 findings** — 1 Critical, 72 High, 144 Medium, and 24
 Low. The earlier review records **189 resolved and 2 accepted** findings.
 Takeover findings carry their own current source and runtime evidence below;
-final stack acceptance remains separate. D-009 through D-012 remain explicit
-scope decisions.
+final stack acceptance remains separate. D-009 implementation and the remaining
+D-010 through D-012 scope decisions are tracked below.
 
 Finding outcomes describe the implementation state. Final environment evidence
 is tracked separately in the reconstructed coverage queue and must not be
@@ -583,14 +591,14 @@ behavior.
 
 ### 2026-09-04 scope decisions
 
-D-001 through D-008 and the documented product intent remain unchanged. These
-gaps require an explicit replacement-stack versus follow-up decision and are
-not closed by the bounded fixes above.
+D-001 through D-008 and the documented product intent remain unchanged. D-009
+is an accepted follow-up after the replacement stack; its final acceptance is
+still open. The other gaps retain their explicit scope questions.
 
 | ID    | Product boundary               | Existing intent and observed gap                                                                                                                                                                                                                                                                                       | Decision still required                                                                                                                                                                                                                                 |
 | ----- | ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| D-009 | Global ESNcard identity        | `PRODUCT.md` describes global user-owned cards, but persisted card identity and CRUD remain tenant-scoped. F-201 prevents stale verification only.                                                                                                                                                                     | Coordinate ownership/schema, profile, pricing, transfer, and tenant provider policy; require cross-tenant and live-provider proof. Confirm whether this belongs in the replacement stack or a separate change.                                          |
-| D-010 | Platform tenant administration | Platform authority stays separate from tenant membership. Existing platform tools omit 19 ordinary settings fields, onboarding policy/questions, and brand uploads.                                                                                                                                                    | Decide scope for dedicated target-scoped operations with validation, operational reasons, and actor/target/before/after audit records; no tenant-role grant or impersonation workaround.                                                                |
+| D-009 | Global ESNcard identity        | Implemented in PR #191 with organization enablement policy preserved. Complete local CI, cross-organization browser/provider journeys, and generated guides passed at c5e379cc on 2026-09-23; the exact-head counts are recorded above.                                                                                | Substantive Copilot and CodeRabbit review clearance and landing remain open. Certify any follow-up edits before publication; the predecessor's passing evidence does not certify a changed head.                                                        |
+| D-010 | Platform tenant administration | Platform authority stays separate from tenant membership. Existing platform tools omit 17 ordinary settings fields, onboarding policy/questions, and brand uploads.                                                                                                                                                    | Decide scope for dedicated target-scoped operations with validation, operational reasons, and actor/target/before/after audit records; no tenant-role grant or impersonation workaround.                                                                |
 | D-011 | Login across tenant domains    | One active primary domain per tenant remains intended. Deployment currently configures one public host per environment; another real origin cannot complete the process-wide Auth0 callback with its host-only transaction cookie.                                                                                     | Decide scope for trusted tenant-origin callbacks plus actual Auth0, DNS/TLS, container-domain, and storage CORS configuration. Verify two real origins; tenant-routing headers do not prove this.                                                       |
 | D-012 | Uncertain payment recovery     | Platform finance now implements audited restoration of an existing direct-registration Checkout, including organizer-approved sign-ups, with canonical payment/expiry reconciliation. It never repeats creation. Missing or mismatched evidence remains held; separate add-on purchases and transfers are unsupported. | Audited operator recovery is the stated assistant working default, not a user policy answer. Focused database checks pass; full browser/provider and release verification remain required. Decide broader add-on/transfer incident recovery separately. |
 

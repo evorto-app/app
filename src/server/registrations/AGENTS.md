@@ -14,6 +14,16 @@ completion and cleanup. Transfer behavior remains in the transfer modules.
   update immediately, without upgrading a shared lock. Eligibility takes the
   event update lock up front so compensation never upgrades an event share lock.
   Keep provider calls outside reservation transactions.
+- After eligibility and pricing locks, registration, approval, and transfer
+  claims take the shared global card-owner advisory lock before reading the
+  priced participant's cards. Acquire it in a separate statement so the following
+  READ COMMITTED read sees a writer that committed during the wait. Protect
+  absence and every card status; a row lock alone cannot cover a first insert.
+- Card save, refresh, delete, and fixture writes take the exclusive form of
+  `userDiscountCardLockStatement` before card rows and unique indexes. Card
+  writers do not explicitly lock tenant or global-user rows. Validate with the
+  provider before the short write transaction, and retain conditional identity
+  checks so a late result cannot overwrite a replacement or re-added card.
 - Home-organization changes also take the destination tenant key-share lock
   before membership. The later global-user home-tenant foreign-key check must
   not reverse registration's tenant-before-membership lock order.

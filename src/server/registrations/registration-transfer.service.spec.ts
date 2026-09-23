@@ -22,7 +22,6 @@ import {
 } from '../../shared/rpc-contracts/app-rpcs/registration-transfers.errors';
 import { createDefaultTenantDiscountProviders } from '../../shared/tenant-config';
 import { StripeClient } from '../stripe-client';
-import { createDatabaseTestLayer } from '../testing/database-test-layer';
 import { createRegistrationDatabaseTestLayer } from '../testing/registration-database';
 import { hashRegistrationTransferClaimCode } from './registration-transfer-claim-code';
 import { RegistrationTransferPricingError } from './registration-transfer-pricing';
@@ -257,6 +256,15 @@ describe('RegistrationTransferService.getClaim tenant settings', () => {
               `Add-on ${index + 1}`,
             ]);
           }
+          if (
+            statement ===
+            'select pg_advisory_xact_lock_shared(hashtextextended($1, 0))'
+          ) {
+            expect(parameters).toEqual([
+              'evorto:user-discount-cards:recipient-1',
+            ]);
+            return [];
+          }
           const emptyReadTables = [
             'event_registration_questions',
             'registration_transfer_refund_plan_items',
@@ -275,7 +283,7 @@ describe('RegistrationTransferService.getClaim tenant settings', () => {
     );
     return {
       executeValues,
-      layer: createDatabaseTestLayer(executeValues),
+      layer: createRegistrationDatabaseTestLayer({ executeValues }),
     };
   };
 
@@ -907,6 +915,13 @@ const createTransferTaxFixture = ({
     parameters,
   ) =>
     Effect.sync(() => {
+      if (
+        statement ===
+        'select pg_advisory_xact_lock_shared(hashtextextended($1, 0))'
+      ) {
+        expect(parameters).toEqual(['evorto:user-discount-cards:recipient-1']);
+        return [];
+      }
       if (!statement.startsWith('select ')) {
         writes.push(statement);
         throw new Error(`Unexpected transfer tax fixture write: ${statement}`);

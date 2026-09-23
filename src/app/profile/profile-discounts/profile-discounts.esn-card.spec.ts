@@ -144,7 +144,7 @@ describe('profile ESNcard messages', () => {
         _tag: 'DiscountCardConflictError',
       }),
     ).toBe(
-      'This ESNcard is already linked to another account in this organization, so it was not saved.',
+      'This ESNcard is already linked to another account, so it was not saved.',
     );
     expect(
       esnCardMutationErrorMessage('refresh', {
@@ -243,7 +243,7 @@ describe('profile ESNcard messages', () => {
         }),
       ),
     ).toBe(
-      'This ESNcard is already linked to another account in this organization, so it was not saved.',
+      'This ESNcard is already linked to another account, so it was not saved.',
     );
     expect(
       esnCardMutationErrorMessage(

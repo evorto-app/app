@@ -969,7 +969,6 @@ export const eventQueryHandlers = {
             },
             where: {
               status: 'verified',
-              tenantId: tenant.id,
               type: 'esnCard',
               userId: user.id,
             },
