@@ -419,6 +419,13 @@ component regressions retain retry recovery for temporary failures.
   is collected by `docs-live-esncard`. One journey checks active and expired
   card persistence, refresh timestamps, exact owner/identifier, removal, and
   direct server-rendered profile arrival while producing the user guide.
+  The same member opens two enabled organizations and sees the same active or
+  expired card without adding it again. Refresh happens in the second
+  organization; removal in either organization is checked after reloading the
+  other. This retains four provider validation calls in the one journey.
+  The account lease spans the journey and exact original-card restoration;
+  the second browser context and its isolated membership/policy rows are cleaned
+  up before that lease is released.
   The duplicate functional journey was removed; the complete command collects
   this journey and its seven shared setup cases. It fails its explicit
   precondition without both `E2E_LIVE_ESN_CARD_IDENTIFIER` and
@@ -527,6 +534,15 @@ ESNcard provider credential path.
     or compatibility routes. Generated-doc source coverage keeps the
     discounts guide tied to the local ESNcard helper functions and provider
     outage retry semantics.
+    PostgreSQL cases cover global identifier ownership, absent and all-status
+    eligibility changes before registration or approval, and first-card saves
+    waiting until a prepared admission price commits. They also cover current
+    recipient transfer prices, disabled-provider policy, and refresh results
+    arriving after replacement or removal/re-add. Actual home-organization,
+    profile, and onboarding operations settle alongside those locks; provider
+    calls remain outside card and admission transactions. The fixture cases
+    separately prove account-lease ownership, bounded cancellation, physical
+    connection closure, and exact private-state restoration.
   - Tenant onboarding, account-creation retry, and cross-tenant join behavior.
     Server and schema coverage proves policy/question normalization, verified
     identity, profile and answer validation, exact completion rules, immutable

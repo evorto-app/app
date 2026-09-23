@@ -1,5 +1,6 @@
 import { and, eq } from 'drizzle-orm';
 
+import { getId } from '../../../helpers/get-id';
 import { userStateFile, usersToAuthenticate } from '../../../helpers/user-data';
 import * as schema from '../../../src/db/schema';
 import { userDiscountCardLockStatement } from '../../../src/server/discounts/user-discount-card-lock';
@@ -18,8 +19,9 @@ import {
   test,
 } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
+import { openAuthenticatedTestPage } from '../../support/utils/authenticated-test-page';
 import { fillProtectedValue } from '../../support/utils/fill-protected-value';
-import type { Locator } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 
 // Approved provider identifiers are sensitive test credentials. The profile
 // renders them, so this file must never produce a trace, automatic screenshot,
@@ -229,10 +231,13 @@ test.describe('Check your ESNcard', () => {
   test.setTimeout(120_000);
 
   test('Add, check again, and remove active and expired cards @needs-live-esncard', async ({
+    browser,
     database,
     discounts,
     page,
+    registerDatabaseCleanup,
     tenant,
+    testClock,
   }, testInfo) => {
     const liveEsnCardIdentifier =
       process.env['E2E_LIVE_ESN_CARD_IDENTIFIER']?.trim();
@@ -269,6 +274,57 @@ test.describe('Check your ESNcard', () => {
       throw new Error('Expected persisted ESNcard tenant settings');
     }
 
+    const otherTenantId = getId();
+    const otherTenantDomain = `esncard-${otherTenantId}.example.test`;
+    const otherTenantName = 'South Bank Student Network';
+    const policyVersionId = getId();
+    registerDatabaseCleanup(async (cleanupDatabase) => {
+      await cleanupDatabase.transaction(async (transaction) => {
+        await transaction
+          .delete(schema.tenantPrivacyPolicyAcceptances)
+          .where(
+            eq(schema.tenantPrivacyPolicyAcceptances.tenantId, otherTenantId),
+          );
+        await transaction
+          .delete(schema.tenantPrivacyPolicyVersions)
+          .where(
+            eq(schema.tenantPrivacyPolicyVersions.tenantId, otherTenantId),
+          );
+        await transaction
+          .delete(schema.usersToTenants)
+          .where(eq(schema.usersToTenants.tenantId, otherTenantId));
+        await transaction
+          .delete(schema.tenants)
+          .where(eq(schema.tenants.id, otherTenantId));
+      });
+    });
+    await database.transaction(async (transaction) => {
+      await transaction.insert(schema.tenants).values({
+        currency: tenant.currency,
+        discountProviders: { esnCard: { config: {}, status: 'enabled' } },
+        domain: otherTenantDomain,
+        id: otherTenantId,
+        name: otherTenantName,
+        timezone: tenantSettings.timezone,
+      });
+      await transaction.insert(schema.usersToTenants).values({
+        tenantId: otherTenantId,
+        userId: regularUser.id,
+      });
+      await transaction.insert(schema.tenantPrivacyPolicyVersions).values({
+        id: policyVersionId,
+        privacyPolicyText:
+          'This organization uses your account for membership and events.',
+        tenantId: otherTenantId,
+        version: 1,
+      });
+      await transaction.insert(schema.tenantPrivacyPolicyAcceptances).values({
+        policyVersionId,
+        tenantId: otherTenantId,
+        userId: regularUser.id,
+      });
+    });
+
     const readCurrentCard = () =>
       discounts.database.query.userDiscountCards.findFirst({
         where: {
@@ -276,7 +332,10 @@ test.describe('Check your ESNcard', () => {
           userId: regularUser.id,
         },
       });
-    const expectCurrentCardStatus = async (status: 'expired' | 'verified') => {
+    const expectCurrentCardStatus = async (
+      status: 'expired' | 'verified',
+      cardPage: Page = page,
+    ) => {
       await expect
         .poll(async () => (await readCurrentCard())?.status, {
           timeout: 20_000,
@@ -287,7 +346,7 @@ test.describe('Check your ESNcard', () => {
         throw new Error(`Expected saved ${status} ESNcard`);
       }
       await expect(
-        page.getByText(
+        cardPage.getByText(
           visibleEsnCardStatus(status, card.validTo, tenantSettings.timezone),
           { exact: true },
         ),
@@ -324,6 +383,14 @@ test.describe('Check your ESNcard', () => {
       });
 
       await page.goto('/');
+      const otherOrganization = await openAuthenticatedTestPage({
+        baseUrl: new URL(page.url()).origin,
+        browser,
+        storageState: userStateFile,
+        tenantDomain: otherTenantDomain,
+        testClock,
+      });
+      registerDatabaseCleanup(() => otherOrganization.close());
       await testInfo.attach('markdown', {
         body: `
 
@@ -392,22 +459,66 @@ From the main navigation, select **Profile**, then choose **Discounts**. Before 
 
 A successful check shows **Verified** and records when the card was last checked.
 
+The same card is available in every organization you have joined that enables ESNcard discounts. Open that organization's trusted link, select **Profile**, then choose **Discounts**. You do not need to add the card again. Reload an already-open page to see changes made elsewhere.
+
 Select **Check again** to check the card again. If Evorto rejects the check, it keeps the saved card unchanged and names **Check again** as the next action. If the outcome cannot be confirmed, further card changes remain unavailable. Select **Try again** to load your current cards; this does not check the card again. If recovery keeps failing, contact Evorto support with the organization and exact message shown.
 `,
       });
 
+      await otherOrganization.page.goto('/');
       await clickHydratedAction(
-        page.getByRole('button', { name: 'Check again' }),
+        otherOrganization.page.getByRole('link', {
+          name: 'Profile',
+          exact: true,
+        }),
+      );
+      await expect(
+        otherOrganization.page.locator('app-profile-shell'),
+      ).toBeVisible();
+      await clickHydratedAction(
+        otherOrganization.page
+          .getByRole('navigation', { name: 'Profile sections' })
+          .getByRole('link', { name: 'Discounts' }),
+      );
+      await expect(otherOrganization.page).toHaveTitle(
+        new RegExp(otherTenantName),
+      );
+      const sharedCard = await expectCurrentCardStatus(
+        'verified',
+        otherOrganization.page,
+      );
+      expect(sharedCard.id).toBe(savedCard.id);
+      expect(
+        (
+          await otherOrganization.page
+            .locator('app-profile-discounts')
+            .innerText()
+        ).includes(liveEsnCardIdentifier),
+      ).toBe(true);
+      await clickHydratedAction(
+        otherOrganization.page.getByRole('button', { name: 'Check again' }),
       );
       await expectCardCheckedAgain(savedCheckTime);
-      const refreshedCard = await expectCurrentCardStatus('verified');
+      const refreshedCard = await expectCurrentCardStatus(
+        'verified',
+        otherOrganization.page,
+      );
+      expect(refreshedCard.id).toBe(savedCard.id);
       expect(refreshedCard?.status).toBe('verified');
       expect(refreshedCard?.type).toBe('esnCard');
       expect(refreshedCard?.userId).toBe(regularUser.id);
       expect(refreshedCard?.identifier === liveEsnCardIdentifier).toBe(true);
       expect(refreshedCard?.lastCheckedAt).toBeInstanceOf(Date);
 
-      await clickHydratedAction(page.getByRole('button', { name: 'Remove' }));
+      await clickHydratedAction(
+        otherOrganization.page.getByRole('button', { name: 'Remove' }),
+      );
+      await expect(
+        otherOrganization.page.getByText('No discount cards added.', {
+          exact: true,
+        }),
+      ).toBeVisible({ timeout: 20_000 });
+      await page.reload();
       await expect(
         page.getByText('No discount cards added.', { exact: true }),
       ).toBeVisible({ timeout: 20_000 });
@@ -447,11 +558,28 @@ An expired card remains visible as **Expired** and no longer grants discounts. E
         throw new Error('Expected saved expired ESNcard check time');
       }
 
+      await otherOrganization.page.reload();
+      const sharedExpiredCard = await expectCurrentCardStatus(
+        'expired',
+        otherOrganization.page,
+      );
+      expect(sharedExpiredCard.id).toBe(savedExpiredCard.id);
+      expect(
+        (
+          await otherOrganization.page
+            .locator('app-profile-discounts')
+            .innerText()
+        ).includes(expiredEsnCardIdentifier),
+      ).toBe(true);
       await clickHydratedAction(
-        page.getByRole('button', { name: 'Check again' }),
+        otherOrganization.page.getByRole('button', { name: 'Check again' }),
       );
       await expectCardCheckedAgain(savedExpiredCheckTime);
-      const refreshedExpiredCard = await expectCurrentCardStatus('expired');
+      const refreshedExpiredCard = await expectCurrentCardStatus(
+        'expired',
+        otherOrganization.page,
+      );
+      expect(refreshedExpiredCard.id).toBe(savedExpiredCard.id);
       expect(refreshedExpiredCard?.status).toBe('expired');
       expect(refreshedExpiredCard?.type).toBe('esnCard');
       expect(refreshedExpiredCard?.userId).toBe(regularUser.id);
@@ -466,6 +594,12 @@ An expired card remains visible as **Expired** and no longer grants discounts. E
       ).toBeVisible({ timeout: 20_000 });
       const removedExpiredCard = await readCurrentCard();
       expect(removedExpiredCard).toBeUndefined();
+      await otherOrganization.page.reload();
+      await expect(
+        otherOrganization.page.getByText('No discount cards added.', {
+          exact: true,
+        }),
+      ).toBeVisible({ timeout: 20_000 });
 
       await testInfo.attach('markdown', {
         body: `

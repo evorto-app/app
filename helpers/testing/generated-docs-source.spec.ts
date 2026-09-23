@@ -2737,7 +2737,22 @@ describe('generated docs source current behavior', () => {
       'const clickHydratedAction = async (action: Locator)',
     );
     expect(source).toContain("not.toHaveAttribute('jsaction', /click/, {");
-    expect(source.match(/await clickHydratedAction\(/g)).toHaveLength(8);
+    const sourceFile = parseDocumentationSource('discounts.doc.ts', source);
+    const clickCalls: string[] = [];
+    const visit = (node: ts.Node): void => {
+      if (
+        ts.isCallExpression(node) &&
+        ts.isPropertyAccessExpression(node.expression) &&
+        node.expression.name.text === 'click'
+      ) {
+        clickCalls.push(node.getText(sourceFile));
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(sourceFile);
+    // Every page click must use the hydration helper, regardless of how many
+    // navigation steps the documented journey needs.
+    expect(clickCalls).toEqual(['action.click()']);
     expect(source).toContain("name: 'Discount cards'");
     expect(source).not.toContain("name: 'Discount Cards'");
     expect(source).toContain("_tag: 'RpcInternalServerError'");
