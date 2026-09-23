@@ -49,6 +49,7 @@ More specific guidance may exist deeper in some subtrees.
 - `bun run test:integration:postgres` - run the fail-closed PostgreSQL 17 integration suite.
 - `bun run test:integration:postgres:local` - run that suite with supported local dotenv configuration.
 - `bun run test:e2e` - run Playwright e2e.
+- `bun run test:e2e:baseline` - run complete functional and documentation baselines with shared setup and guide export.
 - `bun run test:e2e:docs` - run Playwright documentation tests.
 - `bun run test:e2e:integration` - run credential-gated integration Playwright projects.
 - `bun run test:e2e:live-esncard:release` - run the full live-provider release certification locally.
@@ -92,7 +93,7 @@ For runtime/test details, read:
 - `helpers/README.md`
 - `src/server/config/AGENTS.md`
 
-Local `test:e2e`, `test:e2e:ui`, `test:e2e:docs`, `db:*`, and `docker:*`
+Local `test:e2e`, `test:e2e:baseline`, `test:e2e:ui`, `test:e2e:docs`, `db:*`, and `docker:*`
 package scripts use `env:run` to resolve an invocation-private environment in memory.
 They never read the shared `.env.dev` snapshot. Use these scripts or
 `bun run env:run -- <command>` instead of chaining `env:runtime` and `dotenv`.

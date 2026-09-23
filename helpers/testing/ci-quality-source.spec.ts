@@ -9,6 +9,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
+import packageJson from '../../package.json';
+
 const repositoryRoot = fileURLToPath(new URL('../..', import.meta.url));
 
 const readSource = (relativePath: string): string =>
@@ -225,8 +227,16 @@ describe('CI quality source', () => {
 
   it('runs every deterministic generated-docs flow in baseline CI', () => {
     const source = readSource('.github/workflows/e2e-baseline.yml');
+    const baseline = packageJson.scripts['test:e2e:baseline'];
 
-    expect(source).toContain('bunx playwright test --project=docs-baseline');
+    expect(source).toContain('bun run test:e2e:baseline -- --trace=off');
+    expect(baseline).toContain(
+      '--project=local-chrome-baseline --project=docs-baseline',
+    );
+    expect(baseline).toContain(
+      './tests/support/reporters/documentation-reporter.ts',
+    );
+    expect(baseline).not.toMatch(/--grep(?:-invert)?\b/u);
     expect(source).not.toMatch(/--grep-invert\s+["']?@finance/u);
   });
 
@@ -281,9 +291,8 @@ describe('CI quality source', () => {
       'tests/docs/events/registration-cancellation.doc.ts',
     );
 
-    expect(baselineWorkflow).toContain('bun run test:e2e -- --trace=off');
     expect(baselineWorkflow).toContain(
-      'bunx playwright test --project=docs-baseline \\\n            --trace=off',
+      'bun run test:e2e:baseline -- --trace=off',
     );
     expect(baselineWorkflow).toContain('!test-results/**/trace.zip');
     expect(baselineWorkflow).toContain('!test-results/docs/**/trace.zip');

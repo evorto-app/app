@@ -165,7 +165,10 @@ esac
 const fakeEnvironmentRunner = String.raw`#!/bin/sh
 set -eu
 if [ "$1" = -- ]; then shift; fi
-[ "$1" = bun ] || exit 68
+case "$1" in
+  bun|playwright) ;;
+  *) exit 68 ;;
+esac
 printf '%s\n' run:env:run >> "$WRAPPER_TRACE"
 exec "$@"
 `;
@@ -269,6 +272,27 @@ const liveArguments = [
   '@needs-live-esncard',
 ];
 const wrappers = [
+  {
+    name: 'test:e2e:baseline',
+    arguments: [
+      'test',
+      '--project=local-chrome-baseline',
+      '--project=docs-baseline',
+      '--reporter=./tests/support/reporters/protected-value-sanitizer-reporter.ts,github,dot,./tests/support/reporters/documentation-reporter.ts,./tests/support/reporters/complete-playwright-run-reporter.ts',
+    ],
+    projects: 'local-chrome-baseline,docs-baseline',
+    trace: ['run:test:e2e:check', 'run:env:run', 'playwright'],
+  },
+  {
+    name: 'test:e2e:docs',
+    arguments: [
+      'test',
+      '--project=docs-baseline',
+      '--reporter=./tests/support/reporters/protected-value-sanitizer-reporter.ts,github,dot,./tests/support/reporters/documentation-reporter.ts,./tests/support/reporters/complete-playwright-run-reporter.ts',
+    ],
+    projects: 'docs-baseline',
+    trace: ['run:test:e2e:check', 'run:env:run', 'playwright'],
+  },
   {
     name: 'test:e2e:integration',
     arguments: [

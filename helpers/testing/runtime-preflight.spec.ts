@@ -259,6 +259,7 @@ describe('evaluateRuntimePreflight', () => {
     );
     for (const scriptName of [
       'test:e2e',
+      'test:e2e:baseline',
       'test:e2e:docs',
       'test:e2e:integration',
       'test:e2e:ui',
@@ -409,6 +410,7 @@ describe('evaluateRuntimePreflight', () => {
 
     for (const scriptName of [
       'test:e2e',
+      'test:e2e:baseline',
       'test:e2e:ui',
       'test:e2e:integration',
       'test:e2e:docs',

@@ -124,8 +124,7 @@ bun run test:integration:postgres:local
 bun run build:app
 bun run infra:check
 bun run image:security:local
-bun run test:e2e
-bun run test:e2e:docs
+bun run test:e2e:baseline
 ```
 
 Every collected test must pass with zero skips, todos, fixmes, expected
@@ -138,7 +137,11 @@ satisfy the final gate. See [QUALITY.md](QUALITY.md) for the done criteria and
 The infrastructure commands validate and scan both Terraform roots, then build,
 inspect, inventory, and vulnerability-scan the real Linux/amd64 runtime image.
 
-The block above is the normal pull-request baseline. Any caller-forwarded
+The block above is the normal pull-request baseline. `test:e2e:baseline` runs
+every functional and documentation baseline case together, sharing database
+and authentication setup and exporting the generated guides. The separate
+`test:e2e` and `test:e2e:docs` commands remain available for iteration.
+Any caller-forwarded
 selector beyond a canonical package script that reduces collection is
 diagnostic-only, including file arguments, `--filter`, `--grep`,
 `--grep-invert`, `--include`, `--last-failed`, `--related`, project, shard,
@@ -200,13 +203,19 @@ Local runs use Playwright's bundled Chromium by default. For exploratory runs
 on a machine that already has Google Chrome installed, set
 `E2E_BROWSER_CHANNEL=chrome` instead of downloading the bundled browser.
 
-For end-to-end (e2e) testing, run:
+To run the complete functional and documentation baselines with shared setup:
+
+```bash
+bun run test:e2e:baseline
+```
+
+For a functional-only iteration, run:
 
 ```bash
 bun run test:e2e
 ```
 
-To run documentation tests:
+For a documentation-only iteration, run:
 
 ```bash
 bun run test:e2e:docs

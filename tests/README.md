@@ -17,6 +17,23 @@ dispatch; direct CI invocations must supply the same target settings.
 - Setup/auth/database bootstrapping lives in `tests/setup/**`
 - Shared fixtures/utilities/reporters live in `tests/support/fixtures/**`, `tests/support/utils/**`, `tests/support/reporters/**`
 
+Documentation journeys also provide executable behavior coverage. Profile
+editing, event-card actions and receipt display are covered by
+`docs/profile/user-profile.doc.ts`; seeded ESNcard display and invalid input
+are covered by `docs/profile/discounts.doc.ts`. These journeys retain database
+readback, field normalization and action-state assertions. Keep both complete
+functional and documentation suites in the release gate, and add separate
+functional cases when they protect a distinct regression.
+`bun run test:e2e:baseline` collects both complete projects in one invocation,
+so their shared database and authentication setup executes once.
+
+Template controls can display saved values in server-rendered markup before
+their event listeners are hydrated. Before keyboard interaction after a full
+template edit navigation, wait for the target control's `jsaction` keyboard
+marker to disappear, as `fillTemplateBasics` already does for click targets.
+Press once and assert the resulting open state; repeating the key can toggle
+an already-open control instead of proving readiness.
+
 ## Generated Documentation Authoring Contract
 
 Each product-facing documentation journey should be understandable without
@@ -261,7 +278,12 @@ that result never satisfies the mandatory local CI gate. Before any
 CI-triggering action, use the canonical unfiltered command set in the root
 `README.md` and require every collected test to pass.
 
+`bun run test:e2e:docs` always enables the documentation exporter, including
+with `CI=true`, alongside protected-value redaction and completeness checks.
+It verifies the journeys and writes the generated guides in the same run.
+
 ```bash
+bun run test:e2e:baseline
 bun run test:e2e
 bun run test:e2e:ui
 AUTH0_MANAGEMENT_CLIENT_ID=... AUTH0_MANAGEMENT_CLIENT_SECRET=... PUBLIC_GOOGLE_MAPS_API_KEY=... bun run test:e2e:integration
@@ -374,7 +396,7 @@ credentials must not be printed or committed.
   needs a callback URL Auth0 accepts. On this machine, run Docker-backed
   authenticated checks with `APP_HOST_PORT=4200 bun run docker:start` unless the
   generated worktree port has also been added to the Auth0 application.
-- Local `dev:start`, `test:e2e`, `test:e2e:ui`, `test:e2e:integration`, `test:e2e:docs`, `db:*`, and `docker:*` package scripts use `env:run` to resolve an invocation-private environment. Concurrent commands cannot overwrite each other's selected project or database through `.env.dev`. Use `bun run docker:ps` rather than bare `docker compose ps` so the worktree project is selected explicitly.
+- Local `dev:start`, `test:e2e`, `test:e2e:baseline`, `test:e2e:ui`, `test:e2e:integration`, `test:e2e:docs`, `db:*`, and `docker:*` package scripts use `env:run` to resolve an invocation-private environment. Concurrent commands cannot overwrite each other's selected project or database through `.env.dev`. Use `bun run docker:ps` rather than bare `docker compose ps` so the worktree project is selected explicitly.
 - `bun run docker:check` fails before Docker Compose mutates local containers
   when required local runtime variables are missing. The check covers Auth0,
   Stripe, the application session secret, and Font Awesome package registry
@@ -688,7 +710,7 @@ reporter. Credential-backed baseline CI additionally forces tracing off, never
 uploads `playwright-report`, and explicitly excludes `trace.zip` from both
 artifact uploads.
 
-The ordinary `test:e2e`, `test:e2e:ui`, `test:e2e:integration`, and
+The ordinary `test:e2e`, `test:e2e:baseline`, `test:e2e:ui`, `test:e2e:integration`, and
 `test:e2e:docs` scripts run `test:e2e:check` first. That Playwright preflight
 requires all six passwords and the Auth0 Management test client before
 Docker-backed test startup. `docker:check` does not require them, so starting

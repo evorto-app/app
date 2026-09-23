@@ -2,7 +2,7 @@
 
 Scope: Current Playwright tests and documentation journeys.
 
-Updated: 2026-09-21
+Updated: 2026-09-23
 
 ## How to Use This Inventory
 
@@ -10,11 +10,21 @@ Use this file as a quick orientation map before adding or trusting Playwright
 coverage. `tests/README.md` remains the workflow reference for commands,
 runtime variables, Docker behavior, and browser installation.
 
+The Active Files list is checked against disk discovery. Keep that exact list
+current when adding or removing journeys; file counts and categories are
+already determined by those paths and are not maintained separately.
+
+The complete deterministic gate is `bun run test:e2e:baseline`. It collects
+both baseline projects and executes their shared setup once. Documentation
+export, protected-value redaction and completeness checks run in that same
+invocation.
+
 The current suite has two durable purposes:
 
 - `tests/specs/**` proves product behavior and regression paths.
-- `tests/docs/**` generates product-facing walkthrough documentation from real
-  browser flows.
+- `tests/docs/**` verifies product behavior while generating walkthrough
+  documentation from real browser flows. A separate functional spec is only
+  needed when it protects a distinct regression.
 
 Real test titles should stay readable and should not carry placeholder
 `@track(...)`, `@req(...)`, or `@doc(...)` metadata. Keep semantic tags such as
@@ -93,11 +103,7 @@ component regressions retain retry recovery for temporary failures.
   - specs/permissions/tenant-isolation-tax-rates.spec.ts [permissions, finance]
   - specs/profile/create-account.spec.ts [@needs-auth0-management]
   - specs/profile/tenant-onboarding.spec.ts [admin]
-  - specs/profile/user-profile-discounts.spec.ts [finance]
-  - specs/profile/user-profile-edit.spec.ts
-  - specs/profile/user-profile-events.spec.ts
   - specs/profile/user-profile-live-esncard.spec.ts [@needs-live-esncard]
-  - specs/profile/user-profile-receipts.spec.ts [finance]
   - specs/resilience/core-load-recovery.spec.ts [admin, finance, resilience, templates]
   - specs/reporting/reporter-paths.test.ts
   - specs/scanning/scanner.test.ts
@@ -112,17 +118,6 @@ component regressions retain retry recovery for temporary failures.
   - specs/templates/registration-configuration.spec.ts
   - specs/templates/template-actions-permissions.spec.ts [permissions]
   - specs/templates/templates.test.ts
-
-## Executable Source Contract
-
-The source inventory below is verified against the files on disk. Any added or
-removed journey must update this summary in the same change, so coverage cannot
-silently disappear behind a stale hand-maintained file list.
-
-| Suite   | Files | Top-level categories                                                                                                                                                                  |
-| ------- | ----: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `docs`  |    29 | `admin`, `events`, `finance`, `profile`, `roles`, `scanning`, `template-categories`, `templates`, `users`                                                                             |
-| `specs` |    48 | `admin`, `auth`, `discounts`, `events`, `finance`, `permissions`, `profile`, `reporting`, `resilience`, `scanning`, `screenshot`, `seed`, `smoke`, `template-categories`, `templates` |
 
 ## Suite Ownership
 
@@ -399,7 +394,12 @@ silently disappear behind a stale hand-maintained file list.
   transfer is unavailable.
 - `specs/templates/paid-option-requires-tax-rate.spec.ts` has active
   simple-mode UI coverage for the paid-registration tax-rate requirement and a
-  seeded inclusive tax-rate save path. Future bulk/no-compatible-rate UI
+  seeded inclusive tax-rate save path. Recovery journeys cover an inactive rate
+  and a whitespace-only percentage, including the retained selection, blocked
+  saving and fresh edit-page readback after replacement. Existing catalog,
+  selector and form unit tests cover null, empty and whitespace percentages;
+  the form matrix covers both registration options and add-ons.
+  Future bulk/no-compatible-rate UI
   behavior remains uncovered without a hidden fixme placeholder. Template detail paid-option
   summaries now share the inclusive price label component with event
   registration cards, and create/edit submit helpers keep missing paid tax-rate
@@ -461,21 +461,18 @@ verification gates here are the in-app review queue and the release-gated live
 ESNcard provider credential path.
 
 - Profile/account:
-  - Docker-backed system-Chrome profile edit persistence now passes against the
-    rebuilt app. Generated docs exercise the email for updates plus IBAN/PayPal
-    edit/restore path with database readback,
-    `specs/profile/user-profile-edit.spec.ts` functionally covers the email
-    for updates plus IBAN/PayPal persistence with explicit database readback and
-    cleanup, and app helper coverage proves payload trimming, blank-value
-    normalization, and visible profile-cache refresh after save.
-  - Docker-backed system-Chrome profile event-card review now passes against the
-    rebuilt app. Generated profile docs seed confirmed, pending-checkout,
+  - `docs/profile/user-profile.doc.ts` covers email for updates plus IBAN/PayPal
+    editing with database readback and cleanup. It retains invalid-name
+    recovery, signal-backed field stability, reimbursement whitespace
+    normalization and the unchanged sign-in email. App helper coverage also
+    proves payload trimming, blank-value normalization and visible
+    profile-cache refresh after save.
+  - Generated profile docs seed confirmed, pending-checkout,
     waitlisted, and checked-in registrations with free add-ons where applicable,
     then assert event link, registration status, guest quantity, purchased add-on
     summary, payment state, checkout continuation, waitlist routing,
     ticket-routing copy, checked-in copy, and that checked-in cards do not show
-    ticket availability copy. `specs/profile/user-profile-events.spec.ts`
-    reuses the same seeded card states as functional Playwright coverage.
+    ticket availability copy.
     App/server coverage already proves event-detail action copy,
     guest/status/payment labels, profile event add-on summaries,
     implemented-action notes, waitlist event-page routing, and the
@@ -483,11 +480,11 @@ ESNcard provider credential path.
     continuation links render only for pending Stripe Checkout HTTPS URLs.
     Checked-in profile cards block cancellation while explaining that a transfer
     preserves the existing attendee and guest check-in history.
-    The generated profile docs and matching profile-event spec now read back the
+    The generated profile docs read back the
     persisted confirmed registration, add-on purchase, pending checkout
     transaction, waitlist registration, and checked-in registration rows behind
     those seeded profile cards.
-    The generated profile docs and functional profile-event spec now pin each
+    The generated profile docs pin each
     seeded confirmed, pending-checkout, waitlisted, and checked-in card to its
     expected event-page link so the recovery route cannot silently drift. They
     also assert that only the
@@ -497,6 +494,14 @@ ESNcard provider credential path.
     Organizer overview app coverage also proves checked-in rows disable
     participant cancellation while transfer preserves existing check-in history;
     in-flight writes continue to disable conflicting actions.
+  - The same profile documentation journey checks submitted receipt status,
+    event context and amount, with a scoped database readback.
+    `docs/profile/discounts.doc.ts` checks `/profile/discounts`, the seeded
+    ESNcard, independently formatted validity date, action availability,
+    invalid-save blocking and the unchanged original persisted row. These four
+    profile journeys were consolidated into the documentation suite to avoid
+    repeating their fixture setup and
+    browser interactions in separate functional specs.
   - Live external ESNcard active-card add/refresh/remove and expired-card status
     outcomes with readable error states are now represented by
     `specs/profile/user-profile-live-esncard.spec.ts`, an external-provider-tagged
@@ -513,21 +518,15 @@ ESNcard provider credential path.
     add/refresh/remove lifecycles. The same file also includes a helper-backed baseline note for
     readable ESNcard statuses, pending save/refresh/remove labels, shared
     in-flight write guards, trimmed save payloads, and provider-unavailable
-    retry copy. The page-backed discounts doc asserts direct `#discounts`
-    routing, the seeded verified ESNcard identifier/status, database readback,
-    refresh/remove action visibility, the invalid-card-number save guard, and
-    that invalid input leaves the seeded row unchanged. The profile discounts
-    spec functionally covers the same seeded direct-link discount-card journey
-    with database readback. App and server
-    coverage already prove upsert payload normalization, readable mutation
-    errors, readable status labels, save/refresh/remove action states, global
-    per-user card reads/upserts, refresh persistence, provider-outage upsert
+    retry copy. The seeded card journey belongs to the documentation coverage
+    described above. App and server tests cover upsert payload normalization, readable mutation
+    errors, readable status labels, save/refresh/remove action states,
+    tenant-scoped per-user card reads/upserts, refresh persistence, provider-outage upsert
     rejection before inserting or updating the stored card, and scoped removal.
     Local app coverage also proves that save, refresh, and remove actions share
     an in-flight guard so profile discount-card writes do not overlap. App
-    coverage also proves the
-    `#discounts` profile fragment waits for tenant ESNcard provider availability
-    before selecting the section. Generated-doc source coverage keeps the
+    route coverage keeps the profile on child routes without fragment redirects
+    or compatibility routes. Generated-doc source coverage keeps the
     discounts guide tied to the local ESNcard helper functions and provider
     outage retry semantics.
   - Tenant onboarding, account-creation retry, and cross-tenant join behavior.
@@ -577,12 +576,11 @@ ESNcard provider credential path.
     credential-gated integration path executable under the local runtime; the
     live Auth0 path still requires Auth0 Management credentials to satisfy its
     fail-fast precondition.
-  - Submitted-receipt visibility after receipt submission. Manual Browser
-    review remains useful after signing in to the in-app Browser, but
-    the Docker-backed Playwright profile pass now verifies the deterministic
-    profile receipt flow through both generated docs and the functional spec:
-    filename, submitted status, event title, amount, persisted database row, and
-    cleanup. Local app/server coverage already proves readable
+  - Submitted-receipt visibility belongs to two distinct documentation journeys:
+    `docs/profile/user-profile.doc.ts` checks the seeded profile receipt card,
+    while `docs/finance/receipt-submission.doc.ts` follows a newly submitted
+    organizer receipt into the personal profile. Both verify status, event,
+    amount and persisted database rows. Local app/server coverage proves readable
     submitted-receipt status labels, amount formatting, and
     `finance.receipts.my` profile-card row normalization.
 - Finance/receipts:
@@ -890,17 +888,11 @@ ESNcard provider credential path.
   origin. Use `APP_HOST_PORT=4200 bun run docker:start` on this machine unless
   the generated worktree port has been added to the Auth0 callback URLs.
 - Scenario handles from `seeded.scenario.events.*` are the preferred way to address seeded entities.
-- `tests/specs/scanning/scanner.test.ts`,
-  `tests/specs/profile/user-profile-discounts.spec.ts`, and
-  `tests/specs/events/price-labels-inclusive.spec.ts` passed together against a
-  fresh Docker runtime with system Chrome, covering scanner writes plus
-  organizer checked-in aggregates, stable seeded ESNcard display, invalid
-  discount-card input blocking, and inclusive price-label behavior.
-- `tests/specs/discounts/esn-discounts.test.ts` and
-  `tests/specs/profile/user-profile-discounts.spec.ts` passed together against
-  a rebuilt Docker runtime with system Chrome after the Stripe CLI sidecar
-  update, covering seeded profile discount-card state plus the paid registration
-  ESN discount label, price component, and payment button.
+- Scanner writes and organizer checked-in aggregates remain in
+  `tests/specs/scanning/scanner.test.ts`. Inclusive price labels and paid
+  registration ESN discounts remain in `tests/specs/events/price-labels-inclusive.spec.ts`
+  and `tests/specs/discounts/esn-discounts.test.ts`. Seeded profile card display
+  and invalid-save blocking are covered by `tests/docs/profile/discounts.doc.ts`.
 - `tests/specs/admin/global-admin-tenants.spec.ts` and
   `tests/specs/permissions/global-admin-route-guard.spec.ts` cover the
   global-admin tenant list/create/detail/edit workflow and allow/deny route
