@@ -4,7 +4,7 @@ import { adminStateFile } from '../../../helpers/user-data';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 import {
-  closeTenantRequestContext,
+  closeApplicationContext,
   routeLocalTenantRequests,
 } from '../../support/utils/tenant-request-routing';
 
@@ -663,7 +663,7 @@ The privacy policy stays on **New member setup** with required member questions.
   const publicContext = await browser.newContext({
     storageState: { cookies: [], origins: [] },
   });
-  registerDatabaseCleanup(async () => closeTenantRequestContext(publicContext));
+  registerDatabaseCleanup(async () => closeApplicationContext(publicContext));
   await routeLocalTenantRequests({
     baseUrl: tenantUrl.origin,
     context: publicContext,

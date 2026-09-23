@@ -487,3 +487,23 @@ export const closeTenantRequestContext = async (
     throw new AggregateError(errors, 'Tenant request context cleanup failed');
   }
 };
+
+export const closeApplicationContext = async (
+  context: Parameters<typeof closeApplicationPages>[0] &
+    Pick<BrowserContext, 'close' | 'isClosed'>,
+): Promise<void> => {
+  const errors: unknown[] = [];
+  try {
+    await closeApplicationPages(context);
+  } catch (error) {
+    errors.push(error);
+  }
+  try {
+    await closeTenantRequestContext(context);
+  } catch (error) {
+    errors.push(error);
+  }
+  if (errors.length === 1) throw errors[0];
+  if (errors.length > 1)
+    throw new AggregateError(errors, 'Application context cleanup failed');
+};

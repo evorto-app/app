@@ -1,4 +1,5 @@
 import { once } from 'node:events';
+import { writeFile } from 'node:fs/promises';
 import { setImmediate, setTimeout as delay } from 'node:timers/promises';
 import {
   createServer,
@@ -8,8 +9,10 @@ import {
 } from 'node:http';
 
 import { expect, test, type BrowserContext } from '@playwright/test';
+import { DateTime } from 'luxon';
 
 import { localTestTenantDomainHeader } from '../../../src/shared/request-routing';
+import { openAuthenticatedTestPage } from '../../support/utils/authenticated-test-page';
 import {
   closeApplicationPages,
   closeTenantRequestContext,
@@ -675,6 +678,105 @@ test('attempts cancellation and retains both failures when document preparation 
   }
   if (errors.length > 0)
     throw new AggregateError(errors, 'Document preparation regression failed');
+});
+
+test('closes authenticated helper documents before cancelling unfinished application work', async ({
+  browser,
+}, testInfo) => {
+  const started = Promise.withResolvers<void>();
+  const pageErrors: Error[] = [];
+  const errors: unknown[] = [];
+  const received: (string | string[] | undefined)[] = [];
+  let response: ServerResponse | undefined;
+  let owned: Awaited<ReturnType<typeof openAuthenticatedTestPage>> | undefined;
+  let evaluation: Promise<PromiseSettledResult<void>[]> | undefined;
+  let closing: Promise<PromiseSettledResult<void>[]> | undefined;
+  const release = () => {
+    if (response && !response.writableEnded && !response.destroyed)
+      response.end('held response completed');
+  };
+  const local = await listen((request, currentResponse) => {
+    if (request.url === '/held-helper-mutation') {
+      received.push(request.headers[localTestTenantDomainHeader]);
+      if (response) {
+        currentResponse.end('unexpected duplicate mutation');
+        return;
+      }
+      response = currentResponse;
+      request.resume();
+      request.on('end', () => started.resolve());
+      return;
+    }
+    currentResponse.setHeader('content-type', 'text/html');
+    currentResponse.end('<body>Application document</body>');
+  });
+  try {
+    const storageState = testInfo.outputPath('empty-auth-state.json');
+    await writeFile(storageState, JSON.stringify({ cookies: [], origins: [] }));
+    owned = await openAuthenticatedTestPage({
+      baseUrl: local.origin,
+      browser,
+      storageState,
+      tenantDomain: 'north-river.evorto.app',
+      testClock: DateTime.fromISO('2026-09-23T00:00:00Z'),
+    });
+    const { context, page } = owned;
+    page.on('pageerror', (error) => pageErrors.push(error));
+    await page.goto(local.origin);
+    const closePage = page.close.bind(page);
+    page.close = async (options) => {
+      // Expose rejection delivery between request cancellation and disposal.
+      await delay(50);
+      await closePage(options);
+    };
+    evaluation = Promise.allSettled([
+      page.evaluate(() => {
+        void fetch('/held-helper-mutation', {
+          method: 'POST',
+          body: 'tenant-owned mutation',
+        });
+        return new Promise<void>(() => {});
+      }),
+    ]);
+    await started.promise;
+    const pageClosed = page.waitForEvent('close', { timeout: 10_000 });
+    closing = Promise.allSettled([owned.close()]);
+    await pageClosed;
+    expect(response?.writableEnded).toBe(false);
+    release();
+    const [result] = await closing;
+    if (!result)
+      throw new Error('Authenticated page cleanup result is missing');
+    if (result.status === 'rejected') throw result.reason;
+    expect(context.isClosed()).toBe(true);
+    expect(received).toEqual(['north-river.evorto.app']);
+    expect(pageErrors).toEqual([]);
+  } catch (error) {
+    errors.push(error);
+  } finally {
+    release();
+    if (closing) {
+      for (const result of await closing) {
+        if (result.status === 'rejected') errors.push(result.reason);
+      }
+    }
+    try {
+      if (owned) await closeTenantRequestContext(owned.context);
+      if (evaluation) await evaluation;
+    } catch (error) {
+      errors.push(error);
+    }
+    try {
+      await local.close();
+    } catch (error) {
+      errors.push(error);
+    }
+  }
+  if (errors.length > 0)
+    throw new AggregateError(
+      errors,
+      'Authenticated application cleanup failed',
+    );
 });
 
 for (const { cleanupMode, method } of [

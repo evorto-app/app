@@ -4,7 +4,7 @@ import type { DateTime } from 'luxon';
 import { resolveStorageState } from './storage-state';
 
 import {
-  closeTenantRequestContext,
+  closeApplicationContext,
   routeLocalTenantRequests,
 } from './tenant-request-routing';
 
@@ -70,13 +70,13 @@ export const openAuthenticatedTestPage = async ({
       globalThis.Date = FixedDate;
     }, testClock.toMillis());
     return {
-      close: () => closeTenantRequestContext(context),
+      close: () => closeApplicationContext(context),
       context,
       page: await context.newPage(),
     };
   } catch (error) {
     try {
-      await closeTenantRequestContext(context);
+      await closeApplicationContext(context);
     } catch (cleanupError) {
       throw new AggregateError(
         [error, cleanupError],

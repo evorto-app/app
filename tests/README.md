@@ -82,7 +82,11 @@ repetitions; each repetition receives a distinct fixture seed.
 
 Local tenant selection uses the scoped routing helper in
 `tests/support/utils/tenant-request-routing.ts`. Use the returned `close()`
-method for pages created with `openAuthenticatedTestPage`. The base page
+method for pages created with `openAuthenticatedTestPage`. That helper and
+separately owned application contexts use `closeApplicationContext`, which
+prepares their documents and attempts outer context disposal even if preparation
+fails. Reserve raw `closeTenantRequestContext` for routing-level probes.
+The base page
 fixture uses `closeApplicationPages` to leave each owned application document
 through `about:blank` before cancelling its pending requests. This prevents
 intentional teardown cancellation from rejecting a still-running application
