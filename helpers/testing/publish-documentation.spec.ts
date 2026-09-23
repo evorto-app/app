@@ -583,6 +583,10 @@ describe('documentation publishing', () => {
         file: 'tests/docs/roles/roles.doc.ts',
         guideId: 'evorto:manage-organization-members',
       },
+      {
+        file: 'tests/docs/users/tenant-onboarding.doc.ts',
+        guideId: 'evorto:first-steps',
+      },
     ]) {
       const sourceSlug = slugifyFolderNameFromTitle(
         readFirstDocumentationTestTitle(fixture.file),
