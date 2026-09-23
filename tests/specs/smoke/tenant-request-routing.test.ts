@@ -549,8 +549,13 @@ test('retains routing ownership when emergency close rejects before closing the 
     );
 });
 
-for (const cleanupMode of ['pages', 'context'] as const) {
-  test(`closes tenant pages before draining their held request without browser errors (${cleanupMode})`, async ({
+for (const { cleanupMode, method } of [
+  { cleanupMode: 'pages', method: 'GET' },
+  { cleanupMode: 'pages', method: 'POST' },
+  { cleanupMode: 'context', method: 'GET' },
+  { cleanupMode: 'context', method: 'POST' },
+] as const) {
+  test(`closes tenant pages before draining their held request without replay or browser errors (${cleanupMode}, ${method})`, async ({
     browser,
   }) => {
     const started = Promise.withResolvers<void>();
@@ -558,6 +563,11 @@ for (const cleanupMode of ['pages', 'context'] as const) {
     const errors: unknown[] = [];
     let response: ServerResponse | undefined;
     let heldRequests = 0;
+    const received: {
+      body: string;
+      method: string | undefined;
+      tenant: string | string[] | undefined;
+    }[] = [];
     let context: BrowserContext | undefined;
     let evaluation: Promise<PromiseSettledResult<string>[]> | undefined;
     let closing: Promise<PromiseSettledResult<void>[]> | undefined;
@@ -578,7 +588,20 @@ for (const cleanupMode of ['pages', 'context'] as const) {
           return;
         }
         response = currentResponse;
-        started.resolve();
+        let body = '';
+        request.setEncoding('utf8');
+        request.on('data', (chunk: string) => {
+          body += chunk;
+        });
+        request.on('error', recordFailure);
+        request.on('end', () => {
+          received.push({
+            body,
+            method: request.method,
+            tenant: request.headers[localTestTenantDomainHeader],
+          });
+          started.resolve();
+        });
         return;
       }
       currentResponse.setHeader('content-type', 'text/html');
@@ -597,15 +620,36 @@ for (const cleanupMode of ['pages', 'context'] as const) {
       });
       await page.goto(local.origin);
       evaluation = Promise.allSettled([
-        page.evaluate(async () => (await fetch('/held-page-request')).text()),
+        page.evaluate(async (requestMethod) => {
+          try {
+            await fetch('/held-page-request', {
+              method: requestMethod,
+              ...(requestMethod === 'POST'
+                ? { body: 'tenant-owned mutation' }
+                : {}),
+            });
+          } catch (error) {
+            if (!(error instanceof TypeError)) throw error;
+          }
+          // Keep the observer alive until the page closes after cancellation.
+          return new Promise<string>(() => {});
+        }, method),
       ]);
       await started.promise;
+      const failedRequest = page.waitForEvent('requestfailed', {
+        predicate: (request) =>
+          request.url() === `${local.origin}/held-page-request`,
+        timeout: 10_000,
+      });
       const pageClosed = page.waitForEvent('close', { timeout: 10_000 });
       closing = Promise.allSettled([
         cleanupMode === 'pages'
           ? closeTenantRequestPages(context)
           : closeTenantRequestContext(context),
       ]);
+      expect((await failedRequest).failure()?.errorText).toBe(
+        'net::ERR_ABORTED',
+      );
       await pageClosed;
       expect(page.isClosed()).toBe(true);
       expect(context.isClosed()).toBe(false);
@@ -627,6 +671,13 @@ for (const cleanupMode of ['pages', 'context'] as const) {
       if (closeResult.status === 'rejected') throw closeResult.reason;
       expect(context.isClosed()).toBe(cleanupMode === 'context');
       expect(heldRequests).toBe(1);
+      expect(received).toEqual([
+        {
+          body: method === 'POST' ? 'tenant-owned mutation' : '',
+          method,
+          tenant: 'north-river.evorto.app',
+        },
+      ]);
       expect(pageErrors).toEqual([]);
     } catch (error) {
       recordFailure(error);
@@ -682,6 +733,288 @@ for (const cleanupMode of ['pages', 'context'] as const) {
         errors,
         'Tenant page lifetime regression and cleanup failed',
       );
+  });
+}
+
+for (const cleanupMode of ['pages', 'context'] as const) {
+  test(`does not send a canceled POST when its headers arrive during cleanup (${cleanupMode})`, async ({
+    browser,
+  }) => {
+    const headersReady = Promise.withResolvers<void>();
+    const releaseHeaders = Promise.withResolvers<void>();
+    const errors: unknown[] = [];
+    const pageErrors: Error[] = [];
+    let canceledRequests = 0;
+    let context: BrowserContext | undefined;
+    let closing: Promise<PromiseSettledResult<void>[]> | undefined;
+    let evaluation: Promise<PromiseSettledResult<string>[]> | undefined;
+    const local = await listen((request, response) => {
+      if (request.url === '/headers-pending-request') canceledRequests += 1;
+      response.setHeader('content-type', 'text/html');
+      response.end(
+        '<!doctype html><link rel="icon" href="data:,"><body>Pending request headers</body>',
+      );
+    });
+    try {
+      context = await browser.newContext();
+      await routeLocalTenantRequests({
+        baseUrl: local.origin,
+        context,
+        tenantDomain: 'north-river.evorto.app',
+      });
+      await context.route(
+        `${local.origin}/headers-pending-request`,
+        async (route) => {
+          const request = route.request();
+          const originalHeaders = request.allHeaders.bind(request);
+          request.allHeaders = async () => {
+            const headers = await originalHeaders();
+            headersReady.resolve();
+            await releaseHeaders.promise;
+            return headers;
+          };
+          await route.fallback();
+        },
+      );
+      const page = await context.newPage();
+      page.on('pageerror', (error) => pageErrors.push(error));
+      await page.goto(local.origin);
+      evaluation = Promise.allSettled([
+        page.evaluate(async () => {
+          try {
+            await fetch('/headers-pending-request', {
+              method: 'POST',
+              body: 'canceled tenant mutation',
+            });
+          } catch (error) {
+            if (!(error instanceof TypeError)) throw error;
+          }
+          return new Promise<string>(() => {});
+        }),
+      ]);
+      await headersReady.promise;
+      expect(canceledRequests).toBe(0);
+      const failed = page.waitForEvent('requestfailed', {
+        predicate: (request) =>
+          request.url() === `${local.origin}/headers-pending-request`,
+        timeout: 10_000,
+      });
+      const pageClosed = page.waitForEvent('close', { timeout: 10_000 });
+      closing = Promise.allSettled([
+        cleanupMode === 'pages'
+          ? closeTenantRequestPages(context)
+          : closeTenantRequestContext(context),
+      ]);
+      expect((await failed).failure()?.errorText).toBe('net::ERR_ABORTED');
+      await pageClosed;
+      expect(page.isClosed()).toBe(true);
+      expect(context.isClosed()).toBe(false);
+      releaseHeaders.resolve();
+      const [result] = await closing;
+      if (!result) throw new Error('Missing pending-header cleanup result');
+      if (result.status === 'rejected') throw result.reason;
+      expect(context.isClosed()).toBe(cleanupMode === 'context');
+    } catch (error) {
+      errors.push(error);
+    } finally {
+      releaseHeaders.resolve();
+      if (closing) {
+        for (const result of await closing) {
+          if (result.status === 'rejected' && !errors.includes(result.reason))
+            errors.push(result.reason);
+        }
+      }
+      try {
+        if (context && !context.isClosed())
+          await closeTenantRequestContext(context);
+      } catch (error) {
+        errors.push(error);
+      }
+      if (evaluation) {
+        for (const result of await evaluation) {
+          if (result.status !== 'rejected') {
+            errors.push(
+              new Error('Pending-header observer outlived page closure'),
+            );
+          } else if (
+            !(result.reason instanceof Error) ||
+            !result.reason.message.includes(
+              'Target page, context or browser has been closed',
+            )
+          ) {
+            errors.push(result.reason);
+          }
+        }
+      }
+      try {
+        await local.close();
+      } catch (error) {
+        errors.push(error);
+      }
+      errors.push(...pageErrors);
+    }
+    try {
+      expect(canceledRequests).toBe(0);
+    } catch (error) {
+      errors.push(error);
+    }
+    if (errors.length)
+      throw new AggregateError(errors, 'Pending-header cleanup failed');
+  });
+}
+
+for (const cleanupMode of ['pages', 'context'] as const) {
+  test(`settles a late POST before closing its page (${cleanupMode})`, async ({
+    browser,
+  }) => {
+    const firstCloseStarted = Promise.withResolvers<void>();
+    const firstCloseFinished = Promise.withResolvers<void>();
+    const releaseFirstClose = Promise.withResolvers<void>();
+    const abortStarted = Promise.withResolvers<void>();
+    const releaseAbort = Promise.withResolvers<void>();
+    const errors: unknown[] = [];
+    const pageErrors: Error[] = [];
+    let lateRequests = 0;
+    let secondCloseStarted = false;
+    let context: BrowserContext | undefined;
+    let restorePageClosers: (() => void) | undefined;
+    let closing: Promise<PromiseSettledResult<void>[]> | undefined;
+    let evaluation: Promise<PromiseSettledResult<string>[]> | undefined;
+    const local = await listen((request, response) => {
+      if (request.url === '/late-cleanup-request') lateRequests += 1;
+      response.setHeader('content-type', 'text/html');
+      response.end(
+        '<!doctype html><link rel="icon" href="data:,"><body>Late request cleanup</body>',
+      );
+    });
+    try {
+      context = await browser.newContext();
+      await routeLocalTenantRequests({
+        baseUrl: local.origin,
+        context,
+        tenantDomain: 'north-river.evorto.app',
+      });
+      await context.route(
+        `${local.origin}/late-cleanup-request`,
+        async (route) => {
+          const originalAbort = route.abort.bind(route);
+          route.abort = async (reason) => {
+            abortStarted.resolve();
+            await releaseAbort.promise;
+            await originalAbort(reason);
+          };
+          await route.fallback();
+        },
+      );
+      const first = await context.newPage();
+      const second = await context.newPage();
+      for (const page of [first, second]) {
+        page.on('pageerror', (error) => pageErrors.push(error));
+        await page.goto(local.origin);
+      }
+      const originalFirstClose = first.close.bind(first);
+      const originalSecondClose = second.close.bind(second);
+      restorePageClosers = () => {
+        first.close = originalFirstClose;
+        second.close = originalSecondClose;
+      };
+      first.close = async (options) => {
+        firstCloseStarted.resolve();
+        await releaseFirstClose.promise;
+        await originalFirstClose(options);
+        firstCloseFinished.resolve();
+      };
+      second.close = async (options) => {
+        secondCloseStarted = true;
+        await originalSecondClose(options);
+      };
+      closing = Promise.allSettled([
+        cleanupMode === 'pages'
+          ? closeTenantRequestPages(context)
+          : closeTenantRequestContext(context),
+      ]);
+      await firstCloseStarted.promise;
+      evaluation = Promise.allSettled([
+        second.evaluate(async () => {
+          try {
+            await fetch('/late-cleanup-request', {
+              method: 'POST',
+              body: 'late tenant mutation',
+            });
+          } catch (error) {
+            if (!(error instanceof TypeError)) throw error;
+          }
+          return new Promise<string>(() => {});
+        }),
+      ]);
+      await abortStarted.promise;
+      releaseFirstClose.resolve();
+      await firstCloseFinished.promise;
+      // Drain queued close continuations while the actual protocol abort is
+      // held. This is an explicit barrier, not a request timing assumption.
+      await setImmediate();
+      expect(secondCloseStarted).toBe(false);
+      expect(second.isClosed()).toBe(false);
+      const failed = second.waitForEvent('requestfailed', {
+        predicate: (request) =>
+          request.url() === `${local.origin}/late-cleanup-request`,
+        timeout: 10_000,
+      });
+      releaseAbort.resolve();
+      expect((await failed).failure()?.errorText).toBe('net::ERR_ABORTED');
+      const [result] = await closing;
+      if (!result) throw new Error('Missing late-request cleanup result');
+      if (result.status === 'rejected') throw result.reason;
+      expect(second.isClosed()).toBe(true);
+      expect(context.isClosed()).toBe(cleanupMode === 'context');
+    } catch (error) {
+      errors.push(error);
+    } finally {
+      releaseFirstClose.resolve();
+      releaseAbort.resolve();
+      if (closing) {
+        for (const result of await closing) {
+          if (result.status === 'rejected' && !errors.includes(result.reason))
+            errors.push(result.reason);
+        }
+      }
+      restorePageClosers?.();
+      try {
+        if (context && !context.isClosed())
+          await closeTenantRequestContext(context);
+      } catch (error) {
+        errors.push(error);
+      }
+      if (evaluation) {
+        for (const result of await evaluation) {
+          if (result.status !== 'rejected') {
+            errors.push(
+              new Error('Late request observer outlived page closure'),
+            );
+          } else if (
+            !(result.reason instanceof Error) ||
+            !result.reason.message.includes(
+              'Target page, context or browser has been closed',
+            )
+          ) {
+            errors.push(result.reason);
+          }
+        }
+      }
+      try {
+        await local.close();
+      } catch (error) {
+        errors.push(error);
+      }
+      errors.push(...pageErrors);
+    }
+    try {
+      expect(lateRequests).toBe(0);
+    } catch (error) {
+      errors.push(error);
+    }
+    if (errors.length)
+      throw new AggregateError(errors, 'Late request cleanup failed');
   });
 }
 

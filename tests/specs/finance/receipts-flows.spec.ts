@@ -3,10 +3,7 @@ import path from 'node:path';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { and, desc, eq, inArray } from 'drizzle-orm';
 
-import {
-  addAvailableConsumedFinanceReceiptUpload,
-  addConsumedFinanceReceiptUpload,
-} from '../../../helpers/add-finance-receipt-upload';
+import { addAvailableConsumedFinanceReceiptUpload } from '../../../helpers/add-finance-receipt-upload';
 import { getId } from '../../../helpers/get-id';
 import {
   adminStateFile,
@@ -413,108 +410,6 @@ test('approve and record receipt reimbursements in finance', async ({
       currency,
       status: 'successful',
     });
-});
-
-test('blocks approval but keeps rejection available when receipt evidence is missing', async ({
-  database,
-  page,
-  registerDatabaseCleanup,
-  seedDate,
-  seeded,
-  tenant,
-}) => {
-  const organizerUser = usersToAuthenticate.find(
-    (user) => user.roles === 'organizer',
-  );
-  if (!organizerUser) {
-    throw new Error('Expected seeded organizer user');
-  }
-
-  const eventId = seeded.scenario.events.past.eventId;
-  const receiptId = getId();
-  const receiptFileName = `missing-evidence-${seedDate.getTime()}.pdf`;
-  const receiptUploadId = getId();
-  registerDatabaseCleanup(async (cleanupDatabase) => {
-    await cleanupDatabase
-      .delete(schema.financeReceiptUploads)
-      .where(eq(schema.financeReceiptUploads.id, receiptUploadId));
-  });
-  registerDatabaseCleanup(async (cleanupDatabase) => {
-    await cleanupDatabase
-      .delete(schema.financeReceipts)
-      .where(eq(schema.financeReceipts.id, receiptId));
-  });
-
-  await addConsumedFinanceReceiptUpload(database, {
-    uploadId: receiptUploadId,
-    eventId,
-    fileName: receiptFileName,
-    mimeType: 'application/pdf',
-    sizeBytes: 1024,
-    tenantId: tenant.id,
-    uploadedByUserId: organizerUser.id,
-  });
-
-  await database.insert(schema.financeReceipts).values({
-    alcoholAmount: 0,
-    attachmentFileName: receiptFileName,
-    attachmentUploadId: receiptUploadId,
-    currency: tenant.currency,
-    depositAmount: 0,
-    eventId,
-    hasAlcohol: false,
-    hasDeposit: false,
-    id: receiptId,
-    purchaseCountry: 'DE',
-    receiptDate: new Date(seedDate.getTime() - 1000 * 60 * 60 * 24)
-      .toISOString()
-      .slice(0, 10),
-    status: 'submitted',
-    submittedByUserId: organizerUser.id,
-    taxAmount: 100,
-    tenantId: tenant.id,
-    totalAmount: 1000,
-  });
-
-  await database
-    .update(schema.tenants)
-    .set({ receiptSettings: { allowOther: false, receiptCountries: ['NL'] } })
-    .where(eq(schema.tenants.id, tenant.id));
-  await page.goto(`/finance/receipts-approval/${receiptId}`);
-  await expect(page.getByLabel('Purchase country')).toContainText(
-    'Germany (DE)',
-  );
-  await expect(
-    page.getByRole('alert').filter({
-      hasText:
-        'The uploaded receipt file is unavailable. You cannot approve the receipt until the file can be checked, but you can still reject it.',
-    }),
-  ).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Approve' })).toBeDisabled();
-  const rejectButton = page.getByRole('button', { name: 'Reject' });
-  await expect(rejectButton).toBeDisabled();
-  await page
-    .getByLabel('Reason shown to the submitter')
-    .fill('The uploaded receipt evidence is unavailable.');
-  await expect(rejectButton).toBeEnabled();
-  await rejectButton.click();
-  await expect(page).toHaveURL(/\/finance\/receipts-approval$/);
-  await expect
-    .poll(() =>
-      database.query.financeReceipts.findFirst({
-        where: { id: receiptId, tenantId: tenant.id },
-      }),
-    )
-    .toMatchObject({ purchaseCountry: 'DE', status: 'rejected' });
-  await page.goto(`/events/${eventId}/organize`);
-  const receiptCard = page
-    .locator('article')
-    .filter({ hasText: receiptFileName });
-  await expect(
-    receiptCard.getByText(
-      'Reason for rejection: The uploaded receipt evidence is unavailable.',
-    ),
-  ).toBeVisible();
 });
 
 test('receipt dialog shows Other option when tenant allows it', async ({

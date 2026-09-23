@@ -102,7 +102,9 @@ const visibleEsnCardStatus = (
   validTo: Date | null,
   timeZone: string,
 ): string => {
-  const label = esnCardStatusLabel(status);
+  // Keep expected labels independent of the application's formatter so a
+  // rendering regression cannot also change the test's expected output.
+  const label = status === 'verified' ? 'Verified' : 'Expired';
   if (!validTo) {
     return label;
   }
@@ -144,8 +146,8 @@ test('Manage ESNcard @finance', async ({
       userId: regularUser.id,
     },
   });
-  if (!seededEsnCard) {
-    throw new Error('Expected seeded ESNcard');
+  if (!seededEsnCard?.validTo) {
+    throw new Error('Expected seeded ESNcard with a validity date');
   }
   expect(seededEsnCard).toEqual(
     expect.objectContaining({
@@ -218,19 +220,10 @@ If you already added an ESNcard, Evorto shows its status and, when available, th
   const unchangedSeededEsnCard =
     await database.query.userDiscountCards.findFirst({
       where: {
-        identifier: seededEsnCardIdentifier,
-        type: 'esnCard',
-        userId: regularUser.id,
+        id: seededEsnCard.id,
       },
     });
-  expect(unchangedSeededEsnCard).toEqual(
-    expect.objectContaining({
-      identifier: seededEsnCardIdentifier,
-      status: 'verified',
-      type: 'esnCard',
-      userId: regularUser.id,
-    }),
-  );
+  expect(unchangedSeededEsnCard).toEqual(seededEsnCard);
 });
 
 test.describe('Check your ESNcard', () => {
@@ -389,6 +382,14 @@ From the main navigation, select **Profile**, then choose **Discounts**. Before 
       await expect(
         page.getByText('No discount cards added.', { exact: true }),
       ).toBeVisible();
+      // Retain the direct SSR arrival covered by the former provider spec.
+      await page.reload();
+      await expect(
+        page.getByText('No discount cards added.', { exact: true }),
+      ).toBeVisible({ timeout: 20_000 });
+      await expect(
+        page.getByRole('button', { name: 'Save ESNcard' }),
+      ).not.toHaveAttribute('jsaction', /click/, { timeout: 20_000 });
 
       await fillProtectedValue(
         page.getByRole('textbox', { name: 'ESNcard number' }),

@@ -44,7 +44,6 @@ const protectedInputTestFiles = [
   'tests/docs/profile/discounts.doc.ts',
   'tests/docs/users/create-account.doc.ts',
   'tests/specs/profile/create-account.spec.ts',
-  'tests/specs/profile/user-profile-live-esncard.spec.ts',
 ];
 
 const findFiles = (directory: string): string[] => {

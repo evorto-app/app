@@ -17,6 +17,31 @@ dispatch; direct CI invocations must supply the same target settings.
 - Setup/auth/database bootstrapping lives in `tests/setup/**`
 - Shared fixtures/utilities/reporters live in `tests/support/fixtures/**`, `tests/support/utils/**`, `tests/support/reporters/**`
 
+Documentation journeys also provide executable behavior coverage. Profile
+editing, event-card actions and receipt display are covered by
+`docs/profile/user-profile.doc.ts`; seeded ESNcard display and invalid input
+are covered by `docs/profile/discounts.doc.ts`. These journeys retain database
+readback, field normalization and action-state assertions. Keep both complete
+functional and documentation suites in the release gate, and add separate
+functional cases when they protect a distinct regression.
+`bun run test:e2e:baseline` collects both complete projects in one invocation,
+so their shared database and authentication setup executes once.
+
+`docs/users/tenant-onboarding.doc.ts` also owns administrator publication and
+immediate reacceptance, including keyboard selection before the setup screenshot
+and persisted policy acceptance and question answers.
+`docs/finance/receipt-review-reimbursement.doc.ts` owns missing-evidence
+rejection, preserved purchase country after configuration changes, and the
+rejection reason on the organizer's receipt card. Keep those distinct assertions
+in the guides instead of repeating their complete setup in functional specs.
+
+Server-rendered controls can display saved values before their event listeners
+are hydrated. Before keyboard interaction after a full template edit navigation
+or onboarding redirect, wait for the target control's `jsaction` keyboard marker
+to disappear, as `fillTemplateBasics` already does for click targets.
+Press once and assert the resulting open state; repeating the key can toggle
+an already-open control instead of proving readiness.
+
 ## Generated Documentation Authoring Contract
 
 Each product-facing documentation journey should be understandable without
@@ -58,17 +83,31 @@ repetitions; each repetition receives a distinct fixture seed.
 Local tenant selection uses the scoped routing helper in
 `tests/support/utils/tenant-request-routing.ts`. Use the returned `close()`
 method for pages created with `openAuthenticatedTestPage`. The base page
-fixture uses `closeTenantRequestPages` to close its context's current pages
-while tenant interception and the context request client remain available,
-then drains active requests before removing the exact owned route. If a page
+fixture uses `closeTenantRequestPages` to cancel each pending intercepted browser
+request before closing its context's current pages. Chromium can otherwise replay
+a paused request without its tenant header as the page closes. Cancellation and
+fulfillment share one terminal action, so an upstream fetch that completes during
+cleanup cannot settle the browser request twice. The independent upstream fetch
+and context request client remain alive until cleanup drains all admitted work,
+then removes the exact owned route. Upstream, cancellation and closure failures
+remain visible. If a page
 remains open, cleanup fails and retains routing for Playwright's outer context
 teardown; it does not retry page closure or remove interception from live pages.
 The fixture exclusively owns this final page cleanup. Custom contexts use
-`closeTenantRequestContext` for the same page-close and drain sequence followed
+`closeTenantRequestContext` for the same cancellation, page-close and drain sequence followed
 by owned context closure. It still attempts that closure if page cleanup fails,
 and joins remaining callbacks only after confirming the context is closed.
 Normal and emergency cleanup share one context-close attempt; a rejected or
 unproven closure is not retried, and all known failures remain visible.
+Cleanup checks settlements again before each page and context closes, including
+callbacks arriving while an earlier page closes. It attempts cancellation before
+reading the page inventory, so an inventory failure cannot bypass that step or
+discard an earlier cancellation failure.
+If cleanup starts while a request is still reading its headers, that request
+is canceled without starting an upstream fetch when the headers arrive.
+If page cleanup cannot reach the drain, it also reports routing failures
+already recorded while retaining them for the outer cleanup owner. It does
+not wait for unfinished requests that still need context disposal.
 Do not replace the scoped drain with
 `unrouteAll`, which can release other active requests before their handlers
 finish.
@@ -247,7 +286,12 @@ that result never satisfies the mandatory local CI gate. Before any
 CI-triggering action, use the canonical unfiltered command set in the root
 `README.md` and require every collected test to pass.
 
+`bun run test:e2e:docs` always enables the documentation exporter, including
+with `CI=true`, alongside protected-value redaction and completeness checks.
+It verifies the journeys and writes the generated guides in the same run.
+
 ```bash
+bun run test:e2e:baseline
 bun run test:e2e
 bun run test:e2e:ui
 AUTH0_MANAGEMENT_CLIENT_ID=... AUTH0_MANAGEMENT_CLIENT_SECRET=... PUBLIC_GOOGLE_MAPS_API_KEY=... bun run test:e2e:integration
@@ -360,7 +404,7 @@ credentials must not be printed or committed.
   needs a callback URL Auth0 accepts. On this machine, run Docker-backed
   authenticated checks with `APP_HOST_PORT=4200 bun run docker:start` unless the
   generated worktree port has also been added to the Auth0 application.
-- Local `dev:start`, `test:e2e`, `test:e2e:ui`, `test:e2e:integration`, `test:e2e:docs`, `db:*`, and `docker:*` package scripts use `env:run` to resolve an invocation-private environment. Concurrent commands cannot overwrite each other's selected project or database through `.env.dev`. Use `bun run docker:ps` rather than bare `docker compose ps` so the worktree project is selected explicitly.
+- Local `dev:start`, `test:e2e`, `test:e2e:baseline`, `test:e2e:ui`, `test:e2e:integration`, `test:e2e:docs`, `db:*`, and `docker:*` package scripts use `env:run` to resolve an invocation-private environment. Concurrent commands cannot overwrite each other's selected project or database through `.env.dev`. Use `bun run docker:ps` rather than bare `docker compose ps` so the worktree project is selected explicitly.
 - `bun run docker:check` fails before Docker Compose mutates local containers
   when required local runtime variables are missing. The check covers Auth0,
   Stripe, the application session secret, and Font Awesome package registry
@@ -435,11 +479,12 @@ credentials must not be printed or committed.
   projects. It is the Auth0 Management and required Google Maps portion of the
   provider gate and requires their approved local credentials.
 - `bun run test:e2e:live-esncard` runs only the live esncard.org active-card
-  add/refresh/remove and expired-card status paths. It selects both the
-  `local-chrome-live-esncard` functional project and the `docs-live-esncard`
-  publication project with normal authenticated setup; the current collection
-  is nine tests across those projects, including shared setup. The command
-  narrows execution to the functional and documentation ESNcard sources tagged
+  add/refresh/remove and expired-card status paths. The `docs-live-esncard`
+  project runs one complete live journey with normal authenticated setup:
+  eight tests, including the seven setup cases. The journey also produces the
+  user guide, checks direct server-rendered arrival and every persisted card
+  transition, and avoids repeating the same provider requests in a separate
+  functional spec. The command selects the documentation ESNcard source tagged
   `@needs-live-esncard`. It runs the fail-closed live-provider runtime preflight
   first; a missing `E2E_LIVE_ESN_CARD_IDENTIFIER` or
   `E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER` is an error, not a skipped test. This
@@ -578,7 +623,7 @@ Playwright separates external-service coverage with dedicated projects:
   - `local-chrome-integration`
   - `docs-integration`
 - live-provider certification:
-  - `local-chrome-live-esncard`
+  - `docs-live-esncard`
 
 CI infers whether Google Maps credentials are required from the selected
 Playwright projects. Authenticated setup always requires the Auth0 Management
@@ -674,7 +719,7 @@ reporter. Credential-backed baseline CI additionally forces tracing off, never
 uploads `playwright-report`, and explicitly excludes `trace.zip` from both
 artifact uploads.
 
-The ordinary `test:e2e`, `test:e2e:ui`, `test:e2e:integration`, and
+The ordinary `test:e2e`, `test:e2e:baseline`, `test:e2e:ui`, `test:e2e:integration`, and
 `test:e2e:docs` scripts run `test:e2e:check` first. That Playwright preflight
 requires all six passwords and the Auth0 Management test client before
 Docker-backed test startup. `docker:check` does not require them, so starting
@@ -703,7 +748,7 @@ Required for every live-provider run (but not for local Docker startup):
   either into the repository. Run the path with
   `E2E_LIVE_ESN_CARD_IDENTIFIER=... E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER=... bun run test:e2e:live-esncard`.
   Its credential preflight fails closed before Playwright starts when either
-  identifier is absent. The dedicated `local-chrome-live-esncard` project does
+  identifier is absent. The dedicated `docs-live-esncard` project does
   not require Google Maps credentials; its shared authenticated setup still
   verifies the dedicated Auth0 administrator identity.
 

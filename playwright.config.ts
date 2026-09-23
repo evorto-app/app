@@ -157,19 +157,6 @@ export default defineConfig({
           {
             dependencies: ['setup'],
             grep: liveEsncardTestTagPattern,
-            name: 'local-chrome-live-esncard',
-            testMatch: /specs\/profile\/user-profile-live-esncard\.spec\.ts$/,
-            timeout: 120_000,
-            use: {
-              ...desktopChrome,
-              screenshot: 'off',
-              trace: 'off',
-              video: 'off',
-            },
-          },
-          {
-            dependencies: ['setup'],
-            grep: liveEsncardTestTagPattern,
             name: 'docs-live-esncard',
             testMatch: /docs\/profile\/discounts\.doc\.ts$/,
             timeout: 120_000,

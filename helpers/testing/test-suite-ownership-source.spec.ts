@@ -101,10 +101,7 @@ const externalTags = new Set([
   '@needs-live-esncard',
 ]);
 const externalTagPattern = /@needs-[a-z0-9-]+/gu;
-const liveProviderSources = new Set([
-  'tests/docs/profile/discounts.doc.ts',
-  'tests/specs/profile/user-profile-live-esncard.spec.ts',
-]);
+const liveProviderSources = new Set(['tests/docs/profile/discounts.doc.ts']);
 
 const scriptKindForPath = (sourcePath: string) => {
   if (/\.tsx$/u.test(sourcePath)) return ts.ScriptKind.TSX;
@@ -263,7 +260,7 @@ describe('test suite ownership source', () => {
     ).toHaveLength(1);
     expect(
       externalTagRoutingViolations(
-        'tests/specs/profile/user-profile-live-esncard.spec.ts',
+        'tests/docs/profile/discounts.doc.ts',
         `test('provider @needs-live-esncard @needs-google-maps', body)`,
       ),
     ).toHaveLength(1);
