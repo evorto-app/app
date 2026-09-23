@@ -27,6 +27,7 @@ import {
   Adapters,
   type ValidationResult,
 } from '../../server/discounts/providers';
+import { userDiscountCardLockStatement } from '../../server/discounts/user-discount-card-lock';
 import { discountHandlers } from '../../server/effect/rpc/handlers/discounts.handlers';
 import { EventRegistrationService } from '../../server/effect/rpc/handlers/events/event-registration.service';
 import { RpcAccess } from '../../server/effect/rpc/handlers/shared/rpc-access.service';
@@ -427,7 +428,7 @@ const cleanFixture = async (
     .where(eq(usersToTenants.userId, fixture.userId));
   await database
     .delete(userDiscountCards)
-    .where(inArray(userDiscountCards.tenantId, fixture.tenantIds));
+    .where(eq(userDiscountCards.userId, fixture.userId));
   await database
     .delete(tenantStripeTaxRates)
     .where(inArray(tenantStripeTaxRates.tenantId, fixture.tenantIds));
@@ -1377,8 +1378,10 @@ type AdmissionSnapshotMutation =
   | 'discount'
   | 'event start'
   | 'event status'
+  | 'expired card becomes verified'
   | 'first verified card'
   | 'free to paid'
+  | 'invalid card becomes verified'
   | 'price'
   | 'provider disabled';
 
@@ -1389,7 +1392,9 @@ const discountEligibilityMutations = new Set<AdmissionSnapshotMutation>([
   'card invalidation',
   'card removal',
   'card validity window',
+  'expired card becomes verified',
   'first verified card',
+  'invalid card becomes verified',
   'provider disabled',
 ]);
 
@@ -1493,16 +1498,40 @@ const seedAdmissionSnapshotFixture = async (
     });
   }
   if (usesDiscount) {
+    await database
+      .update(tenants)
+      .set({
+        discountProviders: { esnCard: { config: {}, status: 'enabled' } },
+      })
+      .where(eq(tenants.id, fixture.tenantIds[1]));
+    await database.insert(usersToTenants).values({
+      tenantId: fixture.tenantIds[1],
+      userId: fixture.userId,
+    });
     if (mutation !== 'first verified card') {
-      const verified = mutation !== 'card becomes verified';
+      const status =
+        mutation === 'card becomes verified'
+          ? 'unverified'
+          : mutation === 'invalid card becomes verified'
+            ? 'invalid'
+            : mutation === 'expired card becomes verified'
+              ? 'expired'
+              : 'verified';
+      const hasValidityWindow = status === 'verified' || status === 'expired';
       await database.insert(userDiscountCards).values({
         identifier: `card-${fixture.userId}`,
-        status: verified ? 'verified' : 'unverified',
-        tenantId: fixture.tenantIds[0],
+        status,
         type: 'esnCard',
         userId: fixture.userId,
-        validFrom: verified ? new Date('2026-09-01T00:00:00.000Z') : null,
-        validTo: verified ? new Date('2026-10-03T00:00:00.000Z') : null,
+        validFrom: hasValidityWindow
+          ? new Date('2026-09-01T00:00:00.000Z')
+          : null,
+        validTo:
+          status === 'expired'
+            ? new Date('2026-09-30T00:00:00.000Z')
+            : status === 'verified'
+              ? new Date('2026-10-03T00:00:00.000Z')
+              : null,
       });
     }
     await database.insert(eventRegistrationOptionDiscounts).values({
@@ -1682,7 +1711,7 @@ const startAdmissionCardInvalidation = async (
   const [storedTenant] = await database
     .select()
     .from(tenants)
-    .where(eq(tenants.id, fixture.tenantIds[0]));
+    .where(eq(tenants.id, fixture.tenantIds[1]));
   const tenant = Schema.decodeUnknownSync(Tenant)(storedTenant);
   const validationStarted = Effect.runSync(Deferred.make<undefined>());
   const releaseValidation = Effect.runSync(Deferred.make<ValidationResult>());
@@ -1794,7 +1823,9 @@ const changeAdmissionSnapshot = async (
         );
       break;
     }
-    case 'card becomes verified': {
+    case 'card becomes verified':
+    case 'expired card becomes verified':
+    case 'invalid card becomes verified': {
       await editor
         .update(userDiscountCards)
         .set({
@@ -1804,7 +1835,6 @@ const changeAdmissionSnapshot = async (
         })
         .where(
           and(
-            eq(userDiscountCards.tenantId, fixture.tenantIds[0]),
             eq(userDiscountCards.type, 'esnCard'),
             eq(userDiscountCards.userId, fixture.userId),
           ),
@@ -1820,7 +1850,6 @@ const changeAdmissionSnapshot = async (
         .delete(userDiscountCards)
         .where(
           and(
-            eq(userDiscountCards.tenantId, fixture.tenantIds[0]),
             eq(userDiscountCards.type, 'esnCard'),
             eq(userDiscountCards.userId, fixture.userId),
           ),
@@ -1833,7 +1862,6 @@ const changeAdmissionSnapshot = async (
         .set({ validTo: admissionSnapshotEventStart })
         .where(
           and(
-            eq(userDiscountCards.tenantId, fixture.tenantIds[0]),
             eq(userDiscountCards.type, 'esnCard'),
             eq(userDiscountCards.userId, fixture.userId),
           ),
@@ -1877,7 +1905,6 @@ const changeAdmissionSnapshot = async (
       await editor.insert(userDiscountCards).values({
         identifier: `card-${fixture.userId}`,
         status: 'verified',
-        tenantId: fixture.tenantIds[0],
         type: 'esnCard',
         userId: fixture.userId,
         validFrom: new Date('2026-09-01T00:00:00.000Z'),
@@ -1961,7 +1988,13 @@ describe('registration admission snapshots in PostgreSQL', () => {
     { mutation: 'card removal', writer: 'manual approval' },
     { mutation: 'provider disabled', writer: 'manual approval' },
     { mutation: 'card becomes verified', writer: 'registration' },
+    { mutation: 'expired card becomes verified', writer: 'registration' },
+    { mutation: 'invalid card becomes verified', writer: 'registration' },
     { mutation: 'first verified card', writer: 'registration' },
+    { mutation: 'card becomes verified', writer: 'manual approval' },
+    { mutation: 'expired card becomes verified', writer: 'manual approval' },
+    { mutation: 'invalid card becomes verified', writer: 'manual approval' },
+    { mutation: 'first verified card', writer: 'manual approval' },
   ] as const satisfies readonly {
     mutation: AdmissionSnapshotMutation;
     writer: AdmissionSnapshotWriter;
@@ -2035,7 +2068,6 @@ describe('registration admission snapshots in PostgreSQL', () => {
               .from(userDiscountCards)
               .where(
                 and(
-                  eq(userDiscountCards.tenantId, fixture.tenantIds[0]),
                   eq(userDiscountCards.type, 'esnCard'),
                   eq(userDiscountCards.userId, fixture.userId),
                 ),
@@ -2047,9 +2079,24 @@ describe('registration admission snapshots in PostgreSQL', () => {
               layer,
             );
             cardInvalidation.releaseValidation();
-            // Refresh holds tenant KEY SHARE and waits for the card row. The
-            // admission writer must then wait for refresh's tenant lock.
+            // Refresh through the other organization holds the global owner
+            // lock while waiting for the card row. Admission waits for it.
             admissionBlockerPid = await waitForQuestionRaceLock(pool, pid);
+          } else if (
+            discountEligibilityMutations.has(mutation) &&
+            mutation !== 'provider disabled'
+          ) {
+            // Protect every status and absence without locking either tenant.
+            // The next admission read must see this commit after its lock wait.
+            await editor.execute(
+              userDiscountCardLockStatement(fixture.userId, 'exclusive'),
+            );
+            await changeAdmissionSnapshot(
+              editor,
+              fixture,
+              mutation,
+              stripeTaxRateId,
+            );
           } else {
             // Match both event editors: tenant UPDATE precedes event UPDATE.
             // Changes stay uncommitted while the service reads its old snapshot.
@@ -2192,7 +2239,7 @@ describe('registration admission snapshots in PostgreSQL', () => {
     }, 20_000);
   }
 
-  it('serializes real initial and replacement card saves before card and identifier locks', async () => {
+  it('waits for global pricing readers before card saves across organizations', async () => {
     const fixture = makeFixture();
     const otherUserId = `new-${fixture.userId}`;
     const originalAdapter = Adapters.esnCard;
@@ -2214,7 +2261,7 @@ describe('registration admission snapshots in PostgreSQL', () => {
         lastName: 'Card owner',
       });
       await database.insert(usersToTenants).values({
-        tenantId: fixture.tenantIds[0],
+        tenantId: fixture.tenantIds[1],
         userId: otherUserId,
       });
       const [storedTenant] = await database
@@ -2222,6 +2269,11 @@ describe('registration admission snapshots in PostgreSQL', () => {
         .from(tenants)
         .where(eq(tenants.id, fixture.tenantIds[0]));
       const tenant = Schema.decodeUnknownSync(Tenant)(storedTenant);
+      const [storedOtherTenant] = await database
+        .select()
+        .from(tenants)
+        .where(eq(tenants.id, fixture.tenantIds[1]));
+      const otherTenant = Schema.decodeUnknownSync(Tenant)(storedOtherTenant);
       const stripeHttpClient = new AdmissionSnapshotStripeHttpClient();
       const layer = questionRaceLayer(
         databaseUrl,
@@ -2264,7 +2316,10 @@ describe('registration admission snapshots in PostgreSQL', () => {
               Effect.provide(RpcAccess.Default),
               Effect.provideService(
                 RpcRequestContext,
-                admissionCardRequestContext(tenant, userId),
+                admissionCardRequestContext(
+                  userId === otherUserId ? otherTenant : tenant,
+                  userId,
+                ),
               ),
               Effect.provide(layer),
             ),
@@ -2285,11 +2340,9 @@ describe('registration admission snapshots in PostgreSQL', () => {
         const pid = pidResult.rows[0]?.pid;
         if (pid === undefined)
           throw new Error('Missing card-order blocker PID');
-        await editor
-          .select({ id: tenants.id })
-          .from(tenants)
-          .where(eq(tenants.id, fixture.tenantIds[0]))
-          .for('update');
+        for (const userId of [fixture.userId, otherUserId].toSorted()) {
+          await editor.execute(userDiscountCardLockStatement(userId, 'shared'));
+        }
         const initialSave = saveCard(otherUserId);
         const initialSavePid = await waitForQuestionRaceLock(pool, pid);
         const replacementSave = saveCard(fixture.userId);
@@ -2299,19 +2352,20 @@ describe('registration admission snapshots in PostgreSQL', () => {
           initialSavePid,
         );
         expect(validationCalls).toBe(2);
-        // Neither save may own the existing card while waiting for admission's
-        // tenant lock, even when both intend to claim the same identifier.
+        // Neither save may own the existing card or claim its identifier while
+        // pricing readers protect those global owners, including an absent card.
         await client.query("SET LOCAL lock_timeout = '1000ms'");
         const cards = await editor
           .select({ identifier: userDiscountCards.identifier })
           .from(userDiscountCards)
-          .where(eq(userDiscountCards.tenantId, fixture.tenantIds[0]))
+          .where(
+            inArray(userDiscountCards.userId, [fixture.userId, otherUserId]),
+          )
           .for('share');
         expect(cards).toEqual([{ identifier: `card-${fixture.userId}` }]);
         expect(waitingWriters).toHaveLength(2);
         for (const writer of waitingWriters) {
-          expect(writer.query).toContain('from "tenants"');
-          expect(writer.query).toContain('for key share');
+          expect(writer.query).toContain('pg_advisory_xact_lock(');
         }
         await client.query('COMMIT');
 
@@ -2341,7 +2395,6 @@ describe('registration admission snapshots in PostgreSQL', () => {
             .where(
               and(
                 eq(userDiscountCards.identifier, identifier),
-                eq(userDiscountCards.tenantId, fixture.tenantIds[0]),
                 eq(userDiscountCards.type, 'esnCard'),
               ),
             ),
@@ -2367,6 +2420,13 @@ describe('registration admission snapshots in PostgreSQL', () => {
       }
       try {
         await cleanFixture(database, fixture);
+      } catch (error) {
+        recordFailure(failures, error);
+      }
+      try {
+        await database
+          .delete(userDiscountCards)
+          .where(eq(userDiscountCards.userId, otherUserId));
       } catch (error) {
         recordFailure(failures, error);
       }
