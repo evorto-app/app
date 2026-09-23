@@ -100,14 +100,6 @@ describe('test-runtime-config', () => {
         'node',
         'playwright',
         'test',
-        '--project=local-chrome-live-esncard',
-      ]),
-    ).toBe(false);
-    expect(
-      requiresIntegrationOnlyPlaywrightEnvironment([
-        'node',
-        'playwright',
-        'test',
         '--project=docs-live-esncard',
       ]),
     ).toBe(false);
@@ -366,7 +358,7 @@ describe('test-runtime-config', () => {
           'node',
           'playwright',
           'test',
-          '--project=local-chrome-live-esncard',
+          '--project=docs-live-esncard',
         ]);
 
         expect(environment.CI).toBe(true);

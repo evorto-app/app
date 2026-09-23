@@ -278,9 +278,9 @@ jobs:
           E2E_REGULAR_USER_PASSWORD: ${{ secrets.E2E_REGULAR_USER_PASSWORD }}
           E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER: ${{ secrets.E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER }}
           E2E_LIVE_ESN_CARD_IDENTIFIER: ${{ secrets.E2E_LIVE_ESN_CARD_IDENTIFIER }}
-          E2E_SELECTED_PROJECTS: local-chrome-live-esncard,docs-live-esncard
+          E2E_SELECTED_PROJECTS: docs-live-esncard
           FONT_AWESOME_TOKEN: ${{ secrets.FONT_AWESOME_TOKEN }}
-          PLAYWRIGHT_SELECTED_PROJECTS: local-chrome-live-esncard,docs-live-esncard
+          PLAYWRIGHT_SELECTED_PROJECTS: docs-live-esncard
           SECRET: ${{ secrets.SECRET }}
           STRIPE_API_KEY: ${{ secrets.STRIPE_TEST_API_KEY }}
         run: bun run test:e2e:live-esncard:release

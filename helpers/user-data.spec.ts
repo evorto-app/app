@@ -83,7 +83,7 @@ describe('authenticated E2E user credentials', () => {
     );
     const authenticationProject = playwrightConfig.slice(
       playwrightConfig.indexOf("name: 'setup'"),
-      playwrightConfig.indexOf("name: 'local-chrome-live-esncard'"),
+      playwrightConfig.indexOf("name: 'docs-live-esncard'"),
     );
 
     expect(source).not.toMatch(/\bpassword\s*:\s*['"`]/u);

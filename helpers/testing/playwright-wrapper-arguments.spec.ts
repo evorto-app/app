@@ -264,9 +264,7 @@ const captureWrapper = (scriptName: string, forwarded: readonly string[]) => {
 
 const liveArguments = [
   'test',
-  'tests/specs/profile/user-profile-live-esncard.spec.ts',
   'tests/docs/profile/discounts.doc.ts',
-  '--project=local-chrome-live-esncard',
   '--project=docs-live-esncard',
   '--grep',
   '@needs-live-esncard',
@@ -311,7 +309,7 @@ const wrappers = [
   {
     name: 'test:e2e:live-esncard',
     arguments: liveArguments,
-    projects: 'local-chrome-live-esncard,docs-live-esncard',
+    projects: 'docs-live-esncard',
     trace: [
       'run:env:run',
       'provider-wrapper',
@@ -326,7 +324,7 @@ const wrappers = [
       '--trace=off',
       '--reporter=./tests/support/reporters/protected-value-sanitizer-reporter.ts,github,dot,./tests/support/reporters/complete-playwright-run-reporter.ts',
     ],
-    projects: 'local-chrome-live-esncard,docs-live-esncard',
+    projects: 'docs-live-esncard',
     trace: [
       'run:env:run',
       'provider-wrapper',
