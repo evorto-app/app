@@ -3,8 +3,8 @@
 set -euo pipefail
 
 readonly terraform_version='1.15.8'
-readonly trivy_version='0.70.0'
-readonly syft_version='1.44.0'
+readonly trivy_version='0.74.0'
+readonly syft_version='1.52.0'
 readonly destination="${EVORTO_VERIFICATION_TOOLS_DIR:-${XDG_CACHE_HOME:-${HOME}/.cache}/evorto-verification-tools}"
 
 case "$(uname -s)-$(uname -m)" in
@@ -12,33 +12,33 @@ case "$(uname -s)-$(uname -m)" in
     readonly terraform_artifact="terraform_${terraform_version}_darwin_arm64.zip"
     readonly terraform_checksum='f210110c5698b94d803a7a63cdb0251b5455c150841478808e2bbb343f95ed68'
     readonly trivy_artifact="trivy_${trivy_version}_macOS-ARM64.tar.gz"
-    readonly trivy_checksum='68e543c51dcc96e1c344053a4fde9660cf602c25565d9f09dc17dd41e13b838a'
+    readonly trivy_checksum='1caada5e0e2091909357c7525d3aa76f4b660b13821bc143b190c7483e31cc11'
     readonly syft_artifact="syft_${syft_version}_darwin_arm64.tar.gz"
-    readonly syft_checksum='24e4d34078ae81da7c82539616f0ccac3e226cf4f74a38ce6fb3463619e50a55'
+    readonly syft_checksum='014d561b6d13059124155f74a6c5a9a99501f5e209313638dd884f39eb418ee6'
     ;;
   Darwin-x86_64)
     readonly terraform_artifact="terraform_${terraform_version}_darwin_amd64.zip"
     readonly terraform_checksum='e2e812e783771159bf758fd4e55d6dc9bb08f63e2af2c63d212721807a02c5dc'
     readonly trivy_artifact="trivy_${trivy_version}_macOS-64bit.tar.gz"
-    readonly trivy_checksum='52d531452b19e7593da29366007d02a810e1e0080d02f9cf6a1afb46c35aaa93'
+    readonly trivy_checksum='472816f6888dda689d075c30254d4210b4d1035acf365aa72332f584c2f60485'
     readonly syft_artifact="syft_${syft_version}_darwin_amd64.tar.gz"
-    readonly syft_checksum='c40ece5407927327f94f35901727dbc604b46857e04f04ec94a310845fb71bde'
+    readonly syft_checksum='56975f5d7ffa9846a1eaf64330647841b878097bc7e3730cb9325f93add96917'
     ;;
   Linux-aarch64)
     readonly terraform_artifact="terraform_${terraform_version}_linux_arm64.zip"
     readonly terraform_checksum='8891e9dcedc9e3b8950bc6af9d4d8af1f4cfade3062f53b9dc403a89f6ce8c9c'
     readonly trivy_artifact="trivy_${trivy_version}_Linux-ARM64.tar.gz"
-    readonly trivy_checksum='2f6bb988b553a1bbac6bdd1ce890f5e412439564e17522b88a4541b4f364fc8d'
+    readonly trivy_checksum='b94ce1976bbf3c15b514b605ee88be7c6d94a29be2302847ff01cb794d47aad5'
     readonly syft_artifact="syft_${syft_version}_linux_arm64.tar.gz"
-    readonly syft_checksum='6f6cdcdc695721d91ce756e3b5bc3e3416599c464101f5e32e9c3f33054ee6d9'
+    readonly syft_checksum='c46d5e4c28e12aa4c5becfaa343ef1c7f89045b6b895f2c21d471c62db09c706'
     ;;
   Linux-x86_64)
     readonly terraform_artifact="terraform_${terraform_version}_linux_amd64.zip"
     readonly terraform_checksum='d25ce7b6902013ad905db3d2eab0be4cd905887fe88b81a6171b8d5503c31f3d'
     readonly trivy_artifact="trivy_${trivy_version}_Linux-64bit.tar.gz"
-    readonly trivy_checksum='8b4376d5d6befe5c24d503f10ff136d9e0c49f9127a4279fd110b727929a5aa9'
+    readonly trivy_checksum='2ae6fe3ee734b7fdf11335663e18c75ea12dccc76062f09f164a3b0f8be4371a'
     readonly syft_artifact="syft_${syft_version}_linux_amd64.tar.gz"
-    readonly syft_checksum='0e91737aee2b5baf1d255b959630194a302335d848ff97bb07921eb6205b5f5a'
+    readonly syft_checksum='caeedb81fb0491615f1ebd1761e4145d41ee86dd2cc7bf80669f9f5ad9d6133d'
     ;;
   *)
     echo "Unsupported verification-tool platform: $(uname -s)-$(uname -m)" >&2
