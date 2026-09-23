@@ -98,14 +98,30 @@ export const routeLocalTenantRequests = async ({
         return settlement;
       };
       const cancel = () =>
-        settle(() => {
+        settle(async () => {
           const preparation = applicationPagePreparations.get(context);
           if (!preparation) return route.abort('aborted');
           // A request can expose its page before the context inventory does.
           // Discard that document before deliberately rejecting its request.
-          return preparation
-            .preparePage(route.request().frame().page())
-            .then(() => route.abort('aborted'));
+          const errors: unknown[] = [];
+          try {
+            await preparation.preparePage(route.request().frame().page());
+          } catch (error) {
+            errors.push(error);
+          }
+          // Even failed document preparation must attempt the reserved abort
+          // before page closure can resume an intercepted browser request.
+          try {
+            await route.abort('aborted');
+          } catch (error) {
+            errors.push(error);
+          }
+          if (errors.length === 1) throw errors[0];
+          if (errors.length > 1)
+            throw new AggregateError(
+              errors,
+              'Application request cancellation failed',
+            );
         });
       state.pendingSettlements.add(cancel);
       const operation = (async () => {

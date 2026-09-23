@@ -89,6 +89,8 @@ intentional teardown cancellation from rejecting a still-running application
 initializer. Document preparation and cancellation share the routing owner: it
 also leaves a page obtained from an intercepted request and rechecks the page
 inventory before closure. This covers pages exposed after cancellation begins.
+If document preparation fails, cancellation is still attempted; cleanup reports
+both the preparation failure and any cancellation failure.
 Error listeners retain the original page URL during this transition,
 so an already-raised application error remains visible. The existing
 `closeTenantRequestPages` barrier then cancels pending intercepted browser

@@ -550,6 +550,133 @@ test('retains routing ownership when emergency close rejects before closing the 
     );
 });
 
+test('attempts cancellation and retains both failures when document preparation and abort reject', async ({
+  browser,
+}) => {
+  const started = Promise.withResolvers<void>();
+  const preparationFailure = new Error('Synthetic document navigation failure');
+  const abortFailure = new Error('Synthetic cancellation reporting failure');
+  const expectedFailures = new Set([preparationFailure, abortFailure]);
+  const errors: unknown[] = [];
+  const received: (string | string[] | undefined)[] = [];
+  let response: ServerResponse | undefined;
+  let context: BrowserContext | undefined;
+  let evaluation: Promise<PromiseSettledResult<void>[]> | undefined;
+  let closing: Promise<PromiseSettledResult<void>[]> | undefined;
+  let abortAttempts = 0;
+  const leafErrors = (error: unknown): unknown[] =>
+    error instanceof AggregateError
+      ? error.errors.flatMap((nested: unknown) => leafErrors(nested))
+      : [error];
+  const assertRetainedFailures = (error: unknown) => {
+    expect(new Set(leafErrors(error))).toEqual(expectedFailures);
+  };
+  const release = () => {
+    if (response && !response.writableEnded && !response.destroyed)
+      response.end('held response completed');
+  };
+  const local = await listen((request, currentResponse) => {
+    if (request.url === '/held-mutation') {
+      received.push(request.headers[localTestTenantDomainHeader]);
+      if (response) {
+        currentResponse.end('duplicate mutation');
+        return;
+      }
+      response = currentResponse;
+      request.resume();
+      request.on('end', () => started.resolve());
+      return;
+    }
+    currentResponse.setHeader('content-type', 'text/html');
+    currentResponse.end('<body>Application document</body>');
+  });
+  try {
+    context = await browser.newContext();
+    const registerRoute = context.route.bind(context);
+    context.route = async (pattern, handler, options) => {
+      await registerRoute(
+        pattern,
+        async (route, request) => {
+          const abort = route.abort.bind(route);
+          route.abort = async (reason) => {
+            abortAttempts += 1;
+            await abort(reason);
+            throw abortFailure;
+          };
+          await handler(route, request);
+        },
+        options,
+      );
+    };
+    await routeLocalTenantRequests({
+      baseUrl: local.origin,
+      context,
+      tenantDomain: 'north-river.evorto.app',
+    });
+    const page = await context.newPage();
+    await page.goto(local.origin);
+    const goto = page.goto.bind(page);
+    page.goto = async (url, options) => {
+      if (url === 'about:blank') throw preparationFailure;
+      return goto(url, options);
+    };
+    evaluation = Promise.allSettled([
+      page.evaluate(async () => {
+        void fetch('/held-mutation', {
+          method: 'POST',
+          body: 'tenant-owned mutation',
+        }).catch((error: unknown) => {
+          if (!(error instanceof TypeError)) throw error;
+        });
+        return new Promise<void>(() => {});
+      }),
+    ]);
+    await started.promise;
+    const pageClosed = page.waitForEvent('close', { timeout: 10_000 });
+    closing = Promise.allSettled([closeApplicationPages(context)]);
+    await pageClosed;
+    release();
+    const [result] = await closing;
+    if (!result || result.status !== 'rejected')
+      throw new Error('Application cleanup did not report its failures');
+    assertRetainedFailures(result.reason);
+    expect(abortAttempts).toBe(1);
+    expect(received).toEqual(['north-river.evorto.app']);
+  } catch (error) {
+    errors.push(error);
+  } finally {
+    release();
+    try {
+      if (closing) {
+        for (const result of await closing) {
+          if (result.status === 'rejected')
+            assertRetainedFailures(result.reason);
+        }
+      }
+    } catch (error) {
+      errors.push(error);
+    }
+    try {
+      if (context) {
+        await closeTenantRequestContext(context).catch((error: unknown) => {
+          assertRetainedFailures(error);
+        });
+        expect(context.isClosed()).toBe(true);
+      }
+      if (evaluation) await evaluation;
+    } catch (error) {
+      errors.push(error);
+    }
+    try {
+      await local.close();
+    } catch (error) {
+      errors.push(error);
+    }
+  }
+  if (errors.length > 0)
+    throw new AggregateError(errors, 'Document preparation regression failed');
+});
+
 for (const { cleanupMode, method } of [
   { cleanupMode: 'pages', method: 'GET' },
   { cleanupMode: 'pages', method: 'POST' },
