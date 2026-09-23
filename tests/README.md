@@ -35,10 +35,10 @@ rejection, preserved purchase country after configuration changes, and the
 rejection reason on the organizer's receipt card. Keep those distinct assertions
 in the guides instead of repeating their complete setup in functional specs.
 
-Template controls can display saved values in server-rendered markup before
-their event listeners are hydrated. Before keyboard interaction after a full
-template edit navigation, wait for the target control's `jsaction` keyboard
-marker to disappear, as `fillTemplateBasics` already does for click targets.
+Server-rendered controls can display saved values before their event listeners
+are hydrated. Before keyboard interaction after a full template edit navigation
+or onboarding redirect, wait for the target control's `jsaction` keyboard marker
+to disappear, as `fillTemplateBasics` already does for click targets.
 Press once and assert the resulting open state; repeating the key can toggle
 an already-open control instead of proving readiness.
 

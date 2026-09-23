@@ -560,6 +560,8 @@ For a new member, Evorto creates the organization membership only after they com
     name: 'Which member group should welcome you?',
   });
   await expect(onboardingQuestion).toBeVisible();
+  // Server rendering can expose the control before its keyboard listener.
+  await expect(onboardingQuestion).not.toHaveAttribute('jsaction', /keydown/);
   await onboardingQuestion.focus();
   await expect(onboardingQuestion).toBeFocused();
   await onboardingQuestion.press('Space');
