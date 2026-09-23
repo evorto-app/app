@@ -54,13 +54,7 @@ describe('PostgreSQL integration source', () => {
       const source = readSource(sourcePath);
 
       expect(source).not.toMatch(/\bdescribe\.skip\b/u);
-      if (
-        sourcePath ===
-        path.join(
-          repositoryRoot,
-          'helpers/testing/scenario-acquisition.postgres.spec.ts',
-        )
-      ) {
+      if (source.includes('resolvePostgresIntegrationEnvironment(')) {
         const normalizedSource = source.replace(/\s+/gu, ' ');
         expect(normalizedSource).toContain(
           "import { requiredPostgresMajorVersion, resolvePostgresIntegrationEnvironment, } from './postgres-integration-environment';",
