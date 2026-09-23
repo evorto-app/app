@@ -354,6 +354,12 @@ test('Choose what members need to provide @admin', async ({
     await database.query.tenantPrivacyPolicyVersions.findMany({
       where: { tenantId: tenant.id },
     });
+  const originalPolicy = originalPolicies.toSorted(
+    (left, right) => right.version - left.version,
+  )[0];
+  if (!originalPolicy?.privacyPolicyText) {
+    throw new Error('Expected seeded tenant privacy policy text');
+  }
   const originalQuestions =
     await database.query.tenantOnboardingQuestions.findMany({
       where: { tenantId: tenant.id },
@@ -478,9 +484,11 @@ Use **Add question** for information that every member must provide. **Write an 
 `,
   });
 
-  await settings
-    .getByRole('textbox', { name: 'Privacy policy text' })
-    .fill(privacyPolicyText);
+  const policyTextInput = settings.getByRole('textbox', {
+    name: 'Privacy policy text',
+  });
+  await expect(policyTextInput).toHaveValue(originalPolicy.privacyPolicyText);
+  await policyTextInput.fill(privacyPolicyText);
   await settings
     .getByRole('textbox', { name: 'Privacy policy web address' })
     .fill(privacyPolicyUrl);
@@ -548,6 +556,17 @@ For a new member, Evorto creates the organization membership only after they com
       name: 'Current privacy policy',
     }),
   ).toBeVisible();
+  const onboardingQuestion = onboarding.getByRole('combobox', {
+    name: 'Which member group should welcome you?',
+  });
+  await expect(onboardingQuestion).toBeVisible();
+  // Server rendering can expose the control before its keyboard listener.
+  await expect(onboardingQuestion).not.toHaveAttribute('jsaction', /keydown/);
+  await onboardingQuestion.focus();
+  await expect(onboardingQuestion).toBeFocused();
+  await onboardingQuestion.press('Space');
+  await expect(onboardingQuestion).toHaveAttribute('aria-expanded', 'true');
+  await admin.page.getByRole('option', { name: 'Buddy team' }).click();
   await expect(
     onboarding.getByText(privacyPolicyText, { exact: true }),
   ).toBeVisible();
@@ -560,15 +579,6 @@ For a new member, Evorto creates the organization membership only after they com
     admin.page,
     'Review the current policy and questions',
   );
-
-  const onboardingQuestion = onboarding.getByRole('combobox', {
-    name: 'Which member group should welcome you?',
-  });
-  await expect(onboardingQuestion).toBeVisible();
-  await onboardingQuestion.focus();
-  await expect(onboardingQuestion).toBeFocused();
-  await onboardingQuestion.press('Space');
-  await admin.page.getByRole('option', { name: 'Buddy team' }).click();
   await onboarding
     .getByRole('checkbox', { name: /I accept .* current privacy policy/ })
     .check();

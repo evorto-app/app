@@ -1,4 +1,4 @@
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import path from 'node:path';
 
 import {
@@ -36,6 +36,25 @@ test('Review and reimburse receipts @finance', async ({
   const receiptUploadId = getId();
   const missingEvidenceUploadId = getId();
   let refundTransactionId: string | undefined;
+  const [originalTenantSettings] = await database
+    .select({
+      receiptSettings: schema.tenants.receiptSettings,
+      updatedAt: sql<string>`${schema.tenants.updatedAt}::text`,
+    })
+    .from(schema.tenants)
+    .where(eq(schema.tenants.id, tenant.id));
+  if (!originalTenantSettings) {
+    throw new Error('Expected the receipt documentation tenant');
+  }
+  registerDatabaseCleanup(async (cleanupDatabase) => {
+    await cleanupDatabase
+      .update(schema.tenants)
+      .set({
+        receiptSettings: originalTenantSettings.receiptSettings,
+        updatedAt: sql`${originalTenantSettings.updatedAt}::timestamp`,
+      })
+      .where(eq(schema.tenants.id, tenant.id));
+  });
 
   registerDatabaseCleanup(async (cleanupDatabase) => {
     await cleanupDatabase
@@ -166,6 +185,10 @@ test('Review and reimburse receipts @finance', async ({
       },
     ]);
 
+    await database
+      .update(schema.tenants)
+      .set({ receiptSettings: { allowOther: false, receiptCountries: ['NL'] } })
+      .where(eq(schema.tenants.id, tenant.id));
     await page.goto('.');
     await testInfo.attach('markdown', {
       body: `
@@ -295,6 +318,9 @@ The rejection reason remains visible on the event's receipt card, even if the em
     await expect(
       page.getByRole('heading', { level: 1, name: 'Review receipt' }),
     ).toBeVisible();
+    await expect(page.getByLabel('Purchase country')).toContainText(
+      'Germany (DE)',
+    );
     await expect(
       page.getByRole('alert').filter({
         hasText:
@@ -328,10 +354,20 @@ The rejection reason remains visible on the event's receipt card, even if the em
         }),
       )
       .toMatchObject({
+        purchaseCountry: 'DE',
         rejectionReason: missingEvidenceRejectionReason,
         reviewedByUserId: expect.any(String),
         status: 'rejected',
       });
+    await page.goto(`/events/${eventId}/organize`);
+    const rejectedReceiptCard = page.locator('article').filter({
+      hasText: missingEvidenceFileName,
+    });
+    await expect(
+      rejectedReceiptCard.getByText(
+        `Reason for rejection: ${missingEvidenceRejectionReason}`,
+      ),
+    ).toBeVisible();
     await expect
       .poll(() =>
         database.query.emailOutbox.findFirst({

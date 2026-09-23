@@ -27,10 +27,18 @@ functional cases when they protect a distinct regression.
 `bun run test:e2e:baseline` collects both complete projects in one invocation,
 so their shared database and authentication setup executes once.
 
-Template controls can display saved values in server-rendered markup before
-their event listeners are hydrated. Before keyboard interaction after a full
-template edit navigation, wait for the target control's `jsaction` keyboard
-marker to disappear, as `fillTemplateBasics` already does for click targets.
+`docs/users/tenant-onboarding.doc.ts` also owns administrator publication and
+immediate reacceptance, including keyboard selection before the setup screenshot
+and persisted policy acceptance and question answers.
+`docs/finance/receipt-review-reimbursement.doc.ts` owns missing-evidence
+rejection, preserved purchase country after configuration changes, and the
+rejection reason on the organizer's receipt card. Keep those distinct assertions
+in the guides instead of repeating their complete setup in functional specs.
+
+Server-rendered controls can display saved values before their event listeners
+are hydrated. Before keyboard interaction after a full template edit navigation
+or onboarding redirect, wait for the target control's `jsaction` keyboard marker
+to disappear, as `fillTemplateBasics` already does for click targets.
 Press once and assert the resulting open state; repeating the key can toggle
 an already-open control instead of proving readiness.
 
