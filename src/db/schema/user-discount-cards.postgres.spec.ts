@@ -27,7 +27,11 @@ import {
   RpcRequestContext,
   RpcRequestContextMiddleware,
 } from '../../shared/rpc-contracts/app-rpcs';
-import { DiscountsUpsertMyCard } from '../../shared/rpc-contracts/app-rpcs/discounts.rpcs';
+import {
+  DiscountsDeleteMyCard,
+  DiscountsRefreshMyCard,
+  DiscountsUpsertMyCard,
+} from '../../shared/rpc-contracts/app-rpcs/discounts.rpcs';
 import { Tenant } from '../../types/custom/tenant';
 import { User } from '../../types/custom/user';
 import { createId } from '../create-id';
@@ -243,6 +247,27 @@ const withEsnCardAdapter = <A, E, R>(
       }),
   );
 
+const provideCardRequest = (tenant: Tenant, userId: string) =>
+  Effect.provideService(RpcRequestContext, {
+    authData: {},
+    authenticated: true,
+    permissions: [],
+    platformAuthority: null,
+    tenant,
+    user: Schema.decodeUnknownSync(User)({
+      attributes: [],
+      auth0Id: `card-window|${userId}`,
+      communicationEmail: `${userId}@example.com`,
+      email: `${userId}@example.com`,
+      firstName: 'Card',
+      id: userId,
+      lastName: 'Window',
+      permissions: [],
+      roleIds: [],
+    }),
+    userAssigned: true,
+  });
+
 const saveCard = (tenant: Tenant, userId: string, identifier: string) =>
   discountHandlers['discounts.upsertMyCard'](
     { identifier, type: 'esnCard' },
@@ -252,28 +277,29 @@ const saveCard = (tenant: Tenant, userId: string, identifier: string) =>
       requestId: RpcMessage.RequestId(1),
       rpc: DiscountsUpsertMyCard.middleware(RpcRequestContextMiddleware),
     },
-  ).pipe(
-    Effect.provide(RpcAccess.Default),
-    Effect.provideService(RpcRequestContext, {
-      authData: {},
-      authenticated: true,
-      permissions: [],
-      platformAuthority: null,
-      tenant,
-      user: Schema.decodeUnknownSync(User)({
-        attributes: [],
-        auth0Id: `card-window|${userId}`,
-        communicationEmail: `${userId}@example.com`,
-        email: `${userId}@example.com`,
-        firstName: 'Card',
-        id: userId,
-        lastName: 'Window',
-        permissions: [],
-        roleIds: [],
-      }),
-      userAssigned: true,
-    }),
-  );
+  ).pipe(Effect.provide(RpcAccess.Default), provideCardRequest(tenant, userId));
+
+const refreshCard = (tenant: Tenant, userId: string) =>
+  discountHandlers['discounts.refreshMyCard'](
+    { type: 'esnCard' },
+    {
+      client: new Rpc.ServerClient(1),
+      headers: Headers.empty,
+      requestId: RpcMessage.RequestId(1),
+      rpc: DiscountsRefreshMyCard.middleware(RpcRequestContextMiddleware),
+    },
+  ).pipe(Effect.provide(RpcAccess.Default), provideCardRequest(tenant, userId));
+
+const deleteCard = (tenant: Tenant, userId: string) =>
+  discountHandlers['discounts.deleteMyCard'](
+    { type: 'esnCard' },
+    {
+      client: new Rpc.ServerClient(1),
+      headers: Headers.empty,
+      requestId: RpcMessage.RequestId(1),
+      rpc: DiscountsDeleteMyCard.middleware(RpcRequestContextMiddleware),
+    },
+  ).pipe(Effect.provide(RpcAccess.Default), provideCardRequest(tenant, userId));
 
 describe('global discount card ownership across organizations', () => {
   for (const scenario of ['same owner', 'different owner'] as const) {
@@ -488,6 +514,133 @@ describe('concurrent discount card saves across organizations', () => {
               );
             }),
         ).pipe(Effect.provide(testDatabaseLayer)),
+    );
+  }
+});
+
+describe('late global card refresh results', () => {
+  for (const mutation of [
+    'replacement',
+    'removal',
+    'removal and re-add',
+  ] as const) {
+    it.live(
+      `preserves a ${mutation} in another organization while validation is pending`,
+      () =>
+        withCardFixture(({ card, database, otherTenantId, tenantId }) =>
+          Effect.gen(function* () {
+            yield* database
+              .update(tenants)
+              .set({
+                discountProviders: {
+                  esnCard: { config: {}, status: 'enabled' },
+                },
+              })
+              .where(inArray(tenants.id, [tenantId, otherTenantId]));
+            const tenant = Schema.decodeUnknownSync(Tenant)(
+              yield* database.query.tenants.findFirst({
+                where: { id: tenantId },
+              }),
+            );
+            const otherTenant = Schema.decodeUnknownSync(Tenant)(
+              yield* database.query.tenants.findFirst({
+                where: { id: otherTenantId },
+              }),
+            );
+            const originalId = createId();
+            yield* database.insert(userDiscountCards).values({
+              ...card,
+              id: originalId,
+              metadata: { provider: 'original' },
+              status: 'verified',
+              validFrom,
+              validTo,
+            });
+            const validationStarted = yield* Deferred.make<undefined>();
+            const releaseValidation = yield* Deferred.make<undefined>();
+            let validationCalls = 0;
+            const lateResult: ValidationResult = {
+              metadata: { provider: 'late-refresh' },
+              status: 'invalid',
+            };
+            yield* withEsnCardAdapter(
+              ({ identifier }) => {
+                validationCalls++;
+                if (validationCalls === 1) {
+                  expect(identifier).toBe(card.identifier);
+                  return Effect.runPromise(
+                    Deferred.succeed(validationStarted, undefined).pipe(
+                      Effect.andThen(Deferred.await(releaseValidation)),
+                      Effect.as(lateResult),
+                    ),
+                  );
+                }
+                return Promise.resolve({
+                  metadata: { provider: 'winning-save' },
+                  status: 'verified',
+                  validFrom,
+                  validTo,
+                });
+              },
+              Effect.gen(function* () {
+                const waitingRefresh = yield* refreshCard(
+                  tenant,
+                  card.userId,
+                ).pipe(Effect.result, Effect.forkScoped);
+                yield* Effect.gen(function* () {
+                  yield* Deferred.await(validationStarted);
+                  // Real mutations must finish before the paused provider call,
+                  // proving refresh retains no owner or row lock across it.
+                  yield* Effect.gen(function* () {
+                    if (mutation === 'replacement') {
+                      const saved = yield* saveCard(
+                        otherTenant,
+                        card.userId,
+                        `${card.identifier}-replacement`,
+                      );
+                      expect(saved.id).toBe(originalId);
+                    } else {
+                      yield* deleteCard(otherTenant, card.userId);
+                      if (mutation === 'removal and re-add') {
+                        const saved = yield* saveCard(
+                          otherTenant,
+                          card.userId,
+                          card.identifier,
+                        );
+                        expect(saved.id).not.toBe(originalId);
+                      }
+                    }
+                  }).pipe(Effect.timeout('5 seconds'));
+                  const winningRows =
+                    yield* database.query.userDiscountCards.findMany({
+                      where: { userId: card.userId },
+                    });
+                  expect(winningRows).toHaveLength(
+                    mutation === 'removal' ? 0 : 1,
+                  );
+                  yield* Deferred.succeed(releaseValidation, undefined);
+                  const result = yield* Fiber.join(waitingRefresh);
+                  expect(Result.isFailure(result)).toBe(true);
+                  if (!Result.isFailure(result)) return;
+                  expect(result.failure).toMatchObject({
+                    _tag: 'DiscountCardChangedError',
+                  });
+                  expect(
+                    yield* database.query.userDiscountCards.findMany({
+                      where: { userId: card.userId },
+                    }),
+                  ).toEqual(winningRows);
+                  expect(validationCalls).toBe(mutation === 'removal' ? 1 : 2);
+                }).pipe(
+                  Effect.ensuring(
+                    Deferred.succeed(releaseValidation, undefined),
+                  ),
+                );
+              }).pipe(Effect.scoped),
+            );
+          }),
+        ).pipe(Effect.provide(testDatabaseLayer)),
+      15_000,
     );
   }
 });
