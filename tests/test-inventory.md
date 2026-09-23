@@ -102,7 +102,6 @@ component regressions retain retry recovery for temporary failures.
   - specs/permissions/override.test.ts [permissions]
   - specs/permissions/tenant-isolation-tax-rates.spec.ts [permissions, finance]
   - specs/profile/create-account.spec.ts [@needs-auth0-management]
-  - specs/profile/tenant-onboarding.spec.ts [admin]
   - specs/profile/user-profile-live-esncard.spec.ts [@needs-live-esncard]
   - specs/resilience/core-load-recovery.spec.ts [admin, finance, resilience, templates]
   - specs/reporting/reporter-paths.test.ts
@@ -555,10 +554,11 @@ ESNcard provider credential path.
     cleans up every created row. The same file's administrator guide retains
     screenshots, immutable-version warnings, required question configuration,
     forced reacceptance, and persisted-record checks.
-    `specs/profile/tenant-onboarding.spec.ts` keeps the independent admin path:
-    it publishes a new policy/question set, proves the publishing administrator
-    is immediately returned to setup, and reads back reacceptance. Keeping the
-    shared-user home mutation in one Playwright project avoids a parallel
+    The administrator guide also checks the original policy prefill, publishes
+    a new policy/question set, proves the publishing administrator is
+    immediately returned to setup, opens the choice list with one Space press
+    before taking the setup screenshot, and reads back reacceptance. Keeping
+    the shared-user home mutation in one Playwright project avoids a parallel
     cross-project write race.
     `docs/users/create-account.doc.ts` retains the
     credential-gated first-login guide and now includes current privacy-policy
@@ -607,9 +607,11 @@ ESNcard provider credential path.
     owned receipt through a real MinIO-backed preview, approval, and
     reimbursement by id/file name, reads the approved/refunded state back, and
     removes the owned receipt, upload, recipient, and generated reimbursement
-    transaction after the documentation journey. The functional finance flow also seeds a scoped
+    transaction after the documentation journey. This guide also seeds a scoped
     upload row with no object and proves approval is disabled while rejection
-    still succeeds.
+    still succeeds. It retains the recorded purchase country after the allowed
+    countries change and verifies the rejection reason on the organizer's
+    receipt card, then restores the tenant's receipt settings and timestamp.
   - Keep event-organizer receipt submission action coverage aligned with the
     two-step upload-plus-submit flow. Local app coverage now pins that Add
     receipt remains disabled while the event has not loaded yet, while the
