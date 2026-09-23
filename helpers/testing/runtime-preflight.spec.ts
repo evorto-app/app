@@ -425,10 +425,7 @@ describe('evaluateRuntimePreflight', () => {
       '--project=local-chrome-integration --project=docs-integration',
     );
     expect(packageJson.scripts['test:e2e:live-esncard']).toContain(
-      'tests/specs/profile/user-profile-live-esncard.spec.ts',
-    );
-    expect(packageJson.scripts['test:e2e:live-esncard']).toContain(
-      '--project=local-chrome-live-esncard',
+      'tests/docs/profile/discounts.doc.ts',
     );
     expect(packageJson.scripts['test:e2e:live-esncard']).toContain(
       '--project=docs-live-esncard',
@@ -441,9 +438,6 @@ describe('evaluateRuntimePreflight', () => {
     );
     expect(packageJson.scripts['test:e2e:live-esncard:release']).toContain(
       'bun run test:unit:esncard-provider-error',
-    );
-    expect(packageJson.scripts['test:e2e:live-esncard:release']).toContain(
-      '--project=local-chrome-live-esncard',
     );
     expect(packageJson.scripts['test:e2e:live-esncard:release']).toContain(
       '--project=docs-live-esncard',

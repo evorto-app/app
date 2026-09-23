@@ -228,9 +228,7 @@ describe('production provider certification source', () => {
       'bun helpers/testing/runtime-preflight.ts esncard-release',
     );
     expect(workflow).toContain('bun run test:e2e:live-esncard:release');
-    expect(workflow).toContain(
-      'E2E_SELECTED_PROJECTS: local-chrome-live-esncard,docs-live-esncard',
-    );
+    expect(workflow).toContain('E2E_SELECTED_PROJECTS: docs-live-esncard');
     expect(workflow).toContain(
       'AUTH0_MANAGEMENT_CLIENT_ID: ${{ secrets.AUTH0_MANAGEMENT_CLIENT_ID }}',
     );
@@ -317,10 +315,9 @@ describe('production provider certification source', () => {
       'src/app/profile/profile-discounts/profile-discounts.esn-card.spec.ts',
     );
 
-    expect(playwrightConfig).toContain("name: 'local-chrome-live-esncard'");
     expect(playwrightConfig).toContain("name: 'docs-live-esncard'");
     expect(playwrightConfig).toContain(
-      String.raw`testMatch: /specs\/profile\/user-profile-live-esncard\.spec\.ts$/`,
+      String.raw`testMatch: /docs\/profile\/discounts\.doc\.ts$/`,
     );
     expect(playwrightConfig).toContain(
       String.raw`const liveEsncardTestTagPattern = /@needs-live-esncard\b/;`,
@@ -328,7 +325,6 @@ describe('production provider certification source', () => {
     expect(playwrightConfig).toContain(
       String.raw`/@needs-(auth0-management|google-maps|live-esncard)\b/`,
     );
-    expect(runtimeConfig).toContain("'local-chrome-live-esncard'");
     expect(runtimeConfig).toContain("'docs-live-esncard'");
     expect(providerErrorUiScript).toContain(
       'src/app/profile/profile-discounts/profile-discounts.esn-card.spec.ts',
@@ -339,7 +335,6 @@ describe('production provider certification source', () => {
     );
     expect(providerErrorUiScript).not.toContain('--filter');
     expect(releaseScript).toContain('test:unit:esncard-provider-error');
-    expect(releaseScript).toContain('--project=local-chrome-live-esncard');
     expect(releaseScript).toContain('--project=docs-live-esncard');
     expect(releaseScript).toContain('--trace=off');
     expect(releaseScript).toContain(
@@ -348,30 +343,8 @@ describe('production provider certification source', () => {
   });
 
   it('keeps both approved identifiers out of traces and value-bearing assertions', () => {
-    const liveSpec = readSource(
-      'tests/specs/profile/user-profile-live-esncard.spec.ts',
-    );
     const liveDocumentation = readSource('tests/docs/profile/discounts.doc.ts');
 
-    expect(liveSpec).toContain("trace: 'off'");
-    expect(liveSpec).toContain(
-      'savedCard?.identifier === liveEsnCardIdentifier',
-    );
-    expect(liveSpec).toContain(
-      'refreshedCard?.identifier === liveEsnCardIdentifier',
-    );
-    expect(liveSpec).toContain(
-      'savedExpiredCard?.identifier === expiredEsnCardIdentifier',
-    );
-    expect(liveSpec).toContain(
-      'refreshedExpiredCard?.identifier === expiredEsnCardIdentifier',
-    );
-    expect(liveSpec).toContain(
-      'eq(schema.userDiscountCards.tenantId, tenant.id)',
-    );
-    expect(liveSpec).not.toContain('page.getByText(liveEsnCardIdentifier');
-    expect(liveSpec).not.toContain('page.getByText(expiredEsnCardIdentifier');
-    expect(liveSpec).not.toContain('identifier: liveEsnCardIdentifier');
     expect(liveDocumentation).toContain("trace: 'off'");
     expect(liveDocumentation).toContain("screenshot: 'off'");
     expect(liveDocumentation).toContain("video: 'off'");
@@ -379,13 +352,25 @@ describe('production provider certification source', () => {
       'savedCard?.identifier === liveEsnCardIdentifier',
     );
     expect(liveDocumentation).toContain(
+      'refreshedCard?.identifier === liveEsnCardIdentifier',
+    );
+    expect(liveDocumentation).toContain(
       'savedExpiredCard?.identifier === expiredEsnCardIdentifier',
+    );
+    expect(liveDocumentation).toContain(
+      'refreshedExpiredCard?.identifier === expiredEsnCardIdentifier',
+    );
+    expect(liveDocumentation).toContain(
+      'eq(schema.userDiscountCards.tenantId, tenant.id)',
     );
     expect(liveDocumentation).not.toContain(
       'page.getByText(liveEsnCardIdentifier',
     );
     expect(liveDocumentation).not.toContain(
       'page.getByText(expiredEsnCardIdentifier',
+    );
+    expect(liveDocumentation).not.toContain(
+      'identifier: liveEsnCardIdentifier',
     );
   });
 

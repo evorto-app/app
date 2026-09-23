@@ -102,7 +102,6 @@ component regressions retain retry recovery for temporary failures.
   - specs/permissions/override.test.ts [permissions]
   - specs/permissions/tenant-isolation-tax-rates.spec.ts [permissions, finance]
   - specs/profile/create-account.spec.ts [@needs-auth0-management]
-  - specs/profile/user-profile-live-esncard.spec.ts [@needs-live-esncard]
   - specs/resilience/core-load-recovery.spec.ts [admin, finance, resilience, templates]
   - specs/reporting/reporter-paths.test.ts
   - specs/scanning/scanner.test.ts
@@ -416,20 +415,20 @@ component regressions retain retry recovery for temporary failures.
   Management credentials. It is the functional integration path for creating a
   new Auth0-backed tenant account, verifying profile arrival, tenant assignment,
   default role assignment, and cleanup.
-- `specs/profile/user-profile-live-esncard.spec.ts` is collected by
-  the dedicated `local-chrome-live-esncard` project. The matching live
-  add/refresh/remove walkthrough in `docs/profile/discounts.doc.ts` is collected
-  by `docs-live-esncard`. Both fail their explicit
+- The live add/refresh/remove walkthrough in `docs/profile/discounts.doc.ts`
+  is collected by `docs-live-esncard`. One journey checks active and expired
+  card persistence, refresh timestamps, exact owner/identifier, removal, and
+  direct server-rendered profile arrival while producing the user guide.
+  The duplicate functional journey was removed; the complete command collects
+  this journey and its seven shared setup cases. It fails its explicit
   precondition without both `E2E_LIVE_ESN_CARD_IDENTIFIER` and
-  `E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER`. It is the functional integration path
-  for live external active-card add/refresh/remove and expired-card status
-  outcomes. Use
+  `E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER`. Use
   `E2E_LIVE_ESN_CARD_IDENTIFIER=... E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER=... bun run test:e2e:live-esncard`
-  to run both provider paths locally. The protected release-certification
-  environment must supply both approved non-production identities; the Release
-  workflow cannot continue when either credential is absent or the live path
-  fails. The release command disables traces and value-bearing assertions so
-  neither identifier is copied into artifacts.
+  to run it locally. The protected release-certification environment must
+  supply both approved non-production identities; the Release workflow cannot
+  continue when either credential is absent or the live path fails. The
+  release command disables traces and value-bearing assertions so neither
+  identifier is copied into artifacts.
 - `specs/finance/stripe-webhook-replay.spec.ts` resolves the running Compose
   app's file-backed webhook secret without logging or persisting it. It waits
   for that source and fails closed instead of signing with a stale static
@@ -502,9 +501,9 @@ ESNcard provider credential path.
     repeating their fixture setup and
     browser interactions in separate functional specs.
   - Live external ESNcard active-card add/refresh/remove and expired-card status
-    outcomes with readable error states are now represented by
-    `specs/profile/user-profile-live-esncard.spec.ts`, an external-provider-tagged
-    Playwright path with fail-closed `E2E_LIVE_ESN_CARD_IDENTIFIER` and
+    outcomes with readable error states are represented by the live journey in
+    `docs/profile/discounts.doc.ts`, an external-provider-tagged Playwright path
+    with fail-closed `E2E_LIVE_ESN_CARD_IDENTIFIER` and
     `E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER` credential preflight. It stays out of
     deterministic baseline CI, while the Release workflow calls the protected,
     fail-closed provider certification workflow. That workflow runs the Auth0
@@ -926,8 +925,7 @@ ESNcard provider credential path.
   titles no longer include placeholder `@track`, `@req`, or `@doc` metadata.
 - Credential-gated Playwright paths now include both generated docs and
   non-doc specs: `docs/users/create-account.doc.ts`,
-  `specs/profile/create-account.spec.ts`, and
-  `specs/profile/user-profile-live-esncard.spec.ts`, plus the live section in
+  `specs/profile/create-account.spec.ts`, and the live section in
   `docs/profile/discounts.doc.ts`.
 - Playwright `--list` discovery does not clean or write generated docs output,
   and baseline fixture imports do not require Auth0 Management credentials.

@@ -479,11 +479,12 @@ credentials must not be printed or committed.
   projects. It is the Auth0 Management and required Google Maps portion of the
   provider gate and requires their approved local credentials.
 - `bun run test:e2e:live-esncard` runs only the live esncard.org active-card
-  add/refresh/remove and expired-card status paths. It selects both the
-  `local-chrome-live-esncard` functional project and the `docs-live-esncard`
-  publication project with normal authenticated setup; the current collection
-  is nine tests across those projects, including shared setup. The command
-  narrows execution to the functional and documentation ESNcard sources tagged
+  add/refresh/remove and expired-card status paths. The `docs-live-esncard`
+  project runs one complete live journey with normal authenticated setup:
+  eight tests, including the seven setup cases. The journey also produces the
+  user guide, checks direct server-rendered arrival and every persisted card
+  transition, and avoids repeating the same provider requests in a separate
+  functional spec. The command selects the documentation ESNcard source tagged
   `@needs-live-esncard`. It runs the fail-closed live-provider runtime preflight
   first; a missing `E2E_LIVE_ESN_CARD_IDENTIFIER` or
   `E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER` is an error, not a skipped test. This
@@ -622,7 +623,7 @@ Playwright separates external-service coverage with dedicated projects:
   - `local-chrome-integration`
   - `docs-integration`
 - live-provider certification:
-  - `local-chrome-live-esncard`
+  - `docs-live-esncard`
 
 CI infers whether Google Maps credentials are required from the selected
 Playwright projects. Authenticated setup always requires the Auth0 Management
@@ -747,7 +748,7 @@ Required for every live-provider run (but not for local Docker startup):
   either into the repository. Run the path with
   `E2E_LIVE_ESN_CARD_IDENTIFIER=... E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER=... bun run test:e2e:live-esncard`.
   Its credential preflight fails closed before Playwright starts when either
-  identifier is absent. The dedicated `local-chrome-live-esncard` project does
+  identifier is absent. The dedicated `docs-live-esncard` project does
   not require Google Maps credentials; its shared authenticated setup still
   verifies the dedicated Auth0 administrator identity.
 
