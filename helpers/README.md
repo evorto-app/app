@@ -180,6 +180,19 @@ when its command exits, including after a forced termination; stale owner
 details are replaced after the next successful acquisition and cannot hold the
 lease by themselves.
 
+Local environment files support `$NAME` and `${NAME}` references with names
+matching `[A-Za-z_][A-Za-z0-9_]*`. Forward references are resolved independently
+of file order. `${NAME:-default}` and `${NAME:+alternate}` treat empty values as
+absent; the forms without `:` distinguish an empty value from an unset name.
+Nested operands are supported and only the selected operand is expanded.
+Missing references become empty strings. A backslash before `$` preserves that
+dollar literally; unsupported or malformed expressions remain literal text.
+Caller values and generated defaults are inserted verbatim, including dollar
+signs and backslashes, without rescanning their contents. Command substitutions
+are never executed. Reference cycles stop the command with an error naming only
+the affected keys. This deliberately corrects the previous expansion library's
+handling of empty non-colon defaults and interpolated literal credentials.
+
 Environment resolution runs before lease acquisition. Keep `env:run` outside
 leased commands because native process replacement closes additional file
 descriptors. The lease exports an internal marker so an accidental nested
