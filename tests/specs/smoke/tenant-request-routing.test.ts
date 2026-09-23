@@ -572,6 +572,7 @@ for (const { cleanupMode, method } of [
     let context: BrowserContext | undefined;
     let evaluation: Promise<PromiseSettledResult<string>[]> | undefined;
     let closing: Promise<PromiseSettledResult<void>[]> | undefined;
+    let latePageUrlAtClosure: string | undefined;
     const evaluationClosureMessage =
       cleanupMode === 'pages'
         ? 'Execution context was destroyed'
@@ -635,6 +636,23 @@ for (const { cleanupMode, method } of [
           // Expose callbacks that can run between cancellation and disposal.
           await delay(50);
           await originalClose(options);
+        };
+        const ownedContext = context;
+        const originalGoto = page.goto.bind(page);
+        page.goto = async (url, options) => {
+          // Open a real page after cleanup has already read its first inventory.
+          const latePage = await ownedContext.newPage();
+          latePage.on('pageerror', (error) => pageErrors.push(error));
+          await latePage.goto(local.origin);
+          await latePage
+            .getByRole('button', { name: 'Start application work' })
+            .click();
+          const closeLatePage = latePage.close.bind(latePage);
+          latePage.close = async (closeOptions) => {
+            latePageUrlAtClosure = latePage.url();
+            await closeLatePage(closeOptions);
+          };
+          return originalGoto(url, options);
         };
       }
       evaluation = Promise.allSettled([
@@ -700,6 +718,8 @@ for (const { cleanupMode, method } of [
       if (closeResult.status === 'rejected') throw closeResult.reason;
       expect(context.isClosed()).toBe(cleanupMode === 'context');
       expect(heldRequests).toBe(1);
+      if (cleanupMode === 'pages')
+        expect(latePageUrlAtClosure).toBe('about:blank');
       expect(received).toEqual([
         {
           body: method === 'POST' ? 'tenant-owned mutation' : '',
