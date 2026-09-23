@@ -42,7 +42,8 @@ trap 'cleanup INT 130' INT
 trap 'cleanup TERM 143' TERM
 
 set +e
-stripe listen --forward-to http://evorto:4200/webhooks/stripe > "$log_pipe" 2>&1 &
+# Application webhook handlers require complete snapshot event payloads.
+stripe listen --all-snapshot --forward-to http://evorto:4200/webhooks/stripe > "$log_pipe" 2>&1 &
 stripe_pid="$!"
 wait "$stripe_pid"
 stripe_status="$?"
