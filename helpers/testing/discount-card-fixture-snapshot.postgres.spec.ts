@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { eq, inArray, sql } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
+import { inspect } from 'node:util';
 import { Pool } from 'pg';
 
 import { createId } from '../../src/db/create-id';
@@ -150,7 +151,7 @@ describe('exact global discount-card fixture restoration', () => {
           type: 'esnCard',
           userId,
         });
-        await snapshot.restore(database);
+        await snapshot.restore();
         expect(await readCards(database, [userId, otherUserId])).toEqual(
           before,
         );
@@ -177,7 +178,7 @@ describe('exact global discount-card fixture restoration', () => {
           userId,
         });
       }
-      await snapshot.restore(database);
+      await snapshot.restore();
       expect(await readCards(database, [userId, otherUserId])).toEqual(before);
     });
   });
@@ -185,9 +186,13 @@ describe('exact global discount-card fixture restoration', () => {
   it('does not take another account identifier and rolls back a failed restoration', async () => {
     await withFixture(async (database, userId, otherUserId) => {
       const identifier = `original-${userId}`;
-      await database
-        .insert(userDiscountCards)
-        .values({ identifier, type: 'esnCard', userId });
+      const metadataMarker = `private-snapshot-metadata-${userId}`;
+      await database.insert(userDiscountCards).values({
+        identifier,
+        metadata: { privateFixtureValue: metadataMarker },
+        type: 'esnCard',
+        userId,
+      });
       const snapshot = await captureDiscountCardFixtureSnapshot(
         database,
         userId,
@@ -201,12 +206,24 @@ describe('exact global discount-card fixture restoration', () => {
         .set({ identifier })
         .where(eq(userDiscountCards.userId, otherUserId));
       const before = await readCards(database, [userId, otherUserId]);
-      await expect(snapshot.restore(database)).rejects.toMatchObject({
+      const failure = await snapshot.restore().then(
+        () => {
+          throw new Error('Expected a discount-card restoration conflict');
+        },
+        (error: unknown) => error,
+      );
+      if (!(failure instanceof Error)) {
+        throw new Error('Expected a restoration error');
+      }
+      expect(failure).toMatchObject({
         cause: {
           code: '23505',
           constraint: userDiscountCardIdentifierUniqueConstraintName,
         },
       });
+      const diagnostic = inspect(failure, { depth: null });
+      expect(diagnostic).not.toContain(identifier);
+      expect(diagnostic).not.toContain(metadataMarker);
       expect(await readCards(database, [userId, otherUserId])).toEqual(before);
     });
   });
