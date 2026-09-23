@@ -83,8 +83,13 @@ repetitions; each repetition receives a distinct fixture seed.
 Local tenant selection uses the scoped routing helper in
 `tests/support/utils/tenant-request-routing.ts`. Use the returned `close()`
 method for pages created with `openAuthenticatedTestPage`. The base page
-fixture uses `closeTenantRequestPages` to cancel each pending intercepted browser
-request before closing its context's current pages. Chromium can otherwise replay
+fixture uses `closeApplicationPages` to leave each owned application document
+through `about:blank` before cancelling its pending requests. This prevents
+intentional teardown cancellation from rejecting a still-running application
+initializer. Error listeners retain the original page URL during this transition,
+so an already-raised application error remains visible. The existing
+`closeTenantRequestPages` barrier then cancels pending intercepted browser
+requests before closing the context's current pages. Chromium can otherwise replay
 a paused request without its tenant header as the page closes. Cancellation and
 fulfillment share one terminal action, so an upstream fetch that completes during
 cleanup cannot settle the browser request twice. The independent upstream fetch
@@ -99,7 +104,7 @@ by owned context closure. It still attempts that closure if page cleanup fails,
 and joins remaining callbacks only after confirming the context is closed.
 Normal and emergency cleanup share one context-close attempt; a rejected or
 unproven closure is not retried, and all known failures remain visible.
-Cleanup checks settlements again before each page and context closes, including
+The routing barrier checks settlements again before each page and context closes, including
 callbacks arriving while an earlier page closes. It attempts cancellation before
 reading the page inventory, so an inventory failure cannot bypass that step or
 discard an earlier cancellation failure.

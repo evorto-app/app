@@ -11,3 +11,7 @@ rejects cycles with key-only errors before starting the command.
 
 Refresh Angular framework and Material packages to 22.1.8, along with the
 reviewed Auth0, Maps loader, dotenv, lint, and formatter updates.
+
+Browser test teardown leaves application documents before cancelling their
+requests, preserving tenant interception while preventing cleanup from creating
+unhandled initializer failures.

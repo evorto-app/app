@@ -1,5 +1,5 @@
 import { once } from 'node:events';
-import { setImmediate } from 'node:timers/promises';
+import { setImmediate, setTimeout as delay } from 'node:timers/promises';
 import {
   createServer,
   type RequestListener,
@@ -10,6 +10,7 @@ import {
 import { expect, test, type BrowserContext } from '@playwright/test';
 
 import { localTestTenantDomainHeader } from '../../../src/shared/request-routing';
+import { closeApplicationPages } from '../../support/utils/close-application-pages';
 import {
   closeTenantRequestContext,
   closeTenantRequestPages,
@@ -571,6 +572,10 @@ for (const { cleanupMode, method } of [
     let context: BrowserContext | undefined;
     let evaluation: Promise<PromiseSettledResult<string>[]> | undefined;
     let closing: Promise<PromiseSettledResult<void>[]> | undefined;
+    const evaluationClosureMessage =
+      cleanupMode === 'pages'
+        ? 'Execution context was destroyed'
+        : 'Target page, context or browser has been closed';
     const recordFailure = (error: unknown) => {
       if (!errors.includes(error)) errors.push(error);
     };
@@ -605,7 +610,9 @@ for (const { cleanupMode, method } of [
         return;
       }
       currentResponse.setHeader('content-type', 'text/html');
-      currentResponse.end('<body>Tenant page lifetime regression</body>');
+      currentResponse.end(
+        '<body><button>Start application work</button><script>addEventListener("beforeunload", event => { event.preventDefault(); event.returnValue = ""; });</script></body>',
+      );
     });
     try {
       context = await browser.newContext();
@@ -619,37 +626,61 @@ for (const { cleanupMode, method } of [
         pageErrors.push(error);
       });
       await page.goto(local.origin);
+      if (cleanupMode === 'pages') {
+        await page
+          .getByRole('button', { name: 'Start application work' })
+          .click();
+        const originalClose = page.close.bind(page);
+        page.close = async (options) => {
+          // Expose callbacks that can run between cancellation and disposal.
+          await delay(50);
+          await originalClose(options);
+        };
+      }
       evaluation = Promise.allSettled([
-        page.evaluate(async (requestMethod) => {
-          try {
-            await fetch('/held-page-request', {
+        page.evaluate(
+          async ({ applicationPage, requestMethod }) => {
+            const request = fetch('/held-page-request', {
               method: requestMethod,
               ...(requestMethod === 'POST'
                 ? { body: 'tenant-owned mutation' }
                 : {}),
             });
-          } catch (error) {
-            if (!(error instanceof TypeError)) throw error;
-          }
-          // Keep the observer alive until the page closes after cancellation.
-          return new Promise<string>(() => {});
-        }, method),
+            if (applicationPage) {
+              // Model an unfinished application initializer with no rejection handler.
+              void request;
+            } else {
+              try {
+                await request;
+              } catch (error) {
+                if (!(error instanceof TypeError)) throw error;
+              }
+            }
+            // Keep the observer pending until its document is discarded.
+            return new Promise<string>(() => {});
+          },
+          { applicationPage: cleanupMode === 'pages', requestMethod: method },
+        ),
       ]);
       await started.promise;
-      const failedRequest = page.waitForEvent('requestfailed', {
-        predicate: (request) =>
-          request.url() === `${local.origin}/held-page-request`,
-        timeout: 10_000,
-      });
+      const failedRequest =
+        cleanupMode === 'context'
+          ? page.waitForEvent('requestfailed', {
+              predicate: (request) =>
+                request.url() === `${local.origin}/held-page-request`,
+              timeout: 10_000,
+            })
+          : undefined;
       const pageClosed = page.waitForEvent('close', { timeout: 10_000 });
       closing = Promise.allSettled([
         cleanupMode === 'pages'
-          ? closeTenantRequestPages(context)
+          ? closeApplicationPages(context)
           : closeTenantRequestContext(context),
       ]);
-      expect((await failedRequest).failure()?.errorText).toBe(
-        'net::ERR_ABORTED',
-      );
+      if (failedRequest)
+        expect((await failedRequest).failure()?.errorText).toBe(
+          'net::ERR_ABORTED',
+        );
       await pageClosed;
       expect(page.isClosed()).toBe(true);
       expect(context.isClosed()).toBe(false);
@@ -661,9 +692,7 @@ for (const { cleanupMode, method } of [
         );
       }
       if (!(browserResult.reason instanceof Error)) throw browserResult.reason;
-      expect(browserResult.reason.message).toContain(
-        'Target page, context or browser has been closed',
-      );
+      expect(browserResult.reason.message).toContain(evaluationClosureMessage);
       release();
       const [closeResult] = await closing;
       if (!closeResult)
@@ -709,9 +738,7 @@ for (const { cleanupMode, method } of [
             if (
               result.status === 'rejected' &&
               (!(result.reason instanceof Error) ||
-                !result.reason.message.includes(
-                  'Target page, context or browser has been closed',
-                ))
+                !result.reason.message.includes(evaluationClosureMessage))
             ) {
               recordFailure(result.reason);
             }
