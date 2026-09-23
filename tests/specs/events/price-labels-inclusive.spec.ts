@@ -199,6 +199,13 @@ test.describe('Inclusive price labels', () => {
           }),
         });
         await expect(unavailable).toBeVisible();
+        const retryButton = unavailable.getByRole('button', {
+          name: 'Try again',
+        });
+        // Keep the broken fixture until the client has loaded the error state;
+        // otherwise hydration can recover before the retry click is delivered.
+        await expect(retryButton).not.toHaveAttribute('jsaction', /click/);
+        await expect(retryButton).toBeEnabled();
         await expect(unavailable).toContainText(
           "This event's sign-up settings need to be corrected. Contact the organizer before trying to register.",
         );
@@ -210,7 +217,7 @@ test.describe('Inclusive price labels', () => {
           .update(schema.eventRegistrationOptions)
           .set({ stripeTaxRateId: paidOption.stripeTaxRateId })
           .where(eq(schema.eventRegistrationOptions.id, paidOptionId));
-        await unavailable.getByRole('button', { name: 'Try again' }).click();
+        await retryButton.click();
 
         const card = registrationOptionCard(page, paidOption.title);
         await expectCardReady(card);
