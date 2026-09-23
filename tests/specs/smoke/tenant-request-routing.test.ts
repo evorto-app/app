@@ -10,8 +10,8 @@ import {
 import { expect, test, type BrowserContext } from '@playwright/test';
 
 import { localTestTenantDomainHeader } from '../../../src/shared/request-routing';
-import { closeApplicationPages } from '../../support/utils/close-application-pages';
 import {
+  closeApplicationPages,
   closeTenantRequestContext,
   closeTenantRequestPages,
   routeLocalTenantRequests,
@@ -573,6 +573,8 @@ for (const { cleanupMode, method } of [
     let evaluation: Promise<PromiseSettledResult<string>[]> | undefined;
     let closing: Promise<PromiseSettledResult<void>[]> | undefined;
     let latePageUrlAtClosure: string | undefined;
+    const exposeDuringSettlement = cleanupMode === 'pages' && method === 'POST';
+    let pageInventoryExposed = !exposeDuringSettlement;
     const evaluationClosureMessage =
       cleanupMode === 'pages'
         ? 'Execution context was destroyed'
@@ -617,6 +619,25 @@ for (const { cleanupMode, method } of [
     });
     try {
       context = await browser.newContext();
+      if (exposeDuringSettlement) {
+        const registerRoute = context.route.bind(context);
+        context.route = async (pattern, handler, options) => {
+          await registerRoute(
+            pattern,
+            async (route, request) => {
+              const abort = route.abort.bind(route);
+              route.abort = async (errorCode) => {
+                pageInventoryExposed = true;
+                await abort(errorCode);
+                await delay(50);
+              };
+              await handler(route, request);
+            },
+            options,
+          );
+        };
+        await context.newPage();
+      }
       await routeLocalTenantRequests({
         baseUrl: local.origin,
         context,
@@ -633,27 +654,37 @@ for (const { cleanupMode, method } of [
           .click();
         const originalClose = page.close.bind(page);
         page.close = async (options) => {
+          if (exposeDuringSettlement) latePageUrlAtClosure = page.url();
           // Expose callbacks that can run between cancellation and disposal.
           await delay(50);
           await originalClose(options);
         };
-        const ownedContext = context;
-        const originalGoto = page.goto.bind(page);
-        page.goto = async (url, options) => {
-          // Open a real page after cleanup has already read its first inventory.
-          const latePage = await ownedContext.newPage();
-          latePage.on('pageerror', (error) => pageErrors.push(error));
-          await latePage.goto(local.origin);
-          await latePage
-            .getByRole('button', { name: 'Start application work' })
-            .click();
-          const closeLatePage = latePage.close.bind(latePage);
-          latePage.close = async (closeOptions) => {
-            latePageUrlAtClosure = latePage.url();
-            await closeLatePage(closeOptions);
+        if (exposeDuringSettlement) {
+          const pages = context.pages.bind(context);
+          // Delay inventory visibility while retaining the real page and request.
+          context.pages = () =>
+            pages().filter(
+              (candidate) => candidate !== page || pageInventoryExposed,
+            );
+        } else {
+          const ownedContext = context;
+          const originalGoto = page.goto.bind(page);
+          page.goto = async (url, options) => {
+            // Open a real page after cleanup has already read its first inventory.
+            const latePage = await ownedContext.newPage();
+            latePage.on('pageerror', (error) => pageErrors.push(error));
+            await latePage.goto(local.origin);
+            await latePage
+              .getByRole('button', { name: 'Start application work' })
+              .click();
+            const closeLatePage = latePage.close.bind(latePage);
+            latePage.close = async (closeOptions) => {
+              latePageUrlAtClosure = latePage.url();
+              await closeLatePage(closeOptions);
+            };
+            return originalGoto(url, options);
           };
-          return originalGoto(url, options);
-        };
+        }
       }
       evaluation = Promise.allSettled([
         page.evaluate(

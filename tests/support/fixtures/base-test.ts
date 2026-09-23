@@ -23,8 +23,10 @@ import {
 } from '../config/environment';
 import { runDatabaseCleanups } from '../utils/database-cleanup';
 import { validateStorageStateBeforeUse } from '../utils/storage-state';
-import { routeLocalTenantRequests } from '../utils/tenant-request-routing';
-import { closeApplicationPages } from '../utils/close-application-pages';
+import {
+  closeApplicationPages,
+  routeLocalTenantRequests,
+} from '../utils/tenant-request-routing';
 import { withProtectedValueCaptureOptions } from '../utils/fill-protected-value';
 
 const dedupeLength = 4;

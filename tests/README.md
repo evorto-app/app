@@ -86,7 +86,10 @@ method for pages created with `openAuthenticatedTestPage`. The base page
 fixture uses `closeApplicationPages` to leave each owned application document
 through `about:blank` before cancelling its pending requests. This prevents
 intentional teardown cancellation from rejecting a still-running application
-initializer. Error listeners retain the original page URL during this transition,
+initializer. Document preparation and cancellation share the routing owner: it
+also leaves a page obtained from an intercepted request and rechecks the page
+inventory before closure. This covers pages exposed after cancellation begins.
+Error listeners retain the original page URL during this transition,
 so an already-raised application error remains visible. The existing
 `closeTenantRequestPages` barrier then cancels pending intercepted browser
 requests before closing the context's current pages. Chromium can otherwise replay
