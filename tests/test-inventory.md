@@ -394,7 +394,12 @@ component regressions retain retry recovery for temporary failures.
   transfer is unavailable.
 - `specs/templates/paid-option-requires-tax-rate.spec.ts` has active
   simple-mode UI coverage for the paid-registration tax-rate requirement and a
-  seeded inclusive tax-rate save path. Future bulk/no-compatible-rate UI
+  seeded inclusive tax-rate save path. Recovery journeys cover an inactive rate
+  and a whitespace-only percentage, including the retained selection, blocked
+  saving and fresh edit-page readback after replacement. Existing catalog,
+  selector and form unit tests cover null, empty and whitespace percentages;
+  the form matrix covers both registration options and add-ons.
+  Future bulk/no-compatible-rate UI
   behavior remains uncovered without a hidden fixme placeholder. Template detail paid-option
   summaries now share the inclusive price label component with event
   registration cards, and create/edit submit helpers keep missing paid tax-rate

@@ -85,7 +85,6 @@ test.describe('Template Tax Rate Validation', () => {
 
   for (const unusableRate of [
     { label: 'inactive', change: { active: false } },
-    { label: 'empty percentage', change: { percentage: '' } },
     { label: 'whitespace percentage', change: { percentage: ' \t\n' } },
   ]) {
     test(`creator saves a paid choice and replaces its ${unusableRate.label} tax rate`, async ({
