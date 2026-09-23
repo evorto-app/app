@@ -379,11 +379,14 @@ From the main navigation, select **Profile**, then choose **Discounts**. Before 
           name: 'Discount cards',
         }),
       ).toBeVisible({ timeout: 15_000 });
+      await expect(
+        page.getByText('No discount cards added.', { exact: true }),
+      ).toBeVisible();
       // Retain the direct SSR arrival covered by the former provider spec.
       await page.reload();
       await expect(
         page.getByText('No discount cards added.', { exact: true }),
-      ).toBeVisible();
+      ).toBeVisible({ timeout: 20_000 });
       await expect(
         page.getByRole('button', { name: 'Save ESNcard' }),
       ).not.toHaveAttribute('jsaction', /click/, { timeout: 20_000 });
