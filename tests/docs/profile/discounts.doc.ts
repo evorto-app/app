@@ -400,7 +400,7 @@ test.describe('Check your ESNcard', () => {
 - Have your current ESNcard number ready.
 {% /callout %}
 
-The card belongs to your Evorto account, but you manage it inside the current organization. You can receive that organization's ESNcard discounts only while the card is **Verified**. An expired card remains visible as **Expired** and does not receive a discount.
+Your Evorto account has one ESNcard shared across your organizations. You can manage that same card through any organization that enables ESNcard discounts. Each organization decides whether it offers those discounts, and the card must be **Verified** to qualify. An expired card remains visible as **Expired** and does not receive a discount.
 
 From the main navigation, select **Profile**, then choose **Discounts**. Before saving, check that you entered the intended card number. Selecting **Save ESNcard** checks whether it is currently valid.
 `,
