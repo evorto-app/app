@@ -106,8 +106,9 @@ loading, anchored search navigation, and light/dark logo checks pass. These
 Pages changes remain uncommitted and unpublished. Their delivery and the exact
 final application-to-Pages publication remain separate release work.
 
-D-009 was accepted as separate post-merge work. Its global-card implementation
-and cross-organization journey passed complete local certification at
+D-009 was accepted as separate post-merge work. Historical predecessor
+certification, before the follow-up review corrections: its global-card
+implementation and cross-organization journey passed complete local checks at
 `c5e379cca09fcebc261561c1770df2bdcc436dac` on 2026-09-23: all 11 CI-equivalent
 gates, 5,366 unit/PostgreSQL tests, 233 baseline browser/docs cases, 11 provider
 integration cases, 8 live ESNcard cases, and 14 provider-error units. All 38

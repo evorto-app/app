@@ -1033,6 +1033,10 @@ describe('registration transfer finalization tenant limit', () => {
           }),
         );
       const claimLayer = makeLayer(databaseUrl, stripe);
+      const claimTenant = await database.query.tenants.findFirst({
+        where: { id: fixture.tenantId },
+      });
+      if (!claimTenant) throw new Error('Expected transfer preview tenant');
       const client = await pool.connect();
       const writer = drizzle({ client, relations });
       const failures: unknown[] = [];
@@ -1069,6 +1073,27 @@ describe('registration transfer finalization tenant limit', () => {
               target: [userDiscountCards.userId, userDiscountCards.type],
             });
         }
+        const preview = trackFixtureOperation(
+          Effect.runPromise(
+            RegistrationTransferService.use((service) =>
+              service.getClaim({
+                claimCode: credential.claimCode,
+                tenant: claimTenant,
+                user: {
+                  communicationEmail: 'recipient@example.com',
+                  email: 'recipient@example.com',
+                  id: fixture.recipientUserId,
+                  roleIds: [fixture.eligibleRoleId],
+                },
+              }),
+            ).pipe(
+              Effect.provide(RegistrationTransferService.Default),
+              Effect.provide(claimLayer),
+            ),
+          ),
+          settledOperations,
+          failures,
+        );
         const claim = trackFixtureOperation(
           claimOpenCandidate(claimLayer, fixture, credential.claimCode),
           settledOperations,
@@ -1082,10 +1107,13 @@ describe('registration transfer finalization tenant limit', () => {
                AND query LIKE '%pg_advisory_xact_lock_shared%'`,
             [blockerPid],
           );
-          return Number(blocked.rows[0]?.count) === 1;
-        }, 'Transfer did not wait for the global card writer');
+          return Number(blocked.rows[0]?.count) === 2;
+        }, 'Transfer preview and claim did not both wait for the global card writer');
         expect(createCheckout).not.toHaveBeenCalled();
         await client.query('COMMIT');
+        expect(await preview).toMatchObject({
+          registrationOption: { currentPrice: scenario.price },
+        });
         expect(await claim).toMatchObject({
           result: {
             status: scenario.price === 0 ? 'confirmed' : 'paymentPending',

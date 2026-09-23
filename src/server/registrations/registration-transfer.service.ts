@@ -505,13 +505,18 @@ const resolveCurrentRegistrationTransferPrice = Effect.fn(
   const [cards, discounts, tenantRows] = yield* Effect.all(
     [
       databaseEffect((database) =>
-        database.query.userDiscountCards.findMany({
-          columns: { type: true, validFrom: true, validTo: true },
-          where: {
-            status: 'verified',
-            userId,
-          },
-        }),
+        database.transaction((tx) =>
+          Effect.gen(function* () {
+            yield* lockUserDiscountCards(tx, userId, 'shared');
+            return yield* tx.query.userDiscountCards.findMany({
+              columns: { type: true, validFrom: true, validTo: true },
+              where: {
+                status: 'verified',
+                userId,
+              },
+            });
+          }),
+        ),
       ),
       databaseEffect((database) =>
         database.query.eventRegistrationOptionDiscounts.findMany({

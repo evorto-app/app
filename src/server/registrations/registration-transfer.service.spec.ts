@@ -22,7 +22,6 @@ import {
 } from '../../shared/rpc-contracts/app-rpcs/registration-transfers.errors';
 import { createDefaultTenantDiscountProviders } from '../../shared/tenant-config';
 import { StripeClient } from '../stripe-client';
-import { createDatabaseTestLayer } from '../testing/database-test-layer';
 import { createRegistrationDatabaseTestLayer } from '../testing/registration-database';
 import { hashRegistrationTransferClaimCode } from './registration-transfer-claim-code';
 import { RegistrationTransferPricingError } from './registration-transfer-pricing';
@@ -284,7 +283,7 @@ describe('RegistrationTransferService.getClaim tenant settings', () => {
     );
     return {
       executeValues,
-      layer: createDatabaseTestLayer(executeValues),
+      layer: createRegistrationDatabaseTestLayer({ executeValues }),
     };
   };
 
