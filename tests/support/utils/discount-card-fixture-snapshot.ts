@@ -4,6 +4,7 @@ import { DatabaseError } from 'pg';
 
 import { relations } from '../../../src/db/relations';
 import { userDiscountCards } from '../../../src/db/schema';
+import { userDiscountCardLockStatement } from '../../../src/server/discounts/user-discount-card-lock';
 
 type TestDatabase = NodePgDatabase<typeof relations>;
 
@@ -31,6 +32,9 @@ export const captureDiscountCardFixtureSnapshot = async (
     restore: async () => {
       try {
         await database.transaction(async (transaction) => {
+          await transaction.execute(
+            userDiscountCardLockStatement(userId, 'exclusive'),
+          );
           // Remove by owner/type: the test may have removed and re-added the card.
           await transaction.delete(userDiscountCards).where(owner);
           if (original) {

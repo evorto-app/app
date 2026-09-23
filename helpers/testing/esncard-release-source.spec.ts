@@ -360,9 +360,6 @@ describe('production provider certification source', () => {
     expect(liveDocumentation).toContain(
       'refreshedExpiredCard?.identifier === expiredEsnCardIdentifier',
     );
-    expect(liveDocumentation).toContain(
-      'eq(schema.userDiscountCards.tenantId, tenant.id)',
-    );
     expect(liveDocumentation).not.toContain(
       'page.getByText(liveEsnCardIdentifier',
     );

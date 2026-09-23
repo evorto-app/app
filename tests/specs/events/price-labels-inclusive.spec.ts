@@ -157,6 +157,7 @@ test.describe('Inclusive price labels', () => {
       database,
       page,
       seeded,
+      tenant,
 
       registerDatabaseCleanup,
     }) => {
@@ -172,7 +173,7 @@ test.describe('Inclusive price labels', () => {
       const taxRate = await database.query.tenantStripeTaxRates.findFirst({
         where: {
           stripeTaxRateId: paidOption.stripeTaxRateId,
-          tenantId: paidOption.tenantId,
+          tenantId: tenant.id,
         },
       });
       if (!taxRate) throw new Error('Expected the original tenant tax rate');

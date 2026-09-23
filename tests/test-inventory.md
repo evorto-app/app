@@ -519,7 +519,7 @@ ESNcard provider credential path.
     retry copy. The seeded card journey belongs to the documentation coverage
     described above. App and server tests cover upsert payload normalization, readable mutation
     errors, readable status labels, save/refresh/remove action states,
-    tenant-scoped per-user card reads/upserts, refresh persistence, provider-outage upsert
+    global per-user card reads/upserts, refresh persistence, provider-outage upsert
     rejection before inserting or updating the stored card, and scoped removal.
     Local app coverage also proves that save, refresh, and remove actions share
     an in-flight guard so profile discount-card writes do not overlap. App

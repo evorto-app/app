@@ -1,4 +1,4 @@
-import { eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { once } from 'node:events';
 import { createServer, type Socket } from 'node:net';
@@ -107,19 +107,91 @@ const withFixture = async (
   }
 };
 
-const accountLocks = async (pool: Pool, userId: string) => {
+const accountLocks = async (
+  pool: Pool,
+  userId: string,
+  scope: 'fixture' | 'product' = 'fixture',
+) => {
   const result = await pool.query<{ pid: number; granted: boolean }>(
     `select pid, granted from pg_locks
      where locktype = 'advisory' and objsubid = 1
        and database = (select oid from pg_database where datname = current_database())
        and classid::bigint = ((hashtextextended($1, 0) >> 32) & 4294967295)
        and objid::bigint = (hashtextextended($1, 0) & 4294967295)`,
-    [`evorto:test:discount-card-account:${userId}`],
+    [
+      scope === 'fixture'
+        ? `evorto:test:discount-card-account:${userId}`
+        : `evorto:user-discount-cards:${userId}`,
+    ],
   );
   return result.rows;
 };
 
 describe('shared discount-card fixture account lease', () => {
+  it('waits for product pricing readers before replacing the fixture card', async () => {
+    await withFixture(async ({ database, createLease, pool, userId }) => {
+      const identifier = `original-${userId}`;
+      await database.insert(userDiscountCards).values({
+        identifier,
+        type: 'esnCard',
+        userId,
+      });
+      const owned = await createLease().acquire();
+      const snapshot = await captureDiscountCardFixtureSnapshot(owned, userId);
+      const changedIdentifier = `changed-${userId}`;
+      await owned
+        .update(userDiscountCards)
+        .set({ identifier: changedIdentifier })
+        .where(eq(userDiscountCards.userId, userId));
+      const reader = await pool.connect();
+      let restoration: Promise<PromiseSettledResult<void>[]> | undefined;
+      try {
+        await reader.query('begin');
+        await reader.query(
+          'select pg_advisory_xact_lock_shared(hashtextextended($1, 0))',
+          [`evorto:user-discount-cards:${userId}`],
+        );
+        restoration = Promise.allSettled([snapshot.restore()]);
+        await vi.waitFor(
+          async () => {
+            expect(
+              (await accountLocks(pool, userId, 'product')).filter(
+                (x) => !x.granted,
+              ),
+            ).toHaveLength(1);
+          },
+          { timeout: 10_000 },
+        );
+        // The writer must wait before taking the card row lock; reversing that
+        // order would deadlock this authoritative read against restoration.
+        const current = await drizzle({ client: reader, relations })
+          .select({ identifier: userDiscountCards.identifier })
+          .from(userDiscountCards)
+          .where(
+            and(
+              eq(userDiscountCards.userId, userId),
+              eq(userDiscountCards.type, 'esnCard'),
+            ),
+          )
+          .for('key share');
+        expect(current).toEqual([{ identifier: changedIdentifier }]);
+      } finally {
+        try {
+          await reader.query('rollback');
+        } finally {
+          reader.release();
+          await restoration;
+        }
+      }
+      expect(await restoration).toMatchObject([{ status: 'fulfilled' }]);
+      expect(
+        await database.query.userDiscountCards.findFirst({
+          where: { userId, type: 'esnCard' },
+        }),
+      ).toMatchObject({ identifier });
+    });
+  });
+
   it('restores the original row before the next owner enters despite another cleanup failure', async () => {
     await withFixture(async ({ database, createLease, pool, userId }) => {
       const identifier = `original-${userId}`;

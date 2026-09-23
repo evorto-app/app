@@ -127,6 +127,18 @@ Register database cleanup through `registerDatabaseCleanup` before the first
 write. Its callbacks run in reverse order while the owning database pool is
 still available, and cleanup failures remain visible.
 
+The `discounts` fixture leases the shared regular user's global card account on
+a dedicated PostgreSQL connection before capturing or changing its card. Card
+checks and deliberate resets use `discounts.database`; unrelated tenant data
+continues to use `database`. Cleanup restores the exact original card row or
+absence on the leased connection before releasing it. A lost connection fails
+restoration rather than substituting another connection. Tenant provider
+restoration is attempted independently. Seed, reset, and restore writes use
+short product advisory-lock transactions; the separate test-account lease is
+the only lock held across a browser journey. Its ten-minute acquisition budget
+allows three other workers' 120-second journeys and 60-second cleanups, with a
+one-minute fixture setup buffer. Test and UI assertion deadlines are unchanged.
+
 `specs/templates/event-discount-snapshot.spec.ts` creates events through normal
 template navigation using the discount-enabled fixture. Its two scenarios edit
 or clear the visible ESNcard price, change the template price while the form is
