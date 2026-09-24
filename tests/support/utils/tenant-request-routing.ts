@@ -1,5 +1,7 @@
 import type { BrowserContext, Frame, Page, Route } from '@playwright/test';
 
+import { observeCleanupProgress } from './cleanup-progress';
+
 import { localTestTenantDomainHeader } from '../../../src/shared/request-routing';
 
 type RoutingContext = Pick<BrowserContext, 'unroute'>;
@@ -180,7 +182,10 @@ export const routeLocalTenantRequests = async ({
             state.emergencyClose = settleTenantRequestsBeforeClosure(
               context,
               state.errors,
-              () => context.close(),
+              () =>
+                observeCleanupProgress('browser context closure', () =>
+                  context.close(),
+                ),
             ).catch((closeError) => {
               state.errors.push(closeError);
             });
@@ -204,7 +209,9 @@ export const routeLocalTenantRequests = async ({
 const drainTenantRoute = async (state: TenantRoute): Promise<void> => {
   state.closing = true;
   while (state.active.size > 0) {
-    await Promise.allSettled([...state.active]);
+    await observeCleanupProgress('tenant request drain', () =>
+      Promise.allSettled([...state.active]),
+    );
   }
 };
 
@@ -250,7 +257,9 @@ export const stopTenantRequestRouting = async (
       // Once this loop is empty, unroute synchronously removes our handler
       // before another callback can enter on the JavaScript event loop.
       while (state.active.size > 0) {
-        await Promise.allSettled([...state.active]);
+        await observeCleanupProgress('tenant request drain', () =>
+          Promise.allSettled([...state.active]),
+        );
       }
       if (!state.emergencyClose && !state.ownedContextClosing) {
         try {
@@ -289,7 +298,10 @@ const settleTenantRequestsBeforeClosure = async (
     // Include callbacks admitted while an earlier settlement was pending.
     while (routing.pendingSettlements.size > 0) {
       const pending = [...routing.pendingSettlements].map((settle) => settle());
-      for (const result of await Promise.allSettled(pending)) {
+      for (const result of await observeCleanupProgress(
+        'tenant request settlement',
+        () => Promise.allSettled(pending),
+      )) {
         if (result.status === 'rejected') errors.push(result.reason);
       }
     }
@@ -334,7 +346,7 @@ const closeTenantRequestPagePhase = async (
       }
     }
     await settleTenantRequestsBeforeClosure(context, errors, () =>
-      page.close(),
+      observeCleanupProgress('browser page closure', () => page.close()),
     );
   }
   let pagesClosed = false;
@@ -392,7 +404,9 @@ export const closeApplicationPages = async (
     const operation = (async () => {
       if (page.isClosed()) return;
       try {
-        await page.goto('about:blank', { waitUntil: 'commit' });
+        await observeCleanupProgress('application document discard', () =>
+          page.goto('about:blank', { waitUntil: 'commit' }),
+        );
       } catch (error) {
         if (!page.isClosed()) throw error;
       }
@@ -452,7 +466,9 @@ export const closeTenantRequestContext = async (
       // Recheck after settlements: a failed cancellation may already have
       // started emergency disposal. Neither owner retries the other's close.
       contextCloseAttempts.add(context);
-      await context.close();
+      await observeCleanupProgress('browser context closure', () =>
+        context.close(),
+      );
       closeSucceeded = true;
     }
   });

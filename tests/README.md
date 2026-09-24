@@ -71,6 +71,12 @@ not replace it with aspirational documentation.
 
 ## Fixture Contract
 
+Cleanup operations that remain pending for ten seconds emit a fixed stage label
+to the test log. These diagnostics distinguish browser document disposal, request
+settlement/draining, page/context closure, registered fixture callbacks, and pool
+closure. They contain no request URLs, SQL, or fixture data and do not change
+timeouts, retries, cleanup ordering, or failure propagation.
+
 - `tests/support/fixtures/parallel-test.ts` seeds a fresh tenant per test with `profile: 'test'`
 - `tests/setup/database.setup.ts` seeds the shared docs tenant with `profile: 'docs'`
 - Specs should consume deterministic scenario handles from `seeded.scenario`
