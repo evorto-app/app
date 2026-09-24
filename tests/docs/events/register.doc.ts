@@ -13,6 +13,7 @@ import {
   seedRequiredRegistrationQuestion,
 } from '../../support/utils/seed-registration-addons';
 import { futureServerEventWindow } from '../../support/utils/server-test-clock';
+import { waitForAppRpcResponse } from '../../support/utils/rpc-response';
 import { waitForRegistrationPage as waitForRegistrationStatus } from '../../support/utils/event-registration-page';
 
 test.use({ storageState: userStateFile, trace: 'retain-on-failure' });
@@ -778,9 +779,13 @@ test.describe('Sign up for events', () => {
       page,
       'Review before leaving the waitlist',
     );
-    await leaveWaitlistDialog
-      .getByRole('button', { name: 'Leave waitlist' })
-      .click();
+    const [leaveWaitlistResponse] = await Promise.all([
+      waitForAppRpcResponse(page, 'events.cancelRegistration'),
+      leaveWaitlistDialog
+        .getByRole('button', { name: 'Leave waitlist' })
+        .click(),
+    ]);
+    expect(leaveWaitlistResponse.ok()).toBe(true);
     await expect(page.getByText('This sign-up choice is full.')).toBeVisible();
     await expect(
       page.getByRole('button', { name: 'Join waitlist' }),
