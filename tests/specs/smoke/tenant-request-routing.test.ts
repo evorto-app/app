@@ -589,7 +589,12 @@ test('finishes loading the replacement document before closing its page', async 
       await closePage(options);
     };
     closing = Promise.allSettled([closeApplicationPages(context)]);
-    await Promise.race([scriptRequested.promise, closeRequested.promise]);
+    const firstEvent = await Promise.race([
+      scriptRequested.promise.then(() => 'script requested'),
+      closeRequested.promise.then(() => 'close requested'),
+    ]);
+    expect(firstEvent).toBe('script requested');
+    expect(events).not.toContain('close requested');
     releaseScript.resolve();
     const [result] = await closing;
     if (!result) throw new Error('Application cleanup result is missing');

@@ -410,7 +410,7 @@ export const closeApplicationPages = async (
         // whose replacement document has only committed. Finish the blank
         // document's load before asking the browser to dispose of its target.
         await observeCleanupProgress('application document discard', () =>
-          page.goto('about:blank', { waitUntil: 'load' }),
+          page.goto('about:blank', { timeout: 30_000, waitUntil: 'load' }),
         );
       } catch (error) {
         if (!page.isClosed()) throw error;

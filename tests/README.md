@@ -80,6 +80,8 @@ timeouts, retries, cleanup ordering, or failure propagation.
 Application cleanup waits for the replacement `about:blank` document to finish
 loading before closing its page. Closing immediately after navigation commits
 can leave Chromium's target open on Linux even after it acknowledges the close.
+The navigation has a 30-second deadline so a stuck resource still reaches
+request cancellation and page disposal; its timeout remains a reported failure.
 Keep the existing request settlement and drain ownership around page disposal.
 
 - `tests/support/fixtures/parallel-test.ts` seeds a fresh tenant per test with `profile: 'test'`
