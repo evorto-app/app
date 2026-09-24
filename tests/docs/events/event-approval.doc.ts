@@ -12,6 +12,7 @@ import { expect, test } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 import { openAuthenticatedTestPage } from '../../support/utils/authenticated-test-page';
 import { futureServerEventWindow } from '../../support/utils/server-test-clock';
+import { waitForAppRpcResponse } from '../../support/utils/rpc-response';
 import type { Locator, Page } from '@playwright/test';
 
 test.use({ storageState: organizerStateFile });
@@ -455,9 +456,13 @@ The **Open event** link is available for context, but this account has no **Orga
   await returnToDraftDialog
     .getByLabel('Feedback for the creator')
     .fill(reviewFeedback);
-  await clickHydratedAction(
-    returnToDraftDialog.getByRole('button', { name: 'Return to draft' }),
-  );
+  const [returnToDraftResponse] = await Promise.all([
+    waitForAppRpcResponse(reviewerPage.page, 'events.reviewEvent'),
+    clickHydratedAction(
+      returnToDraftDialog.getByRole('button', { name: 'Return to draft' }),
+    ),
+  ]);
+  expect(returnToDraftResponse.ok()).toBe(true);
   await expect(
     reviewerPage.page.getByText(
       `Event "${eventTitle}" was returned to draft with review feedback`,

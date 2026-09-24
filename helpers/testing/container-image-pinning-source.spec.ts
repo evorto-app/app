@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { globSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -12,17 +12,31 @@ const immutableTaggedImage = /^[^@\s]+:[^@\s]+@sha256:[a-f0-9]{64}$/u;
 
 describe('container image pinning source', () => {
   it('pins every external Dockerfile and Compose image to a manifest digest', () => {
-    const dockerfileImages = [
-      'Dockerfile',
-      'helpers/testing/stripe-listener.Dockerfile',
-    ].flatMap((dockerfilePath) => {
+    const dockerfiles = globSync(['**/Dockerfile', '**/*.Dockerfile'], {
+      cwd: repositoryRoot,
+      exclude: [
+        '.angular/**',
+        '.git/**',
+        'dist/**',
+        'node_modules/**',
+        'repos/**',
+        'test-results/**',
+      ],
+    });
+    expect(dockerfiles).toContain('Dockerfile');
+    const dockerfileImages = dockerfiles.flatMap((dockerfilePath) => {
       const dockerfileStages = new Set<string>();
-
-      return [
-        ...source(dockerfilePath).matchAll(
-          /^FROM\s+(?:--platform=\S+\s+)?(\S+)(?:\s+AS\s+(\S+))?$/gimu,
+      const dockerfile = source(dockerfilePath);
+      const fromInstructions = [
+        ...dockerfile.matchAll(
+          /^[\t ]*FROM\s+(?:--platform=\S+\s+)?(\S+)(?:\s+AS\s+(\S+))?[\t ]*$/gimu,
         ),
-      ].flatMap((match) => {
+      ];
+      expect(fromInstructions, dockerfilePath).toHaveLength(
+        [...dockerfile.matchAll(/^[\t ]*FROM\b/gimu)].length,
+      );
+
+      return fromInstructions.flatMap((match) => {
         const imageReference = match[1];
         const stageName = match[2];
         const externalImage =
@@ -44,7 +58,8 @@ describe('container image pinning source', () => {
     ].flatMap((match) => (match[1] === undefined ? [] : [match[1]]));
     const imageReferences = [...dockerfileImages, ...composeImages];
 
-    expect(imageReferences).toHaveLength(10);
+    expect(dockerfileImages.length).toBeGreaterThan(0);
+    expect(composeImages.length).toBeGreaterThan(0);
     for (const imageReference of imageReferences) {
       expect(imageReference, imageReference).toMatch(immutableTaggedImage);
       expect(imageReference, imageReference).not.toContain(':latest@');

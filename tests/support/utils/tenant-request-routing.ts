@@ -1,4 +1,4 @@
-import type { BrowserContext, Page, Route } from '@playwright/test';
+import type { BrowserContext, Frame, Page, Route } from '@playwright/test';
 
 import { localTestTenantDomainHeader } from '../../../src/shared/request-routing';
 
@@ -21,6 +21,13 @@ type TenantRoute = {
 
 const tenantRoutes = new WeakMap<RoutingContext, TenantRoute>();
 const contextCloseAttempts = new WeakSet<RoutingContext>();
+const applicationPagePreparations = new WeakMap<
+  RoutingContext,
+  {
+    preparePage: (page: Page) => Promise<void>;
+    preparePages: () => Promise<void>;
+  }
+>();
 
 export const localTenantRequestPattern = (baseUrl: string): string =>
   `${new URL(baseUrl).origin}/**`;
@@ -90,7 +97,51 @@ export const routeLocalTenantRequests = async ({
         }
         return settlement;
       };
-      const cancel = () => settle(() => route.abort('aborted'));
+      const cancel = () =>
+        settle(async () => {
+          const preparation = applicationPagePreparations.get(context);
+          if (!preparation) return route.abort('aborted');
+          // A request can expose its page before the context inventory does.
+          // Discard that document before deliberately rejecting its request.
+          const errors: unknown[] = [];
+          const request = route.request();
+          let frame: Frame | undefined;
+          try {
+            frame = request.frame();
+          } catch (error) {
+            // An initial popup navigation can arrive before it owns a document.
+            const unavailableNavigationFrame =
+              request.isNavigationRequest() &&
+              error instanceof Error &&
+              error.message ===
+                [
+                  'Frame for this navigation request is not available, because the request',
+                  'was issued before the frame is created. You can check whether the request',
+                  'is a navigation request by calling isNavigationRequest() method.',
+                ].join('\n');
+            if (!unavailableNavigationFrame) errors.push(error);
+          }
+          if (frame) {
+            try {
+              await preparation.preparePage(frame.page());
+            } catch (error) {
+              errors.push(error);
+            }
+          }
+          // Even failed document preparation must attempt the reserved abort
+          // before page closure can resume an intercepted browser request.
+          try {
+            await route.abort('aborted');
+          } catch (error) {
+            errors.push(error);
+          }
+          if (errors.length === 1) throw errors[0];
+          if (errors.length > 1)
+            throw new AggregateError(
+              errors,
+              'Application request cancellation failed',
+            );
+        });
       state.pendingSettlements.add(cancel);
       const operation = (async () => {
         const abortOnly = state.closing;
@@ -274,6 +325,14 @@ const closeTenantRequestPagePhase = async (
   }
   // Keep interception and the context request client alive while closing pages.
   for (const page of pages) {
+    const preparation = applicationPagePreparations.get(context);
+    if (preparation) {
+      try {
+        await preparation.preparePages();
+      } catch (error) {
+        errors.push(error);
+      }
+    }
     await settleTenantRequestsBeforeClosure(context, errors, () =>
       page.close(),
     );
@@ -321,6 +380,59 @@ export const closeTenantRequestPages = async (
   if (errors.length > 1) {
     throw new AggregateError(errors, 'Tenant request page cleanup failed');
   }
+};
+
+export const closeApplicationPages = async (
+  context: Pick<BrowserContext, 'pages' | 'unroute'>,
+): Promise<void> => {
+  const preparations = new Map<Page, Promise<void>>();
+  const preparePage = (page: Page): Promise<void> => {
+    const existing = preparations.get(page);
+    if (existing) return existing;
+    const operation = (async () => {
+      if (page.isClosed()) return;
+      try {
+        await page.goto('about:blank', { waitUntil: 'commit' });
+      } catch (error) {
+        if (!page.isClosed()) throw error;
+      }
+    })();
+    preparations.set(page, operation);
+    return operation;
+  };
+  const preparePages = async (): Promise<void> => {
+    const errors: unknown[] = [];
+    for (;;) {
+      const pages = context.pages().filter((page) => !preparations.has(page));
+      if (pages.length === 0) break;
+      for (const page of pages) {
+        try {
+          await preparePage(page);
+        } catch (error) {
+          errors.push(error);
+        }
+      }
+    }
+    if (errors.length === 1) throw errors[0];
+    if (errors.length > 1)
+      throw new AggregateError(errors, 'Application document cleanup failed');
+  };
+  applicationPagePreparations.set(context, { preparePage, preparePages });
+  const errors: unknown[] = [];
+  try {
+    await preparePages();
+  } catch (error) {
+    errors.push(error);
+  }
+  try {
+    await closeTenantRequestPages(context);
+  } catch (error) {
+    errors.push(error);
+  }
+  if (errors.length === 1) throw errors[0];
+  if (errors.length > 1)
+    throw new AggregateError(errors, 'Application page cleanup failed');
+  applicationPagePreparations.delete(context);
 };
 
 export const closeTenantRequestContext = async (
@@ -372,6 +484,8 @@ export const closeTenantRequestContext = async (
       await stopTenantRequestRouting(context);
     } catch (error) {
       errors.push(error);
+    } finally {
+      applicationPagePreparations.delete(context);
     }
   } else {
     // Keep interception and its callback ownership when closure is unproven.
@@ -391,4 +505,24 @@ export const closeTenantRequestContext = async (
   if (errors.length > 1) {
     throw new AggregateError(errors, 'Tenant request context cleanup failed');
   }
+};
+
+export const closeApplicationContext = async (
+  context: Parameters<typeof closeApplicationPages>[0] &
+    Pick<BrowserContext, 'close' | 'isClosed'>,
+): Promise<void> => {
+  const errors: unknown[] = [];
+  try {
+    await closeApplicationPages(context);
+  } catch (error) {
+    errors.push(error);
+  }
+  try {
+    await closeTenantRequestContext(context);
+  } catch (error) {
+    errors.push(error);
+  }
+  if (errors.length === 1) throw errors[0];
+  if (errors.length > 1)
+    throw new AggregateError(errors, 'Application context cleanup failed');
 };

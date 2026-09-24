@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from '@effect/vitest';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { Cause, ConfigProvider, Effect, Exit, Layer } from 'effect';
+import { Settings } from 'luxon';
 import { Pool, type PoolClient } from 'pg';
 import Stripe from 'stripe';
 
@@ -1041,7 +1042,10 @@ describe('registration transfer finalization tenant limit', () => {
       const writer = drizzle({ client, relations });
       const failures: unknown[] = [];
       const settledOperations: Promise<void>[] = [];
+      const previousNow = Settings.now;
+      let claimNow = Math.floor(Date.now() / 1000) * 1000;
       try {
+        Settings.now = () => claimNow;
         await client.query('BEGIN');
         const isolation = await client.query<{ transaction_isolation: string }>(
           'SHOW transaction_isolation',
@@ -1110,6 +1114,8 @@ describe('registration transfer finalization tenant limit', () => {
           return Number(blocked.rows[0]?.count) === 2;
         }, 'Transfer preview and claim did not both wait for the global card writer');
         expect(createCheckout).not.toHaveBeenCalled();
+        // Keep the exact second boundary after time spent waiting for the writer.
+        claimNow += 2000;
         await client.query('COMMIT');
         expect(await preview).toMatchObject({
           registrationOption: { currentPrice: scenario.price },
@@ -1175,9 +1181,11 @@ describe('registration transfer finalization tenant limit', () => {
             amount: scenario.price,
             status: 'pending',
             stripeAccountId: 'acct_transfer_limit',
+            stripeCheckoutRequest: { expiresAt: claimNow / 1000 + 35 * 60 },
           });
           expect(createCheckout).toHaveBeenCalledExactlyOnceWith(
             expect.objectContaining({
+              expires_at: claimNow / 1000 + 35 * 60,
               line_items: [
                 expect.objectContaining({
                   price_data: expect.objectContaining({
@@ -1208,6 +1216,7 @@ describe('registration transfer finalization tenant limit', () => {
           recordFailure(failures, error);
         }
         await Promise.all(settledOperations);
+        Settings.now = previousNow;
       }
       throwCleanupFailures(failures);
     }, 20_000);

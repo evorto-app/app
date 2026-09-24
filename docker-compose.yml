@@ -1,6 +1,6 @@
 services:
   db:
-    image: postgres:17.10-alpine@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193
+    image: postgres:17.11-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
     restart: unless-stopped
     environment:
       POSTGRES_DB: "${POSTGRES_DB:-appdb}"
@@ -54,7 +54,7 @@ services:
     restart: "no"
 
   mailpit:
-    image: axllent/mailpit:v1.31.1@sha256:98b916bd3c8d61f7633a52d3ea2f58d00620cb01ca57ab59edde68c347a95365
+    image: axllent/mailpit:v1.31.2@sha256:74d609a42ec279aa63c6b4622a6fa9b5408d1ad5b1d76a1c4be40a265ce0863d
     restart: unless-stopped
     environment:
       MP_DATABASE: /data/mailpit.db
@@ -66,7 +66,9 @@ services:
       - mailpit-data:/data
 
   minio:
-    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
+    build:
+      context: .
+      dockerfile: helpers/testing/minio.Dockerfile
     command: server /data --console-address ":9001"
     environment:
       MINIO_API_CORS_ALLOW_ORIGIN: "http://localhost:${APP_HOST_PORT:-4200}"

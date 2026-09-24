@@ -3,7 +3,6 @@ import {
   DEFAULT_E2E_SEED_KEY,
 } from '@shared/testing/deterministic-test-defaults';
 import { parse } from 'dotenv';
-import { expand } from 'dotenv-expand';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -12,6 +11,8 @@ import {
   resolveLocalApplicationDatabaseEnvironment,
   resolveLocalHostDatabaseEnvironment,
 } from '../local-database-preflight';
+
+import { expandEnvironmentValues } from './expand-environment-values';
 
 // Generates worktree-local runtime ports and names so parallel Docker/test
 // runs do not collide with the main checkout or other Codex worktrees.
@@ -270,9 +271,12 @@ const resolveRuntimeEnvironment = (
   const base = readEnvironment('.env');
   const shared = withoutBlankPorts(readEnvironment('.env.dev.local'));
   const expandEnvironment = (generated: Record<string, string>) => {
-    const parsed = { ...base, ...generated, ...shared };
-    expand({ parsed, processEnv: { ...parsed, ...inherited } });
-    return { ...parsed, ...inherited };
+    const parsed = { ...base, ...generated, ...shared, ...inherited };
+    const opaqueKeys = new Set([
+      ...Object.keys(generated).filter((name) => !Object.hasOwn(shared, name)),
+      ...Object.keys(inherited),
+    ]);
+    return expandEnvironmentValues(parsed, opaqueKeys);
   };
   const defaults = createRuntimeEnvironment(cwd, {
     GITHUB_RUN_ID: inherited['GITHUB_RUN_ID'],

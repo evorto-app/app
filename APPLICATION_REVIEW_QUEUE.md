@@ -106,16 +106,14 @@ loading, anchored search navigation, and light/dark logo checks pass. These
 Pages changes remain uncommitted and unpublished. Their delivery and the exact
 final application-to-Pages publication remain separate release work.
 
-D-009 was accepted as separate post-merge work. Historical predecessor
-certification, before the follow-up review corrections: its global-card
-implementation and cross-organization journey passed complete local checks at
-`c5e379cca09fcebc261561c1770df2bdcc436dac` on 2026-09-23: all 11 CI-equivalent
-gates, 5,366 unit/PostgreSQL tests, 233 baseline browser/docs cases, 11 provider
-integration cases, 8 live ESNcard cases, and 14 provider-error units. All 38
-generated guides were verified. PR #191 still requires substantive review
-clearance and landing; follow-up edits require their own exact-head evidence.
-D-010 through D-012 retain their outstanding scope decisions; passing these
-suites does not close them.
+D-009 landed in [PR #191](https://github.com/evorto-app/app/pull/191) on
+2026-09-23 at `be0aa1d5c0cb5c33708b3068e69ba50485e1acf2`, from the final
+reviewed source `36b14f471be1a19eb158336292ab4e1743aab6d6`. Complete local
+CI, cross-organization browser/provider journeys, generated guides, both
+required reviews, and main CI/browser confirmation passed. Earlier failed
+navigation and teardown observations remain recorded; their later passing
+confirmations do not establish a root cause. D-010 through D-012 retain the
+scope decisions recorded below; those passes do not close the decisions.
 All owned assembly, Pages, and layer-05 runtimes and fixtures were cleaned up.
 
 Two release notes use the single-package `default: patch` key:
@@ -163,8 +161,8 @@ the authoritative status is the table above.
 Current totals: **241 findings** — 1 Critical, 72 High, 144 Medium, and 24
 Low. The earlier review records **189 resolved and 2 accepted** findings.
 Takeover findings carry their own current source and runtime evidence below;
-final stack acceptance remains separate. D-009 implementation and the remaining
-D-010 through D-012 scope decisions are tracked below.
+final stack acceptance remains separate. D-009 has landed; the remaining D-010 through D-012 scope decisions are
+tracked below.
 
 Finding outcomes describe the implementation state. Final environment evidence
 is tracked separately in the reconstructed coverage queue and must not be
@@ -592,15 +590,15 @@ behavior.
 ### 2026-09-04 scope decisions
 
 D-001 through D-008 and the documented product intent remain unchanged. D-009
-is an accepted follow-up after the replacement stack; its final acceptance is
-still open. The other gaps retain their explicit scope questions.
+landed in PR #191 on 2026-09-23; implementation and landing are complete.
+D-010 through D-012 retain their explicit scope questions.
 
-| ID    | Product boundary               | Existing intent and observed gap                                                                                                                                                                                                                                                                                       | Decision still required                                                                                                                                                                                                                                 |
-| ----- | ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| D-009 | Global ESNcard identity        | Implemented in PR #191 with organization enablement policy preserved. Complete local CI, cross-organization browser/provider journeys, and generated guides passed at c5e379cc on 2026-09-23; the exact-head counts are recorded above.                                                                                | Substantive Copilot and CodeRabbit review clearance and landing remain open. Certify any follow-up edits before publication; the predecessor's passing evidence does not certify a changed head.                                                        |
-| D-010 | Platform tenant administration | Platform authority stays separate from tenant membership. Existing platform tools omit 17 ordinary settings fields, onboarding policy/questions, and brand uploads.                                                                                                                                                    | Decide scope for dedicated target-scoped operations with validation, operational reasons, and actor/target/before/after audit records; no tenant-role grant or impersonation workaround.                                                                |
-| D-011 | Login across tenant domains    | One active primary domain per tenant remains intended. Deployment currently configures one public host per environment; another real origin cannot complete the process-wide Auth0 callback with its host-only transaction cookie.                                                                                     | Decide scope for trusted tenant-origin callbacks plus actual Auth0, DNS/TLS, container-domain, and storage CORS configuration. Verify two real origins; tenant-routing headers do not prove this.                                                       |
-| D-012 | Uncertain payment recovery     | Platform finance now implements audited restoration of an existing direct-registration Checkout, including organizer-approved sign-ups, with canonical payment/expiry reconciliation. It never repeats creation. Missing or mismatched evidence remains held; separate add-on purchases and transfers are unsupported. | Audited operator recovery is the stated assistant working default, not a user policy answer. Focused database checks pass; full browser/provider and release verification remain required. Decide broader add-on/transfer incident recovery separately. |
+| ID    | Product boundary               | Existing intent and observed gap                                                                                                                                                                                                                                                                                       | Decision still required                                                                                                                                                                                                                                                                 |
+| ----- | ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D-009 | Global ESNcard identity        | Landed in PR #191 at be0aa1d5, with organization enablement policy preserved. Final reviewed source 36b14f47 passed complete local CI, cross-organization browser/provider journeys and generated guides; main confirmation passed.                                                                                    | Implementation and landing are complete. Retain midnight-UTC expiry interpretation pending the separate policy decision.                                                                                                                                                                |
+| D-010 | Platform tenant administration | Platform authority stays separate from tenant membership. Existing platform tools omit 17 ordinary settings fields, onboarding policy/questions, and brand uploads.                                                                                                                                                    | Decide scope for dedicated target-scoped operations with validation, operational reasons, and actor/target/before/after audit records; no tenant-role grant or impersonation workaround.                                                                                                |
+| D-011 | Login across tenant domains    | One active primary domain per tenant remains intended. Deployment currently configures one public host per environment; another real origin cannot complete the process-wide Auth0 callback with its host-only transaction cookie.                                                                                     | Decide scope for trusted tenant-origin callbacks plus actual Auth0, DNS/TLS, container-domain, and storage CORS configuration. Verify two real origins; tenant-routing headers do not prove this.                                                                                       |
+| D-012 | Uncertain payment recovery     | Platform finance now implements audited restoration of an existing direct-registration Checkout, including organizer-approved sign-ups, with canonical payment/expiry reconciliation. It never repeats creation. Missing or mismatched evidence remains held; separate add-on purchases and transfers are unsupported. | Audited operator recovery is the stated assistant working default, not a user policy answer. Complete local and browser/provider coverage passed at published af8092e4; newer edits still require their own certification. Decide broader add-on/transfer incident recovery separately. |
 
 ## Verified controls
 

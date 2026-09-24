@@ -1,5 +1,6 @@
 import { once } from 'node:events';
-import { setImmediate } from 'node:timers/promises';
+import { writeFile } from 'node:fs/promises';
+import { setImmediate, setTimeout as delay } from 'node:timers/promises';
 import {
   createServer,
   type RequestListener,
@@ -8,9 +9,13 @@ import {
 } from 'node:http';
 
 import { expect, test, type BrowserContext } from '@playwright/test';
+import { DateTime } from 'luxon';
 
 import { localTestTenantDomainHeader } from '../../../src/shared/request-routing';
+import { openAuthenticatedTestPage } from '../../support/utils/authenticated-test-page';
 import {
+  closeApplicationContext,
+  closeApplicationPages,
   closeTenantRequestContext,
   closeTenantRequestPages,
   routeLocalTenantRequests,
@@ -549,6 +554,340 @@ test('retains routing ownership when emergency close rejects before closing the 
     );
 });
 
+test('attempts cancellation and retains both failures when document preparation and abort reject', async ({
+  browser,
+}) => {
+  const started = Promise.withResolvers<void>();
+  const preparationFailure = new Error('Synthetic document navigation failure');
+  const abortFailure = new Error('Synthetic cancellation reporting failure');
+  const expectedFailures = new Set([preparationFailure, abortFailure]);
+  const errors: unknown[] = [];
+  const received: (string | string[] | undefined)[] = [];
+  let response: ServerResponse | undefined;
+  let context: BrowserContext | undefined;
+  let evaluation: Promise<PromiseSettledResult<void>[]> | undefined;
+  let closing: Promise<PromiseSettledResult<void>[]> | undefined;
+  let abortAttempts = 0;
+  const leafErrors = (error: unknown): unknown[] =>
+    error instanceof AggregateError
+      ? error.errors.flatMap((nested: unknown) => leafErrors(nested))
+      : [error];
+  const assertRetainedFailures = (error: unknown) => {
+    expect(new Set(leafErrors(error))).toEqual(expectedFailures);
+  };
+  const release = () => {
+    if (response && !response.writableEnded && !response.destroyed)
+      response.end('held response completed');
+  };
+  const local = await listen((request, currentResponse) => {
+    if (request.url === '/held-mutation') {
+      received.push(request.headers[localTestTenantDomainHeader]);
+      if (response) {
+        currentResponse.end('duplicate mutation');
+        return;
+      }
+      response = currentResponse;
+      request.resume();
+      request.on('end', () => started.resolve());
+      return;
+    }
+    currentResponse.setHeader('content-type', 'text/html');
+    currentResponse.end('<body>Application document</body>');
+  });
+  try {
+    context = await browser.newContext();
+    const registerRoute = context.route.bind(context);
+    context.route = async (pattern, handler, options) => {
+      await registerRoute(
+        pattern,
+        async (route, request) => {
+          const abort = route.abort.bind(route);
+          route.abort = async (reason) => {
+            abortAttempts += 1;
+            await abort(reason);
+            throw abortFailure;
+          };
+          await handler(route, request);
+        },
+        options,
+      );
+    };
+    await routeLocalTenantRequests({
+      baseUrl: local.origin,
+      context,
+      tenantDomain: 'north-river.evorto.app',
+    });
+    const page = await context.newPage();
+    await page.goto(local.origin);
+    const goto = page.goto.bind(page);
+    page.goto = async (url, options) => {
+      if (url === 'about:blank') throw preparationFailure;
+      return goto(url, options);
+    };
+    evaluation = Promise.allSettled([
+      page.evaluate(async () => {
+        void fetch('/held-mutation', {
+          method: 'POST',
+          body: 'tenant-owned mutation',
+        }).catch((error: unknown) => {
+          if (!(error instanceof TypeError)) throw error;
+        });
+        return new Promise<void>(() => {});
+      }),
+    ]);
+    await started.promise;
+    const pageClosed = page.waitForEvent('close', { timeout: 10_000 });
+    closing = Promise.allSettled([closeApplicationPages(context)]);
+    await pageClosed;
+    release();
+    const [result] = await closing;
+    if (!result || result.status !== 'rejected')
+      throw new Error('Application cleanup did not report its failures');
+    assertRetainedFailures(result.reason);
+    expect(abortAttempts).toBe(1);
+    expect(received).toEqual(['north-river.evorto.app']);
+  } catch (error) {
+    errors.push(error);
+  } finally {
+    release();
+    try {
+      if (closing) {
+        for (const result of await closing) {
+          if (result.status === 'rejected')
+            assertRetainedFailures(result.reason);
+        }
+      }
+    } catch (error) {
+      errors.push(error);
+    }
+    try {
+      if (context) {
+        await closeTenantRequestContext(context).catch((error: unknown) => {
+          assertRetainedFailures(error);
+        });
+        expect(context.isClosed()).toBe(true);
+      }
+      if (evaluation) await evaluation;
+    } catch (error) {
+      errors.push(error);
+    }
+    try {
+      await local.close();
+    } catch (error) {
+      errors.push(error);
+    }
+  }
+  if (errors.length > 0)
+    throw new AggregateError(errors, 'Document preparation regression failed');
+});
+
+test('cancels an initial popup navigation before its frame is available', async ({
+  browser,
+}) => {
+  const started = Promise.withResolvers<void>();
+  const headers = Promise.withResolvers<void>();
+  const errors: unknown[] = [];
+  let frameError: unknown;
+  let navigationRequest = false;
+  let aborts = 0;
+  let contextCloses = 0;
+  let requests = 0;
+  let context: BrowserContext | undefined;
+  let evaluation: Promise<PromiseSettledResult<void>[]> | undefined;
+  let closing: Promise<PromiseSettledResult<void>[]> | undefined;
+  const local = await listen((_request, response) => {
+    requests += 1;
+    response.end('Unexpected upstream navigation');
+  });
+  try {
+    context = await browser.newContext();
+    const closeContext = context.close.bind(context);
+    context.close = async (options) => {
+      contextCloses += 1;
+      await closeContext(options);
+    };
+    const registerRoute = context.route.bind(context);
+    context.route = async (pattern, handler, options) => {
+      await registerRoute(
+        pattern,
+        async (route, request) => {
+          navigationRequest = request.isNavigationRequest();
+          try {
+            request.frame();
+          } catch (error) {
+            frameError = error;
+          }
+          const allHeaders = request.allHeaders.bind(request);
+          request.allHeaders = async () => {
+            await headers.promise;
+            return allHeaders();
+          };
+          const abort = route.abort.bind(route);
+          route.abort = async (reason) => {
+            aborts += 1;
+            try {
+              await abort(reason);
+            } finally {
+              headers.resolve();
+            }
+          };
+          const running = handler(route, request);
+          started.resolve();
+          await running;
+        },
+        options,
+      );
+    };
+    await routeLocalTenantRequests({
+      baseUrl: local.origin,
+      context,
+      tenantDomain: 'north-river.evorto.app',
+    });
+    const page = await context.newPage();
+    await page.setContent('<body>Popup opener</body>');
+    evaluation = Promise.allSettled([
+      page.evaluate((url) => {
+        window.open(url);
+      }, `${local.origin}/popup`),
+    ]);
+    await started.promise;
+    closing = Promise.allSettled([closeApplicationContext(context)]);
+    const [result] = await closing;
+    if (!result) throw new Error('Application cleanup did not settle');
+    if (result.status === 'rejected') throw result.reason;
+    expect(navigationRequest).toBe(true);
+    expect(frameError).toMatchObject({
+      message: expect.stringContaining(
+        'Frame for this navigation request is not available',
+      ),
+    });
+    expect(aborts).toBe(1);
+    expect(requests).toBe(0);
+    expect(contextCloses).toBe(1);
+    expect(context.isClosed()).toBe(true);
+  } catch (error) {
+    errors.push(error);
+  } finally {
+    headers.resolve();
+    if (closing) await closing;
+    try {
+      if (context && !context.isClosed()) await context.close();
+      if (evaluation) await evaluation;
+    } catch (error) {
+      errors.push(error);
+    }
+    try {
+      await local.close();
+    } catch (error) {
+      errors.push(error);
+    }
+  }
+  if (errors.length > 0)
+    throw new AggregateError(
+      errors,
+      'Initial popup cancellation regression failed',
+    );
+});
+
+test('closes authenticated helper documents before cancelling unfinished application work', async ({
+  browser,
+}, testInfo) => {
+  const started = Promise.withResolvers<void>();
+  const pageErrors: Error[] = [];
+  const errors: unknown[] = [];
+  const received: (string | string[] | undefined)[] = [];
+  let response: ServerResponse | undefined;
+  let owned: Awaited<ReturnType<typeof openAuthenticatedTestPage>> | undefined;
+  let evaluation: Promise<PromiseSettledResult<void>[]> | undefined;
+  let closing: Promise<PromiseSettledResult<void>[]> | undefined;
+  const release = () => {
+    if (response && !response.writableEnded && !response.destroyed)
+      response.end('held response completed');
+  };
+  const local = await listen((request, currentResponse) => {
+    if (request.url === '/held-helper-mutation') {
+      received.push(request.headers[localTestTenantDomainHeader]);
+      if (response) {
+        currentResponse.end('unexpected duplicate mutation');
+        return;
+      }
+      response = currentResponse;
+      request.resume();
+      request.on('end', () => started.resolve());
+      return;
+    }
+    currentResponse.setHeader('content-type', 'text/html');
+    currentResponse.end('<body>Application document</body>');
+  });
+  try {
+    const storageState = testInfo.outputPath('empty-auth-state.json');
+    await writeFile(storageState, JSON.stringify({ cookies: [], origins: [] }));
+    owned = await openAuthenticatedTestPage({
+      baseUrl: local.origin,
+      browser,
+      storageState,
+      tenantDomain: 'north-river.evorto.app',
+      testClock: DateTime.fromISO('2026-09-23T00:00:00Z'),
+    });
+    const { context, page } = owned;
+    page.on('pageerror', (error) => pageErrors.push(error));
+    await page.goto(local.origin);
+    const closePage = page.close.bind(page);
+    page.close = async (options) => {
+      // Expose rejection delivery between request cancellation and disposal.
+      await delay(50);
+      await closePage(options);
+    };
+    evaluation = Promise.allSettled([
+      page.evaluate(() => {
+        void fetch('/held-helper-mutation', {
+          method: 'POST',
+          body: 'tenant-owned mutation',
+        });
+        return new Promise<void>(() => {});
+      }),
+    ]);
+    await started.promise;
+    const pageClosed = page.waitForEvent('close', { timeout: 10_000 });
+    closing = Promise.allSettled([owned.close()]);
+    await pageClosed;
+    expect(response?.writableEnded).toBe(false);
+    release();
+    const [result] = await closing;
+    if (!result)
+      throw new Error('Authenticated page cleanup result is missing');
+    if (result.status === 'rejected') throw result.reason;
+    expect(context.isClosed()).toBe(true);
+    expect(received).toEqual(['north-river.evorto.app']);
+    expect(pageErrors).toEqual([]);
+  } catch (error) {
+    errors.push(error);
+  } finally {
+    release();
+    if (closing) {
+      for (const result of await closing) {
+        if (result.status === 'rejected') errors.push(result.reason);
+      }
+    }
+    try {
+      if (owned) await closeTenantRequestContext(owned.context);
+      if (evaluation) await evaluation;
+    } catch (error) {
+      errors.push(error);
+    }
+    try {
+      await local.close();
+    } catch (error) {
+      errors.push(error);
+    }
+  }
+  if (errors.length > 0)
+    throw new AggregateError(
+      errors,
+      'Authenticated application cleanup failed',
+    );
+});
+
 for (const { cleanupMode, method } of [
   { cleanupMode: 'pages', method: 'GET' },
   { cleanupMode: 'pages', method: 'POST' },
@@ -571,6 +910,13 @@ for (const { cleanupMode, method } of [
     let context: BrowserContext | undefined;
     let evaluation: Promise<PromiseSettledResult<string>[]> | undefined;
     let closing: Promise<PromiseSettledResult<void>[]> | undefined;
+    let latePageUrlAtClosure: string | undefined;
+    const exposeDuringSettlement = cleanupMode === 'pages' && method === 'POST';
+    let pageInventoryExposed = !exposeDuringSettlement;
+    const evaluationClosureMessage =
+      cleanupMode === 'pages'
+        ? 'Execution context was destroyed'
+        : 'Target page, context or browser has been closed';
     const recordFailure = (error: unknown) => {
       if (!errors.includes(error)) errors.push(error);
     };
@@ -605,10 +951,31 @@ for (const { cleanupMode, method } of [
         return;
       }
       currentResponse.setHeader('content-type', 'text/html');
-      currentResponse.end('<body>Tenant page lifetime regression</body>');
+      currentResponse.end(
+        '<body><button>Start application work</button><script>addEventListener("beforeunload", event => { event.preventDefault(); event.returnValue = ""; });</script></body>',
+      );
     });
     try {
       context = await browser.newContext();
+      if (exposeDuringSettlement) {
+        const registerRoute = context.route.bind(context);
+        context.route = async (pattern, handler, options) => {
+          await registerRoute(
+            pattern,
+            async (route, request) => {
+              const abort = route.abort.bind(route);
+              route.abort = async (errorCode) => {
+                pageInventoryExposed = true;
+                await abort(errorCode);
+                await delay(50);
+              };
+              await handler(route, request);
+            },
+            options,
+          );
+        };
+        await context.newPage();
+      }
       await routeLocalTenantRequests({
         baseUrl: local.origin,
         context,
@@ -619,37 +986,88 @@ for (const { cleanupMode, method } of [
         pageErrors.push(error);
       });
       await page.goto(local.origin);
+      if (cleanupMode === 'pages') {
+        await page
+          .getByRole('button', { name: 'Start application work' })
+          .click();
+        const originalClose = page.close.bind(page);
+        page.close = async (options) => {
+          if (exposeDuringSettlement) latePageUrlAtClosure = page.url();
+          // Expose callbacks that can run between cancellation and disposal.
+          await delay(50);
+          await originalClose(options);
+        };
+        if (exposeDuringSettlement) {
+          const pages = context.pages.bind(context);
+          // Delay inventory visibility while retaining the real page and request.
+          context.pages = () =>
+            pages().filter(
+              (candidate) => candidate !== page || pageInventoryExposed,
+            );
+        } else {
+          const ownedContext = context;
+          const originalGoto = page.goto.bind(page);
+          page.goto = async (url, options) => {
+            // Open a real page after cleanup has already read its first inventory.
+            const latePage = await ownedContext.newPage();
+            latePage.on('pageerror', (error) => pageErrors.push(error));
+            await latePage.goto(local.origin);
+            await latePage
+              .getByRole('button', { name: 'Start application work' })
+              .click();
+            const closeLatePage = latePage.close.bind(latePage);
+            latePage.close = async (closeOptions) => {
+              latePageUrlAtClosure = latePage.url();
+              await closeLatePage(closeOptions);
+            };
+            return originalGoto(url, options);
+          };
+        }
+      }
       evaluation = Promise.allSettled([
-        page.evaluate(async (requestMethod) => {
-          try {
-            await fetch('/held-page-request', {
+        page.evaluate(
+          async ({ applicationPage, requestMethod }) => {
+            const request = fetch('/held-page-request', {
               method: requestMethod,
               ...(requestMethod === 'POST'
                 ? { body: 'tenant-owned mutation' }
                 : {}),
             });
-          } catch (error) {
-            if (!(error instanceof TypeError)) throw error;
-          }
-          // Keep the observer alive until the page closes after cancellation.
-          return new Promise<string>(() => {});
-        }, method),
+            if (applicationPage) {
+              // Model an unfinished application initializer with no rejection handler.
+              void request;
+            } else {
+              try {
+                await request;
+              } catch (error) {
+                if (!(error instanceof TypeError)) throw error;
+              }
+            }
+            // Keep the observer pending until its document is discarded.
+            return new Promise<string>(() => {});
+          },
+          { applicationPage: cleanupMode === 'pages', requestMethod: method },
+        ),
       ]);
       await started.promise;
-      const failedRequest = page.waitForEvent('requestfailed', {
-        predicate: (request) =>
-          request.url() === `${local.origin}/held-page-request`,
-        timeout: 10_000,
-      });
+      const failedRequest =
+        cleanupMode === 'context'
+          ? page.waitForEvent('requestfailed', {
+              predicate: (request) =>
+                request.url() === `${local.origin}/held-page-request`,
+              timeout: 10_000,
+            })
+          : undefined;
       const pageClosed = page.waitForEvent('close', { timeout: 10_000 });
       closing = Promise.allSettled([
         cleanupMode === 'pages'
-          ? closeTenantRequestPages(context)
+          ? closeApplicationPages(context)
           : closeTenantRequestContext(context),
       ]);
-      expect((await failedRequest).failure()?.errorText).toBe(
-        'net::ERR_ABORTED',
-      );
+      if (failedRequest)
+        expect((await failedRequest).failure()?.errorText).toBe(
+          'net::ERR_ABORTED',
+        );
       await pageClosed;
       expect(page.isClosed()).toBe(true);
       expect(context.isClosed()).toBe(false);
@@ -661,9 +1079,7 @@ for (const { cleanupMode, method } of [
         );
       }
       if (!(browserResult.reason instanceof Error)) throw browserResult.reason;
-      expect(browserResult.reason.message).toContain(
-        'Target page, context or browser has been closed',
-      );
+      expect(browserResult.reason.message).toContain(evaluationClosureMessage);
       release();
       const [closeResult] = await closing;
       if (!closeResult)
@@ -671,6 +1087,8 @@ for (const { cleanupMode, method } of [
       if (closeResult.status === 'rejected') throw closeResult.reason;
       expect(context.isClosed()).toBe(cleanupMode === 'context');
       expect(heldRequests).toBe(1);
+      if (cleanupMode === 'pages')
+        expect(latePageUrlAtClosure).toBe('about:blank');
       expect(received).toEqual([
         {
           body: method === 'POST' ? 'tenant-owned mutation' : '',
@@ -709,9 +1127,7 @@ for (const { cleanupMode, method } of [
             if (
               result.status === 'rejected' &&
               (!(result.reason instanceof Error) ||
-                !result.reason.message.includes(
-                  'Target page, context or browser has been closed',
-                ))
+                !result.reason.message.includes(evaluationClosureMessage))
             ) {
               recordFailure(result.reason);
             }

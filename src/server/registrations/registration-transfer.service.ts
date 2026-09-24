@@ -2957,17 +2957,9 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
           if (requiresCheckout && !lockedStripeAccountId) {
             return { _tag: 'StripeUnavailable' as const };
           }
-          const checkoutExpiresAt = requiresCheckout
-            ? Math.min(
-                buildCheckoutSessionExpiresAt(30, {
-                  pinnedNowIso: lockedNow.toISOString(),
-                }),
-                Math.floor(effectiveExpiresAt.getTime() / 1000),
-              )
-            : undefined;
           if (
-            checkoutExpiresAt !== undefined &&
-            checkoutExpiresAt * 1000 <=
+            requiresCheckout &&
+            Math.floor(effectiveExpiresAt.getTime() / 1000) * 1000 <
               lockedNow.getTime() +
                 stripeCheckoutMinimumRemainingMinutes * 60 * 1000
           ) {
@@ -3014,29 +3006,6 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
               message:
                 'This ticket has too many separately priced items to complete one payment. No payment or refund was started. Ask an organizer for help.',
             });
-          }
-          let paymentClaim: RegistrationTransferPaymentClaim | undefined;
-          if (
-            requiresCheckout &&
-            checkoutExpiresAt !== undefined &&
-            lockedStripeAccountId
-          ) {
-            paymentClaim = {
-              appFee: Math.round(totalPrice * 0.035),
-              currency: lockedTenant.currency,
-              id: paymentTransactionId,
-              request: {
-                customerEmail: recipientUser.email,
-                eventTitle: lockedOption.eventTitle,
-                eventUrl,
-                expiresAt: checkoutExpiresAt,
-                lineItems: checkoutLineItems,
-                notificationEmail:
-                  recipientUser.communicationEmail?.trim() ||
-                  recipientUser.email,
-              },
-              stripeAccountId: lockedStripeAccountId,
-            };
           }
           const selectedTaxRate = lockedOption.optionStripeTaxRateId
             ? lockedTaxRateById.get(lockedOption.optionStripeTaxRateId)
@@ -3134,7 +3103,7 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
             }
           }
 
-          if (paymentClaim) {
+          if (requiresCheckout && lockedStripeAccountId) {
             const paymentMutationNow = getServerNow(undefined).toJSDate();
             if (effectiveExpiresAt <= paymentMutationNow) {
               return yield* new RegistrationTransferConflictError({
@@ -3142,8 +3111,15 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
                   'This ticket transfer expired before payment could start. No payment or refund was started. Ask the sender for a new offer.',
               });
             }
+            // Seal the expiry after reservation work so it retains the full safety margin.
+            const checkoutExpiresAt = Math.min(
+              buildCheckoutSessionExpiresAt(30, {
+                pinnedNowIso: paymentMutationNow.toISOString(),
+              }),
+              Math.floor(effectiveExpiresAt.getTime() / 1000),
+            );
             if (
-              paymentClaim.request.expiresAt * 1000 <=
+              checkoutExpiresAt * 1000 <
               paymentMutationNow.getTime() +
                 stripeCheckoutMinimumRemainingMinutes * 60 * 1000
             ) {
@@ -3152,6 +3128,22 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
                   'There is not enough time left to complete payment before this ticket transfer expires. No payment or refund was started. Ask the sender for a new offer.',
               });
             }
+            const paymentClaim: RegistrationTransferPaymentClaim = {
+              appFee: Math.round(totalPrice * 0.035),
+              currency: lockedTenant.currency,
+              id: paymentTransactionId,
+              request: {
+                customerEmail: recipientUser.email,
+                eventTitle: lockedOption.eventTitle,
+                eventUrl,
+                expiresAt: checkoutExpiresAt,
+                lineItems: checkoutLineItems,
+                notificationEmail:
+                  recipientUser.communicationEmail?.trim() ||
+                  recipientUser.email,
+              },
+              stripeAccountId: lockedStripeAccountId,
+            };
             yield* tx.insert(transactions).values({
               amount: totalPrice,
               appFee: paymentClaim.appFee,

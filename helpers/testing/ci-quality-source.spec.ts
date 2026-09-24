@@ -322,7 +322,7 @@ describe('CI quality source', () => {
     );
     expect(source).toContain('bun run test:unit:server');
     expect(source).toContain('name: PostgreSQL integration tests');
-    expect(source).toContain('postgres:17.10-alpine3.23@sha256:');
+    expect(source).toContain('postgres:17.11-alpine3.23@sha256:');
     expect(source).toContain('POSTGRES_INTEGRATION_DISPOSABLE: "true"');
     expect(source).toContain('bun run test:integration:postgres');
     expect(source).toMatch(/run: bun run test:unit\n/u);

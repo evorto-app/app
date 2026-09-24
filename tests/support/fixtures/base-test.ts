@@ -24,8 +24,8 @@ import {
 import { runDatabaseCleanups } from '../utils/database-cleanup';
 import { validateStorageStateBeforeUse } from '../utils/storage-state';
 import {
+  closeApplicationPages,
   routeLocalTenantRequests,
-  closeTenantRequestPages,
 } from '../utils/tenant-request-routing';
 import { withProtectedValueCaptureOptions } from '../utils/fill-protected-value';
 
@@ -209,8 +209,9 @@ export const test = base.extend<BaseFixtures>({
           tenantDomain,
         });
       }
+      let teardownPageUrl: string | undefined;
       page.on('pageerror', (error) => {
-        const url = page.url();
+        const url = teardownPageUrl ?? page.url();
         if (url && url.includes('localhost')) {
           throw error;
         } else {
@@ -223,7 +224,9 @@ export const test = base.extend<BaseFixtures>({
       try {
         await use(page);
       } finally {
-        await closeTenantRequestPages(page.context());
+        // Preserve error attribution while the owned document is discarded.
+        teardownPageUrl = page.url();
+        await closeApplicationPages(page.context());
       }
     },
     { scope: 'test', timeout: 60_000 },

@@ -551,7 +551,7 @@ mock.module(${JSON.stringify(path.join(process.cwd(), 'helpers/testing/reset-pub
     const fixture = createFixture();
     fs.writeFileSync(
       path.join(fixture.cwd, '.env'),
-      'BASE_ONLY=base\nPOSTGRES_USER=base\nPOSTGRES_DB=base\nPROCESS_WINS=base\nEXPANDED_BASE=${ROOT}/base\n',
+      'BASE_ONLY=base\nPOSTGRES_USER=base\nPOSTGRES_DB=base\nPROCESS_WINS=base\nEXPANDED_BASE=${ROOT}/base\nCALLER_BREAKS_CYCLE=${CALLER_BREAKS_CYCLE}\nESCAPED=literal-\\$MISSING\nESCAPED_REFERENCE=${ESCAPED}/${ROOT}\n',
     );
     fs.writeFileSync(
       path.join(fixture.cwd, '.env.dev.local'),
@@ -562,6 +562,7 @@ mock.module(${JSON.stringify(path.join(process.cwd(), 'helpers/testing/reset-pub
       'STALE=must-not-load\n',
     );
     const environment = {
+      CALLER_BREAKS_CYCLE: 'literal-$CALLER_BREAKS_CYCLE',
       PROCESS_WINS: 'process',
       ROOT: 'https://synthetic.example',
       UNDEFINED_VALUE: undefined,
@@ -571,6 +572,9 @@ mock.module(${JSON.stringify(path.join(process.cwd(), 'helpers/testing/reset-pub
 
     expect(resolved).toMatchObject({
       BASE_ONLY: 'base',
+      CALLER_BREAKS_CYCLE: 'literal-$CALLER_BREAKS_CYCLE',
+      ESCAPED: 'literal-$MISSING',
+      ESCAPED_REFERENCE: 'literal-$MISSING/https://synthetic.example',
       EXPANDED_BASE: 'https://synthetic.example/base',
       EXPANDED_SHARED: 'https://synthetic.example/shared',
       POSTGRES_USER: 'evorto',
@@ -580,10 +584,83 @@ mock.module(${JSON.stringify(path.join(process.cwd(), 'helpers/testing/reset-pub
     expect(resolved).not.toHaveProperty('STALE');
     expect(resolved).not.toHaveProperty('UNDEFINED_VALUE');
     expect(environment).toEqual({
+      CALLER_BREAKS_CYCLE: 'literal-$CALLER_BREAKS_CYCLE',
       PROCESS_WINS: 'process',
       ROOT: 'https://synthetic.example',
       UNDEFINED_VALUE: undefined,
     });
+  });
+
+  it('expands defaults and alternates lazily while retaining unsupported syntax as data', () => {
+    const fixture = createFixture();
+    const marker = path.join(fixture.directory, 'command-must-not-run');
+    const command = `$(touch "${marker}")`;
+    fs.writeFileSync(
+      path.join(fixture.cwd, '.env'),
+      [
+        'EMPTY=',
+        'SET=present',
+        'EMPTY_DEFAULT=${EMPTY:-fallback}',
+        'UNSET_DEFAULT=${MISSING-fallback}',
+        'EMPTY_PRESERVED=${EMPTY-fallback}',
+        'EMPTY_ALTERNATE=${EMPTY+used}',
+        'EMPTY_COLON_ALTERNATE=${EMPTY:+ignored}',
+        'SET_ALTERNATE=${SET:+used}',
+        'UNSET_ALTERNATE=${MISSING+ignored}',
+        'NESTED=${MISSING:-${SET:+chosen}}',
+        'UNSELECTED=${SET:-${UNSELECTED}}',
+        'UNSUPPORTED=${SET:=fallback}',
+        'MALFORMED=${SET',
+        `COMMAND=${command}`,
+      ].join('\n'),
+    );
+
+    expect(resolveInvocationEnvironment(fixture.cwd, {})).toMatchObject({
+      EMPTY_DEFAULT: 'fallback',
+      UNSET_DEFAULT: 'fallback',
+      EMPTY_PRESERVED: '',
+      EMPTY_ALTERNATE: 'used',
+      EMPTY_COLON_ALTERNATE: '',
+      SET_ALTERNATE: 'used',
+      UNSET_ALTERNATE: '',
+      NESTED: 'chosen',
+      UNSELECTED: 'present',
+      UNSUPPORTED: '${SET:=fallback}',
+      MALFORMED: '${SET',
+      COMMAND: command,
+    });
+    expect(fs.existsSync(marker)).toBe(false);
+  });
+
+  it('rejects indirect reference cycles without exposing source values or starting the command', () => {
+    const fixture = createFixture();
+    fs.writeFileSync(
+      path.join(fixture.cwd, '.env'),
+      'FIRST=private-first-${SECOND}\nSECOND=private-second-${FIRST}\n',
+    );
+
+    const result = spawnSync(
+      bunExecutable,
+      invocationArguments(
+        process.execPath,
+        '-e',
+        'process.stdout.write("ran")',
+      ),
+      {
+        cwd: fixture.cwd,
+        encoding: 'utf8',
+        env: environmentFor(fixture),
+        timeout: 5000,
+      },
+    );
+    expect(result.error).toBeUndefined();
+    expect(result.status).toBe(1);
+    expect(result.stdout).toBe('');
+    expect(result.stderr).toContain(
+      'Environment reference cycle: FIRST -> SECOND -> FIRST',
+    );
+    expect(result.stderr).not.toContain('private-first');
+    expect(result.stderr).not.toContain('private-second');
   });
 
   it('keeps exported dollar signs and backslashes literal even when the generated value matches', () => {
@@ -700,9 +777,9 @@ mock.module(${JSON.stringify(path.join(process.cwd(), 'helpers/testing/reset-pub
     const fixture = createFixture();
     fs.writeFileSync(
       path.join(fixture.cwd, '.env.dev.local'),
-      'APP_HOST_PORT=not-a-port\nPOSTGRES_HOST_PORT=not-a-port\nPOSTGRES_PASSWORD=shared\n',
+      'APP_HOST_PORT=not-a-port\nPOSTGRES_HOST_PORT=not-a-port\nPOSTGRES_PASSWORD=shared\nFORWARD_REFERENCE=${POSTGRES_PASSWORD}|${AFTER}\nAFTER=after\n',
     );
-    const password = ' literal$MISSING/${MISSING}/\\$MISSING ';
+    const password = ' literal$MISSING/${MISSING}/\\$MISSING/$& ';
     expect(
       captureInvocation(fixture, {
         APP_HOST_PORT: ' 04309 ',
@@ -715,6 +792,7 @@ mock.module(${JSON.stringify(path.join(process.cwd(), 'helpers/testing/reset-pub
       ssrOrigin: 'http://localhost:4309',
       postgresPort: '56309',
       databasePassword: password,
+      forwardReference: `${password}|after`,
       databaseUrl: `postgresql://synthetic-user:${encodeURIComponent(password)}@localhost:56309/appdb?sslmode=disable`,
       integrationDatabaseUrl: `postgresql://synthetic-user:${encodeURIComponent(password)}@localhost:56309/evorto_postgres_integration?sslmode=disable`,
     });
