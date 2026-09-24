@@ -73,7 +73,7 @@ not replace it with aspirational documentation.
 
 Cleanup operations that remain pending for ten seconds emit a fixed stage label
 to the test log. These diagnostics distinguish browser document disposal, request
-settlement/draining, page/context closure, registered fixture callbacks, and pool
+settlement/draining, route removal, page/context closure, fixture callbacks, and pool
 closure. They contain no request URLs, SQL, or fixture data and do not change
 timeouts, retries, cleanup ordering, or failure propagation.
 

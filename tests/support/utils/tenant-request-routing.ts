@@ -263,7 +263,9 @@ export const stopTenantRequestRouting = async (
       }
       if (!state.emergencyClose && !state.ownedContextClosing) {
         try {
-          await context.unroute(state.pattern, state.handler);
+          await observeCleanupProgress('tenant route removal', () =>
+            context.unroute(state.pattern, state.handler),
+          );
         } catch (error) {
           state.routeRemovalFailed = true;
           state.errors.push(error);

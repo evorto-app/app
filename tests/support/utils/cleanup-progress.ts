@@ -4,6 +4,7 @@ type CleanupStage =
   | 'application document discard'
   | 'tenant request settlement'
   | 'tenant request drain'
+  | 'tenant route removal'
   | 'browser page closure'
   | 'browser context closure';
 
