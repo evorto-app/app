@@ -554,6 +554,55 @@ test('retains routing ownership when emergency close rejects before closing the 
     );
 });
 
+test('finishes loading the replacement document before closing its page', async ({
+  browser,
+}) => {
+  const scriptRequested = Promise.withResolvers<void>();
+  const releaseScript = Promise.withResolvers<void>();
+  const closeRequested = Promise.withResolvers<void>();
+  const events: string[] = [];
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  let closing: Promise<PromiseSettledResult<void>[]> | undefined;
+  try {
+    await page.goto('data:text/html,<body>Application</body>');
+    // Hold the replacement document's parser without a real network request
+    // or a timing delay. A commit alone must not release page disposal.
+    await page.route('https://cleanup.invalid/held.js', async (route) => {
+      scriptRequested.resolve();
+      await releaseScript.promise;
+      await route.fulfill({ body: '', contentType: 'text/javascript' });
+    });
+    await page.addInitScript(() => {
+      if (location.href === 'about:blank') {
+        document.write(
+          '<script src="https://cleanup.invalid/held.js"></script>',
+        );
+        document.close();
+      }
+    });
+    page.on('load', () => events.push('loaded'));
+    const closePage = page.close.bind(page);
+    page.close = async (options) => {
+      events.push('close requested');
+      closeRequested.resolve();
+      await closePage(options);
+    };
+    closing = Promise.allSettled([closeApplicationPages(context)]);
+    await Promise.race([scriptRequested.promise, closeRequested.promise]);
+    releaseScript.resolve();
+    const [result] = await closing;
+    if (!result) throw new Error('Application cleanup result is missing');
+    if (result.status === 'rejected') throw result.reason;
+    expect(events).toEqual(['loaded', 'close requested']);
+    expect(page.isClosed()).toBe(true);
+  } finally {
+    releaseScript.resolve();
+    if (closing) await closing;
+    await context.close();
+  }
+});
+
 test('attempts cancellation and retains both failures when document preparation and abort reject', async ({
   browser,
 }) => {

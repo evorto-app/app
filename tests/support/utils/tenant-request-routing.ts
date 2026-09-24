@@ -406,8 +406,11 @@ export const closeApplicationPages = async (
     const operation = (async () => {
       if (page.isClosed()) return;
       try {
+        // Chromium can acknowledge Target.closeTarget without closing a page
+        // whose replacement document has only committed. Finish the blank
+        // document's load before asking the browser to dispose of its target.
         await observeCleanupProgress('application document discard', () =>
-          page.goto('about:blank', { waitUntil: 'commit' }),
+          page.goto('about:blank', { waitUntil: 'load' }),
         );
       } catch (error) {
         if (!page.isClosed()) throw error;

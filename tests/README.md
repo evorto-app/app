@@ -77,6 +77,11 @@ settlement/draining, route removal, page/context closure, fixture callbacks, and
 closure. They contain no request URLs, SQL, or fixture data and do not change
 timeouts, retries, cleanup ordering, or failure propagation.
 
+Application cleanup waits for the replacement `about:blank` document to finish
+loading before closing its page. Closing immediately after navigation commits
+can leave Chromium's target open on Linux even after it acknowledges the close.
+Keep the existing request settlement and drain ownership around page disposal.
+
 - `tests/support/fixtures/parallel-test.ts` seeds a fresh tenant per test with `profile: 'test'`
 - `tests/setup/database.setup.ts` seeds the shared docs tenant with `profile: 'docs'`
 - Specs should consume deterministic scenario handles from `seeded.scenario`
