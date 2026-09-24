@@ -462,6 +462,7 @@ test.describe('Anonymous event route scrolling', () => {
   });
 
   test('opens event details at the top and restores the scrolled list on Back', async ({
+    database,
     events,
     page,
     seeded,
@@ -472,16 +473,41 @@ test.describe('Anonymous event route scrolling', () => {
       seeded.scenario.events.paidOpen.eventId,
       tenant.id,
     );
+    // Keep the target below the initial viewport so click preparation cannot
+    // legitimately return to the top while bringing this card into view.
+    const targetStart = DateTime.fromMillis(
+      Math.max(...events.map((candidate) => candidate.start.getTime())),
+    )
+      .plus({ days: 1 })
+      .toJSDate();
+    await database
+      .update(schema.eventInstances)
+      .set({
+        end: new Date(
+          targetStart.getTime() + event.end.getTime() - event.start.getTime(),
+        ),
+        start: targetStart,
+      })
+      .where(
+        and(
+          eq(schema.eventInstances.id, event.id),
+          eq(schema.eventInstances.tenantId, tenant.id),
+        ),
+      );
     await openEventList(page);
     const card = eventCard(page, event.id);
     await expect(card).toBeVisible();
-    await card.evaluate((element) => {
-      const cardTop = window.scrollY + element.getBoundingClientRect().top;
-      window.scrollTo({
-        behavior: 'instant',
-        top: Math.max(48, cardTop - 150),
-      });
-    });
+    await expect
+      .poll(() =>
+        card.evaluate(
+          (element) =>
+            window.scrollY +
+            element.getBoundingClientRect().top -
+            window.innerHeight,
+        ),
+      )
+      .toBeGreaterThan(0);
+    await card.scrollIntoViewIfNeeded();
     await expect(card).toBeInViewport({ ratio: 1 });
     await expect
       .poll(() => page.evaluate(() => window.scrollY))

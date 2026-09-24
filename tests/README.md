@@ -42,6 +42,11 @@ to disappear, as `fillTemplateBasics` already does for click targets.
 Press once and assert the resulting open state; repeating the key can toggle
 an already-open control instead of proving readiness.
 
+Scroll-restoration coverage places its known event after the other seeded
+events and verifies that it starts below the initial viewport. Browser click
+preparation can change scroll alignment, so capture the actual departure
+position and retain a strict nonzero-position assertion before testing Back.
+
 ## Generated Documentation Authoring Contract
 
 Each product-facing documentation journey should be understandable without
