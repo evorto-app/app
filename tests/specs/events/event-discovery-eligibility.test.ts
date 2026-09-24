@@ -458,7 +458,7 @@ test.describe('Anonymous event discovery', () => {
 test.describe('Anonymous event route scrolling', () => {
   test.use({
     storageState: { cookies: [], origins: [] },
-    viewport: { height: 600, width: 390 },
+    viewport: { height: 500, width: 390 },
   });
 
   test('opens event details at the top and restores the scrolled list on Back', async ({
