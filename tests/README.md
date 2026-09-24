@@ -93,6 +93,9 @@ intentional teardown cancellation from rejecting a still-running application
 initializer. Document preparation and cancellation share the routing owner: it
 also leaves a page obtained from an intercepted request and rechecks the page
 inventory before closure. This covers pages exposed after cancellation begins.
+An initial popup navigation can arrive before Playwright has an available frame;
+that specific absence has no document to prepare, so cancellation still proceeds.
+Unexpected frame-access failures remain visible.
 If document preparation fails, cancellation is still attempted; cleanup reports
 both the preparation failure and any cancellation failure.
 Error listeners retain the original page URL during this transition,
@@ -107,10 +110,12 @@ then removes the exact owned route. Upstream, cancellation and closure failures
 remain visible. If a page
 remains open, cleanup fails and retains routing for Playwright's outer context
 teardown; it does not retry page closure or remove interception from live pages.
-The fixture exclusively owns this final page cleanup. Custom contexts use
-`closeTenantRequestContext` for the same cancellation, page-close and drain sequence followed
-by owned context closure. It still attempts that closure if page cleanup fails,
-and joins remaining callbacks only after confirming the context is closed.
+The fixture exclusively owns this final page cleanup. Custom application contexts
+use `closeApplicationContext` to prepare their documents before the cancellation,
+page-close and drain sequence followed by owned context closure. Routing-level
+probes that do not own application documents use `closeTenantRequestContext`.
+Both attempt outer context closure if page cleanup fails and join remaining
+callbacks only after confirming the context is closed.
 Normal and emergency cleanup share one context-close attempt; a rejected or
 unproven closure is not retried, and all known failures remain visible.
 The routing barrier checks settlements again before each page and context closes, including

@@ -1,4 +1,4 @@
-import type { BrowserContext, Page, Route } from '@playwright/test';
+import type { BrowserContext, Frame, Page, Route } from '@playwright/test';
 
 import { localTestTenantDomainHeader } from '../../../src/shared/request-routing';
 
@@ -104,10 +104,29 @@ export const routeLocalTenantRequests = async ({
           // A request can expose its page before the context inventory does.
           // Discard that document before deliberately rejecting its request.
           const errors: unknown[] = [];
+          const request = route.request();
+          let frame: Frame | undefined;
           try {
-            await preparation.preparePage(route.request().frame().page());
+            frame = request.frame();
           } catch (error) {
-            errors.push(error);
+            // An initial popup navigation can arrive before it owns a document.
+            const unavailableNavigationFrame =
+              request.isNavigationRequest() &&
+              error instanceof Error &&
+              error.message ===
+                [
+                  'Frame for this navigation request is not available, because the request',
+                  'was issued before the frame is created. You can check whether the request',
+                  'is a navigation request by calling isNavigationRequest() method.',
+                ].join('\n');
+            if (!unavailableNavigationFrame) errors.push(error);
+          }
+          if (frame) {
+            try {
+              await preparation.preparePage(frame.page());
+            } catch (error) {
+              errors.push(error);
+            }
           }
           // Even failed document preparation must attempt the reserved abort
           // before page closure can resume an intercepted browser request.

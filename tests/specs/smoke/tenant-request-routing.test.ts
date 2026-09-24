@@ -14,6 +14,7 @@ import { DateTime } from 'luxon';
 import { localTestTenantDomainHeader } from '../../../src/shared/request-routing';
 import { openAuthenticatedTestPage } from '../../support/utils/authenticated-test-page';
 import {
+  closeApplicationContext,
   closeApplicationPages,
   closeTenantRequestContext,
   closeTenantRequestPages,
@@ -678,6 +679,114 @@ test('attempts cancellation and retains both failures when document preparation 
   }
   if (errors.length > 0)
     throw new AggregateError(errors, 'Document preparation regression failed');
+});
+
+test('cancels an initial popup navigation before its frame is available', async ({
+  browser,
+}) => {
+  const started = Promise.withResolvers<void>();
+  const headers = Promise.withResolvers<void>();
+  const errors: unknown[] = [];
+  let frameError: unknown;
+  let navigationRequest = false;
+  let aborts = 0;
+  let contextCloses = 0;
+  let requests = 0;
+  let context: BrowserContext | undefined;
+  let evaluation: Promise<PromiseSettledResult<void>[]> | undefined;
+  let closing: Promise<PromiseSettledResult<void>[]> | undefined;
+  const local = await listen((_request, response) => {
+    requests += 1;
+    response.end('Unexpected upstream navigation');
+  });
+  try {
+    context = await browser.newContext();
+    const closeContext = context.close.bind(context);
+    context.close = async (options) => {
+      contextCloses += 1;
+      await closeContext(options);
+    };
+    const registerRoute = context.route.bind(context);
+    context.route = async (pattern, handler, options) => {
+      await registerRoute(
+        pattern,
+        async (route, request) => {
+          navigationRequest = request.isNavigationRequest();
+          try {
+            request.frame();
+          } catch (error) {
+            frameError = error;
+          }
+          const allHeaders = request.allHeaders.bind(request);
+          request.allHeaders = async () => {
+            await headers.promise;
+            return allHeaders();
+          };
+          const abort = route.abort.bind(route);
+          route.abort = async (reason) => {
+            aborts += 1;
+            try {
+              await abort(reason);
+            } finally {
+              headers.resolve();
+            }
+          };
+          const running = handler(route, request);
+          started.resolve();
+          await running;
+        },
+        options,
+      );
+    };
+    await routeLocalTenantRequests({
+      baseUrl: local.origin,
+      context,
+      tenantDomain: 'north-river.evorto.app',
+    });
+    const page = await context.newPage();
+    await page.setContent('<body>Popup opener</body>');
+    evaluation = Promise.allSettled([
+      page.evaluate((url) => {
+        window.open(url);
+      }, `${local.origin}/popup`),
+    ]);
+    await started.promise;
+    closing = Promise.allSettled([closeApplicationContext(context)]);
+    const [result] = await closing;
+    if (!result) throw new Error('Application cleanup did not settle');
+    if (result.status === 'rejected') throw result.reason;
+    expect(navigationRequest).toBe(true);
+    expect(frameError).toMatchObject({
+      message: expect.stringContaining(
+        'Frame for this navigation request is not available',
+      ),
+    });
+    expect(aborts).toBe(1);
+    expect(requests).toBe(0);
+    expect(contextCloses).toBe(1);
+    expect(context.isClosed()).toBe(true);
+  } catch (error) {
+    errors.push(error);
+  } finally {
+    headers.resolve();
+    if (closing) await closing;
+    try {
+      if (context && !context.isClosed()) await context.close();
+      if (evaluation) await evaluation;
+    } catch (error) {
+      errors.push(error);
+    }
+    try {
+      await local.close();
+    } catch (error) {
+      errors.push(error);
+    }
+  }
+  if (errors.length > 0)
+    throw new AggregateError(
+      errors,
+      'Initial popup cancellation regression failed',
+    );
 });
 
 test('closes authenticated helper documents before cancelling unfinished application work', async ({
