@@ -1,3 +1,5 @@
+import { observeCleanupProgress } from './cleanup-progress';
+
 export const runDatabaseCleanups = async (
   cleanups: readonly (() => Promise<void>)[],
   closeDatabase: () => Promise<void>,
@@ -5,13 +7,13 @@ export const runDatabaseCleanups = async (
   const errors: unknown[] = [];
   for (const cleanup of cleanups.toReversed()) {
     try {
-      await cleanup();
+      await observeCleanupProgress('registered fixture callback', cleanup);
     } catch (error) {
       errors.push(error);
     }
   }
   try {
-    await closeDatabase();
+    await observeCleanupProgress('database pool closure', closeDatabase);
   } catch (error) {
     errors.push(error);
   }
