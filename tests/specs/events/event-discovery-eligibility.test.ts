@@ -480,11 +480,20 @@ test.describe('Anonymous event route scrolling', () => {
     )
       .plus({ days: 1 })
       .toJSDate();
+    const persistedEvent = await database.query.eventInstances.findFirst({
+      columns: { end: true, start: true },
+      where: { id: event.id, tenantId: tenant.id },
+    });
+    if (!persistedEvent) {
+      throw new Error('Expected the persisted scroll-restoration event');
+    }
     await database
       .update(schema.eventInstances)
       .set({
         end: new Date(
-          targetStart.getTime() + event.end.getTime() - event.start.getTime(),
+          targetStart.getTime() +
+            persistedEvent.end.getTime() -
+            persistedEvent.start.getTime(),
         ),
         start: targetStart,
       })
