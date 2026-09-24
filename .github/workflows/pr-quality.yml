@@ -235,14 +235,15 @@ jobs:
         env:
           FONT_AWESOME_TOKEN: ${{ secrets.FONT_AWESOME_TOKEN }}
         run: |
-          mkdir -p source-map-export
+          source_map_export="${RUNNER_TEMP}/evorto-source-map-export"
+          mkdir -p "${source_map_export}"
           docker build \
             --platform linux/amd64 \
             --secret id=FONT_AWESOME_TOKEN,env=FONT_AWESOME_TOKEN \
             --target source-maps \
-            --output type=local,dest=source-map-export \
+            --output "type=local,dest=${source_map_export}" \
             .
-          test -s source-map-export/source-maps.tar.gz
+          test -s "${source_map_export}/source-maps.tar.gz"
 
       - name: Generate image SBOM
         uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2

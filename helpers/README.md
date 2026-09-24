@@ -88,13 +88,15 @@ interactive confirmation. PostgreSQL data, Mailpit messages, and the Stripe
 signing secret use project-scoped named volumes; MinIO data is container-local
 for the disposable test stack. PostgreSQL startup has no host-file mount.
 
-The MinIO server builds the fixed upstream source release through
-`helpers/testing/minio.Dockerfile`, using a checksum-verified source archive
-and a pinned Go builder. Upstream no longer publishes a prebuilt image for
-this security release. The runtime base and MinIO client still use the upstream
-`quay.io/minio` images with immutable digests; the server binary and entrypoint
-come from the verified source. All build inputs support anonymous access on
-clean CI runners. When diagnosing availability, check without saved registry
+The MinIO server and client build their fixed upstream source releases through
+`helpers/testing/minio.Dockerfile`, using checksum-verified source archives
+and a pinned Go builder. The server keeps its existing release and the client
+keeps its existing release; their runtime targets use pinned Alpine with its
+CA bundle. The old `quay.io/minio` images are no longer available anonymously.
+The `minio-init` service builds the `minio-client` target and retains the same
+idempotent bucket initialization. The server starts its binary directly and
+uses Alpine's `wget` for the HTTP health check. All build inputs must remain
+available anonymously to clean CI runners. When diagnosing availability, check without saved registry
 credentials; an existing local image cache can hide an access failure.
 
 The runtime resolver derives `DOCKER_DATABASE_URL` from the literal

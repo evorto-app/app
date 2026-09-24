@@ -191,4 +191,8 @@ standalone inspection. Child commands preserve process environment values over
 - Open PRs with `git town propose`.
 - Commit messages should be imperative and concise.
 - PRs should include purpose, scope, schema/runtime impact, and UI evidence where relevant.
-- For release-relevant work, add a Knope change file in `.changeset/*.md`.
+- Every PR needs a new Knope change file in `.changeset/*.md`, including
+  test-only and CI-only changes. The hosted Knope Bot enforces this requirement.
+- Before starting full verification, check that the PR diff includes its change
+  file. `knope --validate` checks configuration and file validity; it does not
+  check whether the current PR adds a change file.
