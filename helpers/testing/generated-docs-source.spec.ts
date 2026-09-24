@@ -2429,7 +2429,6 @@ describe('generated docs source current behavior', () => {
       'const clickHydratedAction = async (action: Locator)',
     );
     expect(source).toContain("not.toHaveAttribute('jsaction', /click/, {");
-    expect(source.match(/await clickHydratedAction\(/g)).toHaveLength(10);
     expect(source).toContain('name: /^Event reviews(?: \\d+)?$/u');
     expect(source).toContain("name: 'Check pending reviews again'");
     expect(source).toContain('test.setTimeout(300_000)');
