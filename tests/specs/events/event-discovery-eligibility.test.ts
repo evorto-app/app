@@ -458,10 +458,11 @@ test.describe('Anonymous event discovery', () => {
 test.describe('Anonymous event route scrolling', () => {
   test.use({
     storageState: { cookies: [], origins: [] },
-    viewport: { height: 600, width: 390 },
+    viewport: { height: 500, width: 390 },
   });
 
   test('opens event details at the top and restores the scrolled list on Back', async ({
+    database,
     events,
     page,
     seeded,
@@ -472,16 +473,50 @@ test.describe('Anonymous event route scrolling', () => {
       seeded.scenario.events.paidOpen.eventId,
       tenant.id,
     );
+    // Keep the target below the initial viewport so click preparation cannot
+    // legitimately return to the top while bringing this card into view.
+    const targetStart = DateTime.fromMillis(
+      Math.max(...events.map((candidate) => candidate.start.getTime())),
+    )
+      .plus({ days: 1 })
+      .toJSDate();
+    const persistedEvent = await database.query.eventInstances.findFirst({
+      columns: { end: true, start: true },
+      where: { id: event.id, tenantId: tenant.id },
+    });
+    if (!persistedEvent) {
+      throw new Error('Expected the persisted scroll-restoration event');
+    }
+    await database
+      .update(schema.eventInstances)
+      .set({
+        end: new Date(
+          targetStart.getTime() +
+            persistedEvent.end.getTime() -
+            persistedEvent.start.getTime(),
+        ),
+        start: targetStart,
+      })
+      .where(
+        and(
+          eq(schema.eventInstances.id, event.id),
+          eq(schema.eventInstances.tenantId, tenant.id),
+        ),
+      );
     await openEventList(page);
     const card = eventCard(page, event.id);
     await expect(card).toBeVisible();
-    await card.evaluate((element) => {
-      const cardTop = window.scrollY + element.getBoundingClientRect().top;
-      window.scrollTo({
-        behavior: 'instant',
-        top: Math.max(48, cardTop - 150),
-      });
-    });
+    await expect
+      .poll(() =>
+        card.evaluate(
+          (element) =>
+            window.scrollY +
+            element.getBoundingClientRect().top -
+            window.innerHeight,
+        ),
+      )
+      .toBeGreaterThan(0);
+    await card.scrollIntoViewIfNeeded();
     await expect(card).toBeInViewport({ ratio: 1 });
     await expect
       .poll(() => page.evaluate(() => window.scrollY))

@@ -42,6 +42,11 @@ to disappear, as `fillTemplateBasics` already does for click targets.
 Press once and assert the resulting open state; repeating the key can toggle
 an already-open control instead of proving readiness.
 
+Scroll-restoration coverage places its known event after the other seeded
+events and verifies that it starts below the initial viewport. Browser click
+preparation can change scroll alignment, so capture the actual departure
+position and retain a strict nonzero-position assertion before testing Back.
+
 ## Generated Documentation Authoring Contract
 
 Each product-facing documentation journey should be understandable without
@@ -76,6 +81,13 @@ to the test log. These diagnostics distinguish browser document disposal, reques
 settlement/draining, route removal, page/context closure, fixture callbacks, and pool
 closure. They contain no request URLs, SQL, or fixture data and do not change
 timeouts, retries, cleanup ordering, or failure propagation.
+
+Application cleanup waits for the replacement `about:blank` document to finish
+loading before closing its page. Closing immediately after navigation commits
+can leave Chromium's target open on Linux even after it acknowledges the close.
+The navigation has a 30-second deadline so a stuck resource still reaches
+request cancellation and page disposal; its timeout remains a reported failure.
+Keep the existing request settlement and drain ownership around page disposal.
 
 - `tests/support/fixtures/parallel-test.ts` seeds a fresh tenant per test with `profile: 'test'`
 - `tests/setup/database.setup.ts` seeds the shared docs tenant with `profile: 'docs'`
