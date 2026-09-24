@@ -176,7 +176,9 @@ describe('post-registration add-on mutation guards', () => {
       "const claim = Effect.fn('RegistrationTransferService.claim')",
     );
     const claim = source.slice(claimStart);
-    const paymentStart = claim.indexOf('if (paymentClaim) {');
+    const paymentStart = claim.indexOf(
+      'if (requiresCheckout && lockedStripeAccountId) {',
+    );
     const sourcePayments = claim.indexOf('const currentAcquisitionPayments =');
     const ownerUpdate = claim.indexOf('const transferredRegistrations =');
     expect(claimStart).toBeGreaterThanOrEqual(0);
@@ -350,7 +352,9 @@ describe('post-registration add-on mutation guards', () => {
     );
     expect(claim).toContain('const completedAt = ownershipMutationNow');
     expect(claim).toContain('lockedTransfer.expiresAt <= lockedNow');
-    expect(claim).toContain('pinnedNowIso: lockedNow.toISOString()');
+    expect(claim.slice(paymentMutationTime, paymentInsert)).toContain(
+      'pinnedNowIso: paymentMutationNow.toISOString()',
+    );
     expect(claim).toContain('lockedNow.getTime() +');
   });
 
