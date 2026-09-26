@@ -377,23 +377,31 @@ describe('runtime image verification', () => {
     fixture.expectCleanup();
   });
 
-  it.each([
-    'busybox',
-    'opt/tools/sh',
-    'app/debug/bash',
-    'usr/bin/dash',
-    'sbin/ash',
-    'usr/local/bin/ZSH',
-    'usr/local/sbin/ksh',
-    'usr/sbin/csh',
-    './bin/tcsh',
-    'usr/bin/fish',
-  ])('rejects the shell %s', (shellPath) => {
-    const fixture = makeFixture({ files: { [shellPath]: 'shell fixture\n' } });
+  it('rejects every forbidden shell path in the image', () => {
+    const shellPaths = [
+      'busybox',
+      'opt/tools/sh',
+      'app/debug/bash',
+      'usr/bin/dash',
+      'sbin/ash',
+      'usr/local/bin/ZSH',
+      'usr/local/sbin/ksh',
+      'usr/sbin/csh',
+      './bin/tcsh',
+      'usr/bin/fish',
+    ];
+    const fixture = makeFixture({
+      files: Object.fromEntries(
+        shellPaths.map((file) => [file, 'shell fixture\n']),
+      ),
+    });
     const result = fixture.run();
     expect(result.status, result.stderr).toBe(1);
     expect(result.stderr).toContain('Runtime image contains a shell');
-    expect(result.stderr).toContain(shellPath);
+    // The verifier reports every match before rejecting this image.
+    for (const shellPath of shellPaths) {
+      expect(result.stderr).toContain(shellPath);
+    }
     expect(result.stdout).not.toContain('verification passed');
     fixture.expectCleanup();
   });
@@ -461,32 +469,47 @@ describe('runtime image verification', () => {
     fixture.expectCleanup();
   });
 
-  it.each([
-    'app/.env.production',
-    'app/instrument.mjs',
-    'app/node_modules/@sentry/core/index.js',
-    'app/node_modules/@neondatabase/serverless/index.js',
-    'app/node_modules/resend/index.js',
-    'app/dist/evorto/server/server.mjs.map',
-  ])('rejects a forbidden packaged path %s', (file) => {
-    const fixture = makeFixture({ files: { [file]: 'forbidden fixture\n' } });
+  it('rejects every forbidden packaged path in the image', () => {
+    const forbiddenPaths = [
+      'app/.env.production',
+      'app/instrument.mjs',
+      'app/node_modules/@sentry/core/index.js',
+      'app/node_modules/@neondatabase/serverless/index.js',
+      'app/node_modules/resend/index.js',
+      'app/dist/evorto/server/server.mjs.map',
+    ];
+    const fixture = makeFixture({
+      files: Object.fromEntries(
+        forbiddenPaths.map((file) => [file, 'forbidden fixture\n']),
+      ),
+    });
     const result = fixture.run();
     expect(result.status, result.stderr).toBe(1);
     expect(result.stderr).toContain(
       'forbidden secret, provider, instrumentation',
     );
+    for (const file of forbiddenPaths) {
+      expect(result.stderr).toContain(file);
+    }
+    expect(result.stdout).not.toContain('verification passed');
     fixture.expectCleanup();
   });
 
-  it.each([
-    ['app/dist/evorto/server/server.mjs', 'https://api.resend.com'],
-    ['app/dist/evorto/ops/schema.mjs', '@neondatabase/serverless'],
-    ['app/ops/drizzle.config.mjs', 'CLOUDFLARE_R2_ACCESS_KEY_ID'],
-  ])('rejects removed provider content in %s', (file, contents) => {
-    const fixture = makeFixture({ files: { [file]: contents } });
+  it('rejects removed provider content across the runtime scan roots', () => {
+    const files = {
+      'app/dist/evorto/server/server.mjs': 'https://api.resend.com',
+      'app/dist/evorto/ops/schema.mjs': '@neondatabase/serverless',
+      'app/ops/drizzle.config.mjs': 'CLOUDFLARE_R2_ACCESS_KEY_ID',
+    };
+    const fixture = makeFixture({ files });
     const result = fixture.run();
     expect(result.status, result.stderr).toBe(1);
     expect(result.stderr).toContain('removed provider dependency');
+    for (const [file, contents] of Object.entries(files)) {
+      expect(result.stderr).toContain(file);
+      expect(result.stderr).toContain(contents);
+    }
+    expect(result.stdout).not.toContain('verification passed');
     fixture.expectCleanup();
   });
 
