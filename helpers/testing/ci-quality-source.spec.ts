@@ -326,7 +326,10 @@ describe('CI quality source', () => {
     expect(source).toContain('POSTGRES_INTEGRATION_DISPOSABLE: "true"');
     expect(source).toContain('bun run test:integration:postgres');
     expect(source).toMatch(/run: bun run test:unit\n/u);
-    expect(source).toContain('bun run build:app');
+    // The required image job compiles the same production app and ops bundles.
+    // Keep the build on that path instead of repeating it in code-quality.
+    expect(source).not.toContain('run: bun run build:app');
+    expect(readSource('Dockerfile')).toContain('RUN bun run build:app');
 
     const imageSecurityJob = source.slice(
       source.indexOf('  image-security:'),
@@ -335,6 +338,11 @@ describe('CI quality source', () => {
     expect(imageSecurityJob).toContain('name: Setup Bun');
     expect(imageSecurityJob).toContain('bun-version: "1.4.2"');
     expect(imageSecurityJob).toContain('bun run image:verify');
+    expect(imageSecurityJob).toContain('docker build');
+    expect(imageSecurityJob).toContain('--platform linux/amd64');
+    const gate = source.slice(source.indexOf('  ci-gate:'));
+    expect(gate).toContain('      - image-security');
+    expect(gate).toContain('success,success,success,success,success');
   });
 
   it('lints repository-owned Node-side sources without traversing vendored sources', () => {

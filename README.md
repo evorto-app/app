@@ -121,7 +121,6 @@ test -z "$(git status --porcelain=v1)"
 bun run test:unit:server
 bun run test:unit
 bun run test:integration:postgres:local
-bun run build:app
 bun run infra:check
 bun run image:security:local
 bun run test:e2e:baseline
@@ -136,6 +135,11 @@ satisfy the final gate. See [QUALITY.md](QUALITY.md) for the done criteria and
 [tests/README.md](tests/README.md) for the disposable PostgreSQL prerequisite.
 The infrastructure commands validate and scan both Terraform roots, then build,
 inspect, inventory, and vulnerability-scan the real Linux/amd64 runtime image.
+The required image check runs `build:app` inside Docker with the pinned Bun/Node
+toolchain and frozen dependencies, covering the production browser, server, and
+ops bundles. CI and the local gate use that build instead of compiling the same
+application again in the unit-test job. `bun run build:app` remains available
+for development. The existing CI job names are retained for check references.
 
 The block above is the normal pull-request baseline. `test:e2e:baseline` runs
 every functional and documentation baseline case together, sharing database
