@@ -12,7 +12,6 @@ import {
   HttpServerResponse,
 } from 'effect/unstable/http';
 import { execFile } from 'node:child_process';
-import { readFileSync } from 'node:fs';
 import { promisify } from 'node:util';
 
 import type { DeploymentConfig } from '../config/deployment-config';
@@ -608,32 +607,6 @@ describe('server response middleware', () => {
         );
       }),
   );
-
-  it('disables raw request logging at every server boundary', () => {
-    const serverSource = readFileSync(
-      new URL('../../server.ts', import.meta.url),
-      'utf8',
-    );
-
-    expect(serverSource).toMatch(
-      /HttpLayerRouter\.toWebHandler\(\s*handlerAppLayer,\s*\{ disableLogger: true \},\s*\)/u,
-    );
-    expect(serverSource).toContain(
-      'const bunServeOptions = { disableLogger: true } as const;',
-    );
-    expect(serverSource).toContain(
-      'HttpLayerRouter.serve(bootstrapRoutesLayer, bunServeOptions)',
-    );
-    expect(serverSource).toContain(
-      'HttpLayerRouter.serve(webRoutesLayer, bunServeOptions)',
-    );
-    expect(serverSource).toMatch(
-      /HttpLayerRouter\.serve\(\s*configuredWorkerRoutesLayer,\s*bunServeOptions,\s*\)/u,
-    );
-    expect(serverSource).toContain(
-      'HttpLayerRouter.serve(opsRoutesLayer, bunServeOptions)',
-    );
-  });
 
   it.effect('returns a sanitized JSON response for a route defect', () =>
     Effect.gen(function* () {

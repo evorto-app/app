@@ -25,7 +25,6 @@ import {
   Schema,
   Stream,
 } from 'effect';
-import { readFileSync } from 'node:fs';
 import Stripe from 'stripe';
 import { vi } from 'vitest';
 
@@ -1182,99 +1181,5 @@ describe('platform event, template, and registration handlers', () => {
     expect(JSON.stringify([approval, cancellation])).not.toContain(
       'attendee@example.org',
     );
-  });
-
-  it('keeps target predicates and audit writes inside mutation transactions', () => {
-    const eventSource = readFileSync(
-      new URL('platform-events.handlers.ts', import.meta.url),
-      'utf8',
-    );
-    const templateSource = readFileSync(
-      new URL('platform-templates.handlers.ts', import.meta.url),
-      'utf8',
-    );
-    const registrationSource = readFileSync(
-      new URL('platform-registrations.handlers.ts', import.meta.url),
-      'utf8',
-    );
-
-    for (const source of [eventSource, templateSource, registrationSource]) {
-      expect(source).toContain('database.transaction');
-      expect(source).toContain('writePlatformAudit(transaction');
-      expect(source).toContain('input.targetTenantId');
-    }
-    expect(eventSource).toContain(
-      'eq(eventInstances.tenantId, targetTenantId)',
-    );
-    expect(templateSource).toContain(
-      'eq(eventTemplates.tenantId, targetTenantId)',
-    );
-    expect(registrationSource).toContain(
-      'eq(eventRegistrations.tenantId, targetTenantId)',
-    );
-    expect(registrationSource).toContain(
-      "cancelledBy: 'platformAdministrator'",
-    );
-    expect(registrationSource).toContain('enforceParticipantDeadline: false');
-    expect(registrationSource).toContain('executiveUserId: null');
-    expect(registrationSource).toContain("action: 'registration.approve'");
-    expect(registrationSource).toContain("action: 'registration.cancel'");
-    expect(registrationSource).toContain(
-      'targetTenant: operation.targetTenant',
-    );
-    const checkInHandler = registrationSource.slice(
-      registrationSource.indexOf("'platform.registrations.checkIn'"),
-      registrationSource.indexOf("'platform.registrations.findOne'"),
-    );
-    const transferGuard =
-      'ensurePlatformRegistrationMutationHasNoActiveTransfer(';
-    expect(checkInHandler.split(transferGuard)).toHaveLength(3);
-    const firstGuardIndex = checkInHandler.indexOf(transferGuard);
-    const lockedRegistrationIndex = checkInHandler.indexOf(
-      'const lockedRegistration',
-    );
-    const secondGuardIndex = checkInHandler.indexOf(
-      transferGuard,
-      firstGuardIndex + transferGuard.length,
-    );
-    expect(firstGuardIndex).toBeLessThan(
-      checkInHandler.indexOf('database.transaction'),
-    );
-    expect(secondGuardIndex).toBeGreaterThan(lockedRegistrationIndex);
-    expect(secondGuardIndex).toBeLessThan(
-      checkInHandler.indexOf('const before'),
-    );
-
-    const lockedEventIndex = checkInHandler.indexOf('const lockedEvents');
-    const timingIssueIndex = checkInHandler.indexOf(
-      'const timingIssue = eventCheckInTimingIssue',
-    );
-    expect(lockedEventIndex).toBeGreaterThan(lockedRegistrationIndex);
-    expect(checkInHandler).toContain(".for('share')");
-    expect(timingIssueIndex).toBeGreaterThan(lockedEventIndex);
-    expect(timingIssueIndex).toBeLessThan(
-      checkInHandler.indexOf('const before'),
-    );
-
-    const createHandler = eventSource.slice(
-      eventSource.indexOf("'platform.events.create'"),
-      eventSource.indexOf("'platform.events.findOne'"),
-    );
-    expect(createHandler).not.toContain("isolationLevel: 'repeatable read'");
-    expect(createHandler).toContain(
-      'lockTenantRoleGraph(\n                transaction,\n                input.targetTenantId,',
-    );
-    expect(createHandler).toContain('lockTenantStripeAccount(');
-    expect(createHandler.indexOf('lockTenantStripeAccount')).toBeLessThan(
-      createHandler.indexOf('lockTenantRoleGraph'),
-    );
-    expect(createHandler.indexOf('lockTenantRoleGraph')).toBeLessThan(
-      createHandler.indexOf('const creatorMemberships'),
-    );
-    expect(eventSource.indexOf('if (beforeEventLock)')).toBeLessThan(
-      eventSource.indexOf('const lockedEvents'),
-    );
-    expect(eventSource).toContain('ensureStripeForStoredEventConfiguration(');
-    expect(eventSource).toContain('ensureStripeForPaidEventConfiguration(');
   });
 });

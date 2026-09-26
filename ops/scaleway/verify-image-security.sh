@@ -23,6 +23,7 @@ docker build \
   --tag "${image}" \
   "${repository_root}"
 
+bash "${repository_root}/helpers/testing/verify-docker-build-context.sh"
 "${repository_root}/ops/scaleway/verify-runtime-image.sh" "${image}"
 
 docker build \

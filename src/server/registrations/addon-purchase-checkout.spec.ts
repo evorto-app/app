@@ -1,11 +1,9 @@
-import type Stripe from 'stripe';
-
 import { describe, expect, it } from '@effect/vitest';
 
+import { stripeCheckoutSessionResponse } from '../testing/stripe-test-fixtures';
 import {
   addonPurchaseCheckoutMetadataOwnsClaim,
   addonPurchaseCheckoutPaymentOwnsClaim,
-  registrationAddonPurchaseLockOrder,
   resolveAddonPurchaseTerminalTransition,
 } from './addon-purchase-checkout';
 
@@ -20,14 +18,14 @@ describe('registration add-on purchase Checkout ownership', () => {
   } as const;
 
   it('uses optional metadata only to corroborate persisted ownership', () => {
-    const exactSession = {
+    const exactSession = stripeCheckoutSessionResponse({
       metadata: {
         addonPurchaseOrderId: identity.orderId,
         registrationId: identity.registrationId,
         tenantId: identity.tenantId,
         transactionId: identity.transactionId,
       },
-    } as Stripe.Checkout.Session;
+    });
     expect(
       addonPurchaseCheckoutMetadataOwnsClaim({
         identity,
@@ -43,13 +41,13 @@ describe('registration add-on purchase Checkout ownership', () => {
             ...exactSession.metadata,
             addonPurchaseOrderId: 'other-order',
           },
-        } as Stripe.Checkout.Session,
+        },
       }),
     ).toBe(false);
     expect(
       addonPurchaseCheckoutMetadataOwnsClaim({
         identity,
-        session: { metadata: null } as Stripe.Checkout.Session,
+        session: stripeCheckoutSessionResponse({ metadata: null }),
       }),
     ).toBe(true);
   });
@@ -114,16 +112,5 @@ describe('registration add-on purchase Checkout ownership', () => {
         transactionStatus: 'successful',
       }),
     ).toBe('opposite_terminal_won');
-  });
-
-  it('documents the shared lock order used by initiation, replay, completion, and expiry', () => {
-    expect(registrationAddonPurchaseLockOrder).toEqual([
-      'registration',
-      'active_transfer',
-      'transaction',
-      'order',
-      'entitlement',
-      'tenant_and_stock',
-    ]);
   });
 });

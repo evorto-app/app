@@ -1,3 +1,5 @@
+import { privateHttpOptionsRule } from "./private-http-options.mjs";
+
 /*
  * This plugin keeps Effect runtime execution at explicit program boundaries.
  *
@@ -79,6 +81,7 @@ function isManagedRuntimeMakeCall(node, managedRuntimeNamespaces) {
 
 export const effectBoundaryPlugin = {
   rules: {
+    "private-http-options": privateHttpOptionsRule,
     "no-run-at-internal-boundaries": {
       meta: {
         docs: {

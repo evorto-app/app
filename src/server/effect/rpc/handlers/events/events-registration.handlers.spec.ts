@@ -1355,6 +1355,8 @@ describe('event registration owner add-on status', () => {
     'returns every configured add-on and owner-scoped pending checkout recovery data',
     () =>
       Effect.gen(function* () {
+        vi.useFakeTimers({ toFake: ['Date'] });
+        vi.setSystemTime(new Date('2026-09-20T13:00:00.000Z'));
         const pendingCheckoutExpiresAt = new Date('2026-09-18T09:30:00.000Z');
         const includedPurchase: CurrentOwnerStatusPurchase = {
           addOn: { title: 'Included lunch' },
@@ -1573,6 +1575,7 @@ describe('event registration owner add-on status', () => {
         );
         expect(pendingRegistration?.registrationAddOns[2]).toEqual(
           expect.objectContaining({
+            pendingCheckoutExpired: true,
             pendingCheckoutExpiresAt: pendingCheckoutExpiresAt.toISOString(),
             pendingCheckoutUrl:
               'https://checkout.stripe.com/c/pay/cs_test_addon',
@@ -1608,7 +1611,7 @@ describe('event registration owner add-on status', () => {
         );
         expect(fixture.registrationReadCount()).toBe(3);
         fixture.expectComplete();
-      }),
+      }).pipe(Effect.ensuring(Effect.sync(() => vi.useRealTimers()))),
   );
 
   it.effect(

@@ -59,7 +59,7 @@ import {
   type TenantDiscountProviders,
 } from '@shared/tenant-config';
 import { and, desc, eq, inArray, isNull, lte, not, or, sql } from 'drizzle-orm';
-import { Cause, Context, Effect, Layer, Schema } from 'effect';
+import { Context, Effect, Layer, Schema } from 'effect';
 
 import type { Tenant } from '../../types/custom/tenant';
 import type { User } from '../../types/custom/user';
@@ -110,6 +110,7 @@ import {
   resolveRegistrationTransferPrice,
 } from './registration-transfer-pricing';
 import { resolveRegistrationTransferPriorRefunds } from './registration-transfer-prior-refunds';
+import { reportImmediateTransferRefundFailure } from './registration-transfer-refund-failure';
 import { resolveRegistrationTransferRefundLifecycle } from './registration-transfer-refund-lifecycle';
 import { refundPlansExactlyCoverCurrentAcquisitionPayments } from './registration-transfer-refund-plan-coverage';
 import {
@@ -3710,28 +3711,12 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
     case 'Confirmed': {
       for (const refundClaimId of claimResult.refundClaimIds) {
         yield* processRegistrationRefundClaim(refundClaimId).pipe(
-          Effect.catchCause((cause) => {
-            const interruptReasons = cause.reasons.filter(
-              (reason): reason is Cause.Interrupt =>
-                Cause.isInterruptReason(reason),
-            );
-            return interruptReasons.length > 0
-              ? Effect.failCause(Cause.fromReasons<never>(interruptReasons))
-              : Effect.logError(
-                  'Registration transfer refund remains queued after immediate processing failed',
-                ).pipe(
-                  Effect.annotateLogs({
-                    refundClaimId,
-                    transferId: transfer.transferId,
-                  }),
-                  Effect.annotateLogs(
-                    safeServerErrorSummary(
-                      'registrationTransfer.claim.refundProcessing',
-                      cause,
-                    ),
-                  ),
-                );
-          }),
+          Effect.catchCause(
+            reportImmediateTransferRefundFailure({
+              refundClaimId,
+              transferId: transfer.transferId,
+            }),
+          ),
         );
       }
       return RegistrationTransferClaimResult.make({

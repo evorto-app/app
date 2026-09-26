@@ -16,7 +16,7 @@ import { futureServerEventWindow } from '../../support/utils/server-test-clock';
 import { waitForAppRpcResponse } from '../../support/utils/rpc-response';
 import { waitForRegistrationPage as waitForRegistrationStatus } from '../../support/utils/event-registration-page';
 
-test.use({ storageState: userStateFile, trace: 'retain-on-failure' });
+test.use({ storageState: userStateFile, trace: 'off' });
 
 const waitForActiveRegistration = async (page: Page) => {
   await waitForRegistrationStatus(page);

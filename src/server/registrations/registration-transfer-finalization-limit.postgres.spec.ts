@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from '@effect/vitest';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { Cause, ConfigProvider, Effect, Exit, Layer } from 'effect';
+import { Cause, ConfigProvider, Effect, Exit, Layer, Schema } from 'effect';
 import { Settings } from 'luxon';
 import { Pool, type PoolClient } from 'pg';
 import Stripe from 'stripe';
@@ -18,6 +18,7 @@ import {
   eventRegistrations,
   eventTemplateCategories,
   eventTemplates,
+  platformAuditEntries,
   registrationAcquisitionComponents,
   registrationAcquisitionPayments,
   registrationAcquisitions,
@@ -32,9 +33,17 @@ import {
   users,
   usersToTenants,
 } from '../../db/schema';
+import {
+  RpcRequestContext,
+  type RpcRequestContextShape,
+} from '../../shared/rpc-contracts/app-rpcs';
 import { RegistrationTransferConflictError } from '../../shared/rpc-contracts/app-rpcs/registration-transfers.errors';
+import { PlatformAdministratorAuthority } from '../../types/custom/platform-authority';
+import { Tenant } from '../../types/custom/tenant';
 import { userDiscountCardLockStatement } from '../discounts/user-discount-card-lock';
 import { EventRegistrationService } from '../effect/rpc/handlers/events/event-registration.service';
+import { platformRegistrationHandlers } from '../effect/rpc/handlers/platform/platform-registrations.handlers';
+import { RpcAccess } from '../effect/rpc/handlers/shared/rpc-access.service';
 import { createRegistrationRefundClaim } from '../payments/registration-refund';
 import { StripeClient } from '../stripe-client';
 import {
@@ -540,6 +549,9 @@ const cleanTransferLimitFixture = async (
   fixture: TransferLimitFixture,
 ) => {
   await database
+    .delete(platformAuditEntries)
+    .where(eq(platformAuditEntries.targetTenantId, fixture.tenantId));
+  await database
     .delete(emailOutbox)
     .where(eq(emailOutbox.tenantId, fixture.tenantId));
   await database
@@ -929,6 +941,120 @@ describe('registration transfer finalization tenant limit', () => {
     throwCleanupFailures(failures);
   });
 
+  it('rejects stale or unusable account tax rates before creating a transfer payment', async () => {
+    const fixture = await seedTransferLimitFixture(database);
+    fixtures.push(fixture);
+    const candidate = fixture.candidates[0];
+    if (!candidate) throw new Error('Expected tax-scope transfer candidate');
+    const credential = createRegistrationTransferClaimCode();
+    await database
+      .update(registrationTransfers)
+      .set({
+        claimCodeHash: credential.claimCodeHash,
+        recipientBasePrice: null,
+        recipientCheckoutTransactionId: null,
+        recipientUserId: null,
+        status: 'open',
+      })
+      .where(eq(registrationTransfers.id, candidate.transferId));
+    await database
+      .delete(transactions)
+      .where(eq(transactions.id, candidate.transactionId));
+    const stripe = createRejectingStripeClient();
+    const createCheckout = vi
+      .spyOn(stripe.checkout.sessions, 'create')
+      .mockResolvedValue(
+        stripeCheckoutSessionResponse({
+          amount_subtotal: 1000,
+          amount_total: 1000,
+          id: `cs_tax_${candidate.transferId}`,
+          payment_intent: null,
+          payment_status: 'unpaid',
+          status: 'open',
+          url: `https://checkout.stripe.com/c/pay/tax-${candidate.transferId}`,
+        }),
+      );
+    const claimLayer = makeLayer(databaseUrl, stripe);
+    const state = () =>
+      Promise.all([
+        database.query.registrationTransfers.findFirst({
+          where: { id: candidate.transferId },
+        }),
+        database.query.eventRegistrations.findFirst({
+          where: { id: candidate.registrationId },
+        }),
+        database.query.transactions.findMany({
+          where: { eventRegistrationId: candidate.registrationId },
+        }),
+        database.query.registrationAcquisitionComponents.findMany({
+          where: { acquisitionId: candidate.acquisitionId },
+        }),
+      ]);
+    const before = await state();
+    for (const invalid of [
+      { stripeAccountId: 'acct_obsolete' },
+      { active: false },
+      { inclusive: false },
+      { percentage: null },
+    ]) {
+      await database
+        .update(tenantStripeTaxRates)
+        .set({
+          active: true,
+          inclusive: true,
+          percentage: '0',
+          stripeAccountId: 'acct_transfer_limit',
+          ...invalid,
+        })
+        .where(eq(tenantStripeTaxRates.tenantId, fixture.tenantId));
+      const rejected = await claimOpenCandidate(
+        claimLayer,
+        fixture,
+        credential.claimCode,
+      );
+      expect(rejected).toMatchObject({
+        error: {
+          _tag: 'RegistrationTransferConflictError',
+          message:
+            'The price or tax for this ticket changed while you were accepting it. No payment or refund was started. Review the latest total and try again.',
+        },
+        status: 'failure',
+      });
+      expect(createCheckout).not.toHaveBeenCalled();
+      expect(await state()).toEqual(before);
+    }
+    await database
+      .update(tenantStripeTaxRates)
+      .set({
+        active: true,
+        inclusive: true,
+        percentage: '0',
+        stripeAccountId: 'acct_transfer_limit',
+      })
+      .where(eq(tenantStripeTaxRates.tenantId, fixture.tenantId));
+    expect(
+      await claimOpenCandidate(claimLayer, fixture, credential.claimCode),
+    ).toMatchObject({
+      result: { status: 'paymentPending' },
+      status: 'success',
+    });
+    expect(createCheckout).toHaveBeenCalledExactlyOnceWith(
+      expect.any(Object),
+      expect.objectContaining({ stripeAccount: 'acct_transfer_limit' }),
+    );
+    expect(
+      await database.query.transactions.findMany({
+        where: { eventRegistrationId: candidate.registrationId },
+      }),
+    ).toEqual([
+      expect.objectContaining({
+        amount: 1000,
+        status: 'pending',
+        stripeAccountId: 'acct_transfer_limit',
+      }),
+    ]);
+  });
+
   for (const scenario of [
     { after: 'verified', before: 'absent', enabled: true, price: 0 },
     { after: 'verified', before: 'unverified', enabled: true, price: 0 },
@@ -938,288 +1064,353 @@ describe('registration transfer finalization tenant limit', () => {
     { after: 'expired', before: 'verified', enabled: true, price: 1000 },
     { after: 'absent', before: 'verified', enabled: true, price: 1000 },
     { after: 'verified', before: 'absent', enabled: false, price: 1000 },
+    {
+      after: 'verified',
+      before: 'absent',
+      enabled: true,
+      expiresDuringWait: true,
+      price: 0,
+    },
+    {
+      after: 'verified',
+      before: 'absent',
+      enabled: false,
+      expiresDuringWait: true,
+      price: 1000,
+    },
   ] as const) {
-    it(`prices a transfer after global card ${scenario.before} becomes ${scenario.after} with the organization ${scenario.enabled ? 'enabled' : 'disabled'}`, async () => {
-      const fixture = await seedTransferLimitFixture(database);
-      fixtures.push(fixture);
-      const candidate = fixture.candidates[0];
-      if (!candidate) throw new Error('Expected a transfer candidate');
-      const credential = createRegistrationTransferClaimCode();
-      await database
-        .update(registrationTransfers)
-        .set({
-          claimCodeHash: credential.claimCodeHash,
-          recipientBasePrice: null,
-          recipientCheckoutTransactionId: null,
-          recipientUserId: null,
-          status: 'open',
-        })
-        .where(eq(registrationTransfers.id, candidate.transferId));
-      await database
-        .delete(transactions)
-        .where(eq(transactions.id, candidate.transactionId));
-      await database
-        .update(tenants)
-        .set({
-          discountProviders: {
-            esnCard: {
-              config: {},
-              status: scenario.enabled ? 'enabled' : 'disabled',
-            },
-          },
-        })
-        .where(eq(tenants.id, fixture.tenantId));
-      await database.insert(eventRegistrationOptionDiscounts).values({
-        discountedPrice: 0,
-        discountType: 'esnCard',
-        eventId: candidate.eventId,
-        registrationOptionId: candidate.optionId,
-      });
-      const now = Date.now();
-      const cardState = (
-        status: typeof userDiscountCards.$inferSelect.status,
-      ) => ({
-        status,
-        validFrom: new Date(now - 2 * 24 * 60 * 60 * 1000),
-        validTo: new Date(
-          now + (status === 'expired' ? -1 : 30) * 24 * 60 * 60 * 1000,
-        ),
-      });
-      // A source owner's valid card must never discount the recipient's price.
-      await database.insert(userDiscountCards).values({
-        ...cardState('verified'),
-        identifier: `source-${candidate.sourceUserId}`,
-        type: 'esnCard',
-        userId: candidate.sourceUserId,
-      });
-      const recipientCard = {
-        identifier: `recipient-${fixture.recipientUserId}`,
-        type: 'esnCard' as const,
-        userId: fixture.recipientUserId,
-      };
-      if (scenario.before !== 'absent') {
-        await database.insert(userDiscountCards).values({
-          ...recipientCard,
-          ...cardState(scenario.before),
-        });
-      }
-      const originalAcquisition =
-        await database.query.registrationAcquisitions.findFirst({
-          where: { id: candidate.acquisitionId },
-        });
-      const originalComponents =
-        await database.query.registrationAcquisitionComponents.findMany({
-          where: { acquisitionId: candidate.acquisitionId },
-        });
-      const capacityBefore = await database
-        .select({
-          confirmed: eventRegistrationOptions.confirmedSpots,
-          reserved: eventRegistrationOptions.reservedSpots,
-          waitlist: eventRegistrationOptions.waitlistSpots,
-        })
-        .from(eventRegistrationOptions)
-        .where(eq(eventRegistrationOptions.id, candidate.optionId));
-      const stripe = createRejectingStripeClient();
-      const createCheckout = vi
-        .spyOn(stripe.checkout.sessions, 'create')
-        .mockResolvedValue(
-          stripeCheckoutSessionResponse({
-            amount_subtotal: scenario.price,
-            amount_total: scenario.price,
-            id: `cs_test_global_card_${candidate.transferId}`,
-            payment_intent: null,
-            payment_status: 'unpaid',
+    const expiresDuringWait =
+      'expiresDuringWait' in scenario && scenario.expiresDuringWait;
+    const title = expiresDuringWait
+      ? `rejects a ${scenario.price === 0 ? 'free' : 'paid'} claim that expires while waiting for the card writer`
+      : `prices a transfer after global card ${scenario.before} becomes ${scenario.after} with the organization ${scenario.enabled ? 'enabled' : 'disabled'}`;
+    it(
+      title,
+      async () => {
+        const fixture = await seedTransferLimitFixture(database);
+        fixtures.push(fixture);
+        const candidate = fixture.candidates[0];
+        if (!candidate) throw new Error('Expected a transfer candidate');
+        const credential = createRegistrationTransferClaimCode();
+        await database
+          .update(registrationTransfers)
+          .set({
+            claimCodeHash: credential.claimCodeHash,
+            recipientBasePrice: null,
+            recipientCheckoutTransactionId: null,
+            recipientUserId: null,
             status: 'open',
-            url: `https://checkout.stripe.com/c/pay/global-card-${candidate.transferId}`,
-          }),
-        );
-      const claimLayer = makeLayer(databaseUrl, stripe);
-      const claimTenant = await database.query.tenants.findFirst({
-        where: { id: fixture.tenantId },
-      });
-      if (!claimTenant) throw new Error('Expected transfer preview tenant');
-      const client = await pool.connect();
-      const writer = drizzle({ client, relations });
-      const failures: unknown[] = [];
-      const settledOperations: Promise<void>[] = [];
-      const previousNow = Settings.now;
-      let claimNow = Math.floor(Date.now() / 1000) * 1000;
-      try {
-        Settings.now = () => claimNow;
-        await client.query('BEGIN');
-        const isolation = await client.query<{ transaction_isolation: string }>(
-          'SHOW transaction_isolation',
-        );
-        expect(isolation.rows).toEqual([
-          { transaction_isolation: 'read committed' },
-        ]);
-        const pid = await client.query<{ pid: number }>(
-          'SELECT pg_backend_pid() AS pid',
-        );
-        const blockerPid = pid.rows[0]?.pid;
-        if (!blockerPid) throw new Error('Missing card writer PID');
-        await writer.execute(
-          userDiscountCardLockStatement(fixture.recipientUserId, 'exclusive'),
-        );
-        if (scenario.after === 'absent') {
-          await writer
-            .delete(userDiscountCards)
-            .where(eq(userDiscountCards.userId, fixture.recipientUserId));
-        } else {
-          await writer
-            .insert(userDiscountCards)
-            .values({
-              ...recipientCard,
-              ...cardState(scenario.after),
-            })
-            .onConflictDoUpdate({
-              set: cardState(scenario.after),
-              target: [userDiscountCards.userId, userDiscountCards.type],
-            });
-        }
-        const preview = trackFixtureOperation(
-          Effect.runPromise(
-            RegistrationTransferService.use((service) =>
-              service.getClaim({
-                claimCode: credential.claimCode,
-                tenant: claimTenant,
-                user: {
-                  communicationEmail: 'recipient@example.com',
-                  email: 'recipient@example.com',
-                  id: fixture.recipientUserId,
-                  roleIds: [fixture.eligibleRoleId],
-                },
-              }),
-            ).pipe(
-              Effect.provide(RegistrationTransferService.Default),
-              Effect.provide(claimLayer),
-            ),
+          })
+          .where(eq(registrationTransfers.id, candidate.transferId));
+        await database
+          .delete(transactions)
+          .where(eq(transactions.id, candidate.transactionId));
+        await database
+          .update(tenants)
+          .set({
+            discountProviders: {
+              esnCard: {
+                config: {},
+                status: scenario.enabled ? 'enabled' : 'disabled',
+              },
+            },
+          })
+          .where(eq(tenants.id, fixture.tenantId));
+        await database.insert(eventRegistrationOptionDiscounts).values({
+          discountedPrice: 0,
+          discountType: 'esnCard',
+          eventId: candidate.eventId,
+          registrationOptionId: candidate.optionId,
+        });
+        const now = Date.now();
+        const cardState = (
+          status: typeof userDiscountCards.$inferSelect.status,
+        ) => ({
+          status,
+          validFrom: new Date(now - 2 * 24 * 60 * 60 * 1000),
+          validTo: new Date(
+            now + (status === 'expired' ? -1 : 30) * 24 * 60 * 60 * 1000,
           ),
-          settledOperations,
-          failures,
-        );
-        const claim = trackFixtureOperation(
-          claimOpenCandidate(claimLayer, fixture, credential.claimCode),
-          settledOperations,
-          failures,
-        );
-        await waitFor(async () => {
-          const blocked = await pool.query<{ count: string }>(
-            `SELECT count(*)::text AS count FROM pg_stat_activity
+        });
+        // A source owner's valid card must never discount the recipient's price.
+        await database.insert(userDiscountCards).values({
+          ...cardState('verified'),
+          identifier: `source-${candidate.sourceUserId}`,
+          type: 'esnCard',
+          userId: candidate.sourceUserId,
+        });
+        const recipientCard = {
+          identifier: `recipient-${fixture.recipientUserId}`,
+          type: 'esnCard' as const,
+          userId: fixture.recipientUserId,
+        };
+        if (scenario.before !== 'absent') {
+          await database.insert(userDiscountCards).values({
+            ...recipientCard,
+            ...cardState(scenario.before),
+          });
+        }
+        const transferBefore =
+          await database.query.registrationTransfers.findFirst({
+            where: { id: candidate.transferId },
+          });
+        const registrationBefore =
+          await database.query.eventRegistrations.findFirst({
+            where: { id: candidate.registrationId },
+          });
+        if (!transferBefore || !registrationBefore)
+          throw new Error('Missing transfer fixture state');
+        const originalAcquisition =
+          await database.query.registrationAcquisitions.findFirst({
+            where: { id: candidate.acquisitionId },
+          });
+        const originalComponents =
+          await database.query.registrationAcquisitionComponents.findMany({
+            where: { acquisitionId: candidate.acquisitionId },
+          });
+        const capacityBefore = await database
+          .select({
+            confirmed: eventRegistrationOptions.confirmedSpots,
+            reserved: eventRegistrationOptions.reservedSpots,
+            waitlist: eventRegistrationOptions.waitlistSpots,
+          })
+          .from(eventRegistrationOptions)
+          .where(eq(eventRegistrationOptions.id, candidate.optionId));
+        const stripe = createRejectingStripeClient();
+        const createCheckout = vi
+          .spyOn(stripe.checkout.sessions, 'create')
+          .mockResolvedValue(
+            stripeCheckoutSessionResponse({
+              amount_subtotal: scenario.price,
+              amount_total: scenario.price,
+              id: `cs_test_global_card_${candidate.transferId}`,
+              payment_intent: null,
+              payment_status: 'unpaid',
+              status: 'open',
+              url: `https://checkout.stripe.com/c/pay/global-card-${candidate.transferId}`,
+            }),
+          );
+        const claimLayer = makeLayer(databaseUrl, stripe);
+        const claimTenant = await database.query.tenants.findFirst({
+          where: { id: fixture.tenantId },
+        });
+        if (!claimTenant) throw new Error('Expected transfer preview tenant');
+        const client = await pool.connect();
+        const writer = drizzle({ client, relations });
+        const failures: unknown[] = [];
+        const settledOperations: Promise<void>[] = [];
+        const previousNow = Settings.now;
+        let claimNow = Math.floor(Date.now() / 1000) * 1000;
+        try {
+          Settings.now = () => claimNow;
+          await client.query('BEGIN');
+          const isolation = await client.query<{
+            transaction_isolation: string;
+          }>('SHOW transaction_isolation');
+          expect(isolation.rows).toEqual([
+            { transaction_isolation: 'read committed' },
+          ]);
+          const pid = await client.query<{ pid: number }>(
+            'SELECT pg_backend_pid() AS pid',
+          );
+          const blockerPid = pid.rows[0]?.pid;
+          if (!blockerPid) throw new Error('Missing card writer PID');
+          await writer.execute(
+            userDiscountCardLockStatement(fixture.recipientUserId, 'exclusive'),
+          );
+          if (scenario.after === 'absent') {
+            await writer
+              .delete(userDiscountCards)
+              .where(eq(userDiscountCards.userId, fixture.recipientUserId));
+          } else {
+            await writer
+              .insert(userDiscountCards)
+              .values({
+                ...recipientCard,
+                ...cardState(scenario.after),
+              })
+              .onConflictDoUpdate({
+                set: cardState(scenario.after),
+                target: [userDiscountCards.userId, userDiscountCards.type],
+              });
+          }
+          const preview = expiresDuringWait
+            ? undefined
+            : trackFixtureOperation(
+                Effect.runPromise(
+                  RegistrationTransferService.use((service) =>
+                    service.getClaim({
+                      claimCode: credential.claimCode,
+                      tenant: claimTenant,
+                      user: {
+                        communicationEmail: 'recipient@example.com',
+                        email: 'recipient@example.com',
+                        id: fixture.recipientUserId,
+                        roleIds: [fixture.eligibleRoleId],
+                      },
+                    }),
+                  ).pipe(
+                    Effect.provide(RegistrationTransferService.Default),
+                    Effect.provide(claimLayer),
+                  ),
+                ),
+                settledOperations,
+                failures,
+              );
+          const claim = trackFixtureOperation(
+            claimOpenCandidate(claimLayer, fixture, credential.claimCode),
+            settledOperations,
+            failures,
+          );
+          await waitFor(async () => {
+            const blocked = await pool.query<{ count: string }>(
+              `SELECT count(*)::text AS count FROM pg_stat_activity
              WHERE datname = current_database() AND wait_event_type = 'Lock'
                AND $1::int = ANY(pg_blocking_pids(pid))
                AND query LIKE '%pg_advisory_xact_lock_shared%'`,
-            [blockerPid],
-          );
-          return Number(blocked.rows[0]?.count) === 2;
-        }, 'Transfer preview and claim did not both wait for the global card writer');
-        expect(createCheckout).not.toHaveBeenCalled();
-        // Keep the exact second boundary after time spent waiting for the writer.
-        claimNow += 2000;
-        await client.query('COMMIT');
-        expect(await preview).toMatchObject({
-          registrationOption: { currentPrice: scenario.price },
-        });
-        expect(await claim).toMatchObject({
-          result: {
-            status: scenario.price === 0 ? 'confirmed' : 'paymentPending',
-          },
-          status: 'success',
-        });
-        expect(
-          await database.query.registrationTransfers.findFirst({
-            where: { id: candidate.transferId },
-          }),
-        ).toMatchObject({
-          recipientAppliedDiscountedPrice: scenario.price === 0 ? 0 : null,
-          recipientAppliedDiscountType: scenario.price === 0 ? 'esnCard' : null,
-          recipientBasePrice: 1000,
-          recipientDiscountAmount: scenario.price === 0 ? 1000 : null,
-          recipientUserId: fixture.recipientUserId,
-          sourceRegistrationId: candidate.registrationId,
-          sourceUserId: candidate.sourceUserId,
-          status: scenario.price === 0 ? 'completed' : 'checkout_pending',
-        });
-        expect(
-          await database.query.eventRegistrations.findFirst({
-            where: { id: candidate.registrationId },
-          }),
-        ).toMatchObject({
-          guestCount: 0,
-          status: 'CONFIRMED',
-          userId:
-            scenario.price === 0
-              ? fixture.recipientUserId
-              : candidate.sourceUserId,
-        });
-        expect(
-          await database.query.registrationAcquisitions.findFirst({
-            where: { id: candidate.acquisitionId },
-          }),
-        ).toEqual(originalAcquisition);
-        expect(
-          await database.query.registrationAcquisitionComponents.findMany({
-            where: { acquisitionId: candidate.acquisitionId },
-          }),
-        ).toEqual(originalComponents);
-        expect(
-          await database
-            .select({
-              confirmed: eventRegistrationOptions.confirmedSpots,
-              reserved: eventRegistrationOptions.reservedSpots,
-              waitlist: eventRegistrationOptions.waitlistSpots,
-            })
-            .from(eventRegistrationOptions)
-            .where(eq(eventRegistrationOptions.id, candidate.optionId)),
-        ).toEqual(capacityBefore);
-        const payments = await database.query.transactions.findMany({
-          where: { eventRegistrationId: candidate.registrationId },
-        });
-        expect(payments).toHaveLength(scenario.price === 0 ? 0 : 1);
-        if (scenario.price > 0) {
-          expect(payments[0]).toMatchObject({
-            amount: scenario.price,
-            status: 'pending',
-            stripeAccountId: 'acct_transfer_limit',
-            stripeCheckoutRequest: { expiresAt: claimNow / 1000 + 35 * 60 },
-          });
-          expect(createCheckout).toHaveBeenCalledExactlyOnceWith(
-            expect.objectContaining({
-              expires_at: claimNow / 1000 + 35 * 60,
-              line_items: [
-                expect.objectContaining({
-                  price_data: expect.objectContaining({
-                    unit_amount: scenario.price,
-                  }),
-                  quantity: 1,
-                }),
-              ],
-            }),
-            expect.objectContaining({ stripeAccount: 'acct_transfer_limit' }),
-          );
-        } else {
+              [blockerPid],
+            );
+            return (
+              Number(blocked.rows[0]?.count) === (expiresDuringWait ? 1 : 2)
+            );
+          }, 'Transfer operations did not wait for the global card writer');
           expect(createCheckout).not.toHaveBeenCalled();
-        }
-      } catch (error) {
-        recordFailure(failures, error);
-      } finally {
-        let discard = false;
-        try {
-          await client.query('ROLLBACK');
+          // Keep the exact second boundary after time spent waiting for the writer.
+          claimNow = expiresDuringWait
+            ? transferBefore.expiresAt.getTime() + 1
+            : claimNow + 2000;
+          await client.query('COMMIT');
+          if (expiresDuringWait) {
+            expect(await claim).toMatchObject({
+              error: {
+                _tag: 'RegistrationTransferConflictError',
+                message:
+                  scenario.price === 0
+                    ? 'This ticket transfer expired before it could finish. No ticket, payment, or refund was changed. Ask the sender for a new offer.'
+                    : 'This ticket transfer expired before payment could start. No payment or refund was started. Ask the sender for a new offer.',
+              },
+              status: 'failure',
+            });
+            expect(
+              await database.query.registrationTransfers.findFirst({
+                where: { id: candidate.transferId },
+              }),
+            ).toEqual(transferBefore);
+            expect(
+              await database.query.eventRegistrations.findFirst({
+                where: { id: candidate.registrationId },
+              }),
+            ).toEqual(registrationBefore);
+          } else {
+            expect(await preview).toMatchObject({
+              registrationOption: { currentPrice: scenario.price },
+            });
+            expect(await claim).toMatchObject({
+              result: {
+                status: scenario.price === 0 ? 'confirmed' : 'paymentPending',
+              },
+              status: 'success',
+            });
+            expect(
+              await database.query.registrationTransfers.findFirst({
+                where: { id: candidate.transferId },
+              }),
+            ).toMatchObject({
+              recipientAppliedDiscountedPrice: scenario.price === 0 ? 0 : null,
+              recipientAppliedDiscountType:
+                scenario.price === 0 ? 'esnCard' : null,
+              recipientBasePrice: 1000,
+              recipientDiscountAmount: scenario.price === 0 ? 1000 : null,
+              recipientUserId: fixture.recipientUserId,
+              sourceRegistrationId: candidate.registrationId,
+              sourceUserId: candidate.sourceUserId,
+              status: scenario.price === 0 ? 'completed' : 'checkout_pending',
+            });
+            expect(
+              await database.query.eventRegistrations.findFirst({
+                where: { id: candidate.registrationId },
+              }),
+            ).toMatchObject({
+              guestCount: 0,
+              status: 'CONFIRMED',
+              userId:
+                scenario.price === 0
+                  ? fixture.recipientUserId
+                  : candidate.sourceUserId,
+            });
+          }
+          expect(
+            await database.query.registrationAcquisitions.findFirst({
+              where: { id: candidate.acquisitionId },
+            }),
+          ).toEqual(originalAcquisition);
+          expect(
+            await database.query.registrationAcquisitionComponents.findMany({
+              where: { acquisitionId: candidate.acquisitionId },
+            }),
+          ).toEqual(originalComponents);
+          expect(
+            await database
+              .select({
+                confirmed: eventRegistrationOptions.confirmedSpots,
+                reserved: eventRegistrationOptions.reservedSpots,
+                waitlist: eventRegistrationOptions.waitlistSpots,
+              })
+              .from(eventRegistrationOptions)
+              .where(eq(eventRegistrationOptions.id, candidate.optionId)),
+          ).toEqual(capacityBefore);
+          const payments = await database.query.transactions.findMany({
+            where: { eventRegistrationId: candidate.registrationId },
+          });
+          expect(payments).toHaveLength(
+            expiresDuringWait || scenario.price === 0 ? 0 : 1,
+          );
+          if (!expiresDuringWait && scenario.price > 0) {
+            expect(payments[0]).toMatchObject({
+              amount: scenario.price,
+              status: 'pending',
+              stripeAccountId: 'acct_transfer_limit',
+              stripeCheckoutRequest: { expiresAt: claimNow / 1000 + 35 * 60 },
+            });
+            expect(createCheckout).toHaveBeenCalledExactlyOnceWith(
+              expect.objectContaining({
+                expires_at: claimNow / 1000 + 35 * 60,
+                line_items: [
+                  expect.objectContaining({
+                    price_data: expect.objectContaining({
+                      unit_amount: scenario.price,
+                    }),
+                    quantity: 1,
+                  }),
+                ],
+              }),
+              expect.objectContaining({ stripeAccount: 'acct_transfer_limit' }),
+            );
+          } else {
+            expect(createCheckout).not.toHaveBeenCalled();
+          }
         } catch (error) {
-          discard = true;
           recordFailure(failures, error);
+        } finally {
+          let discard = false;
+          try {
+            await client.query('ROLLBACK');
+          } catch (error) {
+            discard = true;
+            recordFailure(failures, error);
+          }
+          try {
+            client.release(discard);
+          } catch (error) {
+            recordFailure(failures, error);
+          }
+          await Promise.all(settledOperations);
+          Settings.now = previousNow;
         }
-        try {
-          client.release(discard);
-        } catch (error) {
-          recordFailure(failures, error);
-        }
-        await Promise.all(settledOperations);
-        Settings.now = previousNow;
-      }
-      throwCleanupFailures(failures);
-    }, 20_000);
+        throwCleanupFailures(failures);
+      },
+      20_000,
+    );
   }
 
   it('replays a cancelled paid transfer with its existing full compensation claim', async () => {
@@ -1347,6 +1538,367 @@ describe('registration transfer finalization tenant limit', () => {
       }),
     ).toMatchObject({ status: 'CANCELLED', userId: candidate.sourceUserId });
   });
+
+  it('rechecks platform check-in after lock waits and keeps its audit atomic and tenant-scoped', async () => {
+    const fixture = await seedTransferLimitFixture(database);
+    fixtures.push(fixture);
+    const other = await seedTransferLimitFixture(database);
+    fixtures.push(other);
+    const candidate = fixture.candidates[0];
+    const timingCandidate = fixture.candidates[1];
+    if (!candidate || !timingCandidate)
+      throw new Error('Expected platform check-in candidates');
+    await reopenExpiredOfferWindow(database, fixture, candidate);
+    await database
+      .update(registrationTransfers)
+      .set({ status: 'cancelled' })
+      .where(eq(registrationTransfers.tenantId, fixture.tenantId));
+    await database
+      .update(eventRegistrationOptions)
+      .set({ confirmedSpots: 1 })
+      .where(
+        inArray(
+          eventRegistrationOptions.id,
+          fixture.candidates.map(({ optionId }) => optionId),
+        ),
+      );
+    const start = new Date(Date.now() + 15 * 60_000);
+    const end = new Date(Date.now() + 75 * 60_000);
+    await database
+      .update(eventInstances)
+      .set({ end, start })
+      .where(eq(eventInstances.tenantId, fixture.tenantId));
+    const tenantRow = await database.query.tenants.findFirst({
+      where: { id: fixture.tenantId },
+    });
+    if (!tenantRow) throw new Error('Missing platform check-in tenant');
+    const context = {
+      authData: {},
+      authenticated: true,
+      permissions: [],
+      platformAuthority: PlatformAdministratorAuthority.make({
+        actorEmail: 'platform@example.com',
+        actorId: 'auth0|platform-checkin-fixture',
+        kind: 'platformAdministrator',
+      }),
+      tenant: Schema.decodeUnknownSync(Tenant)(tenantRow),
+      user: null,
+      userAssigned: false,
+    } satisfies RpcRequestContextShape;
+    const checkIn = (
+      registrationId = candidate.registrationId,
+      targetTenantId = fixture.tenantId,
+    ) =>
+      Effect.runPromiseExit(
+        platformRegistrationHandlers['platform.registrations.checkIn'](
+          {
+            guestCheckInCount: 0,
+            reason: 'Check the reviewed ticket',
+            registrationId,
+            targetTenantId,
+          },
+          undefined,
+        ).pipe(
+          Effect.provideService(RpcRequestContext, context),
+          Effect.provide(RpcAccess.Default),
+          Effect.provide(layer),
+        ),
+      );
+    const state = (target: TransferCandidate) =>
+      Promise.all([
+        database.query.eventRegistrations.findFirst({
+          where: { id: target.registrationId },
+        }),
+        database.query.eventRegistrationOptions.findFirst({
+          where: { id: target.optionId },
+        }),
+      ]);
+    const audit = () =>
+      database.query.platformAuditEntries.findMany({
+        where: { targetTenantId: fixture.tenantId },
+      });
+    const before = await state(candidate);
+    const waitForWriter = (pid: number) =>
+      waitFor(async () => {
+        const blocked = await pool.query<{ count: string }>(
+          `SELECT count(*)::text AS count FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock' AND $1::int = ANY(pg_blocking_pids(pid))`,
+          [pid],
+        );
+        return Number(blocked.rows[0]?.count) === 1;
+      }, 'Platform check-in did not wait for its writer');
+    const client = await pool.connect();
+    const writer = drizzle({ client, relations });
+    let transactionOpen = false;
+    let settle = Promise.resolve();
+    try {
+      await client.query('BEGIN');
+      transactionOpen = true;
+      const backend = await client.query<{ pid: number }>(
+        'SELECT pg_backend_pid() AS pid',
+      );
+      const pid = backend.rows[0]?.pid;
+      if (!pid) throw new Error('Missing registration writer backend');
+      await writer
+        .select({ id: eventRegistrations.id })
+        .from(eventRegistrations)
+        .where(eq(eventRegistrations.id, candidate.registrationId))
+        .for('update');
+      const pending = checkIn();
+      settle = pending.then(() => {
+        /* Wait for the handler before releasing fixture ownership. */
+      });
+      await waitForWriter(pid);
+      await writer
+        .update(registrationTransfers)
+        .set({ expiresAt: start, status: 'open' })
+        .where(eq(registrationTransfers.id, candidate.transferId));
+      await client.query('COMMIT');
+      transactionOpen = false;
+      const outcome = await pending;
+      if (Exit.isSuccess(outcome))
+        throw new Error('Checked in through an active transfer');
+      expect(Cause.findErrorOption(outcome.cause)).toMatchObject({
+        _tag: 'Some',
+        value: {
+          _tag: 'RpcBadRequestError',
+          reason: 'registrationTransferActive',
+        },
+      });
+    } finally {
+      try {
+        if (transactionOpen) {
+          await client.query('ROLLBACK');
+          transactionOpen = false;
+        }
+      } finally {
+        try {
+          client.release(transactionOpen);
+        } finally {
+          await settle;
+        }
+      }
+    }
+    expect(await state(candidate)).toEqual(before);
+    expect(await audit()).toEqual([]);
+    const wrongTenant = await checkIn(candidate.registrationId, other.tenantId);
+    if (Exit.isSuccess(wrongTenant))
+      throw new Error('Checked in another organization ticket');
+    expect(Cause.findErrorOption(wrongTenant.cause)).toMatchObject({
+      _tag: 'Some',
+      value: { reason: 'registrationNotFound' },
+    });
+    expect(
+      await database.query.platformAuditEntries.findMany({
+        where: { targetTenantId: other.tenantId },
+      }),
+    ).toEqual([]);
+    await database
+      .update(registrationTransfers)
+      .set({ status: 'cancelled' })
+      .where(eq(registrationTransfers.id, candidate.transferId));
+    const constraint = 'test_platform_checkin_audit_failure';
+    const escapedTenant = fixture.tenantId.replaceAll("'", "''");
+    await pool.query(
+      `ALTER TABLE platform_audit_entries ADD CONSTRAINT ${constraint} CHECK (target_tenant_id <> '${escapedTenant}')`,
+    );
+    try {
+      const failedAudit = await checkIn();
+      if (Exit.isSuccess(failedAudit))
+        throw new Error('Check-in committed without its audit');
+      expect(Cause.pretty(failedAudit.cause)).toContain(constraint);
+      expect(await state(candidate)).toEqual(before);
+      expect(await audit()).toEqual([]);
+    } finally {
+      await pool.query(
+        `ALTER TABLE platform_audit_entries DROP CONSTRAINT ${constraint}`,
+      );
+    }
+    const completed = await checkIn();
+    if (Exit.isFailure(completed)) throw Cause.squash(completed.cause);
+    expect(
+      await database.query.eventRegistrations.findFirst({
+        where: { id: candidate.registrationId },
+      }),
+    ).toMatchObject({
+      checkedInGuestCount: 0,
+      checkInTime: expect.any(Date),
+      userId: candidate.sourceUserId,
+    });
+    expect(
+      await database.query.eventRegistrationOptions.findFirst({
+        columns: { checkedInSpots: true },
+        where: { id: candidate.optionId },
+      }),
+    ).toEqual({ checkedInSpots: 1 });
+    const savedAudit = await audit();
+    expect(savedAudit).toEqual([
+      expect.objectContaining({
+        action: 'registration.checkIn',
+        actorId: 'auth0|platform-checkin-fixture',
+        after: expect.objectContaining({
+          resourceId: candidate.registrationId,
+        }),
+        reason: 'Check the reviewed ticket',
+        targetTenantId: fixture.tenantId,
+      }),
+    ]);
+
+    const beforeTiming = await state(timingCandidate);
+    const eventClient = await pool.connect();
+    const eventWriter = drizzle({ client: eventClient, relations });
+    transactionOpen = false;
+    settle = Promise.resolve();
+    try {
+      await eventClient.query('BEGIN');
+      transactionOpen = true;
+      const backend = await eventClient.query<{ pid: number }>(
+        'SELECT pg_backend_pid() AS pid',
+      );
+      const pid = backend.rows[0]?.pid;
+      if (!pid) throw new Error('Missing event writer backend');
+      await eventWriter
+        .update(eventInstances)
+        .set({
+          end: new Date(Date.now() - 3 * 60 * 60_000),
+          start: new Date(Date.now() - 6 * 60 * 60_000),
+        })
+        .where(eq(eventInstances.id, timingCandidate.eventId));
+      const pending = checkIn(timingCandidate.registrationId);
+      settle = pending.then(() => {
+        /* Wait for the handler before fixture cleanup. */
+      });
+      await waitForWriter(pid);
+      await eventClient.query('COMMIT');
+      transactionOpen = false;
+      const outcome = await pending;
+      if (Exit.isSuccess(outcome))
+        throw new Error('Checked in after the event closed');
+      expect(Cause.findErrorOption(outcome.cause)).toMatchObject({
+        _tag: 'Some',
+        value: { _tag: 'EventCheckInUnavailableError', reason: 'ended' },
+      });
+      expect(await state(timingCandidate)).toEqual(beforeTiming);
+      expect(await audit()).toEqual(savedAudit);
+    } finally {
+      try {
+        if (transactionOpen) {
+          await eventClient.query('ROLLBACK');
+          transactionOpen = false;
+        }
+      } finally {
+        try {
+          eventClient.release(transactionOpen);
+        } finally {
+          await settle;
+        }
+      }
+    }
+  }, 30_000);
+
+  it('rejects an offer when its deadline passes while waiting for the option lock', async () => {
+    const fixture = await seedTransferLimitFixture(database);
+    fixtures.push(fixture);
+    const candidate = fixture.candidates[0];
+    if (!candidate) throw new Error('Expected transfer candidate');
+    const { eventStart } = await reopenExpiredOfferWindow(
+      database,
+      fixture,
+      candidate,
+    );
+    const offersBefore = await database.query.registrationTransfers.findMany({
+      where: { tenantId: fixture.tenantId },
+    });
+    const registrationBefore =
+      await database.query.eventRegistrations.findFirst({
+        where: { id: candidate.registrationId },
+      });
+    const paymentsBefore = await database.query.transactions.findMany({
+      where: { tenantId: fixture.tenantId },
+    });
+    const client = await pool.connect();
+    const writer = drizzle({ client, relations });
+    const previousNow = Settings.now;
+    let now = Date.now();
+    let transactionOpen = false;
+    let settle = Promise.resolve();
+    try {
+      Settings.now = () => now;
+      await client.query('BEGIN');
+      transactionOpen = true;
+      const backend = await client.query<{ pid: number }>(
+        'SELECT pg_backend_pid() AS pid',
+      );
+      const pid = backend.rows[0]?.pid;
+      if (!pid) throw new Error('Missing option writer backend');
+      await writer
+        .select({ id: eventRegistrationOptions.id })
+        .from(eventRegistrationOptions)
+        .where(eq(eventRegistrationOptions.id, candidate.optionId))
+        .for('update');
+      const pending = createOfferForCandidate(
+        database,
+        layer,
+        fixture,
+        candidate,
+      );
+      settle = pending.then(() => {
+        /* Cleanup awaits settlement; assertions inspect the outcome below. */
+      });
+      await waitFor(async () => {
+        const blocked = await pool.query<{ count: string }>(
+          `SELECT count(*)::text AS count FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock' AND $1::int = ANY(pg_blocking_pids(pid))`,
+          [pid],
+        );
+        return Number(blocked.rows[0]?.count) === 1;
+      }, 'Offer did not wait for the option writer');
+      now = eventStart.getTime() + 1;
+      await client.query('COMMIT');
+      transactionOpen = false;
+      const outcome = await pending;
+      if (Exit.isSuccess(outcome))
+        throw new Error('An expired offer was created');
+      expect(Cause.findErrorOption(outcome.cause)).toMatchObject({
+        _tag: 'Some',
+        value: {
+          _tag: 'RegistrationTransferConflictError',
+          message:
+            'The ticket transfer deadline has passed. No ticket transfer was started.',
+        },
+      });
+      expect(
+        await database.query.registrationTransfers.findMany({
+          where: { tenantId: fixture.tenantId },
+        }),
+      ).toEqual(offersBefore);
+      expect(
+        await database.query.eventRegistrations.findFirst({
+          where: { id: candidate.registrationId },
+        }),
+      ).toEqual(registrationBefore);
+      expect(
+        await database.query.transactions.findMany({
+          where: { tenantId: fixture.tenantId },
+        }),
+      ).toEqual(paymentsBefore);
+    } finally {
+      try {
+        if (transactionOpen) {
+          await client.query('ROLLBACK');
+          transactionOpen = false;
+        }
+      } finally {
+        try {
+          client.release(transactionOpen);
+        } finally {
+          try {
+            await settle;
+          } finally {
+            Settings.now = previousNow;
+          }
+        }
+      }
+    }
+  }, 20_000);
 
   it('replaces an expired open offer when current tenant policy reopens the transfer window', async () => {
     const fixture = await seedTransferLimitFixture(database);

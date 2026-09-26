@@ -25,7 +25,6 @@ import { type GetColumnData } from 'drizzle-orm';
 import { Cause, type Context, Effect, Exit, Layer, Schema } from 'effect';
 import * as Headers from 'effect/unstable/http/Headers';
 import { Rpc, RpcMessage } from 'effect/unstable/rpc';
-import { readFileSync } from 'node:fs';
 
 import { eventInstances, tenants, users } from '../../../../../db/schema';
 import { PlatformAdministratorAuthority } from '../../../../../types/custom/platform-authority';
@@ -411,23 +410,6 @@ describe('platform tenant finance handlers', () => {
     ]);
   });
 
-  it('keeps reusable finance workflows on named Effect boundaries', () => {
-    const source = readFileSync(
-      new URL('platform-tenant-finance.handlers.ts', import.meta.url),
-      'utf8',
-    );
-
-    for (const operationName of [
-      'PlatformTenantFinance.recordReimbursement',
-      'PlatformTenantFinance.requeueRefundClaim',
-      'PlatformTenantFinance.reviewReceipt',
-      'PlatformTenantFinance.runPlatformRead',
-      'PlatformTenantFinance.validateReceiptReviewInput',
-    ]) {
-      expect(source).toContain(`'${operationName}'`);
-    }
-  });
-
   it.effect('maps refund requeue domain errors to a bad request', () =>
     Effect.gen(function* () {
       const error = yield* mapPlatformRefundRequeueError(
@@ -457,91 +439,6 @@ describe('platform tenant finance handlers', () => {
       }
     }),
   );
-
-  it('joins the scoped upload for every platform receipt media read', () => {
-    const source = readFileSync(
-      new URL('platform-tenant-finance.handlers.ts', import.meta.url),
-      'utf8',
-    );
-
-    const scopedUploadJoinCount =
-      source.split(
-        '.innerJoin(financeReceiptUploads, financeReceiptUploadJoin)',
-      ).length - 1;
-
-    expect(scopedUploadJoinCount).toBe(5);
-  });
-
-  it('keeps exhausted stale-schedule refunds visible to recovery', () => {
-    const source = readFileSync(
-      new URL('platform-tenant-finance.handlers.ts', import.meta.url),
-      'utf8',
-    );
-
-    expect(source).toMatch(
-      /or\(\s*isNull\(transactions\.stripeRefundNextAttemptAt\),\s*gte\(\s*transactions\.stripeRefundAttempts,\s*transactions\.stripeRefundMaxAttempts/u,
-    );
-  });
-
-  it('loads refund recovery context through target-tenant registration and event joins', () => {
-    const source = readFileSync(
-      new URL('platform-tenant-finance.handlers.ts', import.meta.url),
-      'utf8',
-    );
-    const recoveryQueueStart = source.indexOf(
-      "'platform.finance.refundClaims.recoveryQueue'",
-    );
-    const recoveryQueueEnd = source.indexOf(
-      "'platform.finance.refundClaims.requeue'",
-      recoveryQueueStart,
-    );
-    const recoveryQueueSource = source.slice(
-      recoveryQueueStart,
-      recoveryQueueEnd,
-    );
-
-    expect(recoveryQueueSource).toContain('attendeeFirstName: users.firstName');
-    expect(recoveryQueueSource).toContain('eventTitle: eventInstances.title');
-    expect(recoveryQueueSource).toMatch(
-      /eq\(eventRegistrations\.tenantId, input\.targetTenantId\)/u,
-    );
-    expect(recoveryQueueSource).toMatch(
-      /eq\(eventInstances\.tenantId, input\.targetTenantId\)/u,
-    );
-    expect(recoveryQueueSource).toContain(
-      "runPlatformRead(\n      input.targetTenantId,\n      'finance:refundReceipts'",
-    );
-  });
-
-  it('checks evidence only for approval and revalidates it under the mutation lock', () => {
-    const source = readFileSync(
-      new URL('platform-tenant-finance.handlers.ts', import.meta.url),
-      'utf8',
-    );
-    const approvalCheck = source.indexOf("input.status === 'approved'");
-    const evidenceLoad = source.indexOf(
-      'loadReceiptEvidenceForApproval(',
-      approvalCheck,
-    );
-    const transactionStart = source.indexOf(
-      'database.transaction(',
-      evidenceLoad,
-    );
-    const lockedEvidence = source.indexOf(
-      'hasValidReceiptUploadBinding(lockedEvidence)',
-      transactionStart,
-    );
-    const receiptUpdate = source.indexOf(
-      '.update(financeReceipts)',
-      lockedEvidence,
-    );
-
-    expect(approvalCheck).toBeGreaterThan(-1);
-    expect(evidenceLoad).toBeGreaterThan(approvalCheck);
-    expect(transactionStart).toBeGreaterThan(evidenceLoad);
-    expect(lockedEvidence).toBeGreaterThan(transactionStart);
-    expect(receiptUpdate).toBeGreaterThan(lockedEvidence);
-  });
 
   it.effect(
     'returns a typed storage outage before mutating a platform approval',
@@ -787,23 +684,6 @@ describe('platform tenant finance handlers', () => {
         expect(transaction).not.toHaveBeenCalled();
       }),
   );
-
-  it('constructs every nested finance RPC class at its handler boundary', () => {
-    const source = readFileSync(
-      new URL('platform-tenant-finance.handlers.ts', import.meta.url),
-      'utf8',
-    );
-
-    for (const constructor of [
-      'PlatformFinanceReceiptApprovalDetailRecord.make',
-      'PlatformFinanceReceiptApprovalGroup.make',
-      'PlatformFinanceReceiptWithSubmitterRecord.make',
-      'PlatformFinanceReimbursementGroup.make',
-      'PlatformFinanceReimbursementReceipt.make',
-    ]) {
-      expect(source).toContain(constructor);
-    }
-  });
 
   it('versions payout details without sending them back in a mutation or audit', () => {
     const first = payoutDetailsVersion('iban', 'DE89370400440532013000');

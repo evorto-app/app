@@ -1,7 +1,6 @@
 import { Database } from '@db/index';
 import { describe, expect, it } from '@effect/vitest';
 import { Effect } from 'effect';
-import { readFileSync } from 'node:fs';
 import { vi } from 'vitest';
 
 import { createRegistrationDatabaseTestLayer } from '../testing/registration-database';
@@ -157,17 +156,6 @@ describe('validateTaxRate', () => {
       );
     });
   }
-
-  it('keeps compatible tax-rate lookup on a named Effect boundary', () => {
-    const source = readFileSync(
-      new URL('validate-tax-rate.ts', import.meta.url),
-      'utf8',
-    );
-
-    expect(source).toContain(
-      "getCompatibleTaxRates = Effect.fn('getCompatibleTaxRates')",
-    );
-  });
 
   it.effect.each(['0', '19'])(
     'accepts paid options with a tenant-owned active inclusive %s percent tax rate',

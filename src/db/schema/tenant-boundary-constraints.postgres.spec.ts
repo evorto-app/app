@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from '@effect/vitest';
-import { DrizzleQueryError, inArray } from 'drizzle-orm';
+import { DrizzleQueryError, eq, inArray } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { randomUUID } from 'node:crypto';
 import { Pool } from 'pg';
@@ -31,7 +31,11 @@ import {
   roleAssignmentRoleTenantForeignKeyName,
   roles,
   rolesToTenantUsers,
+  roleTenantNameUniqueConstraintName,
   tenants,
+  userCommunicationEmailCanonicalCheckName,
+  userIbanCanonicalShapeCheckName,
+  userPaypalEmailCanonicalCheckName,
   users,
   usersToTenants,
 } from './index';
@@ -303,6 +307,120 @@ describe('tenant boundary constraints in PostgreSQL', () => {
         'Failed to release tenant boundary fixtures',
         { cause: failures[0] },
       );
+    }
+  });
+
+  it('enforces canonical user contact and payment fields on direct database writes', async () => {
+    const userId = fixture.userIds[0];
+    const readUser = () =>
+      database.query.users.findFirst({ where: { id: userId } });
+    const original = await readUser();
+    if (!original) throw new Error('Expected the seeded user');
+    try {
+      const canonical = {
+        communicationEmail: 'contact@example.com',
+        iban: 'DE89370400440532013000',
+        paypalEmail: 'payment@example.com',
+      };
+      await database.update(users).set(canonical).where(eq(users.id, userId));
+      const before = await readUser();
+      expect(before).toMatchObject(canonical);
+      const invalidEmailValues = [
+        'UPPER@example.com',
+        ' contact@example.com ',
+        'missing-domain',
+        '',
+        `${'a'.repeat(243)}@example.com`,
+      ];
+      for (const [field, constraint] of [
+        ['communicationEmail', userCommunicationEmailCanonicalCheckName],
+        ['paypalEmail', userPaypalEmailCanonicalCheckName],
+      ] as const) {
+        for (const value of invalidEmailValues) {
+          await expectCheckViolation(
+            database
+              .update(users)
+              .set({ [field]: value, firstName: 'must-not-change' })
+              .where(eq(users.id, userId)),
+            constraint,
+          );
+          expect(await readUser()).toEqual(before);
+        }
+      }
+      for (const iban of [
+        'de89370400440532013000',
+        'DE89 370400440532013000',
+        'DE89!70400440532013000',
+        `DE89${'A'.repeat(10)}`,
+        `DE89${'A'.repeat(31)}`,
+      ]) {
+        await expectCheckViolation(
+          database
+            .update(users)
+            .set({ firstName: 'must-not-change', iban })
+            .where(eq(users.id, userId)),
+          userIbanCanonicalShapeCheckName,
+        );
+        expect(await readUser()).toEqual(before);
+      }
+      await database
+        .update(users)
+        .set({ iban: null, paypalEmail: null })
+        .where(eq(users.id, userId));
+      expect(await readUser()).toMatchObject({
+        communicationEmail: canonical.communicationEmail,
+        iban: null,
+        paypalEmail: null,
+      });
+      const maximumEmail = `${'a'.repeat(242)}@example.com`;
+      await database
+        .update(users)
+        .set({ communicationEmail: maximumEmail, paypalEmail: maximumEmail })
+        .where(eq(users.id, userId));
+      expect(await readUser()).toMatchObject({
+        communicationEmail: maximumEmail,
+        paypalEmail: maximumEmail,
+      });
+    } finally {
+      await database
+        .update(users)
+        .set({
+          communicationEmail: original.communicationEmail,
+          iban: original.iban,
+          paypalEmail: original.paypalEmail,
+          updatedAt: original.updatedAt,
+        })
+        .where(eq(users.id, userId));
+    }
+  });
+
+  it('allows shared role names across tenants and returns a named conflict within one tenant', async () => {
+    try {
+      await expect(
+        database
+          .update(roles)
+          .set({ name: 'Tuple role 1' })
+          .where(eq(roles.id, fixture.roleIds[1]))
+          .returning({ name: roles.name, tenantId: roles.tenantId }),
+      ).resolves.toEqual([
+        { name: 'Tuple role 1', tenantId: fixture.tenantIds[1] },
+      ]);
+      await expect(
+        database
+          .update(roles)
+          .set({ tenantId: fixture.tenantIds[0] })
+          .where(eq(roles.id, fixture.roleIds[1])),
+      ).rejects.toMatchObject({
+        cause: {
+          code: '23505',
+          constraint: roleTenantNameUniqueConstraintName,
+        },
+      });
+    } finally {
+      await database
+        .update(roles)
+        .set({ name: 'Tuple role 2', tenantId: fixture.tenantIds[1] })
+        .where(eq(roles.id, fixture.roleIds[1]));
     }
   });
 

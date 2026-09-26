@@ -1,9 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from '@effect/vitest';
-import { and, DrizzleQueryError, eq } from 'drizzle-orm';
+import { and, DrizzleQueryError, eq, sql } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { Cause, ConfigProvider, Effect, Exit, Layer } from 'effect';
 import { Pool } from 'pg';
 import Stripe from 'stripe';
+import { vi } from 'vitest';
 
 import { Database, databaseLayer } from '../../db';
 import { createId } from '../../db/create-id';
@@ -36,6 +37,7 @@ import {
   cancelRemainingRegistrationAddons,
   getRegistrationAddonFulfillment,
   redeemRegistrationAddon,
+  undoRegistrationAddonRedemption,
 } from './addon-fulfillment.service';
 
 const databaseUrl = process.env['DATABASE_URL'];
@@ -676,6 +678,137 @@ describe('add-on fulfillment concurrency', () => {
     );
   });
 
+  it('keeps the fulfillment view on one snapshot while a redemption commits between its reads', async () => {
+    const fixture = await seedFixture(database, {
+      includedQuantity: 0,
+      purchasedQuantity: 2,
+    });
+    fixtures.push(fixture);
+    const readFulfillment = () =>
+      Effect.runPromise(
+        getRegistrationAddonFulfillment({
+          canCancel: true,
+          registrationId: fixture.registrationId,
+          tenantId: fixture.tenantId,
+        }).pipe(Effect.provide(layer)),
+      );
+    const writer = await pool.connect();
+    const writerClosed = new Promise<void>((resolve) =>
+      writer.once('end', resolve),
+    );
+    const writerDatabase = drizzle({ client: writer, relations });
+    let transactionOpen = false;
+    let discardWriter = false;
+    let reader: ReturnType<typeof readFulfillment> | undefined;
+    const failures: unknown[] = [];
+    try {
+      await writer.query('BEGIN');
+      transactionOpen = true;
+      await writer.query("SET LOCAL lock_timeout = '5s'");
+      const pid = await writer.query<{ pid: number }>(
+        'SELECT pg_backend_pid() AS pid',
+      );
+      const writerPid = pid.rows[0]?.pid;
+      if (!writerPid) throw new Error('Expected the snapshot writer backend');
+      // The view has already read its purchase counters when it waits for lots.
+      await writerDatabase.execute(
+        sql`LOCK TABLE ${eventRegistrationAddonPurchaseLots} IN ACCESS EXCLUSIVE MODE`,
+      );
+      reader = operations.track(readFulfillment());
+      await vi.waitFor(
+        async () => {
+          const waiting = await pool.query<{ blocked: boolean }>(
+            `
+          SELECT EXISTS (
+            SELECT 1 FROM pg_stat_activity
+            WHERE datname = current_database()
+              AND $1::integer = ANY(pg_blocking_pids(pid))
+              AND query ILIKE '%event_registration_addon_purchase_lots%'
+          ) AS blocked`,
+            [writerPid],
+          );
+          expect(waiting.rows[0]?.blocked).toBe(true);
+        },
+        { interval: 10, timeout: 5000 },
+      );
+      const eventId = createId();
+      await writerDatabase
+        .update(eventRegistrationAddonPurchases)
+        .set({ redeemedQuantity: 1 })
+        .where(eq(eventRegistrationAddonPurchases.id, fixture.purchaseId));
+      await writerDatabase
+        .update(eventRegistrationAddonPurchaseLots)
+        .set({ redeemedQuantity: 1 })
+        .where(
+          eq(eventRegistrationAddonPurchaseLots.id, fixture.purchaseLotId),
+        );
+      await writerDatabase
+        .insert(eventRegistrationAddonFulfillmentEvents)
+        .values({
+          actorKind: 'user',
+          actorUserId: fixture.userId,
+          eventId: fixture.eventId,
+          id: eventId,
+          operationKey: `snapshot:${fixture.purchaseId}`,
+          purchaseId: fixture.purchaseId,
+          quantity: 1,
+          registrationId: fixture.registrationId,
+          tenantId: fixture.tenantId,
+          type: 'redeemed',
+        });
+      await writerDatabase
+        .insert(eventRegistrationAddonFulfillmentAllocations)
+        .values({
+          fulfillmentEventId: eventId,
+          purchaseId: fixture.purchaseId,
+          purchaseLotId: fixture.purchaseLotId,
+          quantity: 1,
+          source: 'purchased',
+          tenantId: fixture.tenantId,
+        });
+      await writer.query('COMMIT');
+      transactionOpen = false;
+      const earlierView = await reader;
+      expect(earlierView.addOns).toEqual([
+        expect.objectContaining({
+          cancellablePurchasedQuantity: 2,
+          latestRedemptionEventId: null,
+          redeemedQuantity: 0,
+          undoAvailable: false,
+        }),
+      ]);
+      const freshView = await operations.track(readFulfillment());
+      expect(freshView.addOns).toEqual([
+        expect.objectContaining({
+          cancellablePurchasedQuantity: 1,
+          latestRedemptionEventId: eventId,
+          redeemedQuantity: 1,
+          undoAvailable: true,
+        }),
+      ]);
+    } catch (error) {
+      failures.push(error);
+    }
+    try {
+      if (transactionOpen) await writer.query('ROLLBACK');
+    } catch (error) {
+      failures.push(error);
+      discardWriter = true;
+    }
+    writer.release(discardWriter);
+    if (discardWriter) await writerClosed;
+    if (reader) {
+      try {
+        await reader;
+      } catch (error) {
+        if (!failures.includes(error)) failures.push(error);
+      }
+    }
+    if (failures.length === 1) throw failures[0];
+    if (failures.length > 1)
+      throw new AggregateError(failures, 'Snapshot proof and cleanup failed');
+  });
+
   it('redeems two distinct intents from one snapshot and keeps an exact retry idempotent', async () => {
     const fixture = await seedFixture(database, {
       includedQuantity: 2,
@@ -734,6 +867,48 @@ describe('add-on fulfillment concurrency', () => {
           ),
         ),
     ).toHaveLength(2);
+    const view = () =>
+      operations.track(
+        Effect.runPromise(
+          getRegistrationAddonFulfillment({
+            canCancel: true,
+            registrationId: fixture.registrationId,
+            tenantId: fixture.tenantId,
+          }).pipe(Effect.provide(layer)),
+        ),
+      );
+    const initialView = await view();
+    const newest = initialView.addOns[0]?.latestRedemptionEventId;
+    if (!newest) throw new Error('Expected an active redemption');
+    const older =
+      newest === first.fulfillmentEventId
+        ? second.fulfillmentEventId
+        : first.fulfillmentEventId;
+    for (const [redemptionEventId, remaining] of [
+      [newest, 1],
+      [older, 0],
+    ] as const) {
+      await operations.track(
+        Effect.runPromise(
+          undoRegistrationAddonRedemption({
+            actorUserId: fixture.userId,
+            operationKey: `undo:${redemptionEventId}`,
+            redemptionEventId,
+            registrationAddonId: fixture.purchaseId,
+            registrationId: fixture.registrationId,
+            tenantId: fixture.tenantId,
+          }).pipe(Effect.provide(layer)),
+        ),
+      );
+      const afterUndo = await view();
+      expect(afterUndo.addOns).toEqual([
+        expect.objectContaining({
+          latestRedemptionEventId: remaining ? older : null,
+          redeemedQuantity: remaining,
+          undoAvailable: remaining > 0,
+        }),
+      ]);
+    }
   });
 
   it('serializes redemption against whole-registration add-on cancellation', async () => {

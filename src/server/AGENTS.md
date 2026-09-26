@@ -45,6 +45,10 @@
 
 ## Logging
 
+- Pass `disableLogger: true` to Effect HTTP `serve`/`toWebHandler` boundaries.
+  ESLint checks explicit options and local constants; the response middleware
+  owns sanitized request logging.
+
 - Use Effect platform logging (`Effect.log`, `Effect.logInfo`, `Effect.logWarning`, `Effect.logError`).
 - Prefer structured log annotations (`Effect.annotateLogs`) over interpolated log strings.
 - Keep raw child-process output and parse/schema errors that echo it out of

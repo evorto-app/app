@@ -417,6 +417,121 @@ describe('registration quantity bounds in PostgreSQL', () => {
     }
   });
 
+  it('persists policy defaults and rejects negative deadlines without changing the stored policy', async () => {
+    type DeadlineField =
+      | 'cancellationDeadlineHoursBeforeStart'
+      | 'transferDeadlineHoursBeforeStart';
+    const policies = [
+      {
+        defaults: { cancellation: 120, refundFees: true, transfer: 0 },
+        name: 'organization',
+        read: () =>
+          database
+            .select({
+              cancellation: tenants.cancellationDeadlineHoursBeforeStart,
+              refundFees: tenants.refundFeesOnCancellation,
+              transfer: tenants.transferDeadlineHoursBeforeStart,
+            })
+            .from(tenants)
+            .where(eq(tenants.id, fixture.tenantId)),
+        write: (field: DeadlineField, value: null | number) =>
+          database
+            .update(tenants)
+            .set({ [field]: value === null ? sql`null` : value })
+            .where(eq(tenants.id, fixture.tenantId)),
+      },
+      {
+        defaults: { cancellation: null, refundFees: null, transfer: null },
+        name: 'template choice',
+        read: () =>
+          database
+            .select({
+              cancellation:
+                templateRegistrationOptions.cancellationDeadlineHoursBeforeStart,
+              refundFees: templateRegistrationOptions.refundFeesOnCancellation,
+              transfer:
+                templateRegistrationOptions.transferDeadlineHoursBeforeStart,
+            })
+            .from(templateRegistrationOptions)
+            .where(
+              eq(templateRegistrationOptions.id, fixture.templateOptionId),
+            ),
+        write: (field: DeadlineField, value: null | number) =>
+          database
+            .update(templateRegistrationOptions)
+            .set({ [field]: value === null ? sql`null` : value })
+            .where(
+              eq(templateRegistrationOptions.id, fixture.templateOptionId),
+            ),
+      },
+      {
+        defaults: { cancellation: null, refundFees: null, transfer: null },
+        name: 'event choice',
+        read: () =>
+          database
+            .select({
+              cancellation:
+                eventRegistrationOptions.cancellationDeadlineHoursBeforeStart,
+              refundFees: eventRegistrationOptions.refundFeesOnCancellation,
+              transfer:
+                eventRegistrationOptions.transferDeadlineHoursBeforeStart,
+            })
+            .from(eventRegistrationOptions)
+            .where(eq(eventRegistrationOptions.id, fixture.optionId)),
+        write: (field: DeadlineField, value: null | number) =>
+          database
+            .update(eventRegistrationOptions)
+            .set({ [field]: value === null ? sql`null` : value })
+            .where(eq(eventRegistrationOptions.id, fixture.optionId)),
+      },
+    ];
+    for (const policy of policies) {
+      expect(await policy.read(), policy.name).toEqual([policy.defaults]);
+      for (const [field, projection] of [
+        ['cancellationDeadlineHoursBeforeStart', 'cancellation'],
+        ['transferDeadlineHoursBeforeStart', 'transfer'],
+      ] as const) {
+        await expect(
+          policy.write(field, -1),
+          `${policy.name}: ${field}`,
+        ).rejects.toMatchObject({ cause: { code: '23514' } });
+        expect(await policy.read(), policy.name).toEqual([policy.defaults]);
+        if (policy.name === 'organization') {
+          await expect(policy.write(field, null), field).rejects.toMatchObject({
+            cause: { code: '23502' },
+          });
+        }
+        await policy.write(field, 0);
+        expect(await policy.read(), policy.name).toEqual([
+          { ...policy.defaults, [projection]: 0 },
+        ]);
+        await policy.write(field, policy.defaults[projection]);
+      }
+      expect(await policy.read(), policy.name).toEqual([policy.defaults]);
+    }
+    await expect(
+      database
+        .update(tenants)
+        .set({ refundFeesOnCancellation: sql`null` })
+        .where(eq(tenants.id, fixture.tenantId)),
+    ).rejects.toMatchObject({ cause: { code: '23502' } });
+    await expect(
+      database
+        .update(tenants)
+        .set({ maxActiveRegistrationsPerUser: -1 })
+        .where(eq(tenants.id, fixture.tenantId)),
+    ).rejects.toMatchObject({ cause: { code: '23514' } });
+    expect(
+      await database
+        .select({
+          limit: tenants.maxActiveRegistrationsPerUser,
+          refundFees: tenants.refundFeesOnCancellation,
+        })
+        .from(tenants)
+        .where(eq(tenants.id, fixture.tenantId)),
+    ).toEqual([{ limit: 0, refundFees: true }]);
+  });
+
   const cases = [
     {
       constraint: 'event_registrations_guest_count_bounded',

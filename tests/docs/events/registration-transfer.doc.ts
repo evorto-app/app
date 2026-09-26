@@ -17,7 +17,7 @@ import { futureServerEventWindow } from '../../support/utils/server-test-clock';
 import { seedPaidRegistrationTransferScenario } from '../../support/utils/paid-registration-transfer-scenario';
 import { openRegistrationTransferClaim } from '../../support/utils/registration-transfer-claim-page';
 
-test.use({ storageState: userStateFile, trace: 'on-first-retry' });
+test.use({ storageState: userStateFile, trace: 'off' });
 
 // These guides reuse the same authenticated user fixtures while exercising
 // user row locks. Keep each guide independent, but avoid cross-guide deadlocks.
