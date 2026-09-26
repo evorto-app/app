@@ -2,7 +2,6 @@ import type { TemplateGraphRecord } from '@shared/rpc-contracts/app-rpcs/templat
 
 import { describe, expect, it } from '@effect/vitest';
 import { PgDialect } from 'drizzle-orm/pg-core';
-import { readFileSync } from 'node:fs';
 
 import {
   platformTemplateAuditSnapshot,
@@ -108,56 +107,6 @@ describe('platform template full-graph handler', () => {
 
     expect(query.sql).toBe('"icons"."tenantId" = $1');
     expect(query.params).toEqual(['tenant-target']);
-  });
-
-  it('keeps create, update, and application audit writes in one transaction', () => {
-    const source = readFileSync(
-      new URL('platform-templates.handlers.ts', import.meta.url),
-      'utf8',
-    );
-
-    expect(source).toContain('database.transaction');
-    expect(source).toContain('ensureStripeForPaidEventConfiguration');
-    expect(
-      source.indexOf('yield* ensureStripeForPaidEventConfiguration'),
-    ).toBeLessThan(source.indexOf('yield* lockTenantRoleGraph'));
-    expect(source).toContain(
-      'lockTenantCurrencyForFinancialConfiguration(\n                transaction,\n                targetTenantId,\n                operation.targetTenant.currency,\n              )',
-    );
-    expect(
-      source.indexOf('yield* lockTenantCurrencyForFinancialConfiguration'),
-    ).toBeLessThan(
-      source.indexOf('yield* TemplateGraphService.createTemplate'),
-    );
-    expect(source).toContain('TemplateGraphService.createTemplate');
-    expect(source).toContain('TemplateGraphService.updateTemplate');
-    expect(source).toContain('writePlatformAudit(transaction');
-    expect(source).not.toContain('SimpleTemplateService');
-    expect(source).not.toContain('eq(eventTemplates.simpleModeEnabled, true)');
-
-    const serviceSource = readFileSync(
-      new URL('../templates/template-graph.service.ts', import.meta.url),
-      'utf8',
-    );
-    expect(serviceSource).toContain(
-      'eq(eventTemplateCategories.tenantId, tenantId)',
-    );
-    expect(serviceSource).toContain(
-      'tenantRoleIdsExist(database, tenantId, roleIds)',
-    );
-    expect(serviceSource).toContain('stripeTaxRateId: option.stripeTaxRateId');
-    expect(serviceSource).toContain('tenantId,');
-
-    const contractSource = readFileSync(
-      new URL(
-        '../../../../../shared/rpc-contracts/app-rpcs/templates.rpcs.ts',
-        import.meta.url,
-      ),
-      'utf8',
-    );
-    expect(contractSource).toMatch(
-      /TemplateGraphRegistrationOptionInput[\s\S]*?registrationMode: TemplateRegistrationMode/,
-    );
   });
 
   it('keeps registration options in audit without free-text PII', () => {

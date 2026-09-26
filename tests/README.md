@@ -64,7 +64,9 @@ Use plain product language throughout the published text, guide titles, callouts
 and screenshot captions. Do not publish implementation names, protocols,
 identifiers, storage or delivery mechanics, database checks, fixture details, or
 test evidence. Keep those details in executable setup and assertions. Name an
-external service only where the reader sees or uses it.
+external service only where the reader sees or uses it. Apply this guidance in
+authoring and review; do not enforce it with prohibited-word tests or publication
+filters. Automated checks verify behavior and the integrity of published output.
 
 The documentation reporter owns each page title and writes the page's single
 level-one heading. Authored Markdown must start at `##` or a lower heading

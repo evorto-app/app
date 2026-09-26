@@ -15,8 +15,6 @@ import {
   QueryClient,
 } from '@tanstack/angular-query-experimental';
 import { Schema } from 'effect';
-import { readFileSync } from 'node:fs';
-import nodePath from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { normalizeStripeCheckoutUrl } from '../core/stripe-checkout-url';
@@ -32,9 +30,6 @@ import {
   registrationTransferStatusCopy,
   transferClaimFormSchema,
 } from './registration-transfer-claim.component';
-
-const readSource = (sourcePath: string): string =>
-  readFileSync(nodePath.join(process.cwd(), sourcePath), 'utf8');
 
 const transferClaim = (
   transferId: string,
@@ -759,124 +754,6 @@ describe('registrationTransferRetryErrorCopy', () => {
       expect(copy.body).not.toContain('session cookie');
       expect(copy.body).not.toContain('Continue payment again');
     }
-  });
-});
-
-describe('registration transfer bundle review template', () => {
-  it('names the loading progress indicator directly', () => {
-    const template = readSource(
-      'src/app/registration-transfers/registration-transfer-claim.component.html',
-    );
-
-    expect(template).toContain(
-      '<mat-spinner diameter="40" aria-label="Loading transfer" />',
-    );
-  });
-
-  it('announces claim progress and renders touched validation errors', () => {
-    const template = readSource(
-      'src/app/registration-transfers/registration-transfer-claim.component.html',
-    );
-
-    expect(template).toContain(
-      '[attr.aria-busy]="claimMutation.isPending() || null"',
-    );
-    expect(template).toContain('Accepting ticket. Please wait.');
-    expect(template).toContain('answerField.answer().touched()');
-    expect(template).toContain('<mat-error>{{ error.message }}</mat-error>');
-  });
-
-  it('renders preserved check-in and add-on fulfillment history', () => {
-    const template = readSource(
-      'src/app/registration-transfers/registration-transfer-claim.component.html',
-    );
-
-    expect(template).toContain('Attendee check-in');
-    expect(template).toContain('claim.bundle.checkInTime | date: "medium"');
-    expect(template).toContain('{{ claim.bundle.checkedInGuestCount }} of');
-    expect(template).toContain('Available to use');
-    expect(template).toContain('{{ addOn.remainingQuantity }}');
-    expect(template).toContain('Handed out');
-    expect(template).toContain('{{ addOn.redeemedQuantity }}');
-    expect(template).toContain('Cancelled');
-    expect(template).toContain('{{ addOn.cancelledQuantity }}');
-    expect(template).toContain(
-      'existing check-in and use history\n            transfer together',
-    );
-  });
-
-  it("shows current base price and only the recipient's current discount", () => {
-    const template = readSource(
-      'src/app/registration-transfers/registration-transfer-claim.component.html',
-    );
-
-    expect(template).toContain('Current base price');
-    expect(template).toContain('claim.registrationOption.basePrice / 100');
-    expect(template).toContain('Your current ESNcard discount');
-    expect(template).toContain('claim.registrationOption.discountAmount / 100');
-    expect(template).toContain('Your current ticket price');
-    expect(template).toContain('claim.registrationOption.currentPrice / 100');
-    expect(template).not.toContain('sourceDiscount');
-  });
-
-  it('keeps included add-ons inside the registration price and prices only purchased units separately', () => {
-    const template = readSource(
-      'src/app/registration-transfers/registration-transfer-claim.component.html',
-    );
-
-    expect(template).toContain(
-      'Includes the add-ons marked Included in the ticket price below.',
-    );
-    expect(template).toContain('Included in the ticket price');
-    expect(template).toContain('{{ addOn.includedQuantity }}');
-    expect(template).toContain('Purchased at the current price per item');
-    expect(template).toContain('{{ addOn.purchasedQuantity }} ×');
-    expect(template).toContain('addOn.currentUnitPrice / 100');
-    expect(template).not.toContain('{{ addOn.quantity }} total ·');
-  });
-
-  it('shows the authoritative bundle total with an explicit free state', () => {
-    const template = readSource(
-      'src/app/registration-transfers/registration-transfer-claim.component.html',
-    );
-
-    expect(template).toContain('Total due');
-    expect(template).toContain('claim.recipientBundlePrice === 0');
-    expect(template).toContain('claim.recipientBundlePrice / 100');
-    expect(template).toContain('Free');
-  });
-
-  it('gives an invalid manual code a security-neutral recovery action', () => {
-    const template = readSource(
-      'src/app/registration-transfers/registration-transfer-claim.component.html',
-    );
-
-    expect(template).toContain('role="alert"');
-    expect(template).not.toContain('errorMessage(claimQuery.error()');
-    expect(template).not.toContain('errorMessage(claimMutation.error()');
-    expect(template).not.toContain('errorMessage(retryMutation.error()');
-    expect(template).toContain('lookupErrorCopy(claimQuery.error())');
-    expect(template).toContain('claimErrorCopy(claimMutation.error())');
-    expect(template).toContain('retryErrorCopy(retryMutation.error())');
-    expect(template).toContain('(click)="checkTransferStatus()"');
-    expect(template).toContain('(click)="claimQuery.refetch()"');
-    expect(template).toContain('(click)="enterAnotherCode.emit()"');
-    expect(template).toContain('Enter another code');
-    expect(template).toContain('@if (unsafeCheckout())');
-    expect(template).toContain('@else if (retryMutation.isError())');
-    expect(template).toContain('Select Check transfer status');
-    expect(template).toContain('ask the\n          sender for a new transfer');
-    expect(template).not.toContain('Continue payment again');
-  });
-
-  it('announces transfer error states as alerts', () => {
-    const template = readSource(
-      'src/app/registration-transfers/registration-transfer-claim.component.html',
-    );
-
-    expect(template).toContain(
-      `[attr.role]="state.tone === 'error' ? 'alert' : 'status'"`,
-    );
   });
 });
 

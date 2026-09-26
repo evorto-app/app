@@ -1,13 +1,6 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  Injector,
-  signal,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { form } from '@angular/forms/signals';
-import { readFileSync } from 'node:fs';
-import nodePath from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -20,14 +13,6 @@ import {
   type RoleFormData,
   roleFormSchema,
 } from './role-form.schema';
-
-const template = readFileSync(
-  nodePath.join(
-    process.cwd(),
-    'src/app/admin/components/role-form/role-form.component.html',
-  ),
-  'utf8',
-);
 
 describe('roleFormSubmitDisabled', () => {
   it('blocks role submits while invalid, submitting, or mutation-pending', () => {
@@ -63,36 +48,32 @@ describe('roleFormSubmitDisabled', () => {
 });
 
 describe('role write validation', () => {
-  it('provides visible required and length messages', () => {
-    TestBed.configureTestingModule({});
-    const roleForm = form(signal(createRoleFormModel()), roleFormSchema, {
-      injector: TestBed.inject(Injector),
-    });
+  it('renders required and length errors for the edited fields', async () => {
+    const fixture = createRoleFormFixture();
+    await fixture.whenStable();
+    const root: unknown = fixture.nativeElement;
+    if (!(root instanceof HTMLElement))
+      throw new Error('Expected the rendered role form');
+    const name = root.querySelector<HTMLInputElement>('input[matinput]');
+    const description = root.querySelector<HTMLTextAreaElement>('textarea');
+    if (!name || !description)
+      throw new Error('Expected role name and description fields');
+    name.value = '';
+    name.dispatchEvent(new Event('input', { bubbles: true }));
+    name.dispatchEvent(new Event('blur'));
+    await fixture.whenStable();
+    expect(root.textContent).toContain('Enter a role name.');
 
-    expect(
-      roleForm
-        .name()
-        .errors()
-        .map((error) => error.message),
-    ).toContain('Enter a role name.');
-    roleForm.name().value.set('x'.repeat(101));
-    roleForm.description().value.set('x'.repeat(501));
-
-    expect(
-      roleForm
-        .name()
-        .errors()
-        .map((error) => error.message),
-    ).toContain('Name must be 100 characters or fewer.');
-    expect(
-      roleForm
-        .description()
-        .errors()
-        .map((error) => error.message),
-    ).toContain('Description must be 500 characters or fewer.');
-    expect(template).toContain('error of form.name().errors()');
-    expect(template).toContain('error of form.description().errors()');
-    expect(template).toContain('<mat-error>{{ error.message }}</mat-error>');
+    name.value = 'x'.repeat(101);
+    description.value = 'x'.repeat(501);
+    name.dispatchEvent(new Event('input', { bubbles: true }));
+    description.dispatchEvent(new Event('input', { bubbles: true }));
+    description.dispatchEvent(new Event('blur'));
+    await fixture.whenStable();
+    expect(root.textContent).toContain('Name must be 100 characters or fewer.');
+    expect(root.textContent).toContain(
+      'Description must be 500 characters or fewer.',
+    );
   });
 });
 

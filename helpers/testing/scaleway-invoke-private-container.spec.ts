@@ -163,21 +163,6 @@ fi
 };
 
 describe('Scaleway private-container invocation', () => {
-  it('does not retry bounded POST operations', () => {
-    const script = fs.readFileSync(invokeScript, 'utf8');
-
-    expect(script).not.toContain('--retry');
-    expect(script).toMatch(/curl \\\n+\s+--disable/u);
-    expect(script).toContain("--noproxy '*'");
-    expect(script).toContain("--proto '=https'");
-    expect(script).toContain('--header "@${request_headers_file}"');
-    expect(script).toContain('--data-binary "@${request_body_file}"');
-    expect(script).toMatch(/unset \\\n+\s+ALL_PROXY/u);
-    expect(script).not.toContain('readonly body="${4:');
-    expect(script).not.toContain('X-Auth-Token: ${SCW_SECRET_KEY}');
-    expect(script).not.toContain('--location');
-  });
-
   it.each(opsCommandDiagnostics)(
     'prints the producer diagnostic %s without its response envelope',
     (diagnostic) => {
@@ -290,6 +275,12 @@ describe('Scaleway private-container invocation', () => {
 
     const curlArguments = invocation?.trimEnd().split('\n') ?? [];
     expect(curlArguments).toEqual(expect.arrayContaining(['--noproxy', '*']));
+    expect(curlArguments[0]).toBe('--disable');
+    expect(curlArguments).toEqual(
+      expect.arrayContaining(['--proto', '=https']),
+    );
+    expect(curlArguments).not.toContain('--retry');
+    expect(curlArguments).not.toContain('--location');
     for (const option of ['--header', '--data-binary', '--output']) {
       const optionIndex = curlArguments.indexOf(option);
       expect(optionIndex).toBeGreaterThanOrEqual(0);

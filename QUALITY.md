@@ -53,6 +53,47 @@ For each meaningful change, agents should identify:
 
 This is not a rigid ID system. Do not introduce a complex requirements matrix unless explicitly requested.
 
+## Behavior-focused automated tests
+
+Automated tests verify observable behavior: inputs and outcomes, rendered
+interactions, validation, permissions, tenant isolation, payment state,
+concurrency, and failure recovery. Test operational tools through their real
+outputs and side effects, including documentation publication and cleanup.
+
+Do not add word blacklists, editorial-policy tests, source-string or AST checks
+for preferred implementation patterns, or tests that inspect other tests for
+particular assertions. A code rearrangement that preserves behavior should not
+break a test. Use TypeScript for type correctness and ESLint for important,
+mechanically checkable structural rules, including module boundaries and Effect
+runtime ownership. Add focused lint rules when they catch a concrete structural
+mistake with clear diagnostics and few false positives; prefer existing rules
+before introducing custom ones. The Effect boundary rule already warns about
+internal `Effect.run*`, `Runtime.run*`, and managed-runtime execution, and import
+restrictions enforce client/server boundaries.
+
+Workflow YAML is parsed by ESLint as part of `bun run lint`. Its structural rules
+check immutable action/workflow references, explicit permissions declarations,
+and step-scoped secret use. Local action references and explicit reusable-workflow
+secret forwarding remain supported. These checks replace indentation-sensitive
+source tests; release-tag comments remain authoring guidance.
+
+Keep editorial wording and subjective design preferences in repository guidance
+and review. Fix awkward wording when found without making it a CI failure.
+
+Keep assertions on accessible names and messages when they prove a real user
+interaction or distinguish meaningful outcomes. Verify those through rendered
+components or journeys, rather than searching template or test source. Secret
+redaction and public-error sanitization are observable security behavior and
+still need tests.
+
+When reviewing existing source-inspection checks, delete editorial and
+implementation-preference assertions. For a real uncovered risk, replace the
+source check with the smallest useful behavior test. Move important structural
+constraints into lint when appropriate, rather than maintaining source-scanning
+test suites. Do not mechanically turn every deleted assertion into a lint rule
+or duplicate existing journey coverage. Custom lint rules can have small valid
+and invalid input tests that verify the rule's diagnostic behavior.
+
 ## Browser Plugin vs Playwright
 
 Use the Codex in-app Browser plugin for exploratory and manual-style

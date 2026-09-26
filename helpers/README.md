@@ -215,6 +215,12 @@ rebuild a partial stack. Foreground and watch sessions remain active until the
 operator stops them, after their reset and build steps finish within the same
 bounds.
 
+CI collects Docker diagnostics through
+`bash helpers/testing/collect-docker-diagnostics.sh`, optionally with `--follow`
+or `--tail=COUNT`. It always selects `db-setup`, `mailpit`, `minio`, `minio-init`,
+`worker`, and `evorto`; callers cannot add the credential-bearing database or
+Stripe CLI logs. Docker output and exit status are preserved.
+
 Inside Docker, keep `BASE_URL` browser-facing so Auth0 redirects point at the
 host-mapped app URL, and keep `SSR_RPC_ORIGIN` pointed at the app container's
 internal listener (`http://localhost:4200`). Server-side rendering uses
@@ -335,3 +341,13 @@ template registration options, and scenario handles still run in the seed
 transaction, where those rows exist. Configuration preflight does not certify
 future database writes or make the separate staging drop/apply/seed commands
 atomic; database or runtime failures can still interrupt that workflow.
+
+## Docker build-context verification
+
+`bun run image:verify -- IMAGE` and `bun run image:security:local` exercise the
+repository `.dockerignore` through a small scratch build containing only synthetic
+files. The exported result must exclude local secrets, Terraform state/configuration
+and test artifacts while retaining application inputs. Run
+`bash helpers/testing/verify-docker-build-context.sh` for this check alone.
+Review immutable Docker/Compose image digests when updating dependencies; the
+existing Dependabot entries propose image updates.

@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from '@effect/vitest';
-import { DrizzleQueryError, inArray } from 'drizzle-orm';
+import { DrizzleQueryError, eq, inArray } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { randomUUID } from 'node:crypto';
 import { Pool } from 'pg';
@@ -31,6 +31,7 @@ import {
   roleAssignmentRoleTenantForeignKeyName,
   roles,
   rolesToTenantUsers,
+  roleTenantNameUniqueConstraintName,
   tenants,
   users,
   usersToTenants,
@@ -303,6 +304,36 @@ describe('tenant boundary constraints in PostgreSQL', () => {
         'Failed to release tenant boundary fixtures',
         { cause: failures[0] },
       );
+    }
+  });
+
+  it('allows shared role names across tenants and returns a named conflict within one tenant', async () => {
+    try {
+      await expect(
+        database
+          .update(roles)
+          .set({ name: 'Tuple role 1' })
+          .where(eq(roles.id, fixture.roleIds[1]))
+          .returning({ name: roles.name, tenantId: roles.tenantId }),
+      ).resolves.toEqual([
+        { name: 'Tuple role 1', tenantId: fixture.tenantIds[1] },
+      ]);
+      await expect(
+        database
+          .update(roles)
+          .set({ tenantId: fixture.tenantIds[0] })
+          .where(eq(roles.id, fixture.roleIds[1])),
+      ).rejects.toMatchObject({
+        cause: {
+          code: '23505',
+          constraint: roleTenantNameUniqueConstraintName,
+        },
+      });
+    } finally {
+      await database
+        .update(roles)
+        .set({ name: 'Tuple role 2', tenantId: fixture.tenantIds[1] })
+        .where(eq(roles.id, fixture.roleIds[1]));
     }
   });
 

@@ -22,8 +22,6 @@ import {
   QueryClient,
   QueryObserver,
 } from '@tanstack/angular-query-experimental';
-import { readFileSync } from 'node:fs';
-import nodePath from 'node:path';
 import { of, Subject } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -49,9 +47,6 @@ import {
   registrationTransferCancellationErrorCopy,
   registrationTransferOfferErrorCopy,
 } from './event-active-registration.component';
-
-const readSource = (sourcePath: string): string =>
-  readFileSync(nodePath.join(process.cwd(), sourcePath), 'utf8');
 
 const registrationAddon = (
   overrides: Partial<EventsRegistrationAddonRecord> = {},
@@ -175,25 +170,6 @@ describe('registration transfer owner error copy', () => {
       }
     }
   });
-
-  it('uses distinct typed copy functions in each transfer error alert', () => {
-    const template = readSource(
-      'src/app/events/event-active-registration/event-active-registration.component.html',
-    );
-    const normalizedTemplate = template.replaceAll(/\s+/gu, ' ');
-
-    expect(normalizedTemplate).toContain(
-      'registrationTransferOfferErrorCopy(transferRegistrationMutation.error())',
-    );
-    expect(normalizedTemplate).toContain(
-      'registrationTransferCancellationErrorCopy( cancelTransferMutation.error() )',
-    );
-    expect(template).not.toContain('transferErrorMessage(');
-    expect(template).toContain('Review transfer offer');
-    expect(template).toContain('Review transfer cancellation');
-    expect(template).not.toContain('Transfer offer could not be created');
-    expect(template).not.toContain('Transfer could not be cancelled');
-  });
 });
 
 describe('registrationCancellationCopy', () => {
@@ -302,18 +278,6 @@ describe('registrationAudienceCopy', () => {
         'Organizer/helper application pending. Organizer access starts only after approval and any required payment.',
       qrAlt: 'QR code for the organizer/helper pass',
     });
-  });
-
-  it('keeps explicit organizer/helper confirmation visible beside custom registered copy', () => {
-    const template = readSource(
-      'src/app/events/event-active-registration/event-active-registration.component.html',
-    );
-
-    expect(template).toContain('{{ audience.confirmedStatus }}');
-    expect(template).toContain('@if (registration.registeredDescription)');
-    expect(template).not.toContain(
-      '@if (registration.registeredDescription) {\n          <div\n            class="prose dark:prose-invert max-w-none @md:col-span-2"\n            [innerHtml]="registration.registeredDescription"\n          ></div>\n        } @else',
-    );
   });
 });
 
@@ -581,34 +545,6 @@ describe('registration add-on purchase helpers', () => {
         source: 'local',
       },
     });
-  });
-});
-
-describe('active registration template source', () => {
-  it('keeps pending registration payment copy explicit', () => {
-    const template = readSource(
-      'src/app/events/event-active-registration/event-active-registration.component.html',
-    );
-
-    expect(template).toContain(
-      'registrationCheckoutUrl(registration.checkoutUrl)',
-    );
-    expect(template).toContain('Your payment link is not ready yet.');
-    expect(template).toContain(
-      'Your ticket is not confirmed until payment succeeds.',
-    );
-  });
-
-  it('does not render a cancel action for transfer refund states', () => {
-    const template = readSource(
-      'src/app/events/event-active-registration/event-active-registration.component.html',
-    );
-
-    expect(template).toContain('transferStatus.cancelLabel');
-    expect(template).toContain('registrationActiveTransferStatusCopy');
-    expect(template).toContain(
-      `[attr.role]="transferStatus.tone === 'error' ? 'alert' : 'status'"`,
-    );
   });
 });
 
@@ -1726,28 +1662,5 @@ describe('EventActiveRegistrationComponent add-on purchase', () => {
         expect(dialogOpen).not.toHaveBeenCalled();
       },
     );
-  });
-});
-
-describe('registration transfer offer dialog source', () => {
-  it('keeps private credentials and ownership transition copy explicit', () => {
-    const template = readSource(
-      'src/app/events/event-active-registration/event-registration-transfer-dialog.component.html',
-    );
-    const normalizedTemplate = template.replaceAll(/\s+/gu, ' ');
-
-    expect(normalizedTemplate).toContain('Copy transfer page link');
-    expect(normalizedTemplate).toContain('Transfer code');
-    expect(normalizedTemplate).toContain(
-      'Send the code to the person who should receive your ticket.',
-    );
-    expect(normalizedTemplate).toContain(
-      'The code works once, so keep it private.',
-    );
-    expect(normalizedTemplate).toContain(
-      "The ticket stays with you until the new attendee's transfer is complete.",
-    );
-    expect(normalizedTemplate).toContain("copy(data.claimPageUrl, 'page')");
-    expect(normalizedTemplate).not.toContain('data.claimUrl');
   });
 });

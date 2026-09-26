@@ -1,22 +1,12 @@
 import { Injector, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { form } from '@angular/forms/signals';
-import { readFileSync } from 'node:fs';
-import nodePath from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
   nonNegativeIntegerValidationError,
   registrationSettingsFormSchema,
 } from './registration-settings.component';
-
-const template = readFileSync(
-  nodePath.join(
-    process.cwd(),
-    'src/app/admin/settings/registration-settings.component.html',
-  ),
-  'utf8',
-);
 
 beforeEach(() => {
   TestBed.configureTestingModule({});
@@ -108,19 +98,6 @@ describe('registration policy validation', () => {
         .errors()
         .map((error) => error.message),
     ).toContain('Enter a whole number.');
-  });
-
-  it('renders each numeric setting error and the waitlist limit rule', () => {
-    expect(template).toContain(
-      'settingsForm.maxActiveRegistrationsPerUser().errors()',
-    );
-    expect(template).toContain(
-      'settingsForm.transferDeadlineHoursBeforeStart().errors()',
-    );
-    expect(template).toMatch(
-      /settingsForm\s*\.cancellationDeadlineHoursBeforeStart\(\)\s*\.errors\(\)/,
-    );
-    expect(template).toMatch(/Joining a waitlist does not count\s+toward this/);
   });
 });
 

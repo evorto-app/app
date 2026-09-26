@@ -1,7 +1,16 @@
 import * as PgClient from '@effect/sql-pg/PgClient';
 import { afterAll, beforeAll, describe, expect, it, vi } from '@effect/vitest';
+import {
+  RpcRequestContext,
+  RpcRequestContextMiddleware,
+  type RpcRequestContextShape,
+} from '@shared/rpc-contracts/app-rpcs';
 import { EventRegistrationConflictError } from '@shared/rpc-contracts/app-rpcs/events.errors';
-import { RpcRequestContext } from '@shared/rpc-contracts/app-rpcs/rpc-request-context.middleware';
+import {
+  EventsFindOne,
+  EventsGetRegistrationStatus,
+  EventsPurchaseRegistrationAddon,
+} from '@shared/rpc-contracts/app-rpcs/events.rpcs';
 import { and, eq, getTableName } from 'drizzle-orm';
 import * as PgDrizzle from 'drizzle-orm/effect-postgres';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
@@ -15,6 +24,8 @@ import {
   Option,
   Schema,
 } from 'effect';
+import { Headers } from 'effect/unstable/http';
+import { Rpc, RpcMessage } from 'effect/unstable/rpc';
 import { Pool } from 'pg';
 import Stripe from 'stripe';
 
@@ -41,6 +52,7 @@ import {
   registrationAcquisitionComponents,
   registrationAcquisitionPayments,
   registrationAcquisitions,
+  registrationTransfers,
   roles,
   rolesToTenantUsers,
   tenants,
@@ -52,6 +64,11 @@ import {
 import { PlatformAdministratorAuthority } from '../../types/custom/platform-authority';
 import { Tenant } from '../../types/custom/tenant';
 import { EventRegistrationService } from '../effect/rpc/handlers/events/event-registration.service';
+import { eventQueryHandlers } from '../effect/rpc/handlers/events/events-query.handlers';
+import {
+  cancelRegistrationForTenant,
+  eventRegistrationHandlers,
+} from '../effect/rpc/handlers/events/events-registration.handlers';
 import { platformTenantAdminHandlers } from '../effect/rpc/handlers/platform/platform-tenant-admin.handlers';
 import { RpcAccess } from '../effect/rpc/handlers/shared/rpc-access.service';
 import { buildCheckoutSessionExpiresAt } from '../integrations/stripe-checkout';
@@ -70,8 +87,13 @@ import {
   purchaseRegistrationAddon,
   type PurchaseRegistrationAddonInput,
 } from './addon-purchase.service';
-import { expiredUnboundAddonPurchaseCheckoutPredicate } from './expired-checkout-cleanup';
+import {
+  claimDueBoundAddonPurchaseCheckoutCandidates,
+  expiredUnboundAddonPurchaseCheckoutPredicate,
+  processDueAddonPurchaseCheckouts,
+} from './expired-checkout-cleanup';
 import { completePaidRegistrationCheckout } from './registration-checkout-completion';
+import { RegistrationTransferService } from './registration-transfer.service';
 
 const databaseUrl = process.env['DATABASE_URL'];
 if (!databaseUrl) {
@@ -441,6 +463,9 @@ const seedFixture = async (
 };
 
 const cleanFixture = async (database: TestDatabase, fixture: Fixture) => {
+  await database
+    .delete(registrationTransfers)
+    .where(eq(registrationTransfers.tenantId, fixture.tenantId));
   await database
     .delete(emailOutbox)
     .where(eq(emailOutbox.tenantId, fixture.tenantId));
@@ -821,6 +846,346 @@ describe('post-registration add-on purchase concurrency', () => {
     if (failures.length === 1) throw failures[0];
     if (failures.length > 1)
       throw new AggregateError(failures, 'Add-on fixture cleanup failures');
+  });
+
+  it('claims later add-on payments past locked rows and preserves replacement leases until terminal settlement', async () => {
+    const first = await seedFixture(database, { paid: true, stock: 0 });
+    fixtures.push(first);
+    const second = await seedFixture(database, { paid: true, stock: 0 });
+    fixtures.push(second);
+    const firstIdentity = paidFixtureIdentity(first);
+    const secondIdentity = paidFixtureIdentity(second);
+    const now = new Date(Math.floor(Date.now() / 1000) * 1000);
+    const firstDue = new Date(now.getTime() - 2000);
+    const secondDue = new Date(now.getTime() - 1000);
+    for (const [id, due] of [
+      [firstIdentity.transactionId, firstDue],
+      [secondIdentity.transactionId, secondDue],
+    ] as const) {
+      await database
+        .update(transactions)
+        .set({ stripeCheckoutReconcileNextAt: due })
+        .where(eq(transactions.id, id));
+    }
+    const claim = (at: Date) =>
+      Effect.runPromise(
+        Database.use((db) =>
+          claimDueBoundAddonPurchaseCheckoutCandidates(db, {
+            leaseDurationMs: 1000,
+            limit: 1,
+            now: at,
+          }),
+        ).pipe(Effect.timeout('3 seconds'), Effect.provide(layer)),
+      );
+    const lock = await pool.connect();
+    try {
+      await lock.query('BEGIN');
+      await lock.query('SELECT id FROM transactions WHERE id = $1 FOR UPDATE', [
+        firstIdentity.transactionId,
+      ]);
+      const later = await claim(now);
+      expect(later).toEqual([
+        expect.objectContaining({
+          attempts: 1,
+          transactionId: secondIdentity.transactionId,
+        }),
+      ]);
+    } finally {
+      try {
+        await lock.query('ROLLBACK');
+      } finally {
+        lock.release();
+      }
+    }
+    const earlier = await claim(now);
+    expect(earlier).toEqual([
+      expect.objectContaining({
+        attempts: 1,
+        transactionId: firstIdentity.transactionId,
+      }),
+    ]);
+    expect(await claim(now)).toEqual([]);
+    const afterLease = new Date(now.getTime() + 2000);
+    const reclaimed = await claim(afterLease);
+    expect(reclaimed).toEqual([
+      expect.objectContaining({
+        attempts: 2,
+        transactionId: firstIdentity.transactionId,
+      }),
+    ]);
+    expect(reclaimed[0]?.leaseId).not.toBe(earlier[0]?.leaseId);
+
+    const replacementLease = createId();
+    const replacementExpiry = new Date(afterLease.getTime() + 60_000);
+    const stripe = createRejectingStripeClient();
+    const retrieve = vi
+      .spyOn(stripe.checkout.sessions, 'retrieve')
+      .mockImplementation(async () => {
+        await database
+          .update(transactions)
+          .set({
+            stripeCheckoutReconcileLeaseExpiresAt: replacementExpiry,
+            stripeCheckoutReconcileLeaseId: replacementLease,
+          })
+          .where(eq(transactions.id, secondIdentity.transactionId));
+        return {
+          ...checkoutSessionResponse({
+            id: `cs_${secondIdentity.orderId}`,
+            paymentIntent: null,
+            url: `https://checkout.stripe.com/c/pay/cs_${secondIdentity.orderId}`,
+          }),
+          expires_at: Math.floor(second.expiresAt.getTime() / 1000),
+          status: 'open',
+        };
+      });
+    expect(
+      await Effect.runPromise(
+        processDueAddonPurchaseCheckouts({
+          batchSize: 1,
+          nowEpochSeconds: afterLease.getTime() / 1000,
+        }).pipe(Effect.provide(makeLayer(databaseUrl, stripe))),
+      ),
+    ).toEqual({ cancelled: 0, failed: 0, scanned: 1, skipped: 1 });
+    expect(retrieve).toHaveBeenCalledExactlyOnceWith(
+      `cs_${secondIdentity.orderId}`,
+      undefined,
+      { stripeAccount: 'acct_addon_purchase_test' },
+    );
+    expect(
+      await database.query.transactions.findFirst({
+        where: { id: secondIdentity.transactionId },
+      }),
+    ).toEqual(
+      expect.objectContaining({
+        status: 'pending',
+        stripeCheckoutReconcileLeaseExpiresAt: replacementExpiry,
+        stripeCheckoutReconcileLeaseId: replacementLease,
+        stripeCheckoutReconcileNextAt: secondDue,
+      }),
+    );
+
+    await Effect.runPromise(
+      completePaidAddonPurchaseCheckout(
+        {
+          ...firstIdentity,
+          stripeAccountId: 'acct_addon_purchase_test',
+          stripeCheckoutSessionId: `cs_${firstIdentity.orderId}`,
+          tenantId: first.tenantId,
+        },
+        completedSession(first),
+      ).pipe(Effect.provide(layer)),
+    );
+    await Effect.runPromise(
+      expirePaidAddonPurchaseCheckout({
+        ...secondIdentity,
+        now: new Date(second.expiresAt.getTime() + 1000),
+        stripeAccountId: 'acct_addon_purchase_test',
+        stripeCheckoutSessionId: `cs_${secondIdentity.orderId}`,
+        tenantId: second.tenantId,
+      }).pipe(Effect.provide(layer)),
+    );
+    for (const [id, status] of [
+      [firstIdentity.transactionId, 'successful'],
+      [secondIdentity.transactionId, 'cancelled'],
+    ] as const) {
+      expect(
+        await database.query.transactions.findFirst({ where: { id } }),
+      ).toEqual(
+        expect.objectContaining({
+          status,
+          stripeCheckoutReconcileLeaseExpiresAt: null,
+          stripeCheckoutReconcileLeaseId: null,
+        }),
+      );
+    }
+  });
+
+  it('surfaces an add-on retry-schedule database failure while retaining its payment and lease', async () => {
+    const fixture = await seedFixture(database, { paid: true, stock: 0 });
+    fixtures.push(fixture);
+    const identity = paidFixtureIdentity(fixture);
+    const stripe = createRejectingStripeClient();
+    const retrieve = vi
+      .spyOn(stripe.checkout.sessions, 'retrieve')
+      .mockRejectedValue(new Error('Checkout provider unavailable'));
+    const constraint = 'test_addon_retry_schedule_failure';
+    const escapedId = identity.transactionId.replaceAll("'", "''");
+    await pool.query(
+      `ALTER TABLE transactions ADD CONSTRAINT ${constraint} CHECK (id <> '${escapedId}' OR stripe_checkout_reconcile_next_at IS NULL)`,
+    );
+    try {
+      const outcome = await Effect.runPromise(
+        processDueAddonPurchaseCheckouts({ batchSize: 1 }).pipe(
+          Effect.exit,
+          Effect.provide(makeLayer(databaseUrl, stripe)),
+        ),
+      );
+      expect(Exit.isFailure(outcome)).toBe(true);
+      expect(
+        Exit.isFailure(outcome) ? Cause.pretty(outcome.cause) : 'success',
+      ).toContain(constraint);
+      expect(retrieve).toHaveBeenCalledOnce();
+      expect(
+        await database.query.transactions.findFirst({
+          where: { id: identity.transactionId },
+        }),
+      ).toEqual(
+        expect.objectContaining({
+          status: 'pending',
+          stripeCheckoutReconcileAttempts: 1,
+          stripeCheckoutReconcileLeaseExpiresAt: expect.any(Date),
+          stripeCheckoutReconcileLeaseId: expect.any(String),
+          stripeCheckoutReconcileNextAt: null,
+        }),
+      );
+      expect(
+        await database.query.eventRegistrationAddonPurchaseOrders.findFirst({
+          where: { id: identity.orderId },
+        }),
+      ).toEqual(expect.objectContaining({ status: 'pending_payment' }));
+    } finally {
+      await pool.query(
+        `ALTER TABLE transactions DROP CONSTRAINT ${constraint}`,
+      );
+    }
+  });
+
+  it('keeps a pending add-on payment intact across cancellation, transfer and another users purchase attempts', async () => {
+    const fixture = await seedFixture(database, {
+      eventEnd: new Date(Date.now() + 49 * 60 * 60 * 1000),
+      eventStart: new Date(Date.now() + 48 * 60 * 60 * 1000),
+      paid: true,
+      registrationCount: 2,
+      stock: 0,
+    });
+    fixtures.push(fixture);
+    const identity = paidFixtureIdentity(fixture);
+    const ownerId = requireValue(fixture.userIds[0], 'owner');
+    const otherUserId = requireValue(fixture.userIds[1], 'other participant');
+    await database
+      .update(tenants)
+      .set({
+        cancellationDeadlineHoursBeforeStart: 0,
+        transferDeadlineHoursBeforeStart: 0,
+      })
+      .where(eq(tenants.id, fixture.tenantId));
+    const tenant = Schema.decodeUnknownSync(Tenant)(
+      requireValue(
+        await database.query.tenants.findFirst({
+          where: { id: fixture.tenantId },
+        }),
+        'tenant',
+      ),
+    );
+    const state = () =>
+      Promise.all([
+        database.query.eventRegistrations.findMany({
+          where: { eventId: fixture.eventId },
+        }),
+        database.query.eventRegistrationAddonPurchaseOrders.findMany({
+          where: { eventId: fixture.eventId },
+        }),
+        database.query.transactions.findMany({
+          where: { tenantId: fixture.tenantId },
+        }),
+        database.query.eventAddons.findMany({
+          where: { eventId: fixture.eventId },
+        }),
+        database.query.registrationAcquisitions.findMany({
+          where: { eventId: fixture.eventId },
+        }),
+        database.query.registrationTransfers.findMany({
+          where: { tenantId: fixture.tenantId },
+        }),
+      ]);
+    const before = await state();
+    const cancellation = await Effect.runPromise(
+      cancelRegistrationForTenant({
+        cancelledBy: 'participant',
+        enforceParticipantDeadline: true,
+        executiveUserId: ownerId,
+        expectedPaymentPending: false,
+        expectedStatus: 'CONFIRMED',
+        expectedUserId: ownerId,
+        registrationId: identity.registrationId,
+        targetTenant: tenant,
+      }).pipe(Effect.flip, Effect.provide(layer)),
+    );
+    expect(cancellation).toMatchObject({
+      _tag: 'EventRegistrationConflictError',
+    });
+    expect(cancellation.message).toContain('add-on payment');
+    const offer = await Effect.runPromise(
+      RegistrationTransferService.use((service) =>
+        service.createOffer({
+          registrationId: identity.registrationId,
+          tenant,
+          user: {
+            communicationEmail: `${ownerId}.contact@example.com`,
+            email: `${ownerId}.login@example.com`,
+            id: ownerId,
+            roleIds: [],
+          },
+        }),
+      ).pipe(
+        Effect.flip,
+        Effect.provide(RegistrationTransferService.Default),
+        Effect.provide(layer),
+      ),
+    );
+    expect(offer).toMatchObject({ _tag: 'RegistrationTransferConflictError' });
+    expect(offer.message).toContain('add-on payment');
+    const context = {
+      authData: { sub: `auth0|${otherUserId}` },
+      authenticated: true,
+      permissions: [],
+      tenant,
+      user: {
+        auth0Id: `auth0|${otherUserId}`,
+        communicationEmail: `${otherUserId}.contact@example.com`,
+        email: `${otherUserId}.login@example.com`,
+        firstName: 'Other',
+        homeTenantId: undefined,
+        homeTenantName: undefined,
+        iban: undefined,
+        id: otherUserId,
+        lastName: 'Participant',
+        paypalEmail: undefined,
+        permissions: [],
+        roleIds: [],
+      },
+      userAssigned: true,
+    } satisfies RpcRequestContextShape;
+    // Extra client fields must not replace the authenticated purchaser identity.
+    const forgedIntent = {
+      addOnId: fixture.addOnId,
+      operationKey: 'forged-owner',
+      quantity: 1,
+      registrationId: identity.registrationId,
+      stripeAccountId: 'acct_forged',
+      tenantId: fixture.tenantId,
+      userId: ownerId,
+    };
+    const purchase = await Effect.runPromise(
+      eventRegistrationHandlers['events.purchaseRegistrationAddon'](
+        forgedIntent,
+        {
+          client: new Rpc.ServerClient(1),
+          headers: Headers.empty,
+          requestId: RpcMessage.RequestId(1),
+          rpc: EventsPurchaseRegistrationAddon.middleware(
+            RpcRequestContextMiddleware,
+          ),
+        },
+      ).pipe(
+        Effect.flip,
+        Effect.provideService(RpcRequestContext, context),
+        Effect.provide(RpcAccess.Default),
+        Effect.provide(layer),
+      ),
+    );
+    expect(purchase).toMatchObject({ _tag: 'EventRegistrationNotFoundError' });
+    expect(await state()).toEqual(before);
   });
 
   it('serializes a paid sign-up with an existing attendee add-on purchase without deadlock', async () => {
@@ -2133,7 +2498,7 @@ describe('post-registration add-on purchase concurrency', () => {
     ).toEqual({ totalAvailableQuantity: 0 });
   });
 
-  it('uses the communication email for a paid add-on Checkout', async () => {
+  it('rejects obsolete tax ownership before a paid add-on and uses the communication email on a valid retry', async () => {
     const fixture = await seedFixture(database, {
       paid: true,
       seedPaidReservation: false,
@@ -2156,7 +2521,7 @@ describe('post-registration add-on purchase concurrency', () => {
         }),
       );
 
-    const result = await Effect.runPromise(
+    const purchase = () =>
       purchaseRegistrationAddon({
         addonId: fixture.addOnId,
         operationKey: `paid-contact:${registrationId}`,
@@ -2164,8 +2529,113 @@ describe('post-registration add-on purchase concurrency', () => {
         registrationId,
         tenantId: fixture.tenantId,
         userId,
-      }).pipe(Effect.provide(makeLayer(databaseUrl, checkoutStripe))),
+      }).pipe(Effect.provide(makeLayer(databaseUrl, checkoutStripe)));
+    const tenant = Schema.decodeUnknownSync(Tenant)(
+      requireValue(
+        await database.query.tenants.findFirst({
+          where: { id: fixture.tenantId },
+        }),
+        'tax fixture tenant',
+      ),
     );
+    const permissions = ['events:organizeAll'] as const;
+    const context = {
+      authData: { sub: `auth0|${userId}` },
+      authenticated: true,
+      permissions,
+      tenant,
+      user: {
+        auth0Id: `auth0|${userId}`,
+        communicationEmail,
+        email: `${userId}.login@example.com`,
+        firstName: 'Participant',
+        homeTenantId: undefined,
+        homeTenantName: undefined,
+        iban: undefined,
+        id: userId,
+        lastName: 'Fixture',
+        paypalEmail: undefined,
+        permissions,
+        roleIds: [],
+      },
+      userAssigned: true,
+    } satisfies RpcRequestContextShape;
+    await database
+      .update(tenantStripeTaxRates)
+      .set({ stripeAccountId: 'acct_obsolete' })
+      .where(eq(tenantStripeTaxRates.tenantId, fixture.tenantId));
+    const status = await Effect.runPromise(
+      eventRegistrationHandlers['events.getRegistrationStatus'](
+        { eventId: fixture.eventId },
+        {
+          client: new Rpc.ServerClient(1),
+          headers: Headers.empty,
+          requestId: RpcMessage.RequestId(1),
+          rpc: EventsGetRegistrationStatus.middleware(
+            RpcRequestContextMiddleware,
+          ),
+        },
+      ).pipe(
+        Effect.provideService(RpcRequestContext, context),
+        Effect.provide(RpcAccess.Default),
+        Effect.provide(layer),
+      ),
+    );
+    expect(status.registrations[0]?.registrationAddOns).toEqual([
+      expect.objectContaining({
+        addOnId: fixture.addOnId,
+        nextPurchaseTaxRateDisplayName: null,
+        nextPurchaseTaxRatePercentage: null,
+        purchaseBlockedReason: 'taxUnavailable',
+      }),
+    ]);
+    const event = await Effect.runPromise(
+      eventQueryHandlers['events.findOne'](
+        { id: fixture.eventId },
+        {
+          client: new Rpc.ServerClient(1),
+          headers: Headers.empty,
+          requestId: RpcMessage.RequestId(1),
+          rpc: EventsFindOne.middleware(RpcRequestContextMiddleware),
+        },
+      ).pipe(
+        Effect.provideService(RpcRequestContext, context),
+        Effect.provide(RpcAccess.Default),
+        Effect.provide(layer),
+      ),
+    );
+    expect(event.addOns).toEqual([
+      expect.objectContaining({
+        id: fixture.addOnId,
+        taxRateDisplayName: null,
+        taxRatePercentage: null,
+      }),
+    ]);
+    const rejected = await Effect.runPromise(purchase().pipe(Effect.flip));
+    expect(rejected).toMatchObject({ _tag: 'EventRegistrationConflictError' });
+    expect(rejected.message).toContain('tax details');
+    expect(createCheckout).not.toHaveBeenCalled();
+    expect(
+      await database.query.transactions.findMany({
+        where: { tenantId: fixture.tenantId },
+      }),
+    ).toEqual([]);
+    expect(
+      await database.query.eventRegistrationAddonPurchaseOrders.findMany({
+        where: { tenantId: fixture.tenantId },
+      }),
+    ).toEqual([]);
+    expect(
+      await database.query.eventAddons.findFirst({
+        columns: { totalAvailableQuantity: true },
+        where: { id: fixture.addOnId },
+      }),
+    ).toEqual({ totalAvailableQuantity: 1 });
+    await database
+      .update(tenantStripeTaxRates)
+      .set({ stripeAccountId: 'acct_addon_purchase_test' })
+      .where(eq(tenantStripeTaxRates.tenantId, fixture.tenantId));
+    const result = await Effect.runPromise(purchase());
 
     expect(result.status).toBe('checkout_required');
     const transaction = await database.query.transactions.findFirst({

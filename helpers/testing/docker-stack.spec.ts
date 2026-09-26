@@ -259,55 +259,6 @@ assert.equal(client.database, environment.POSTGRES_DB);`,
     },
   );
 
-  it('uses one encoded container URL and literal database healthcheck arguments', () => {
-    const result = spawnSync(
-      realBunPath,
-      [
-        '--no-env-file',
-        '-e',
-        `const config = Bun.YAML.parse(${JSON.stringify(composeSource)});
-process.stdout.write(JSON.stringify({
-  urls: ['db-setup', 'evorto', 'worker'].map((service) => config.services[service].environment.DATABASE_URL),
-  healthcheck: config.services.db.healthcheck.test,
-}));`,
-      ],
-      { encoding: 'utf8', timeout: 5000 },
-    );
-    expect(result.status, result.stderr).toBe(0);
-    const config: unknown = JSON.parse(result.stdout);
-    expect(config).toEqual({
-      healthcheck: [
-        'CMD',
-        'pg_isready',
-        '-h',
-        '127.0.0.1',
-        '-p',
-        '5432',
-        '-U',
-        '${POSTGRES_USER:-evorto}',
-        '-d',
-        '${POSTGRES_DB:-appdb}',
-      ],
-      urls: Array.from(
-        { length: 3 },
-        () =>
-          '${DOCKER_DATABASE_URL:?Run Docker through a supported bun package command}',
-      ),
-    });
-  });
-
-  it('builds the Stripe listener without a host file share', () => {
-    expect(composeSource).toContain(
-      'dockerfile: helpers/testing/stripe-listener.Dockerfile',
-    );
-    expect(composeSource).toContain(
-      'command: /usr/local/bin/stripe-listen-docker',
-    );
-    expect(composeSource).not.toContain(
-      './helpers/testing/stripe-listen-docker.sh:',
-    );
-  });
-
   it('refuses to infer a Compose project', async () => {
     const { dockerLogPath, environment } = createFakeRuntime();
     const result = await runFakeStack('status', {

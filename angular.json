@@ -141,6 +141,7 @@
           "builder": "@angular-eslint/builder:lint",
           "options": {
             "lintFilePatterns": [
+              ".github/workflows/**/*.{yml,yaml}",
               "*.config.ts",
               "helpers/**/*.ts",
               "src/**/*.ts",

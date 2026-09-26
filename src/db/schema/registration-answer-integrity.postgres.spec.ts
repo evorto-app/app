@@ -31,6 +31,7 @@ import { userDiscountCardLockStatement } from '../../server/discounts/user-disco
 import { discountHandlers } from '../../server/effect/rpc/handlers/discounts.handlers';
 import { EventRegistrationService } from '../../server/effect/rpc/handlers/events/event-registration.service';
 import { onboardingHandlers } from '../../server/effect/rpc/handlers/onboarding.handlers';
+import { platformEventHandlers } from '../../server/effect/rpc/handlers/platform/platform-events.handlers';
 import { RpcAccess } from '../../server/effect/rpc/handlers/shared/rpc-access.service';
 import { userHandlers } from '../../server/effect/rpc/handlers/users.handlers';
 import { ensureAnsweredEventQuestionsUnchanged } from '../../server/registrations/event-question-answer-guard';
@@ -59,6 +60,7 @@ import {
   UsersSetHomeTenant,
   UsersUpdateProfile,
 } from '../../shared/rpc-contracts/app-rpcs/users.rpcs';
+import { PlatformAdministratorAuthority } from '../../types/custom/platform-authority';
 import { Tenant } from '../../types/custom/tenant';
 import { User } from '../../types/custom/user';
 import { Database, databaseLayer } from '../database.layer';
@@ -492,6 +494,172 @@ describe('registration answer integrity in PostgreSQL', () => {
       );
     }
   });
+
+  it.effect(
+    'rejects platform edits to answered questions and rolls back the whole event update',
+    () => {
+      const owned = makeFixture();
+      const target = {
+        eventId: owned.eventIds[0],
+        targetTenantId: owned.tenantIds[0],
+      };
+      return Effect.gen(function* () {
+        yield* Effect.promise(async () => {
+          await seedFixture(database, owned, false);
+          await database
+            .update(eventInstances)
+            .set({ simpleModeEnabled: false, status: 'DRAFT' })
+            .where(eq(eventInstances.id, target.eventId));
+          await database.insert(eventRegistrationQuestionAnswers).values({
+            answer: 'Keep this historical answer',
+            eventId: target.eventId,
+            questionId: owned.questionIds[0],
+            registrationId: owned.registrationId,
+            registrationOptionId: owned.optionIds[0],
+            tenantId: target.targetTenantId,
+          });
+        });
+        const [tenantRecord] = yield* Effect.promise(() =>
+          database
+            .select()
+            .from(tenants)
+            .where(eq(tenants.id, target.targetTenantId)),
+        );
+        const tenant = yield* Schema.decodeUnknownEffect(Tenant)(tenantRecord);
+        const requestContext = {
+          authData: {},
+          authenticated: true,
+          permissions: [],
+          platformAuthority: PlatformAdministratorAuthority.make({
+            actorEmail: 'platform@example.org',
+            actorId: 'auth0|question-history',
+            kind: 'platformAdministrator',
+          }),
+          tenant,
+          user: null,
+          userAssigned: false,
+        } satisfies RpcRequestContextShape;
+        yield* Effect.gen(function* () {
+          const before = yield* platformEventHandlers[
+            'platform.events.findOne'
+          ](target, undefined);
+          const updateInput = {
+            ...target,
+            addOns: before.addOns,
+            description: before.description,
+            end: before.end,
+            icon: before.icon,
+            location: before.location,
+            questions: before.questions,
+            reason: 'Correct the activity details',
+            registrationOptions: before.registrationOptions,
+            start: before.start,
+            title: before.title,
+          };
+          for (const mutation of ['change', 'remove'] as const) {
+            const result = yield* Effect.result(
+              platformEventHandlers['platform.events.update'](
+                {
+                  ...updateInput,
+                  questions:
+                    mutation === 'remove'
+                      ? before.questions.filter(
+                          (question) => question.id !== owned.questionIds[0],
+                        )
+                      : before.questions.map((question) =>
+                          question.id === owned.questionIds[0]
+                            ? { ...question, title: 'Changed meaning' }
+                            : question,
+                        ),
+                  title: 'This unrelated edit must also roll back',
+                },
+                undefined,
+              ),
+            );
+            expect(Result.isFailure(result)).toBe(true);
+            if (Result.isFailure(result)) {
+              expect(result.failure).toMatchObject({
+                _tag: 'RpcBadRequestError',
+                reason: 'eventQuestionInUse',
+              });
+            }
+            const after = yield* platformEventHandlers[
+              'platform.events.findOne'
+            ](target, undefined);
+            expect(after).toEqual(before);
+          }
+          expect(
+            yield* Effect.promise(() =>
+              database
+                .select({ id: platformAuditEntries.id })
+                .from(platformAuditEntries)
+                .where(
+                  eq(
+                    platformAuditEntries.targetTenantId,
+                    target.targetTenantId,
+                  ),
+                ),
+            ),
+          ).toEqual([]);
+          const updated = yield* platformEventHandlers[
+            'platform.events.update'
+          ](
+            {
+              ...updateInput,
+              questions: before.questions.map((question) =>
+                question.id === owned.questionIds[1]
+                  ? {
+                      ...question,
+                      description: '  New guidance  ',
+                      title: '  Revised prompt  ',
+                    }
+                  : question,
+              ),
+            },
+            undefined,
+          );
+          expect(
+            updated.questions.find(
+              (question) => question.id === owned.questionIds[1],
+            ),
+          ).toMatchObject({
+            description: 'New guidance',
+            title: 'Revised prompt',
+          });
+        }).pipe(
+          Effect.provideService(RpcRequestContext, requestContext),
+          Effect.provide(
+            Layer.mergeAll(questionRaceLayer(databaseUrl), RpcAccess.Default),
+          ),
+        );
+        expect(
+          yield* Effect.promise(() =>
+            database
+              .select({ answer: eventRegistrationQuestionAnswers.answer })
+              .from(eventRegistrationQuestionAnswers)
+              .where(
+                eq(
+                  eventRegistrationQuestionAnswers.registrationId,
+                  owned.registrationId,
+                ),
+              ),
+          ),
+        ).toEqual([{ answer: 'Keep this historical answer' }]);
+        expect(
+          yield* Effect.promise(() =>
+            database
+              .select({ id: platformAuditEntries.id })
+              .from(platformAuditEntries)
+              .where(
+                eq(platformAuditEntries.targetTenantId, target.targetTenantId),
+              ),
+          ),
+        ).toHaveLength(1);
+      }).pipe(
+        Effect.ensuring(Effect.promise(() => cleanFixture(database, owned))),
+      );
+    },
+  );
 
   it('rejects a question paired with an option from another event', async () => {
     await expectConstraintViolation({

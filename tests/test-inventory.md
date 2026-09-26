@@ -2,7 +2,7 @@
 
 Scope: Current Playwright tests and documentation journeys.
 
-Updated: 2026-09-23
+Updated: 2026-09-27
 
 ## How to Use This Inventory
 
@@ -10,9 +10,9 @@ Use this file as a quick orientation map before adding or trusting Playwright
 coverage. `tests/README.md` remains the workflow reference for commands,
 runtime variables, Docker behavior, and browser installation.
 
-The Active Files list is checked against disk discovery. Keep that exact list
-current when adding or removing journeys; file counts and categories are
-already determined by those paths and are not maintained separately.
+The Active Files list is a manually maintained orientation map. Update it when
+adding or removing journeys. Playwright collection and complete-run reporting
+determine the executable suite; no test scans this document for completeness.
 
 The complete deterministic gate is `bun run test:e2e:baseline`. It collects
 both baseline projects and executes their shared setup once. Documentation
@@ -225,13 +225,12 @@ component regressions retain retry recovery for temporary failures.
     that the confirmed result remains visible without a duplicate cancellation
     or a refund claim. Platform cancellation carries the status and payment
     snapshot confirmed by the administrator.
-  - global-admin unit/source coverage pins explicit platform authority,
-    application/API append-only tenant action audit records, full event graph
-    writes, bounded
-    registration reads, and required operator reasons
-  - `helpers/testing/email-outbox-kind-source.spec.ts` keeps the typed kinds,
-    operator labels, React Email producers, transactional transition splices,
-    and page-backed coverage aligned
+  - global-admin handler and PostgreSQL tests exercise explicit platform
+    authority, target-scoped operations, audit outcomes, bounded registration
+    reads, and required operator reasons; ESLint restricts audit mutations
+  - email-delivery tests execute enqueue/render behavior for the supported
+    notification kinds; checkout-completion PostgreSQL tests and registration
+    and transfer journeys inspect the persisted outbox outcomes
   - `specs/admin/email-outbox.spec.ts` and `docs/admin/email-outbox.doc.ts`
     cover single-dispatch outcomes, sent history, recipient/organization context,
     and refresh without resend; scenario cleanup belongs to the database fixture
@@ -452,10 +451,11 @@ component regressions retain retry recovery for temporary failures.
   page-backed runtime is available.
 - Page-backed local execution requires the Playwright Chromium cache installed
   by `bun run test:e2e:install`.
-- `helpers/testing/playwright-skip-inventory.spec.ts` requires the Playwright
-  `test.skip` and `test.fixme` inventory to remain empty, so credential or
-  fixture preconditions fail explicitly instead of becoming silent
-  placeholders.
+- The complete-run reporters reject skipped, interrupted, expected-failure,
+  and retried outcomes. Vitest disallows focused tests and Playwright uses
+  `forbidOnly: true`. Credential and fixture preconditions fail explicitly.
+  Reporter regression tests invoke real runners to prove incomplete runs fail;
+  there is no separate source scanner for test-control spelling.
 
 ## Stabilization Coverage Watchlist
 
@@ -936,9 +936,8 @@ ESNcard provider credential path.
 - Playwright skip/fixme inventory must remain empty. Credential-dependent
   projects fail their selected-run preflight when credentials are unavailable;
   they are not represented as skipped tests.
-- Playwright list/discovery output is intentionally readable:
-  `helpers/testing/playwright-skip-inventory.spec.ts` guards that real spec/doc
-  titles no longer include placeholder `@track`, `@req`, or `@doc` metadata.
+- Keep Playwright list/discovery titles readable during authoring and review;
+  placeholder metadata is an editorial concern, not a separate CI gate.
 - Credential-gated Playwright paths now include both generated docs and
   non-doc specs: `docs/users/create-account.doc.ts`,
   `specs/profile/create-account.spec.ts`, and the live section in

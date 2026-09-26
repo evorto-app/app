@@ -15,8 +15,6 @@ import {
   QueryClient,
   QueryObserver,
 } from '@tanstack/angular-query-experimental';
-import { readFileSync } from 'node:fs';
-import nodePath from 'node:path';
 import { of, Subject } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -209,58 +207,6 @@ describe('platform refund lifecycle copy', () => {
         ).label,
       ).toBe(label);
     }
-  });
-
-  it('describes audit persistence as change history', () => {
-    const template = readFileSync(
-      nodePath.join(
-        process.cwd(),
-        'src/app/global-admin/platform-tenant-admin/platform-finance.component.html',
-      ),
-      'utf8',
-    );
-
-    expect(template).toContain(
-      'Required. This reason is saved with the action.',
-    );
-    expect(template).toContain('Try failed refund again');
-    expect(template).toContain('This refund did not finish and needs review.');
-    expect(template).toContain('No refunds currently need attention.');
-    expect(template).toContain(
-      'Separate from the rejection reason shown to the attendee.',
-    );
-    expect(template).toContain('Select a recipient to record a reimbursement.');
-    expect(template).not.toContain('attendee-facing rejection reason');
-    expect(template).not.toContain('Select a recipient group');
-    expect(template).not.toContain('Automatic refund checks');
-    expect(template).not.toContain('Resume refund checks');
-    expect(template).not.toContain('Terminal refund');
-    expect(template).not.toContain('Stopped refund processing');
-    expect(template).not.toContain('application append-only platform audit');
-
-    const source = readFileSync(
-      nodePath.join(
-        process.cwd(),
-        'src/app/global-admin/platform-tenant-admin/platform-finance.component.ts',
-      ),
-      'utf8',
-    );
-    expect(source).toContain('The refund will be tried again');
-    expect(source).not.toContain('Failed refund will be tried again');
-  });
-
-  it('edits receipt values as ordinary amounts in the receipt currency', () => {
-    const template = readFileSync(
-      nodePath.join(
-        process.cwd(),
-        'src/app/global-admin/platform-tenant-admin/platform-finance.component.html',
-      ),
-      'utf8',
-    );
-
-    expect(template.match(/<app-currency-amount-input/g)?.length).toBe(4);
-    expect(template).toContain('[currencyCode]="selected.receipt.currency"');
-    expect(template).not.toContain('minor units');
   });
 });
 
@@ -731,23 +677,6 @@ describe('PlatformFinanceComponent refund lifecycle table', () => {
     });
   });
 
-  it('keeps internal refund and transaction identifiers out of recovery copy', () => {
-    const template = readFileSync(
-      nodePath.join(
-        process.cwd(),
-        'src/app/global-admin/platform-tenant-admin/platform-finance.component.html',
-      ),
-      'utf8',
-    );
-
-    expect(template).not.toContain('{{ claim.id }}');
-    expect(template).not.toContain('{{ claim.eventRegistrationId }}');
-    expect(template).not.toContain('{{ claim.sourceTransactionId }}');
-    expect(template).not.toContain('{{ claim.transfer.id }}');
-    expect(template).not.toContain('stripeRefundAttempts');
-    expect(template).not.toContain('stripeRefundMaxAttempts');
-  });
-
   it('distinguishes equal refund amounts with event, attendee, and target-local time', async () => {
     const recoveryClaim = (
       input: Pick<
@@ -1011,14 +940,6 @@ describe('PlatformFinanceComponent refund lifecycle table', () => {
       expect(recordReimbursementMutation).toHaveBeenCalledTimes(1);
       expect(component['reimbursementMutation'].isPending()).toBe(true);
     });
-    const template = readFileSync(
-      nodePath.join(
-        process.cwd(),
-        'src/app/global-admin/platform-tenant-admin/platform-finance.component.html',
-      ),
-      'utf8',
-    );
-    expect(template).toContain('[disabled]="financeActionsDisabled()"');
 
     component['chooseReimbursement'](newerReimbursementGroup);
     expect(component['selectedReimbursement']()?.group).toBe(

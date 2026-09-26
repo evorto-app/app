@@ -13,22 +13,15 @@ import {
   provideTanStackQuery,
   QueryClient,
 } from '@tanstack/angular-query-experimental';
-import { readFileSync } from 'node:fs';
-import nodePath from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ConfigService } from '../config.service';
 import { PermissionsService } from '../permissions.service';
 import {
   mobileMoreNavigationAvailable,
-  mobileMoreNavigationLabel,
-  mobileMoreNavigationSheetConfig,
   NavigationComponent,
   NavigationOperations,
 } from './navigation.component';
-
-const readSource = (sourcePath: string): string =>
-  readFileSync(nodePath.join(process.cwd(), sourcePath), 'utf8');
 
 @Component({ template: '' })
 class TestRouteComponent {}
@@ -57,55 +50,6 @@ describe('mobileMoreNavigationAvailable', () => {
 
   it('hides an empty menu', () => {
     expect(mobileMoreNavigationAvailable(unavailable)).toBe(false);
-  });
-});
-
-describe('mobile more navigation template', () => {
-  const template = readSource(
-    'src/app/core/navigation/navigation.component.html',
-  );
-
-  it('uses named navigation landmarks and current-page semantics', () => {
-    expect(template).toContain('aria-label="Main navigation"');
-    expect(template).toContain('aria-label="More navigation"');
-    expect(template).toContain('ariaCurrentWhenActive="page"');
-  });
-
-  it('uses the combined destination decision for the mobile sheet trigger', () => {
-    const moreButton = template.slice(
-      template.indexOf('@if (mobileMoreNavigationAvailable())'),
-      template.indexOf('@if (scannerAccessQuery.data())'),
-    );
-
-    expect(moreButton).toContain('<span class="body-medium text-center">More');
-    expect(moreButton).not.toContain('*appIfAnyPermission');
-  });
-
-  it('uses a vertical Material navigation list that remains usable at narrow widths', () => {
-    const sheet = template.slice(template.indexOf('<ng-template'));
-
-    expect(sheet).toContain('class="grid w-full gap-1 p-3"');
-    expect(sheet).toContain('min-h-12 items-center');
-    expect(sheet).not.toContain('flex-row justify-around');
-    expect(sheet).not.toContain('routerLink="/scan"');
-  });
-
-  it('lets every compact destination share a 320px navigation bar without overflow', () => {
-    const mainNavigation = template.slice(0, template.indexOf('<ng-template'));
-
-    expect(mainNavigation).toContain('flex-row gap-0');
-    expect(mainNavigation).not.toContain('justify-around gap-2');
-    expect(
-      mainNavigation.match(/min-w-0 flex-1/gu)?.length,
-    ).toBeGreaterThanOrEqual(6);
-    expect(mainNavigation).toContain('w-16 max-w-full');
-  });
-
-  it('gives the bottom-sheet dialog an accessible name', () => {
-    expect(mobileMoreNavigationLabel).toBe('More navigation');
-    expect(mobileMoreNavigationSheetConfig).toEqual({
-      ariaLabel: 'More navigation',
-    });
   });
 });
 

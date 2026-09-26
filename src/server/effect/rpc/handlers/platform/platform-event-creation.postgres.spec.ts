@@ -11,14 +11,30 @@ import {
   usersToTenants,
 } from '@db/schema';
 import { expect, layer } from '@effect/vitest';
-import { RpcRequestContext } from '@shared/rpc-contracts/app-rpcs';
-import { eq } from 'drizzle-orm';
-import { ConfigProvider, Effect, Layer, Schema } from 'effect';
+import {
+  RpcRequestContext,
+  RpcRequestContextMiddleware,
+  type RpcRequestContextShape,
+} from '@shared/rpc-contracts/app-rpcs';
+import { EventsCreate } from '@shared/rpc-contracts/app-rpcs/events.rpcs';
+import { TaxRatesListActive } from '@shared/rpc-contracts/app-rpcs/tax-rates.rpcs';
+import { eq, sql } from 'drizzle-orm';
+import { Cause, ConfigProvider, Effect, Exit, Layer, Schema } from 'effect';
+import { Headers } from 'effect/unstable/http';
+import { Rpc, RpcMessage } from 'effect/unstable/rpc';
 
 import { PlatformAdministratorAuthority } from '../../../../../types/custom/platform-authority';
 import { Tenant } from '../../../../../types/custom/tenant';
+import { eventLifecycleHandlers } from '../events/events-lifecycle.handlers';
 import { RpcAccess } from '../shared/rpc-access.service';
+import { taxRateHandlers } from '../tax-rates.handlers';
 import { platformEventHandlers } from './platform-events.handlers';
+
+const requestOptions = () => ({
+  client: new Rpc.ServerClient(1),
+  headers: Headers.empty,
+  requestId: RpcMessage.RequestId(1),
+});
 
 const databaseUrl = process.env['DATABASE_URL'];
 if (!databaseUrl) {
@@ -156,6 +172,32 @@ layer(testLayer)(
                     userAssigned: false,
                   }),
                 );
+                const catalog = yield* taxRateHandlers['taxRates.listActive'](
+                  undefined,
+                  {
+                    ...requestOptions(),
+                    rpc: TaxRatesListActive.middleware(
+                      RpcRequestContextMiddleware,
+                    ),
+                  },
+                ).pipe(
+                  Effect.provideService(
+                    Database,
+                    Object.assign(transaction, { $client: database.$client }),
+                  ),
+                  Effect.provideService(RpcRequestContext, {
+                    authData: {},
+                    authenticated: false,
+                    permissions: [],
+                    tenant,
+                    user: null,
+                    userAssigned: false,
+                  }),
+                );
+                expect(catalog.map((rate) => rate.stripeTaxRateId)).toEqual([
+                  `txr_standard_${tenantId}`,
+                  `txr_zero_${tenantId}`,
+                ]);
                 expect(options.taxRates).toEqual([
                   {
                     displayName: 'Standard',
@@ -187,7 +229,7 @@ layer(testLayer)(
 
     for (const providerStatus of ['disabled', 'enabled'] as const) {
       it.effect(
-        `creates a paid event while the target provider is ${providerStatus}`,
+        `creates paid events atomically through tenant and platform handlers while the provider is ${providerStatus}`,
         () =>
           Effect.gen(function* () {
             const database = yield* Database;
@@ -282,74 +324,203 @@ layer(testLayer)(
                     })
                     .where(eq(tenants.id, tenantId));
 
-                  const created = yield* platformEventHandlers[
-                    'platform.events.create'
-                  ](
-                    {
-                      creatorUserId: creatorId,
-                      description:
-                        '<p>An event created from a saved template</p>',
-                      end: '2099-07-10T14:00:00.000Z',
-                      reason: 'Create an event from the existing template',
-                      start: '2099-07-10T12:00:00.000Z',
-                      targetTenantId: tenantId,
-                      templateId,
-                      title: 'Created activity',
-                    },
-                    undefined,
-                  ).pipe(
-                    Effect.provideService(
-                      Database,
-                      Object.assign(transaction, { $client: database.$client }),
-                    ),
-                    Effect.provideService(RpcRequestContext, {
-                      authData: {},
-                      authenticated: true,
-                      permissions: [],
-                      platformAuthority: PlatformAdministratorAuthority.make({
-                        actorEmail: 'platform@example.org',
-                        actorId: 'auth0|platform-event-creation',
-                        kind: 'platformAdministrator',
-                      }),
-                      tenant: originalTenant,
-                      user: null,
-                      userAssigned: false,
+                  const context = {
+                    authData: {},
+                    authenticated: true,
+                    permissions: [],
+                    platformAuthority: PlatformAdministratorAuthority.make({
+                      actorEmail: 'platform@example.org',
+                      actorId: 'auth0|platform-event-creation',
+                      kind: 'platformAdministrator',
                     }),
-                  );
-                  expect(created.registrationOptions).toHaveLength(1);
-                  expect(created.registrationOptions[0]).toMatchObject({
-                    esnCardDiscountedPrice:
-                      providerStatus === 'enabled' ? 750 : null,
-                    isPaid: true,
-                    price: 1000,
-                    stripeTaxRateId,
-                  });
-                  const savedDiscounts =
-                    yield* transaction.query.templateRegistrationOptionDiscounts.findMany(
-                      {
-                        where: { registrationOptionId: optionId, templateId },
+                    tenant: originalTenant,
+                    user: null,
+                    userAssigned: false,
+                  } satisfies RpcRequestContextShape;
+                  const permissions = ['events:create'] as const;
+                  const ordinaryContext = {
+                    authData: { sub: `auth0|${creatorId}` },
+                    authenticated: true,
+                    permissions,
+                    tenant: {
+                      ...originalTenant,
+                      discountProviders: {
+                        esnCard: { config: {}, status: providerStatus },
                       },
+                    },
+                    user: {
+                      auth0Id: `auth0|${creatorId}`,
+                      communicationEmail: `${creatorId}@example.org`,
+                      email: `${creatorId}@example.org`,
+                      firstName: 'Event',
+                      homeTenantId: undefined,
+                      homeTenantName: undefined,
+                      iban: undefined,
+                      id: creatorId,
+                      lastName: 'Creator',
+                      paypalEmail: undefined,
+                      permissions,
+                      roleIds: [],
+                    },
+                    userAssigned: true,
+                  } satisfies RpcRequestContextShape;
+                  for (const author of ['tenant', 'platform'] as const) {
+                    const optionTitle = `Participant ${author} ${tenantId}`;
+                    yield* transaction
+                      .update(templateRegistrationOptions)
+                      .set({ title: optionTitle })
+                      .where(eq(templateRegistrationOptions.id, optionId));
+                    const create = () =>
+                      (author === 'platform'
+                        ? platformEventHandlers['platform.events.create'](
+                            {
+                              creatorUserId: creatorId,
+                              description:
+                                '<p>An event created from a saved template</p>',
+                              end: '2099-07-10T14:00:00.000Z',
+                              reason:
+                                'Create an event from the existing template',
+                              start: '2099-07-10T12:00:00.000Z',
+                              targetTenantId: tenantId,
+                              templateId,
+                              title: 'Created activity',
+                            },
+                            undefined,
+                          ).pipe(
+                            Effect.provideService(RpcRequestContext, context),
+                            Effect.map(({ id }) => ({ id })),
+                          )
+                        : eventLifecycleHandlers['events.create'](
+                            {
+                              description:
+                                '<p>An event created from a saved template</p>',
+                              end: '2099-07-10T14:00:00.000Z',
+                              icon: { iconColor: 0, iconName: 'calendar:fas' },
+                              registrationOptions: [
+                                {
+                                  cancellationDeadlineHoursBeforeStart: null,
+                                  closeRegistrationTime:
+                                    '2099-07-10T11:00:00.000Z',
+                                  description: null,
+                                  esnCardDiscountedPrice:
+                                    providerStatus === 'enabled' ? 750 : null,
+                                  isPaid: true,
+                                  openRegistrationTime:
+                                    '2099-07-01T12:00:00.000Z',
+                                  organizingRegistration: false,
+                                  price: 1000,
+                                  refundFeesOnCancellation: null,
+                                  registeredDescription: null,
+                                  registrationMode: 'fcfs',
+                                  roleIds: [],
+                                  sourceTemplateRegistrationOptionId: optionId,
+                                  spots: 10,
+                                  stripeTaxRateId,
+                                  title: optionTitle,
+                                  transferDeadlineHoursBeforeStart: null,
+                                },
+                              ],
+                              start: '2099-07-10T12:00:00.000Z',
+                              templateId,
+                              title: 'Created activity',
+                            },
+                            {
+                              ...requestOptions(),
+                              rpc: EventsCreate.middleware(
+                                RpcRequestContextMiddleware,
+                              ),
+                            },
+                          ).pipe(
+                            Effect.provideService(
+                              RpcRequestContext,
+                              ordinaryContext,
+                            ),
+                          )
+                      ).pipe(
+                        Effect.provideService(
+                          Database,
+                          Object.assign(transaction, {
+                            $client: database.$client,
+                          }),
+                        ),
+                      );
+                    const before =
+                      yield* transaction.query.eventInstances.findMany({
+                        where: { tenantId },
+                      });
+                    const constraint = `test_event_child_write_${tenantId}`;
+                    yield* transaction.execute(
+                      sql.raw(
+                        `ALTER TABLE event_registration_options ADD CONSTRAINT "${constraint}" CHECK (title <> '${optionTitle}') NOT VALID`,
+                      ),
                     );
-                  expect(savedDiscounts).toHaveLength(1);
-                  expect(savedDiscounts[0]?.discountedPrice).toBe(750);
-                  const eventDiscounts =
-                    yield* transaction.query.eventRegistrationOptionDiscounts.findMany(
-                      {
-                        where: { eventId: created.id },
-                      },
+                    const failed = yield* create().pipe(Effect.exit);
+                    expect(Exit.isFailure(failed)).toBe(true);
+                    expect(
+                      Exit.isFailure(failed)
+                        ? Cause.pretty(failed.cause)
+                        : 'success',
+                    ).toContain(constraint);
+                    expect(
+                      yield* transaction.query.eventInstances.findMany({
+                        where: { tenantId },
+                      }),
+                    ).toEqual(before);
+                    expect(
+                      yield* transaction.query.platformAuditEntries.findMany({
+                        where: {
+                          action: 'event.create',
+                          targetTenantId: tenantId,
+                        },
+                      }),
+                    ).toEqual([]);
+                    yield* transaction.execute(
+                      sql.raw(
+                        `ALTER TABLE event_registration_options DROP CONSTRAINT "${constraint}"`,
+                      ),
                     );
-                  expect(
-                    eventDiscounts.map((discount) => discount.discountedPrice),
-                  ).toEqual(providerStatus === 'enabled' ? [750] : []);
-                  const audit =
-                    yield* transaction.query.platformAuditEntries.findMany({
-                      where: {
-                        action: 'event.create',
-                        targetTenantId: tenantId,
-                      },
-                    });
-                  expect(audit).toHaveLength(1);
-                  expect(audit[0]?.after?.resourceId).toBe(created.id);
+                    const created = yield* create();
+                    const createdOptions =
+                      yield* transaction.query.eventRegistrationOptions.findMany(
+                        { where: { eventId: created.id } },
+                      );
+                    expect(createdOptions).toEqual([
+                      expect.objectContaining({
+                        isPaid: true,
+                        price: 1000,
+                        stripeTaxRateId,
+                      }),
+                    ]);
+                    const savedDiscounts =
+                      yield* transaction.query.templateRegistrationOptionDiscounts.findMany(
+                        {
+                          where: { registrationOptionId: optionId, templateId },
+                        },
+                      );
+                    expect(savedDiscounts).toHaveLength(1);
+                    expect(savedDiscounts[0]?.discountedPrice).toBe(750);
+                    const eventDiscounts =
+                      yield* transaction.query.eventRegistrationOptionDiscounts.findMany(
+                        {
+                          where: { eventId: created.id },
+                        },
+                      );
+                    expect(
+                      eventDiscounts.map(
+                        (discount) => discount.discountedPrice,
+                      ),
+                    ).toEqual(providerStatus === 'enabled' ? [750] : []);
+                    const audit =
+                      yield* transaction.query.platformAuditEntries.findMany({
+                        where: {
+                          action: 'event.create',
+                          targetTenantId: tenantId,
+                        },
+                      });
+                    expect(audit).toHaveLength(author === 'platform' ? 1 : 0);
+                    if (author === 'platform')
+                      expect(audit[0]?.after?.resourceId).toBe(created.id);
+                  }
                   return yield* Effect.fail(new FixtureRollback({}));
                 }),
               )
