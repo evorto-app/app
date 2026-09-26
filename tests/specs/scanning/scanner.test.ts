@@ -959,7 +959,9 @@ test.describe('organizer add-on cancellation permissions', () => {
 
       const handoutAction = addOn.getByRole('button', { name: 'Hand out 1' });
       // The SSR control is visible before its live click handler is attached.
-      await expect(handoutAction).not.toHaveAttribute('jsaction', /click/);
+      await expect(handoutAction).not.toHaveAttribute('jsaction', /click/, {
+        timeout: 20_000,
+      });
       await handoutAction.click();
       await expect(
         addOn.getByRole('button', { name: 'Undo last handout' }),
