@@ -1,6 +1,6 @@
 {
   "name": "evorto",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "scripts": {
     "build:app": "NG_BUILD_PARTIAL_SSR=1 bun run dev:ng build && bun run build:ops",
     "build:ops": "bun run build:ops:schema && bun run build:ops:prerequisites && bun run build:ops:reset && bun run build:ops:seed",
