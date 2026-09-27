@@ -439,6 +439,9 @@ cases are removed. The identifier-length schema scanner moves to ESLint:
 63 UTF-8 bytes at their declaration, including imported factory aliases,
 namespace calls, local constant strings and foreign-key/primary-key name options.
 It intentionally does not evaluate arbitrary code or imported constant values.
+Object-destructuring a factory from a namespace is also outside this resolver;
+all 36 current production schema imports use named Drizzle factory imports. Keep
+that declaration style so the identifier check can follow the factory binding.
 `pgTableCreator` transforms are rejected in favor of explicit `pgTable` or
 `pgSchema.table` declarations, so arbitrary callbacks cannot hide the resulting
 identifier from the check. Small valid/invalid lint inputs test diagnostics, including

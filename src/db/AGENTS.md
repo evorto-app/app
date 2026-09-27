@@ -1,6 +1,8 @@
 # Database Guidelines
 
 - Drizzle schema is the source of truth for persisted shapes.
+- Use named imports for Drizzle schema factories. The identifier-length lint rule
+  does not follow factories destructured from a namespace object.
 - For Drizzle reference material, inspect the vendored upstream source under `repos/drizzle/drizzle-orm/**` first.
 - For relation behavior, query builders, dialect details, and type inference, prefer upstream tests in `repos/drizzle/drizzle-orm/tests/**`, `repos/drizzle/drizzle-orm/type-tests/**`, and `repos/drizzle/integration-tests/**` over stale examples.
 - Treat `repos/drizzle` as read-only reference material. Do not import from it; app code should keep importing from normal Drizzle packages.
