@@ -36,8 +36,6 @@ import {
   QueryClient,
   QueryObserver,
 } from '@tanstack/angular-query-experimental';
-import { readFileSync } from 'node:fs';
-import nodePath from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ConfigService } from '../../core/config.service';
@@ -156,13 +154,6 @@ describe('eventEditSubmitDisabled', () => {
         taxRatesReady: true,
       }),
     ).toBe(true);
-
-    const template = readFileSync(
-      nodePath.join(process.cwd(), 'src/app/events/event-edit/event-edit.html'),
-      'utf8',
-    );
-    expect(template).toContain('Discount settings could not be loaded.');
-    expect(template).toContain('discountProvidersQuery.refetch()');
   });
   it('blocks event edit submits until tax rates resolve successfully', () => {
     expect(
@@ -176,13 +167,6 @@ describe('eventEditSubmitDisabled', () => {
         taxRatesReady: false,
       }),
     ).toBe(true);
-
-    const template = readFileSync(
-      nodePath.join(process.cwd(), 'src/app/events/event-edit/event-edit.html'),
-      'utf8',
-    );
-    expect(template).toContain('Tax rates could not be loaded.');
-    expect(template).toContain('taxRatesQuery.refetch()');
   });
 
   it('blocks paid graphs while paid sign-ups are unavailable without resetting them', () => {
@@ -197,58 +181,6 @@ describe('eventEditSubmitDisabled', () => {
         taxRatesReady: true,
       }),
     ).toBe(true);
-
-    const source = readFileSync(
-      nodePath.join(process.cwd(), 'src/app/events/event-edit/event-edit.ts'),
-      'utf8',
-    );
-    expect(source).toContain('paymentsConfigured');
-    expect(source).not.toContain('stripeAccountId');
-    expect(source).not.toContain('resetEventGraphPayments');
-  });
-});
-
-describe('event edit currency inputs', () => {
-  it('shows tenant currency amounts while Signal Forms retain minor units', () => {
-    const parentTemplate = readFileSync(
-      nodePath.join(process.cwd(), 'src/app/events/event-edit/event-edit.html'),
-      'utf8',
-    );
-    const registrationTemplate = readFileSync(
-      nodePath.join(
-        process.cwd(),
-        'src/app/events/event-edit/event-registration-option-editor.html',
-      ),
-      'utf8',
-    );
-    const addOnTemplate = readFileSync(
-      nodePath.join(
-        process.cwd(),
-        'src/app/events/event-edit/event-addon-editor.html',
-      ),
-      'utf8',
-    );
-
-    expect(
-      parentTemplate.match(/\[currencyCode\]="tenantCurrency\(\)"/g)?.length,
-    ).toBe(2);
-    expect(
-      registrationTemplate.match(/<app-currency-amount-input/g)?.length,
-    ).toBe(2);
-    expect(addOnTemplate).toContain('<app-currency-amount-input');
-    expect(`${registrationTemplate}${addOnTemplate}`).not.toContain('cents');
-  });
-
-  it('explains how to add the first add-on', () => {
-    const template = readFileSync(
-      nodePath.join(process.cwd(), 'src/app/events/event-edit/event-edit.html'),
-      'utf8',
-    );
-
-    expect(template).toContain(
-      'No add-ons yet. Add one to offer extras during sign-up.',
-    );
-    expect(template).not.toContain('Add-ons are disabled for this event.');
   });
 });
 

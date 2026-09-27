@@ -2,7 +2,7 @@
 
 Scope: Current Playwright tests and documentation journeys.
 
-Updated: 2026-09-23
+Updated: 2026-09-27
 
 ## How to Use This Inventory
 
@@ -10,9 +10,9 @@ Use this file as a quick orientation map before adding or trusting Playwright
 coverage. `tests/README.md` remains the workflow reference for commands,
 runtime variables, Docker behavior, and browser installation.
 
-The Active Files list is checked against disk discovery. Keep that exact list
-current when adding or removing journeys; file counts and categories are
-already determined by those paths and are not maintained separately.
+The Active Files list is a manually maintained orientation map. Update it when
+adding or removing journeys. Playwright collection and complete-run reporting
+determine the executable suite; no test scans this document for completeness.
 
 The complete deterministic gate is `bun run test:e2e:baseline`. It collects
 both baseline projects and executes their shared setup once. Documentation
@@ -123,7 +123,7 @@ component regressions retain retry recovery for temporary failures.
   - `docs/events/**`
   - `specs/events/**`
   - `specs/events/registration-page-readiness.test.ts` exercises the real
-    readiness helper in offline Chromium against current template headings,
+    readiness helper in offline Chromium against explicit DOM fixtures,
     covering event/sign-up read failures and a ready page with hidden errors;
     it does not replace authenticated application journeys
   - the dedicated registration-transfer spec and generated guide cover the
@@ -225,13 +225,12 @@ component regressions retain retry recovery for temporary failures.
     that the confirmed result remains visible without a duplicate cancellation
     or a refund claim. Platform cancellation carries the status and payment
     snapshot confirmed by the administrator.
-  - global-admin unit/source coverage pins explicit platform authority,
-    application/API append-only tenant action audit records, full event graph
-    writes, bounded
-    registration reads, and required operator reasons
-  - `helpers/testing/email-outbox-kind-source.spec.ts` keeps the typed kinds,
-    operator labels, React Email producers, transactional transition splices,
-    and page-backed coverage aligned
+  - global-admin handler and PostgreSQL tests exercise explicit platform
+    authority, target-scoped operations, audit outcomes, bounded registration
+    reads, and required operator reasons; ESLint restricts audit mutations
+  - email-delivery tests execute enqueue/render behavior for the supported
+    notification kinds; checkout-completion PostgreSQL tests and registration
+    and transfer journeys inspect the persisted outbox outcomes
   - `specs/admin/email-outbox.spec.ts` and `docs/admin/email-outbox.doc.ts`
     cover single-dispatch outcomes, sent history, recipient/organization context,
     and refresh without resend; scenario cleanup belongs to the database fixture
@@ -370,10 +369,9 @@ component regressions retain retry recovery for temporary failures.
   that a historical source discount is replaced by recipient-current pricing;
   and prove distinct exact refund plans and claims without presenting a cash or
   manually settled paid-event fallback. Its paid helper and guide are realigned
-  to the final append-only acquisition ledger: strict helper TypeScript and
-  source guards pass, and the targeted project collects the journey. This
-  inventory does not treat it as executable evidence until the detached runtime
-  and complete local gates pass without incomplete outcomes.
+  to the final append-only acquisition ledger. Type checking and test collection
+  alone are not executable evidence; the complete journey must pass the local
+  gate without incomplete outcomes.
 - `docs/events/manual-approval.doc.ts` documents the complete participant and
   organizer journey for free and paid applications. It begins from Events
   navigation, explains that applications neither reserve nor charge, reads back
@@ -452,15 +450,16 @@ component regressions retain retry recovery for temporary failures.
   page-backed runtime is available.
 - Page-backed local execution requires the Playwright Chromium cache installed
   by `bun run test:e2e:install`.
-- `helpers/testing/playwright-skip-inventory.spec.ts` requires the Playwright
-  `test.skip` and `test.fixme` inventory to remain empty, so credential or
-  fixture preconditions fail explicitly instead of becoming silent
-  placeholders.
+- The complete-run reporters reject skipped, interrupted, expected-failure,
+  and retried outcomes. Vitest disallows focused tests and Playwright uses
+  `forbidOnly: true`. Credential and fixture preconditions fail explicitly.
+  Reporter regression tests invoke real runners to prove incomplete runs fail;
+  there is no separate source scanner for test-control spelling.
 
 ## Stabilization Coverage Watchlist
 
 The entries below are the areas to keep aligned as stabilization continues.
-Most are now covered by deterministic specs, generated docs, or source guards.
+Most are now covered by deterministic specs, generated docs, or targeted lint rules.
 This inventory supplements the release criteria in `QUALITY.md`. The external
 verification gates here are the in-app review queue and the release-gated live
 ESNcard provider credential path.
@@ -933,12 +932,11 @@ ESNcard provider credential path.
   transactions stay omitted from that surface.
 - Finance-tagged specs remain the main candidates for selective CI filtering when needed.
 - Event, registration, template, finance receipt, scanner, and event-discovery specs should fail loudly when deterministic fixture state is missing instead of silently passing through skips.
-- Playwright skip/fixme inventory must remain empty. Credential-dependent
-  projects fail their selected-run preflight when credentials are unavailable;
-  they are not represented as skipped tests.
-- Playwright list/discovery output is intentionally readable:
-  `helpers/testing/playwright-skip-inventory.spec.ts` guards that real spec/doc
-  titles no longer include placeholder `@track`, `@req`, or `@doc` metadata.
+- The complete-run reporter fails selected Playwright runs with skipped or
+  fixme outcomes. Credential-dependent projects fail their selected-run
+  preflight when credentials are unavailable; they do not silently skip tests.
+- Keep Playwright list/discovery titles readable during authoring and review;
+  placeholder metadata is an editorial concern, not a separate CI gate.
 - Credential-gated Playwright paths now include both generated docs and
   non-doc specs: `docs/users/create-account.doc.ts`,
   `specs/profile/create-account.spec.ts`, and the live section in

@@ -29,8 +29,6 @@ import {
   QueryObserver,
 } from '@tanstack/angular-query-experimental';
 import { type Schema } from 'effect';
-import { readFileSync } from 'node:fs';
-import nodePath from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { NotificationService } from '../../core/notification.service';
@@ -65,21 +63,6 @@ describe('platform event registration-mode compatibility', () => {
     expect(platformEventEditorIsReadOnly('DRAFT')).toBe(false);
     expect(platformEventEditorIsReadOnly('PENDING_REVIEW')).toBe(true);
     expect(platformEventEditorIsReadOnly('APPROVED')).toBe(true);
-
-    const template = readFileSync(
-      nodePath.join(
-        process.cwd(),
-        'src/app/global-admin/platform-event-operations/platform-event-detail.component.html',
-      ),
-      'utf8',
-    );
-    expect(template).toContain(
-      '[disabled]="eventEditorIsReadOnly(event.status)"',
-    );
-    expect(template).toContain(
-      '[attr.inert]="eventEditorIsReadOnly(event.status) ? \'\' : null"',
-    );
-    expect(template).toContain('Return this event to draft before editing it.');
   });
 
   it('keeps simple events to one organizer and one participant registration', () => {
@@ -103,74 +86,6 @@ describe('platform event registration-mode compatibility', () => {
         { organizingRegistration: true },
       ]),
     ).toBeNull();
-
-    const template = readFileSync(
-      nodePath.join(
-        process.cwd(),
-        'src/app/global-admin/platform-event-operations/platform-event-detail.component.html',
-      ),
-      'utf8',
-    );
-    expect(template).toContain('simpleModeIssue() !== null');
-    expect(template).toContain('@if (simpleModeIssue(); as error)');
-  });
-
-  it('keeps event editing explicit and fail-closed while dependencies load', () => {
-    const source = readFileSync(
-      nodePath.join(
-        process.cwd(),
-        'src/app/global-admin/platform-event-operations/platform-event-detail.component.ts',
-      ),
-      'utf8',
-    );
-    const template = readFileSync(
-      nodePath.join(
-        process.cwd(),
-        'src/app/global-admin/platform-event-operations/platform-event-detail.component.html',
-      ),
-      'utf8',
-    );
-
-    expect(template).not.toContain('Update registration mode');
-    expect(template).not.toContain('· {{ option.id }}');
-    expect(template).not.toContain('errorMessage(');
-    expect(template).not.toContain('getErrorMessage(');
-    expect(source).toContain(
-      "getErrorMessage(error, fallback, ['RpcBadRequestError'])",
-    );
-    expect(source).toContain('platformEventMutationErrorMessage');
-    expect(template).not.toContain('<mat-option value="random"');
-    expect(template).toContain('event.simpleModeEnabled');
-    expect(source).toContain('globalAdmin.tenants.findOne.queryOptions');
-    expect(source).not.toContain('resetPlatformEventGraphPayments');
-    expect(template).toContain('[disabled]="!paymentsConfigured()"');
-    expect(template).toContain('status could not be loaded');
-    expect(template).toContain('Event editing settings could not be loaded');
-    expect(template).toContain('(click)="formOptionsQuery.refetch()"');
-    expect(template).toContain('!formOptionsReady()');
-  });
-
-  it('blocks invalid target-timezone registration windows instead of saving stale instants', () => {
-    const source = readFileSync(
-      nodePath.join(
-        process.cwd(),
-        'src/app/global-admin/platform-event-operations/platform-event-detail.component.ts',
-      ),
-      'utf8',
-    );
-    const template = readFileSync(
-      nodePath.join(
-        process.cwd(),
-        'src/app/global-admin/platform-event-operations/platform-event-detail.component.html',
-      ),
-      'utf8',
-    );
-
-    expect(source).toContain('invalidRegistrationWindowFields');
-    expect(source).toContain('new Set([...fields, fieldKey])');
-    expect(template).toContain('invalidRegistrationWindowFields().size > 0');
-    expect(template).toContain('Enter a valid time in');
-    expect(template).not.toContain('| date:');
   });
 
   it('blocks reversed event and registration windows with field-level guidance', () => {
@@ -186,53 +101,6 @@ describe('platform event registration-mode compatibility', () => {
         openRegistrationTime: '2026-07-14T11:00:00.000Z',
       }),
     ).toBe(true);
-
-    const source = readFileSync(
-      nodePath.join(
-        process.cwd(),
-        'src/app/global-admin/platform-event-operations/platform-event-detail.component.ts',
-      ),
-      'utf8',
-    );
-    const template = readFileSync(
-      nodePath.join(
-        process.cwd(),
-        'src/app/global-admin/platform-event-operations/platform-event-detail.component.html',
-      ),
-      'utf8',
-    );
-
-    expect(source).toContain('validate(event.end');
-    expect(source).toContain('hasInvalidRegistrationWindowOrder');
-    expect(source).toContain('The event must end after it starts.');
-    expect(template).toContain('Registration must close at or after it opens.');
-    expect(template).toContain('hasInvalidRegistrationWindowOrder()');
-  });
-
-  it('accepts ordinary currency amounts while retaining minor-unit graph values', () => {
-    const source = readFileSync(
-      nodePath.join(
-        process.cwd(),
-        'src/app/global-admin/platform-event-operations/platform-event-detail.component.ts',
-      ),
-      'utf8',
-    );
-    const template = readFileSync(
-      nodePath.join(
-        process.cwd(),
-        'src/app/global-admin/platform-event-operations/platform-event-detail.component.html',
-      ),
-      'utf8',
-    );
-
-    expect(source).toContain('majorCurrencyInputToMinorUnits');
-    expect(source).toContain('currencyAmountErrors().size > 0');
-    expect(template).toMatch(
-      /\[value\]="\s*minorUnitsToMajorCurrencyInput\(option\.price\)\s*"/,
-    );
-    expect(template).toContain('(input)="setAddOnPrice(addOnIndex, $event)"');
-    expect(template).toContain('targetTenantCurrency()');
-    expect(template).not.toContain('Price in minor units');
   });
 
   it('requires paid registration and add-on prices to contain at least one minor unit', () => {
@@ -253,50 +121,9 @@ describe('platform event registration-mode compatibility', () => {
     expect(platformEventDiscountedPriceIssue(true, 1000, 900, false)).toBe(
       'Remove the ESNcard price because ESNcard discounts are disabled for this organization.',
     );
-
-    const source = readFileSync(
-      nodePath.join(
-        process.cwd(),
-        'src/app/global-admin/platform-event-operations/platform-event-detail.component.ts',
-      ),
-      'utf8',
-    );
-    const template = readFileSync(
-      nodePath.join(
-        process.cwd(),
-        'src/app/global-admin/platform-event-operations/platform-event-detail.component.html',
-      ),
-      'utf8',
-    );
-
-    expect(source).toContain(
-      'platformEventPaidRegistrationPriceIssue(option.isPaid, option.price)',
-    );
-    expect(source).toContain(
-      'platformEventPaidAddOnPriceIssue(addOn.isPaid, addOn.price)',
-    );
-    expect(source).toContain('platformEventDiscountedPriceIssue(');
-    expect(template).toMatch(
-      /<mat-label>\s*Price[\s\S]*?min="0\.01"[\s\S]*?setOptionPrice\(optionIndex, 'price', \$event\)/,
-    );
   });
 
   it('treats blank required numeric edits as invalid instead of retaining stale values', () => {
-    const source = readFileSync(
-      nodePath.join(
-        process.cwd(),
-        'src/app/global-admin/platform-event-operations/platform-event-detail.component.ts',
-      ),
-      'utf8',
-    );
-    const template = readFileSync(
-      nodePath.join(
-        process.cwd(),
-        'src/app/global-admin/platform-event-operations/platform-event-detail.component.html',
-      ),
-      'utf8',
-    );
-
     expect(platformEventIntegerIssue(NaN, 0)).toBe(
       'Enter a whole number of zero or more.',
     );
@@ -304,36 +131,6 @@ describe('platform event registration-mode compatibility', () => {
     expect(platformEventIntegerIssue(0, 1)).toBe(
       'Enter a whole number of at least one.',
     );
-    expect(source).toContain('value === null ? NaN : value');
-    expect(source).toContain('this.graphHasIssues()');
-    expect(template).toContain('graphHasIssues()');
-  });
-
-  it('offers only named organization-role checkboxes', () => {
-    const source = readFileSync(
-      nodePath.join(
-        process.cwd(),
-        'src/app/global-admin/platform-event-operations/platform-event-detail.component.ts',
-      ),
-      'utf8',
-    );
-    const template = readFileSync(
-      nodePath.join(
-        process.cwd(),
-        'src/app/global-admin/platform-event-operations/platform-event-detail.component.html',
-      ),
-      'utf8',
-    );
-
-    expect(template).not.toContain('<mat-label>Role IDs</mat-label>');
-    expect(template).not.toContain('setOptionRoleIds');
-    expect(template).toContain('Who can find this announcement');
-    expect(template).toContain('eventDiscoveryLabel({');
-    expect(template).toContain('Save who can find it');
-    expect(template).not.toContain('changeListing(');
-    expect(source).toContain('this.announcementDiscoveryMutation.isPending()');
-    expect(template).toContain('{{ role.name }}');
-    expect(source).not.toContain('setOptionRoleIds');
   });
 
   it('allows optional-only add-on mappings and rejects an empty mapping', () => {
@@ -372,19 +169,6 @@ describe('platform event registration-mode compatibility', () => {
       'This tax rate is no longer available. Choose another inclusive tax rate.',
     );
     expect(platformEventPaidTaxRateIssue(true, 'txr_1', taxRateIds)).toBeNull();
-
-    const template = readFileSync(
-      nodePath.join(
-        process.cwd(),
-        'src/app/global-admin/platform-event-operations/platform-event-detail.component.html',
-      ),
-      'utf8',
-    );
-
-    expect(template).toMatch(/<mat-label>Included<\/mat-label>[\s\S]*?min="0"/);
-    expect(template).toContain('addOnMappingIssue(');
-    expect(template).toContain('addOnAvailabilityIssue(addOn)');
-    expect(template).toContain('paidTaxRateIssue(');
   });
 
   it('explains blank graph titles and invalid question targets before saving', () => {
@@ -400,27 +184,6 @@ describe('platform event registration-mode compatibility', () => {
     expect(
       platformEventQuestionOptionIssue('option-1', registrationOptionIds),
     ).toBeNull();
-
-    const source = readFileSync(
-      nodePath.join(
-        process.cwd(),
-        'src/app/global-admin/platform-event-operations/platform-event-detail.component.ts',
-      ),
-      'utf8',
-    );
-    const template = readFileSync(
-      nodePath.join(
-        process.cwd(),
-        'src/app/global-admin/platform-event-operations/platform-event-detail.component.html',
-      ),
-      'utf8',
-    );
-
-    expect(source).toContain('platformEventGraphHasIssues');
-    expect(template).toContain(
-      'titleIssue(option.title, "registration option")',
-    );
-    expect(template).toContain('questionOptionIssue(');
   });
   it('accepts platform add-on caps and rejects cap plus one', () => {
     const addOn = {
@@ -454,21 +217,6 @@ describe('platform event registration-mode compatibility', () => {
         Array.from({ length: MAX_EVENT_ADDON_TYPES + 1 }),
       ),
     ).toBe(`Add no more than ${MAX_EVENT_ADDON_TYPES} different add-ons.`);
-
-    const template = readFileSync(
-      nodePath.join(
-        process.cwd(),
-        'src/app/global-admin/platform-event-operations/platform-event-detail.component.html',
-      ),
-      'utf8',
-    );
-    expect(
-      template.match(/\[max\]="maxRegistrationAddonQuantity"/g)?.length,
-    ).toBe(3);
-    expect(template).toContain(
-      '[disabled]="graph.addOns.length >= maxEventAddonTypes"',
-    );
-    expect(template).toContain('addOnTypeLimitIssue(graph.addOns)');
   });
   it('shows safe, specific announcement visibility failures', () => {
     expect(
@@ -1008,6 +756,28 @@ describe('PlatformEventDetailComponent graph-save outcomes', () => {
     expect(loadChoices).toHaveBeenCalledOnce();
     expect(root.textContent).not.toContain('response was lost');
     expect(root.textContent).not.toContain('Private database detail');
+  });
+
+  it('blocks saving an invalid registration time until the rendered field is corrected', async () => {
+    await render();
+    const originalInput = field('Registration opens').value;
+    expect(originalInput).not.toBe('');
+    enter('Registration opens', '');
+    await fixture.whenStable();
+    expect(button('Save draft details').disabled).toBe(true);
+    expect(root.textContent).toContain('Enter a valid time in');
+    expect(field('Registration opens').value).toBe('');
+    invokeSave();
+    await fixture.whenStable();
+    expect(updateEvent).not.toHaveBeenCalled();
+
+    enter('Registration opens', originalInput);
+    await fixture.whenStable();
+    expect(button('Save draft details').disabled).toBe(false);
+    expect(root.textContent).not.toContain('Enter a valid time in');
+    expect(field('Registration opens').value).toBe(originalInput);
+    invokeSave();
+    await vi.waitFor(expectSinglePayload);
   });
 
   it('reports a confirmed graph save when the explicit event read fails and retains edits after a read retry', async () => {

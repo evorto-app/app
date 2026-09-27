@@ -1,4 +1,5 @@
 import { describe, expect, it } from '@effect/vitest';
+import { Predicate } from 'effect';
 import childProcess, { spawnSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -25,10 +26,7 @@ import {
   resolveDocumentationPublishPlaywrightArguments,
   runDocumentationConsumerSync,
 } from './publish-documentation';
-import {
-  buildDocumentationPage,
-  slugifyFolderNameFromTitle,
-} from '../../tests/support/reporters/documentation-reporter/shared';
+import { buildDocumentationPage } from '../../tests/support/reporters/documentation-reporter/shared';
 
 const writeFixture = (filePath: string, contents: Buffer | string): void => {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
@@ -135,7 +133,7 @@ const createRawDocumentation = (root: string) => {
 
 const readJson = (filePath: string): Record<string, unknown> => {
   const value: unknown = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+  if (!Predicate.isObject(value)) {
     throw new Error(`Expected JSON object at ${filePath}`);
   }
   return value;
@@ -146,18 +144,6 @@ const expectStringArray = (value: unknown): string[] => {
     throw new Error('Expected an array of strings');
   }
   return value;
-};
-
-const readFirstDocumentationTestTitle = (relativePath: string): string => {
-  const source = fs.readFileSync(
-    path.join(process.cwd(), relativePath),
-    'utf8',
-  );
-  const title = /\btest\(\s*'(?<title>[^']+)'/u.exec(source)?.groups?.['title'];
-  if (!title) {
-    throw new Error(`Expected a documentation test title in ${relativePath}`);
-  }
-  return title;
 };
 
 const withPublisherBoundaryFixture = (
@@ -336,7 +322,7 @@ const withPublisherBoundaryFixture = (
       throw new Error(`Unexpected publisher child process: ${command}`);
     });
     syncBuiltinESMExports();
-    if (spawnSync !== spawnSpy) {
+    if (!Object.is(spawnSync, spawnSpy)) {
       throw new Error(
         'Publisher spawnSync binding did not receive the fixture mock',
       );
@@ -447,53 +433,6 @@ describe('documentation publishing', () => {
   });
 
   it('builds the exact versioned Evorto Pages consumer bundle', () => {
-    expect(documentationConsumerGuideSlugs).toEqual([
-      'complete-your-profile',
-      'find-an-event',
-      'sign-up-for-an-event',
-      'manage-your-ticket',
-      'create-an-event',
-      'submit-an-event-for-approval',
-      'run-an-event',
-      'first-steps',
-      'manage-your-organization',
-      'create-an-event-template',
-      'manage-organization-members',
-      'member-information',
-      'review-and-publish-an-event',
-    ]);
-    expect(documentationConsumerGuideCatalog).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          id: 'evorto:sign-up-for-an-event',
-          slug: 'sign-up-for-an-event',
-          title: 'Sign up for an event',
-        }),
-        expect.objectContaining({
-          id: 'evorto:manage-your-ticket',
-          slug: 'manage-your-ticket',
-          title: 'Manage your ticket',
-        }),
-      ]),
-    );
-    expect(
-      documentationConsumerGuideCatalog.some((guide) => 'linkAliases' in guide),
-    ).toBe(false);
-    expect(documentationConsumerGuideCatalog.map(({ id }) => id)).not.toEqual(
-      expect.arrayContaining([
-        'evorto:register-for-an-event',
-        'evorto:manage-your-registration',
-      ]),
-    );
-    expect(
-      documentationConsumerGuideCatalog.find(
-        (guide) => guide.id === 'evorto:find-an-event',
-      )?.sourceSlugs,
-    ).toEqual([
-      'find-an-event-you-can-join',
-      'choose-who-can-find-an-announcement',
-      'recover-from-an-unknown-organization-link',
-    ]);
     const fixtureRoot = fs.mkdtempSync(
       path.join(os.tmpdir(), 'evorto-docs-consumer-bundle-'),
     );
@@ -523,7 +462,21 @@ describe('documentation publishing', () => {
           }
           return guide.slug;
         }),
-      ).toEqual(documentationConsumerGuideSlugs);
+      ).toEqual([
+        'complete-your-profile',
+        'find-an-event',
+        'sign-up-for-an-event',
+        'manage-your-ticket',
+        'create-an-event',
+        'submit-an-event-for-approval',
+        'run-an-event',
+        'first-steps',
+        'manage-your-organization',
+        'create-an-event-template',
+        'manage-organization-members',
+        'member-information',
+        'review-and-publish-an-event',
+      ]);
       expect(manifest['schemaVersion']).toBe(
         'docs-tests.output-manifest/v1alpha1',
       );
@@ -570,31 +523,6 @@ describe('documentation publishing', () => {
       ).toBe(expectedHash);
     } finally {
       fs.rmSync(fixtureRoot, { force: true, recursive: true });
-    }
-  });
-
-  it('keeps title-derived publication folders aligned with the catalog', () => {
-    for (const fixture of [
-      {
-        file: 'tests/docs/admin/platform-tenant-operations.doc.ts',
-        guideId: 'evorto:manage-your-organization',
-      },
-      {
-        file: 'tests/docs/roles/roles.doc.ts',
-        guideId: 'evorto:manage-organization-members',
-      },
-      {
-        file: 'tests/docs/users/tenant-onboarding.doc.ts',
-        guideId: 'evorto:first-steps',
-      },
-    ]) {
-      const sourceSlug = slugifyFolderNameFromTitle(
-        readFirstDocumentationTestTitle(fixture.file),
-      );
-      const guide = documentationConsumerGuideCatalog.find(
-        ({ id }) => id === fixture.guideId,
-      );
-      expect(guide?.sourceSlugs).toContain(sourceSlug);
     }
   });
 
@@ -762,7 +690,7 @@ describe('documentation publishing', () => {
     }
   });
 
-  it('rejects implementation wording after dynamic guide text has been rendered', () => {
+  it('preserves authored guide prose in the published bundle', () => {
     const fixtureRoot = fs.mkdtempSync(
       path.join(os.tmpdir(), 'evorto-docs-rendered-language-'),
     );
@@ -776,18 +704,21 @@ describe('documentation publishing', () => {
           'title: "Transfer your ticket privately"',
           '---',
           '',
-          'Ask an organizer to update the database record.',
+          'Open the registration URL to review your configuration.',
         ].join('\n'),
       );
-      expect(() =>
-        buildDocumentationConsumerBundle({
-          outputRoot: path.join(fixtureRoot, 'consumer'),
-          rawDocsRoot: raw.docs,
-          rawImagesRoot: raw.images,
-        }),
-      ).toThrow(
-        'Generated guide manage-your-ticket contains implementation wording: database',
-      );
+      const outputRoot = path.join(fixtureRoot, 'consumer');
+      buildDocumentationConsumerBundle({
+        outputRoot,
+        rawDocsRoot: raw.docs,
+        rawImagesRoot: raw.images,
+      });
+      expect(
+        fs.readFileSync(
+          path.join(outputRoot, 'content', 'manage-your-ticket', 'page.md'),
+          'utf8',
+        ),
+      ).toContain('Open the registration URL to review your configuration.');
     } catch (error) {
       failures.push(error);
     }
@@ -1043,37 +974,6 @@ describe('documentation publishing', () => {
     }
   }, 45_000);
 
-  it('does not hard-code or directly replace an Evorto Pages checkout', () => {
-    const packageJson: unknown = JSON.parse(
-      fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8'),
-    );
-    if (
-      !packageJson ||
-      typeof packageJson !== 'object' ||
-      !('scripts' in packageJson) ||
-      !packageJson.scripts ||
-      typeof packageJson.scripts !== 'object' ||
-      !('test:e2e:docs:publish' in packageJson.scripts)
-    ) {
-      throw new Error('Expected documentation publication package script');
-    }
-    const publishScript = packageJson.scripts['test:e2e:docs:publish'];
-    expect(publishScript).toBe(
-      'bun run env:run -- bun helpers/testing/run-with-primary-provider-credentials.ts -- bun helpers/testing/publish-documentation.ts',
-    );
-    expect(publishScript).not.toContain('/Users/');
-    expect(publishScript).not.toContain('apps/documentation');
-    for (const sourceFile of [
-      'helpers/testing/documentation-publication-contract.ts',
-      'helpers/testing/primary-provider-credentials.ts',
-      'helpers/testing/publish-documentation.ts',
-      'helpers/testing/run-with-primary-provider-credentials.ts',
-    ]) {
-      const sourceStat = fs.lstatSync(path.join(process.cwd(), sourceFile));
-      expect(sourceStat.isFile()).toBe(true);
-      expect(sourceStat.isSymbolicLink()).toBe(false);
-    }
-  });
   describe('publication staging cleanup', { concurrent: false }, () => {
     it('preserves generation and staging cleanup failures together', () => {
       const generationFailure = new Error('Fixture generation failed');

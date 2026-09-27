@@ -64,7 +64,9 @@ Use plain product language throughout the published text, guide titles, callouts
 and screenshot captions. Do not publish implementation names, protocols,
 identifiers, storage or delivery mechanics, database checks, fixture details, or
 test evidence. Keep those details in executable setup and assertions. Name an
-external service only where the reader sees or uses it.
+external service only where the reader sees or uses it. Apply this guidance in
+authoring and review; do not enforce it with prohibited-word tests or publication
+filters. Automated checks verify behavior and the integrity of published output.
 
 The documentation reporter owns each page title and writes the page's single
 level-one heading. Authored Markdown must start at `##` or a lower heading
@@ -369,7 +371,9 @@ validates its disposable target and verifies PostgreSQL major version 17
 through the server's `postgres` maintenance database, then creates the reserved
 integration database if missing. It resets only that database's `public` schema,
 applies the current Drizzle schema, and runs the database tests serially. It is part of the mandatory local-first CI gate and must finish with
-every collected test passing.
+every collected test passing. Keep `fileParallelism: false` and `maxWorkers: 1`
+in `vitest.postgres.config.ts`: the files share one disposable database. Review
+collection and isolation changes with the configuration and full suite results.
 
 The runner refuses to start unless
 `POSTGRES_INTEGRATION_DISPOSABLE=true` and an explicit

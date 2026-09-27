@@ -29,8 +29,6 @@ import {
   QueryClient,
   QueryObserver,
 } from '@tanstack/angular-query-experimental';
-import { readFileSync } from 'node:fs';
-import nodePath from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { EventLocationType } from '../../../types/location';
@@ -329,6 +327,53 @@ describe('PlatformTemplateEditorComponent recovery', () => {
     fixture.componentRef.setInput('tenantId', 'tenant-1');
     return fixture;
   };
+
+  it('clears an unsaved new template and adopts the new organization roles on input reuse', async () => {
+    const fixture = render();
+    const root: unknown = fixture.nativeElement;
+    if (!(root instanceof HTMLElement))
+      throw new Error('Expected the template editor');
+    const roles = () =>
+      TestbedHarnessEnvironment.loader(fixture).getAllHarnesses(
+        MatSelectHarness.with({ selector: 'mat-select[multiple]' }),
+      );
+    await vi.waitFor(async () => {
+      await fixture.whenStable();
+      expect(root.querySelector('form')).not.toBeNull();
+      expect(await roles()).toHaveLength(2);
+    });
+    const title = root.querySelector<HTMLInputElement>('input');
+    if (!title) throw new Error('Expected the template title input');
+    title.value = 'Private first-organization draft';
+    title.dispatchEvent(new Event('input', { bubbles: true }));
+    await fixture.whenStable();
+    expect(root.querySelector<HTMLInputElement>('input')?.value).toBe(
+      'Private first-organization draft',
+    );
+    loadRoles.mockResolvedValueOnce([
+      {
+        defaultOrganizerRole: true,
+        defaultUserRole: true,
+        id: 'second-organization-role',
+        name: 'Second organization member',
+      },
+    ]);
+    fixture.componentRef.setInput('tenantId', 'tenant-2');
+    await vi.waitFor(async () => {
+      await fixture.whenStable();
+      expect(roleOptions).toHaveBeenCalledWith('tenant-2');
+      const selections = await roles();
+      expect(selections).toHaveLength(2);
+      for (const selection of selections) {
+        expect(await selection.getValueText()).toBe(
+          'Second organization member',
+        );
+      }
+      expect(root.querySelector<HTMLInputElement>('input')?.value).toBe('');
+    });
+    expect(createTemplate).not.toHaveBeenCalled();
+    expect(updateTemplate).not.toHaveBeenCalled();
+  });
 
   const renderExistingTemplate = async (
     roleIds: string[],
@@ -2154,89 +2199,5 @@ describe('platform template editor graph mapping', () => {
         { ...participantOption, organizingRegistration: true },
       ]),
     ).toContain('exactly one organizer choice and one attendee choice');
-  });
-
-  it('reuses the shared graph validation and confirms mode changes', () => {
-    const source = readFileSync(
-      nodePath.join(
-        process.cwd(),
-        'src/app/global-admin/platform-event-operations/platform-template-editor.component.ts',
-      ),
-      'utf8',
-    );
-    const template = readFileSync(
-      nodePath.join(
-        process.cwd(),
-        'src/app/global-admin/platform-event-operations/platform-template-editor.component.html',
-      ),
-      'utf8',
-    );
-
-    expect(source).toContain(
-      'apply(registration, templateGraphRegistrationOptionFormSchema)',
-    );
-    expect(source).toContain('apply(addOn, templateGraphAddonFormSchema)');
-    expect(source).toContain(
-      'applyEach(template.questions, templateGraphQuestionFormSchema)',
-    );
-    expect(source).toContain('TemplateModeConfirmationDialogComponent');
-    expect(source).not.toContain('persistedAdvancedToSimpleModeIssue');
-    expect(source).toContain('globalAdmin.tenants.findOne.queryOptions');
-    expect(source).toContain(
-      'disabled(registration.isPaid, () => !this.stripeConnected())',
-    );
-    expect(source).toContain(
-      'disabled(addOn.isPaid, () => !this.stripeConnected())',
-    );
-    expect(source).not.toContain('resetTemplateGraphPayments');
-    expect(source).toContain('paidGraphBlocked');
-    expect(source).toContain('paymentSettingsReady');
-    expect(source).toContain('taxRatesReady');
-    expect(template).toContain("requestMode('simple')");
-    expect(template).toContain("requestMode('advanced')");
-    expect(template).toContain('payment settings');
-    expect(template).toContain('Existing payment details are preserved');
-    expect(template).toContain('Organizer choice');
-    expect(template).toContain('Attendee choice');
-    expect(template.match(/<app-currency-amount-input/g)?.length).toBe(3);
-    expect(template.match(/\[minimumMinorUnits\]="1"/g)?.length).toBe(2);
-    expect(template).toContain('[currencyCode]="targetTenantCurrency()"');
-    expect(template).not.toContain('(cents)');
-    expect(template).toContain(
-      'Previously selected category (no longer available)',
-    );
-    expect(template).toMatch(
-      /Previously selected organization role \(no longer\s+available\)/u,
-    );
-    expect(template.match(/Previously selected tax rate/g)?.length).toBe(2);
-    expect(template).not.toContain('{{ selectedCategoryId }}');
-    expect(template).not.toContain('{{ missingRoleId }}');
-    expect(template).not.toContain('{{ selectedTaxRateId }}');
-    expect(source).toContain("['RpcBadRequestError']");
-    expect(template).not.toContain(
-      '[formField]="templateForm.simpleModeEnabled"',
-    );
-  });
-
-  it('reinitializes a new template when the organization changes', () => {
-    const source = readFileSync(
-      nodePath.join(
-        process.cwd(),
-        'src/app/global-admin/platform-event-operations/platform-template-editor.component.ts',
-      ),
-      'utf8',
-    );
-
-    expect(source).toContain(
-      'private readonly initializedNewTemplateTenantId = signal<null | string>(null)',
-    );
-    expect(source).toContain(
-      'this.initializedNewTemplateTenantId() === tenantId',
-    );
-    expect(source).toContain(
-      'this.initializedNewTemplateTenantId.set(tenantId)',
-    );
-    expect(source).toContain('const model = createPlatformTemplateFormModel()');
-    expect(source).not.toContain('initializedNewTemplate = signal(false)');
   });
 });

@@ -2,10 +2,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import {
-  generatedGuideLanguageViolations,
-  generatedGuideLevelOneHeadingViolations,
-} from './generated-docs-language';
+import { generatedGuideLevelOneHeadingViolations } from './generated-docs-language';
 
 export const documentationConsumerGuideCatalog = [
   {
@@ -570,12 +567,6 @@ export const buildDocumentationConsumerBundle = (input: {
     ]
       .join('\n\n')
       .replace(/\n{3,}/gu, '\n\n');
-    const languageViolations = generatedGuideLanguageViolations(page);
-    if (languageViolations.length > 0) {
-      throw new Error(
-        `Generated guide ${guide.slug} contains implementation wording: ${languageViolations.join(', ')}`,
-      );
-    }
     fs.writeFileSync(path.join(pageDirectory, pageFileName), page);
   }
 

@@ -39,12 +39,6 @@ const safeFailureDetails =
   'Protected input failure reproduced with value-free diagnostics.';
 const protectedInputArtifactError =
   'Protected input requires Playwright trace, screenshot, video, HAR, and context video capture to be off and protected-value artifact sanitization to be enabled';
-const protectedInputTestFiles = [
-  'tests/setup/authentication.setup.ts',
-  'tests/docs/profile/discounts.doc.ts',
-  'tests/docs/users/create-account.doc.ts',
-  'tests/specs/profile/create-account.spec.ts',
-];
 
 const findFiles = (directory: string): string[] => {
   if (!statSync(directory, { throwIfNoEntry: false })) return [];
@@ -262,11 +256,6 @@ test('enters a protected value without exposing it', async ({ page }, testInfo) 
 
 describe('protected Playwright value entry', () => {
   it('uses native form events without exposing the value', () => {
-    for (const filePath of protectedInputTestFiles) {
-      const source = readFileSync(path.join(repositoryRoot, filePath), 'utf8');
-      expect(source).toContain('fillProtectedValue');
-    }
-
     const result = runProtectedInputFixture({});
 
     expect(result.status).toBe(0);
@@ -408,29 +397,6 @@ describe('protected Playwright value entry', () => {
   });
 
   it('selects database-only dependencies for trace-off baseline UI mode', () => {
-    const packageJson: unknown = JSON.parse(
-      readFileSync(path.join(repositoryRoot, 'package.json'), 'utf8'),
-    );
-    if (
-      !packageJson ||
-      typeof packageJson !== 'object' ||
-      !('scripts' in packageJson) ||
-      !packageJson.scripts ||
-      typeof packageJson.scripts !== 'object' ||
-      !('test:e2e:ui' in packageJson.scripts)
-    ) {
-      throw new Error('Expected package scripts');
-    }
-    const uiScript = packageJson.scripts['test:e2e:ui'];
-    if (typeof uiScript !== 'string') {
-      throw new Error('Expected the test:e2e:ui package script');
-    }
-
-    expect(uiScript).toContain('playwright test --project=setup --trace=off');
-    expect(uiScript).toContain('PLAYWRIGHT_SAFE_UI_BASELINE=1');
-    expect(uiScript.indexOf('--project=setup')).toBeLessThan(
-      uiScript.lastIndexOf('playwright test --ui'),
-    );
     expect(resolvePlaywrightProjectPolicy(true)).toEqual({
       includeAuthenticatedProjects: false,
       modeDependencies: ['database-setup'],

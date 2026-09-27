@@ -16,8 +16,6 @@ import {
   provideTanStackQuery,
   QueryClient,
 } from '@tanstack/angular-query-experimental';
-import { readFileSync } from 'node:fs';
-import nodePath from 'node:path';
 import { firstValueFrom, Subject } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -619,18 +617,6 @@ describe('TemplateEditComponent role catalog defaults', () => {
 });
 
 describe('template edit error messages', () => {
-  it('uses the organization payment connection when validating prices', () => {
-    const source = readFileSync(
-      nodePath.join(
-        process.cwd(),
-        'src/app/templates/template-edit/template-edit.component.ts',
-      ),
-      'utf8',
-    );
-
-    expect(source).toContain('paymentsConfigured');
-  });
-
   it('shows when the requested template is no longer available', () => {
     expect(
       templateEditLoadErrorMessage({

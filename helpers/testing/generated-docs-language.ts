@@ -1,6 +1,3 @@
-export const generatedGuideImplementationTerms =
-  /\b(?:apis?|authentication|authorized|browser|conditional|configur(?:ation|e[ds]?|ing)|databases?|domains?|eligibility|eligible|endpoints?|exports?|fallbacks?|https?|metadata|participants?|payloads?|prerequisites?|providers?|reassign(?:ed|ing|ment|s)?|refresh(?:ed|es|ing)?|register(?:ed|ing|s)?|registrations?|relaunch|rpcs?|schemas?|settlements?|stripe|tenants?|transactions?|urls?|webhooks?|workflows?)\b|\b(?:accurate|existing|reliable)\s+records?\b|\bfrom this record\b|access denial|audit log|checkout sessions?|\bcross-organization\b|event editors?|internal id|listing\s+audience|local walkthrough|operator reason|platform administrator|queued for refund|reload the|reload this|request failure|source of truth|standard member access|visibility setting/giu;
-
 const fencedCodeMarker = /^ {0,3}(?<marks>`{3,}|~{3,})(?<tail>.*)$/u;
 
 const markdownLinesOutsideFencedCode = (markdown: string): string[] => {
@@ -48,33 +45,3 @@ export const generatedGuideLevelOneHeadingViolations = (
     return violations;
   });
 };
-
-export const generatedGuideVisibleText = (markdown: string): string =>
-  markdown
-    .replaceAll(
-      /\{%\s*figure\b[^%]*?\bcaption=(?:"(?<double>[^"]*)"|'(?<single>[^']*)')[^%]*%\}/giu,
-      (_match, ...arguments_: unknown[]) => {
-        const groups = arguments_.at(-1);
-        if (typeof groups !== 'object' || groups === null) return '';
-        if ('double' in groups && typeof groups.double === 'string') {
-          return groups.double;
-        }
-        if ('single' in groups && typeof groups.single === 'string') {
-          return groups.single;
-        }
-        return '';
-      },
-    )
-    .replaceAll(/!\[(?<alt>[^\]]*)\]\([^)]+\)/gu, '$<alt>')
-    .replaceAll(/\[(?<label>[^\]]+)\]\([^)]+\)/gu, '$<label>')
-    .replaceAll(/https?:\/\/\S+/giu, ' ')
-    .replaceAll(/<[^>]+>/gu, ' ')
-    .replaceAll(/\s+/gu, ' ')
-    .trim();
-
-export const generatedGuideLanguageViolations = (markdown: string): string[] =>
-  [
-    ...generatedGuideVisibleText(markdown).matchAll(
-      generatedGuideImplementationTerms,
-    ),
-  ].map((match) => match[0]);

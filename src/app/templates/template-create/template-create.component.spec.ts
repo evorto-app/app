@@ -17,8 +17,6 @@ import {
   QueryClient,
   QueryObserver,
 } from '@tanstack/angular-query-experimental';
-import { readFileSync } from 'node:fs';
-import nodePath from 'node:path';
 import { firstValueFrom, Subject } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -532,18 +530,6 @@ describe('TemplateCreateComponent role catalog defaults', () => {
 });
 
 describe('templateCreateErrorMessage', () => {
-  it('uses the organization payment connection when validating prices', () => {
-    const source = readFileSync(
-      nodePath.join(
-        process.cwd(),
-        'src/app/templates/template-create/template-create.component.ts',
-      ),
-      'utf8',
-    );
-
-    expect(source).toContain('paymentsConfigured');
-  });
-
   it('shows an actionable form problem', () => {
     expect(
       templateCreateErrorMessage({

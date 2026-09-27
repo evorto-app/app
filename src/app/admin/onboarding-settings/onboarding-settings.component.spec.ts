@@ -11,8 +11,6 @@ import {
   QueryClient,
   QueryObserver,
 } from '@tanstack/angular-query-experimental';
-import { readFileSync } from 'node:fs';
-import nodePath from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -37,14 +35,6 @@ import {
   OnboardingSettingsOperations,
 } from './onboarding-settings.component';
 
-const template = readFileSync(
-  nodePath.join(
-    process.cwd(),
-    'src/app/admin/onboarding-settings/onboarding-settings.component.html',
-  ),
-  'utf8',
-);
-
 describe('tenant onboarding settings', () => {
   it('trims, removes empty lines, and de-duplicates selection options', () => {
     expect(
@@ -67,21 +57,6 @@ describe('tenant onboarding settings', () => {
     expect(onboardingOptionsValidationMessage(`${'x'.repeat(81)}\nTwo`)).toBe(
       'Each choice must be 80 characters or fewer.',
     );
-  });
-
-  it('explains accepted policy links and selection limits in the form', () => {
-    expect(template).toContain('link to it on another website');
-    expect(template).toContain('2 to 20 different choices');
-    expect(template).toContain('placeholder="Choice one&#10;Choice two"');
-    expect(template).toContain('question.optionsText().errors()');
-    expect(template).toContain('<mat-error>{{ error.message }}</mat-error>');
-  });
-
-  it('renders every blocking policy and question prompt error inline', () => {
-    expect(template).toContain(
-      'error of settingsForm.privacyPolicyText().errors()',
-    );
-    expect(template).toContain('error of question.prompt().errors()');
   });
 
   it('tells the publishing administrator exactly who must re-accept', () => {

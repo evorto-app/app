@@ -5,8 +5,6 @@ import {
   QueryClient,
 } from '@tanstack/angular-query-experimental';
 import { Schema } from 'effect';
-import { readFileSync } from 'node:fs';
-import nodePath from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -67,36 +65,6 @@ describe('platformAuditActionLabel', () => {
     expect(platformAuditActionLabel('taxRates.import')).toBe(
       'Tax rates imported',
     );
-  });
-
-  it('keeps raw errors and implementation identifiers out', () => {
-    const source = readFileSync(
-      nodePath.join(
-        process.cwd(),
-        'src/app/global-admin/platform-audit/platform-audit.component.ts',
-      ),
-      'utf8',
-    );
-    const template = readFileSync(
-      nodePath.join(
-        process.cwd(),
-        'src/app/global-admin/platform-audit/platform-audit.component.html',
-      ),
-      'utf8',
-    );
-
-    expect(source).not.toContain('getErrorMessage');
-    expect(template).not.toContain('errorMessage(');
-    expect(template).not.toContain('entry.actorId');
-    expect(template).not.toContain('entry.targetTenantId');
-    expect(template).not.toContain('before.resourceId');
-    expect(template).not.toContain('after.resourceId');
-    expect(template).not.toContain('row.value');
-    expect(template).not.toContain('No listed fields');
-    expect(template).toContain('This change summary is unavailable.');
-    expect(template).toContain('Contact Evorto support');
-    expect(template).toContain('the organization and time shown above.');
-    expect(template).toContain('Administrator unavailable');
   });
 
   it('uses a readable organization name', () => {

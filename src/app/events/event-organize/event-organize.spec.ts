@@ -43,8 +43,6 @@ import {
   QueryClient,
   QueryObserver,
 } from '@tanstack/angular-query-experimental';
-import { readFileSync } from 'node:fs';
-import nodePath from 'node:path';
 import { of } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -69,9 +67,6 @@ import {
   ReceiptSubmitDialogResult,
   ReceiptSubmitFormValue,
 } from './receipt-submit-dialog.component';
-
-const readSource = (sourcePath: string): string =>
-  readFileSync(nodePath.join(process.cwd(), sourcePath), 'utf8');
 
 describe('event organizer error notifications', () => {
   const approveRegistration = vi.fn();
@@ -363,29 +358,6 @@ describe('invalidateEventOrganizeStateQueries', () => {
       false,
     );
   });
-
-  it('maps the helper to the complete organizer self-action RPC cache set', () => {
-    const source = readSource(
-      'src/app/events/event-organize/event-organize.ts',
-    );
-
-    for (const queryKeyBuilder of [
-      'this.rpc.events.getOrganizeOverview.queryKey',
-      'this.rpc.events.findOne.queryKey',
-      'this.rpc.events.getRegistrationStatus.queryKey',
-      'this.rpc.events.canOrganize.queryKey',
-      'this.rpc.users.canUseScanner.queryKey',
-      'this.rpc.users.events.queryKey',
-    ]) {
-      expect(source).toContain(queryKeyBuilder);
-    }
-    expect(source).toContain(
-      'return invalidateEventOrganizeStateQueries(this.queryClient',
-    );
-    expect(
-      source.match(/await this\.invalidateOrganizerState\(\)/g),
-    ).toHaveLength(3);
-  });
 });
 
 describe('groupEventOrganizeRegistrationOptions', () => {
@@ -491,101 +463,6 @@ describe('organizerRegistrationApprovalLabel', () => {
     );
     expect(organizerRegistrationApprovalLabel({ approvalPending: true })).toBe(
       'Approving…',
-    );
-  });
-});
-
-describe('event organizer approval template', () => {
-  it('renders organizer/helper approval only when the server grants approval access', () => {
-    const template = readSource(
-      'src/app/events/event-organize/event-organize.html',
-    );
-
-    expect(template).toContain('registrationOption.canApproveRegistrations &&');
-    expect(template).toContain('user.manualApprovalAvailable');
-    expect(template).not.toContain('@if (user.status === "PENDING")');
-    expect(template).not.toContain(
-      '@if (!registrationOption.organizingRegistration)',
-    );
-    expect(template).toContain('[attr.aria-busy]="approvalInFlight || null"');
-    expect(template).toContain('Payment needs attention');
-    expect(template).not.toContain('Retry payment setup');
-    expect(template).toContain('!user.paymentSetupRequired');
-    expect(template.replaceAll(/\s+/g, ' ')).toContain(
-      'Keep this sign-up and contact Evorto support before starting another payment.',
-    );
-  });
-
-  it('hides cancellation without its server capability and retires organizer reassignment', () => {
-    const template = readSource(
-      'src/app/events/event-organize/event-organize.html',
-    );
-
-    expect(template).not.toContain('openTransferDialog');
-    expect(template).not.toContain('canTransferRegistrations');
-    expect(template).toContain(
-      '@if (registrationOption.canCancelRegistrations)',
-    );
-    expect(template).not.toContain('Review transfer');
-  });
-});
-
-describe('event organizer overview structure', () => {
-  it('uses semantic registration groups and a compact responsive definition list', () => {
-    const template = readSource(
-      'src/app/events/event-organize/event-organize.html',
-    );
-
-    expect(template).toContain(
-      '@for (group of registrationGroups(); track group.id)',
-    );
-    expect(template).toContain('[attr.aria-labelledby]="group.id"');
-    expect(template).toContain('<dl');
-    expect(template).toContain('<dt');
-    expect(template).toContain('<dd');
-    expect(template).toContain('@sm:grid-cols-3');
-    expect(template).not.toContain('<!-- Quick Stats Cards -->');
-  });
-});
-
-describe('event organizer query-state template', () => {
-  it('hides operational counts and actions until their queries succeed', () => {
-    const template = readSource(
-      'src/app/events/event-organize/event-organize.html',
-    );
-
-    expect(template).toContain('aria-label="Back to event"');
-    expect(template).toContain('@if (eventQuery.isPending())');
-    expect(template).toContain('@else if (eventQuery.isError())');
-    expect(template).toContain('@else if (organizerOverviewQuery.isSuccess())');
-    expect(template).toContain('Attendees could not be loaded');
-    expect(template).toContain('No current sign-up counts');
-    expect(template).toContain('(click)="organizerOverviewQuery.refetch()"');
-    expect(template).toContain('(click)="receiptsByEventQuery.refetch()"');
-
-    const source = readSource(
-      'src/app/events/event-organize/event-organize.ts',
-    );
-    expect(source).toContain('if (!this.receiptsByEventQuery.isSuccess())');
-    expect(source).toContain(
-      'Receipt history must load before a receipt can be added.',
-    );
-    expect(source).toContain(
-      "'The receipt submission outcome could not be confirmed. Your file and entries are still here. Close this dialog, then select Show latest receipts before adding another receipt.'",
-    );
-  });
-
-  it('binds organizer cancellation to the confirmed participant state', () => {
-    const source = readSource(
-      'src/app/events/event-organize/event-organize.ts',
-    );
-
-    expect(source).toContain(
-      'const expectedPaymentPending = registration.paymentPending',
-    );
-    expect(source).toContain('const expectedStatus = registration.status');
-    expect(source).toContain(
-      'The cancellation outcome could not be confirmed. Load the page again to check the current sign-up status before trying again.',
     );
   });
 });

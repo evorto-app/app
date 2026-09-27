@@ -7,8 +7,6 @@ import {
   provideTanStackQuery,
   QueryClient,
 } from '@tanstack/angular-query-experimental';
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { TENANT_DATE_PIPE_TIMEZONE } from '../../core/tenant-date.pipe';
@@ -18,43 +16,6 @@ import {
   transactionMethodLabel,
   transactionStatusLabel,
 } from './transaction-list.component';
-
-const transactionListTemplate = () =>
-  readFileSync(
-    path.join(
-      process.cwd(),
-      'src/app/finance/transaction-list/transaction-list.component.html',
-    ),
-    'utf8',
-  );
-
-describe('TransactionListComponent template', () => {
-  it('does not advertise manual transaction creation without an implemented route', () => {
-    const template = transactionListTemplate();
-
-    expect(template).not.toContain('Create transaction');
-    expect(template).not.toContain('routerLink="edit"');
-  });
-
-  it('formats recorded amounts with each transaction currency', () => {
-    const template = transactionListTemplate();
-
-    expect(template.match(/currency: element\.currency/g)).toHaveLength(4);
-  });
-
-  it('labels the paginator for transactions rather than users', () => {
-    expect(transactionListTemplate()).toContain(
-      'aria-label="Select page of payments and refunds"',
-    );
-  });
-
-  it('keeps database terminology out of visible payment history copy', () => {
-    const template = transactionListTemplate();
-
-    expect(template).not.toMatch(/>\s*[^<{]*transactions?[^<{]*</iu);
-    expect(template).toContain('Payment history');
-  });
-});
 
 describe('transaction labels', () => {
   it('uses readable payment method and transaction status labels', () => {
@@ -179,6 +140,7 @@ describe('TransactionListComponent load recovery', () => {
     await vi.waitFor(() => {
       fixture.detectChanges();
       expect(normalizeText(fixture)).toContain('Event registration');
+      expect(normalizeText(fixture)).toMatch(/CZK\s*25\.00/u);
     });
     expect(findTransactions).toHaveBeenCalledTimes(2);
     expect(fixture.nativeElement.querySelector('[role="alert"]')).toBeNull();

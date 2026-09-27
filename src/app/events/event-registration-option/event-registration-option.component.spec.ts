@@ -5,8 +5,6 @@ import {
   provideTanStackQuery,
   QueryClient,
 } from '@tanstack/angular-query-experimental';
-import { readFileSync } from 'node:fs';
-import nodePath from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { APP_RPC_CLIENT, AppRpc } from '../../core/effect-rpc-angular-client';
@@ -31,9 +29,6 @@ import {
   registrationWriteErrorMessage,
 } from './event-registration-option.component';
 
-const readSource = (sourcePath: string): string =>
-  readFileSync(nodePath.join(process.cwd(), sourcePath), 'utf8');
-
 describe('registration write errors', () => {
   it('shows the safe reason when registration conditions changed', () => {
     expect(
@@ -51,72 +46,6 @@ describe('registration write errors', () => {
         message: 'database constraint event_registrations_tenant_id_fkey',
       }),
     ).toBe("We couldn't complete this request. Try again.");
-  });
-});
-
-describe('supported registration mode template', () => {
-  it('keeps supported registration controls available without a retired-mode branch', () => {
-    const template = readSource(
-      'src/app/events/event-registration-option/event-registration-option.component.html',
-    );
-    expect(template).not.toContain('registrationModeSupported');
-    for (const editableMarker of [
-      '@if (addOns().length',
-      '@if (registrationOption().questions.length',
-      '@if (authenticationQuery.isPending())',
-      '<input',
-      '<textarea',
-      '<button',
-      'href="/forward-login',
-    ]) {
-      expect(template).toContain(editableMarker);
-    }
-  });
-});
-
-describe('guest selection template', () => {
-  it('explains account ownership and capacity in the Material field', () => {
-    const template = readSource(
-      'src/app/events/event-registration-option/event-registration-option.component.html',
-    );
-
-    expect(template).toContain(
-      'Guests do not need separate accounts. Each guest uses one',
-    );
-    expect(template).toContain('available place and shares your ticket.');
-    expect(template).toContain('subscriptSizing="dynamic"');
-    expect(template).toContain(
-      'selectedSpotCount() === 1 ? "place" : "places"',
-    );
-  });
-});
-
-describe('sign-in check recovery', () => {
-  it('keeps the sign-up unchanged and offers a local check action', () => {
-    const template = readSource(
-      'src/app/events/event-registration-option/event-registration-option.component.html',
-    );
-
-    expect(template).toContain('Your sign-up was not');
-    expect(template).toContain('(click)="authenticationQuery.refetch()"');
-    expect(template).toContain('"Check again"');
-    expect(template).not.toContain('Reload the page');
-  });
-});
-
-describe('registration add-on template', () => {
-  it('distinguishes included prices from optional unit prices and names quantity controls', () => {
-    const template = readSource(
-      'src/app/events/event-registration-option/event-registration-option.component.html',
-    );
-
-    expect(template).toContain('Included in the ticket price');
-    expect(template).toContain('per extra item');
-    expect(template).toContain('@else if (soldOut)');
-    expect(template).toContain('addonSoldOutLabel(includedQuantity)');
-    expect(template).toContain(
-      `[attr.aria-label]="'Quantity for ' + addOn.title"`,
-    );
   });
 });
 

@@ -156,7 +156,7 @@ jobs:
           done
           echo "::error::Database did not become reachable within 120 seconds"
           docker compose ps
-          docker compose logs --no-color --tail=100 db-setup mailpit minio minio-init worker evorto
+          bash helpers/testing/collect-docker-diagnostics.sh --tail=100
           exit 1
 
       - name: Start application and polling worker containers
@@ -185,7 +185,7 @@ jobs:
           done
           echo "::error::Application did not become reachable at ${ready_url} within 120 seconds"
           docker compose ps
-          docker compose logs --no-color --tail=100 db-setup mailpit minio minio-init worker evorto
+          bash helpers/testing/collect-docker-diagnostics.sh --tail=100
           exit 1
 
       - name: Run Playwright suites
@@ -207,7 +207,7 @@ jobs:
         run: |
           mkdir -p test-results/docker-logs
           if [ "${ACTIONS_STEP_DEBUG:-false}" = "true" ]; then
-            docker compose logs -f --no-color db-setup mailpit minio minio-init worker evorto 2>&1 | tee test-results/docker-logs/live-docker.log &
+            bash helpers/testing/collect-docker-diagnostics.sh --follow 2>&1 | tee test-results/docker-logs/live-docker.log &
             LOG_STREAM_PID=$!
             cleanup() {
               if [ -n "${LOG_STREAM_PID:-}" ] && kill -0 "${LOG_STREAM_PID}" 2>/dev/null; then
@@ -226,7 +226,7 @@ jobs:
           FONT_AWESOME_TOKEN: ${{ secrets.FONT_AWESOME_TOKEN }}
         run: |
           mkdir -p test-results/docker-logs
-          docker compose logs --no-color db-setup mailpit minio minio-init worker evorto > test-results/docker-logs/docker-compose.log || true
+          bash helpers/testing/collect-docker-diagnostics.sh > test-results/docker-logs/docker-compose.log || true
 
       - name: Stop Docker stack
         if: always()

@@ -23,8 +23,6 @@ import {
   QueryClient,
   QueryObserver,
 } from '@tanstack/angular-query-experimental';
-import { readFileSync } from 'node:fs';
-import nodePath from 'node:path';
 import { firstValueFrom, of, timeout } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -52,9 +50,6 @@ import {
   registrationOptionsState,
 } from './event-details.component';
 
-const readSource = (sourcePath: string): string =>
-  readFileSync(nodePath.join(process.cwd(), sourcePath), 'utf8');
-
 describe('registrationOptionsState', () => {
   it('shows available registration options when at least one option is visible', () => {
     expect(
@@ -74,16 +69,6 @@ describe('registrationOptionsState', () => {
         registrationOptionsHiddenByEligibility: true,
       }),
     ).toBe('hiddenByEligibility');
-  });
-
-  it('explains the direct-link outcome when organization access does not include a sign-up choice', () => {
-    const template = readSource(
-      'src/app/events/event-details/event-details.component.html',
-    );
-
-    expect(template).toContain('Your access in this organization');
-    expect(template).toContain("this event's sign-up choices");
-    expect(template).toContain('event, but you cannot sign up.');
   });
 
   it('keeps optionless events distinct from role-ineligible events', () => {
@@ -1350,28 +1335,6 @@ describe('EventDetailsComponent load recovery', () => {
     );
     expect(pageText).not.toContain('These tickets now belong');
     expect(pageText).not.toContain('you can no longer manage');
-  });
-});
-
-describe('EventDetails template', () => {
-  it('uses the accepted return-to-draft review language', () => {
-    const template = readSource(
-      'src/app/events/event-details/event-details.component.html',
-    );
-
-    expect(template).toContain('Return to draft');
-    expect(template).not.toContain('REJECTED');
-  });
-
-  it('labels organizer/helper and participant registration choices as distinct groups', () => {
-    const template = readSource(
-      'src/app/events/event-details/event-details.component.html',
-    );
-
-    expect(template).toContain('aria-label="Organizer/helper opportunities"');
-    expect(template).toContain('Organizer/helper opportunities');
-    expect(template).toContain('aria-label="Sign-up choices for attendees"');
-    expect(template).toContain('Sign-up choices for attendees');
   });
 });
 

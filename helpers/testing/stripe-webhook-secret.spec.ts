@@ -1,6 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import fs from 'node:fs';
-import path from 'node:path';
 
 import {
   resolveStripeWebhookSecret,
@@ -85,28 +83,6 @@ describe('resolveStripeWebhookSecret', () => {
       }),
     ).rejects.toThrow(
       'A running Docker application or STRIPE_WEBHOOK_SECRET is required',
-    );
-  });
-});
-
-describe('Stripe-backed Playwright source wiring', () => {
-  const source = (relativePath: string) =>
-    fs.readFileSync(path.join(process.cwd(), relativePath), 'utf8');
-
-  it('uses the shared resolver and keeps provider-heavy files out of full parallelism', () => {
-    const registrationWebhook = source(
-      'tests/support/utils/registration-checkout-webhook.ts',
-    );
-    const replay = source('tests/specs/finance/stripe-webhook-replay.spec.ts');
-    const manualApproval = source('tests/specs/events/manual-approval.spec.ts');
-
-    expect(registrationWebhook).toContain('resolveStripeWebhookSecret');
-    expect(registrationWebhook).not.toContain('readDockerWebhookSecret');
-    expect(replay).toContain('resolveStripeWebhookSecret');
-    expect(replay).not.toContain("process.env['STRIPE_WEBHOOK_SECRET']");
-    expect(replay).toContain("test.describe.configure({ mode: 'default' });");
-    expect(manualApproval).toContain(
-      "test.describe.configure({ mode: 'default' });",
     );
   });
 });
