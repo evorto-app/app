@@ -5,7 +5,7 @@ import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 test.use({
   screenshot: 'only-on-failure',
   storageState: adminStateFile,
-  trace: 'retain-on-failure',
+  trace: 'off',
 });
 test.setTimeout(90_000);
 

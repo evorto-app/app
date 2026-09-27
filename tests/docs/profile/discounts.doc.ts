@@ -430,18 +430,19 @@ From the main navigation, select **Profile**, then choose **Discounts**. Before 
       await expect(
         page.getByText('No discount cards added.', { exact: true }),
       ).toBeVisible({ timeout: 20_000 });
-      await expect(
-        page.getByRole('button', { name: 'Save ESNcard' }),
-      ).not.toHaveAttribute('jsaction', /click/, { timeout: 20_000 });
+      await expect(page.locator('app-profile-discounts')).not.toHaveAttribute(
+        'ngh',
+        { timeout: 20_000 },
+      );
 
       await fillProtectedValue(
         page.getByRole('textbox', { name: 'ESNcard number' }),
         'E2E_LIVE_ESN_CARD_IDENTIFIER',
         { trim: true },
       );
-      await clickHydratedAction(
-        page.getByRole('button', { name: 'Save ESNcard' }),
-      );
+      const saveAction = page.getByRole('button', { name: 'Save ESNcard' });
+      await expect(saveAction).toBeEnabled();
+      await saveAction.click();
       const savedCard = await expectCurrentCardStatus('verified');
       expect(savedCard?.status).toBe('verified');
       expect(savedCard?.type).toBe('esnCard');
@@ -537,14 +538,21 @@ An expired card remains visible as **Expired** and no longer grants discounts. E
 `,
       });
 
+      // Wait for the form component, whose submit button has no click handler.
+      await expect(page.locator('app-profile-discounts')).not.toHaveAttribute(
+        'ngh',
+        { timeout: 20_000 },
+      );
       await fillProtectedValue(
         page.getByRole('textbox', { name: 'ESNcard number' }),
         'E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER',
         { trim: true },
       );
-      await clickHydratedAction(
-        page.getByRole('button', { name: 'Save ESNcard' }),
-      );
+      const saveExpiredAction = page.getByRole('button', {
+        name: 'Save ESNcard',
+      });
+      await expect(saveExpiredAction).toBeEnabled();
+      await saveExpiredAction.click();
       const savedExpiredCard = await expectCurrentCardStatus('expired');
       expect(savedExpiredCard?.status).toBe('expired');
       expect(savedExpiredCard?.type).toBe('esnCard');

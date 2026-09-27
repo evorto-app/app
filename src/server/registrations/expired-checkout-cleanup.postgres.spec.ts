@@ -379,6 +379,9 @@ const seedFixture = async (
 
 const cleanFixture = async (database: TestDatabase, fixture: Fixture) => {
   await database
+    .delete(registrationTransfers)
+    .where(eq(registrationTransfers.tenantId, fixture.tenantId));
+  await database
     .delete(emailOutbox)
     .where(eq(emailOutbox.tenantId, fixture.tenantId));
   await database
@@ -534,26 +537,85 @@ describe('expired unbound checkout cleanup concurrency', () => {
     await pool.end();
   });
 
-  it('executes typed JSONPath deadline selectors for registration and transfer claims', async () => {
+  it('selects only due unbound claims and gives transfer-owned payments to the transfer pass', async () => {
     const deadline = 1_750_000_000;
-
+    const fixture = await seedFixture(database, deadline);
+    fixtures.push(fixture);
+    const registrationClaims = (at: number) =>
+      database
+        .select({ id: transactions.id })
+        .from(transactions)
+        .where(
+          and(
+            expiredUnboundRegistrationClaimPredicate(at),
+            eq(transactions.tenantId, fixture.tenantId),
+          ),
+        );
+    const transferClaims = (at: number) =>
+      database
+        .select({ id: registrationTransfers.id })
+        .from(registrationTransfers)
+        .innerJoin(
+          transactions,
+          eq(
+            transactions.id,
+            registrationTransfers.recipientCheckoutTransactionId,
+          ),
+        )
+        .where(
+          and(
+            expiredRegistrationTransferCheckoutCandidatePredicate(at),
+            eq(registrationTransfers.tenantId, fixture.tenantId),
+          ),
+        );
+    expect(await registrationClaims(deadline - 1)).toEqual([]);
+    expect(await registrationClaims(deadline)).toEqual([
+      { id: fixture.transactionId },
+    ]);
     await database
-      .select({ id: transactions.id })
-      .from(transactions)
-      .where(expiredUnboundRegistrationClaimPredicate(deadline))
-      .limit(1);
+      .update(transactions)
+      .set({
+        stripeCheckoutIncidentSessionId: 'cs_incident',
+        stripeCheckoutReconcileLastError:
+          'Provider binding was not acknowledged',
+      })
+      .where(eq(transactions.id, fixture.transactionId));
+    expect(await registrationClaims(deadline)).toEqual([]);
     await database
-      .select({ id: registrationTransfers.id })
-      .from(registrationTransfers)
-      .innerJoin(
-        transactions,
-        eq(
-          transactions.id,
-          registrationTransfers.recipientCheckoutTransactionId,
-        ),
-      )
-      .where(expiredRegistrationTransferCheckoutCandidatePredicate(deadline))
-      .limit(1);
+      .update(transactions)
+      .set({
+        stripeCheckoutIncidentSessionId: null,
+        stripeCheckoutReconcileLastError: null,
+      })
+      .where(eq(transactions.id, fixture.transactionId));
+    const transferId = makeId('transfer', randomUUID());
+    await database.insert(registrationTransfers).values({
+      claimCodeHash: randomUUID().replaceAll('-', '').padEnd(64, '0'),
+      eventId: fixture.eventId,
+      expiresAt: new Date(deadline * 1000),
+      id: transferId,
+      recipientCheckoutTransactionId: fixture.transactionId,
+      registrationOptionId: fixture.optionId,
+      sourceRegistrationId: fixture.registrationId,
+      sourceSpotCount: 1,
+      sourceUserId: fixture.userId,
+      status: 'checkout_pending',
+      tenantId: fixture.tenantId,
+    });
+    expect(await registrationClaims(deadline)).toEqual([]);
+    expect(await transferClaims(deadline - 1)).toEqual([]);
+    expect(await transferClaims(deadline)).toEqual([{ id: transferId }]);
+    await database
+      .update(transactions)
+      .set({ stripeCheckoutSessionId: 'cs_bound' })
+      .where(eq(transactions.id, fixture.transactionId));
+    expect(await transferClaims(deadline)).toEqual([]);
+    await database
+      .update(transactions)
+      .set({ status: 'cancelled', stripeCheckoutSessionId: null })
+      .where(eq(transactions.id, fixture.transactionId));
+    expect(await registrationClaims(deadline)).toEqual([]);
+    expect(await transferClaims(deadline)).toEqual([]);
   });
 
   it('releases one reservation exactly once across simultaneous sweepers', async () => {
@@ -1335,7 +1397,7 @@ describe('expired unbound checkout cleanup concurrency', () => {
 
     const lateWebhook = await Effect.runPromise(
       reconcileRegistrationRefundWebhook(
-        {
+        stripeRefundResponse({
           amount: 1000,
           balance_transaction: null,
           charge: null,
@@ -1356,7 +1418,7 @@ describe('expired unbound checkout cleanup concurrency', () => {
           source_transfer_reversal: null,
           status: 'failed',
           transfer_reversal: null,
-        },
+        }),
         fixture.stripeAccountId,
       ).pipe(Effect.provide(makeDatabaseServiceLayer(databaseUrl))),
     );

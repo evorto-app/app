@@ -9,6 +9,7 @@ import {
   discardNodeRequestBody,
   readNodeRequestBody,
 } from '../../src/server/http/request-body';
+import { toNodeWebRequest } from '../../src/server/http/node-request-adapter';
 import { makeRequestBoundaryMiddleware } from '../../src/server/http/request-boundary';
 
 const decoder = new TextDecoder();
@@ -39,6 +40,14 @@ const bunBodylessRequests: {
   normalizedBodyAbsent: boolean;
 }[] = [];
 
+const adapterOptions = {
+  requestBodyLimit: (method: string, pathname: string) =>
+    method === 'POST' && ['/exact', '/oversized'].includes(pathname)
+      ? 4
+      : undefined,
+  trustPlatformProxy: false,
+};
+
 const handleRequest = async (
   request: IncomingMessage,
   response: ServerResponse,
@@ -54,6 +63,17 @@ const handleRequest = async (
         });
       }),
     );
+    response.end('bodyless response');
+    return;
+  }
+
+  if (request.url === '/adapter-bodyless') {
+    const adapted = await Effect.runPromise(
+      toNodeWebRequest(request, adapterOptions),
+    );
+    assert(adapted instanceof Request);
+    assert.equal(adapted.method, request.method);
+    assert.equal(adapted.body, null);
     response.end('bodyless response');
     return;
   }
@@ -76,7 +96,7 @@ const handleRequest = async (
 
   if (request.url === '/oversized') {
     const result = await Effect.runPromise(
-      readNodeRequestBody(request, 4).pipe(
+      toNodeWebRequest(request, adapterOptions).pipe(
         Effect.match({
           onFailure: (error) => error._tag,
           onSuccess: () => 'unexpected-success',
@@ -90,27 +110,22 @@ const handleRequest = async (
   }
 
   if (request.url === '/exact') {
-    const result = await Effect.runPromise(
-      readNodeRequestBody(request, 4).pipe(
-        Effect.match({
-          onFailure: (error) => ({ error: error._tag }),
-          onSuccess: (body) => ({ body: decoder.decode(body) }),
-        }),
-      ),
+    const adapted = await Effect.runPromise(
+      toNodeWebRequest(request, adapterOptions),
     );
-    if ('error' in result) {
-      response.statusCode = 500;
-      response.end(result.error);
-      return;
-    }
-    response.end(result.body);
+    assert(adapted instanceof Request);
+    response.end(await adapted.text());
     return;
   }
 
-  if (request.url === '/unsupported') {
-    discardNodeRequestBody(request);
-    response.statusCode = 404;
-    response.end();
+  if (request.url === '/unsupported' || request.url === '/invalid-address') {
+    const adapted = await Effect.runPromise(
+      toNodeWebRequest(request, adapterOptions),
+    );
+    assert(adapted instanceof Response);
+    assert.equal(adapted.headers.get('x-content-type-options'), 'nosniff');
+    response.writeHead(adapted.status, Object.fromEntries(adapted.headers));
+    response.end(await adapted.text());
     return;
   }
 
@@ -327,6 +342,12 @@ try {
     '/unsupported',
     'POST',
   );
+  const { status: invalidAddressStatus } = await responseBeforeRequestEnd(
+    address.port,
+    '/invalid-address',
+    'POST',
+    'tenant..example.com',
+  );
   const bodylessGet = await responseBeforeRequestEnd(
     address.port,
     '/bodyless',
@@ -335,6 +356,16 @@ try {
   const bodylessHead = await responseBeforeRequestEnd(
     address.port,
     '/bodyless',
+    'HEAD',
+  );
+  const adapterBodylessGet = await responseBeforeRequestEnd(
+    address.port,
+    '/adapter-bodyless',
+    'GET',
+  );
+  const adapterBodylessHead = await responseBeforeRequestEnd(
+    address.port,
+    '/adapter-bodyless',
     'HEAD',
   );
   const bodylessCleanup = await withTimeout(
@@ -386,6 +417,8 @@ try {
   process.stdout.write(
     JSON.stringify({
       aborted,
+      adapterBodylessGet,
+      adapterBodylessHead,
       bodylessCleanup,
       bodylessDrains,
       bodylessGet,
@@ -394,6 +427,7 @@ try {
       bunUnsupportedDownstreamInvoked,
       bunUnsupportedStatus,
       exact,
+      invalidAddressStatus,
       oversized,
       oversizedStatus,
       unsupportedStatus,

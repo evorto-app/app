@@ -1234,7 +1234,10 @@ describe('registration acquisition ledger', () => {
       .returning({ id: registrationTransferRefundPlanItems.id });
     expect(linkedPlans).toHaveLength(1);
 
-    const lookupTransfer = () =>
+    const lookupTransfer = (
+      tenantId = fixture.tenantId,
+      whileLocked?: () => Promise<void>,
+    ) =>
       Effect.runPromise(
         Database.use((effectDatabase) =>
           effectDatabase.transaction((tx) =>
@@ -1245,21 +1248,41 @@ describe('registration acquisition ledger', () => {
                 .where(
                   and(
                     eq(transactions.id, refundTransactionId),
-                    eq(transactions.tenantId, fixture.tenantId),
+                    eq(transactions.tenantId, tenantId),
                     eq(transactions.type, 'refund'),
                   ),
                 )
                 .for('update');
-              return yield* lockRegistrationTransferRefundForRecovery(tx, {
-                refundTransactionId,
-                tenantId: fixture.tenantId,
-              });
+              const lookup = yield* lockRegistrationTransferRefundForRecovery(
+                tx,
+                {
+                  refundTransactionId,
+                  tenantId,
+                },
+              );
+              if (whileLocked) yield* Effect.promise(whileLocked);
+              return lookup;
             }),
           ),
         ).pipe(Effect.provide(layer)),
       );
 
-    expect(await lookupTransfer()).toEqual({
+    expect(
+      await lookupTransfer(fixture.tenantId, async () => {
+        await expect(
+          database
+            .select({ id: registrationTransfers.id })
+            .from(registrationTransfers)
+            .where(
+              and(
+                eq(registrationTransfers.id, transferId),
+                eq(registrationTransfers.tenantId, fixture.tenantId),
+              ),
+            )
+            .for('update', { noWait: true }),
+        ).rejects.toMatchObject({ cause: { code: '55P03' } });
+      }),
+    ).toEqual({
       kind: 'source',
       status: 'matched',
       transfer: {
@@ -1268,6 +1291,8 @@ describe('registration acquisition ledger', () => {
         tenantId: fixture.tenantId,
       },
     });
+
+    expect(await lookupTransfer(createId())).toEqual({ status: 'notTransfer' });
 
     await database
       .update(registrationTransfers)
@@ -1278,19 +1303,31 @@ describe('registration acquisition ledger', () => {
           eq(registrationTransfers.tenantId, fixture.tenantId),
         ),
       );
-    const mismatchedRecovery = await Effect.runPromise(
-      Database.use((effectDatabase) =>
-        effectDatabase.transaction((tx) =>
-          markRegistrationTransferRefundRequeued(tx, {
-            expectedTransfer: { kind: 'compensation', transferId },
-            reason: 'Prove the locked transfer kind remains authoritative',
-            refundTransactionId,
-            tenantId: fixture.tenantId,
-          }),
-        ),
-      ).pipe(Effect.provide(layer)),
-    );
-    expect(mismatchedRecovery).toBe('notTransfer');
+    for (const expectedTransfer of [
+      { kind: 'compensation', transferId },
+      { kind: 'source', transferId: createId() },
+    ] as const) {
+      const mismatchedRecovery = await Effect.runPromise(
+        Database.use((effectDatabase) =>
+          effectDatabase.transaction((tx) =>
+            markRegistrationTransferRefundRequeued(tx, {
+              expectedTransfer,
+              reason: 'Prove the locked transfer kind remains authoritative',
+              refundTransactionId,
+              tenantId: fixture.tenantId,
+            }),
+          ),
+        ).pipe(Effect.provide(layer)),
+      );
+      expect(mismatchedRecovery).toBe('notTransfer');
+
+      expect(
+        await database.query.registrationTransfers.findFirst({
+          columns: { status: true },
+          where: { id: transferId, tenantId: fixture.tenantId },
+        }),
+      ).toEqual({ status: 'refund_failed' });
+    }
 
     await database
       .update(registrationTransfers)

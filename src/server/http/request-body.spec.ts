@@ -1,7 +1,6 @@
 import { describe, expect, it } from '@effect/vitest';
 import { Effect } from 'effect';
 import { execFile } from 'node:child_process';
-import { readFileSync } from 'node:fs';
 import { promisify } from 'node:util';
 
 import {
@@ -183,6 +182,8 @@ describe('readRequestBody', () => {
     expect(stderr).toBe('');
     expect(JSON.parse(stdout)).toEqual({
       aborted: 'RequestBodyReadError',
+      adapterBodylessGet: { body: 'bodyless response', status: 200 },
+      adapterBodylessHead: { body: '', status: 200 },
       bodylessCleanup: [true, true],
       bodylessDrains: [true, true],
       bodylessGet: { body: 'bodyless response', status: 200 },
@@ -191,48 +192,12 @@ describe('readRequestBody', () => {
       bunUnsupportedDownstreamInvoked: false,
       bunUnsupportedStatus: 404,
       exact: { body: 'abcd', status: 200 },
+      invalidAddressStatus: 400,
       oversized: 'RequestBodyTooLargeError',
       oversizedStatus: 413,
       uncaughtExceptions: 0,
       unhandledRejections: 0,
       unsupportedStatus: 404,
     });
-  });
-
-  it('bounds Node request bodies before Angular creates a Web Request', () => {
-    const serverSource = readFileSync(
-      new URL('../../server.ts', import.meta.url),
-      'utf8',
-    );
-    const adapterSource = serverSource.slice(
-      serverSource.indexOf('const toNodeWebRequest'),
-      serverSource.indexOf('const requestHandler = createNodeRequestHandler'),
-    );
-
-    expect(serverSource).toContain(
-      'const requestHandler = createNodeRequestHandler',
-    );
-    expect(serverSource).not.toContain('createRequestHandler(');
-    expect(serverSource).toContain(
-      String.raw`const normalizedPathname = pathname.replace(/\/+$/u, '') || '/'`,
-    );
-    expect(adapterSource).toContain('readNodeRequestBody(request, maxBytes)');
-    expect(adapterSource).toContain('discardNodeRequestBody(request)');
-    expect(
-      adapterSource.slice(
-        adapterSource.indexOf("if (method === 'GET' || method === 'HEAD')"),
-        adapterSource.indexOf('const maxBytes = requestBodyLimit'),
-      ),
-    ).toContain('discardNodeRequestBody(request)');
-    expect(adapterSource).not.toContain('drainNodeRequestBody');
-    expect(adapterSource).not.toContain('createWebRequestFromNodeRequest');
-    expect(adapterSource).not.toContain('nodeRequestAbortSignal');
-    expect(serverSource).not.toContain('registerPrebufferedRequestBody');
-    expect(
-      readFileSync(new URL('request-body.ts', import.meta.url), 'utf8'),
-    ).not.toContain('WeakMap<Request');
-    expect(adapterSource.indexOf('readNodeRequestBody')).toBeLessThan(
-      adapterSource.lastIndexOf('new Request('),
-    );
   });
 });

@@ -11,7 +11,7 @@ import {
   seedOrganizerSignupScenario,
 } from '../../support/utils/organizer-signup-scenario';
 
-test.use({ storageState: organizerStateFile, trace: 'on-first-retry' });
+test.use({ storageState: organizerStateFile, trace: 'off' });
 test.setTimeout(150_000);
 
 const registrationCard = (page: Page, title: string): Locator =>

@@ -4,7 +4,6 @@ import { assert, describe, expect, it } from '@effect/vitest';
 import { Effect, Layer } from 'effect';
 import * as Headers from 'effect/unstable/http/Headers';
 import { Rpc, RpcMessage } from 'effect/unstable/rpc';
-import { readFileSync } from 'node:fs';
 
 import { type Permission } from '../../../../shared/permissions/permissions';
 import {
@@ -210,28 +209,6 @@ const createTemplateReadFixture = (
 };
 
 describe('templateHandlers permissions', () => {
-  it('serializes first template creation with tenant currency changes', () => {
-    const source = readFileSync(
-      new URL('templates.handlers.ts', import.meta.url),
-      'utf8',
-    );
-
-    expect(source).toContain(
-      'lockTenantCurrencyForFinancialConfiguration(\n                transaction,\n                tenant.id,\n                tenant.currency,\n              )',
-    );
-    expect(
-      source.indexOf('yield* lockTenantCurrencyForFinancialConfiguration'),
-    ).toBeLessThan(
-      source.indexOf('yield* TemplateGraphService.createTemplate'),
-    );
-    expect(source).toContain("'templates.create'");
-    expect(source).toContain("'templates.update'");
-    expect(source).toContain('TemplateGraphService.createTemplate');
-    expect(source).toContain('TemplateGraphService.updateTemplate');
-    expect(source).toContain('loadTemplateGraphDetail');
-    expect(source).toContain('tenantId: tenant.id');
-  });
-
   it.effect('graph create requires templates:create', () =>
     Effect.gen(function* () {
       const error = yield* templateHandlers['templates.create'](

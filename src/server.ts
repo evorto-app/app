@@ -1,5 +1,3 @@
-import type { IncomingMessage } from 'node:http';
-
 import { AngularAppEngine } from '@angular/ssr';
 import {
   createNodeRequestHandler,
@@ -62,21 +60,17 @@ import {
 import { applyDynamicSsrCacheControl } from './server/http/dynamic-ssr-cache-control';
 import { handleHealthzWebRequest } from './server/http/healthz.web-handler';
 import { MAX_INTERNAL_TRIGGER_BODY_SIZE_BYTES } from './server/http/internal-trigger.web-handler';
+import { toNodeWebRequest } from './server/http/node-request-adapter';
 import { handleOpsJsonTriggerWebRequest } from './server/http/ops-trigger.web-handler';
 import { handleQrRegistrationCodeWebRequest } from './server/http/qr-code.web-handler';
 import {
-  discardNodeRequestBody,
-  readNodeRequestBody,
   RequestBodyInvalidContentLengthError,
   RequestBodyReadError,
-  requestBodyStreamFromBuffer,
   RequestBodyTooLargeError,
 } from './server/http/request-body';
 import {
-  INVALID_REQUEST_ADDRESS_MESSAGE,
   makeRequestBoundaryMiddleware,
   requestBoundaryRouteLayers,
-  resolveNodeRequestBoundary,
 } from './server/http/request-boundary';
 import { runRpcIngressPolicy } from './server/http/rpc-ingress-policy';
 import { applySecurityHeaders } from './server/http/security-headers';
@@ -846,79 +840,15 @@ const requestBodyErrorResponse = (error: unknown) => {
     : undefined;
 };
 
-const nodeRequestHeaders = (request: IncomingMessage) => {
-  const headers = new Headers();
-  for (const [name, value] of Object.entries(request.headers)) {
-    if (typeof value === 'string') {
-      headers.append(name, value);
-    } else if (Array.isArray(value)) {
-      for (const item of value) {
-        headers.append(name, item);
-      }
-    }
-  }
-  return headers;
-};
-
-const toNodeWebRequest = async (request: IncomingMessage) => {
-  const method = request.method ?? 'GET';
-  const headers = nodeRequestHeaders(request);
-  const requestBoundary = resolveNodeRequestBoundary({
-    encryptedTransport:
-      'encrypted' in request.socket && request.socket.encrypted === true,
-    headers,
-    requestTarget: request.url,
-    trustPlatformProxy: requestBoundaryDeployment.TRUST_PLATFORM_PROXY,
-  });
-  if (!requestBoundary) {
-    discardNodeRequestBody(request);
-    return HttpServerResponse.toWeb(
-      applySecurityHeaders(
-        HttpServerResponse.text(INVALID_REQUEST_ADDRESS_MESSAGE, {
-          status: 400,
-        }),
-      ),
-    );
-  }
-
-  if (method === 'GET' || method === 'HEAD') {
-    discardNodeRequestBody(request);
-    return new Request(requestBoundary.url, {
-      headers: requestBoundary.headers,
-      method,
-    });
-  }
-
-  const maxBytes = requestBodyLimit(
-    method,
-    new URL(requestBoundary.url).pathname,
-  );
-  if (maxBytes === undefined) {
-    // The Effect router has no other body-bearing routes. Fail closed before
-    // adapting the raw Node stream, and never wait for an untrusted body to
-    // reach EOF merely to return the route's not-found response.
-    discardNodeRequestBody(request);
-    return HttpServerResponse.toWeb(
-      applySecurityHeaders(notFoundServerResponse),
-    );
-  }
-
-  const body = await Effect.runPromise(readNodeRequestBody(request, maxBytes));
-
-  const webRequestInit = {
-    body: requestBodyStreamFromBuffer(body),
-    duplex: 'half',
-    headers: requestBoundary.headers,
-    method,
-  } satisfies RequestInit & { duplex: 'half' };
-
-  return new Request(requestBoundary.url, webRequestInit);
-};
-
 const requestHandler = createNodeRequestHandler(
   async (request, response, next) => {
     try {
-      const adaptedRequest = await toNodeWebRequest(request);
+      const adaptedRequest = await Effect.runPromise(
+        toNodeWebRequest(request, {
+          requestBodyLimit,
+          trustPlatformProxy: requestBoundaryDeployment.TRUST_PLATFORM_PROXY,
+        }),
+      );
       const webResponse =
         adaptedRequest instanceof Response
           ? adaptedRequest

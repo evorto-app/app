@@ -3,8 +3,6 @@ import type * as SqlConnection from 'effect/unstable/sql/SqlConnection';
 import { describe, expect, it } from '@effect/vitest';
 import { ConfigProvider, Effect, Layer } from 'effect';
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 import Stripe from 'stripe';
 import { vi } from 'vitest';
 
@@ -57,20 +55,6 @@ const validBindingInput = {
   sessionId: 'checkout-1',
   stripeAccountId: 'acct_tenant',
 };
-
-const handlerSource = readFileSync(
-  fileURLToPath(new URL('stripe-webhook.web-handler.ts', import.meta.url)),
-  'utf8',
-);
-const registrationCheckoutCompletionSource = readFileSync(
-  fileURLToPath(
-    new URL(
-      '../registrations/registration-checkout-completion.ts',
-      import.meta.url,
-    ),
-  ),
-  'utf8',
-);
 
 const stripeWebhookSecret = 'whsec_test';
 const stripeWebhookConfigLayer = ConfigProvider.layer(
@@ -1106,102 +1090,6 @@ describe('checkout expiry replay', () => {
 });
 
 describe('runCheckoutWebhookTransition', () => {
-  it('delegates completion to the registration-first locked finalizer', () => {
-    const completionCase = handlerSource.slice(
-      handlerSource.indexOf("case 'checkout.session.completed':"),
-      handlerSource.indexOf("case 'checkout.session.expired':"),
-    );
-    const completionTransaction = registrationCheckoutCompletionSource.slice(
-      registrationCheckoutCompletionSource.indexOf(
-        'return yield* Database.use',
-      ),
-    );
-    const registrationLock = completionTransaction.indexOf(
-      '.from(eventRegistrations)',
-    );
-    const registrationForUpdate = completionTransaction.indexOf(
-      ".for('update')",
-      registrationLock,
-    );
-    const transactionLock = completionTransaction.indexOf(
-      '.from(transactions)',
-      registrationForUpdate,
-    );
-    const transactionForUpdate = completionTransaction.indexOf(
-      ".for('update')",
-      transactionLock,
-    );
-    const transactionUpdate = completionTransaction.indexOf(
-      '.update(transactions)',
-      transactionForUpdate,
-    );
-    const registrationUpdate = completionTransaction.indexOf(
-      '.update(eventRegistrations)',
-      transactionUpdate,
-    );
-    const optionUpdate = completionTransaction.indexOf(
-      '.update(eventRegistrationOptions)',
-      registrationUpdate,
-    );
-
-    expect(completionCase).toContain('completePaidRegistrationCheckout(');
-    expect(completionCase).toContain("error.kind === 'stateConflict'");
-    expect(completionCase).toContain("error.kind === 'invalidBinding'");
-    expect(registrationCheckoutCompletionSource).toContain(
-      'paymentIntent.id !== paymentIntentId',
-    );
-    expect(registrationCheckoutCompletionSource).toContain(
-      'Stripe payment intent is missing during checkout completion',
-    );
-    expect(registrationLock).toBeGreaterThanOrEqual(0);
-    expect(registrationForUpdate).toBeGreaterThan(registrationLock);
-    expect(transactionLock).toBeGreaterThan(registrationForUpdate);
-    expect(transactionForUpdate).toBeGreaterThan(transactionLock);
-    expect(transactionUpdate).toBeGreaterThan(transactionForUpdate);
-    expect(registrationUpdate).toBeGreaterThan(transactionUpdate);
-    expect(optionUpdate).toBeGreaterThan(registrationUpdate);
-    expect(completionTransaction).toContain(
-      'stripeCheckoutCancellationRequestedAt: null',
-    );
-  });
-
-  it('locks the exact expiry registration row before running the guarded transition', () => {
-    const transitionSource = handlerSource.slice(
-      handlerSource.indexOf("case 'checkout.session.expired':"),
-      handlerSource.indexOf('default: {'),
-    );
-    const registrationLock = transitionSource.indexOf(".for('update')");
-    const transactionUpdate = transitionSource.indexOf(
-      '.update(schema.transactions)',
-    );
-    const registrationUpdate = transitionSource.indexOf(
-      '.update(schema.eventRegistrations)',
-    );
-    const optionUpdate = transitionSource.indexOf(
-      '.update(schema.eventRegistrationOptions)',
-    );
-
-    expect(registrationLock).toBeGreaterThanOrEqual(0);
-    expect(transactionUpdate).toBeGreaterThanOrEqual(0);
-    expect(registrationUpdate).toBeGreaterThanOrEqual(0);
-    expect(optionUpdate).toBeGreaterThanOrEqual(0);
-  });
-
-  it('orders checkout-expiry add-on releases before updating stock rows', () => {
-    const expirySource = handlerSource.slice(
-      handlerSource.indexOf("case 'checkout.session.expired':"),
-      handlerSource.indexOf('default: {'),
-    );
-    const addOnOrder = expirySource.indexOf('.orderBy(');
-    const addOnUpdate = expirySource.indexOf('.update(schema.eventAddons)');
-
-    expect(addOnOrder).toBeGreaterThanOrEqual(0);
-    expect(expirySource).toMatch(
-      /\.orderBy\(\s*schema\.eventRegistrationAddonPurchases\.addonId,\s*\)/u,
-    );
-    expect(addOnUpdate).toBeGreaterThan(addOnOrder);
-  });
-
   it.effect(
     'locks registration before transaction update and registration mutation',
     () =>

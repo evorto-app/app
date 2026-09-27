@@ -79,6 +79,8 @@ test.describe('Unavailable event links', () => {
       name: 'Back to events',
     });
     await expect(backLink).toHaveAttribute('href', '/events');
+    // The server-rendered error panel can be replaced during hydration.
+    await expect(backLink).not.toHaveAttribute('jsaction', /click/);
     const accessibilityScan = await makeAxeBuilder()
       .include('[role="alert"]')
       .analyze();

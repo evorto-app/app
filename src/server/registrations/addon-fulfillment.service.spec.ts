@@ -1,4 +1,3 @@
-import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -217,65 +216,5 @@ describe('deriveRegistrationAddonRefundState', () => {
         { ...scheduled, stripeRefundNextAttemptAt: null },
       ]),
     ).toBe('failed');
-  });
-});
-
-describe('fulfillment concurrency source guards', () => {
-  const source = readFileSync(
-    new URL('addon-fulfillment.service.ts', import.meta.url),
-    'utf8',
-  );
-
-  it('reads fulfillment state from one repeatable-read snapshot', () => {
-    expect(source).toContain("accessMode: 'read only'");
-    expect(source).toContain("isolationLevel: 'repeatable read'");
-  });
-
-  it('selects the latest active redemption rather than a reversed event', () => {
-    expect(source).toContain("'active_redemption_reversal'");
-    expect(source).toContain('notExists(');
-    expect(source).toContain('reversal.reversesEventId');
-  });
-
-  it('guards active transfers after taking the registration lock', () => {
-    const lockHelper = source.slice(
-      source.indexOf("Effect.fn('lockFulfillmentRows')"),
-      source.indexOf('export const cancelRemainingRegistrationAddons'),
-    );
-    expect(lockHelper.indexOf('.from(eventRegistrations)')).toBeGreaterThan(-1);
-    expect(
-      lockHelper.indexOf('ensureRegistrationMutationHasNoActiveTransfer'),
-    ).toBeGreaterThan(lockHelper.indexOf('.from(eventRegistrations)'));
-    expect(
-      lockHelper.indexOf('.from(eventRegistrationAddonPurchases)'),
-    ).toBeGreaterThan(
-      lockHelper.indexOf('ensureRegistrationMutationHasNoActiveTransfer'),
-    );
-  });
-
-  it('locks current acquisition provenance before direct cancellation rows', () => {
-    const cancellation = source.slice(
-      source.indexOf('export const cancelRegistrationAddon'),
-    );
-    const registrationLock = cancellation.indexOf('.from(eventRegistrations)');
-    const acquisitionLock = cancellation.indexOf(
-      'lockCurrentRegistrationAcquisition',
-    );
-    const purchaseLock = cancellation.indexOf(
-      '.from(eventRegistrationAddonPurchases)',
-    );
-
-    expect(registrationLock).toBeGreaterThan(-1);
-    expect(acquisitionLock).toBeGreaterThan(registrationLock);
-    expect(purchaseLock).toBeGreaterThan(acquisitionLock);
-    expect(cancellation).not.toContain(
-      'registrationTransferRecipientAddonPayments',
-    );
-    expect(cancellation).not.toContain(
-      'registrationTransferRecipientAddonRefundAllocations',
-    );
-    expect(cancellation).not.toContain(
-      'ensureRegistrationTransferAddonPaymentAllocations',
-    );
   });
 });

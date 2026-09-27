@@ -21,15 +21,6 @@ import {
 } from './registration-acquisition-write';
 import { activeRegistrationTransferMutationPredicate } from './registration-transfer-mutation-guard';
 
-export const registrationAddonPurchaseLockOrder = [
-  'registration',
-  'active_transfer',
-  'transaction',
-  'order',
-  'entitlement',
-  'tenant_and_stock',
-] as const;
-
 export type AddonPurchaseCheckoutCompletionStatus =
   'alreadyCompleted' | 'finalized';
 

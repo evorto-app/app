@@ -7,6 +7,9 @@ import { defineConfig } from "eslint/config";
 import * as tseslint from "typescript-eslint";
 import * as angular from "angular-eslint";
 import { effectBoundaryPlugin } from "./tools/eslint-rules/effect-boundaries.mjs";
+import { financialLedgerPlugin } from "./tools/eslint-rules/financial-ledger.mjs";
+import { postgresIdentifiersPlugin } from "./tools/eslint-rules/postgres-identifiers.mjs";
+import * as yamlParser from "yaml-eslint-parser";
 // import * as pluginQuery from "@tanstack/eslint-plugin-query";
 
 const baseConfig = [
@@ -186,6 +189,156 @@ export default defineConfig(
       "effect-boundaries/no-run-at-internal-boundaries": "warn",
     },
   },
+  {
+    files: ["src/**/*.ts"],
+    ignores: ["**/*.spec.ts"],
+    plugins: { "effect-boundaries": effectBoundaryPlugin },
+    rules: { "effect-boundaries/private-http-options": "error" },
+  },
+  {
+    files: ["src/server/**/*.ts", "src/db/**/*.ts"],
+    ignores: ["**/*.spec.ts"],
+    plugins: { "financial-ledger": financialLedgerPlugin },
+    rules: { "financial-ledger/no-mutation": "error" },
+  },
+  {
+    files: ["src/db/schema/**/*.ts"],
+    ignores: ["**/*.spec.ts"],
+    plugins: { "postgres-identifiers": postgresIdentifiersPlugin },
+    rules: { "postgres-identifiers/explicit-name-length": "error" },
+  },
+  // Permission arrays need the shared evaluator for wildcard/dependency grants.
+  {
+    files: [
+      "src/server/effect/rpc/handlers/**/*.ts",
+      "src/server/http/**/*.ts",
+    ],
+    ignores: ["**/*.spec.ts"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector:
+            "CallExpression:matches([callee.property.name='includes'], [callee.property.value='includes']):matches([callee.object.name=/^(permissions|currentPermissions)$/], [callee.object.property.name=/^(permissions|currentPermissions)$/], [callee.object.property.value=/^(permissions|currentPermissions)$/])",
+          message:
+            "Use the shared permission evaluator instead of array includes so wildcard and dependent permissions are respected.",
+        },
+      ],
+    },
+  },
+  // Shared administrator setup verifies owner-provided authority; it cannot grant it.
+  {
+    files: [
+      "tests/setup/authentication.setup.ts",
+      "tests/support/fixtures/base-test.ts",
+      "tests/support/auth0/platform-administrator-claim-fixture.ts",
+    ],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector:
+            "CallExpression:matches([callee.property.name='update'], [callee.property.value='update']):matches([callee.object.property.name='users'], [callee.object.property.value='users'])",
+          message:
+            "Shared administrator setup must read Auth0 users without changing their metadata.",
+        },
+        {
+          selector:
+            "CallExpression:matches([callee.name='updateAppMetadata'], [callee.property.name='updateAppMetadata'], [callee.property.value='updateAppMetadata'])",
+          message:
+            "Shared administrator setup must verify the owner-provided claim without changing it.",
+        },
+      ],
+    },
+  },
+  {
+    files: [".github/workflows/**/*.yml", ".github/workflows/**/*.yaml"],
+    languageOptions: { parser: yamlParser },
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector:
+            "YAMLDocument > YAMLMapping:not(:has(> YAMLPair[key.value='permissions'])) > YAMLPair[key.value='jobs'] > YAMLMapping.value > YAMLPair > YAMLMapping.value:not(:has(> YAMLPair[key.value='permissions']))",
+          message: "Declare workflow or job permissions explicitly.",
+        },
+        {
+          selector:
+            "YAMLDocument > YAMLMapping > YAMLPair[key.value='jobs'] > YAMLMapping.value > YAMLPair > YAMLMapping.value > YAMLPair[key.value='uses'] > YAMLScalar.value:not([value=/^\\.\\//]):not([value=/^\\$\\/[^@\\s]+$/]):not([value=/^[^:$][^:]*@[a-f0-9]{40}$/]):not([value=/^docker:.*@sha256:[a-f0-9]{64}$/])",
+          message:
+            "Pin external actions and reusable workflows to a full commit SHA, or Docker actions to an immutable image digest.",
+        },
+        {
+          selector:
+            "YAMLDocument > YAMLMapping > YAMLPair[key.value='jobs'] > YAMLMapping.value > YAMLPair > YAMLMapping.value > YAMLPair[key.value='uses'] > *.value:not(YAMLScalar)",
+          message:
+            "Declare action references explicitly so their immutable pin can be verified.",
+        },
+        {
+          selector:
+            "YAMLDocument > YAMLMapping > YAMLPair[key.value='jobs'] > YAMLMapping.value > YAMLPair > YAMLMapping.value > YAMLPair[key.value='steps'] > YAMLSequence.value > YAMLMapping > YAMLPair[key.value='uses'] > YAMLScalar.value:not([value=/^\\.\\//]):not([value=/^\\$\\/[^@\\s]+$/]):not([value=/^[^:$][^:]*@[a-f0-9]{40}$/]):not([value=/^docker:.*@sha256:[a-f0-9]{64}$/])",
+          message:
+            "Pin external actions and reusable workflows to a full commit SHA, or Docker actions to an immutable image digest.",
+        },
+        {
+          selector:
+            "YAMLDocument > YAMLMapping > YAMLPair[key.value='jobs'] > YAMLMapping.value > YAMLPair > YAMLMapping.value > YAMLPair[key.value='steps'] > YAMLSequence.value > YAMLMapping > YAMLPair[key.value='uses'] > *.value:not(YAMLScalar)",
+          message:
+            "Declare action references explicitly so their immutable pin can be verified.",
+        },
+        {
+          selector:
+            "YAMLDocument > YAMLMapping > YAMLPair[key.value='env'] YAMLScalar[value=/\\$\\{\\{[^}]*\\bsecrets\\b/i]",
+          message:
+            "Keep secrets out of workflow/job environment blocks; provide them only to the step that needs them.",
+        },
+        {
+          selector:
+            "YAMLDocument > YAMLMapping > YAMLPair[key.value='jobs'] > YAMLMapping.value > YAMLPair > YAMLMapping.value > YAMLPair[key.value='env'] YAMLScalar[value=/\\$\\{\\{[^}]*\\bsecrets\\b/i]",
+          message:
+            "Keep secrets out of workflow/job environment blocks; provide them only to the step that needs them.",
+        },
+        {
+          selector:
+            "YAMLDocument > YAMLMapping > YAMLPair[key.value='jobs'] > YAMLMapping.value > YAMLPair > YAMLMapping.value > YAMLPair[key.value='steps'] > YAMLSequence.value > YAMLMapping:has(YAMLPair[key.value='uses'] > YAMLScalar.value:not([value=/^\\.\\//]):not([value=/^\\$\\/[^@\\s]+$/])) YAMLScalar[value=/\\$\\{\\{[^}]*\\bsecrets\\b/i]",
+          message:
+            "Do not pass secrets to external action steps; scope them to the explicit run step that consumes them.",
+        },
+      ],
+    },
+  },
+  // Shared browser setup must verify certificates; per-origin development
+  // routing is handled explicitly by the local tenant routing fixture.
+  {
+    files: [
+      "playwright.config.ts",
+      "tests/support/utils/authenticated-test-page.ts",
+      "tests/docs/**/*.doc.ts",
+    ],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector:
+            "Property:matches([key.name='ignoreHTTPSErrors'], [key.value='ignoreHTTPSErrors']):not([value.type='Literal'][value.value=false])",
+          message:
+            "Omit ignoreHTTPSErrors or set it explicitly to false in shared browser setup.",
+        },
+        {
+          selector:
+            "Property:matches([key.name='trace'], [key.value='trace']):not([value.value='off']):not([value.type='ObjectExpression'])",
+          message:
+            "Keep authenticated browser traces disabled to protect credentials.",
+        },
+        {
+          selector:
+            "Property:matches([key.name='trace'], [key.value='trace']) > ObjectExpression:matches(:not(:has(> Property:matches([key.name='mode'], [key.value='mode'])[value.type='Literal'][value.value='off'])), :has(> Property:matches([key.name='mode'], [key.value='mode']):not([value.type='Literal'][value.value='off'])), :has(> Property[computed=true]:not([key.type='Literal'])), :has(> SpreadElement))",
+          message:
+            "Declare trace mode as literal off without dynamic keys or spreads that could replace it.",
+        },
+      ],
+    },
+  },
   // Client-side restrictions (Angular app)
   {
     files: ["src/app/**/*.ts"],
@@ -193,6 +346,13 @@ export default defineConfig(
       "no-restricted-imports": [
         "error",
         {
+          paths: [
+            {
+              name: "@angular/material/icon",
+              importNames: ["MatIcon", "MatIconModule"],
+              message: "Use Font Awesome components for application icons.",
+            },
+          ],
           patterns: [
             {
               group: [
@@ -202,8 +362,7 @@ export default defineConfig(
                 "../../../server/*",
               ],
               message:
-                "Client code cannot import server-side modules. Use tRPC client instead.",
-              allowImportNames: ["AppRouter"],
+                "Client code cannot import server-side modules. Use shared Effect RPC contracts and the application RPC client.",
             },
             {
               group: ["express*", "@trpc/server*", "drizzle-orm*"],

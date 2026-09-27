@@ -12,7 +12,7 @@ import {
 } from '../../support/utils/manual-approval-scenario';
 import { deliverCompletedRegistrationCheckoutWebhook } from '../../support/utils/registration-checkout-webhook';
 
-test.use({ storageState: userStateFile, trace: 'on-first-retry' });
+test.use({ storageState: userStateFile, trace: 'off' });
 
 const openEventFromNormalNavigation = async (
   page: Page,
