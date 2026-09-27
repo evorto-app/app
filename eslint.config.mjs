@@ -264,7 +264,7 @@ export default defineConfig(
         },
         {
           selector:
-            "YAMLDocument > YAMLMapping > YAMLPair[key.value='jobs'] > YAMLMapping.value > YAMLPair > YAMLMapping.value > YAMLPair[key.value='uses'] > YAMLScalar.value:not([value=/^\\.\\//]):not([value=/^\\$\\/[^@\\s]+$/]):not([value=/^[^:]+@[a-f0-9]{40}$/]):not([value=/^docker:.*@sha256:[a-f0-9]{64}$/])",
+            "YAMLDocument > YAMLMapping > YAMLPair[key.value='jobs'] > YAMLMapping.value > YAMLPair > YAMLMapping.value > YAMLPair[key.value='uses'] > YAMLScalar.value:not([value=/^\\.\\//]):not([value=/^\\$\\/[^@\\s]+$/]):not([value=/^[^:$][^:]*@[a-f0-9]{40}$/]):not([value=/^docker:.*@sha256:[a-f0-9]{64}$/])",
           message:
             "Pin external actions and reusable workflows to a full commit SHA, or Docker actions to an immutable image digest.",
         },
@@ -276,7 +276,7 @@ export default defineConfig(
         },
         {
           selector:
-            "YAMLDocument > YAMLMapping > YAMLPair[key.value='jobs'] > YAMLMapping.value > YAMLPair > YAMLMapping.value > YAMLPair[key.value='steps'] > YAMLSequence.value > YAMLMapping > YAMLPair[key.value='uses'] > YAMLScalar.value:not([value=/^\\.\\//]):not([value=/^\\$\\/[^@\\s]+$/]):not([value=/^[^:]+@[a-f0-9]{40}$/]):not([value=/^docker:.*@sha256:[a-f0-9]{64}$/])",
+            "YAMLDocument > YAMLMapping > YAMLPair[key.value='jobs'] > YAMLMapping.value > YAMLPair > YAMLMapping.value > YAMLPair[key.value='steps'] > YAMLSequence.value > YAMLMapping > YAMLPair[key.value='uses'] > YAMLScalar.value:not([value=/^\\.\\//]):not([value=/^\\$\\/[^@\\s]+$/]):not([value=/^[^:$][^:]*@[a-f0-9]{40}$/]):not([value=/^docker:.*@sha256:[a-f0-9]{64}$/])",
           message:
             "Pin external actions and reusable workflows to a full commit SHA, or Docker actions to an immutable image digest.",
         },

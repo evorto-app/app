@@ -148,6 +148,11 @@ const workflowCases = [
     step('uses: $/.github/actions/build@v1'),
     1,
   ],
+  [
+    'self-repository action with commit ref',
+    step('uses: $/.github/actions/build@' + sha),
+    1,
+  ],
   ['empty self-repository path', step('uses: $/'), 1],
   [
     'self-repository action secret',
