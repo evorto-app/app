@@ -259,12 +259,12 @@ export default defineConfig(
         "error",
         {
           selector:
-            "YAMLDocument > YAMLMapping:not(:has(YAMLPair[key.value='permissions']))",
+            "YAMLDocument > YAMLMapping:not(:has(> YAMLPair[key.value='permissions'])) > YAMLPair[key.value='jobs'] > YAMLMapping.value > YAMLPair > YAMLMapping.value:not(:has(> YAMLPair[key.value='permissions']))",
           message: "Declare workflow or job permissions explicitly.",
         },
         {
           selector:
-            "YAMLDocument > YAMLMapping > YAMLPair[key.value='jobs'] > YAMLMapping.value > YAMLPair > YAMLMapping.value > YAMLPair[key.value='uses'] > YAMLScalar.value:not([value=/^\\.\\//]):not([value=/^[^:]+@[a-f0-9]{40}$/]):not([value=/^docker:.*@sha256:[a-f0-9]{64}$/])",
+            "YAMLDocument > YAMLMapping > YAMLPair[key.value='jobs'] > YAMLMapping.value > YAMLPair > YAMLMapping.value > YAMLPair[key.value='uses'] > YAMLScalar.value:not([value=/^\\.\\//]):not([value=/^\\$\\/[^@\\s]+$/]):not([value=/^[^:$][^:]*@[a-f0-9]{40}$/]):not([value=/^docker:.*@sha256:[a-f0-9]{64}$/])",
           message:
             "Pin external actions and reusable workflows to a full commit SHA, or Docker actions to an immutable image digest.",
         },
@@ -276,7 +276,7 @@ export default defineConfig(
         },
         {
           selector:
-            "YAMLDocument > YAMLMapping > YAMLPair[key.value='jobs'] > YAMLMapping.value > YAMLPair > YAMLMapping.value > YAMLPair[key.value='steps'] > YAMLSequence.value > YAMLMapping > YAMLPair[key.value='uses'] > YAMLScalar.value:not([value=/^\\.\\//]):not([value=/^[^:]+@[a-f0-9]{40}$/]):not([value=/^docker:.*@sha256:[a-f0-9]{64}$/])",
+            "YAMLDocument > YAMLMapping > YAMLPair[key.value='jobs'] > YAMLMapping.value > YAMLPair > YAMLMapping.value > YAMLPair[key.value='steps'] > YAMLSequence.value > YAMLMapping > YAMLPair[key.value='uses'] > YAMLScalar.value:not([value=/^\\.\\//]):not([value=/^\\$\\/[^@\\s]+$/]):not([value=/^[^:$][^:]*@[a-f0-9]{40}$/]):not([value=/^docker:.*@sha256:[a-f0-9]{64}$/])",
           message:
             "Pin external actions and reusable workflows to a full commit SHA, or Docker actions to an immutable image digest.",
         },
@@ -300,7 +300,7 @@ export default defineConfig(
         },
         {
           selector:
-            "YAMLDocument > YAMLMapping > YAMLPair[key.value='jobs'] > YAMLMapping.value > YAMLPair > YAMLMapping.value > YAMLPair[key.value='steps'] > YAMLSequence.value > YAMLMapping:has(YAMLPair[key.value='uses'] > YAMLScalar.value:not([value=/^\\.\\//])) YAMLScalar[value=/\\$\\{\\{[^}]*\\bsecrets\\b/i]",
+            "YAMLDocument > YAMLMapping > YAMLPair[key.value='jobs'] > YAMLMapping.value > YAMLPair > YAMLMapping.value > YAMLPair[key.value='steps'] > YAMLSequence.value > YAMLMapping:has(YAMLPair[key.value='uses'] > YAMLScalar.value:not([value=/^\\.\\//]):not([value=/^\\$\\/[^@\\s]+$/])) YAMLScalar[value=/\\$\\{\\{[^}]*\\bsecrets\\b/i]",
           message:
             "Do not pass secrets to external action steps; scope them to the explicit run step that consumes them.",
         },
@@ -326,15 +326,21 @@ export default defineConfig(
         },
         {
           selector:
-            "Property:matches([key.name='trace'], [key.value='trace']):matches([value.value=true], [value.value=/^(on|retain-on-failure|on-first-retry|on-all-retries)$/])",
+            "Property:matches([key.name='trace'], [key.value='trace']):not([value.value='off']):not([value.type='ObjectExpression'])",
           message:
             "Keep authenticated browser traces disabled to protect credentials.",
         },
         {
           selector:
-            "Property:matches([key.name='trace'], [key.value='trace']) > ObjectExpression > Property:matches([key.name='mode'], [key.value='mode'])[value.value=/^(on|retain-on-failure|on-first-retry|on-all-retries)$/]",
+            "Property:matches([key.name='trace'], [key.value='trace']) > ObjectExpression:not(:has(> Property:matches([key.name='mode'], [key.value='mode'])[value.value='off']))",
           message:
             "Keep authenticated browser traces disabled to protect credentials.",
+        },
+        {
+          selector:
+            "Property:matches([key.name='trace'], [key.value='trace']) > ObjectExpression > SpreadElement",
+          message:
+            "Declare trace options explicitly so traces remain disabled.",
         },
       ],
     },

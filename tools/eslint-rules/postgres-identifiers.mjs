@@ -2,11 +2,13 @@
 // silently truncate them. Resolve local constant strings, not arbitrary code.
 const namedFactories = new Set([
   "pgTable",
-  "pgTableCreator",
   "pgEnum",
   "pgView",
   "pgMaterializedView",
   "pgSchema",
+  "pgSequence",
+  "pgRole",
+  "pgPolicy",
   "check",
   "index",
   "uniqueIndex",
@@ -58,32 +60,63 @@ export const postgresIdentifiersPlugin = {
             if (found) return found;
           }
         };
-        const factoryName = (node) => {
+        const schemaFactories = new Map([
+          ["table", "pgTable"],
+          ["view", "pgView"],
+          ["materializedView", "pgMaterializedView"],
+          ["enum", "pgEnum"],
+          ["sequence", "pgSequence"],
+        ]);
+        const memberName = (node) =>
+          node.computed ? node.property.value : node.property.name;
+        const factoryName = (node, visited = new Set()) => {
+          if (!node || visited.has(node)) return;
+          visited.add(node);
+          if (
+            [
+              "TSAsExpression",
+              "TSSatisfiesExpression",
+              "TSInstantiationExpression",
+            ].includes(node.type)
+          )
+            return factoryName(node.expression, visited);
           if (node.type === "Identifier") {
             for (const definition of variable(node)?.defs ?? []) {
               if (
                 definition.type === "ImportBinding" &&
                 definition.parent?.source.value === "drizzle-orm/pg-core"
               ) {
+                if (definition.node.type === "ImportNamespaceSpecifier")
+                  return "pg-namespace";
                 return (
                   definition.node.imported?.name ??
                   definition.node.imported?.value
                 );
               }
+              if (
+                definition.type === "Variable" &&
+                definition.parent?.kind === "const" &&
+                definition.node.id.type === "Identifier"
+              )
+                return factoryName(definition.node.init, visited);
             }
           }
-          if (
-            node.type === "MemberExpression" &&
-            node.object.type === "Identifier"
-          ) {
-            for (const definition of variable(node.object)?.defs ?? []) {
-              if (
-                definition.node.type === "ImportNamespaceSpecifier" &&
-                definition.parent?.source.value === "drizzle-orm/pg-core"
-              ) {
-                return node.computed ? node.property.value : node.property.name;
-              }
-            }
+          if (node.type === "MemberExpression") {
+            const owner = factoryName(node.object, visited);
+            const member = memberName(node);
+            if (owner === "pg-namespace") return member;
+            if (owner === "pg-schema") return schemaFactories.get(member);
+            if (owner === "pgTable" && member === "withRLS") return "pgTable";
+          }
+          if (node.type === "CallExpression") {
+            if (factoryName(node.callee, new Set(visited)) === "pgSchema")
+              return "pg-schema";
+            if (
+              node.callee.type === "MemberExpression" &&
+              memberName(node.callee) === "existing" &&
+              factoryName(node.callee.object, new Set(visited)) === "pg-schema"
+            )
+              return "pg-schema";
           }
         };
         const stringValue = (node, visited = new Set()) => {

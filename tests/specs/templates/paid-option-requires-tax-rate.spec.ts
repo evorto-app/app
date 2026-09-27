@@ -8,10 +8,11 @@ import type { Page } from '@playwright/test';
 
 test.use({ storageState: organizerStateFile });
 
-const enablePaymentForLastRegistrationOption = async (page: Page) => {
-  const participantOptionForm = page
-    .locator('app-template-registration-option-editor')
-    .last();
+const enablePaymentForAttendeeOption = async (page: Page) => {
+  const participantOptionForm = page.getByRole('group', {
+    name: 'Attendee sign-up',
+    exact: true,
+  });
   const paymentCheckbox = participantOptionForm.getByRole('checkbox', {
     name: 'Enable payment',
   });
@@ -33,13 +34,11 @@ const taxRateSelectForRegistrationOption = (
     name: 'Tax included in the shown price',
   });
 
-const waitForLastRegistrationOptionRole = async (
-  page: Page,
-  roleName: string,
-) => {
-  const participantOptionForm = page
-    .locator('app-template-registration-option-editor')
-    .last();
+const waitForAttendeeOptionRole = async (page: Page, roleName: string) => {
+  const participantOptionForm = page.getByRole('group', {
+    name: 'Attendee sign-up',
+    exact: true,
+  });
   await expect(
     participantOptionForm.getByRole('button', {
       exact: true,
@@ -69,11 +68,12 @@ test.describe('Template Tax Rate Validation', () => {
       page.getByLabel('Tax included in the shown price'),
     ).toHaveCount(0);
 
-    await enablePaymentForLastRegistrationOption(page);
+    await enablePaymentForAttendeeOption(page);
 
-    const participantOptionForm = page
-      .locator('app-template-registration-option-editor')
-      .last();
+    const participantOptionForm = page.getByRole('group', {
+      name: 'Attendee sign-up',
+      exact: true,
+    });
     await expect(
       priceInputForRegistrationOption(participantOptionForm),
     ).toBeVisible();
@@ -124,11 +124,12 @@ test.describe('Template Tax Rate Validation', () => {
       await fillTemplateBasics(page, {
         title: templateTitle,
       });
-      await enablePaymentForLastRegistrationOption(page);
-      await waitForLastRegistrationOptionRole(page, defaultUserRole.name);
-      const participantOptionForm = page
-        .locator('app-template-registration-option-editor')
-        .last();
+      await enablePaymentForAttendeeOption(page);
+      await waitForAttendeeOptionRole(page, defaultUserRole.name);
+      const participantOptionForm = page.getByRole('group', {
+        name: 'Attendee sign-up',
+        exact: true,
+      });
       await priceInputForRegistrationOption(participantOptionForm).fill(
         '10.00',
       );

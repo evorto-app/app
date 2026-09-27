@@ -14,8 +14,11 @@ const tables = new Map([
   ],
   ["platformAuditEntries", "platform_audit_entries"],
 ]);
+const sqlIdentifier = String.raw`(?:"(?:[^"]|"")*"|[a-z_][\w$]*)`;
+const sqlRelation = String.raw`(?:${sqlIdentifier}\s*\.\s*)?${sqlIdentifier}`;
+const precedingTruncateTargets = String.raw`(?:(?:ONLY\s+)?${sqlRelation}(?:\s*\*)?\s*,\s*)*`;
 const sqlMutation = new RegExp(
-  `^\\s*(?:UPDATE|DELETE\\s+FROM)\\s+(?:ONLY\\s+)?(?:(?:"[^" ]+"|[a-z_][\\w$]*)\\s*\\.\\s*)?"?(${[...tables.values()].join("|")})"?(?=\\s|;|$)`,
+  String.raw`(?:^|[\s;(])(?:UPDATE\s+|DELETE\s+FROM\s+|TRUNCATE(?:\s+TABLE)?\s+${precedingTruncateTargets})(?:ONLY\s+)?(?:${sqlIdentifier}\s*\.\s*)?"?(${[...tables.values()].join("|")})"?(?=\s|;|,|\)|$)`,
   "iu",
 );
 const propertyName = (node) =>
@@ -116,9 +119,84 @@ export const financialLedgerPlugin = {
             }
           }
         };
+        // A local binding that can refer to protected history is treated
+        // conservatively; this rule does not model runtime control flow.
+        const insertTarget = (node, visited = new Set()) => {
+          if (!node || visited.has(node)) return;
+          visited.add(node);
+          if (
+            node.type === "TSAsExpression" ||
+            node.type === "TSSatisfiesExpression"
+          )
+            return insertTarget(node.expression, visited);
+          if (node.type === "Identifier") {
+            const binding = variable(node);
+            if (!binding) return;
+            for (const value of [
+              ...binding.defs.map((definition) => definition.node.init),
+              ...binding.references.map((reference) => reference.writeExpr),
+            ]) {
+              const table = insertTarget(value, visited);
+              if (tables.has(table)) return table;
+            }
+          }
+          if (
+            node.type === "CallExpression" &&
+            node.callee.type === "MemberExpression"
+          ) {
+            return propertyName(node.callee) === "insert"
+              ? resolve(node.arguments[0])
+              : insertTarget(node.callee.object, visited);
+          }
+        };
+        const staticString = (node, visited = new Set()) => {
+          if (!node || visited.has(node)) return;
+          const path = new Set(visited).add(node);
+          if (node.type === "Literal" && typeof node.value === "string")
+            return node.value;
+          if (
+            node.type === "TSAsExpression" ||
+            node.type === "TSSatisfiesExpression"
+          )
+            return staticString(node.expression, path);
+          if (node.type === "Identifier") {
+            const definition = variable(node)?.defs.find(
+              (entry) =>
+                entry.type === "Variable" && entry.parent.kind === "const",
+            );
+            return staticString(definition?.node.init, path);
+          }
+          if (node.type === "BinaryExpression" && node.operator === "+") {
+            const left = staticString(node.left, path);
+            const right = staticString(node.right, path);
+            return left === undefined || right === undefined
+              ? undefined
+              : left + right;
+          }
+          if (node.type === "TemplateLiteral") {
+            let text = "";
+            for (let index = 0; index < node.quasis.length; index++) {
+              text += node.quasis[index].value.cooked;
+              if (index < node.expressions.length) {
+                const value = staticString(node.expressions[index], path);
+                if (value === undefined) return;
+                text += value;
+              }
+            }
+            return text;
+          }
+        };
         const reportSql = (node, text) => {
           const table =
-            typeof text === "string" ? sqlMutation.exec(text)?.[1] : undefined;
+            typeof text === "string"
+              ? sqlMutation.exec(
+                  // Ignore data literals and comments when checking static SQL syntax.
+                  text.replace(
+                    /'(?:''|[^'])*'|--[^\n]*|\/\*[\s\S]*?\*\//gu,
+                    " ",
+                  ),
+                )?.[1]
+              : undefined;
           if (table)
             context.report({ node, messageId: "mutation", data: { table } });
         };
@@ -136,8 +214,32 @@ export const financialLedgerPlugin = {
                   data: { table },
                 });
             }
-            if (method === "raw" && resolve(callee.object) === "sql")
-              reportSql(node, node.arguments[0]?.value);
+            if (method === "onConflictDoUpdate") {
+              const table = insertTarget(callee.object);
+              if (tables.has(table))
+                context.report({
+                  node,
+                  messageId: "mutation",
+                  data: { table },
+                });
+            }
+            if (method === "raw" && resolve(callee.object) === "sql") {
+              const argument = node.arguments[0];
+              const text =
+                argument?.type === "TemplateLiteral"
+                  ? argument.quasis
+                      .map(
+                        (part, index) =>
+                          part.value.cooked +
+                          (index < argument.expressions.length
+                            ? (staticString(argument.expressions[index]) ??
+                              "<expression>")
+                            : ""),
+                      )
+                      .join("")
+                  : staticString(argument);
+              reportSql(node, text);
+            }
           },
           TaggedTemplateExpression(node) {
             if (resolve(node.tag) !== "sql") return;

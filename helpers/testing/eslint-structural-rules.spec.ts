@@ -127,6 +127,45 @@ const workflowCases = [
     'name: Probe\non: pull_request\njobs: {check: {permissions: {}, runs-on: ubuntu-latest, steps: [{run: "echo okay"}]}}\n',
     0,
   ],
+  [
+    'only one job has permissions',
+    'jobs: {a: {permissions: {}, steps: []}, b: {steps: []}}',
+    1,
+  ],
+  [
+    'nested permissions input',
+    'jobs: {a: {steps: [{with: {permissions: read}}]}}',
+    1,
+  ],
+  [
+    'all jobs have permissions',
+    'jobs: {a: {permissions: {}, steps: []}, b: {permissions: {}, steps: []}}',
+    0,
+  ],
+  ['self-repository action', step('uses: $/.github/actions/build'), 0],
+  [
+    'self-repository action with ref',
+    step('uses: $/.github/actions/build@v1'),
+    1,
+  ],
+  [
+    'self-repository action with commit ref',
+    step('uses: $/.github/actions/build@' + sha),
+    1,
+  ],
+  ['empty self-repository path', step('uses: $/'), 1],
+  [
+    'self-repository action secret',
+    step(
+      'uses: $/.github/actions/build\n        env:\n          TOKEN: ' + secret,
+    ),
+    0,
+  ],
+  [
+    'self-repository reusable workflow',
+    header + 'jobs:\n  check:\n    uses: $/.github/workflows/deploy.yml\n',
+    0,
+  ],
   ['uses alias', step('uses: &ref actions/checkout@' + sha), 1],
 ] as const;
 
@@ -196,7 +235,17 @@ describe('structural lint diagnostics', () => {
         ['const options = { ignoreHTTPSErrors: false };', 0],
         ['const options = {};', 0],
         ["const options = { trace: 'off' };", 0],
+        ["const mode = 'on'; const options = { trace: mode };", 1],
+        ['const options = { trace: makeTraceOptions() };', 1],
+        ["const mode = 'on'; const options = { trace: { mode } };", 1],
+        ["const options = { trace: { mode: 'off', ...extra } };", 1],
+        ['const options = { trace: { screenshots: true } };', 1],
         ["const options = { trace: 'on' };", 1],
+        ["const options = { trace: 'retain-on-first-failure' };", 1],
+        [
+          "const options = { trace: { mode: 'retain-on-failure-and-retries' } };",
+          1,
+        ],
         ["const options = { ['trace']: 'retain-on-failure' };", 1],
         ["const options = { trace: { mode: 'on-first-retry' } };", 1],
         ["const options = { trace: { mode: 'off' } };", 0],
@@ -248,6 +297,10 @@ describe('structural lint diagnostics', () => {
         "import { registrationAcquisitions } from '@db/schema'; function change(registrationAcquisitions) { db.update(registrationAcquisitions); }",
         0,
       ],
+      [
+        'let table; table = transactions; table = registrationAcquisitions; db.update(table);',
+        1,
+      ],
       ['db.update(transactions);', 0],
       ['db.insert(registrationAcquisitionPayments).values(payment);', 0],
       ["db.execute(sql`UPDATE registration_acquisitions SET id = 'x'`);", 1],
@@ -262,6 +315,61 @@ describe('structural lint diagnostics', () => {
       [
         "import { sql as query } from 'drizzle-orm'; db.execute(query`DELETE FROM ONLY registration_transfer_refund_plan_acquisition_links`);",
         1,
+      ],
+      ['db.execute(sql.raw(`DELETE FROM registration_acquisitions`));', 1],
+      [
+        'db.execute(sql.raw(`UPDATE registration_acquisition_payments SET amount = ${amount}`));',
+        1,
+      ],
+      ['db.execute(sql.raw(`SELECT * FROM registration_acquisitions`));', 0],
+      ['db.execute(sql`TRUNCATE TABLE registration_acquisitions`);', 1],
+      [
+        'db.execute(sql`TRUNCATE TABLE transactions, registration_acquisitions`);',
+        1,
+      ],
+      [
+        'db.execute(sql`TRUNCATE ONLY public.transactions, ONLY "public"."registration_acquisitions" CASCADE`);',
+        1,
+      ],
+      ['db.execute(sql`TRUNCATE transactions, other_rows`);', 0],
+      [
+        "const table = 'registration_acquisitions'; sql.raw(`DELETE FROM ${table}`);",
+        1,
+      ],
+      [
+        "const name = 'registration_' + 'acquisitions'; const table = name; sql.raw(`UPDATE ${table} SET amount = ${amount}`);",
+        1,
+      ],
+      ["const table = 'transactions'; sql.raw(`DELETE FROM ${table}`);", 0],
+      [
+        'const query = db.insert(registrationAcquisitions).values(value); query.onConflictDoUpdate(update);',
+        1,
+      ],
+      [
+        'const query = db.insert(transactions).values(value); query.onConflictDoUpdate(update);',
+        0,
+      ],
+      [
+        'db.execute(sql`WITH ids AS (SELECT 1) DELETE FROM registration_acquisitions`);',
+        1,
+      ],
+      [
+        'db.execute(sql`SELECT 1; UPDATE registration_acquisitions SET amount = 1`);',
+        1,
+      ],
+      ["db.execute(sql`SELECT 'DELETE FROM registration_acquisitions'`);", 0],
+      [
+        'db.execute(sql`SELECT 1 /* DELETE FROM registration_acquisitions */`);',
+        0,
+      ],
+      [
+        'db.insert(registrationAcquisitions).values(value).onConflictDoUpdate(update);',
+        1,
+      ],
+      ['db.insert(transactions).values(value).onConflictDoUpdate(update);', 0],
+      [
+        'db.insert(registrationAcquisitions).values(value).onConflictDoNothing();',
+        0,
       ],
       ['db.execute(sql`SELECT * FROM registration_acquisitions`);', 0],
       ["const message = 'UPDATE registration_acquisitions';", 0],
@@ -322,6 +430,57 @@ describe('PostgreSQL identifier diagnostics', () => {
         'namespace',
         `import * as pg from 'drizzle-orm/pg-core'; pg.index(${long});`,
         1,
+      ],
+      ...['pgSequence', 'pgRole', 'pgPolicy'].map(
+        (factory) =>
+          [
+            factory,
+            `import { ${factory} } from 'drizzle-orm/pg-core'; ${factory}(${long});`,
+            1,
+          ] as const,
+      ),
+      ...['table', 'view', 'materializedView', 'enum', 'sequence'].map(
+        (factory) =>
+          [
+            `schema ${factory}`,
+            `import { pgSchema } from 'drizzle-orm/pg-core'; const schema = pgSchema('app'); schema.${factory}(${long}, {});`,
+            1,
+          ] as const,
+      ),
+      [
+        'schema namespace and constant alias',
+        `import * as pg from 'drizzle-orm/pg-core'; const schema = pg.pgSchema('app'); const alias = schema; alias['table'](${long}, {});`,
+        1,
+      ],
+      [
+        'existing schema chain',
+        `import { pgSchema } from 'drizzle-orm/pg-core'; pgSchema('app').existing().table(${long}, {});`,
+        1,
+      ],
+      [
+        'table with RLS',
+        `import { pgTable } from 'drizzle-orm/pg-core'; pgTable.withRLS(${long}, {});`,
+        1,
+      ],
+      [
+        'schema table with RLS',
+        `import { pgSchema } from 'drizzle-orm/pg-core'; pgSchema('app').table.withRLS(${long}, {});`,
+        1,
+      ],
+      [
+        'short schema name',
+        "import { pgSchema } from 'drizzle-orm/pg-core'; pgSchema('app').table('events', {});",
+        0,
+      ],
+      [
+        'unrelated table method',
+        `const schema = { table: (name: string) => name }; schema.table(${long});`,
+        0,
+      ],
+      [
+        'shadowed schema',
+        `import { pgSchema } from 'drizzle-orm/pg-core'; const schema = pgSchema('app'); function run(schema: {table: (name: string) => void}) { schema.table(${long}); }`,
+        0,
       ],
       [
         'foreign key',

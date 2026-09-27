@@ -33,6 +33,9 @@ import {
   rolesToTenantUsers,
   roleTenantNameUniqueConstraintName,
   tenants,
+  userCommunicationEmailCanonicalCheckName,
+  userIbanCanonicalShapeCheckName,
+  userPaypalEmailCanonicalCheckName,
   users,
   usersToTenants,
 } from './index';
@@ -304,6 +307,91 @@ describe('tenant boundary constraints in PostgreSQL', () => {
         'Failed to release tenant boundary fixtures',
         { cause: failures[0] },
       );
+    }
+  });
+
+  it('enforces canonical user contact and payment fields on direct database writes', async () => {
+    const userId = fixture.userIds[0];
+    const readUser = () =>
+      database.query.users.findFirst({ where: { id: userId } });
+    const original = await readUser();
+    if (!original) throw new Error('Expected the seeded user');
+    try {
+      const canonical = {
+        communicationEmail: 'contact@example.com',
+        iban: 'DE89370400440532013000',
+        paypalEmail: 'payment@example.com',
+      };
+      await database.update(users).set(canonical).where(eq(users.id, userId));
+      const before = await readUser();
+      expect(before).toMatchObject(canonical);
+      const invalidEmailValues = [
+        'UPPER@example.com',
+        ' contact@example.com ',
+        'missing-domain',
+        'name@host',
+        '',
+        `${'a'.repeat(243)}@example.com`,
+      ];
+      for (const [field, constraint] of [
+        ['communicationEmail', userCommunicationEmailCanonicalCheckName],
+        ['paypalEmail', userPaypalEmailCanonicalCheckName],
+      ] as const) {
+        for (const value of invalidEmailValues) {
+          await expectCheckViolation(
+            database
+              .update(users)
+              .set({ [field]: value, firstName: 'must-not-change' })
+              .where(eq(users.id, userId)),
+            constraint,
+          );
+          expect(await readUser()).toEqual(before);
+        }
+      }
+      for (const iban of [
+        'de89370400440532013000',
+        'DE89 370400440532013000',
+        'DE89!70400440532013000',
+        `DE89${'A'.repeat(10)}`,
+        `DE89${'A'.repeat(31)}`,
+      ]) {
+        await expectCheckViolation(
+          database
+            .update(users)
+            .set({ firstName: 'must-not-change', iban })
+            .where(eq(users.id, userId)),
+          userIbanCanonicalShapeCheckName,
+        );
+        expect(await readUser()).toEqual(before);
+      }
+      await database
+        .update(users)
+        .set({ iban: null, paypalEmail: null })
+        .where(eq(users.id, userId));
+      expect(await readUser()).toMatchObject({
+        communicationEmail: canonical.communicationEmail,
+        iban: null,
+        paypalEmail: null,
+      });
+      const maximumEmail = `${'a'.repeat(242)}@example.com`;
+      await database
+        .update(users)
+        .set({ communicationEmail: maximumEmail, paypalEmail: maximumEmail })
+        .where(eq(users.id, userId));
+      expect(await readUser()).toMatchObject({
+        communicationEmail: maximumEmail,
+        paypalEmail: maximumEmail,
+      });
+    } finally {
+      await database
+        .update(users)
+        .set({
+          communicationEmail: original.communicationEmail,
+          iban: original.iban,
+          paypalEmail: original.paypalEmail,
+          updatedAt: original.updatedAt,
+        })
+        .where(eq(users.id, userId));
     }
   });
 

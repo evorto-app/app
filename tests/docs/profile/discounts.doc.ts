@@ -537,6 +537,10 @@ An expired card remains visible as **Expired** and no longer grants discounts. E
 `,
       });
 
+      // The reload above can expose the SSR form before its input listeners exist.
+      await expect(
+        page.getByRole('button', { name: 'Save ESNcard' }),
+      ).not.toHaveAttribute('jsaction', /click/, { timeout: 20_000 });
       await fillProtectedValue(
         page.getByRole('textbox', { name: 'ESNcard number' }),
         'E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER',
