@@ -277,8 +277,8 @@ A controlled audit-write failure occurs after real graph writes. Both create and
 replace operations roll back the graph and leave the audit unchanged; a successful
 retry commits the updated graph and one update audit. Only that leaf failure is
 mocked. Every fixture runs inside an outer transaction that always rolls back.
-The ordinary-handler currency lock and broader role-lock ordering checks remain
-under audit; these new tests do not claim to prove those concurrency paths.
+The separate ordinary-template currency and role-graph concurrency cases below
+verify their lock waits; the graph tests here prove ownership and atomic writes.
 
 ## Transfer finalization and fulfillment
 
@@ -366,8 +366,8 @@ check for pinned add-on checkout time: the PostgreSQL cases already verify exact
 expiry persistence at the event boundary and rejection one second beyond it.
 Removed the tax-validation source assertion; `validate-tax-rate.spec.ts` invokes
 the validator, checks the account-scoped SQL parameters and rejects a missing
-current account before looking up a rate. The broader account-scope scanner
-remains under review for its distinct handler/import paths.
+current account before looking up a rate. The tax-account section below records the handler/import coverage that replaces
+the separate account-scope scanner.
 
 ## Schema metadata mirrors
 
@@ -397,8 +397,8 @@ constraint objects or generated SQL fragments instead of executing database work
   tests retain the user-facing conflict mapping. This replaces metadata proof
   with the actual database error on which that mapping depends.
 
-No production schema was changed. The remaining metadata suites need their own
-review; this batch does not claim every database invariant is already covered.
+No production schema was changed. The following sections record the separate
+dispositions for the other metadata suites and the behavior each one retains.
 
 The purchase-order, acquisition and transfer metadata suites (18 more cases)
 are also removed after reviewing the actual add-on purchase and transfer
@@ -438,8 +438,10 @@ cases are removed. The identifier-length schema scanner moves to ESLint:
 `postgres-identifiers/explicit-name-length` reports explicit Drizzle names over
 63 UTF-8 bytes at their declaration, including imported factory aliases,
 namespace calls, local constant strings and foreign-key/primary-key name options.
-It intentionally does not evaluate arbitrary code, imported constant values or
-generated names. Small valid/invalid lint inputs test the diagnostics, including
+It intentionally does not evaluate arbitrary code or imported constant values.
+`pgTableCreator` transforms are rejected in favor of explicit `pgTable` or
+`pgSchema.table` declarations, so arbitrary callbacks cannot hide the resulting
+identifier from the check. Small valid/invalid lint inputs test diagnostics, including
 Unicode bytes and shadowed/unrelated functions. All seven remaining metadata
 suites are now removed; production schema declarations remain unchanged.
 
@@ -502,8 +504,9 @@ names is removed. The Effect ESLint plugin now checks calls to the real
 access and local method aliases. It requires an explicitly true logger-disable
 option, follows local constants and respects spread order. Unknown options that
 could enable the raw logger are rejected. This is bounded syntax analysis, not
-whole-program mutation/data-flow proof. Fifteen synthetic inputs verify valid
-options, missing/false flags, spreads and unrelated/shadowed methods. Existing
+whole-program mutation/data-flow proof. Synthetic inputs verify valid options,
+missing/false flags, spreads, static template/concatenated member names, transparent
+TypeScript wrappers and unrelated/shadowed methods. Existing
 middleware tests still execute private callback/token redaction, logs and traces.
 No runtime server behavior was changed.
 
@@ -547,11 +550,11 @@ completion/expiry races and registration cleanup cases remain.
 
 Removed the Dependabot text inventory and Dockerfile package-manager word ban.
 Dependency update configuration and base-image maintenance policy belong in review;
-these tests did not exercise either process. The remaining container integrity
-and runtime-image checks are still under review. Removed the recursive scan
+these tests did not exercise either process. The container and private-cache
+sections below record retained command/output checks. Removed the recursive scan
 limiting event-graph creation to exactly two call sites: adding a legitimate
 transactional caller is not an application regression. Actual event creation,
-rollback and account serialization coverage determine the remaining disposition.
+rollback and account serialization coverage are described below.
 
 ## Event creation rollback and shared tax catalog
 
@@ -562,8 +565,8 @@ has been written. The failed attempt must expose that exact constraint failure,
 leave the event rows unchanged and create no audit entry; removing the constraint
 allows a successful retry with the stored option, discount and expected audit.
 The outer fixture transaction rolls back the test-only constraint and all data.
-Removed the two source assertions for handler transaction wiring. Account-lock
-ordering assertions remain under review against concurrency coverage.
+Removed the two source assertions for handler transaction wiring. The
+payment-account races below replace the separate lock-order source assertions.
 
 The existing mixed-account/mixed-tenant tax-rate fixture also calls the ordinary
 active catalog: only usable rates from its current account may be returned.
@@ -608,7 +611,8 @@ source-map removal. `runtime-image-verification.spec.ts` already executes the
 actual image verifier against exported-filesystem fixtures and checks image
 metadata, rejected source-map/secret paths, required artifacts, cache permissions
 and cleanup. The image gate still verifies the built image. Pinning, build-context
-exclusions and private-package cache integrity remain under review.
+exclusions and private-package cache integrity are covered by the native build
+fixture and CLI behavior described below.
 
 The retained offline hosting tests parse each immutable workflow once per suite,
 rather than reparsing the same YAML for every input permutation.
@@ -637,20 +641,22 @@ acquisition PostgreSQL cases continue to prove completed ownership and settlemen
 The existing owner-status test now pins event time before the event while moving
 the wall clock past both the event and Checkout expiry: it must still show the
 event-time purchase availability and flag the payment link as expired. This
-replaces the separate clock-wiring source assertion. Late expiry and interruption
-source cases remain under review.
+replaces the separate clock-wiring source assertion. The refund-failure and late
+expiry sections below record the remaining source-case replacements.
 
-## Immediate refund interruption
+## Immediate refund failures
 
-Extracted the existing immediate-refund failure handler from the transfer claim
-loop, following the existing polling-worker failure-handler shape. Tests execute
-its Effect failure behavior: ordinary typed failures and defects log only safe
-context and allow processing to continue; interruption, including a cause that
-also contains a defect, propagates the interrupt and prevents continuation without
-emitting a processing-failure log. The claim loop uses this handler directly.
-Removed the source assertion for `catchCause`/interrupt-filter spelling. Durable
-refund claim and settlement behavior remains covered by the existing database
-suites; this extraction does not change queue or provider operations.
+The transfer claim loop uses a small immediate-refund failure handler whose tests
+execute real Effects. Expected typed failures log safe context and let the caller
+continue; their durable claims remain queued. Defects and cancellation propagate
+and prevent later claim processing. Mixed causes preserve every defect and
+interruption reason, without logging that processing recovered. Seven cases check
+exit reasons, continuation and safe recovery logs.
+
+This fixes the earlier behavior that swallowed a defect or discarded it when
+combined with interruption. The source assertion for `catchCause`/filter spelling
+is removed. Existing database suites retain durable claim and settlement checks;
+queue and provider operations are unchanged.
 
 ## Transfer expiry after lock waits
 
@@ -742,9 +748,13 @@ to the fixture tenant, and currency races wait for the actual blocking backend.
 
 The tax-rate browser test selects the named attendee choice instead of relying
 on database row order. Accessibility scanning waits for the missing-event error
-panel to hydrate, and the live-card journey waits for its reloaded form before
-entering the expired protected identifier. The original outcome assertions and
-timeouts remain; failed runs are retained in task evidence.
+panel to hydrate. The live-card journey waits for the reloaded profile component
+to consume its hydration marker before entering either protected identifier, then
+checks that Save is enabled. A delayed-module diagnostic observed the component
+still awaiting hydration while the submit button had no click marker; waiting on
+that button marker alone did not establish readiness. Temporary diagnostic delays
+and logging were removed. Outcome assertions and timeouts remain; failed runs
+and the successful repeated diagnostics are retained in task evidence.
 
 ## Review outcome and verification
 
@@ -757,9 +767,9 @@ handler map, while handler tests and HTTP journeys exercise the registered RPCs.
 Publication assertions now check exported bundle slugs rather than copied catalog
 metadata. The Playwright inventory is explicitly a manual orientation document.
 
-The latest full server run passed 2,680 cases in 87.47 seconds; the recorded baseline passed 3,039 in 98.29 seconds with
-the same pinned toolchain and two-worker limit. These are individual local runs,
-not a hosted-CI speed claim. The expensive remaining fixtures exercise process
+Local timing samples and hosted job timings are recorded with their revisions in
+task evidence and the PRs. These are individual observations, not controlled
+benchmarks. The expensive remaining fixtures exercise process
 termination, image output/security and real command wrappers. Keep their distinct
 failure outcomes; reducing those assertions solely for test-count savings would
 remove useful protection. Earlier lifecycle grace reductions and removal of a

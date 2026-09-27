@@ -7,9 +7,11 @@
 - Prefer inferred Drizzle types across callers; avoid duplicate handwritten DB model types.
 - Apply the current Drizzle schema directly for the relaunch using local `db:push` or `db:reset` against the isolated worktree database. Do not add incremental migration artifacts for this cutover.
 - Avoid `any`/unchecked casts in query helpers.
-- Keep explicit PostgreSQL identifiers within 63 UTF-8 bytes. ESLint checks direct
-  Drizzle declarations and local constant names; verify database behavior through
-  PostgreSQL operations rather than column/index metadata mirrors.
+- Keep explicit PostgreSQL identifiers within 63 UTF-8 bytes. Declare physical
+  table names with `pgTable` or `pgSchema.table`; ESLint rejects `pgTableCreator`
+  name transforms. The lint check covers direct declarations and local constant
+  names. Verify database behavior through PostgreSQL operations rather than
+  column/index metadata mirrors.
 - Native PostgreSQL connection retirement must await physical stream closure
   before pool invalidation admits a replacement. A stream marked `destroyed`
   can still be closing. Keep delayed-close regressions for ordinary and
