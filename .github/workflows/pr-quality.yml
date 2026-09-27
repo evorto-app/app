@@ -215,6 +215,9 @@ jobs:
         with:
           bun-version: "1.4.2"
 
+      - name: Verify Docker build context
+        run: bash helpers/testing/verify-docker-build-context.sh
+
       - name: Build immutable Linux amd64 image once
         env:
           FONT_AWESOME_TOKEN: ${{ secrets.FONT_AWESOME_TOKEN }}

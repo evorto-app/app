@@ -29,7 +29,7 @@
     "format:check": "prettier --check .",
     "format:write": "prettier --write .",
     "image:security:local": "bun run env:run -- bash ops/scaleway/verify-image-security.sh",
-    "image:verify": "bash helpers/testing/verify-docker-build-context.sh && bash ops/scaleway/verify-runtime-image.sh",
+    "image:verify": "bash ops/scaleway/verify-runtime-image.sh",
     "infra:check": "bash ops/scaleway/verify-terraform.sh",
     "lint": "bun run dev:ng lint --fix",
     "release:validate": "bash helpers/testing/validate-knope.sh",

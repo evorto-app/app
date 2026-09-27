@@ -329,6 +329,7 @@ describe('tenant boundary constraints in PostgreSQL', () => {
         'UPPER@example.com',
         ' contact@example.com ',
         'missing-domain',
+        'name@host',
         '',
         `${'a'.repeat(243)}@example.com`,
       ];

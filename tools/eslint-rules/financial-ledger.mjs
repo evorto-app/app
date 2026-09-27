@@ -15,7 +15,7 @@ const tables = new Map([
   ["platformAuditEntries", "platform_audit_entries"],
 ]);
 const sqlMutation = new RegExp(
-  `^\\s*(?:UPDATE|DELETE\\s+FROM)\\s+(?:ONLY\\s+)?(?:(?:"[^" ]+"|[a-z_][\\w$]*)\\s*\\.\\s*)?"?(${[...tables.values()].join("|")})"?(?=\\s|;|$)`,
+  `(?:^|[\\s;(])(?:UPDATE|DELETE\\s+FROM|TRUNCATE(?:\\s+TABLE)?)\\s+(?:ONLY\\s+)?(?:(?:"[^" ]+"|[a-z_][\\w$]*)\\s*\\.\\s*)?"?(${[...tables.values()].join("|")})"?(?=\\s|;|,|\\)|$)`,
   "iu",
 );
 const propertyName = (node) =>
@@ -118,7 +118,15 @@ export const financialLedgerPlugin = {
         };
         const reportSql = (node, text) => {
           const table =
-            typeof text === "string" ? sqlMutation.exec(text)?.[1] : undefined;
+            typeof text === "string"
+              ? sqlMutation.exec(
+                  // Ignore data literals and comments when checking static SQL syntax.
+                  text.replace(
+                    /'(?:''|[^'])*'|--[^\n]*|\/\*[\s\S]*?\*\//gu,
+                    " ",
+                  ),
+                )?.[1]
+              : undefined;
           if (table)
             context.report({ node, messageId: "mutation", data: { table } });
         };
@@ -136,8 +144,41 @@ export const financialLedgerPlugin = {
                   data: { table },
                 });
             }
-            if (method === "raw" && resolve(callee.object) === "sql")
-              reportSql(node, node.arguments[0]?.value);
+            if (method === "onConflictDoUpdate") {
+              let target = callee.object;
+              while (
+                target?.type === "CallExpression" &&
+                target.callee.type === "MemberExpression"
+              ) {
+                if (propertyName(target.callee) === "insert") {
+                  const table = resolve(target.arguments[0]);
+                  if (tables.has(table))
+                    context.report({
+                      node,
+                      messageId: "mutation",
+                      data: { table },
+                    });
+                  break;
+                }
+                target = target.callee.object;
+              }
+            }
+            if (method === "raw" && resolve(callee.object) === "sql") {
+              const argument = node.arguments[0];
+              const text =
+                argument?.type === "TemplateLiteral"
+                  ? argument.quasis
+                      .map(
+                        (part, index) =>
+                          part.value.cooked +
+                          (index < argument.expressions.length
+                            ? "<expression>"
+                            : ""),
+                      )
+                      .join("")
+                  : argument?.value;
+              reportSql(node, text);
+            }
           },
           TaggedTemplateExpression(node) {
             if (resolve(node.tag) !== "sql") return;

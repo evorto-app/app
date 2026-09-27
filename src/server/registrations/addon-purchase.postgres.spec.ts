@@ -1,5 +1,13 @@
 import * as PgClient from '@effect/sql-pg/PgClient';
-import { afterAll, beforeAll, describe, expect, it, vi } from '@effect/vitest';
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  vi,
+} from '@effect/vitest';
 import {
   RpcRequestContext,
   RpcRequestContextMiddleware,
@@ -829,23 +837,22 @@ describe('post-registration add-on purchase concurrency', () => {
     layer = makeLayer(databaseUrl);
   });
 
-  afterAll(async () => {
+  afterEach(async () => {
     const failures: unknown[] = [];
-    for (const fixture of fixtures.toReversed()) {
+    for (const fixture of fixtures.splice(0).toReversed()) {
       try {
         await cleanFixture(database, fixture);
       } catch (error) {
         failures.push(error);
       }
     }
-    try {
-      await pool.end();
-    } catch (error) {
-      failures.push(error);
-    }
     if (failures.length === 1) throw failures[0];
     if (failures.length > 1)
       throw new AggregateError(failures, 'Add-on fixture cleanup failures');
+  });
+
+  afterAll(async () => {
+    await pool.end();
   });
 
   it('claims later add-on payments past locked rows and preserves replacement leases until terminal settlement', async () => {

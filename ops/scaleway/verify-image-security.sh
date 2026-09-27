@@ -11,6 +11,8 @@ export PATH="${tools_directory}:${PATH}"
 : "${FONT_AWESOME_TOKEN:?FONT_AWESOME_TOKEN is required for the verified image build}"
 command -v docker >/dev/null
 
+bash "${repository_root}/helpers/testing/verify-docker-build-context.sh"
+
 revision="$(git -C "${repository_root}" rev-parse HEAD)"
 readonly revision
 readonly image="evorto-local-security:${revision}"
@@ -23,7 +25,6 @@ docker build \
   --tag "${image}" \
   "${repository_root}"
 
-bash "${repository_root}/helpers/testing/verify-docker-build-context.sh"
 "${repository_root}/ops/scaleway/verify-runtime-image.sh" "${image}"
 
 docker build \

@@ -93,7 +93,7 @@ const createAuthorContext = (
   } satisfies RpcRequestContextShape;
 };
 
-const waitForBlockedTransaction = async (pool: Pool, blockerPid?: number) => {
+const waitForBlockedTransaction = async (pool: Pool, blockerPid: number) => {
   const deadline = Date.now() + 10_000;
   while (Date.now() < deadline) {
     const blocked = await pool.query<{ count: string }>(
@@ -103,9 +103,9 @@ const waitForBlockedTransaction = async (pool: Pool, blockerPid?: number) => {
       WHERE datname = current_database()
         AND pid <> pg_backend_pid()
         AND wait_event_type = 'Lock'
-        AND ($1::int IS NULL OR $1::int = ANY(pg_blocking_pids(pid)))
+        AND $1::int = ANY(pg_blocking_pids(pid))
     `,
-      [blockerPid ?? null],
+      [blockerPid],
     );
     if (Number(blocked.rows[0]?.count ?? 0) >= 1) return;
     await new Promise((resolve) => setTimeout(resolve, 10));
@@ -668,7 +668,7 @@ describe('authoring and tenant configuration concurrency', () => {
     const { promise: releaseTemplate, resolve: allowTemplateCommit } =
       Promise.withResolvers<undefined>();
     const { promise: templateLocked, resolve: markTemplateLocked } =
-      Promise.withResolvers<undefined>();
+      Promise.withResolvers<number>();
 
     const templateWrite = Effect.runPromise(
       Database.use((effectDatabase) =>
@@ -687,13 +687,18 @@ describe('authoring and tenant configuration concurrency', () => {
               tenantId: fixture.tenantId,
               title: 'First currency template',
             });
-            markTemplateLocked(undefined);
+            const [backend] = yield* transaction
+              .select({ pid: sql<number>`pg_backend_pid()` })
+              .from(tenants)
+              .where(eq(tenants.id, fixture.tenantId));
+            if (!backend) throw new Error('Missing template writer backend');
+            markTemplateLocked(backend.pid);
             yield* Effect.promise(() => releaseTemplate);
           }),
         ),
       ).pipe(Effect.provide(makeDatabaseServiceLayer(databaseUrl))),
     );
-    await templateLocked;
+    const holderPid = await templateLocked;
 
     const currencyUpdate = (async () => {
       const client = await pool.connect();
@@ -727,9 +732,12 @@ describe('authoring and tenant configuration concurrency', () => {
       }
     })();
 
-    await waitForBlockedTransaction(pool);
-    allowTemplateCommit(undefined);
-    await templateWrite;
+    try {
+      await waitForBlockedTransaction(pool, holderPid);
+    } finally {
+      allowTemplateCommit(undefined);
+      await templateWrite;
+    }
     expect(await currencyUpdate).toBe('blocked');
     expect(
       await database.query.tenants.findFirst({

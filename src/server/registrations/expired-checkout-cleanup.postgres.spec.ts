@@ -545,7 +545,12 @@ describe('expired unbound checkout cleanup concurrency', () => {
       database
         .select({ id: transactions.id })
         .from(transactions)
-        .where(expiredUnboundRegistrationClaimPredicate(at));
+        .where(
+          and(
+            expiredUnboundRegistrationClaimPredicate(at),
+            eq(transactions.tenantId, fixture.tenantId),
+          ),
+        );
     const transferClaims = (at: number) =>
       database
         .select({ id: registrationTransfers.id })
@@ -557,7 +562,12 @@ describe('expired unbound checkout cleanup concurrency', () => {
             registrationTransfers.recipientCheckoutTransactionId,
           ),
         )
-        .where(expiredRegistrationTransferCheckoutCandidatePredicate(at));
+        .where(
+          and(
+            expiredRegistrationTransferCheckoutCandidatePredicate(at),
+            eq(registrationTransfers.tenantId, fixture.tenantId),
+          ),
+        );
     expect(await registrationClaims(deadline - 1)).toEqual([]);
     expect(await registrationClaims(deadline)).toEqual([
       { id: fixture.transactionId },
