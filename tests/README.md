@@ -371,7 +371,9 @@ validates its disposable target and verifies PostgreSQL major version 17
 through the server's `postgres` maintenance database, then creates the reserved
 integration database if missing. It resets only that database's `public` schema,
 applies the current Drizzle schema, and runs the database tests serially. It is part of the mandatory local-first CI gate and must finish with
-every collected test passing.
+every collected test passing. Keep `fileParallelism: false` and `maxWorkers: 1`
+in `vitest.postgres.config.ts`: the files share one disposable database. Review
+collection and isolation changes with the configuration and full suite results.
 
 The runner refuses to start unless
 `POSTGRES_INTEGRATION_DISPOSABLE=true` and an explicit

@@ -1,27 +1,12 @@
 import { expect, test } from '@playwright/test';
-import { readFileSync } from 'node:fs';
 
 import { waitForRegistrationPage } from '../../support/utils/event-registration-page';
 
-const eventTemplate = readFileSync(
-  'src/app/events/event-details/event-details.component.html',
-  'utf8',
-);
-
-const renderedHeading = (tag: 'h2' | 'h3', text: string) => {
-  const heading = eventTemplate.match(
-    new RegExp(`<${tag}[^>]*>\\s*${text}\\s*</${tag}>`, 'u'),
-  )?.[0];
-  if (!heading) throw new Error(`Missing event template heading: ${text}`);
-  return heading;
-};
-
-const eventFailure = renderedHeading('h2', 'Event could not be loaded');
-const signUpHeading = renderedHeading('h2', 'Your sign-up');
-const signUpFailure = renderedHeading(
-  'h3',
-  'Sign-up details could not be loaded',
-);
+// These are controlled browser inputs for the readiness helper. Full event
+// journeys cover the application's rendered content.
+const eventFailure = '<h2>Event could not be loaded</h2>';
+const signUpHeading = '<h2>Your sign-up</h2>';
+const signUpFailure = '<h3>Sign-up details could not be loaded</h3>';
 
 for (const scenario of [
   {
