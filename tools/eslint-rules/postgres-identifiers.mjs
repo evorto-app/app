@@ -107,6 +107,10 @@ export const postgresIdentifiersPlugin = {
             if (owner === "pg-namespace") return member;
             if (owner === "pg-schema") return schemaFactories.get(member);
             if (owner === "pgTable" && member === "withRLS") return "pgTable";
+            // Builder chains keep their Drizzle origin. A column's unique(name)
+            // declares a PostgreSQL constraint just like top-level unique(name).
+            if (owner === "pg-builder")
+              return member === "unique" ? "unique" : "pg-builder";
           }
           if (node.type === "CallExpression") {
             if (factoryName(node.callee, new Set(visited)) === "pgSchema")
@@ -117,6 +121,13 @@ export const postgresIdentifiersPlugin = {
               factoryName(node.callee.object, new Set(visited)) === "pg-schema"
             )
               return "pg-schema";
+            const factory = factoryName(node.callee, new Set(visited));
+            if (
+              factory &&
+              factory !== "pg-namespace" &&
+              factory !== "pg-schema"
+            )
+              return "pg-builder";
           }
         };
         const stringValue = (node, visited = new Set()) => {
