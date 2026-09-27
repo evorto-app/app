@@ -456,6 +456,31 @@ describe('PostgreSQL identifier diagnostics', () => {
         `const schema = { table: (name: string) => name }; const method = 'table'; schema[method](${long});`,
         0,
       ],
+      [
+        'column unique name',
+        `import { varchar } from 'drizzle-orm/pg-core'; varchar().unique(${long});`,
+        1,
+      ],
+      [
+        'column unique name through builder alias and chain',
+        `import * as pg from 'drizzle-orm/pg-core'; const column = pg.text().notNull(); const method = 'unique'; column[method](${long});`,
+        1,
+      ],
+      [
+        'enum column unique name',
+        `import { pgEnum } from 'drizzle-orm/pg-core'; const value = pgEnum('status', ['ready']); value().unique(${long});`,
+        1,
+      ],
+      [
+        'short and implicit column unique names',
+        "import { varchar } from 'drizzle-orm/pg-core'; varchar().unique('short_name'); varchar().unique();",
+        0,
+      ],
+      [
+        'unrelated unique method',
+        `const value = { unique: (name: string) => name }; value.unique(${long});`,
+        0,
+      ],
       ...['pgSequence', 'pgRole', 'pgPolicy'].map(
         (factory) =>
           [
