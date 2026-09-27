@@ -233,12 +233,34 @@ describe('structural lint diagnostics', () => {
         ["const options = { 'ignoreHTTPSErrors': true };", 1],
         ["const options = { ['ignoreHTTPSErrors']: true };", 1],
         ['const options = { ignoreHTTPSErrors: false };', 0],
+        [
+          'const insecure = true; const options = { ignoreHTTPSErrors: insecure };',
+          1,
+        ],
+        [
+          'const secure = false; const options = { ignoreHTTPSErrors: secure };',
+          1,
+        ],
+        ['const options = { ignoreHTTPSErrors: getIgnoreSetting() };', 1],
         ['const options = {};', 0],
         ["const options = { trace: 'off' };", 0],
         ["const mode = 'on'; const options = { trace: mode };", 1],
         ['const options = { trace: makeTraceOptions() };', 1],
         ["const mode = 'on'; const options = { trace: { mode } };", 1],
         ["const options = { trace: { mode: 'off', ...extra } };", 1],
+        ["const options = { trace: { mode: 'off', ['mode']: 'on' } };", 1],
+        [
+          "const key = 'mode'; const options = { trace: { mode: 'off', [key]: 'on' } };",
+          1,
+        ],
+        [
+          "const key = 'mode'; const options = { trace: { [key]: 'on', mode: 'off' } };",
+          1,
+        ],
+        [
+          "const options = { trace: { ['mode']: 'off', screenshots: false } };",
+          0,
+        ],
         ['const options = { trace: { screenshots: true } };', 1],
         ["const options = { trace: 'on' };", 1],
         ["const options = { trace: 'retain-on-first-failure' };", 1],
@@ -787,6 +809,56 @@ describe('Effect HTTP boundary diagnostics', () => {
         'method alias',
         `${router} const serve = Router.serve; serve(app, {});`,
         1,
+      ],
+      [
+        'destructured boundary',
+        `${router} const { serve } = Router; serve(app, {});`,
+        1,
+      ],
+      [
+        'renamed destructured boundary',
+        `${router} const { toWebHandler: handle } = Router; handle(app, {});`,
+        1,
+      ],
+      [
+        'destructured namespace',
+        "import * as Http from 'effect/unstable/http'; const { HttpRouter: router } = Http; router.serve(app, {});",
+        1,
+      ],
+      [
+        'nested destructured namespace',
+        "import * as Http from 'effect/unstable/http'; const { HttpRouter: { serve: listen } } = Http; listen(app, {});",
+        1,
+      ],
+      [
+        'computed destructured boundary',
+        `${router} const key = 'serve'; const { [key]: listen } = Router; listen(app, {});`,
+        1,
+      ],
+      [
+        'defaulted destructured boundary',
+        `${router} const { serve = fallback } = Router; serve(app, {});`,
+        1,
+      ],
+      [
+        'rest namespace boundary',
+        `${router} const { get, ...remaining } = Router; remaining.serve(app, {});`,
+        1,
+      ],
+      [
+        'private destructured boundary',
+        `${router} const { serve } = Router; serve(app, { disableLogger: true });`,
+        0,
+      ],
+      [
+        'destructured route constructor',
+        `${router} const { get } = Router; get('/', handler);`,
+        0,
+      ],
+      [
+        'unrelated destructured method',
+        'const other = { serve: (app: object) => app }; const { serve } = other; serve(app, {});',
+        0,
       ],
       [
         'direct import',

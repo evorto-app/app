@@ -320,9 +320,9 @@ export default defineConfig(
         "error",
         {
           selector:
-            "Property:matches([key.name='ignoreHTTPSErrors'], [key.value='ignoreHTTPSErrors'])[value.value=true]",
+            "Property:matches([key.name='ignoreHTTPSErrors'], [key.value='ignoreHTTPSErrors']):not([value.type='Literal'][value.value=false])",
           message:
-            "Keep TLS certificate verification enabled in shared browser setup.",
+            "Omit ignoreHTTPSErrors or set it explicitly to false in shared browser setup.",
         },
         {
           selector:
@@ -332,15 +332,9 @@ export default defineConfig(
         },
         {
           selector:
-            "Property:matches([key.name='trace'], [key.value='trace']) > ObjectExpression:not(:has(> Property:matches([key.name='mode'], [key.value='mode'])[value.value='off']))",
+            "Property:matches([key.name='trace'], [key.value='trace']) > ObjectExpression:matches(:not(:has(> Property:matches([key.name='mode'], [key.value='mode'])[value.type='Literal'][value.value='off'])), :has(> Property:matches([key.name='mode'], [key.value='mode']):not([value.type='Literal'][value.value='off'])), :has(> Property[computed=true]:not([key.type='Literal'])), :has(> SpreadElement))",
           message:
-            "Keep authenticated browser traces disabled to protect credentials.",
-        },
-        {
-          selector:
-            "Property:matches([key.name='trace'], [key.value='trace']) > ObjectExpression > SpreadElement",
-          message:
-            "Declare trace options explicitly so traces remain disabled.",
+            "Declare trace mode as literal off without dynamic keys or spreads that could replace it.",
         },
       ],
     },

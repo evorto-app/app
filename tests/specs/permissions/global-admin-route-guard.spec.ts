@@ -22,8 +22,14 @@ test.describe('global admin route guard allow path', () => {
     await expect(page).toHaveURL(
       new RegExp(`/global-admin/tenants/${tenant.id}`),
     );
+    const tenantDetail = page.locator('app-tenant-detail');
+    await expect(tenantDetail).not.toHaveAttribute('ngh', { timeout: 20_000 });
     await expect(
-      page.getByRole('heading', { exact: true, level: 1, name: tenant.name }),
+      tenantDetail.getByRole('heading', {
+        exact: true,
+        level: 1,
+        name: tenant.name,
+      }),
     ).toBeVisible();
   });
 
