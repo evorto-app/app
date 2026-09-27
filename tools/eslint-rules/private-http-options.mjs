@@ -77,6 +77,31 @@ export const privateHttpOptionsRule = {
         : (node.key?.name ?? node.key?.value);
     const memberName = (node) =>
       node.computed ? constantValue(node.property) : node.property.name;
+    const memberBinding = (parent, member) => {
+      if (parent === "http" && member === "HttpRouter") return "router";
+      if (parent === "router" && methods.has(member)) return "boundary";
+    };
+    const patternBinding = (pattern, name, binding) => {
+      if (pattern.type === "Identifier")
+        return pattern.name === name ? binding : undefined;
+      if (pattern.type === "AssignmentPattern")
+        return patternBinding(pattern.left, name, binding);
+      if (pattern.type === "RestElement")
+        return patternBinding(pattern.argument, name, binding);
+      if (pattern.type === "ObjectPattern") {
+        for (const property of pattern.properties) {
+          const found =
+            property.type === "RestElement"
+              ? patternBinding(property, name, binding)
+              : patternBinding(
+                  property.value,
+                  name,
+                  memberBinding(binding, keyName(property)),
+                );
+          if (found) return found;
+        }
+      }
+    };
     const routerBinding = (node, visited = new Set()) => {
       if (!node || visited.has(node)) return;
       visited.add(node);
@@ -103,14 +128,18 @@ export const privateHttpOptionsRule = {
             definition.type === "Variable" &&
             definition.parent?.kind === "const"
           )
-            return routerBinding(definition.node.init, visited);
+            return patternBinding(
+              definition.node.id,
+              node.name,
+              routerBinding(definition.node.init, visited),
+            );
         }
       }
       if (node.type === "MemberExpression") {
-        const parent = routerBinding(node.object, visited);
-        const member = memberName(node);
-        if (parent === "http" && member === "HttpRouter") return "router";
-        if (parent === "router" && methods.has(member)) return "boundary";
+        return memberBinding(
+          routerBinding(node.object, visited),
+          memberName(node),
+        );
       }
     };
     const loggerOption = (input, visited = new Set()) => {
