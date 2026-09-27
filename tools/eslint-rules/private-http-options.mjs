@@ -1,10 +1,6 @@
 // Explicit boundary options keep Effect's raw URL logger out of production.
 // This resolves local constants, not arbitrary runtime or interprocedural flow.
 const methods = new Set(["serve", "toWebHandler"]);
-const keyName = (node) =>
-  node.computed ? node.key?.value : (node.key?.name ?? node.key?.value);
-const memberName = (node) =>
-  node.computed ? node.property.value : node.property.name;
 
 export const privateHttpOptionsRule = {
   meta: {
@@ -44,6 +40,12 @@ export const privateHttpOptionsRule = {
           return constant(definition.node.init, visited);
       }
     };
+    const keyName = (node) =>
+      node.computed
+        ? constant(node.key)?.value
+        : (node.key?.name ?? node.key?.value);
+    const memberName = (node) =>
+      node.computed ? constant(node.property)?.value : node.property.name;
     const routerBinding = (node, visited = new Set()) => {
       if (!node || visited.has(node)) return;
       visited.add(node);
