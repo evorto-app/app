@@ -333,20 +333,22 @@ describe('PlatformTemplateEditorComponent recovery', () => {
     const root: unknown = fixture.nativeElement;
     if (!(root instanceof HTMLElement))
       throw new Error('Expected the template editor');
+    const roles = () =>
+      TestbedHarnessEnvironment.loader(fixture).getAllHarnesses(
+        MatSelectHarness.with({ selector: 'mat-select[multiple]' }),
+      );
     await vi.waitFor(async () => {
       await fixture.whenStable();
       expect(root.querySelector('form')).not.toBeNull();
-      expect(
-        fixture.componentInstance['templateModel']().registrationOptions,
-      ).toHaveLength(2);
+      expect(await roles()).toHaveLength(2);
     });
     const title = root.querySelector<HTMLInputElement>('input');
     if (!title) throw new Error('Expected the template title input');
     title.value = 'Private first-organization draft';
     title.dispatchEvent(new Event('input', { bubbles: true }));
     await fixture.whenStable();
-    expect(fixture.componentInstance['templateModel']().title).toBe(
-      title.value,
+    expect(root.querySelector<HTMLInputElement>('input')?.value).toBe(
+      'Private first-organization draft',
     );
     loadRoles.mockResolvedValueOnce([
       {
@@ -360,11 +362,13 @@ describe('PlatformTemplateEditorComponent recovery', () => {
     await vi.waitFor(async () => {
       await fixture.whenStable();
       expect(roleOptions).toHaveBeenCalledWith('tenant-2');
-      const model = fixture.componentInstance['templateModel']();
-      expect(model.title).toBe('');
-      expect(model.registrationOptions.map((option) => option.roleIds)).toEqual(
-        [['second-organization-role'], ['second-organization-role']],
-      );
+      const selections = await roles();
+      expect(selections).toHaveLength(2);
+      for (const selection of selections) {
+        expect(await selection.getValueText()).toBe(
+          'Second organization member',
+        );
+      }
       expect(root.querySelector<HTMLInputElement>('input')?.value).toBe('');
     });
     expect(createTemplate).not.toHaveBeenCalled();

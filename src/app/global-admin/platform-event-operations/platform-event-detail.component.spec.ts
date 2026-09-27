@@ -762,17 +762,11 @@ describe('PlatformEventDetailComponent graph-save outcomes', () => {
     await render();
     const originalInput = field('Registration opens').value;
     expect(originalInput).not.toBe('');
-    const originalTime =
-      fixture.componentInstance['graphModel']().registrationOptions[0]
-        .openRegistrationTime;
     enter('Registration opens', '');
     await fixture.whenStable();
     expect(button('Save draft details').disabled).toBe(true);
     expect(root.textContent).toContain('Enter a valid time in');
-    expect(
-      fixture.componentInstance['graphModel']().registrationOptions[0]
-        .openRegistrationTime,
-    ).toBe(originalTime);
+    expect(field('Registration opens').value).toBe('');
     invokeSave();
     await fixture.whenStable();
     expect(updateEvent).not.toHaveBeenCalled();
@@ -781,10 +775,9 @@ describe('PlatformEventDetailComponent graph-save outcomes', () => {
     await fixture.whenStable();
     expect(button('Save draft details').disabled).toBe(false);
     expect(root.textContent).not.toContain('Enter a valid time in');
-    expect(
-      fixture.componentInstance['graphModel']().registrationOptions[0]
-        .openRegistrationTime,
-    ).toBe(originalTime);
+    expect(field('Registration opens').value).toBe(originalInput);
+    invokeSave();
+    await vi.waitFor(expectSinglePayload);
   });
 
   it('reports a confirmed graph save when the explicit event read fails and retains edits after a read retry', async () => {

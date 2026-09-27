@@ -170,6 +170,7 @@ process.exit(90);
       expect(result.signal).toBeNull();
       output += result.stdout + result.stderr;
       expect(output).not.toContain(sentinel);
+      expect(output).not.toContain('Unexpected fixture command');
       if (result.status !== 0) return { output, status: result.status };
     }
     return { output, status: 0 };
@@ -269,13 +270,13 @@ describe('release workflow commands', () => {
     { body: '' },
   ])('refuses an unsuitable release draft: %j', (draft) => {
     const fixture = createFixture({ draft });
-    expect(fixture.runPublish().status).not.toBe(0);
+    expect(fixture.runPublish().status).toBe(1);
     expect(fixture.edits()).toEqual([]);
   });
 
   it('fails if GitHub does not confirm publication after the edit', () => {
     const fixture = createFixture({ confirmationFails: true });
-    expect(fixture.runPublish().status).not.toBe(0);
+    expect(fixture.runPublish().status).toBe(4);
     expect(fixture.edits()).toHaveLength(1);
   });
 });
