@@ -31,9 +31,6 @@ const publishStep = readWorkflowRunStep(
   sentinel,
 );
 const directories: string[] = [];
-const jq = spawnSync('/bin/sh', ['-c', 'command -v jq'], { encoding: 'utf8' });
-if (jq.status !== 0 || !jq.stdout.trim())
-  throw new Error('jq is required to verify release commands');
 
 afterEach(() => {
   for (const directory of directories.splice(0))
@@ -62,6 +59,13 @@ interface Scenario {
 }
 
 const createFixture = (scenario: Scenario = {}) => {
+  const jq = spawnSync('/bin/sh', ['-c', 'command -v jq'], {
+    encoding: 'utf8',
+  });
+  if (jq.status !== 0 || !jq.stdout.trim())
+    throw new Error(
+      'Release command tests require jq on PATH; install it as described in QUALITY.md.',
+    );
   const directory = mkdtempSync(path.join(os.tmpdir(), 'evorto-release-'));
   directories.push(directory);
   const bin = path.join(directory, 'bin');

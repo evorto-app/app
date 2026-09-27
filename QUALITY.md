@@ -136,6 +136,13 @@ substitute for a requested in-app Browser walkthrough.
 
 Use unit tests for deterministic logic close to the source.
 
+The server-unit suite executes release-command fixtures with real `jq`. Install
+`jq` on `PATH` before running `bun run test:unit:server` (`brew install jq` on
+macOS, or `sudo apt-get install jq` on Debian/Ubuntu). Check it with
+`jq --version`. Missing `jq` fails the release-command cases with an installation
+hint; it does not prevent test collection. The fixtures stub GitHub and Git
+commands, so these tests do not publish a release or contact those services.
+
 Good unit-test targets:
 
 - pure transformation logic
