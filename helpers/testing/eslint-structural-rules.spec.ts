@@ -314,6 +314,10 @@ describe('structural lint diagnostics', () => {
         '(sql.raw as typeof sql.raw)!((`DELETE FROM registration_acquisitions` as const)!);',
         1,
       ],
+      [
+        '(<typeof db>db).delete(<typeof registrationAcquisitions>registrationAcquisitions);',
+        1,
+      ],
       ['db.update(transactions);', 0],
       ['db.insert(registrationAcquisitionPayments).values(payment);', 0],
       ["db.execute(sql`UPDATE registration_acquisitions SET id = 'x'`);", 1],
@@ -432,6 +436,31 @@ describe('PostgreSQL identifier diagnostics', () => {
       [
         'table',
         `import { pgTable } from 'drizzle-orm/pg-core'; pgTable(${long}, {});`,
+        1,
+      ],
+      [
+        'table creator requires an explicit declaration',
+        `import { pgTableCreator } from 'drizzle-orm/pg-core'; const table = pgTableCreator((name) => name); table(${long}, {});`,
+        1,
+      ],
+      [
+        'short transformed table still requires an explicit name',
+        "import { pgTableCreator as creator } from 'drizzle-orm/pg-core'; const table = creator((name) => 'prefix_' + name); table('events', {});",
+        1,
+      ],
+      [
+        'namespace table creator',
+        "import * as pg from 'drizzle-orm/pg-core'; const method = 'pgTableCreator'; pg[method]((name) => name);",
+        1,
+      ],
+      [
+        'unrelated creator',
+        "const pgTableCreator = (name: string) => name; pgTableCreator('events');",
+        0,
+      ],
+      [
+        'angle-bracket name assertion',
+        `import { pgTable } from 'drizzle-orm/pg-core'; pgTable(<string>${long}, {});`,
         1,
       ],
       [
@@ -606,6 +635,34 @@ describe('Effect HTTP boundary diagnostics', () => {
         0,
       ],
       ['missing options', `${router} Router.toWebHandler(app);`, 1],
+      ['template boundary method', router + ' Router[`serve`](app, {});', 1],
+      [
+        'template method alias',
+        router + ' const method = `serve`; Router[method](app, {});',
+        1,
+      ],
+      [
+        'constant template interpolation',
+        router + ' const suffix = "ve"; Router[`ser${suffix}`](app, {});',
+        1,
+      ],
+      [
+        'constant concatenated method',
+        router + ' Router["ser" + "ve"](app, {});',
+        1,
+      ],
+      [
+        'private template method and option',
+        router +
+          ' Router[`to${"Web"}Handler`](app, { [`disable${"Logger"}`]: true });',
+        0,
+      ],
+      ['unrelated template member', router + ' Router[`add`](app, {});', 0],
+      [
+        'angle-bracket router assertion',
+        `${router} (<typeof Router>Router).serve(app, {});`,
+        1,
+      ],
       [
         'non-null computed method',
         `${router} const method = 'serve'!; Router[method](app, {});`,

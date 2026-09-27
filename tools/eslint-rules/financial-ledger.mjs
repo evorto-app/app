@@ -2,6 +2,7 @@
 // imports and local aliases, not arbitrary interprocedural value flow or SQL.
 const transparentExpressions = new Set([
   "TSAsExpression",
+  "TSTypeAssertion",
   "TSSatisfiesExpression",
   "TSNonNullExpression",
   "TSInstantiationExpression",

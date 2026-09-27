@@ -2,6 +2,7 @@
 // silently truncate them. Resolve local constant strings, not arbitrary code.
 const transparentExpressions = new Set([
   "TSAsExpression",
+  "TSTypeAssertion",
   "TSSatisfiesExpression",
   "TSNonNullExpression",
   "TSInstantiationExpression",
@@ -55,6 +56,8 @@ export const postgresIdentifiersPlugin = {
             "Keep explicit PostgreSQL identifiers within 63 UTF-8 bytes.",
         },
         messages: {
+          transformedTableName:
+            "Declare table names explicitly with pgTable or pgSchema.table; pgTableCreator transforms names outside the declaration-time length check.",
           tooLong:
             "PostgreSQL truncates identifiers above 63 UTF-8 bytes; this name uses {{bytes}}. Shorten the declared name.",
         },
@@ -159,6 +162,10 @@ export const postgresIdentifiersPlugin = {
         return {
           CallExpression(node) {
             const factory = factoryName(node.callee);
+            if (factory === "pgTableCreator") {
+              context.report({ node, messageId: "transformedTableName" });
+              return;
+            }
             if (!namedFactories.has(factory)) return;
             let name = node.arguments[0];
             if (
