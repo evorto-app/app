@@ -235,6 +235,11 @@ describe('structural lint diagnostics', () => {
         ['const options = { ignoreHTTPSErrors: false };', 0],
         ['const options = {};', 0],
         ["const options = { trace: 'off' };", 0],
+        ["const mode = 'on'; const options = { trace: mode };", 1],
+        ['const options = { trace: makeTraceOptions() };', 1],
+        ["const mode = 'on'; const options = { trace: { mode } };", 1],
+        ["const options = { trace: { mode: 'off', ...extra } };", 1],
+        ['const options = { trace: { screenshots: true } };', 1],
         ["const options = { trace: 'on' };", 1],
         ["const options = { trace: 'retain-on-first-failure' };", 1],
         [
@@ -292,6 +297,10 @@ describe('structural lint diagnostics', () => {
         "import { registrationAcquisitions } from '@db/schema'; function change(registrationAcquisitions) { db.update(registrationAcquisitions); }",
         0,
       ],
+      [
+        'let table; table = transactions; table = registrationAcquisitions; db.update(table);',
+        1,
+      ],
       ['db.update(transactions);', 0],
       ['db.insert(registrationAcquisitionPayments).values(payment);', 0],
       ["db.execute(sql`UPDATE registration_acquisitions SET id = 'x'`);", 1],
@@ -314,6 +323,32 @@ describe('structural lint diagnostics', () => {
       ],
       ['db.execute(sql.raw(`SELECT * FROM registration_acquisitions`));', 0],
       ['db.execute(sql`TRUNCATE TABLE registration_acquisitions`);', 1],
+      [
+        'db.execute(sql`TRUNCATE TABLE transactions, registration_acquisitions`);',
+        1,
+      ],
+      [
+        'db.execute(sql`TRUNCATE ONLY public.transactions, ONLY "public"."registration_acquisitions" CASCADE`);',
+        1,
+      ],
+      ['db.execute(sql`TRUNCATE transactions, other_rows`);', 0],
+      [
+        "const table = 'registration_acquisitions'; sql.raw(`DELETE FROM ${table}`);",
+        1,
+      ],
+      [
+        "const name = 'registration_' + 'acquisitions'; const table = name; sql.raw(`UPDATE ${table} SET amount = ${amount}`);",
+        1,
+      ],
+      ["const table = 'transactions'; sql.raw(`DELETE FROM ${table}`);", 0],
+      [
+        'const query = db.insert(registrationAcquisitions).values(value); query.onConflictDoUpdate(update);',
+        1,
+      ],
+      [
+        'const query = db.insert(transactions).values(value); query.onConflictDoUpdate(update);',
+        0,
+      ],
       [
         'db.execute(sql`WITH ids AS (SELECT 1) DELETE FROM registration_acquisitions`);',
         1,

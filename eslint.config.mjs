@@ -326,15 +326,21 @@ export default defineConfig(
         },
         {
           selector:
-            "Property:matches([key.name='trace'], [key.value='trace'])[value.type='Literal']:not([value.value='off'])",
+            "Property:matches([key.name='trace'], [key.value='trace']):not([value.value='off']):not([value.type='ObjectExpression'])",
           message:
             "Keep authenticated browser traces disabled to protect credentials.",
         },
         {
           selector:
-            "Property:matches([key.name='trace'], [key.value='trace']) > ObjectExpression > Property:matches([key.name='mode'], [key.value='mode'])[value.type='Literal']:not([value.value='off'])",
+            "Property:matches([key.name='trace'], [key.value='trace']) > ObjectExpression:not(:has(> Property:matches([key.name='mode'], [key.value='mode'])[value.value='off']))",
           message:
             "Keep authenticated browser traces disabled to protect credentials.",
+        },
+        {
+          selector:
+            "Property:matches([key.name='trace'], [key.value='trace']) > ObjectExpression > SpreadElement",
+          message:
+            "Declare trace options explicitly so traces remain disabled.",
         },
       ],
     },
