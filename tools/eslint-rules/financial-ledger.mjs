@@ -1,5 +1,17 @@
 // Application history is append-only. This is a bounded syntax rule: it resolves
 // imports and local aliases, not arbitrary interprocedural value flow or SQL.
+const transparentExpressions = new Set([
+  "TSAsExpression",
+  "TSTypeAssertion",
+  "TSSatisfiesExpression",
+  "TSNonNullExpression",
+  "TSInstantiationExpression",
+  "ChainExpression",
+]);
+const unwrap = (node) => {
+  while (transparentExpressions.has(node?.type)) node = node.expression;
+  return node;
+};
 const tables = new Map([
   ["registrationAcquisitions", "registration_acquisitions"],
   ["registrationAcquisitionPayments", "registration_acquisition_payments"],
@@ -21,18 +33,6 @@ const sqlMutation = new RegExp(
   String.raw`(?:^|[\s;(])(?:UPDATE\s+|DELETE\s+FROM\s+|TRUNCATE(?:\s+TABLE)?\s+${precedingTruncateTargets})(?:ONLY\s+)?(?:${sqlIdentifier}\s*\.\s*)?"?(${[...tables.values()].join("|")})"?(?=\s|;|,|\)|$)`,
   "iu",
 );
-const propertyName = (node) =>
-  node.computed ? node.property?.value : node.property?.name;
-const memberPath = (node) => {
-  const path = [];
-  while (node?.type === "MemberExpression") {
-    const name = propertyName(node);
-    if (typeof name !== "string") return;
-    path.unshift(name);
-    node = node.object;
-  }
-  return node?.type === "Identifier" ? { root: node, path } : undefined;
-};
 
 export const financialLedgerPlugin = {
   rules: {
@@ -57,13 +57,22 @@ export const financialLedgerPlugin = {
             if (found) return found;
           }
         };
+        const propertyName = (node) =>
+          node.computed ? staticString(node.property) : node.property?.name;
+        const memberPath = (node) => {
+          const path = [];
+          while (node?.type === "MemberExpression") {
+            const name = propertyName(node);
+            if (typeof name !== "string") return;
+            path.unshift(name);
+            node = node.object;
+          }
+          return node?.type === "Identifier" ? { root: node, path } : undefined;
+        };
         const resolve = (node, visited = new Set()) => {
           if (!node || visited.has(node)) return;
           visited.add(node);
-          if (
-            node.type === "TSAsExpression" ||
-            node.type === "TSSatisfiesExpression"
-          )
+          if (transparentExpressions.has(node.type))
             return resolve(node.expression, visited);
           if (node.type === "Identifier") {
             const binding = variable(node);
@@ -124,10 +133,7 @@ export const financialLedgerPlugin = {
         const insertTarget = (node, visited = new Set()) => {
           if (!node || visited.has(node)) return;
           visited.add(node);
-          if (
-            node.type === "TSAsExpression" ||
-            node.type === "TSSatisfiesExpression"
-          )
+          if (transparentExpressions.has(node.type))
             return insertTarget(node.expression, visited);
           if (node.type === "Identifier") {
             const binding = variable(node);
@@ -140,13 +146,12 @@ export const financialLedgerPlugin = {
               if (tables.has(table)) return table;
             }
           }
-          if (
-            node.type === "CallExpression" &&
-            node.callee.type === "MemberExpression"
-          ) {
-            return propertyName(node.callee) === "insert"
+          if (node.type === "CallExpression") {
+            const callee = unwrap(node.callee);
+            if (callee.type !== "MemberExpression") return;
+            return propertyName(callee) === "insert"
               ? resolve(node.arguments[0])
-              : insertTarget(node.callee.object, visited);
+              : insertTarget(callee.object, visited);
           }
         };
         const staticString = (node, visited = new Set()) => {
@@ -154,10 +159,7 @@ export const financialLedgerPlugin = {
           const path = new Set(visited).add(node);
           if (node.type === "Literal" && typeof node.value === "string")
             return node.value;
-          if (
-            node.type === "TSAsExpression" ||
-            node.type === "TSSatisfiesExpression"
-          )
+          if (transparentExpressions.has(node.type))
             return staticString(node.expression, path);
           if (node.type === "Identifier") {
             const definition = variable(node)?.defs.find(
@@ -202,7 +204,7 @@ export const financialLedgerPlugin = {
         };
         return {
           CallExpression(node) {
-            const callee = node.callee;
+            const callee = unwrap(node.callee);
             if (callee.type !== "MemberExpression") return;
             const method = propertyName(callee);
             if (method === "update" || method === "delete") {

@@ -1,5 +1,13 @@
 // Catch explicit PostgreSQL names at declaration sites, before PostgreSQL can
 // silently truncate them. Resolve local constant strings, not arbitrary code.
+const transparentExpressions = new Set([
+  "TSAsExpression",
+  "TSTypeAssertion",
+  "TSSatisfiesExpression",
+  "TSNonNullExpression",
+  "TSInstantiationExpression",
+  "ChainExpression",
+]);
 const namedFactories = new Set([
   "pgTable",
   "pgEnum",
@@ -48,6 +56,8 @@ export const postgresIdentifiersPlugin = {
             "Keep explicit PostgreSQL identifiers within 63 UTF-8 bytes.",
         },
         messages: {
+          transformedTableName:
+            "Declare table names explicitly with pgTable or pgSchema.table; pgTableCreator transforms names outside the declaration-time length check.",
           tooLong:
             "PostgreSQL truncates identifiers above 63 UTF-8 bytes; this name uses {{bytes}}. Shorten the declared name.",
         },
@@ -72,13 +82,7 @@ export const postgresIdentifiersPlugin = {
         const factoryName = (node, visited = new Set()) => {
           if (!node || visited.has(node)) return;
           visited.add(node);
-          if (
-            [
-              "TSAsExpression",
-              "TSSatisfiesExpression",
-              "TSInstantiationExpression",
-            ].includes(node.type)
-          )
+          if (transparentExpressions.has(node.type))
             return factoryName(node.expression, visited);
           if (node.type === "Identifier") {
             for (const definition of variable(node)?.defs ?? []) {
@@ -137,10 +141,7 @@ export const postgresIdentifiersPlugin = {
             return node.value;
           if (node.type === "TemplateLiteral" && node.expressions.length === 0)
             return node.quasis[0].value.cooked;
-          if (
-            node.type === "TSAsExpression" ||
-            node.type === "TSSatisfiesExpression"
-          )
+          if (transparentExpressions.has(node.type))
             return stringValue(node.expression, visited);
           if (node.type === "Identifier") {
             for (const definition of variable(node)?.defs ?? []) {
@@ -161,6 +162,10 @@ export const postgresIdentifiersPlugin = {
         return {
           CallExpression(node) {
             const factory = factoryName(node.callee);
+            if (factory === "pgTableCreator") {
+              context.report({ node, messageId: "transformedTableName" });
+              return;
+            }
             if (!namedFactories.has(factory)) return;
             let name = node.arguments[0];
             if (
