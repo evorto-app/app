@@ -78,7 +78,7 @@ export const postgresIdentifiersPlugin = {
           ["sequence", "pgSequence"],
         ]);
         const memberName = (node) =>
-          node.computed ? stringValue(node.property) : node.property.name;
+          node.computed ? constantValue(node.property) : node.property.name;
         const factoryName = (node, visited = new Set()) => {
           if (!node || visited.has(node)) return;
           visited.add(node);
@@ -134,29 +134,51 @@ export const postgresIdentifiersPlugin = {
               return "pg-builder";
           }
         };
-        const stringValue = (node, visited = new Set()) => {
+        const constantValue = (node, visited = new Set()) => {
           if (!node || visited.has(node)) return;
           visited.add(node);
-          if (node.type === "Literal" && typeof node.value === "string")
+          if (
+            node.type === "Literal" &&
+            (node.value === null ||
+              ["string", "number", "boolean", "bigint"].includes(
+                typeof node.value,
+              ))
+          )
             return node.value;
-          if (node.type === "TemplateLiteral" && node.expressions.length === 0)
-            return node.quasis[0].value.cooked;
+          if (node.type === "TemplateLiteral") {
+            let value = node.quasis[0].value.cooked;
+            if (typeof value !== "string") return;
+            for (let index = 0; index < node.expressions.length; index++) {
+              const expression = constantValue(
+                node.expressions[index],
+                new Set(visited),
+              );
+              const tail = node.quasis[index + 1].value.cooked;
+              if (expression === undefined || typeof tail !== "string") return;
+              value += String(expression) + tail;
+            }
+            return value;
+          }
           if (transparentExpressions.has(node.type))
-            return stringValue(node.expression, visited);
+            return constantValue(node.expression, visited);
           if (node.type === "Identifier") {
             for (const definition of variable(node)?.defs ?? []) {
               if (
                 definition.type === "Variable" &&
                 definition.parent?.kind === "const"
               )
-                return stringValue(definition.node.init, visited);
+                return constantValue(definition.node.init, visited);
             }
           }
           if (node.type === "BinaryExpression" && node.operator === "+") {
-            const left = stringValue(node.left, new Set(visited));
-            const right = stringValue(node.right, new Set(visited));
-            if (typeof left === "string" && typeof right === "string")
-              return left + right;
+            const left = constantValue(node.left, new Set(visited));
+            const right = constantValue(node.right, new Set(visited));
+            if (
+              left !== undefined &&
+              right !== undefined &&
+              (typeof left === "string" || typeof right === "string")
+            )
+              return String(left) + String(right);
           }
         };
         return {
@@ -176,11 +198,11 @@ export const postgresIdentifiersPlugin = {
                 (property) =>
                   property.type === "Property" &&
                   (property.computed
-                    ? stringValue(property.key)
+                    ? constantValue(property.key)
                     : (property.key.name ?? property.key.value)) === "name",
               )?.value;
             }
-            const value = stringValue(name);
+            const value = constantValue(name);
             if (typeof value !== "string") return;
             const bytes = new TextEncoder().encode(value).byteLength;
             if (bytes > 63)

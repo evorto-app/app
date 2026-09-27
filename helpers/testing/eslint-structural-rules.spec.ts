@@ -464,6 +464,36 @@ describe('PostgreSQL identifier diagnostics', () => {
         1,
       ],
       [
+        'constant-template table name',
+        `import { pgTable } from 'drizzle-orm/pg-core'; const name = ${long}; pgTable(\`${'${name}'}\`, {});`,
+        1,
+      ],
+      [
+        'nested constant-template name',
+        `import { pgTable } from 'drizzle-orm/pg-core'; const suffix = ${JSON.stringify('x'.repeat(60))}; const name = \`pre_${'${suffix}'}\`; pgTable(\`${'${name}'}\`, {});`,
+        1,
+      ],
+      [
+        'numeric template interpolation',
+        `import { pgTable } from 'drizzle-orm/pg-core'; const suffix = 12; pgTable(\`${'x'.repeat(62)}${'${suffix}'}\`, {});`,
+        1,
+      ],
+      [
+        'short primitive template interpolations',
+        "import { pgTable } from 'drizzle-orm/pg-core'; pgTable(`row_${12}_${true}_${null}`, {});",
+        0,
+      ],
+      [
+        'computed template schema method',
+        `import { pgSchema } from 'drizzle-orm/pg-core'; const schema = pgSchema('app'); const suffix = 'ble'; schema[\`ta${'${suffix}'}\`](${long}, {});`,
+        1,
+      ],
+      [
+        'short template name',
+        "import { pgTable } from 'drizzle-orm/pg-core'; const suffix = 'events'; pgTable(`app_${suffix}`, {});",
+        0,
+      ],
+      [
         'alias and constant',
         `import { check as constraint } from 'drizzle-orm/pg-core'; const name = ${long}; constraint(name, true);`,
         1,
