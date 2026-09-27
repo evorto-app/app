@@ -301,6 +301,19 @@ describe('structural lint diagnostics', () => {
         'let table; table = transactions; table = registrationAcquisitions; db.update(table);',
         1,
       ],
+      [
+        "const method = 'delete'!; (db as typeof db)[method]((registrationAcquisitions as typeof registrationAcquisitions)!);",
+        1,
+      ],
+      ["const method = 'update'!; (db as typeof db)[method](transactions);", 0],
+      [
+        'const query = (db.insert(registrationAcquisitions).values(value))!; (query as typeof query).onConflictDoUpdate(update);',
+        1,
+      ],
+      [
+        '(sql.raw as typeof sql.raw)!((`DELETE FROM registration_acquisitions` as const)!);',
+        1,
+      ],
       ['db.update(transactions);', 0],
       ['db.insert(registrationAcquisitionPayments).values(payment);', 0],
       ["db.execute(sql`UPDATE registration_acquisitions SET id = 'x'`);", 1],
@@ -481,6 +494,16 @@ describe('PostgreSQL identifier diagnostics', () => {
         `const value = { unique: (name: string) => name }; value.unique(${long});`,
         0,
       ],
+      [
+        'wrapped schema method and name',
+        `import { pgSchema } from 'drizzle-orm/pg-core'; const method = 'table'!; (pgSchema('app') as ReturnType<typeof pgSchema>)[method]((${long} as const)!, {});`,
+        1,
+      ],
+      [
+        'non-null factory',
+        `import { pgTable } from 'drizzle-orm/pg-core'; pgTable!(${long}, {});`,
+        1,
+      ],
       ...['pgSequence', 'pgRole', 'pgPolicy'].map(
         (factory) =>
           [
@@ -583,6 +606,36 @@ describe('Effect HTTP boundary diagnostics', () => {
         0,
       ],
       ['missing options', `${router} Router.toWebHandler(app);`, 1],
+      [
+        'non-null computed method',
+        `${router} const method = 'serve'!; Router[method](app, {});`,
+        1,
+      ],
+      [
+        'cast router alias',
+        `${router} const alias = Router as typeof Router; alias.serve(app, {});`,
+        1,
+      ],
+      [
+        'satisfies router alias',
+        `${router} const alias = Router satisfies typeof Router; alias.toWebHandler(app, {});`,
+        1,
+      ],
+      [
+        'non-null boundary function',
+        `${router} const serve = Router.serve!; serve(app, {});`,
+        1,
+      ],
+      [
+        'wrapped private options',
+        `${router} (Router as typeof Router).serve(app, ({ disableLogger: true! } as const)!);`,
+        0,
+      ],
+      [
+        'unrelated wrapped method',
+        `const other = { serve: (app: object) => app }; (other as typeof other).serve({});`,
+        0,
+      ],
       [
         'computed boundary method',
         `${router} const method = 'serve'; Router[method](app, {});`,

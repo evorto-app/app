@@ -1,6 +1,13 @@
 // Explicit boundary options keep Effect's raw URL logger out of production.
 // This resolves local constants, not arbitrary runtime or interprocedural flow.
 const methods = new Set(["serve", "toWebHandler"]);
+const transparentExpressions = new Set([
+  "TSAsExpression",
+  "TSSatisfiesExpression",
+  "TSNonNullExpression",
+  "TSInstantiationExpression",
+  "ChainExpression",
+]);
 
 export const privateHttpOptionsRule = {
   meta: {
@@ -26,10 +33,7 @@ export const privateHttpOptionsRule = {
     const constant = (node, visited = new Set()) => {
       if (!node || visited.has(node)) return;
       visited.add(node);
-      if (
-        node.type === "TSAsExpression" ||
-        node.type === "TSSatisfiesExpression"
-      )
+      if (transparentExpressions.has(node.type))
         return constant(node.expression, visited);
       if (node.type !== "Identifier") return node;
       for (const definition of variable(node)?.defs ?? []) {
@@ -49,6 +53,8 @@ export const privateHttpOptionsRule = {
     const routerBinding = (node, visited = new Set()) => {
       if (!node || visited.has(node)) return;
       visited.add(node);
+      if (transparentExpressions.has(node.type))
+        return routerBinding(node.expression, visited);
       if (node.type === "Identifier") {
         for (const definition of variable(node)?.defs ?? []) {
           if (definition.type === "ImportBinding") {
