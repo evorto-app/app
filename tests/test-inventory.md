@@ -123,7 +123,7 @@ component regressions retain retry recovery for temporary failures.
   - `docs/events/**`
   - `specs/events/**`
   - `specs/events/registration-page-readiness.test.ts` exercises the real
-    readiness helper in offline Chromium against current template headings,
+    readiness helper in offline Chromium against explicit DOM fixtures,
     covering event/sign-up read failures and a ready page with hidden errors;
     it does not replace authenticated application journeys
   - the dedicated registration-transfer spec and generated guide cover the
@@ -369,10 +369,9 @@ component regressions retain retry recovery for temporary failures.
   that a historical source discount is replaced by recipient-current pricing;
   and prove distinct exact refund plans and claims without presenting a cash or
   manually settled paid-event fallback. Its paid helper and guide are realigned
-  to the final append-only acquisition ledger: strict helper TypeScript and
-  source guards pass, and the targeted project collects the journey. This
-  inventory does not treat it as executable evidence until the detached runtime
-  and complete local gates pass without incomplete outcomes.
+  to the final append-only acquisition ledger. Type checking and test collection
+  alone are not executable evidence; the complete journey must pass the local
+  gate without incomplete outcomes.
 - `docs/events/manual-approval.doc.ts` documents the complete participant and
   organizer journey for free and paid applications. It begins from Events
   navigation, explains that applications neither reserve nor charge, reads back
@@ -460,7 +459,7 @@ component regressions retain retry recovery for temporary failures.
 ## Stabilization Coverage Watchlist
 
 The entries below are the areas to keep aligned as stabilization continues.
-Most are now covered by deterministic specs, generated docs, or source guards.
+Most are now covered by deterministic specs, generated docs, or targeted lint rules.
 This inventory supplements the release criteria in `QUALITY.md`. The external
 verification gates here are the in-app review queue and the release-gated live
 ESNcard provider credential path.
@@ -933,9 +932,9 @@ ESNcard provider credential path.
   transactions stay omitted from that surface.
 - Finance-tagged specs remain the main candidates for selective CI filtering when needed.
 - Event, registration, template, finance receipt, scanner, and event-discovery specs should fail loudly when deterministic fixture state is missing instead of silently passing through skips.
-- Playwright skip/fixme inventory must remain empty. Credential-dependent
-  projects fail their selected-run preflight when credentials are unavailable;
-  they are not represented as skipped tests.
+- The complete-run reporter fails selected Playwright runs with skipped or
+  fixme outcomes. Credential-dependent projects fail their selected-run
+  preflight when credentials are unavailable; they do not silently skip tests.
 - Keep Playwright list/discovery titles readable during authoring and review;
   placeholder metadata is an editorial concern, not a separate CI gate.
 - Credential-gated Playwright paths now include both generated docs and
