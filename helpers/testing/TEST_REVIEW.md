@@ -172,9 +172,9 @@ release execution and credential gates remain separate audit items.
 
 The Playwright fail-loud source test is also removed. Real runtime-state tests
 check malformed/missing state and routing tests check propagated setup/cleanup
-errors. A bounded ESLint rule rejects literal TLS-verification disabling in the
-two shared browser setup entrypoints; valid/invalid lint inputs verify its
-diagnostic, including quoted/computed keys and an explicitly false setting.
+errors. ESLint requires `ignoreHTTPSErrors` to be omitted or literal `false` in shared
+browser setup and documentation. Valid/invalid lint inputs exercise actual
+diagnostics for unsafe or ambiguous values and explicit quoted/computed keys.
 
 ## CI configuration and diagnostic output
 
@@ -501,7 +501,8 @@ fixture loader instead of indentation parsers or source-fragment assertions.
 The server-response source check for exact `disableLogger` spelling and variable
 names is removed. The Effect ESLint plugin now checks calls to the real
 `HttpRouter.serve`/`toWebHandler` imports, including import aliases, namespace
-access and local method aliases. It requires an explicitly true logger-disable
+access, local method aliases and object-destructured methods or namespaces. It
+requires an explicitly true logger-disable
 option, follows local constants and respects spread order. Unknown options that
 could enable the raw logger are rejected. This is bounded syntax analysis, not
 whole-program mutation/data-flow proof. Synthetic inputs verify valid options,
@@ -736,8 +737,9 @@ Ledger diagnostics cover local aliases, raw SQL constant-string interpolation,
 inline or locally stored insert/upsert builders, and each target in a `TRUNCATE`
 list. Reads and append-only inserts remain allowed. A local binding that can
 refer to protected history is treated conservatively; this is not whole-program
-control-flow analysis. Browser trace settings require explicit `off`, including
-object-form options without spreads that could replace the mode.
+control-flow analysis. Browser trace settings require explicit `off`. Object-form
+options require literal-off mode declarations without dynamic keys or spreads;
+a computed or duplicate unsafe mode is rejected with one diagnostic for the object.
 
 Canonical user contact/payment-field constraints now have one PostgreSQL test.
 It checks named constraints, unchanged rows after rejected writes, nullable
@@ -753,7 +755,11 @@ to consume its hydration marker before entering either protected identifier, the
 checks that Save is enabled. A delayed-module diagnostic observed the component
 still awaiting hydration while the submit button had no click marker; waiting on
 that button marker alone did not establish readiness. Temporary diagnostic delays
-and logging were removed. Outcome assertions and timeouts remain; failed runs
+and logging were removed. The direct tenant-detail route test also waits for its component to hydrate
+before asserting the exact tenant name within the existing five-second data
+assertion deadline. Three focused runs observed the loading shell before hydration
+and the expected tenant afterward; the original timeout DOM was not retained.
+Outcome assertions and their deadlines remain; failed runs
 and the successful repeated diagnostics are retained in task evidence.
 
 ## Review outcome and verification
