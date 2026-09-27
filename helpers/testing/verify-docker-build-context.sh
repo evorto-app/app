@@ -10,7 +10,8 @@ cp "${repository_root}/.dockerignore" "${fixture}/context/.dockerignore"
 
 # Only synthetic files enter this build; no repository secrets are copied.
 readonly excluded_paths=(
-  .env .env.dev .env.production
+  .env .env.dev .env.dev.local .env.production .env.production.local
+  .env.local .env.runtime .env.ci
   infrastructure/scaleway/staging/.terraform/provider
   infrastructure/scaleway/staging/terraform.tfstate
   infrastructure/scaleway/staging/terraform.tfstate.backup

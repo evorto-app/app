@@ -534,6 +534,31 @@ describe('Effect HTTP boundary diagnostics', () => {
       ],
       ['missing options', `${router} Router.toWebHandler(app);`, 1],
       [
+        'computed boundary method',
+        `${router} const method = 'serve'; Router[method](app, {});`,
+        1,
+      ],
+      [
+        'computed method alias',
+        `${router} const method = 'toWebHandler'; const alias = method; Router[alias](app, { disableLogger: true });`,
+        0,
+      ],
+      [
+        'computed option name',
+        `${router} const key = 'disableLogger'; Router.serve(app, { [key]: true });`,
+        0,
+      ],
+      [
+        'computed unsafe option',
+        `${router} const key = 'disableLogger'; Router.serve(app, { [key]: false });`,
+        1,
+      ],
+      [
+        'computed non-boundary method',
+        `${router} const method = 'get'; Router[method]('/', handler);`,
+        0,
+      ],
+      [
         'enabled logger',
         `${router} Router.serve(app, { disableLogger: false });`,
         1,
