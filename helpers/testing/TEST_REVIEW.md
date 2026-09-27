@@ -103,15 +103,17 @@ failure behavior. Exhaustive label typing remains compiler-enforced.
 The action pinning/secret-scope source test and its custom line/block parser are
 removed. ESLint now uses `yaml-eslint-parser` for workflow YAML and checks
 immutable action/reusable-workflow references, permissions declarations, and
-secret placement. Eighteen valid/invalid probes cover quoted and flow-style
-YAML, local actions, reusable-workflow secret forwarding, Docker digests,
+secret placement. Valid/invalid probes cover quoted and flow-style
+YAML, local and self-repository actions, reusable-workflow secret forwarding, Docker digests,
 workflow/job/run-step environments, and external-action inputs. All eleven
 current workflows pass. Input/output tests in
 `eslint-structural-rules.spec.ts` exercise the actual ESLint engine against valid
 and invalid workflow, authorization, audit, identity-fixture, and import inputs.
 They verify lint diagnostics rather than inspecting application source. The self-test that compared ESLint configuration source
 and an exact list of file globs is also removed; the real lint command runs the
-checks. No workflow execution or cloud configuration is changed.
+checks. Permissions must be declared directly on the workflow or on each job.
+Cloud configuration remains unchanged; the image job now runs its synthetic
+build-context check before building the real repository image.
 
 ## Database entrypoints and seeding
 
@@ -690,7 +692,8 @@ dependency review, with the existing Docker/Compose Dependabot configuration and
 pinned images unchanged. We do not add a custom Dockerfile parser solely to enforce
 tag spelling; a digest is the immutable identity regardless of its tag label.
 
-The image verification gate now performs a tiny native Docker scratch build with
+Before the real repository image build, the image verification gate performs a
+tiny native Docker scratch build with
 the real `.dockerignore` and synthetic sensitive files. It checks the exported
 result excludes local dotenv, Terraform state/configuration and test artifacts,
 while preserving the application build inputs. No repository secrets enter this
@@ -714,7 +717,30 @@ now assert the actual fake-curl invocation has safe protocol/configuration optio
 and no retry or redirect flags, alongside existing argument/environment privacy
 and delivered payload checks. No external request is made.
 
-## Review outcome and remaining validation
+## Review refinements
+
+Foundation review strengthened the lint rules around direct, supported syntax.
+Ledger diagnostics cover local aliases, raw SQL constant-string interpolation,
+inline or locally stored insert/upsert builders, and each target in a `TRUNCATE`
+list. Reads and append-only inserts remain allowed. A local binding that can
+refer to protected history is treated conservatively; this is not whole-program
+control-flow analysis. Browser trace settings require explicit `off`, including
+object-form options without spreads that could replace the mode.
+
+Canonical user contact/payment-field constraints now have one PostgreSQL test.
+It checks named constraints, unchanged rows after rejected writes, nullable
+optional values and the exact email-length boundary. The weaker duplicate in the
+onboarding fixture was removed, retaining its unique invalid-domain input.
+Add-on fixtures are cleaned after each case, expiry-predicate queries are scoped
+to the fixture tenant, and currency races wait for the actual blocking backend.
+
+The tax-rate browser test selects the named attendee choice instead of relying
+on database row order. Accessibility scanning waits for the missing-event error
+panel to hydrate, and the live-card journey waits for its reloaded form before
+entering the expired protected identifier. The original outcome assertions and
+timeouts remain; failed runs are retained in task evidence.
+
+## Review outcome and verification
 
 The source-inspection pass is complete. Remaining filesystem reads load executable
 fixture commands or inspect actual generated artifacts and process output. The
@@ -733,6 +759,9 @@ failure outcomes; reducing those assertions solely for test-count savings would
 remove useful protection. Earlier lifecycle grace reductions and removal of a
 duplicate production build already target measured repeated work.
 
-Full local publication gates, fresh reviews, hosted checks and timing comparison,
-and merge are still required. Passing targeted tests does not close the goal.
-Scaleway cloud operations remain deferred.
+Publication and merge require the full local suites, fresh reviews, hosted
+checks and a timing comparison. Validation and delivery evidence are recorded in
+[the foundation PR](https://github.com/evorto-app/app/pull/198) and
+[the remaining cleanup PR](https://github.com/evorto-app/app/pull/197).
+Passing targeted tests alone does not satisfy those gates. Scaleway cloud
+operations remain deferred.

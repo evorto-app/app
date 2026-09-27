@@ -344,10 +344,11 @@ atomic; database or runtime failures can still interrupt that workflow.
 
 ## Docker build-context verification
 
-`bun run image:verify -- IMAGE` and `bun run image:security:local` exercise the
-repository `.dockerignore` through a small scratch build containing only synthetic
-files. The exported result must exclude local secrets, Terraform state/configuration
+The CI image job and `bun run image:security:local` verify the repository
+`.dockerignore` before sending the real repository context to Docker. A small
+scratch build contains only synthetic files. The exported result must exclude local secrets, Terraform state/configuration
 and test artifacts while retaining application inputs. Run
 `bash helpers/testing/verify-docker-build-context.sh` for this check alone.
+`bun run image:verify -- IMAGE` checks an already-built runtime image.
 Review immutable Docker/Compose image digests when updating dependencies; the
 existing Dependabot entries propose image updates.
