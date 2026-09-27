@@ -10,6 +10,8 @@ cp "${repository_root}/.dockerignore" "${fixture}/context/.dockerignore"
 
 # Only synthetic files enter this build; no repository secrets are copied.
 readonly excluded_paths=(
+  .git/HEAD .angular/fixture.ts node_modules/fixture.js e2e/fixture.ts
+  playwright.config.ts old/fixture dist/fixture
   .env .env.dev .env.dev.local .env.production .env.production.local
   .env.local .env.runtime .env.ci
   infrastructure/scaleway/staging/.terraform/provider

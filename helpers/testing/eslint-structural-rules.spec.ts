@@ -431,6 +431,31 @@ describe('PostgreSQL identifier diagnostics', () => {
         `import * as pg from 'drizzle-orm/pg-core'; pg.index(${long});`,
         1,
       ],
+      [
+        'computed namespace factory',
+        `import * as pg from 'drizzle-orm/pg-core'; const method = 'pgSequence'; pg[method](${long});`,
+        1,
+      ],
+      [
+        'computed schema method',
+        `import { pgSchema } from 'drizzle-orm/pg-core'; const schema = pgSchema('app'); const method = 'table'; schema[method](${long}, {});`,
+        1,
+      ],
+      [
+        'computed schema method with short name',
+        "import { pgSchema } from 'drizzle-orm/pg-core'; const schema = pgSchema('app'); const method = 'table'; schema[method]('events', {});",
+        0,
+      ],
+      [
+        'computed foreign key name',
+        `import { foreignKey } from 'drizzle-orm/pg-core'; const key = 'name'; foreignKey({ [key]: ${long}, columns: [], foreignColumns: [] });`,
+        1,
+      ],
+      [
+        'unrelated computed method',
+        `const schema = { table: (name: string) => name }; const method = 'table'; schema[method](${long});`,
+        0,
+      ],
       ...['pgSequence', 'pgRole', 'pgPolicy'].map(
         (factory) =>
           [

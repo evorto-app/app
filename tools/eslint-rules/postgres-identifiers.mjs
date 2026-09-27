@@ -68,7 +68,7 @@ export const postgresIdentifiersPlugin = {
           ["sequence", "pgSequence"],
         ]);
         const memberName = (node) =>
-          node.computed ? node.property.value : node.property.name;
+          node.computed ? stringValue(node.property) : node.property.name;
         const factoryName = (node, visited = new Set()) => {
           if (!node || visited.has(node)) return;
           visited.add(node);
@@ -160,7 +160,7 @@ export const postgresIdentifiersPlugin = {
                 (property) =>
                   property.type === "Property" &&
                   (property.computed
-                    ? property.key.value
+                    ? stringValue(property.key)
                     : (property.key.name ?? property.key.value)) === "name",
               )?.value;
             }
