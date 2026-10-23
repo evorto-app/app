@@ -1,3 +1,4 @@
+import { findSqlError } from '@db/sql-error';
 import {
   RpcBadRequestError,
   RpcForbiddenError,
@@ -11,9 +12,7 @@ import {
 } from '@shared/rpc-contracts/app-rpcs/discounts.errors';
 import { resolveTenantDiscountProviders } from '@shared/tenant-config';
 import { and, eq } from 'drizzle-orm';
-import { EffectDrizzleQueryError } from 'drizzle-orm/effect-core';
-import { Cause, Effect } from 'effect';
-import { isSqlError } from 'effect/sql/SqlError';
+import { Effect } from 'effect';
 
 import type { AppRpcHandlers } from './shared/handler-types';
 
@@ -41,21 +40,9 @@ const databaseEffect = <A>(
   Database.use((database) => operation(database).pipe(Effect.orDie));
 
 const cardSaveConflict = (error: unknown) => {
-  if (
-    !(error instanceof EffectDrizzleQueryError) ||
-    !Cause.isCause(error.cause) ||
-    error.cause.reasons.length !== 1
-  )
-    return;
-  const failure = error.cause.reasons[0];
-  if (
-    !failure ||
-    !Cause.isFailReason(failure) ||
-    !isSqlError(failure.error) ||
-    failure.error.reason._tag !== 'UniqueViolation'
-  )
-    return;
-  switch (failure.error.reason.constraint) {
+  const sqlError = findSqlError(error);
+  if (sqlError?.reason._tag !== 'UniqueViolation') return;
+  switch (sqlError.reason.constraint) {
     case userDiscountCardIdentifierUniqueConstraintName: {
       return new DiscountCardConflictError({
         message: 'This ESNcard is already linked to another account.',

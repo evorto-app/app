@@ -4,6 +4,7 @@ import type Stripe from 'stripe';
 import { createId } from '@db/create-id';
 import { Database } from '@db/index';
 import {
+  activeRegistrationTransferSourceUniqueIndexName,
   eventAddons,
   eventInstances,
   eventRegistrationAddonPurchaseLots,
@@ -34,6 +35,7 @@ import {
   users,
   usersToTenants,
 } from '@db/schema';
+import { isUniqueConstraintViolation } from '@db/sql-error';
 import { lockUserDiscountCards } from '@server/discounts/user-discount-card-lock';
 import {
   MAX_EVENT_ADDON_TYPES,
@@ -100,7 +102,6 @@ import {
   deriveRegistrationTransferClaimCode,
   hashRegistrationTransferClaimCode,
 } from './registration-transfer-claim-code';
-import { isActiveRegistrationTransferUniqueViolation } from './registration-transfer-constraint';
 import { expireRegistrationTransferCheckout } from './registration-transfer-finalization';
 import {
   registrationTransferBasePrice,
@@ -1472,7 +1473,12 @@ const createOffer = Effect.fn('RegistrationTransferService.createOffer')(
               | RegistrationTransferConflictError
               | RegistrationTransferInternalError
             > => {
-              if (isActiveRegistrationTransferUniqueViolation(error)) {
+              if (
+                isUniqueConstraintViolation(
+                  error,
+                  activeRegistrationTransferSourceUniqueIndexName,
+                )
+              ) {
                 return Effect.fail(
                   new RegistrationTransferConflictError({
                     message:

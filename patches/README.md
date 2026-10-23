@@ -11,7 +11,10 @@ Keep runtime changes here rather than editing the pristine source snapshots in
 - The Effect Angular bridge patches retain Angular 22 peer support. The platform
   bridge also uses the stable Effect 4 HTTP/RPC import paths in its runtime and
   type declarations.
-- The Material color utility patch retains the existing package integration.
+- The Material color utility patch fixes missing `.js` extensions in the
+  published 0.4.0 ES module imports. Importing the unpatched package in Node
+  24.22.1 fails with `ERR_MODULE_NOT_FOUND`; retain it until a corrected release
+  is published.
 - The Drizzle rc.4 error-constructor patch was removed: rc.5 uses the supported
   Effect `Schema.TaggedError` API upstream.
 

@@ -2,28 +2,22 @@ import { EffectDrizzleQueryError } from 'drizzle-orm/effect-core';
 import { Cause } from 'effect';
 import { isSqlError, type SqlError } from 'effect/sql/SqlError';
 
-export const ACTIVE_REGISTRATION_UNIQUE_CONSTRAINT =
-  'event_registrations_active_user_event_unique';
-export const PENDING_REGISTRATION_TRANSACTION_UNIQUE_CONSTRAINT =
-  'transactions_pending_registration_unique';
-
-const findSqlError = (error: unknown): SqlError | undefined => {
+export const findSqlError = (error: unknown): SqlError | undefined => {
   if (isSqlError(error)) {
     return error;
   }
   if (
     !(error instanceof EffectDrizzleQueryError) ||
-    !Cause.isCause(error.cause)
+    !Cause.isCause(error.cause) ||
+    error.cause.reasons.length !== 1
   ) {
     return undefined;
   }
 
-  for (const reason of error.cause.reasons) {
-    if (Cause.isFailReason(reason) && isSqlError(reason.error)) {
-      return reason.error;
-    }
-  }
-  return undefined;
+  const reason = error.cause.reasons[0];
+  return reason && Cause.isFailReason(reason) && isSqlError(reason.error)
+    ? reason.error
+    : undefined;
 };
 
 export const isUniqueConstraintViolation = (

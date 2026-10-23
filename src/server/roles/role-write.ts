@@ -1,6 +1,5 @@
-import { EffectDrizzleQueryError } from 'drizzle-orm/effect-core';
-import { Cause, Effect } from 'effect';
-import { isSqlError, type SqlError } from 'effect/sql/SqlError';
+import { findSqlError } from '@db/sql-error';
+import { Effect } from 'effect';
 
 import { roleTenantNameUniqueConstraintName } from '../../db/schema';
 import {
@@ -82,25 +81,6 @@ export const normalizeRoleWrite = Effect.fn('RoleWrite.normalize')(function* (
     permissions: [...new Set(partitionedPermissions.accepted)].toSorted(),
   } satisfies NormalizedRoleWrite;
 });
-
-const findSqlError = (error: unknown): SqlError | undefined => {
-  if (isSqlError(error)) {
-    return error;
-  }
-  if (
-    !(error instanceof EffectDrizzleQueryError) ||
-    !Cause.isCause(error.cause)
-  ) {
-    return;
-  }
-
-  for (const reason of error.cause.reasons) {
-    if (Cause.isFailReason(reason) && isSqlError(reason.error)) {
-      return reason.error;
-    }
-  }
-  return;
-};
 
 export const roleNameConflictFromDatabase = (
   error: unknown,
