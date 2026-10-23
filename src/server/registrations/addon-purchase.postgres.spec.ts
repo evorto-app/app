@@ -193,6 +193,7 @@ const makeLayer = (url: string, stripe: Stripe = fakeStripe) => {
         DATABASE_TLS_REQUIRED: 'false',
         DATABASE_URL: url,
         NODE_ENV: 'test',
+        SECRET: 'addon-transfer-test-secret-32-bytes',
       },
     }),
   );
@@ -806,6 +807,7 @@ const makeBarrierLayer = (url: string, stripe: Stripe) => {
         BASE_URL: 'https://addon-purchase.example',
         DATABASE_TLS_REQUIRED: 'false',
         NODE_ENV: 'test',
+        SECRET: 'addon-transfer-test-secret-32-bytes',
       },
     }),
   );

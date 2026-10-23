@@ -1,7 +1,6 @@
 import type { Permission } from '@shared/permissions/permissions';
 import type { EventsEventListDayRecord } from '@shared/rpc-contracts/app-rpcs/events.rpcs';
 
-import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
 import {
   ApplicationRef,
   createEnvironmentInjector,
@@ -10,7 +9,6 @@ import {
   signal,
 } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { MatMenuHarness } from '@angular/material/menu/testing';
 import { provideRouter } from '@angular/router';
 import { createRpcQueryKey } from '@heddendorp/effect-angular-query';
 import { provideTanStackQuery } from '@tanstack/angular-query-experimental';
@@ -217,32 +215,19 @@ describe('EventListComponent load recovery', () => {
   );
 
   it.each(['events:create', 'events:*'] satisfies Permission[])(
-    'keeps the working creation menu for %s and removes it when access is revoked',
+    'shows one creation link for %s and removes it when access is revoked',
     async (permission) => {
       const { fixture, permissions, root } = renderWithPermissions([
         permission,
       ]);
-      const menu = await TestbedHarnessEnvironment.loader(fixture).getHarness(
-        MatMenuHarness.with({
-          selector: '[aria-label="Open event list actions"]',
-        }),
-      );
-      await menu.open();
-      const items = await menu.getItems();
-      expect(items).toHaveLength(1);
-      const [createEvent] = items;
-      if (!createEvent) throw new Error('Expected the create event action.');
-      expect(await createEvent.getText()).toBe('Create Event');
-      const createEventLink = await createEvent.host();
-      expect(await createEventLink.getAttribute('href')).toBe('/templates');
-      await menu.close();
+      const createEventLinks = root.querySelectorAll('a[href="/templates"]');
+      expect(createEventLinks).toHaveLength(1);
+      expect(createEventLinks[0]?.textContent?.trim()).toBe('Create Event');
       permissions.set([]);
       fixture.detectChanges();
       await fixture.whenStable();
 
-      expect(
-        root.querySelector('[aria-label="Open event list actions"]'),
-      ).toBeNull();
+      expect(root.querySelector('a[href="/templates"]')).toBeNull();
       expect(root.querySelector('a[href="/event-1"]')?.textContent).toContain(
         'Recovery workshop',
       );
@@ -631,12 +616,15 @@ describe('EventListComponent server rendering readiness', () => {
 
   const cacheFirstPage = () => {
     queryClient.setQueryData(
-      readinessEventListKey({
-        limit: EVENT_LIST_PAGE_SIZE,
-        offset: 0,
-        startAfter,
-        status: ['APPROVED'],
-      }),
+      [
+        ...readinessEventListKey({
+          limit: EVENT_LIST_PAGE_SIZE,
+          offset: 0,
+          startAfter,
+          status: ['APPROVED', 'DRAFT', 'PENDING_REVIEW'],
+        }),
+        { canSeeDrafts: false },
+      ],
       { pageParams: [0], pages: [listedEvents] },
     );
   };
@@ -836,6 +824,9 @@ describe('event list paging', () => {
 describe('eventListSignUpStateLabel', () => {
   it('maps each server state to concise participant copy', () => {
     expect(eventListSignUpStateLabel('confirmed')).toBe('Place confirmed');
+    expect(eventListSignUpStateLabel('organizerConfirmed')).toBe(
+      'Organizer confirmed',
+    );
     expect(eventListSignUpStateLabel('approvalPending')).toBe(
       'Waiting for approval',
     );

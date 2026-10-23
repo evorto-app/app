@@ -35,6 +35,7 @@ import { RegistrationTransfersRpcError } from '@shared/rpc-contracts/app-rpcs/re
 import {
   injectMutation,
   injectQuery,
+  QueryClient,
 } from '@tanstack/angular-query-experimental';
 import { Schema } from 'effect';
 
@@ -362,9 +363,23 @@ export const registrationTransferStatusCopy = (
 @Injectable({ providedIn: 'root' })
 export class RegistrationTransferClaimOperations {
   private readonly rpc = AppRpc.injectClient();
+  private readonly queryClient = inject(QueryClient);
 
   claim() {
-    return this.rpc.registrationTransfers.claim.mutationOptions();
+    return this.rpc.registrationTransfers.claim.mutationOptions({
+      overrides: {
+        onSuccess: async () => {
+          await Promise.all([
+            this.queryClient.invalidateQueries(
+              this.rpc.queryFilter(['events', 'eventList']),
+            ),
+            this.queryClient.invalidateQueries({
+              queryKey: this.rpc.users.events.queryKey(),
+            }),
+          ]);
+        },
+      },
+    });
   }
 
   getClaim(claimCode: string) {

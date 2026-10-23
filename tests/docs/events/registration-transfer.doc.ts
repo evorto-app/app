@@ -219,7 +219,7 @@ Neither account needs organizer or administrator access for this attendee transf
 
 Only a confirmed ticket within the set transfer deadline can be offered. Existing attendee/guest check-in and add-on fulfillment history remain part of the fixed bundle and move unchanged.
 
-The private transfer code grants access to the offer. Share it privately with exactly one intended recipient. The separate transfer page link opens the code-entry page and does not contain the private code.
+The private transfer code grants access to the offer. Share it privately with exactly one intended recipient. The separate transfer page link opens the code-entry page and does not contain the private code. While the offer is open, select **Show transfer code** on your ticket to reopen the code and both copy actions, including after reloading the page.
 {% /callout %}
 
 

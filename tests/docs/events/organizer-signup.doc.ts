@@ -123,16 +123,16 @@ test.describe('Organizer and helper sign-up', () => {
 {% callout type="note" title="Before you start" %}
 This guide is for a signed-in organization member who wants to help run an event. The event must be published, sign-up must be open, the organizer/helper category must have space, and it must be available to one of your roles.
 
-Organizer/helper sign-ups never include guests or a waitlist. If you are attending instead of helping, use an **Attendee choice**. Evorto allows one active ticket per person and event, so cancel an existing attendee ticket before choosing an organizer/helper category, or cancel the organizer/helper ticket before signing up as an attendee.
+Organizer/helper sign-ups never include guests or a waitlist. If you are attending instead of helping, use the attendee sign-up card. Evorto allows one active ticket per person and event, so cancel an existing attendee ticket before choosing an organizer/helper category, or cancel the organizer/helper ticket before signing up as an attendee.
 {% /callout %}
 
 
 1. Sign in to Evorto.
 2. Select **Events** in the main navigation.
 3. Open the event you will help run.
-4. Find **Organizer/helper opportunities**, then review the category title, description, who can join, and dates.
+4. Under **Your sign-up**, find the organizer sign-up card and review its title and description.
 
-The separate **Sign-up choices for attendees** group is for people attending the event. Do not use that group when you need organizer tools.
+Attendee sign-up cards are for attending the event. Choose an organizer/helper card when you will help run it.
 `,
     });
 
@@ -142,22 +142,13 @@ The separate **Sign-up choices for attendees** group is for people attending the
       scenario.organizerOption.title,
     );
     await expect(organizerCard).toBeVisible();
-    await expect(
-      organizerCard.getByText('Organizer/helper choice', { exact: true }),
-    ).toBeVisible();
-    await expect(
-      organizerCard.getByText(
-        'Use this choice when you are helping run the event.',
-        { exact: true },
-      ),
-    ).toBeVisible();
     await expect(organizerCard.getByLabel('Guests')).toHaveCount(0);
     await expect(
       organizerCard.getByRole('button', { name: 'Join waitlist' }),
     ).toHaveCount(0);
     const signupAction = organizerCard.getByRole('button', {
       exact: true,
-      name: 'Sign up as organizer/helper',
+      name: 'Sign up',
     });
     await waitForHydratedAction(signupAction);
     await takeScreenshot(
@@ -171,7 +162,7 @@ The separate **Sign-up choices for attendees** group is for people attending the
       body: `
 ### Confirm the organizer/helper ticket
 
-Select **Sign up as organizer/helper**. A free first-come, first-served category confirms immediately when the choice is still available to you and a place remains. The event page then shows **Organizer/helper ticket confirmed**, your organizer/helper pass, and **Organize this event**.
+Select **Sign up**. A free first-come, first-served category confirms immediately when the choice is still available to you and a place remains. The event page then shows **Organizer/helper ticket confirmed**, your organizer/helper pass, and **Organize this event**.
 
 The pass identifies this as an organizer/helper ticket. Organizer tools become available only after the ticket is confirmed; copying an organizer link does not make them available.
 `,
@@ -350,8 +341,8 @@ An application does not provide organizer tools, reserve a place, or create a pa
 
 
 1. Select **Events** and open the event.
-2. In **Organizer/helper opportunities**, choose the category that matches the work you will do.
-3. Read the application explanation, then select **Apply as organizer/helper**.
+2. Under **Your sign-up**, choose the organizer/helper card that matches the work you will do.
+3. Read the application explanation, then select **Apply**.
 
 Only organizer/helper choices available to your roles appear. Attendee choices remain separate.
 `,
@@ -364,13 +355,8 @@ Only organizer/helper choices available to your roles appear. Attendee choices r
       );
       await expect(applicationCard).toBeVisible();
       await expect(
-        applicationCard.getByText('Organizer/helper application', {
-          exact: true,
-        }),
-      ).toBeVisible();
-      await expect(
         applicationCard.getByText(
-          'Applying does not confirm organizer access. An organizer reviews your application first; if this choice has a fee, payment starts only after approval.',
+          'Approval required. Any payment follows approval.',
           { exact: true },
         ),
       ).toBeVisible();
@@ -400,7 +386,7 @@ Only organizer/helper choices available to your roles appear. Attendee choices r
 
       const applyAction = applicationCard.getByRole('button', {
         exact: true,
-        name: 'Apply as organizer/helper',
+        name: 'Apply',
       });
       await waitForHydratedAction(applyAction);
       await applyAction.click();
@@ -467,7 +453,7 @@ To withdraw while the application is pending:
 2. Read **Withdraw your application?**. The confirmation explains that no confirmed place is released and no refund starts.
 3. Select **Go back** to leave the pending application unchanged, or **Withdraw application** to continue. When the confirmation opens, pressing Enter chooses **Go back** and leaves the application unchanged.
 
-After withdrawal, the pending application disappears and **Apply as organizer/helper** is available again. Because a pending application never granted organizer/helper access, the organizer overview and pass remain unavailable. The number of available places remains unchanged, and no payment starts.
+After withdrawal, the pending application disappears and **Apply** is available again. Because a pending application never granted organizer/helper access, the organizer overview and pass remain unavailable. The number of available places remains unchanged, and no payment starts.
 `,
       });
 
@@ -512,7 +498,7 @@ After withdrawal, the pending application disappears and **Apply as organizer/he
       await expect(
         applicationCard.getByRole('button', {
           exact: true,
-          name: 'Apply as organizer/helper',
+          name: 'Apply',
         }),
       ).toBeVisible({ timeout: 20_000 });
       await expect
@@ -568,7 +554,7 @@ After withdrawal, the pending application disappears and **Apply as organizer/he
         body: `
 ### Apply again
 
-If you withdrew by mistake or your plans change again, return through **Events**, open the event, and select **Apply as organizer/helper**. Sign-up must still be open and the choice must still be available to your role.
+If you withdrew by mistake or your plans change again, return through **Events**, open the event, and select **Apply**. Sign-up must still be open and the choice must still be available to your role.
 
 Applying again starts a new pending application; it does not restore the withdrawn one. The new application still reserves no place, starts no payment, and grants no organizer/helper access before approval.
 `,
@@ -580,7 +566,7 @@ Applying again starts a new pending application; it does not restore the withdra
         scenario.organizerOption.title,
       ).getByRole('button', {
         exact: true,
-        name: 'Apply as organizer/helper',
+        name: 'Apply',
       });
       await waitForHydratedAction(reapplyAction);
       await reapplyAction.click();

@@ -442,7 +442,7 @@ test('platform restores an original test Checkout and records its reason @admin 
   ).toHaveAttribute('href', scenario.checkoutUrl);
   await expect(
     attendee.page.getByRole('button', {
-      name: 'Apply for approval',
+      name: 'Apply',
       exact: true,
     }),
   ).toHaveCount(0);

@@ -1118,6 +1118,7 @@ const questionRaceLayer = (
         BASE_URL: 'https://question-race.example',
         DATABASE_TLS_REQUIRED: 'false',
         DATABASE_URL: url,
+        SECRET: 'question-transfer-test-secret-32-bytes',
         ...(pinnedNowIso && { E2E_NOW_ISO: pinnedNowIso }),
       },
     }),

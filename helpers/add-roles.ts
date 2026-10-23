@@ -29,7 +29,6 @@ export const addRoles = (
         name: 'Section member',
         permissions: [
           'events:create',
-          'templates:create',
           'templates:view',
           'internal:viewInternalPages',
         ],
@@ -42,7 +41,6 @@ export const addRoles = (
         name: 'Trial member',
         permissions: [
           'events:create',
-          'templates:create',
           'templates:view',
           'internal:viewInternalPages',
         ],

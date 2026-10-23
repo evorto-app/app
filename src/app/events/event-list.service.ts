@@ -64,19 +64,15 @@ export class EventListService {
     this.permissions.hasPermission('events:seeDrafts');
   private readonly startAfter = new Date().toISOString();
 
-  private readonly filterInput = computed(() => {
-    const status = this.canSeeDrafts()
-      ? (['APPROVED', 'DRAFT', 'PENDING_REVIEW'] as const)
-      : (['APPROVED'] as const);
-    return {
-      limit: EVENT_LIST_PAGE_SIZE,
-      startAfter: this.startAfter,
-      status,
-    };
-  });
+  private readonly filterInput = {
+    limit: EVENT_LIST_PAGE_SIZE,
+    startAfter: this.startAfter,
+    // The server scopes unpublished rows to the creator or authorized viewers.
+    status: ['APPROVED', 'DRAFT', 'PENDING_REVIEW'] as const,
+  };
 
   readonly eventQuery = injectInfiniteQuery(() => {
-    const input = this.filterInput();
+    const input = this.filterInput;
     return {
       getNextPageParam: (
         lastPage: readonly EventsEventListDayRecord[],
@@ -85,7 +81,10 @@ export class EventListService {
       initialPageParam: 0,
       queryFn: ({ pageParam }: { readonly pageParam: number }) =>
         this.findEvents.call({ ...input, offset: pageParam }),
-      queryKey: this.findEvents.queryKey({ ...input, offset: 0 }),
+      queryKey: [
+        ...this.findEvents.queryKey({ ...input, offset: 0 }),
+        { canSeeDrafts: this.canSeeDrafts() },
+      ],
     };
   });
 

@@ -1,7 +1,12 @@
 <div
-  class="grid grid-cols-1 lg:relative lg:h-full lg:grid-cols-[400px_1fr] lg:gap-4"
+  class="grid grid-cols-1 lg:relative lg:h-full lg:min-h-0 lg:grid-cols-[400px_1fr] lg:grid-rows-[minmax(0,1fr)] lg:gap-4"
 >
-  <div class="lg:h-full lg:overflow-y-auto lg:rounded-t-lg lg:p-4">
+  <div
+    class="lg:min-h-0 lg:overflow-y-auto lg:overscroll-y-contain lg:rounded-t-lg lg:p-4"
+    role="region"
+    aria-label="Event list"
+    tabindex="0"
+  >
     <div
       class="mb-4 {{
         outletActive() ? 'hidden' : 'flex'
@@ -13,28 +18,9 @@
         mat-button
         routerLink="/templates"
         *appIfAnyPermission="['events:create']"
-        class="hidden! lg:flex!"
       >
         Create Event
       </a>
-      <button
-        type="button"
-        mat-icon-button
-        aria-label="Open event list actions"
-        [matMenuTriggerFor]="menu"
-        *appIfAnyPermission="['events:create']"
-      >
-        <fa-icon [icon]="faEllipsisVertical" />
-      </button>
-      <mat-menu #menu="matMenu">
-        <a
-          routerLink="/templates"
-          mat-menu-item
-          *appIfAnyPermission="['events:create']"
-        >
-          Create Event
-        </a>
-      </mat-menu>
     </div>
     <nav
       class="{{
@@ -132,22 +118,6 @@
                       <fa-icon [icon]="faClock" />
                       <p>{{ event.start | date: "shortTime" }}</p>
                     </div>
-                    <span
-                      class="label-medium bg-secondary-container text-on-secondary-container rounded-full px-2 py-1"
-                      [matTooltip]="
-                        eventDiscoveryDescription({
-                          announcementRoleCount: event.announcementRoleCount,
-                          hasRegistrationOptions: event.hasRegistrationOptions,
-                        })
-                      "
-                    >
-                      {{
-                        eventDiscoveryLabel({
-                          announcementRoleCount: event.announcementRoleCount,
-                          hasRegistrationOptions: event.hasRegistrationOptions,
-                        })
-                      }}
-                    </span>
                     @if (
                       eventListSignUpStateLabel(event.userSignUpState);
                       as signUpStateLabel
@@ -198,7 +168,12 @@
       }
     </nav>
   </div>
-  <div class="lg:h-full lg:pr-4">
+  <div
+    class="lg:min-h-0 lg:min-w-0 lg:overflow-y-auto lg:overscroll-y-contain lg:pr-4"
+    role="region"
+    aria-label="Selected event"
+    tabindex="0"
+  >
     <router-outlet
       (activate)="outletActive.set(true)"
       (deactivate)="outletActive.set(false)"

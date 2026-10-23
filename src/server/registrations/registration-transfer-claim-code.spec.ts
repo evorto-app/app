@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   createRegistrationTransferClaimCode,
+  deriveRegistrationTransferClaimCode,
   hashRegistrationTransferClaimCode,
   normalizeRegistrationTransferClaimCode,
 } from './registration-transfer-claim-code';
@@ -30,5 +31,32 @@ describe('registration transfer claim code', () => {
     expect(normalizeRegistrationTransferClaimCode('ABCD_1234')).toBe(
       'ABCD_1234',
     );
+  });
+});
+
+describe('recoverable owner transfer codes', () => {
+  it('recovers the same code and isolates keys, tenants, and offers', () => {
+    const code = deriveRegistrationTransferClaimCode(
+      'test-secret',
+      'tenant-1',
+      'offer-1',
+    );
+    expect(code).toEqual(
+      deriveRegistrationTransferClaimCode('test-secret', 'tenant-1', 'offer-1'),
+    );
+    expect(code.claimCode).toMatch(/^(?:[0-9A-F]{4}-){7}[0-9A-F]{4}$/u);
+    expect(code.claimCodeHash).toBe(
+      hashRegistrationTransferClaimCode(code.claimCode),
+    );
+    for (const other of [
+      deriveRegistrationTransferClaimCode(
+        'other-secret',
+        'tenant-1',
+        'offer-1',
+      ),
+      deriveRegistrationTransferClaimCode('test-secret', 'tenant-2', 'offer-1'),
+      deriveRegistrationTransferClaimCode('test-secret', 'tenant-1', 'offer-2'),
+    ])
+      expect(other.claimCode).not.toBe(code.claimCode);
   });
 });

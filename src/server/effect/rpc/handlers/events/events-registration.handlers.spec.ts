@@ -4182,6 +4182,7 @@ describe('event registration cancellation handlers', () => {
         ),
         eventStart,
         now: beforeDeadline,
+        pendingPayment: false,
       }),
     ).toEqual({
       cancellationAvailable: true,
@@ -4196,6 +4197,7 @@ describe('event registration cancellation handlers', () => {
         ),
         eventStart,
         now: atDeadline,
+        pendingPayment: false,
       }),
     ).toEqual({
       cancellationAvailable: false,
@@ -4210,11 +4212,32 @@ describe('event registration cancellation handlers', () => {
         ),
         eventStart,
         now: atDeadline,
+        pendingPayment: false,
       }),
     ).toEqual({
       cancellationAvailable: true,
       cancellationBlockedReason: 'none',
     });
+  });
+
+  it('allows an unpaid pending checkout to be abandoned after the deadline or event start', () => {
+    for (const now of [
+      new Date('2026-09-18T12:00:00Z'),
+      new Date('2026-09-20T12:00:00Z'),
+    ]) {
+      expect(
+        registrationCancellationAvailability({
+          checkInTime: null,
+          deadlineHoursBeforeStart: 48,
+          eventStart: new Date('2026-09-19T09:00:00Z'),
+          now,
+          pendingPayment: true,
+        }),
+      ).toEqual({
+        cancellationAvailable: true,
+        cancellationBlockedReason: 'none',
+      });
+    }
   });
 
   it('reports check-in and event start before the deadline fallback', () => {
@@ -4226,6 +4249,7 @@ describe('event registration cancellation handlers', () => {
         deadlineHoursBeforeStart: 48,
         eventStart,
         now: new Date('2026-09-18T09:00:00.000Z'),
+        pendingPayment: false,
       }),
     ).toEqual({
       cancellationAvailable: false,
@@ -4237,6 +4261,7 @@ describe('event registration cancellation handlers', () => {
         deadlineHoursBeforeStart: 0,
         eventStart,
         now: eventStart,
+        pendingPayment: false,
       }),
     ).toEqual({
       cancellationAvailable: false,
@@ -5527,7 +5552,7 @@ describe('event registration cancellation handlers', () => {
   );
 
   it.effect(
-    'cancels pending guest registrations and releases buyer plus guest reserved spots',
+    'cancels unpaid checkout after the ticket deadline and releases buyer plus guest reserved spots',
     () =>
       Effect.gen(function* () {
         const { databaseLayer, lifecycle, transactionCommands, writes } =
@@ -5553,9 +5578,11 @@ describe('event registration cancellation handlers', () => {
           Effect.provide(
             createSqlContextLayer({
               databaseLayer,
+              nowIso: new Date().toISOString(),
               stripe,
               tenant: {
                 ...tenant,
+                cancellationDeadlineHoursBeforeStart: 48,
                 stripeAccountId: 'acct_123',
               },
             }),

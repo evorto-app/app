@@ -71,15 +71,12 @@ const applyForApproval = async (
     .locator('app-event-registration-option')
     .filter({ hasText: scenario.optionTitle });
   await expect(
-    registrationCard.getByText('Organizer approval required'),
-  ).toBeVisible();
-  await expect(
     registrationCard.getByText(
-      'Applying does not charge you or confirm a place. An organizer reviews the application first; if this choice has a fee, payment starts only after approval.',
+      'Approval required. Any payment follows approval.',
     ),
   ).toBeVisible();
   const applyButton = registrationCard.getByRole('button', {
-    name: 'Apply for approval',
+    name: 'Apply',
   });
   // SSR exposes the application action before Angular attaches its live click
   // listener. Event replay removes `jsaction` once the action is interactive.
@@ -90,9 +87,7 @@ const applyForApproval = async (
   await expect(
     page.getByText('Your ticket is pending organizer approval.'),
   ).toBeVisible({ timeout: 15_000 });
-  await expect(
-    page.getByRole('button', { name: 'Apply for approval' }),
-  ).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Apply' })).toHaveCount(0);
 };
 
 const findParticipantRegistration = async (
@@ -228,13 +223,11 @@ test.describe('Manual approval registrations', () => {
 
     await page.reload();
     await waitForRegistrationStatus(page);
-    await expect(page.getByText('Your place is confirmed')).toBeVisible();
+    await expect(page.getByText('Your ticket is confirmed')).toBeVisible();
     await expect(
       page.getByRole('img', { name: 'QR code for your event ticket' }),
     ).toBeVisible();
-    await expect(
-      page.getByRole('button', { name: 'Apply for approval' }),
-    ).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Apply' })).toHaveCount(0);
     expect(
       await database.query.transactions.findMany({
         where: { eventRegistrationId: registration.id },
@@ -398,7 +391,7 @@ test.describe('Manual approval registrations', () => {
 
     await page.reload();
     await waitForRegistrationStatus(page);
-    await expect(page.getByText('Your place is confirmed')).toBeVisible();
+    await expect(page.getByText('Your ticket is confirmed')).toBeVisible();
     await expect(
       page.getByRole('img', { name: 'QR code for your event ticket' }),
     ).toBeVisible();
@@ -483,9 +476,9 @@ test.describe('Manual approval registrations', () => {
       .getByRole('dialog')
       .getByRole('button', { name: 'Cancel sign-up' })
       .click();
-    await expect(
-      page.getByRole('button', { name: 'Apply for approval' }),
-    ).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByRole('button', { name: 'Apply' })).toBeVisible({
+      timeout: 20_000,
+    });
     expect(
       await database.query.transactions.findMany({
         where: { eventRegistrationId: registration.id, type: 'registration' },
@@ -626,8 +619,6 @@ test.describe('Manual approval registrations', () => {
         .getByRole('status')
         .filter({ hasText: 'Contact an organizer to review this payment.' }),
     ).toBeVisible();
-    await expect(
-      page.getByRole('button', { name: 'Apply for approval' }),
-    ).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Apply' })).toHaveCount(0);
   });
 });

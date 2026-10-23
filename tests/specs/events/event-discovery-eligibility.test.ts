@@ -506,6 +506,7 @@ test.describe('Anonymous event route scrolling', () => {
     await openEventList(page);
     const card = eventCard(page, event.id);
     await expect(card).toBeVisible();
+    await expect(card).not.toHaveAttribute('jsaction', /click/);
     await expect
       .poll(() =>
         card.evaluate(
@@ -516,7 +517,11 @@ test.describe('Anonymous event route scrolling', () => {
         ),
       )
       .toBeGreaterThan(0);
-    await card.scrollIntoViewIfNeeded();
+    // Scrolling does not need Playwright’s animation-stability wait, which can
+    // hold a server-rendered card while hydration replaces it.
+    await card.evaluate((element) =>
+      element.scrollIntoView({ block: 'center' }),
+    );
     await expect(card).toBeInViewport({ ratio: 1 });
     await expect
       .poll(() => page.evaluate(() => window.scrollY))
@@ -630,5 +635,91 @@ test.describe('Anonymous event route scrolling', () => {
       );
     }
     await expect(card).toBeInViewport({ ratio: 1 });
+  });
+});
+
+test.describe('Desktop event columns', () => {
+  test.use({
+    storageState: { cookies: [], origins: [] },
+    viewport: { height: 500, width: 1280 },
+  });
+
+  test('scrolls the list and selected event independently', async ({
+    database,
+    events,
+    page,
+    seeded,
+    tenant,
+  }) => {
+    const event = requireApprovedEvent(
+      events,
+      seeded.scenario.events.paidOpen.eventId,
+      tenant.id,
+    );
+    await database
+      .update(schema.eventInstances)
+      .set({ description: '<p>Information about this event.</p>'.repeat(40) })
+      .where(
+        and(
+          eq(schema.eventInstances.id, event.id),
+          eq(schema.eventInstances.tenantId, tenant.id),
+        ),
+      );
+    await page.goto(`/events/${event.id}`);
+    const list = page.getByRole('region', { exact: true, name: 'Event list' });
+    const detail = page.getByRole('region', {
+      exact: true,
+      name: 'Selected event',
+    });
+    await expect(
+      detail.getByRole('heading', { level: 1, name: event.title }),
+    ).toBeVisible();
+
+    await expect(eventCard(page, event.id)).toBeVisible();
+    await expect(eventCard(page, event.id)).not.toHaveAttribute(
+      'jsaction',
+      /click/,
+    );
+    await expect
+      .poll(() =>
+        list.evaluate((element) => element.scrollHeight - element.clientHeight),
+      )
+      .toBeGreaterThan(0);
+    const viewport = page.viewportSize();
+    if (!viewport) throw new Error('Expected the desktop test viewport.');
+    const listBounds = await list.boundingBox();
+    const detailBounds = await detail.boundingBox();
+    expect(listBounds?.height).toBeGreaterThanOrEqual(viewport.height - 24);
+    expect(detailBounds?.height).toBeGreaterThanOrEqual(viewport.height - 24);
+    const footer = page.locator('app-root footer');
+    await expect(footer).toBeAttached();
+    expect((await footer.boundingBox())?.y).toBeGreaterThanOrEqual(
+      viewport.height,
+    );
+
+    await list.hover();
+    // Hover may reveal the full region by scrolling the document first.
+    // The wheel gesture itself must leave that document position unchanged.
+    const documentPosition = await page.evaluate(() => window.scrollY);
+    await page.mouse.wheel(0, 300);
+    await expect
+      .poll(() => list.evaluate((element) => element.scrollTop))
+      .toBeGreaterThan(0);
+    const listPosition = await list.evaluate((element) => element.scrollTop);
+    expect(await detail.evaluate((element) => element.scrollTop)).toBe(0);
+    expect(await page.evaluate(() => window.scrollY)).toBe(documentPosition);
+
+    await detail.hover();
+    const detailDocumentPosition = await page.evaluate(() => window.scrollY);
+    await page.mouse.wheel(0, 300);
+    await expect
+      .poll(() => detail.evaluate((element) => element.scrollTop))
+      .toBeGreaterThan(0);
+    expect(await list.evaluate((element) => element.scrollTop)).toBe(
+      listPosition,
+    );
+    expect(await page.evaluate(() => window.scrollY)).toBe(
+      detailDocumentPosition,
+    );
   });
 });

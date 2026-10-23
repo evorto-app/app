@@ -25,7 +25,6 @@ import { ConfigService } from '../../core/config.service';
 import { EventGeneralForm } from '../../shared/components/forms/event-general-form/event-general-form';
 import { RegistrationOptionForm } from '../../shared/components/forms/registration-option-form/registration-option-form';
 import {
-  templateAddOnCopyNotice,
   TemplateCreateEventComponent,
   templateCreateEventErrorMessage,
   TemplateCreateEventOperations,
@@ -100,19 +99,6 @@ describe('templateCreateEventSubmitDisabled', () => {
         mutationPending: false,
       }),
     ).toBe(true);
-  });
-});
-
-describe('templateAddOnCopyNotice', () => {
-  it('stays hidden when a template has no reusable add-ons', () => {
-    expect(templateAddOnCopyNotice(0)).toBeNull();
-  });
-
-  it('counts included add-ons without promising purchase availability', () => {
-    expect(templateAddOnCopyNotice(1)).toBe('This template includes 1 add-on.');
-    expect(templateAddOnCopyNotice(2)).toBe(
-      'This template includes 2 add-ons.',
-    );
   });
 });
 
@@ -745,14 +731,12 @@ describe('TemplateCreateEventComponent load recovery', () => {
       const paymentAlert = root.querySelector<HTMLElement>('[role="alert"]');
       if (blocked) {
         expect(paymentAlert?.textContent?.replaceAll(/\s+/g, ' ').trim()).toBe(
-          'This template contains paid registration options or add-ons. Their prices remain unchanged. The event cannot be created until this organization has a connected Stripe account.',
+          'Remove paid add-ons or connect Stripe before creating this event. Paid sign-up choices also require Stripe.',
         );
       } else {
         expect(paymentAlert).toBeNull();
       }
-      expect(normalizeText(fixture)).toContain(
-        'This template includes 1 add-on.',
-      );
+      expect(normalizeText(fixture)).toContain('Add-ons');
 
       await fixture.componentInstance.onSubmit(
         new Event('submit', { cancelable: true }),
@@ -773,8 +757,27 @@ describe('TemplateCreateEventComponent load recovery', () => {
             ],
             templateId: template.id,
           });
-          expect(createEvent.mock.calls[0]?.[0]).not.toHaveProperty('addOns');
+          expect(createEvent.mock.calls[0]?.[0]?.addOns).toEqual([
+            expect.objectContaining({
+              isPaid: paidAddOn,
+              price: paidAddOn ? 875 : 0,
+              title: 'Workshop kit',
+            }),
+          ]);
         });
+      }
+      if (blocked && paidAddOn && !paidOption) {
+        const remove = root.querySelector<HTMLButtonElement>(
+          '[aria-label="Remove add-on"]',
+        );
+        if (!remove) throw new Error('Expected removable paid add-on');
+        remove.click();
+        fixture.detectChanges();
+        await fixture.componentInstance.onSubmit(
+          new Event('submit', { cancelable: true }),
+        );
+        await vi.waitFor(() => expect(createEvent).toHaveBeenCalledOnce());
+        expect(createEvent.mock.calls[0]?.[0]?.addOns).toEqual([]);
       }
       fixture.detectChanges();
       const priceInput = root.querySelector<HTMLInputElement>(
@@ -933,10 +936,12 @@ describe('TemplateCreateEventComponent load recovery', () => {
       const model = fixture.componentInstance['createEventModel']();
       const modelSnapshot = JSON.stringify(model);
       const expectedPayload = {
+        addOns: [],
         description: '<p>Template</p>',
         end: model.end.toJSDate().toISOString(),
         icon: { iconColor: 2, iconName: 'calendar:fas' },
         location: null,
+        questions: [],
         registrationOptions: [],
         start: model.start.toJSDate().toISOString(),
         templateId: 'template-1',

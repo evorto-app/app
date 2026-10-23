@@ -74,56 +74,20 @@ export interface EventRegistrationOptionView {
 
 export type RegistrationAvailability = 'open' | 'tooEarly' | 'tooLate';
 
-export const registrationOptionAudienceCopy = (
-  option: Pick<
-    EventRegistrationOptionView,
-    'organizingRegistration' | 'registrationMode'
-  >,
-): {
-  actionSuffix: string;
-  helperText: string;
-  label: string;
-  primaryAction: string;
-} => {
-  if (
-    option.organizingRegistration &&
-    option.registrationMode === 'application'
-  ) {
-    return {
-      actionSuffix: 'apply as organizer/helper',
-      helperText:
-        'Applying does not confirm organizer access. An organizer reviews your application first; if this choice has a fee, payment starts only after approval.',
-      label: 'Organizer/helper application',
-      primaryAction: 'Apply as organizer/helper',
-    };
-  }
-
-  if (option.organizingRegistration) {
-    return {
-      actionSuffix: 'sign up as organizer/helper',
-      helperText: 'Use this choice when you are helping run the event.',
-      label: 'Organizer/helper choice',
-      primaryAction: 'Sign up as organizer/helper',
-    };
-  }
-
-  if (option.registrationMode === 'application') {
-    return {
-      actionSuffix: 'apply',
-      helperText:
-        'Applying does not charge you or confirm a place. An organizer reviews the application first; if this choice has a fee, payment starts only after approval.',
-      label: 'Organizer approval required',
-      primaryAction: 'Apply for approval',
-    };
-  }
-
-  return {
-    actionSuffix: 'sign up',
-    helperText: 'Use this choice when you are attending the event.',
-    label: 'Attendee choice',
-    primaryAction: 'Sign up',
-  };
-};
+export const registrationOptionActionCopy = (
+  option: Pick<EventRegistrationOptionView, 'registrationMode'>,
+) =>
+  option.registrationMode === 'application'
+    ? {
+        actionSuffix: 'apply',
+        helperText: 'Approval required. Any payment follows approval.',
+        primaryAction: 'Apply',
+      }
+    : {
+        actionSuffix: 'sign up',
+        helperText: null,
+        primaryAction: 'Sign up',
+      };
 
 export const registrationOptionIsFull = (
   option: Pick<
@@ -347,8 +311,8 @@ export class EventRegistrationOptionComponent {
   public readonly registrationOption =
     input.required<EventRegistrationOptionView>();
   protected readonly addonSoldOutLabel = registrationAddonSoldOutLabel;
-  protected readonly audienceCopy = computed(() =>
-    registrationOptionAudienceCopy(this.registrationOption()),
+  protected readonly actionCopy = computed(() =>
+    registrationOptionActionCopy(this.registrationOption()),
   );
   private readonly rpc = AppRpc.injectClient();
   protected readonly authenticationQuery = injectQuery(() =>
@@ -617,6 +581,9 @@ export class EventRegistrationOptionComponent {
 
   private async refreshRegistrationState(eventId: string): Promise<void> {
     await Promise.all([
+      this.queryClient.invalidateQueries(
+        this.rpc.queryFilter(['events', 'eventList']),
+      ),
       this.queryClient.invalidateQueries({
         queryKey: this.rpc.events.getRegistrationStatus.queryKey({ eventId }),
       }),

@@ -8,6 +8,15 @@ import type { Page } from '@playwright/test';
 
 test.use({ storageState: organizerStateFile });
 
+// Template authoring is an explicit capability, not a section-member default.
+test.beforeEach(async ({ permissionOverride }) => {
+  await permissionOverride({
+    add: ['templates:create'],
+    remove: [],
+    roleName: 'Section member',
+  });
+});
+
 const enablePaymentForAttendeeOption = async (page: Page) => {
   const participantOptionForm = page.getByRole('group', {
     name: 'Attendee sign-up',

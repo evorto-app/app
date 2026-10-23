@@ -444,11 +444,13 @@ export class EventDetailsComponent {
   protected readonly faUsers = faUsers;
   protected readonly outgoingRegistrationTransferCopy =
     outgoingRegistrationTransferCopy;
-  protected readonly registrationOptionGroups = computed(() =>
-    eventRegistrationOptionGroups(
-      this.eventQuery.data()?.registrationOptions ?? [],
-    ),
-  );
+  protected readonly registrationChoices = computed(() => {
+    const { organizerOptions, participantOptions } =
+      eventRegistrationOptionGroups(
+        this.eventQuery.data()?.registrationOptions ?? [],
+      );
+    return [...organizerOptions, ...participantOptions];
+  });
   protected readonly registrationOptionsState = computed(() => {
     const event = this.eventQuery.data();
     return event ? registrationOptionsState(event) : 'none';

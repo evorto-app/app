@@ -2042,7 +2042,9 @@ describe('registration transfer finalization tenant limit', () => {
       expect(Cause.squash(outcome.cause)).toMatchObject({
         _tag: 'RegistrationTransferConflictError',
         message:
-          'This ticket already has an open transfer offer. No new transfer or refund was started. Cancel the current offer before creating another.',
+          status === 'open'
+            ? 'This code cannot be shown again. Cancel this transfer and create a new one to get a new code.'
+            : 'This ticket already has an open transfer offer. No new transfer or refund was started. Cancel the current offer before creating another.',
       });
       expect(
         await database.query.registrationTransfers.findMany({

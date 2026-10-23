@@ -53,17 +53,6 @@
       </button>
     </div>
   } @else if (templateQuery.isSuccess()) {
-    @if (addOnCopyNotice(); as notice) {
-      <aside
-        class="border-outline-variant bg-surface-container-low text-on-surface rounded-lg border p-4"
-      >
-        <div class="flex items-start gap-3">
-          <fa-duotone-icon class="text-primary mt-1" [icon]="faCircleInfo" />
-          <p class="body-medium">{{ notice }}</p>
-        </div>
-      </aside>
-    }
-
     <form
       (submit)="onSubmit($event)"
       [attr.aria-busy]="
@@ -91,9 +80,8 @@
           } @else if (paidControlsUnavailable()) {
             @if (paidGraphBlocked()) {
               <p class="text-error mb-4 px-2 text-sm" role="alert">
-                This template contains paid registration options or add-ons.
-                Their prices remain unchanged. The event cannot be created until
-                this organization has a connected Stripe account.
+                Remove paid add-ons or connect Stripe before creating this
+                event. Paid sign-up choices also require Stripe.
               </p>
             } @else {
               <p
@@ -158,11 +146,72 @@
           </div>
         </section>
 
+        <section
+          class="bg-surface text-on-surface grid gap-4 rounded-2xl p-4"
+          aria-label="Event add-ons"
+        >
+          <div class="flex items-center justify-between gap-4">
+            <h2 class="title-large">Add-ons</h2>
+            <button
+              mat-button
+              type="button"
+              (click)="addAddOn()"
+              [disabled]="extrasModel().addOns.length >= maxAddOns"
+            >
+              Add add-on
+            </button>
+          </div>
+          @for (addOn of extrasForm.addOns; track addOn; let index = $index) {
+            <app-template-addon-editor
+              [addOnForm]="addOn"
+              [currencyCode]="currencyCode()"
+              [optionChoices]="optionChoices()"
+              [taxRates]="availableTaxRates() ?? []"
+              [taxRateState]="taxRateState()"
+              (remove)="removeAddOn(index)"
+              (addMapping)="addAddOnMapping(index)"
+              (removeMapping)="removeAddOnMapping(index, $event)"
+            />
+          } @empty {
+            <p class="text-on-surface-variant">No add-ons.</p>
+          }
+        </section>
+        <section
+          class="bg-surface text-on-surface grid gap-4 rounded-2xl p-4"
+          aria-label="Event sign-up questions"
+        >
+          <div class="flex items-center justify-between gap-4">
+            <h2 class="title-large">Sign-up questions</h2>
+            <button
+              mat-button
+              type="button"
+              (click)="addQuestion()"
+              [disabled]="extrasModel().questions.length >= maxQuestions"
+            >
+              Add question
+            </button>
+          </div>
+          @for (
+            question of extrasForm.questions;
+            track question;
+            let index = $index
+          ) {
+            <app-template-question-editor
+              [questionForm]="question"
+              [optionChoices]="optionChoices()"
+              (remove)="removeQuestion(index)"
+            />
+          } @empty {
+            <p class="text-on-surface-variant">No sign-up questions.</p>
+          }
+        </section>
+
         <div class="flex justify-end">
           <button
             type="submit"
             mat-button
             [disabled]="
+              extrasForm().invalid() ||
               createEventMutation.isSuccess() ||
               templateCreateEventSubmitDisabled({
                 discountProvidersReady: discountProvidersReady(),

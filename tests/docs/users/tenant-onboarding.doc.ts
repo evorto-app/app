@@ -476,7 +476,7 @@ Use **Admin Tools** → **New member setup**. You need **Change organization set
     body: `
 ## Choose the policy and questions
 
-Enter **Privacy policy text**, a full **Privacy policy web address**, or both. If both are present, members see the text and an **Open the full privacy policy** link. One checkbox accepts the complete policy shown there.
+Enter **Privacy policy text**, a full **Privacy policy web address**, or both. Members can open the full policy from the **current privacy policy** link beside the acceptance checkbox without leaving setup. If both are present, the text is also shown on the page. One checkbox accepts the complete policy.
 
 When a web address is saved, selecting **Privacy** on a public page opens that address. Clear the address and publish again when **Privacy** should open the text published in Evorto instead.
 
@@ -571,7 +571,10 @@ For a new member, Evorto creates the organization membership only after they com
     onboarding.getByText(privacyPolicyText, { exact: true }),
   ).toBeVisible();
   await expect(
-    onboarding.getByRole('link', { name: 'Open the full privacy policy' }),
+    onboarding.getByRole('link', {
+      exact: true,
+      name: 'current privacy policy',
+    }),
   ).toHaveAttribute('href', privacyPolicyUrl);
   await takeScreenshot(
     testInfo,

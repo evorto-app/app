@@ -310,7 +310,7 @@ You can use a different address for updates than for signing in. Optional IBAN a
 - **Overview** shows contact details and whether reimbursement details are ready, without displaying full bank details.
 - **Events** links each ticket to its event and shows the sign-up choice, guests, add-ons, payment, and check-in details.
 - From an event card, you can continue a payment or open the event to view its ticket, cancellation, transfer, or waitlist details.
-- Other pages include **Discounts** and **Receipts**.
+- **Discounts** appears when your organization enables it. **Receipts** appears once you have submitted a receipt.
 `,
     });
 

@@ -27,6 +27,7 @@ A good Evorto change is:
 - discoverable through the UI
 - verified through tests and/or Browser walkthroughs
 - consistent with existing architecture choices
+- written for the viewer’s task: review visible copy, tooltips, accessible names, and errors for leaked implementation details; keep diagnostic information in logs and explain settings only where they help an authorized user decide
 
 A change is not done if:
 

@@ -186,7 +186,7 @@ describe('registrationCancellationCopy', () => {
     ).toEqual({
       buttonLabel: 'Cancel sign-up',
       helperText:
-        'This cancels the pending sign-up and releases all selected places. It does not complete a payment.',
+        'This closes the unpaid payment page and cancels your sign-up, releasing all selected places. If payment has already completed, your ticket will stay active.',
     });
   });
 
@@ -640,6 +640,7 @@ describe('EventActiveRegistrationComponent add-on purchase', () => {
               'event-details',
               eventId,
             ],
+            eventListFilter: () => ({ queryKey: ['event-list'] }),
             eventOrganizerAccessQueryKey: (eventId: string) => [
               'event-organizer-access',
               eventId,
@@ -680,6 +681,57 @@ describe('EventActiveRegistrationComponent add-on purchase', () => {
     fixture.detectChanges();
     return fixture;
   };
+
+  it('shows the confirmed ticket QR immediately and keeps organizer notes expandable', () => {
+    const fixture = render(
+      registrationStatus({
+        registeredDescription: '<p>Meet at the north entrance.</p>',
+      }),
+    );
+    const root: unknown = fixture.nativeElement;
+    if (!(root instanceof HTMLElement))
+      throw new Error('Expected the ticket card');
+    const qr = root.querySelector('img[alt="QR code for your event ticket"]');
+    const instructions = root.querySelector('details');
+    expect(qr).not.toBeNull();
+    expect(root.querySelector('[role="status"]')?.textContent).toContain(
+      'Your ticket is confirmed',
+    );
+    expect(instructions?.open).toBe(false);
+    expect(instructions?.textContent).toContain('Meet at the north entrance.');
+    instructions?.querySelector('summary')?.click();
+    expect(instructions?.open).toBe(true);
+  });
+
+  it('reopens an active owner offer without asking to create a second transfer', async () => {
+    const offer = {
+      claimCode: 'ABCD-1234-EF56-7890-ABCD-1234-EF56-7890',
+      claimPageUrl: 'https://example.test/registration-transfers',
+      expiresAt: '2030-05-01T12:00:00Z',
+      status: 'open',
+    };
+    createTransfer.mockResolvedValue(offer);
+    const fixture = render(
+      registrationStatus({
+        activeTransfer: {
+          expiresAt: offer.expiresAt,
+          refundLifecycle: null,
+          registrationSide: 'source',
+          status: 'open',
+          transferId: 'transfer-1',
+        },
+      }),
+    );
+    findButton(fixture, 'Show transfer code')?.click();
+    await vi.waitFor(() => {
+      expect(createTransfer).toHaveBeenCalledWith(
+        { registrationId: 'registration-1' },
+        expect.anything(),
+      );
+      expect(dialogOpen).toHaveBeenCalledOnce();
+      expect(dialogOpen.mock.calls[0]?.[1]).toMatchObject({ data: offer });
+    });
+  });
 
   it('shows the typed cancellation review block without changing the pending registration', async () => {
     const message =

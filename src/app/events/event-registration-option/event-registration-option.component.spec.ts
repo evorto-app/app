@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { createRpcQueryFilter } from '@heddendorp/effect-angular-query';
 import { MAX_REGISTRATION_GUESTS } from '@shared/registration-quantity-limits';
 import { MAX_REGISTRATION_ANSWER_LENGTH } from '@shared/registration-question-limits';
 import {
@@ -17,7 +18,7 @@ import {
   registrationAddonPurchasePayload,
   registrationAddonSelectedTotalPrice,
   registrationAddonSoldOutLabel,
-  registrationOptionAudienceCopy,
+  registrationOptionActionCopy,
   registrationOptionAvailability,
   registrationOptionAvailableSpots,
   registrationOptionCanJoinWaitlist,
@@ -49,62 +50,22 @@ describe('registration write errors', () => {
   });
 });
 
-describe('registrationOptionAudienceCopy', () => {
-  it('uses sign-up wording for attendee choices', () => {
-    expect(
-      registrationOptionAudienceCopy({
-        organizingRegistration: false,
-        registrationMode: 'fcfs',
-      }),
-    ).toEqual({
+describe('registrationOptionActionCopy', () => {
+  it('offers direct sign-up without approval guidance', () => {
+    expect(registrationOptionActionCopy({ registrationMode: 'fcfs' })).toEqual({
       actionSuffix: 'sign up',
-      helperText: 'Use this choice when you are attending the event.',
-      label: 'Attendee choice',
+      helperText: null,
       primaryAction: 'Sign up',
     });
   });
 
-  it('uses distinct organizer/helper signup copy', () => {
+  it('explains approval and payment timing only for applications', () => {
     expect(
-      registrationOptionAudienceCopy({
-        organizingRegistration: true,
-        registrationMode: 'fcfs',
-      }),
-    ).toEqual({
-      actionSuffix: 'sign up as organizer/helper',
-      helperText: 'Use this choice when you are helping run the event.',
-      label: 'Organizer/helper choice',
-      primaryAction: 'Sign up as organizer/helper',
-    });
-  });
-
-  it('uses application copy for manual approval participant options', () => {
-    expect(
-      registrationOptionAudienceCopy({
-        organizingRegistration: false,
-        registrationMode: 'application',
-      }),
+      registrationOptionActionCopy({ registrationMode: 'application' }),
     ).toEqual({
       actionSuffix: 'apply',
-      helperText:
-        'Applying does not charge you or confirm a place. An organizer reviews the application first; if this choice has a fee, payment starts only after approval.',
-      label: 'Organizer approval required',
-      primaryAction: 'Apply for approval',
-    });
-  });
-
-  it('explains approval and deferred access for organizer/helper applications', () => {
-    expect(
-      registrationOptionAudienceCopy({
-        organizingRegistration: true,
-        registrationMode: 'application',
-      }),
-    ).toEqual({
-      actionSuffix: 'apply as organizer/helper',
-      helperText:
-        'Applying does not confirm organizer access. An organizer reviews your application first; if this choice has a fee, payment starts only after approval.',
-      label: 'Organizer/helper application',
-      primaryAction: 'Apply as organizer/helper',
+      helperText: 'Approval required. Any payment follows approval.',
+      primaryAction: 'Apply',
     });
   });
 });
@@ -629,6 +590,7 @@ describe('EventRegistrationOptionComponent input limits', () => {
               joinWaitlist: { mutationOptions: waitlistOptions },
               registerForEvent: { mutationOptions: registrationOptions },
             },
+            queryFilter: createRpcQueryFilter,
             users: {
               canUseScanner: { queryKey: () => ['scanner'] },
               events: { queryKey: () => ['user-events'] },

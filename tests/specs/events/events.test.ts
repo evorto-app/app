@@ -96,7 +96,7 @@ test.describe('Unavailable event links', () => {
   });
 });
 
-test('event list icon actions are named and keyboard operable', async ({
+test('event creation has one named, keyboard-operable action', async ({
   makeAxeBuilder,
   page,
   permissionOverride,
@@ -113,28 +113,21 @@ test('event list icon actions are named and keyboard operable', async ({
   ).toBeVisible({ timeout: 20_000 });
   await expect(eventNavigation).not.toContainText('Error:');
 
-  const listActionsButton = page.getByRole('button', {
-    name: 'Open event list actions',
+  const createEvent = page.getByRole('link', {
+    name: 'Create Event',
+    exact: true,
   });
-  await expect(page.getByRole('button', { name: 'Filter events' })).toHaveCount(
-    0,
-  );
-  await expect(listActionsButton).toBeVisible();
-  await expect(listActionsButton).toBeEnabled();
-
+  await expect(createEvent).toHaveCount(1);
+  await expect(createEvent).toBeVisible();
+  await expect(createEvent).not.toHaveAttribute('jsaction', /click/);
   const accessibilityScan = await makeAxeBuilder()
     .include('app-event-list > div > div > div:first-child')
     .analyze();
   expect(accessibilityScan.violations).toEqual([]);
-
-  await listActionsButton.focus();
-  await expect(listActionsButton).toBeFocused();
-  await listActionsButton.press('Enter');
-  const eventListMenu = page.getByRole('menu');
-  await expect(eventListMenu).toBeVisible();
-  await expect(
-    eventListMenu.getByRole('menuitem', { name: 'Create Event' }),
-  ).toBeVisible();
+  await createEvent.focus();
+  await expect(createEvent).toBeFocused();
+  await createEvent.press('Enter');
+  await expect(page).toHaveURL(/\/templates$/);
 });
 
 test('event authoring controls expose accessible names and keyboard interaction', async ({

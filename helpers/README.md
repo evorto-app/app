@@ -16,7 +16,7 @@ The database seeding process serves two distinct goals:
 - `database.ts`: Main entry point for database setup and seeding
 - `seed-tenant.ts`: Shared tenant seeding logic used by tests, development, and demos
 - `add-events.ts`: Creates events with deterministic dates, statuses, and visibilities
-- `add-roles.ts`: Sets up user roles and permissions
+- `add-roles.ts`: Sets up user roles and permissions. Section and trial members can browse templates and create events from them; template creation and editing require explicit grants. Admins retain template management access.
 - `add-templates.ts`: Creates event templates
 - `add-template-categories.ts`: Sets up template categories
 - `user-data.ts`: Defines test users

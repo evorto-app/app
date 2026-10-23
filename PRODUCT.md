@@ -12,6 +12,8 @@ The relaunch target is a full production replacement, not a prototype. Core work
 
 ## Product Principles
 
+- **No implementation details in the UI**: explain the user’s outcome and available action in their terms. Do not expose internal eligibility/discovery rules, model names, provider diagnostics, or infrastructure details. Explain a rule only where the user needs it to make a decision or manage that setting.
+
 - **Progressive disclosure over feature hiding**: common workflows should look simple even when the underlying model is more flexible.
   - Example: the default event setup UI can show "participant signup settings" and "organizer signup settings" while creating separate registration options internally.
 - **Tenant-first**: associations/sections own their events, templates, roles, registrations, settings, branding, and configuration.
@@ -152,6 +154,8 @@ Events should support this core lifecycle:
 - `draft`
 - `pending review`
 - `published`
+
+Creators can find their own draft and pending-review events in the event list without needing permission to view other people's unpublished events. List visibility must agree with their access to the event details.
 
 When an event is submitted for review, material fields should be locked. Material fields include dates/times, prices, capacity, registration options, and other fields that affect what users can sign up for or pay for.
 

@@ -164,7 +164,7 @@ test.describe('Sign up for events', () => {
 
   ### Free sign-ups
   This section covers free sign-ups. Paid sign-ups are covered later in this guide.
-  Attendee choices are labeled separately from organizer/helper choices, which use **Sign up as organizer/helper** when you are helping run the event.
+  Review the title and description to choose between attending and helping run the event.
   When an attendee choice is full, **Join waitlist** replaces **Sign up**. People on the waitlist can return to the event page and use **Leave waitlist** before the event starts.
   If you open a direct event link but your account does not match the roles required by any available choice, the event remains visible and the sign-up area explains that sign-up is unavailable for your account.`,
     });
@@ -193,7 +193,7 @@ test.describe('Sign up for events', () => {
     await expect(guestCountInput).toBeEnabled({ timeout: 15_000 });
     await expect(
       participantRegistrationCard.getByText(
-        'Guests do not need separate accounts. Each guest uses one available place and shares your ticket.',
+        'Guests share your ticket. Each uses one place.',
       ),
     ).toBeVisible();
     await guestCountInput.fill('1');
@@ -1028,7 +1028,7 @@ To give up the position before the event starts, select **Leave waitlist**. When
     });
     await expect(
       paidRegistrationCard.getByText(
-        'Guests do not need separate accounts. Each guest uses one available place and shares your ticket.',
+        'Guests share your ticket. Each uses one place.',
       ),
     ).toBeVisible();
     await paidGuestCountInput.fill('1');

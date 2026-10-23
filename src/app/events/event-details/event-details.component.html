@@ -72,7 +72,7 @@
     </section>
   }
   <div
-    class="bg-surface-container-high text-on-surface-container-high flex items-center justify-between gap-4 p-2"
+    class="bg-surface-container-high text-on-surface-container-high flex items-center justify-between gap-4 p-2 empty:hidden"
   >
     @if (eventQuery.isSuccess() && cardExpiresBeforeEvent()) {
       <div
@@ -514,77 +514,25 @@
             } @else {
               @switch (registrationOptionsState()) {
                 @case ("visible") {
-                  <div class="grid gap-6">
-                    @if (
-                      registrationOptionGroups().organizerOptions.length > 0
-                    ) {
-                      <section
-                        aria-label="Organizer/helper opportunities"
-                        class="border-outline-variant grid gap-4 rounded-xl border p-4"
-                      >
-                        <div class="grid gap-1">
-                          <p class="title-medium">
-                            Organizer/helper opportunities
-                          </p>
-                          <p class="body-medium text-on-surface-variant">
-                            A confirmed organizer/helper place grants event
-                            management access. Applications require approval and
-                            any required payment first.
-                          </p>
-                        </div>
-                        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                          @for (
-                            registrationOption of registrationOptionGroups()
-                              .organizerOptions;
-                            track registrationOption.id
-                          ) {
-                            <app-event-registration-option
-                              [addOns]="
-                                eventAddonsForRegistrationOption(
-                                  eventQuery.data(),
-                                  registrationOption.id
-                                )
-                              "
-                              [registrationOption]="registrationOption"
-                            />
-                          }
-                        </div>
-                      </section>
-                    }
-                    @if (
-                      registrationOptionGroups().participantOptions.length > 0
-                    ) {
-                      <section
-                        aria-label="Sign-up choices for attendees"
-                        class="grid gap-4"
-                      >
-                        <div class="grid gap-1">
-                          <p class="title-medium">
-                            Sign-up choices for attendees
-                          </p>
-                          <p class="body-medium text-on-surface-variant">
-                            Choose how you want to attend this event.
-                          </p>
-                        </div>
-                        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                          @for (
-                            registrationOption of registrationOptionGroups()
-                              .participantOptions;
-                            track registrationOption.id
-                          ) {
-                            <app-event-registration-option
-                              [addOns]="
-                                eventAddonsForRegistrationOption(
-                                  eventQuery.data(),
-                                  registrationOption.id
-                                )
-                              "
-                              [registrationOption]="registrationOption"
-                            />
-                          }
-                        </div>
-                      </section>
-                    }
+                  <div class="@container">
+                    <div
+                      class="grid grid-cols-1 items-start gap-4 @2xl:grid-cols-2"
+                    >
+                      @for (
+                        registrationOption of registrationChoices();
+                        track registrationOption.id
+                      ) {
+                        <app-event-registration-option
+                          [addOns]="
+                            eventAddonsForRegistrationOption(
+                              eventQuery.data(),
+                              registrationOption.id
+                            )
+                          "
+                          [registrationOption]="registrationOption"
+                        />
+                      }
+                    </div>
                   </div>
                 }
                 @case ("hiddenByEligibility") {

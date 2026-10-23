@@ -551,7 +551,7 @@ Evorto opens the template details page.
   await testInfo.attach('markdown', {
     body: `
 ## Creating an event from a template
-Open the template detail page and select **Create event**. The event form starts with the template title, description, and sign-up choices. When you select **Create event**, Evorto copies the sign-up setup, questions, and add-ons into the new event. Later template changes do not alter events already created from it.
+Open the template detail page and select **Create event**. The event form starts with the template title, description, sign-up choices, add-ons, and questions. In **Add-ons** and **Sign-up questions**, edit or remove items for this event; you can also add new ones. When you select **Create event**, Evorto saves your chosen setup into the new event without changing the template. Later template changes do not alter events already created from it.
 
 For paid choices, review the standard price and, when available, the **ESNcard price**. You can change that discounted price for this event or clear it to remove the discount. The event saves the prices shown in its form; the template stays unchanged.
 

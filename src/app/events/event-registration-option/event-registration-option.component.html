@@ -12,7 +12,6 @@
   }
   <div class="flex flex-row items-center gap-4">
     <div class="flex min-w-0 flex-col gap-1">
-      <p class="label-medium text-primary">{{ audienceCopy().label }}</p>
       <h3 class="title-medium">{{ registrationOption().title }}</h3>
     </div>
     @if (registrationOption().isPaid) {
@@ -36,13 +35,17 @@
     }
   </div>
 
-  <div
-    class="prose dark:prose-invert max-w-none"
-    [innerHTML]="registrationOption().description"
-  ></div>
-  <p class="body-medium text-on-surface-variant">
-    {{ audienceCopy().helperText }}
-  </p>
+  @if (registrationOption().description) {
+    <div
+      class="prose dark:prose-invert max-w-none"
+      [innerHTML]="registrationOption().description"
+    ></div>
+  }
+  @if (registrationOption().registrationMode === "application") {
+    <p class="body-medium text-on-surface-variant">
+      {{ actionCopy().helperText }}
+    </p>
+  }
 
   @if (addOns().length > 0 && !waitlistAvailable()) {
     <div class="border-outline-variant flex flex-col gap-3 border-t pt-3">
@@ -220,13 +223,12 @@
                 [value]="selectedGuestCount()"
                 (input)="updateGuestCount($event)"
               />
-              <span aria-live="polite" matTextSuffix>
+              <span aria-live="polite" class="whitespace-nowrap" matTextSuffix>
                 + you = {{ selectedSpotCount() }}
                 {{ selectedSpotCount() === 1 ? "place" : "places" }}
               </span>
               <mat-hint>
-                Guests do not need separate accounts. Each guest uses one
-                available place and shares your ticket.
+                Guests share your ticket. Each uses one place.
               </mat-hint>
             </mat-form-field>
           }
@@ -247,7 +249,7 @@
             >
               Pay
               {{ selectedTotalPrice() / 100 | currency }}
-              and {{ audienceCopy().actionSuffix }}
+              and {{ actionCopy().actionSuffix }}
             </button>
           } @else {
             <button
@@ -264,7 +266,7 @@
                 })
               "
             >
-              {{ audienceCopy().primaryAction }}
+              {{ actionCopy().primaryAction }}
             </button>
           }
         }

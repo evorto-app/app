@@ -18,6 +18,20 @@
 @include variable.all;
 
 :root {
+  @include mat.menu-overrides(
+    (
+      container-color: var(--mat-sys-surface-container-high),
+      container-elevation-shadow: var(--mat-sys-level2),
+    )
+  );
+
+  @include mat.dialog-overrides(
+    (
+      container-color: var(--mat-sys-surface-container-high),
+      container-elevation-shadow: var(--mat-sys-level3),
+    )
+  );
+
   @include mat.chips-overrides(
     (
       container-shape-radius: var(--mat-sys-corner-medium),

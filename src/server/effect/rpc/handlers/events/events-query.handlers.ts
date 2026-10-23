@@ -172,18 +172,20 @@ export const eventListOrder = () => [
 
 export const eventListUserSignUpState = ({
   hasPendingRegistrationTransaction,
+  organizingRegistration,
   registrationId,
   registrationMode,
   registrationStatus,
 }: {
   hasPendingRegistrationTransaction: boolean;
+  organizingRegistration: boolean;
   registrationId: string;
   registrationMode: 'application' | 'fcfs';
   registrationStatus: 'CANCELLED' | 'CONFIRMED' | 'PENDING' | 'WAITLIST';
 }): EventsEventListUserSignUpState => {
   switch (registrationStatus) {
     case 'CONFIRMED': {
-      return 'confirmed';
+      return organizingRegistration ? 'organizerConfirmed' : 'confirmed';
     }
     case 'WAITLIST': {
       return 'waitlisted';
@@ -331,20 +333,11 @@ export const eventQueryHandlers = {
         ...eventListPaginationAttributes(input),
       });
 
-      const isOnlyApprovedStatus =
-        input.status.length === 1 && input.status[0] === 'APPROVED';
-      if (
-        !isOnlyApprovedStatus &&
-        !canInspectAllTenantEvents &&
-        !includesPermission('events:seeDrafts', userPermissions)
-      ) {
-        return yield* Effect.fail(
-          new RpcForbiddenError({
-            message: 'You do not have permission to view unpublished events.',
-            permission: 'events:seeDrafts',
-          }),
-        );
-      }
+      const canInspectAllUnpublishedEvents =
+        canInspectAllTenantEvents ||
+        includesPermission('events:seeDrafts', userPermissions) ||
+        includesPermission('events:review', userPermissions) ||
+        includesPermission('events:editAll', userPermissions);
 
       const rolesToFilterBy = canInspectAllTenantEvents
         ? []
@@ -404,6 +397,14 @@ export const eventQueryHandlers = {
                 eventDiscoveryWindow(startAfter),
                 eq(eventInstances.tenantId, tenant.id),
                 inArray(eventInstances.status, [...input.status]),
+                canInspectAllUnpublishedEvents
+                  ? undefined
+                  : or(
+                      eq(eventInstances.status, 'APPROVED'),
+                      user
+                        ? eq(eventInstances.creatorId, user.id)
+                        : sql<boolean>`false`,
+                    ),
                 ...(canInspectAllTenantEvents
                   ? []
                   : [
@@ -476,6 +477,8 @@ export const eventQueryHandlers = {
                         ),
                       ),
                   ).mapWith(Boolean),
+                  organizingRegistration:
+                    eventRegistrationOptions.organizingRegistration,
                   registrationId: eventRegistrations.id,
                   registrationMode: eventRegistrationOptions.registrationMode,
                   registrationStatus: eventRegistrations.status,

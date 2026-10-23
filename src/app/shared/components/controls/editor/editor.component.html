@@ -3,7 +3,7 @@
   @if (!isMounted()) {
     <div class="flex flex-col gap-2">
       <div
-        class="prose prose-sm max-w-none border-outline min-h-[100px] rounded border p-2"
+        class="prose prose-sm dark:prose-invert max-w-none border-outline min-h-[100px] rounded border p-2"
         [innerHTML]="field().value()"
       ></div>
       <button

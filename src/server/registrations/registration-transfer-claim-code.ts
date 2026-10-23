@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from 'node:crypto';
+import { createHash, createHmac, randomBytes } from 'node:crypto';
 
 const claimCodeBytes = 16;
 
@@ -29,3 +29,24 @@ export const createRegistrationTransferClaimCode =
       claimCodeHash: hashRegistrationTransferClaimCode(claimCode),
     };
   };
+
+// Domain separation keeps transfer codes independent of other uses of the key.
+export const deriveRegistrationTransferClaimCode = (
+  secret: string,
+  tenantId: string,
+  transferId: string,
+): RegistrationTransferClaimCode => {
+  const claimCode = formatClaimCode(
+    createHmac('sha256', secret)
+      .update(
+        JSON.stringify(['evorto.transfer-claim.v1', tenantId, transferId]),
+      )
+      .digest('hex')
+      .slice(0, claimCodeBytes * 2)
+      .toUpperCase(),
+  );
+  return {
+    claimCode,
+    claimCodeHash: hashRegistrationTransferClaimCode(claimCode),
+  };
+};

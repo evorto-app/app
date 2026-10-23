@@ -859,7 +859,73 @@ describe('optionless announcement discovery', () => {
     });
   });
 
-  it('bypasses eligibility only for non-approved rows after the explicit draft permission gate', async () => {
+  it('lists own drafts and submitted events without exposing unpublished events to other viewers or tenants', async () => {
+    const statuses = ['APPROVED', 'DRAFT', 'PENDING_REVIEW'] as const;
+    const creator = authenticatedContext({ roleIds: [], userId: creatorId });
+    const otherViewer = authenticatedContext({
+      roleIds: [],
+      userId: matchingUserId,
+    });
+    const foreignTenantCreator = {
+      ...creator,
+      tenant: { ...tenantContext, id: otherTenantId },
+    };
+    try {
+      for (const status of ['DRAFT', 'PENDING_REVIEW'] as const) {
+        await database
+          .update(eventInstances)
+          .set({ status })
+          .where(eq(eventInstances.id, draftRestrictedId));
+        expect(listedEventIds(await runEventList(creator, statuses))).toContain(
+          draftRestrictedId,
+        );
+        expect(await runFindOne(creator, draftRestrictedId)).toMatchObject({
+          status,
+          userIsCreator: true,
+        });
+        for (const viewer of [
+          anonymousContext,
+          otherViewer,
+          foreignTenantCreator,
+        ]) {
+          expect(
+            listedEventIds(await runEventList(viewer, statuses)),
+          ).not.toContain(draftRestrictedId);
+          await expect(
+            runFindOne(viewer, draftRestrictedId),
+          ).rejects.toMatchObject({ _tag: 'EventNotFoundError' });
+        }
+        for (const permission of [
+          'events:seeDrafts',
+          'events:review',
+          'events:editAll',
+        ] as const) {
+          expect(
+            listedEventIds(
+              await runEventList(
+                authenticatedContext({
+                  permissions: [permission],
+                  roleIds: [],
+                  userId: matchingUserId,
+                }),
+                statuses,
+              ),
+            ),
+          ).toContain(draftRestrictedId);
+        }
+      }
+      expect(
+        listedEventIds(await runEventList(creator, ['APPROVED'])),
+      ).not.toContain(draftRestrictedId);
+    } finally {
+      await database
+        .update(eventInstances)
+        .set({ status: 'DRAFT' })
+        .where(eq(eventInstances.id, draftRestrictedId));
+    }
+  });
+
+  it('bypasses eligibility for unpublished rows with draft-viewing permission', async () => {
     const draftViewerContext = authenticatedContext({
       permissions: ['events:seeDrafts'],
       roleIds: [nonmatchingRoleId],

@@ -7,18 +7,9 @@ import {
   signal,
 } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
-import { MatMenuModule } from '@angular/material/menu';
-import { MatTooltipModule } from '@angular/material/tooltip';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
-import {
-  faClock,
-  faEllipsisVertical,
-} from '@fortawesome/duotone-regular-svg-icons';
-import {
-  eventDiscoveryDescription,
-  eventDiscoveryLabel,
-} from '@shared/event-discovery';
+import { faClock } from '@fortawesome/duotone-regular-svg-icons';
 
 import { ConfigService } from '../../core/config.service';
 import { TenantDatePipe } from '../../core/tenant-date.pipe';
@@ -39,6 +30,9 @@ export const eventListSignUpStateLabel = (
     case null: {
       return null;
     }
+    case 'organizerConfirmed': {
+      return 'Organizer confirmed';
+    }
     case 'paymentRequired': {
       return 'Finish payment';
     }
@@ -50,16 +44,18 @@ export const eventListSignUpStateLabel = (
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: {
+    class:
+      'block lg:h-[calc(100dvh-1.5rem)] lg:min-h-0 lg:min-w-0 lg:flex-none lg:overflow-hidden',
+  },
   imports: [
     FontAwesomeModule,
     MatButtonModule,
-    MatMenuModule,
     RouterLink,
     IconComponent,
     RouterOutlet,
     RouterLinkActive,
     TenantDatePipe,
-    MatTooltipModule,
     IfAnyPermissionDirective,
   ],
   selector: 'app-event-list',
@@ -70,12 +66,9 @@ export class EventListComponent {
   private readonly eventListService = inject(EventListService);
 
   protected readonly eventDays = this.eventListService.eventDays;
-  protected readonly eventDiscoveryDescription = eventDiscoveryDescription;
-  protected readonly eventDiscoveryLabel = eventDiscoveryLabel;
   protected readonly eventListSignUpStateLabel = eventListSignUpStateLabel;
   protected readonly eventQuery = this.eventListService.eventQuery;
   protected readonly faClock = faClock;
-  protected readonly faEllipsisVertical = faEllipsisVertical;
   protected readonly outletActive = signal(false);
   private readonly config = inject(ConfigService);
 

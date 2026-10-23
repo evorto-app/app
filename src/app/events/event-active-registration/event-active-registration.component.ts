@@ -135,6 +135,10 @@ export class EventActiveRegistrationOperations {
     return this.rpc.registrationTransfers.createOffer.mutationOptions();
   }
 
+  eventListFilter() {
+    return this.rpc.queryFilter(['events', 'eventList']);
+  }
+
   eventDetailsQueryKey(eventId: string) {
     return this.rpc.events.findOne.queryKey({ id: eventId });
   }
@@ -264,7 +268,7 @@ export const registrationCancellationCopy = (registration: {
         ? 'Cancel sign-up'
         : 'Withdraw application',
       helperText: registration.paymentPending
-        ? `This cancels the pending sign-up and releases ${pendingPlaceNoun}. It does not complete a payment.`
+        ? `This closes the unpaid payment page and cancels your sign-up, releasing ${pendingPlaceNoun}. If payment has already completed, your ticket will stay active.`
         : 'This withdraws your pending application before organizer approval.',
     };
   }
@@ -532,6 +536,44 @@ export class EventActiveRegistrationComponent {
     this.operations.createTransfer(),
   );
 
+  protected readonly reopenTransferMutation = injectMutation(() =>
+    this.operations.createTransfer(),
+  );
+  protected readonly transferCodeError = () => {
+    const error = this.reopenTransferMutation.error();
+    return isRegistrationTransferRpcError(error) &&
+      error._tag !== 'RegistrationTransferInternalError'
+      ? error.message
+      : 'The transfer code could not be opened. Try again.';
+  };
+
+  protected reopenTransfer(registrationId: string): void {
+    if (
+      this.reopenTransferMutation.isPending() ||
+      this.cancelTransferMutation.isPending()
+    )
+      return;
+    this.reopenTransferMutation.mutate(
+      { registrationId },
+      {
+        onSuccess: (offer) => this.openTransferDialog(offer),
+      },
+    );
+  }
+
+  private openTransferDialog(offer: EventRegistrationTransferDialogData): void {
+    this.dialog.open<
+      EventRegistrationTransferDialogComponent,
+      EventRegistrationTransferDialogData
+    >(EventRegistrationTransferDialogComponent, {
+      autoFocus: 'first-heading',
+      data: offer,
+      maxHeight: 'calc(100dvh - 32px)',
+      maxWidth: 'calc(100vw - 32px)',
+      width: '560px',
+    });
+  }
+
   private readonly dialog = inject(MatDialog);
   private readonly document = inject(DOCUMENT);
   private readonly localCheckoutUrls = signal<Readonly<Record<string, string>>>(
@@ -676,13 +718,7 @@ export class EventActiveRegistrationComponent {
           await this.invalidateOwnerQueries(false);
         },
         onSuccess: async (offer) => {
-          this.dialog.open<
-            EventRegistrationTransferDialogComponent,
-            EventRegistrationTransferDialogData
-          >(EventRegistrationTransferDialogComponent, {
-            data: offer,
-            width: '560px',
-          });
+          this.openTransferDialog(offer);
           await this.invalidateOwnerQueries(false);
         },
       },
@@ -965,6 +1001,7 @@ export class EventActiveRegistrationComponent {
       eventOrganizerAccessResult,
       scannerAccessResult,
       userEventsResult,
+      eventListResult,
     ] = await Promise.allSettled([
       this.queryClient.invalidateQueries(
         { exact: true, queryKey: registrationStatusQueryKey },
@@ -986,6 +1023,9 @@ export class EventActiveRegistrationComponent {
         { exact: true, queryKey: userEventsQueryKey },
         { throwOnError: true },
       ),
+      this.queryClient.invalidateQueries(this.operations.eventListFilter(), {
+        throwOnError: true,
+      }),
     ]);
 
     if (registrationStatusResult.status === 'fulfilled' && reconcileAttempts) {
@@ -1009,7 +1049,8 @@ export class EventActiveRegistrationComponent {
       eventDetailsResult.status === 'fulfilled' &&
       eventOrganizerAccessResult.status === 'fulfilled' &&
       scannerAccessResult.status === 'fulfilled' &&
-      userEventsResult.status === 'fulfilled'
+      userEventsResult.status === 'fulfilled' &&
+      eventListResult.status === 'fulfilled'
     );
   }
 
