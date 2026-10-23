@@ -1,6 +1,6 @@
 import { activeRegistrationTransferSourceUniqueIndexName } from '@db/schema';
 import { describe, expect, it } from '@effect/vitest';
-import { SqlError, UniqueViolation } from 'effect/unstable/sql/SqlError';
+import { SqlError, UniqueViolation } from 'effect/sql/SqlError';
 
 import { isActiveRegistrationTransferUniqueViolation } from './registration-transfer-constraint';
 

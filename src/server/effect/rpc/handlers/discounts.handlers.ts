@@ -13,7 +13,7 @@ import { resolveTenantDiscountProviders } from '@shared/tenant-config';
 import { and, eq } from 'drizzle-orm';
 import { EffectDrizzleQueryError } from 'drizzle-orm/effect-core';
 import { Cause, Effect } from 'effect';
-import { isSqlError } from 'effect/unstable/sql/SqlError';
+import { isSqlError } from 'effect/sql/SqlError';
 
 import type { AppRpcHandlers } from './shared/handler-types';
 

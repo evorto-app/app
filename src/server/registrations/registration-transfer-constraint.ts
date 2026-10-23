@@ -1,7 +1,7 @@
 import { activeRegistrationTransferSourceUniqueIndexName } from '@db/schema';
 import { EffectDrizzleQueryError } from 'drizzle-orm/effect-core';
 import { Cause, Option } from 'effect';
-import { SqlError, UniqueViolation } from 'effect/unstable/sql/SqlError';
+import { SqlError, UniqueViolation } from 'effect/sql/SqlError';
 
 const sqlErrorFromUnknown = (error: unknown): SqlError | undefined => {
   if (error instanceof SqlError) {

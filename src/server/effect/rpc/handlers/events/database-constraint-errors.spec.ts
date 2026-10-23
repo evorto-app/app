@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@effect/vitest';
 import { EffectDrizzleQueryError } from 'drizzle-orm/effect-core';
 import { Cause } from 'effect';
-import { SqlError, UniqueViolation } from 'effect/unstable/sql/SqlError';
+import { SqlError, UniqueViolation } from 'effect/sql/SqlError';
 
 import {
   ACTIVE_REGISTRATION_UNIQUE_CONSTRAINT,

@@ -1,10 +1,6 @@
 import { describe, expect, it } from '@effect/vitest';
 import { Effect, Layer } from 'effect';
-import {
-  HttpRouter,
-  HttpServerRequest,
-  HttpServerResponse,
-} from 'effect/unstable/http';
+import { HttpRouter, HttpServerRequest, HttpServerResponse } from 'effect/http';
 
 import {
   INVALID_REQUEST_ADDRESS_MESSAGE,

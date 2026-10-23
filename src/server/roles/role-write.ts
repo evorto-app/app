@@ -1,6 +1,6 @@
 import { EffectDrizzleQueryError } from 'drizzle-orm/effect-core';
 import { Cause, Effect } from 'effect';
-import { isSqlError, type SqlError } from 'effect/unstable/sql/SqlError';
+import { isSqlError, type SqlError } from 'effect/sql/SqlError';
 
 import { roleTenantNameUniqueConstraintName } from '../../db/schema';
 import {

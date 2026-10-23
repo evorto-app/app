@@ -10,7 +10,7 @@ import {
   HttpMiddleware,
   HttpServerRequest,
   HttpServerResponse,
-} from 'effect/unstable/http';
+} from 'effect/http';
 
 describe('server trace policy', () => {
   it('suppresses operational endpoints regardless of origin or query', () => {

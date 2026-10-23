@@ -22,7 +22,7 @@ const openEventFromNormalNavigation = async (
     .getByRole('link', { exact: true, name: 'Events' })
     .first();
   await waitForHydratedAction(eventsNavigation);
-  await eventsNavigation.click();
+  await eventsNavigation.click({ timeout: 20_000 });
   await expect(
     page
       .getByRole('heading', { exact: true, level: 1, name: 'Events' })

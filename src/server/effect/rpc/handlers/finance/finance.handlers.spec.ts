@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from '@effect/vitest';
 import { TransactionRollbackError } from 'drizzle-orm';
 import { Context, Effect, Exit, Layer } from 'effect';
-import { Headers } from 'effect/unstable/http';
-import { Rpc, RpcMessage } from 'effect/unstable/rpc';
+import { Headers } from 'effect/http';
+import { Rpc, RpcMessage } from 'effect/rpc';
 
 import { Database } from '../../../../../db';
 import {

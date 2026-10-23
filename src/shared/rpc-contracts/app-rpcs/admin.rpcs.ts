@@ -13,8 +13,8 @@ import {
   AdminTenantRegistrationSettingsSnapshot,
 } from '@shared/tenant-settings-snapshot';
 import { Effect, Schema, SchemaTransformation } from 'effect';
-import * as Rpc from 'effect/unstable/rpc/Rpc';
-import * as RpcGroup from 'effect/unstable/rpc/RpcGroup';
+import * as Rpc from 'effect/rpc/Rpc';
+import * as RpcGroup from 'effect/rpc/RpcGroup';
 
 import { Tenant } from '../../../types/custom/tenant';
 import { GoogleLocation } from '../../../types/location';

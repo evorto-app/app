@@ -1,4 +1,4 @@
-import { HttpServerResponse } from 'effect/unstable/http';
+import { HttpServerResponse } from 'effect/http';
 
 export const DYNAMIC_SSR_CACHE_CONTROL = 'private, no-store';
 

@@ -41,8 +41,8 @@ import {
   or,
 } from 'drizzle-orm';
 import { DateTime, Effect, Schema } from 'effect';
-import * as Rpc from 'effect/unstable/rpc/Rpc';
-import * as RpcGroup from 'effect/unstable/rpc/RpcGroup';
+import * as Rpc from 'effect/rpc/Rpc';
+import * as RpcGroup from 'effect/rpc/RpcGroup';
 import { createHash } from 'node:crypto';
 
 import { Database, type DatabaseClient } from '../../../../../db';

@@ -118,7 +118,7 @@ const qrReadStatements = {
   organizerRegistration:
     'select "d0"."id" as "id", "registrationOption"."r" as "registrationOption" from "event_registrations" as "d0" left join lateral(select row_to_json("t".*) "r" from (select "d1"."organizingRegistration" as "organizingRegistration" from "event_registration_options" as "d1" where "d0"."registrationOptionId" = "d1"."id" limit $1) as "t") as "registrationOption" on true where (("d0"."eventId" = $2) and ("d0"."status" = $3) and ("d0"."tenantId" = $4) and ("d0"."userId" = $5))',
   registration:
-    'select "d0"."eventId" as "eventId", "d0"."id" as "id", "d0"."status" as "status", "d0"."tenantId" as "tenantId", "d0"."userId" as "userId" from "event_registrations" as "d0" where "d0"."id" = $1 limit $2',
+    'select "d0"."eventId" as "eventId", "d0"."id" as "id", "d0"."status"::text as "status", "d0"."tenantId" as "tenantId", "d0"."userId" as "userId" from "event_registrations" as "d0" where "d0"."id" = $1 limit $2',
   tenant:
     'select "d0"."domain" as "domain" from "tenants" as "d0" where "d0"."id" = $1 limit $2',
 };

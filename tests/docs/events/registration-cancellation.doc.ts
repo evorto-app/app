@@ -2075,8 +2075,8 @@ The target sign-up must belong to this event and organization, remain unchecked,
       ).toBeVisible();
 
       const participantRow = page
-        .locator('div.bg-surface-container-high')
-        .filter({ hasText: participantName });
+        .locator('app-event-organize div.border-b')
+        .filter({ has: page.getByText(participantName, { exact: true }) });
       await expect(participantRow).toHaveCount(1);
       const cancelRegistration = participantRow.getByRole('button', {
         exact: true,

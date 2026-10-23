@@ -32,8 +32,8 @@ import {
   Option,
   Schema,
 } from 'effect';
-import { Headers } from 'effect/unstable/http';
-import { Rpc, RpcMessage } from 'effect/unstable/rpc';
+import { Headers } from 'effect/http';
+import { Rpc, RpcMessage } from 'effect/rpc';
 import { Pool } from 'pg';
 import Stripe from 'stripe';
 

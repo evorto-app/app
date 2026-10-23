@@ -4,7 +4,7 @@ import {
   HttpServerError,
   HttpServerRequest,
   HttpServerResponse,
-} from 'effect/unstable/http';
+} from 'effect/http';
 
 import { DeploymentRuntimeConfig } from '../config/deployment-config';
 import {

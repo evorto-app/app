@@ -6,7 +6,7 @@ import { createNodePgPoolConfig } from '@db/pg-connection-config';
 import { relations } from '@db/relations';
 import { drizzle, NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { ConfigProvider, Effect, Option } from 'effect';
-import { DateTime } from 'luxon';
+import type { DateTime } from 'luxon';
 import path from 'node:path';
 import { Pool } from 'pg';
 
@@ -15,6 +15,7 @@ import { readOptionalE2eRuntimeState } from '../../../helpers/testing/e2e-runtim
 import { getSeedDate } from '../../../helpers/seed-clock';
 import { seedFalsoForScope } from '../../../helpers/seed-falso';
 import { formatConfigError } from '../../../src/server/config/config-error';
+import { getServerNow } from '../../../src/server/clock';
 import { requirePlatformAdministratorClaim } from '../auth0/platform-administrator-claim-fixture';
 import { readProtectedEnvironmentValue } from '../protected-values';
 import {
@@ -266,10 +267,8 @@ export const test = base.extend<BaseFixtures>({
     await use(Option.getOrUndefined(environment.TENANT_DOMAIN));
   },
   testClock: [
-    async ({ seedDate }, use) => {
-      await use(
-        DateTime.fromJSDate(seedDate, { zone: 'utc' }).plus({ hours: 12 }),
-      );
+    async ({}, use) => {
+      await use(getServerNow(environment.E2E_NOW_ISO));
     },
     { auto: true },
   ],

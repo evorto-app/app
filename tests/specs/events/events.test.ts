@@ -155,7 +155,11 @@ test('event authoring controls expose accessible names and keyboard interaction'
 
   await page.goto(`/events/${draftEvent.id}/edit`);
   await expect(
-    page.getByRole('heading', { name: draftEvent.title }),
+    page.getByRole('heading', {
+      level: 1,
+      name: draftEvent.title,
+      exact: true,
+    }),
   ).toBeVisible({ timeout: 20_000 });
   await page.waitForLoadState('networkidle');
   await expect(page.getByRole('link', { name: 'Back to event' })).toBeVisible();

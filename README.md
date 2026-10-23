@@ -5,7 +5,7 @@ This project was generated using [Angular CLI](https://github.com/angular/angula
 ## Prerequisites
 
 - Bun 1.4.2 is the package manager and app runtime baseline.
-- Node 24.21.0 is required for Angular CLI package scripts.
+- Node 24.22.1 is required for Angular CLI package scripts.
 - Docker Compose 2.24.0 or later is required for the local Docker-backed runtime and E2E flows.
 
 Docker image builds compile Angular and ops with native builder tools, then

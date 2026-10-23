@@ -72,6 +72,9 @@ for (const mode of ['omit', 'customize', 'add'] as const) {
       .returning();
     const title = `Event extras ${mode} ${getId().slice(0, 6)}`;
     await page.goto(`/templates/${template.id}/create-event`);
+    await expect(
+      page.getByRole('button', { name: 'Change Icon', exact: true }),
+    ).not.toHaveAttribute('jsaction', /click/, { timeout: 20_000 });
     await page.getByLabel('Event title', { exact: true }).fill(title);
     const addOns = page.locator('app-template-addon-editor');
     const questions = page.locator('app-template-question-editor');

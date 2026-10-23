@@ -1,5 +1,5 @@
 import { Effect } from 'effect';
-import { HttpRouter as HttpLayerRouter } from 'effect/unstable/http';
+import { HttpRouter as HttpLayerRouter } from 'effect/http';
 
 import { processReceiptOrphans } from '../finance/receipt-orphan-cleanup';
 import { processTenantBrandAssetOrphans } from '../tenant-brand-assets';

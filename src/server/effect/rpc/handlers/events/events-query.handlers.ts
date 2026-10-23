@@ -221,7 +221,12 @@ export const eventRegistrationOptionRoleEligibilityFilter = ({
       ? [sql`cardinality(${eventRegistrationOptions.roleIds}) = 0`]
       : []),
     ...(roleIds.length > 0
-      ? [arrayOverlaps(eventRegistrationOptions.roleIds, [...roleIds])]
+      ? [
+          arrayOverlaps(
+            eventRegistrationOptions.roleIds,
+            sql`${sql.param([...roleIds])}::varchar[]`,
+          ),
+        ]
       : []),
   ) ?? sql<boolean>`false`;
 
@@ -362,9 +367,10 @@ export const eventQueryHandlers = {
         });
       const announcementRoleEligibility =
         user !== null && rolesToFilterBy.length > 0
-          ? arrayOverlaps(eventInstances.announcementRoleIds, [
-              ...rolesToFilterBy,
-            ])
+          ? arrayOverlaps(
+              eventInstances.announcementRoleIds,
+              sql`${sql.param([...rolesToFilterBy])}::varchar[]`,
+            )
           : sql<boolean>`false`;
       const startAfter = new Date(input.startAfter);
 

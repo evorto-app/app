@@ -13,8 +13,8 @@ import {
 } from '@shared/registration-transfer';
 import { nonNegativeNumber, positiveNumber } from '@shared/schema-utilities';
 import { Schema } from 'effect';
-import * as Rpc from 'effect/unstable/rpc/Rpc';
-import * as RpcGroup from 'effect/unstable/rpc/RpcGroup';
+import * as Rpc from 'effect/rpc/Rpc';
+import * as RpcGroup from 'effect/rpc/RpcGroup';
 
 import { Tenant } from '../../../types/custom/tenant';
 import { RegistrationTransfersRpcError } from './registration-transfers.errors';

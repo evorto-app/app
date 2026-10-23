@@ -1,7 +1,7 @@
-import type { HttpServerRequest } from 'effect/unstable/http/HttpServerRequest';
+import type { HttpServerRequest } from 'effect/http/HttpServerRequest';
 
 import { Effect } from 'effect';
-import { HttpRouter, HttpServerResponse } from 'effect/unstable/http';
+import { HttpRouter, HttpServerResponse } from 'effect/http';
 
 import { resolveHttpRequestContext } from '../context/http-request-context';
 import { tenantOutboundRootUrl } from '../tenant-outbound-url';

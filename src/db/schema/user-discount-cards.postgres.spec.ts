@@ -11,9 +11,9 @@ import {
   Result,
   Schema,
 } from 'effect';
-import * as Headers from 'effect/unstable/http/Headers';
-import { Rpc, RpcMessage } from 'effect/unstable/rpc';
-import { isSqlError } from 'effect/unstable/sql/SqlError';
+import * as Headers from 'effect/http/Headers';
+import { Rpc, RpcMessage } from 'effect/rpc';
+import { isSqlError } from 'effect/sql/SqlError';
 
 import { Database, type DatabaseClient, databaseLayer } from '../../db';
 import {

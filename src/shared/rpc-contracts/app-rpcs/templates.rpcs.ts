@@ -14,8 +14,8 @@ import {
   positiveNumber,
 } from '@shared/schema-utilities';
 import { Schema } from 'effect';
-import * as Rpc from 'effect/unstable/rpc/Rpc';
-import * as RpcGroup from 'effect/unstable/rpc/RpcGroup';
+import * as Rpc from 'effect/rpc/Rpc';
+import * as RpcGroup from 'effect/rpc/RpcGroup';
 
 import { EventLocation } from '../../../types/location';
 import { iconSchema } from '../../types/icon';

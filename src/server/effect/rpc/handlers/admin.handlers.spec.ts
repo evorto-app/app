@@ -10,9 +10,9 @@ import {
 } from '@shared/tenant-settings-snapshot';
 import * as PgDrizzle from 'drizzle-orm/effect-postgres';
 import { Cause, Effect, Exit, Layer, Schema, SchemaIssue } from 'effect';
-import * as Headers from 'effect/unstable/http/Headers';
-import { Rpc, RpcMessage } from 'effect/unstable/rpc';
-import { SqlError, UniqueViolation } from 'effect/unstable/sql/SqlError';
+import * as Headers from 'effect/http/Headers';
+import { Rpc, RpcMessage } from 'effect/rpc';
+import { SqlError, UniqueViolation } from 'effect/sql/SqlError';
 import Stripe from 'stripe';
 
 import { Database, type DatabaseClient } from '../../../../db';

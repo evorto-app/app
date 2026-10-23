@@ -656,6 +656,10 @@ Optional overrides:
 - `E2E_SEED_KEY`
 
 Keep `E2E_NOW_ISO` ahead of the real current date or deterministic checkout expiry behavior will break.
+The `testClock` fixture uses the full configured timestamp; `seedDate` remains
+the UTC start of that day. Do not reconstruct the current time as noon from
+`seedDate`, because supported overrides can pin any time of day.
+
 The generated `.env.dev` passes the same clock and seed key to Docker database
 setup and the app container; do not seed against one clock while evaluating
 registration or check-in windows against another.

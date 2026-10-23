@@ -1,4 +1,4 @@
-import type * as SqlConnection from 'effect/unstable/sql/SqlConnection';
+import type * as SqlConnection from 'effect/sql/SqlConnection';
 
 import { describe, expect, it, vi } from '@effect/vitest';
 import { getTableName } from 'drizzle-orm';
@@ -15,8 +15,8 @@ import {
   References,
   Schema,
 } from 'effect';
-import * as Headers from 'effect/unstable/http/Headers';
-import { Rpc, RpcGroup, RpcMessage } from 'effect/unstable/rpc';
+import * as Headers from 'effect/http/Headers';
+import { Rpc, RpcGroup, RpcMessage } from 'effect/rpc';
 import Stripe from 'stripe';
 
 import type { Tenant } from '../../../../../types/custom/tenant';
@@ -519,17 +519,17 @@ const checkInStatements = {
   incrementOptionCheckIns:
     'update "event_registration_options" set "checkedInSpots" = "event_registration_options"."checkedInSpots" + $1, "updatedAt" = $2 where (("event_registration_options"."id" = $3) and ("event_registration_options"."eventId" = $4)) returning "id"',
   lockBlockingTransfer:
-    'select "expires_at"::text, "id", "status" from "registration_transfers" where (("registration_transfers"."tenantId" = $1) and ("registration_transfers"."source_registration_id" = $2) and ("registration_transfers"."status" in ($3, $4))) for update',
+    'select "expires_at"::text, "id", "status"::text from "registration_transfers" where (("registration_transfers"."tenantId" = $1) and ("registration_transfers"."source_registration_id" = $2) and ("registration_transfers"."status" in ($3, $4))) for update',
   lockEvent:
     'select "end"::text, "start"::text from "event_instances" where (("event_instances"."id" = $1) and ("event_instances"."tenantId" = $2)) for share',
   lockRegistration:
-    'select "checked_in_guest_count", "checkInTime"::text, "eventId", "guest_count", "id", "registrationOptionId", "status", "userId" from "event_registrations" where (("event_registrations"."id" = $1) and ("event_registrations"."tenantId" = $2)) for update',
+    'select "checked_in_guest_count", "checkInTime"::text, "eventId", "guest_count", "id", "registrationOptionId", "status"::text, "userId" from "event_registrations" where (("event_registrations"."id" = $1) and ("event_registrations"."tenantId" = $2)) for update',
   readBlockingTransfer:
     'select "d0"."id" as "id" from "registration_transfers" as "d0" where ((("d0"."status" <> \'open\' OR "d0"."expires_at" > statement_timestamp())) and ("d0"."source_registration_id" = $1) and ("d0"."status" in ($2, $3)) and ("d0"."tenantId" = $4)) limit $5',
   readOrganizerRegistration:
     'select "d0"."id" as "id", "registrationOption"."r" as "registrationOption" from "event_registrations" as "d0" left join lateral(select row_to_json("t".*) "r" from (select "d1"."organizingRegistration" as "organizingRegistration" from "event_registration_options" as "d1" where "d0"."registrationOptionId" = "d1"."id" limit $1) as "t") as "registrationOption" on true where (("d0"."eventId" = $2) and ("d0"."status" = $3) and ("d0"."tenantId" = $4) and ("d0"."userId" = $5))',
   readRegistration:
-    'select "d0"."checked_in_guest_count" as "checkedInGuestCount", "d0"."checkInTime"::text as "checkInTime", "d0"."eventId" as "eventId", "d0"."guest_count" as "guestCount", "d0"."id" as "id", "d0"."registrationOptionId" as "registrationOptionId", "d0"."status" as "status", "d0"."userId" as "userId" from "event_registrations" as "d0" where (("d0"."id" = $1) and ("d0"."tenantId" = $2)) limit $3',
+    'select "d0"."checked_in_guest_count" as "checkedInGuestCount", "d0"."checkInTime"::text as "checkInTime", "d0"."eventId" as "eventId", "d0"."guest_count" as "guestCount", "d0"."id" as "id", "d0"."registrationOptionId" as "registrationOptionId", "d0"."status"::text as "status", "d0"."userId" as "userId" from "event_registrations" as "d0" where (("d0"."id" = $1) and ("d0"."tenantId" = $2)) limit $3',
   writeRegistrationCheckIn:
     'update "event_registrations" set "updatedAt" = $1, "checked_in_guest_count" = "event_registrations"."checked_in_guest_count" + $2, "checkInTime" = $3 where (("event_registrations"."id" = $4) and ("event_registrations"."tenantId" = $5) and ("event_registrations"."status" = $6) and ("event_registrations"."userId" = $7)) returning "checked_in_guest_count", "checkInTime"::text, "id"',
 };
@@ -998,7 +998,7 @@ const currentOwnerStatusStatements = {
   recheckOwnership:
     'select "d0"."id" as "id" from "event_registrations" as "d0" where (("d0"."eventId" = $1) and ("d0"."id" in ($2)) and (not ("d0"."status" = $3)) and ("d0"."tenantId" = $4) and ("d0"."userId" = $5))',
   visibleTransfersPrefix:
-    'select "expires_at"::text, "ownership_transferred_at"::text, "registration_option_id", "source_registration_id", "source_user_id", "status", "id" from "registration_transfers" where (("registration_transfers"."event_id" = $1) and ("registration_transfers"."tenantId" = $2) and ("registration_transfers"."status" in ($3, $4, $5, $6, $7)) and (("registration_transfers"."status" <> \'open\' OR "registration_transfers"."expires_at" > statement_timestamp())) and ',
+    'select "expires_at"::text, "ownership_transferred_at"::text, "registration_option_id", "source_registration_id", "source_user_id", "status"::text, "id" from "registration_transfers" where (("registration_transfers"."event_id" = $1) and ("registration_transfers"."tenantId" = $2) and ("registration_transfers"."status" in ($3, $4, $5, $6, $7)) and (("registration_transfers"."status" <> \'open\' OR "registration_transfers"."expires_at" > statement_timestamp())) and ',
 };
 
 const createCurrentOwnerStatusDatabaseFixture = (
@@ -1056,7 +1056,7 @@ const createCurrentOwnerStatusDatabaseFixture = (
         case 'readOwnerRegistrations': {
           expect(
             statement.startsWith(
-              'select "d0"."applied_discounted_price" as "appliedDiscountedPrice", "d0"."applied_discount_type" as "appliedDiscountType", "d0"."base_price_at_registration" as "basePriceAtRegistration", "d0"."checkInTime"::text as "checkInTime", "d0"."discount_amount" as "discountAmount", "d0"."guest_count" as "guestCount", "d0"."id" as "id", "d0"."registrationOptionId" as "registrationOptionId", "d0"."status" as "status", "addonPurchaseOrders"."r" as "addonPurchaseOrders", "addonPurchases"."r" as "addonPurchases", "event"."r" as "event", "registrationOption"."r" as "registrationOption", "transactions"."r" as "transactions" from "event_registrations" as "d0" ',
+              'select "d0"."applied_discounted_price" as "appliedDiscountedPrice", "d0"."applied_discount_type"::text as "appliedDiscountType", "d0"."base_price_at_registration" as "basePriceAtRegistration", "d0"."checkInTime"::text as "checkInTime", "d0"."discount_amount" as "discountAmount", "d0"."guest_count" as "guestCount", "d0"."id" as "id", "d0"."registrationOptionId" as "registrationOptionId", "d0"."status"::text as "status", "addonPurchaseOrders"."r" as "addonPurchaseOrders", "addonPurchases"."r" as "addonPurchases", "event"."r" as "event", "registrationOption"."r" as "registrationOption", "transactions"."r" as "transactions" from "event_registrations" as "d0" ',
             ),
           ).toBe(true);
           expect(statement).toContain(
@@ -1103,7 +1103,7 @@ const createCurrentOwnerStatusDatabaseFixture = (
           const tenantParameter = step.includeOtherTransfer ? '$4' : '$3';
           const amountParameter = step.includeOtherTransfer ? '$5' : '$4';
           expect(statement).toBe(
-            'select "registration_transfer_refund_plan_items"."currency", "transactions"."manuallyCreated", "transactions"."method", "transactions"."status", "transactions"."stripe_refund_attempts", "transactions"."stripe_refund_claim_lease_expires_at"::text, "transactions"."stripe_refund_claim_lease_id", "transactions"."stripe_refund_max_attempts", "transactions"."stripe_refund_next_attempt_at"::text, "transactions"."stripe_refund_status", "registration_transfer_refund_plan_items"."refund_amount_due", "registration_transfer_refund_plan_items"."transfer_id" from "registration_transfer_refund_plan_items" left join "transactions" on (("transactions"."id" = "registration_transfer_refund_plan_items"."refund_transaction_id") and ("transactions"."tenantId" = "registration_transfer_refund_plan_items"."tenant_id") and ("transactions"."type" = $1)) where (("registration_transfer_refund_plan_items"."transfer_id" in (' +
+            'select "registration_transfer_refund_plan_items"."currency"::text, "transactions"."manuallyCreated", "transactions"."method"::text, "transactions"."status"::text, "transactions"."stripe_refund_attempts", "transactions"."stripe_refund_claim_lease_expires_at"::text, "transactions"."stripe_refund_claim_lease_id", "transactions"."stripe_refund_max_attempts", "transactions"."stripe_refund_next_attempt_at"::text, "transactions"."stripe_refund_status"::text, "registration_transfer_refund_plan_items"."refund_amount_due", "registration_transfer_refund_plan_items"."transfer_id" from "registration_transfer_refund_plan_items" left join "transactions" on (("transactions"."id" = "registration_transfer_refund_plan_items"."refund_transaction_id") and ("transactions"."tenantId" = "registration_transfer_refund_plan_items"."tenant_id") and ("transactions"."type" = $1)) where (("registration_transfer_refund_plan_items"."transfer_id" in (' +
               transferFilter +
               ')) and ("registration_transfer_refund_plan_items"."tenant_id" = ' +
               tenantParameter +
@@ -2103,7 +2103,7 @@ const createTrustedUrlDatabaseFixture = () => {
           if (statement.includes(' for update')) {
             expect(transactionOpen).toBe(true);
             expect(registrationId).toBeDefined();
-            expect(statement).toMatch(/^select "status" from /);
+            expect(statement).toMatch(/^select "status"::text from /);
             expect(parameters).toEqual([
               requireRegistrationId(),
               'event-1',
@@ -2822,7 +2822,7 @@ const readCancellationLock = ({
     ]);
     expect(
       statement.startsWith(
-        `select "${registrationTransfers.expiresAt.name}"::text, "${registrationTransfers.id.name}", "${registrationTransfers.status.name}" from "${getTableName(registrationTransfers)}"`,
+        `select "${registrationTransfers.expiresAt.name}"::text, "${registrationTransfers.id.name}", "${registrationTransfers.status.name}"::text from "${getTableName(registrationTransfers)}"`,
       ),
     ).toBe(true);
     expect(

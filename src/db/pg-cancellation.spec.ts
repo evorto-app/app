@@ -1,7 +1,7 @@
 import * as PgClient from '@effect/sql-pg/PgClient';
 import * as PgPool from '@effect/sql-pg/PgPool';
 import { Cause, Deferred, Effect, Fiber, Result } from 'effect';
-import * as Reactivity from 'effect/unstable/reactivity/Reactivity';
+import * as Reactivity from 'effect/reactivity/Reactivity';
 import { Duplex } from 'node:stream';
 import { describe, expect, it } from 'vitest';
 

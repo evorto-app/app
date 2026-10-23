@@ -1,6 +1,6 @@
 import { EffectDrizzleQueryError } from 'drizzle-orm/effect-core';
 import { Cause } from 'effect';
-import { isSqlError, type SqlError } from 'effect/unstable/sql/SqlError';
+import { isSqlError, type SqlError } from 'effect/sql/SqlError';
 
 export const ACTIVE_REGISTRATION_UNIQUE_CONSTRAINT =
   'event_registrations_active_user_event_unique';

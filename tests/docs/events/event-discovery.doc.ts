@@ -325,6 +325,9 @@ The same **Events** list is used on a small screen. Selecting a card opens the e
   await page.goto('/events');
   otherCard = eventCard(page, otherEventId);
   await expect(otherCard).toBeVisible({ timeout: 20_000 });
+  await expect(otherCard).not.toHaveAttribute('jsaction', /click/, {
+    timeout: 20_000,
+  });
   await otherCard.click();
   await expect(page).toHaveURL(`/events/${otherEventId}`);
   await expect(

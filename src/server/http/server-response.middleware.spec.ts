@@ -10,7 +10,7 @@ import {
   HttpServerError,
   HttpServerRequest,
   HttpServerResponse,
-} from 'effect/unstable/http';
+} from 'effect/http';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 

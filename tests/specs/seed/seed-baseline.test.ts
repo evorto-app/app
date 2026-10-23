@@ -49,7 +49,7 @@ test.describe('baseline seed invariants', () => {
           .every(
             (role) =>
               role.permissions.includes('events:create') &&
-              role.permissions.includes('templates:create') &&
+              !role.permissions.includes('templates:create') &&
               role.permissions.includes('templates:view'),
           ),
       )

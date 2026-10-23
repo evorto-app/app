@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
 import { Effect } from 'effect';
-import { HttpServerRequest, HttpServerResponse } from 'effect/unstable/http';
+import { HttpServerRequest, HttpServerResponse } from 'effect/http';
 import assert from 'node:assert/strict';
 import { request as createHttpRequest, createServer } from 'node:http';
 

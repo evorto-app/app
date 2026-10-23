@@ -11,8 +11,8 @@ import {
   Result,
   Schema,
 } from 'effect';
-import * as Headers from 'effect/unstable/http/Headers';
-import { Rpc, RpcMessage } from 'effect/unstable/rpc';
+import * as Headers from 'effect/http/Headers';
+import { Rpc, RpcMessage } from 'effect/rpc';
 import { randomUUID } from 'node:crypto';
 import { Pool, type PoolClient } from 'pg';
 import Stripe from 'stripe';

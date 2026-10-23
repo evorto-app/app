@@ -1,13 +1,13 @@
-import type * as SqlConnection from 'effect/unstable/sql/SqlConnection';
+import type * as SqlConnection from 'effect/sql/SqlConnection';
 
 import * as PgClient from '@effect/sql-pg/PgClient';
 import { describe, expect, it, vi } from '@effect/vitest';
 import { makePgTestClient } from '@server/testing/pg-test-client';
 import * as PgDrizzle from 'drizzle-orm/effect-postgres';
 import { Effect, Layer, Schema, Stream } from 'effect';
-import * as Headers from 'effect/unstable/http/Headers';
-import * as Rpc from 'effect/unstable/rpc/Rpc';
-import * as RpcMessage from 'effect/unstable/rpc/RpcMessage';
+import * as Headers from 'effect/http/Headers';
+import * as Rpc from 'effect/rpc/Rpc';
+import * as RpcMessage from 'effect/rpc/RpcMessage';
 import { DateTime } from 'luxon';
 
 import { Database } from '../../../../db';

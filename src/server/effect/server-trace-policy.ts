@@ -1,5 +1,5 @@
 import { Effect, Layer } from 'effect';
-import { HttpMiddleware } from 'effect/unstable/http';
+import { HttpMiddleware } from 'effect/http';
 
 const untracedOperationalPaths = new Set(['/healthz', '/readyz', '/version']);
 
