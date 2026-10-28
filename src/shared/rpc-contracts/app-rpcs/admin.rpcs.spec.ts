@@ -484,3 +484,31 @@ describe('preserved focused settings contract boundaries', () => {
     ).toThrow();
   });
 });
+
+describe('public footer link configuration', () => {
+  it('accepts labeled website and email links', () => {
+    expect(
+      Schema.is(AdminTenantUpdateAppearanceSettingsInput)({
+        ...currentAppearanceSettingsInput,
+        footerLinks: [
+          { href: 'https://example.org/', icon: 'website', label: 'Website' },
+          { href: 'mailto:hello@example.org', icon: 'email', label: 'Contact' },
+        ],
+      }),
+    ).toBe(true);
+  });
+  it.each([
+    'javascript:alert(1)',
+    'data:text/html,hello',
+    '//example.org',
+    'https://user:password@example.org',
+    'mailto:',
+  ])('rejects unsafe footer destination %s', (href) => {
+    expect(
+      Schema.is(AdminTenantUpdateAppearanceSettingsInput)({
+        ...currentAppearanceSettingsInput,
+        footerLinks: [{ href, icon: 'website', label: 'Website' }],
+      }),
+    ).toBe(false);
+  });
+});

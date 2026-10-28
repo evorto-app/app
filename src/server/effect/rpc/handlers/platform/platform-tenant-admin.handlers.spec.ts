@@ -45,6 +45,7 @@ const roleTenant = {
   emailSenderEmail: null,
   emailSenderName: null,
   faviconUrl: null,
+  footerLinks: [],
   id: 'tenant-target',
   legalNoticeText: null,
   legalNoticeUrl: null,

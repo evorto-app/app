@@ -245,6 +245,7 @@ const targetTenantRecord = {
   emailSenderEmail: null,
   emailSenderName: null,
   faviconUrl: null,
+  footerLinks: [],
   id: targetTenant.id,
   legalNoticeText: null,
   legalNoticeUrl: null,

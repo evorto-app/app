@@ -127,6 +127,7 @@ const createTenant = (domain: string) =>
     emailSenderEmail: null,
     emailSenderName: null,
     faviconUrl: null,
+    footerLinks: [],
     id: 'tenant-fixture',
     legalNoticeText: null,
     legalNoticeUrl: null,

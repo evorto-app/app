@@ -67,7 +67,7 @@ Select **Admin Tools**. Settings are divided into five pages:
 
 - **Organization settings** for the organization name, reply email address, default location, and time zone.
 - **Sign-up rules** for how many current event sign-ups a member may hold, plus transfer and cancellation deadlines. Joining a waitlist does not count toward this limit. Evorto checks the limit when the member later tries to take an available place.
-- **Appearance** for the theme, logo, tab icon, and the title and description shown in search results.
+- **Appearance** for the theme, logo, tab icon, footer icon links, and the title and description shown in search results.
 - **Legal pages** for the imprint and terms. Privacy policy changes remain on **New member setup** because members must accept a changed policy again.
 - **Payments** for seeing whether paid sign-ups are ready and managing currency, refunds, receipt countries, and discount cards.
 
@@ -265,11 +265,23 @@ Logos accept PNG, JPEG, WebP, or GIF files up to 5 MB. Tab icons also accept ICO
     await settings
       .getByPlaceholder('Short description for search results and previews')
       .fill(documentedSeoDescription);
+    await settings
+      .getByRole('button', { name: 'Add footer link', exact: true })
+      .click();
+    await settings
+      .getByRole('textbox', { name: 'Label', exact: true })
+      .fill('Website');
+    await settings
+      .getByRole('textbox', { name: 'Web or email address', exact: true })
+      .fill('https://section.example.org/');
+    await testInfo.attach('markdown', {
+      body: '\n### Footer links\n\nChoose **Add footer link**, enter the label and a complete web address (or a `mailto:` address), and choose an icon. The label identifies the link to assistive technology and appears on hover. Save appearance settings to publish your links. Use **Remove** to omit a link. Imprint and privacy remain available in the footer; terms appear when configured.\n',
+    });
     await takeScreenshot(
       testInfo,
       settings,
       page,
-      'Theme, logo, tab icon, and search preview text',
+      'Appearance settings, including footer links',
     );
     await settings
       .getByRole('button', { name: 'Save appearance settings' })

@@ -5,6 +5,7 @@ import {
   nonNegativePostgresInteger,
 } from '@shared/schema-utilities';
 import { TenantReceiptSettingsSchema } from '@shared/tenant-config';
+import { TenantFooterLinks } from '@shared/tenant-footer-links';
 import {
   AdminTenantAppearanceSettingsSnapshot,
   AdminTenantLegalSettingsSnapshot,
@@ -262,6 +263,7 @@ const strictSettingsInput = <const Fields extends Schema.Struct.Fields>(
 export const AdminTenantUpdateAppearanceSettingsInput = strictSettingsInput({
   expectedSettings: AdminTenantAppearanceSettingsSnapshot,
   faviconUrl: Schema.optional(TenantBrandAssetUrlString),
+  footerLinks: Schema.optional(TenantFooterLinks),
   logoUrl: Schema.optional(TenantBrandAssetUrlString),
   seoDescription: Schema.optional(Schema.String),
   seoTitle: Schema.optional(Schema.String),

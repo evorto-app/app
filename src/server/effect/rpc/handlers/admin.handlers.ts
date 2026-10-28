@@ -807,6 +807,7 @@ export const adminHandlers = {
               .update(tenants)
               .set({
                 ...brandAssets,
+                footerLinks: input.footerLinks,
                 seoDescription: input.seoDescription?.trim() || null,
                 seoTitle: input.seoTitle?.trim() || null,
                 theme: input.theme,

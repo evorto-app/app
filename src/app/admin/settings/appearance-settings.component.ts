@@ -14,7 +14,16 @@ import {
   signal,
   untracked,
 } from '@angular/core';
-import { disabled, form, FormField, submit } from '@angular/forms/signals';
+import {
+  applyEach,
+  disabled,
+  form,
+  FormField,
+  maxLength,
+  required,
+  submit,
+  validate,
+} from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
@@ -22,6 +31,11 @@ import { MatSelectModule } from '@angular/material/select';
 import { RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faArrowLeft, faUpload } from '@fortawesome/duotone-regular-svg-icons';
+import {
+  isTenantFooterHref,
+  MAX_TENANT_FOOTER_LINKS,
+  type TenantFooterLink,
+} from '@shared/tenant-footer-links';
 import {
   type AdminTenantAppearanceSettingsSnapshot,
   adminTenantAppearanceSettingsSnapshot,
@@ -34,6 +48,7 @@ import {
 import { ConfigService } from '../../core/config.service';
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
+import { footerIconOptions } from '../../core/footer-icons';
 import { NotificationService } from '../../core/notification.service';
 import {
   initializedTenant,
@@ -49,6 +64,7 @@ import {
 
 interface AppearanceSettingsModel {
   faviconUrl: string;
+  footerLinks: TenantFooterLink[];
   logoUrl: string;
   seoDescription: string;
   seoTitle: string;
@@ -138,8 +154,36 @@ export class AppearanceSettingsComponent {
   );
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly faUpload = faUpload;
+  protected readonly footerIconOptions = footerIconOptions;
+  protected readonly maxFooterLinks = MAX_TENANT_FOOTER_LINKS;
+
+  protected addFooterLink(): void {
+    if (
+      this.settingsLocked() ||
+      this.model().footerLinks.length >= MAX_TENANT_FOOTER_LINKS
+    )
+      return;
+    this.model.update((model) => ({
+      ...model,
+      footerLinks: [
+        ...model.footerLinks,
+        { href: '', icon: 'website', label: '' },
+      ],
+    }));
+    this.settingsForm.footerLinks().markAsDirty();
+  }
+  protected removeFooterLink(index: number): void {
+    if (this.settingsLocked()) return;
+    this.model.update((model) => ({
+      ...model,
+      footerLinks: model.footerLinks.filter((_, i) => i !== index),
+    }));
+    this.settingsForm.footerLinks().markAsDirty();
+  }
+
   private readonly model = signal<AppearanceSettingsModel>({
     faviconUrl: '',
+    footerLinks: [],
     logoUrl: '',
     seoDescription: '',
     seoTitle: '',
@@ -147,6 +191,25 @@ export class AppearanceSettingsComponent {
   });
   protected readonly settingsForm = form(this.model, (settings) => {
     disabled(settings, () => this.settingsLocked());
+    applyEach(settings.footerLinks, (link) => {
+      required(link.label, { message: 'Enter a link label.' });
+      validate(link.label, ({ value }) =>
+        value() && !value().trim()
+          ? { kind: 'blank', message: 'Enter a link label.' }
+          : undefined,
+      );
+      maxLength(link.label, 60);
+      required(link.href, { message: 'Enter a web or email address.' });
+      validate(link.href, ({ value }) =>
+        isTenantFooterHref(value().trim())
+          ? undefined
+          : {
+              kind: 'url',
+              message:
+                'Use an http://, https://, or mailto: address without credentials.',
+            },
+      );
+    });
   });
   protected readonly settingsInteractionReady =
     tenantSettingsInteractionReady();
@@ -209,6 +272,11 @@ export class AppearanceSettingsComponent {
           await this.updateMutation.mutateAsync({
             expectedSettings,
             faviconUrl: optionalTrimmed(settings.faviconUrl),
+            footerLinks: settings.footerLinks.map((link) => ({
+              ...link,
+              href: link.href.trim(),
+              label: link.label.trim(),
+            })),
             logoUrl: optionalTrimmed(settings.logoUrl),
             seoDescription: optionalTrimmed(settings.seoDescription),
             seoTitle: optionalTrimmed(settings.seoTitle),
@@ -341,6 +409,7 @@ export class AppearanceSettingsComponent {
     untracked(() => {
       this.model.set({
         faviconUrl: tenant.faviconUrl ?? '',
+        footerLinks: [...(tenant.footerLinks ?? [])],
         logoUrl: tenant.logoUrl ?? '',
         seoDescription: tenant.seoDescription ?? '',
         seoTitle: tenant.seoTitle ?? '',

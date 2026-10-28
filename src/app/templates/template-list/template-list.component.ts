@@ -21,6 +21,7 @@ import { IfPermissionDirective } from '../../shared/directives/if-permission.dir
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { class: 'block lg:h-full lg:min-h-0' },
   imports: [
     RouterLink,
     MatButtonModule,

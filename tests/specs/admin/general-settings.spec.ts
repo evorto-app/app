@@ -191,8 +191,32 @@ test('tenant admin saves each settings section independently @admin', async ({
       .getByPlaceholder('Short description for search results and previews')
       .fill(` ${seoDescription} `);
     await settings
+      .getByRole('button', { name: 'Add footer link', exact: true })
+      .click();
+    await settings
+      .getByRole('textbox', { name: 'Label', exact: true })
+      .fill('Organization website');
+    await settings
+      .getByRole('textbox', { name: 'Web or email address', exact: true })
+      .fill('javascript:alert(1)');
+    await expect(
+      settings.getByRole('button', { name: 'Save appearance settings' }),
+    ).toBeDisabled();
+    await settings
+      .getByRole('textbox', { name: 'Web or email address', exact: true })
+      .fill('https://section.example.org/');
+    await settings
       .getByRole('button', { name: 'Save appearance settings' })
       .click();
+    const publicLink = page
+      .getByRole('navigation', { name: 'Organization links', exact: true })
+      .getByRole('link', { name: 'Organization website', exact: true });
+    await expect(publicLink).toHaveAttribute(
+      'href',
+      'https://section.example.org/',
+    );
+    await expect(publicLink).toHaveAttribute('rel', 'noopener noreferrer');
+
     await expect(page.getByText('Appearance settings updated')).toBeVisible();
 
     await expect
@@ -200,6 +224,7 @@ test('tenant admin saves each settings section independently @admin', async ({
         database.query.tenants.findFirst({
           columns: {
             faviconUrl: true,
+            footerLinks: true,
             logoUrl: true,
             seoDescription: true,
             seoTitle: true,
@@ -209,6 +234,13 @@ test('tenant admin saves each settings section independently @admin', async ({
       )
       .toMatchObject({
         faviconUrl,
+        footerLinks: [
+          {
+            label: 'Organization website',
+            href: 'https://section.example.org/',
+            icon: 'website',
+          },
+        ],
         logoUrl,
         seoDescription,
         seoTitle,
@@ -369,6 +401,31 @@ test('tenant admin saves each settings section independently @admin', async ({
     await expect(
       appearanceSettings.getByRole('textbox', { name: 'Tab icon web address' }),
     ).toHaveValue(faviconUrl);
+    await expect(
+      appearanceSettings.getByRole('textbox', { name: 'Label', exact: true }),
+    ).toHaveValue('Organization website');
+    await expect(
+      appearanceSettings.getByRole('textbox', {
+        name: 'Web or email address',
+        exact: true,
+      }),
+    ).toHaveValue('https://section.example.org/');
+    await appearanceSettings
+      .getByRole('button', { name: 'Remove link 1', exact: true })
+      .click();
+    await appearanceSettings
+      .getByRole('button', { name: 'Save appearance settings' })
+      .click();
+    await expect(
+      page.getByRole('navigation', { name: 'Organization links', exact: true }),
+    ).toHaveCount(0);
+    await expect
+      .poll(
+        async () =>
+          (await database.query.tenants.findFirst({ where: { id: tenant.id } }))
+            ?.footerLinks,
+      )
+      .toEqual([]);
   });
 
   for (const assetUrl of [logoUrl, faviconUrl]) {

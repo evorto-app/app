@@ -689,11 +689,19 @@ test.describe('Desktop event columns', () => {
     if (!viewport) throw new Error('Expected the desktop test viewport.');
     const listBounds = await list.boundingBox();
     const detailBounds = await detail.boundingBox();
-    expect(listBounds?.height).toBeGreaterThanOrEqual(viewport.height - 24);
-    expect(detailBounds?.height).toBeGreaterThanOrEqual(viewport.height - 24);
     const footer = page.locator('app-root footer');
-    await expect(footer).toBeAttached();
-    expect((await footer.boundingBox())?.y).toBeGreaterThanOrEqual(
+    await expect(
+      footer.getByRole('link', { name: 'Imprint', exact: true }),
+    ).toBeInViewport();
+    await expect(
+      footer.getByRole('link', { name: 'Privacy', exact: true }),
+    ).toBeInViewport();
+    const footerBounds = await footer.boundingBox();
+    if (!footerBounds) throw new Error('Expected the organization footer.');
+    const paneHeight = viewport.height - footerBounds.height - 24;
+    expect(listBounds?.height).toBeGreaterThanOrEqual(paneHeight - 1);
+    expect(detailBounds?.height).toBeGreaterThanOrEqual(paneHeight - 1);
+    expect(footerBounds.y + footerBounds.height).toBeLessThanOrEqual(
       viewport.height,
     );
 

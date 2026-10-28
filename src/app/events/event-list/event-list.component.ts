@@ -46,7 +46,7 @@ export const eventListSignUpStateLabel = (
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
     class:
-      'block lg:h-[calc(100dvh-1.5rem)] lg:min-h-0 lg:min-w-0 lg:flex-none lg:overflow-hidden',
+      'block lg:h-full lg:min-h-0 lg:min-w-0 lg:flex-none lg:overflow-hidden',
   },
   imports: [
     FontAwesomeModule,

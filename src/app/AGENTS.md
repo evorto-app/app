@@ -29,6 +29,7 @@
 - Keep implementation details out of visible copy, badges, tooltips, accessible names, and errors. Explain what happened and what the user can do. Before adding explanatory UI, identify the decision it helps this viewer make; omit it if there is none. Configuration explanations belong beside the authorized management control, not on attendee cards.
 
 - Prefer `@angular/material` components where suitable.
+- Desktop list/detail routes reserve space for the organization footer; other pages retain normal document scrolling. List/detail page hosts fill their parent (`lg:h-full`) so both panes scroll independently above it; do not give them another viewport height.
 - Apply `appMaterialTheme` at the active page boundary. It also themes Material overlays while that page is active and restores their previous colors on navigation; do not add per-dialog color plumbing.
 - Use viewport breakpoints (`sm:`, `md:`, `lg:`) for page layout and Tailwind v4 container queries (`@container` with `@sm:`/`@md:`/`@lg:`) for component-level responsiveness.
 - Iconography standard: use Font Awesome Duotone Regular icons via `<fa-duotone-icon>` from `@fortawesome/angular-fontawesome`.
