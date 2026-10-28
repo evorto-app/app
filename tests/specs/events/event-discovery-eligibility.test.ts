@@ -698,7 +698,21 @@ test.describe('Desktop event columns', () => {
     ).toBeInViewport();
     const footerBounds = await footer.boundingBox();
     if (!footerBounds) throw new Error('Expected the organization footer.');
-    const paneHeight = viewport.height - footerBounds.height - 24;
+    const paneHeight = viewport.height - footerBounds.height;
+    expect(listBounds?.y).toBe(0);
+    expect(detailBounds?.y).toBe(0);
+    const listHeading = list.getByRole('heading', {
+      level: 1,
+      name: 'Events',
+      exact: true,
+    });
+    const detailHeading = detail.getByRole('heading', {
+      level: 1,
+      name: event.title,
+      exact: true,
+    });
+    expect((await listHeading.boundingBox())?.y).toBeGreaterThanOrEqual(24);
+    expect((await detailHeading.boundingBox())?.y).toBeGreaterThanOrEqual(24);
     expect(listBounds?.height).toBeGreaterThanOrEqual(paneHeight - 1);
     expect(detailBounds?.height).toBeGreaterThanOrEqual(paneHeight - 1);
     expect(footerBounds.y + footerBounds.height).toBeLessThanOrEqual(
@@ -713,6 +727,7 @@ test.describe('Desktop event columns', () => {
     await expect
       .poll(() => list.evaluate((element) => element.scrollTop))
       .toBeGreaterThan(0);
+    await expect(listHeading).not.toBeInViewport();
     const listPosition = await list.evaluate((element) => element.scrollTop);
     expect(await detail.evaluate((element) => element.scrollTop)).toBe(0);
     expect(await page.evaluate(() => window.scrollY)).toBe(documentPosition);
@@ -723,6 +738,7 @@ test.describe('Desktop event columns', () => {
     await expect
       .poll(() => detail.evaluate((element) => element.scrollTop))
       .toBeGreaterThan(0);
+    await expect(detailHeading).not.toBeInViewport();
     expect(await list.evaluate((element) => element.scrollTop)).toBe(
       listPosition,
     );

@@ -2,7 +2,7 @@
   class="grid grid-cols-1 lg:relative lg:h-full lg:min-h-0 lg:grid-cols-[400px_1fr] lg:grid-rows-[minmax(0,1fr)] lg:gap-4"
 >
   <div
-    class="lg:min-h-0 lg:overflow-y-auto lg:overscroll-y-contain lg:rounded-t-lg lg:p-4"
+    class="lg:min-h-0 lg:overflow-y-auto lg:overscroll-y-contain lg:rounded-t-lg lg:p-4 lg:pt-10"
     role="region"
     aria-label="Event list"
     tabindex="0"
@@ -77,7 +77,7 @@
         }
         @for (day of eventDays(); track day.day) {
           <p
-            class="title-medium sticky top-0 lg:-top-4 z-10 bg-surface-container px-4 py-2"
+            class="title-medium sticky top-0 z-10 bg-surface-container px-4 py-2"
           >
             {{ day.day | date }}
           </p>
@@ -169,7 +169,7 @@
     </nav>
   </div>
   <div
-    class="lg:min-h-0 lg:min-w-0 lg:overflow-y-auto lg:overscroll-y-contain lg:pr-4"
+    class="lg:min-h-0 lg:min-w-0 lg:overflow-y-auto lg:overscroll-y-contain lg:pr-4 lg:pt-6"
     role="region"
     aria-label="Selected event"
     tabindex="0"
