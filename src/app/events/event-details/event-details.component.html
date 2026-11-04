@@ -1,66 +1,8 @@
 <div
-  class="lg:min-h-full"
+  class="lg:min-h-full @container flex flex-col gap-4"
   appMaterialTheme
   [baseColor]="eventQuery.data()?.icon?.iconColor"
 >
-  <header
-    class="bg-primary-container text-on-primary-container p-4 lg:rounded-t-lg"
-  >
-    <div
-      class="flex flex-col lg:flex-row-reverse lg:items-start lg:justify-between"
-    >
-      <div class="mb-4 flex w-full flex-row items-center gap-2 lg:mb-0 lg:w-10">
-        <a
-          routerLink="/events"
-          mat-icon-button
-          class="lg:hidden! block"
-          aria-label="Back to events"
-        >
-          <fa-duotone-icon [icon]="faArrowLeft" />
-        </a>
-        <div class="grow"></div>
-        @if (
-          eventQuery.isSuccess() && !eventQuery.data().hasRegistrationOptions
-        ) {
-          <button
-            *appIfAnyPermission="['events:changeAnnouncementDiscovery']"
-            mat-icon-button
-            type="button"
-            [disabled]="
-              !controlsInteractive() ||
-              reviewActionInProgress() ||
-              updateAnnouncementDiscoveryMutation.isPending()
-            "
-            aria-label="Choose who can find this announcement"
-            (click)="updateAnnouncementDiscovery()"
-          >
-            <fa-duotone-icon [icon]="faUsers" />
-          </button>
-        }
-      </div>
-      <h1 class="display-small">
-        @if (eventQuery.isSuccess()) {
-          {{ eventQuery.data().title }}
-        } @else if (eventQuery.isPending()) {
-          Loading event…
-        } @else if (eventLoadErrorTag() === "EventNotFoundError") {
-          Event not found
-        } @else {
-          Event unavailable
-        }
-      </h1>
-    </div>
-    <div class="flex justify-center">
-      <app-shape
-        [changeSignal]="eventQuery.data()?.icon"
-        class="text-secondary w-42 mt-8"
-      >
-        @if (eventQuery.isSuccess()) {
-          <app-icon [iconCommonName]="eventQuery.data().icon" size="100" />
-        }
-      </app-shape>
-    </div>
-  </header>
   @if (reviewActionMessage()) {
     <section
       role="alert"
@@ -71,9 +13,195 @@
       <p>{{ reviewActionMessage() }}</p>
     </section>
   }
-  <div
-    class="bg-surface-container-high text-on-surface-container-high flex items-center justify-between gap-4 p-2 empty:hidden"
-  >
+  <ng-template #backNavigation>
+    <nav aria-label="Event navigation" class="mb-3 lg:hidden">
+      <a routerLink="/events" mat-button>
+        <fa-duotone-icon matButtonIcon class="mat-icon" [icon]="faArrowLeft" />
+        Events
+      </a>
+    </nav>
+  </ng-template>
+  @if (!eventQuery.isSuccess()) {
+    <ng-container [ngTemplateOutlet]="backNavigation" />
+  }
+
+  @if (eventQuery.isSuccess()) {
+    <header
+      class="bg-primary-container text-on-primary-container grid items-center overflow-hidden rounded-xl lg:@3xl:grid-cols-[minmax(0,1fr)_auto]"
+    >
+      <div class="min-w-0 p-4 sm:p-6">
+        <ng-container [ngTemplateOutlet]="backNavigation" />
+        <div class="flex items-center gap-4 sm:gap-6">
+          <app-shape
+            [changeSignal]="eventId()"
+            class="text-secondary w-20 shrink-0 sm:w-24"
+          >
+            <app-icon [iconCommonName]="eventQuery.data().icon" size="56" />
+          </app-shape>
+          <div class="min-w-0">
+            <h1 class="headline-medium break-words">
+              {{ eventQuery.data().title }}
+            </h1>
+            <dl class="body-large mt-2 flex flex-wrap gap-x-8 gap-y-3">
+              @if (eventIsSameDay()) {
+                <div>
+                  <dt class="sr-only">Date and time</dt>
+                  <dd>
+                    <time [attr.datetime]="eventQuery.data().start"
+                      >{{ eventQuery.data().start | date: "mediumDate" }} ·
+                      {{ eventQuery.data().start | date: "shortTime" }}</time
+                    >
+                    –
+                    <time [attr.datetime]="eventQuery.data().end">{{
+                      eventQuery.data().end | date: "shortTime"
+                    }}</time>
+                  </dd>
+                </div>
+              } @else {
+                <div>
+                  <dt class="label-large">Starts</dt>
+                  <dd>
+                    <time [attr.datetime]="eventQuery.data().start">
+                      {{ eventQuery.data().start | date: "mediumDate" }} ·
+                      {{ eventQuery.data().start | date: "shortTime" }}
+                    </time>
+                  </dd>
+                </div>
+                <div>
+                  <dt class="label-large">Ends</dt>
+                  <dd>
+                    <time [attr.datetime]="eventQuery.data().end">
+                      {{ eventQuery.data().end | date: "mediumDate" }} ·
+                      {{ eventQuery.data().end | date: "shortTime" }}
+                    </time>
+                  </dd>
+                </div>
+              }
+            </dl>
+            @if (showEventTimezone()) {
+              <p class="body-small text-on-surface-variant mt-1">
+                Times shown in {{ eventTimezone }}.
+              </p>
+            }
+          </div>
+        </div>
+      </div>
+      <nav
+        aria-label="Event management"
+        class="bg-surface-container-high text-on-surface flex flex-wrap content-center items-center justify-end gap-3 p-3 empty:hidden lg:@3xl:max-w-sm lg:@3xl:self-stretch lg:@3xl:p-6 [&_.mat-mdc-button-base]:shrink-0 [&_.mat-mdc-button-base]:whitespace-nowrap"
+      >
+        @if (eventQuery.isSuccess()) {
+          @if (!eventQuery.data().hasRegistrationOptions) {
+            <button
+              *appIfAnyPermission="['events:changeAnnouncementDiscovery']"
+              mat-icon-button
+              type="button"
+              [disabled]="
+                !controlsInteractive() ||
+                reviewActionInProgress() ||
+                updateAnnouncementDiscoveryMutation.isPending()
+              "
+              aria-label="Choose who can find this announcement"
+              (click)="updateAnnouncementDiscovery()"
+            >
+              <fa-duotone-icon [icon]="faUsers" />
+            </button>
+          }
+          @if (canOrganize()) {
+            <a
+              routerLink="organize"
+              matButton="outlined"
+              aria-label="Organize this event"
+            >
+              <span class="lg:hidden">Manage</span
+              ><span class="hidden lg:inline">Organize this event</span>
+            </a>
+          }
+          @if (canSeeStatus()) {
+            <div
+              class="flex min-w-0 flex-wrap items-center justify-between gap-3"
+            >
+              <div
+                class="flex min-w-0 flex-1 basis-64 flex-wrap items-center gap-2"
+              >
+                <app-event-status
+                  [status]="eventQuery.data().status"
+                  [comment]="eventQuery.data().statusComment"
+                  [reviewer]="
+                    eventQuery.data().reviewer?.firstName +
+                    ' ' +
+                    eventQuery.data().reviewer?.lastName
+                  "
+                />
+              </div>
+              <div class="flex flex-wrap items-center gap-2">
+                @if (
+                  canReview() && eventQuery.data().status === "PENDING_REVIEW"
+                ) {
+                  <button
+                    matButton="outlined"
+                    (click)="reviewEvent(false)"
+                    [disabled]="
+                      eventReviewActionDisabled({
+                        canReview: canReview(),
+                        controlsInteractive: controlsInteractive(),
+                        mutationPending:
+                          reviewActionInProgress() ||
+                          reviewMutation.isPending(),
+                        status: eventQuery.data().status,
+                      })
+                    "
+                  >
+                    Return to draft
+                  </button>
+                  <button
+                    matButton="filled"
+                    (click)="reviewEvent(true)"
+                    [disabled]="
+                      eventReviewActionDisabled({
+                        canReview: canReview(),
+                        controlsInteractive: controlsInteractive(),
+                        mutationPending:
+                          reviewActionInProgress() ||
+                          reviewMutation.isPending(),
+                        status: eventQuery.data().status,
+                      })
+                    "
+                  >
+                    Approve
+                  </button>
+                }
+
+                @if (canEdit()) {
+                  <a matButton="tonal" routerLink="edit"> Edit Event </a>
+                }
+
+                @if (canEdit() && eventQuery.data().status === "DRAFT") {
+                  <button
+                    matButton="filled"
+                    (click)="submitForReview()"
+                    [disabled]="
+                      eventSubmitForReviewActionDisabled({
+                        canEdit: canEdit(),
+                        controlsInteractive: controlsInteractive(),
+                        mutationPending:
+                          reviewActionInProgress() ||
+                          submitForReviewMutation.isPending(),
+                        status: eventQuery.data().status,
+                      })
+                    "
+                  >
+                    Submit for Review
+                  </button>
+                }
+              </div>
+            </div>
+          }
+        }
+      </nav>
+    </header>
+  }
+  <div class="flex flex-wrap gap-3 empty:hidden">
     @if (eventQuery.isSuccess() && cardExpiresBeforeEvent()) {
       <div
         class="bg-warning-container text-on-warning-container rounded px-3 py-2 body-small"
@@ -126,90 +254,6 @@
         </button>
       </div>
     }
-    @if (eventQuery.isSuccess()) {
-      @if (canOrganize()) {
-        <a routerLink="organize" matButton="filled">Organize this event</a>
-      }
-      @if (canSeeStatus()) {
-        <div
-          class="bg-surface text-on-surface flex flex-col gap-4 rounded-md p-2 lg:flex-row"
-        >
-          <div class="flex gap-2 lg:items-center">
-            <app-event-status
-              [status]="eventQuery.data().status"
-              [comment]="eventQuery.data().statusComment"
-              [reviewer]="
-                eventQuery.data().reviewer?.firstName +
-                ' ' +
-                eventQuery.data().reviewer?.lastName
-              "
-            />
-            @if (!canEdit() && eventQuery.data().status !== "APPROVED") {
-              <span class="text-on-surface-variant text-sm">
-                (Event is locked for editing)
-              </span>
-            }
-          </div>
-          <div class="flex flex-col gap-2 lg:flex-row lg:items-center lg:gap-4">
-            @if (canReview() && eventQuery.data().status === "PENDING_REVIEW") {
-              <button
-                matButton="outlined"
-                (click)="reviewEvent(false)"
-                [disabled]="
-                  eventReviewActionDisabled({
-                    canReview: canReview(),
-                    controlsInteractive: controlsInteractive(),
-                    mutationPending:
-                      reviewActionInProgress() || reviewMutation.isPending(),
-                    status: eventQuery.data().status,
-                  })
-                "
-              >
-                Return to draft
-              </button>
-              <button
-                matButton="filled"
-                (click)="reviewEvent(true)"
-                [disabled]="
-                  eventReviewActionDisabled({
-                    canReview: canReview(),
-                    controlsInteractive: controlsInteractive(),
-                    mutationPending:
-                      reviewActionInProgress() || reviewMutation.isPending(),
-                    status: eventQuery.data().status,
-                  })
-                "
-              >
-                Approve
-              </button>
-            }
-
-            @if (canEdit()) {
-              <a matButton="tonal" routerLink="edit"> Edit Event </a>
-            }
-
-            @if (canEdit() && eventQuery.data().status === "DRAFT") {
-              <button
-                matButton="filled"
-                (click)="submitForReview()"
-                [disabled]="
-                  eventSubmitForReviewActionDisabled({
-                    canEdit: canEdit(),
-                    controlsInteractive: controlsInteractive(),
-                    mutationPending:
-                      reviewActionInProgress() ||
-                      submitForReviewMutation.isPending(),
-                    status: eventQuery.data().status,
-                  })
-                "
-              >
-                Submit for Review
-              </button>
-            }
-          </div>
-        </div>
-      }
-    }
   </div>
   <div class="flex flex-col gap-4">
     @if (eventQuery.isPending()) {
@@ -217,194 +261,150 @@
         <h2 class="title-medium">Loading event…</h2>
       </div>
     } @else if (eventQuery.isError()) {
-      <div
+      <section
         role="alert"
-        class="bg-error-container text-on-error-container flex flex-col items-start gap-3 rounded-xl p-4"
+        class="bg-surface text-on-surface rounded-xl p-6 sm:p-8"
       >
-        <div>
+        <div class="flex flex-col items-start gap-6">
+          <div>
+            @if (eventLoadErrorTag() === "EventNotFoundError") {
+              <h1 class="headline-medium">Event not found</h1>
+              <p class="body-large text-on-surface-variant mt-3">
+                This event could not be found or is not available to you.
+              </p>
+            } @else if (eventLoadErrorTag() === "EventConflictError") {
+              <h1 class="headline-medium">Registration unavailable</h1>
+              <p class="body-large text-on-surface-variant mt-3">
+                This event's sign-up settings need to be corrected. Contact the
+                organizer before trying to register.
+              </p>
+            } @else {
+              <h1 class="headline-medium">Event could not be loaded</h1>
+              <p class="body-large text-on-surface-variant mt-3">
+                The event details are temporarily unavailable. Check your
+                connection and try again.
+              </p>
+            }
+          </div>
           @if (eventLoadErrorTag() === "EventNotFoundError") {
-            <h2 class="title-medium">Event not found</h2>
-            <p class="body-medium mt-1">
-              This event could not be found or is not available to you.
-            </p>
-          } @else if (eventLoadErrorTag() === "EventConflictError") {
-            <h2 class="title-medium">Registration unavailable</h2>
-            <p class="body-medium mt-1">
-              This event's sign-up settings need to be corrected. Contact the
-              organizer before trying to register.
-            </p>
+            <a mat-stroked-button routerLink="/events">Back to events</a>
           } @else {
-            <h2 class="title-medium">Event could not be loaded</h2>
-            <p class="body-medium mt-1">
-              The event details are temporarily unavailable. Check your
-              connection and try again.
-            </p>
+            <button
+              mat-stroked-button
+              type="button"
+              [disabled]="eventQuery.isFetching()"
+              (click)="retryEventDetails()"
+            >
+              {{ eventQuery.isFetching() ? "Retrying…" : "Try again" }}
+            </button>
           }
         </div>
-        @if (eventLoadErrorTag() === "EventNotFoundError") {
-          <a mat-stroked-button routerLink="/events">Back to events</a>
-        } @else {
-          <button
-            mat-stroked-button
-            type="button"
-            [disabled]="eventQuery.isFetching()"
-            (click)="retryEventDetails()"
-          >
-            {{ eventQuery.isFetching() ? "Retrying…" : "Try again" }}
-          </button>
-        }
-      </div>
+      </section>
     } @else if (eventQuery.isSuccess()) {
       <div class="flex flex-col gap-4">
-        <section
-          aria-label="Event details"
-          class="bg-surface text-on-surface description rounded-b-lg p-4"
-        >
-          <p class="body-small text-on-surface-variant mb-2">
-            Times shown in {{ eventTimezone }}.
-          </p>
-          <dl class="mb-4 flex flex-wrap gap-x-8 gap-y-3">
-            <div>
-              <dt class="label-large">Starts</dt>
-              <dd>
-                <time [attr.datetime]="eventQuery.data().start">
-                  {{ eventQuery.data().start | date: "mediumDate" }} ·
-                  {{ eventQuery.data().start | date: "shortTime" }}
-                </time>
-              </dd>
-            </div>
-            <div>
-              <dt class="label-large">Ends</dt>
-              <dd>
-                <time [attr.datetime]="eventQuery.data().end">
-                  {{ eventQuery.data().end | date: "mediumDate" }} ·
-                  {{ eventQuery.data().end | date: "shortTime" }}
-                </time>
-              </dd>
-            </div>
-            <div>
-              <dt class="label-large">Location</dt>
-              <dd>
-                @if (eventQuery.data().location; as location) {
-                  <p>{{ location.name }}</p>
-                  @if (location.type === "online") {
-                    <p>Online</p>
-                  } @else if (location.address) {
-                    <p>{{ location.address }}</p>
-                  }
-                } @else {
-                  <p>Not specified</p>
-                }
-              </dd>
-            </div>
-          </dl>
-          <div
-            class="prose dark:prose-invert max-w-none"
-            [innerHTML]="eventQuery.data().description"
-          ></div>
-        </section>
+        <ng-template #eventContent>
+          <section
+            aria-label="Event details"
+            class="description"
+            [class]="
+              registrationStatusQuery.isSuccess() &&
+              registrationStatusQuery.data().isRegistered
+                ? ''
+                : 'bg-surface text-on-surface rounded-xl p-4 sm:p-6'
+            "
+          >
+            <div
+              class="prose dark:prose-invert max-w-prose"
+              [innerHTML]="eventQuery.data().description"
+            ></div>
+          </section>
 
-        @if (
-          !eventQuery.data().hasRegistrationOptions &&
-            eventQuery.data().announcementRoleIds;
-          as announcementRoleIds
-        ) {
-          <section class="bg-surface text-on-surface rounded-2xl p-4">
-            <h2 class="title-medium">Who can find this announcement</h2>
-            <p class="body-medium mt-2">
-              <strong>
+          @if (
+            !eventQuery.data().hasRegistrationOptions &&
+              eventQuery.data().announcementRoleIds;
+            as announcementRoleIds
+          ) {
+            <section class="bg-surface text-on-surface rounded-2xl p-4">
+              <h2 class="title-medium">Who can find this announcement</h2>
+              <p class="body-medium mt-2">
+                <strong>
+                  {{
+                    eventDiscoveryLabel({
+                      announcementRoleCount: announcementRoleIds.length,
+                      hasRegistrationOptions:
+                        eventQuery.data().hasRegistrationOptions,
+                    })
+                  }}
+                </strong>
+                —
                 {{
-                  eventDiscoveryLabel({
+                  eventDiscoveryDescription({
                     announcementRoleCount: announcementRoleIds.length,
                     hasRegistrationOptions:
                       eventQuery.data().hasRegistrationOptions,
                   })
                 }}
-              </strong>
-              —
-              {{
-                eventDiscoveryDescription({
-                  announcementRoleCount: announcementRoleIds.length,
-                  hasRegistrationOptions:
-                    eventQuery.data().hasRegistrationOptions,
-                })
-              }}
-            </p>
-          </section>
-        }
+              </p>
+            </section>
+          }
 
-        @if (eventQuery.data().addOns.length > 0) {
-          <section class="bg-surface text-on-surface rounded-2xl p-4">
-            <h2 class="headline-small mb-4">Add-ons</h2>
-            <div class="grid gap-4">
-              @for (addOn of eventQuery.data().addOns; track addOn.id) {
-                <article class="border-outline-variant border-t pt-3">
-                  <div class="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <h3 class="title-medium">{{ addOn.title }}</h3>
-                      @if (addOn.description) {
-                        <p class="text-on-surface-variant body-medium mt-1">
-                          {{ addOn.description }}
-                        </p>
-                      }
-                    </div>
-                    <div class="text-right">
-                      @if (addOn.isPaid) {
-                        <app-price-with-tax
-                          [amount]="addOn.price"
-                          [taxRate]="eventAddonTaxRate(addOn)"
-                        />
-                      } @else {
-                        <span>Free</span>
-                      }
-                    </div>
-                  </div>
-                  <dl class="mt-3 grid gap-2 text-sm sm:grid-cols-2">
-                    <div>
-                      <dt class="text-on-surface-variant">
-                        Available quantity
-                      </dt>
-                      <dd>{{ addOn.totalAvailableQuantity }}</dd>
-                    </div>
-                    <div>
-                      <dt class="text-on-surface-variant">Max per user</dt>
-                      <dd>{{ addOn.maxQuantityPerUser }}</dd>
-                    </div>
-                    <div>
-                      <dt class="text-on-surface-variant">Purchase timing</dt>
-                      <dd>{{ eventAddonPurchaseTiming(addOn) }}</dd>
-                    </div>
-                    <div>
-                      <dt class="text-on-surface-variant">Sign-up choices</dt>
-                      <dd>
-                        @for (
-                          option of addOn.registrationOptions;
-                          track option.registrationOptionId
-                        ) {
-                          <span>
-                            {{
-                              registrationOptionTitle(
-                                eventQuery.data(),
-                                option.registrationOptionId
-                              )
-                            }}
-                            ({{ option.includedQuantity }} included,
-                            {{ option.optionalPurchaseQuantity }} optional){{
-                              $last ? "" : ", "
-                            }}
-                          </span>
+          @if (
+            eventQuery.data().addOns.length > 0 &&
+            !(
+              registrationStatusQuery.isSuccess() &&
+              registrationStatusQuery.data().isRegistered
+            )
+          ) {
+            <section class="bg-surface text-on-surface rounded-2xl p-4">
+              <h2 class="headline-small mb-4">Add-ons</h2>
+              <div class="grid gap-4">
+                @for (addOn of eventQuery.data().addOns; track addOn.id) {
+                  <article class="border-outline-variant border-t pt-3">
+                    <div
+                      class="flex flex-wrap items-start justify-between gap-3"
+                    >
+                      <div>
+                        <h3 class="title-medium">{{ addOn.title }}</h3>
+                        @if (addOn.description) {
+                          <p class="text-on-surface-variant body-medium mt-1">
+                            {{ addOn.description }}
+                          </p>
                         }
-                      </dd>
+                      </div>
+                      <div class="text-right">
+                        @if (addOn.isPaid) {
+                          <app-price-with-tax
+                            [amount]="addOn.price"
+                            [taxRate]="eventAddonTaxRate(addOn)"
+                          />
+                        } @else {
+                          <span>Free</span>
+                        }
+                      </div>
                     </div>
-                  </dl>
-                </article>
-              }
-            </div>
-          </section>
+                  </article>
+                }
+              </div>
+            </section>
+          }
+        </ng-template>
+        @if (
+          !(
+            registrationStatusQuery.isSuccess() &&
+            registrationStatusQuery.data().isRegistered
+          )
+        ) {
+          <ng-container [ngTemplateOutlet]="eventContent" />
         }
-
         <section class="flex flex-col gap-4">
-          <h2 class="headline-small">Your sign-up</h2>
+          @if (
+            !(
+              registrationStatusQuery.isSuccess() &&
+              registrationStatusQuery.data().isRegistered
+            )
+          ) {
+            <h2 class="headline-small">Your sign-up</h2>
+          }
           @if (registrationStatusQuery.isPending()) {
             <div class="bg-surface text-on-surface rounded-2xl p-4">
               <h3 class="title-small">Loading your sign-up…</h3>
@@ -510,7 +510,9 @@
               <app-event-active-registration
                 [eventId]="eventId()"
                 [registrations]="registrationStatusQuery.data().registrations"
-              />
+              >
+                <ng-container [ngTemplateOutlet]="eventContent" />
+              </app-event-active-registration>
             } @else {
               @switch (registrationOptionsState()) {
                 @case ("visible") {

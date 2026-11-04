@@ -16,15 +16,46 @@ export const addRoles = (
     .insert(schema.roles)
     .values([
       {
-        description: 'Full app admins',
+        description: 'Maintains section settings and member access.',
+        displayInHub: true,
+        sortOrder: 0,
         id: getId(),
         name: 'Admin',
         permissions: ALL_PERMISSIONS,
         tenantId: tenant.id,
       },
       {
+        description: 'Coordinates events and supports organizers.',
+        displayInHub: true,
+        sortOrder: 1,
+        id: getId(),
+        name: 'Event manager',
+        permissions: [
+          'events:create',
+          'events:editAll',
+          'events:review',
+          'events:organizeAll',
+          'internal:manageResources',
+          'events:seeDrafts',
+          'templates:view',
+          'internal:viewInternalPages',
+        ],
+        tenantId: tenant.id,
+      },
+      {
+        description: 'Handles receipts and reimbursements.',
+        displayInHub: true,
+        sortOrder: 2,
+        id: getId(),
+        name: 'Treasurer',
+        permissions: ['finance:*', 'internal:viewInternalPages'],
+        tenantId: tenant.id,
+      },
+      {
         defaultOrganizerRole: true,
         description: 'Members of the section',
+        displayInHub: false,
+        sortOrder: 3,
         id: getId(),
         name: 'Section member',
         permissions: [
@@ -37,6 +68,8 @@ export const addRoles = (
       {
         defaultOrganizerRole: true,
         description: 'Trial members of the section',
+        displayInHub: false,
+        sortOrder: 4,
         id: getId(),
         name: 'Trial member',
         permissions: [
@@ -48,9 +81,20 @@ export const addRoles = (
       },
       {
         description: 'Helpers of the section',
+        displayInHub: true,
+        sortOrder: 5,
         id: getId(),
         name: 'Helper',
         permissions: ['templates:view', 'internal:viewInternalPages'],
+        tenantId: tenant.id,
+      },
+      {
+        description: 'First-aid trained volunteers.',
+        displayInHub: true,
+        sortOrder: 6,
+        id: getId(),
+        name: 'First aid',
+        permissions: [],
         tenantId: tenant.id,
       },
       {
@@ -112,7 +156,10 @@ export const addUsersToRoles = async (
 
 export const addExampleUsers = async (
   database: NodePgDatabase<typeof relations>,
-  roles: { defaultUserRole: boolean; id: string }[],
+  roles: Pick<
+    typeof schema.roles.$inferSelect,
+    'defaultUserRole' | 'id' | 'name'
+  >[],
   tenant: { id: string },
 ) => {
   const usersToAdd: InferInsertModel<typeof schema.users>[] = [];
@@ -126,8 +173,20 @@ export const addExampleUsers = async (
   if (!defaultUserRole) {
     throw new Error('Default user role not found');
   }
+  const groupSizes: Record<string, number> = {
+    Admin: 1,
+    'Event manager': 2,
+    Treasurer: 0,
+    'First aid': 0,
+    'Section member': 6,
+    'Trial member': 2,
+    Helper: 2,
+  };
   for (const role of roles) {
-    for (let index = 0; index < (role.defaultUserRole ? 100 : 20); index++) {
+    const memberCount = role.defaultUserRole
+      ? 100
+      : (groupSizes[role.name] ?? 2);
+    for (let index = 0; index < memberCount; index++) {
       const user = {
         auth0Id: getId(),
         communicationEmail: randEmail(),
@@ -155,6 +214,31 @@ export const addExampleUsers = async (
           userTenantId: userToTenant.id,
         });
       }
+    }
+  }
+  const sectionRole = roles.find((role) => role.name === 'Section member');
+  if (sectionRole) {
+    const specialistRoleIds = new Set(
+      roles
+        .filter((role) =>
+          ['Admin', 'Event manager', 'Helper'].includes(role.name),
+        )
+        .map((role) => role.id),
+    );
+    for (const assignment of [...roleAssignmentsToAdd]) {
+      if (specialistRoleIds.has(assignment.roleId))
+        roleAssignmentsToAdd.push({ ...assignment, roleId: sectionRole.id });
+    }
+  }
+  const managerRole = roles.find((role) => role.name === 'Event manager');
+  const sharedMember = roleAssignmentsToAdd.find(
+    (assignment) => assignment.roleId === managerRole?.id,
+  );
+  if (sharedMember) {
+    for (const role of roles.filter((role) =>
+      ['Treasurer', 'First aid'].includes(role.name),
+    )) {
+      roleAssignmentsToAdd.push({ ...sharedMember, roleId: role.id });
     }
   }
   await database.insert(schema.users).values(usersToAdd);

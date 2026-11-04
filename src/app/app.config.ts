@@ -23,6 +23,7 @@ import {
 } from '@angular/platform-browser';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import {
+  type ActivatedRouteSnapshot,
   provideRouter,
   withComponentInputBinding,
   withInMemoryScrolling,
@@ -57,6 +58,12 @@ export const initializeApplicationConfig = async (): Promise<void> => {
   await inject(ConfigService).initialize();
 };
 
+// Native page snapshots crossfade raster images. Event-to-event navigation
+// keeps the SVG live so its CSS path transition can visibly interpolate.
+const hasEventShapeMorph = (route: ActivatedRouteSnapshot): boolean =>
+  route.data['eventShapeMorph'] === true ||
+  route.children.some((child) => hasEventShapeMorph(child));
+
 export const appConfig: ApplicationConfig = {
   providers: [
     provideAppInitializer(() => registerLocaleData(localeDe)),
@@ -66,7 +73,12 @@ export const appConfig: ApplicationConfig = {
       routes,
       withComponentInputBinding(),
       withInMemoryScrolling({ scrollPositionRestoration: 'enabled' }),
-      withViewTransitions(),
+      withViewTransitions({
+        onViewTransitionCreated: ({ from, to, transition }) => {
+          if (hasEventShapeMorph(from) && hasEventShapeMorph(to))
+            transition.skipTransition();
+        },
+      }),
       withRouterConfig({ paramsInheritanceStrategy: 'always' }),
     ),
     provideHttpClient(withFetch(), withInterceptors([authTokenInterceptor])),

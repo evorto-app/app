@@ -67,7 +67,7 @@ Select **Admin Tools**. Settings are divided into five pages:
 
 - **Organization settings** for the organization name, reply email address, default location, and time zone.
 - **Sign-up rules** for how many current event sign-ups a member may hold, plus transfer and cancellation deadlines. Joining a waitlist does not count toward this limit. Evorto checks the limit when the member later tries to take an available place.
-- **Appearance** for the theme, logo, tab icon, footer icon links, and the title and description shown in search results.
+- **Appearance** for an optional external home page, theme, logo, tab icon, footer icon links, and the title and description shown in search results.
 - **Legal pages** for the imprint and terms. Privacy policy changes remain on **New member setup** because members must accept a changed policy again.
 - **Payments** for seeing whether paid sign-ups are ready and managing currency, refunds, receipt countries, and discount cards.
 
@@ -202,6 +202,25 @@ Logos accept PNG, JPEG, WebP, or GIF files up to 5 MB. Tab icons also accept ICO
     ).toBeVisible();
     await expect(page.getByRole('option', { name: 'ESN theme' })).toBeVisible();
     await page.keyboard.press('Escape');
+
+    await testInfo.attach('markdown', {
+      body: '\n### Home page\n\nChoose **No home page** to omit Home from navigation, or **External link** and enter a complete HTTP/HTTPS address. Save appearance settings to publish the Home link for visitors and members. It opens in a new tab. Evorto does not host home page content.\n',
+    });
+    await settings
+      .getByRole('combobox', { name: 'Home page', exact: true })
+      .click();
+    await page
+      .getByRole('option', { name: 'External link', exact: true })
+      .click();
+    await settings
+      .getByRole('textbox', { name: 'Home page web address' })
+      .fill('https://section.example.org/');
+    await takeScreenshot(
+      testInfo,
+      settings.getByRole('combobox', { name: 'Home page', exact: true }),
+      page,
+      'Home page configured as an external link',
+    );
 
     const logoUrlInput = settings.getByRole('textbox', {
       name: 'Logo web address',

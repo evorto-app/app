@@ -196,31 +196,20 @@ verification without blanket certificate-error overrides.
 
 ## Platform Operation Coverage
 
-- `specs/admin/platform-tenant-operations.spec.ts` follows the guarded tenant
-  operation links, opens the refund-recovery surface, and resolves a
-  deterministic scanner result from an attendee ticket URL. Its payment-setup
-  recovery journey restores one original Stripe test-mode Checkout through
-  platform finance, then verifies the same claim, held capacity, one approval
-  notification and privacy-safe audit. The fixture registers cleanup before
-  changing records and expires only its exact unpaid test session.
-- `docs/admin/platform-tenant-operations.doc.ts` documents explicit target
-  selection and executes representative event and template edits, existing-user
-  role assignment and removal, an unverifiable-receipt rejection, and attendee
-  plus guest check-in. Every page mutation supplies its own operational reason,
-  reads domain state back from PostgreSQL, and is then found by reason, action,
-  and target tenant in the visible platform audit log. The guide explicitly
-  separates participant-owned flows and names the adjacent finance, lifecycle,
-  tax-import, approval, and cancellation operations that it does not execute.
-- The organization guide also documents payment restoration through the same
-  real test-mode provider read and audited page action. PostgreSQL recovery
-  coverage proves concurrent changes, tenant boundaries, discovery pagination,
-  audit rollback, email preservation and canonical paid/expired reconciliation,
-  including add-on stock and a fee mismatch after open-session recovery.
-- Prefer the target-scoped registration-result route for repeatable platform
-  scanner checks. The organizer guide already exercises deterministic mocked
-  camera permission/readiness, while Browser review covers the fallback and a
-  real result page. This evidence does not claim physical-device focus or QR
-  recognition certification.
+- `specs/admin/platform-tenant-operations.spec.ts` checks the organization link
+  and payment-only support tabs. Its recovery journey restores an original
+  Stripe test-mode Checkout, then verifies the same claim, held capacity,
+  approval notification, and privacy-safe audit. Cleanup expires only the
+  fixture's exact unpaid test session.
+- `specs/permissions/global-admin-tenant-override.spec.ts` follows **Open
+  organization** into ordinary administration and proves real writes with no
+  tenant membership or a role granting no capabilities.
+- `docs/admin/platform-tenant-operations.doc.ts` documents the organization link,
+  audited payment recovery, and change history. Ordinary tenant guides cover
+  events, templates, roles, scanning, receipts, and routine finance.
+- PostgreSQL recovery coverage retains concurrent changes, tenant boundaries,
+  discovery pagination, audit rollback, email preservation, and canonical
+  paid/expired reconciliation, including add-on stock and fee mismatches.
 
 ## Paid Registration Checkout Coverage
 

@@ -1,3 +1,4 @@
+import type { HubResource } from '@shared/hub-resources';
 import type { TenantFooterLink } from '@shared/tenant-footer-links';
 
 import { sql } from 'drizzle-orm';
@@ -52,6 +53,11 @@ export const tenants = pgTable(
     faviconUrl: text('favicon_url'),
     footerLinks: jsonb('footer_links')
       .$type<readonly TenantFooterLink[]>()
+      .notNull()
+      .default([]),
+    homePageUrl: text('home_page_url'),
+    hubResources: jsonb('hub_resources')
+      .$type<readonly HubResource[]>()
       .notNull()
       .default([]),
     id: varchar({ length: 20 })

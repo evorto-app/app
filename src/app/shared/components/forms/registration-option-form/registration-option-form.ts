@@ -28,6 +28,7 @@ import { RegistrationOptionFormModel } from './registration-option-form.schema';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { class: '@container min-w-0' },
   imports: [
     CurrencyAmountInputComponent,
     EditorComponent,
@@ -41,7 +42,6 @@ import { RegistrationOptionFormModel } from './registration-option-form.schema';
     RoleSelectComponent,
   ],
   selector: 'app-registration-option-form',
-  styles: ``,
   templateUrl: './registration-option-form.html',
 })
 export class RegistrationOptionForm {

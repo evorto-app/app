@@ -214,7 +214,7 @@ test.describe('Sign up for events', () => {
     await waitForActiveRegistration(page);
     const activeRegistration = page.locator('app-event-active-registration');
     await expect(
-      activeRegistration.getByText('Your ticket is confirmed', {
+      activeRegistration.getByText('Confirmed', {
         exact: true,
       }),
     ).toBeVisible();
@@ -286,17 +286,21 @@ test.describe('Sign up for events', () => {
     await testInfo.attach('markdown', {
       body: `
   ### Confirmed free ticket
-  The event page now shows **Your ticket is confirmed**, the ticket details, and its QR code.
+  The event page now shows **Confirmed**, the ticket details, and its QR code. On phones, the pass appears directly below the compact event header. Wide screens show the pass beside the event information and add-ons.
+  The **Meeting point** appears beside the confirmed ticket, with the venue name and address. Online events show **Joining details** and their joining link here instead. These details stay private before confirmation, including while awaiting payment or approval or on a waitlist. Open **Event instructions** for any additional guidance from the organizer.
   **Includes 1 guest plus you.** means the guest remains attached to the signed-in attendee's ticket and the two people use two confirmed places. Selected add-ons appear on the same ticket and organizers can review the answers.
   Show the QR code when attending the event. Evorto also tries to send a confirmation email with a link back to the ticket. The ticket shown on the event page is the confirmation: if the email does not arrive, sign in with the account used for the sign-up and open the event to find it.
   You can withdraw an application before approval. A pending payment can be cancelled only when Evorto confirms that it can safely release the held place. If payment setup needs review, keep the existing sign-up and contact an organizer; do not start another payment. You can also cancel a confirmed ticket before its displayed cancellation deadline and before the event starts. Cancelling a confirmed ticket releases your selected places, including guests, and starts any refund shown in the confirmation.`,
     });
 
+    await expect(
+      page.getByRole('region', { name: 'Meeting point', exact: true }),
+    ).toBeVisible();
     await takeScreenshot(
       testInfo,
       page.locator('section').filter({ hasText: 'Your sign-up' }),
       page,
-      'Confirmed free ticket with QR code, guest count, and add-ons',
+      'Confirmed free ticket with meeting point, QR code, guest count, and add-ons',
     );
   });
 
@@ -647,7 +651,7 @@ test.describe('Sign up for events', () => {
     }
     await testInfo.attach('markdown', {
       body: `
-  Event pages stay readable when sign-up is not currently possible. The sign-up card explains why and what you can do instead of showing an action that cannot succeed.
+  Event pages stay readable when sign-up is not currently possible. The sign-up card explains why and what you can do instead of showing an action that cannot succeed. Before sign-up opens, it shows the remaining time and exact opening date in the organization’s timezone. Questions and other form fields appear automatically when sign-up opens. If a submission fails, its error receives focus and scrolls into view; entered answers are preserved.
 `,
     });
 
@@ -1200,7 +1204,7 @@ To give up the position before the event starts, select **Leave waitlist**. When
     await page.goto(`/events/${paidEvent.id}`);
     await expect(page).toHaveURL(new RegExp(`/events/${paidEvent.id}`));
     await waitForRegistrationStatus(page);
-    const registeredMessage = page.getByText('Your ticket is confirmed');
+    const registeredMessage = page.getByText('Confirmed', { exact: true });
     await expect(registeredMessage).toBeVisible({ timeout: 20_000 });
     await expect(page.getByText('Includes 1 guest plus you.')).toBeVisible();
     const paidOptionAfterCheckout =
@@ -1215,7 +1219,7 @@ To give up the position before the event starts, select **Leave waitlist**. When
     await testInfo.attach('markdown', {
       body: `
   ### Confirmed paid ticket
-  After payment succeeds, return to the event page and check for **Your ticket is confirmed**. The ticket details and QR code are now available. **Includes 1 guest plus you** confirms that both paid places belong to this ticket.
+  After payment succeeds, return to the event page and check for **Confirmed**. The ticket details and QR code are now available. **Includes 1 guest plus you** confirms that both paid places belong to this ticket.
   Evorto tries to send a confirmation email with a link back to the ticket. You can always check the confirmed ticket on the event page, even if that email does not arrive.`,
     });
     await takeScreenshot(

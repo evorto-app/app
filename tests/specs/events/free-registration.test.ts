@@ -197,7 +197,7 @@ test('register for a free event as regular user', async ({
       .waitFor({ state: 'detached' });
 
     // Confirm the attendee sees their current ticket status.
-    await expect(page.getByText('Your ticket is confirmed')).toBeVisible();
+    await expect(page.getByText('Confirmed', { exact: true })).toBeVisible();
 
     await expect(
       page

@@ -135,7 +135,7 @@ test('registers with a free add-on and required registration question', async ({
   await waitForRegistrationStatus(page);
   const activeRegistration = page.locator('app-event-active-registration');
   await expect(
-    activeRegistration.getByText('Your ticket is confirmed', { exact: true }),
+    activeRegistration.getByText('Confirmed', { exact: true }),
   ).toBeVisible();
   const snackVoucherRow = registrationAddOnRow(page, 'Snack voucher');
   await expect(

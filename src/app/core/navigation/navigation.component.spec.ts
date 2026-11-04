@@ -54,6 +54,7 @@ describe('mobileMoreNavigationAvailable', () => {
 });
 
 describe('NavigationComponent accessibility', () => {
+  const tenantSignal = signal<null | { homePageUrl: null | string }>(null);
   const platformAuthoritySignal = signal<null | {
     readonly actorEmail: string;
     readonly actorId: string;
@@ -63,6 +64,7 @@ describe('NavigationComponent accessibility', () => {
   let queryClient: QueryClient;
 
   beforeEach(async () => {
+    tenantSignal.set(null);
     platformAuthoritySignal.set({
       actorEmail: 'platform@example.test',
       actorId: 'platform-test',
@@ -83,7 +85,7 @@ describe('NavigationComponent accessibility', () => {
         provideTanStackQuery(queryClient),
         {
           provide: ConfigService,
-          useValue: { platformAuthoritySignal },
+          useValue: { platformAuthoritySignal, tenantSignal },
         },
         {
           provide: NavigationOperations,
@@ -114,6 +116,30 @@ describe('NavigationComponent accessibility', () => {
     queryClient.clear();
     vi.clearAllMocks();
     TestBed.resetTestingModule();
+  });
+
+  it('shows an external Home link only when configured', () => {
+    const fixture = TestBed.createComponent(NavigationComponent);
+    fixture.detectChanges();
+    const root: HTMLElement = fixture.nativeElement;
+    expect(
+      [...root.querySelectorAll('a')].find(
+        (link) => link.textContent?.trim() === 'Home',
+      ),
+    ).toBeUndefined();
+    tenantSignal.set({ homePageUrl: 'https://section.example.org/' });
+    fixture.detectChanges();
+    const home = root.querySelector<HTMLAnchorElement>(
+      'a[href="https://section.example.org/"]',
+    );
+    expect(home?.textContent).toContain('Home');
+    expect(home?.target).toBe('_blank');
+    expect(home?.rel).toContain('noopener');
+    tenantSignal.set({ homePageUrl: null });
+    fixture.detectChanges();
+    expect(
+      root.querySelector('a[href="https://section.example.org/"]'),
+    ).toBeNull();
   });
 
   it('renders a named main navigation landmark and marks the current route', async () => {

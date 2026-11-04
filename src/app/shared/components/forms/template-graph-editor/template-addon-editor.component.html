@@ -43,7 +43,7 @@
         [disabled]="addOn.registrationOptions.length >= optionChoices().length"
         (click)="addMapping.emit()"
       >
-        <fa-duotone-icon [icon]="faPlus" />
+        <fa-duotone-icon matButtonIcon class="mat-icon" [icon]="faPlus" />
         Add sign-up choice
       </button>
     </div>

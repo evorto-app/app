@@ -23,6 +23,7 @@ import {
   tenants,
   users,
 } from '../../db/schema';
+import { ALL_PERMISSIONS } from '../../shared/permissions/permissions';
 import { createRegistrationDatabaseTestLayer } from '../testing/registration-database';
 import {
   resolveAuthenticationContext,
@@ -52,6 +53,8 @@ const createTenant = (domain: string) =>
     emailSenderName: null,
     faviconUrl: null,
     footerLinks: [],
+    homePageUrl: null,
+    hubResources: [],
     id: 'tenant-fixture',
     legalNoticeText: null,
     legalNoticeUrl: null,
@@ -464,7 +467,7 @@ describe('request-context-resolver', () => {
     ).toBe('trusted.example.com');
   });
 
-  it('resolves explicit platform authority without granting tenant permissions', () => {
+  it('grants every tenant permission from explicit platform authority', () => {
     const oidcUser = {
       email: 'platform@example.org',
       'evorto.app/app_metadata': {
@@ -479,7 +482,7 @@ describe('request-context-resolver', () => {
         platformAuthority,
         user: undefined,
       }),
-    ).toEqual(['globalAdmin:manageTenants']);
+    ).toEqual(['globalAdmin:manageTenants', ...ALL_PERMISSIONS]);
     expect(platformAuthority).toEqual(
       expect.objectContaining({
         actorEmail: 'platform@example.org',
@@ -587,6 +590,62 @@ describe('request-context-resolver', () => {
         tenantId: 'tenant-1',
       });
     }),
+  );
+
+  it.effect(
+    'resolves global administrators independently of tenant membership, onboarding, and role grants',
+    () =>
+      Effect.gen(function* () {
+        const onboarding = vi.fn(() => Effect.succeed(false));
+        for (const tenantAssignments of [
+          [],
+          [{ roles: [] }],
+          [{ roles: [{ id: 'role-empty', permissions: [] }] }],
+          [
+            {
+              roles: [
+                { id: 'role-retired', permissions: ['retired:permission'] },
+              ],
+            },
+          ],
+        ]) {
+          const database = createUserDatabaseLayer({
+            userExecute: () =>
+              Effect.succeed({
+                auth0Id: 'auth0|global',
+                communicationEmail: 'global@example.com',
+                email: 'global@example.com',
+                firstName: 'Global',
+                iban: null,
+                id: 'user-global',
+                lastName: 'Admin',
+                paypalEmail: null,
+                tenantAssignments,
+              }),
+          });
+          for (const tenantId of ['tenant-one', 'tenant-two']) {
+            const user = yield* resolveUserContext(
+              {
+                isAuthenticated: true,
+                oidcUser: {
+                  'evorto.app/app_metadata': { platformAdministrator: true },
+                  sub: 'auth0|global',
+                },
+                tenantId,
+              },
+              onboarding,
+            ).pipe(Effect.provide(database));
+            expect(user?.id).toBe('user-global');
+            expect(user?.permissions).toEqual(ALL_PERMISSIONS);
+            expect(user?.roleIds).toEqual(
+              tenantAssignments.flatMap((assignment) =>
+                assignment.roles.map((role) => role.id),
+              ),
+            );
+          }
+        }
+        expect(onboarding).not.toHaveBeenCalled();
+      }),
   );
 
   it.effect(

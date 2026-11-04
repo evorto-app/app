@@ -15,6 +15,16 @@ describe('globalAdminTenantPublicOrigin', () => {
     expect(globalAdminTenantPublicOrigin('')).toBeNull();
   });
 
+  it('opens the current organization at its existing origin, including local development', () => {
+    expect(globalAdminTenantPublicOrigin('localhost', 'localhost')).toBe('/');
+    expect(
+      globalAdminTenantPublicOrigin('tenant.example.org', 'tenant.example.org'),
+    ).toBe('/');
+    expect(
+      globalAdminTenantPublicOrigin('other.example.org', 'tenant.example.org'),
+    ).toBe('https://other.example.org');
+  });
+
   it('does not render an unusable HTTPS link for loopback tenants', () => {
     expect(globalAdminTenantPublicOrigin('localhost')).toBeNull();
     expect(globalAdminTenantPublicOrigin('127.0.0.1')).toBeNull();

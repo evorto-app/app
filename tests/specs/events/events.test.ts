@@ -66,6 +66,12 @@ test.describe('Unavailable event links', () => {
         name: 'Event not found',
       }),
     ).toBeVisible();
+    await expect(
+      page.getByRole('heading', { exact: true, name: 'Event not found' }),
+    ).toHaveCount(1);
+    await expect(
+      page.getByRole('region', { name: 'Selected event' }).locator('app-shape'),
+    ).toHaveCount(0);
     await expect(errorPanel).toContainText(
       'This event could not be found or is not available to you.',
     );
@@ -121,7 +127,7 @@ test('event creation has one named, keyboard-operable action', async ({
   await expect(createEvent).toBeVisible();
   await expect(createEvent).not.toHaveAttribute('jsaction', /click/);
   const accessibilityScan = await makeAxeBuilder()
-    .include('app-event-list > div > div > div:first-child')
+    .include('app-event-list [twoColumnHeader]')
     .analyze();
   expect(accessibilityScan.violations).toEqual([]);
   await createEvent.focus();

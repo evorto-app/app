@@ -316,20 +316,21 @@ h6 {
   view-transition-name: navigation-active;
 }
 
-// Positon fa-icons correctly in buttons
-.mat-mdc-button,
-.mat-mdc-outlined-button {
-  fa-duotone-icon,
-  fa-icon {
-    display: inline-block;
-    position: relative;
-    vertical-align: top;
-    font-size: 1.125rem;
-    height: 1.125rem;
-    width: 1.125rem;
-    margin-right: var(--mat-button-text-icon-spacing, 8px);
-    margin-left: var(--mat-text-button-icon-offset, -4px);
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation-duration: 0s !important;
   }
+}
+
+// Custom icons use Material's public projection slot and .mat-icon styling hooks.
+// Only the base SVG box is ours; Material owns button-specific sizing, spacing,
+// end-icon positioning, RTL margins, and interaction styles.
+:where(fa-icon, fa-duotone-icon)[matButtonIcon] {
+  @apply inline-flex size-6 shrink-0 items-center justify-center;
+  font-size: 24px;
+  line-height: 1;
 }
 
 // Positioning of fixed fabs

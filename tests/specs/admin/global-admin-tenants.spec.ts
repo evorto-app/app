@@ -4,7 +4,6 @@ import { eq, inArray } from 'drizzle-orm';
 import { getId } from '../../../helpers/get-id';
 import { gaStateFile } from '../../../helpers/user-data';
 import * as schema from '../../../src/db/schema';
-import { deriveTenantPublicOrigin } from '../../../src/shared/tenant-origin';
 import { test } from '../../support/fixtures/base-test';
 
 test.setTimeout(120_000);
@@ -378,24 +377,13 @@ test('platform administrator reviews tenant list, detail, and forms @admin @glob
   await expect(page).toHaveURL(/\/global-admin\/tenants\/[^/]+$/);
   await expect(
     page.getByText(
-      "Review this organization's settings and manage its events, members, roles, and finances.",
+      "Review this organization's settings. Open its website to manage events, templates, members, and finances.",
     ),
   ).toBeVisible();
   await expectTenantRows(page, originalTenant);
-  const originalTenantOrigin = deriveTenantPublicOrigin(originalTenant.domain);
-  if (
-    ['localhost', '127.0.0.1', '[::1]'].includes(
-      new URL(originalTenantOrigin).hostname,
-    )
-  ) {
-    await expect(
-      page.getByRole('link', { name: 'Open organization' }),
-    ).toHaveCount(0);
-  } else {
-    await expect(
-      page.getByRole('link', { name: 'Open organization' }),
-    ).toHaveAttribute('href', originalTenantOrigin);
-  }
+  await expect(
+    page.getByRole('link', { name: 'Open organization', exact: true }),
+  ).toHaveAttribute('href', '/');
   await expect(
     page.getByRole('link', { name: 'Edit organization' }),
   ).toHaveAttribute('href', `${reviewTenantHref}/edit`);

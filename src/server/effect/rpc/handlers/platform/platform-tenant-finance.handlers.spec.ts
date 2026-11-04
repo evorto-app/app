@@ -171,7 +171,7 @@ const submittedReceiptEvidence = {
 } satisfies ReceiptEvidenceRow;
 
 const platformTargetTenantSql =
-  'select "d0"."cancellation_deadline_hours_before_start" as "cancellationDeadlineHoursBeforeStart", "d0"."createdAt"::text as "createdAt", "d0"."currency"::text as "currency", "d0"."default_location" as "defaultLocation", "d0"."discount_providers" as "discountProviders", "d0"."domain" as "domain", "d0"."email_sender_email" as "emailSenderEmail", "d0"."email_sender_name" as "emailSenderName", "d0"."favicon_url" as "faviconUrl", "d0"."footer_links" as "footerLinks", "d0"."id" as "id", "d0"."legal_notice_text" as "legalNoticeText", "d0"."legal_notice_url" as "legalNoticeUrl", "d0"."logo_url" as "logoUrl", "d0"."max_active_registrations_per_user" as "maxActiveRegistrationsPerUser", "d0"."name" as "name", "d0"."receipt_settings" as "receiptSettings", "d0"."refund_fees_on_cancellation" as "refundFeesOnCancellation", "d0"."seoDescription" as "seoDescription", "d0"."seoTitle" as "seoTitle", "d0"."stripeAccountId" as "stripeAccountId", "d0"."terms_text" as "termsText", "d0"."terms_url" as "termsUrl", "d0"."theme"::text as "theme", "d0"."timezone" as "timezone", "d0"."transfer_deadline_hours_before_start" as "transferDeadlineHoursBeforeStart", "d0"."updatedAt"::text as "updatedAt" from "tenants" as "d0" where "d0"."id" = $1 limit $2';
+  'select "d0"."cancellation_deadline_hours_before_start" as "cancellationDeadlineHoursBeforeStart", "d0"."createdAt"::text as "createdAt", "d0"."currency"::text as "currency", "d0"."default_location" as "defaultLocation", "d0"."discount_providers" as "discountProviders", "d0"."domain" as "domain", "d0"."email_sender_email" as "emailSenderEmail", "d0"."email_sender_name" as "emailSenderName", "d0"."favicon_url" as "faviconUrl", "d0"."footer_links" as "footerLinks", "d0"."home_page_url" as "homePageUrl", "d0"."hub_resources" as "hubResources", "d0"."id" as "id", "d0"."legal_notice_text" as "legalNoticeText", "d0"."legal_notice_url" as "legalNoticeUrl", "d0"."logo_url" as "logoUrl", "d0"."max_active_registrations_per_user" as "maxActiveRegistrationsPerUser", "d0"."name" as "name", "d0"."receipt_settings" as "receiptSettings", "d0"."refund_fees_on_cancellation" as "refundFeesOnCancellation", "d0"."seoDescription" as "seoDescription", "d0"."seoTitle" as "seoTitle", "d0"."stripeAccountId" as "stripeAccountId", "d0"."terms_text" as "termsText", "d0"."terms_url" as "termsUrl", "d0"."theme"::text as "theme", "d0"."timezone" as "timezone", "d0"."transfer_deadline_hours_before_start" as "transferDeadlineHoursBeforeStart", "d0"."updatedAt"::text as "updatedAt" from "tenants" as "d0" where "d0"."id" = $1 limit $2';
 const receiptApprovalEvidenceSql =
   'select "finance_receipts"."alcoholAmount", "finance_receipts"."attachmentFileName", "finance_receipt_uploads"."mimeType", "finance_receipt_uploads"."storageKey", "finance_receipt_uploads"."consumedAt"::text, "finance_receipt_uploads"."uploadedAt"::text, "finance_receipt_uploads"."uploadedByUserId", "finance_receipt_uploads"."eventId", "finance_receipt_uploads"."id", "finance_receipt_uploads"."status"::text, "finance_receipt_uploads"."tenantId", "finance_receipts"."createdAt"::text, "finance_receipts"."currency"::text, "finance_receipts"."depositAmount", "finance_receipts"."eventId", "finance_receipts"."hasAlcohol", "finance_receipts"."hasDeposit", "finance_receipts"."id", "finance_receipts"."purchaseCountry", "finance_receipts"."receiptDate", "finance_receipts"."refundedAt"::text, "finance_receipts"."refundTransactionId", "finance_receipts"."rejectionReason", "finance_receipts"."reviewedAt"::text, "finance_receipts"."status"::text, "finance_receipts"."submittedByUserId", "finance_receipts"."taxAmount", "finance_receipts"."tenantId", "finance_receipts"."totalAmount", "finance_receipts"."updatedAt"::text from "finance_receipts" inner join "finance_receipt_uploads" on (("finance_receipts"."attachmentUploadId" = "finance_receipt_uploads"."id") and ("finance_receipts"."tenantId" = "finance_receipt_uploads"."tenantId") and ("finance_receipts"."eventId" = "finance_receipt_uploads"."eventId") and ("finance_receipts"."submittedByUserId" = "finance_receipt_uploads"."uploadedByUserId")) where (("finance_receipts"."id" = $1) and ("finance_receipts"."tenantId" = $2)) limit $3';
 
@@ -249,6 +249,8 @@ const createReceiptApprovalDatabase = () => {
     emailSenderName: targetTenant.emailSenderName ?? null,
     faviconUrl: targetTenant.faviconUrl ?? null,
     footerLinks: targetTenant.footerLinks ?? [],
+    homePageUrl: null,
+    hubResources: [],
     legalNoticeText: targetTenant.legalNoticeText ?? null,
     legalNoticeUrl: targetTenant.legalNoticeUrl ?? null,
     logoUrl: targetTenant.logoUrl ?? null,
@@ -285,6 +287,8 @@ const createReceiptApprovalDatabase = () => {
               targetTenantRecord.emailSenderName,
               targetTenantRecord.faviconUrl,
               targetTenantRecord.footerLinks,
+              targetTenantRecord.homePageUrl,
+              targetTenantRecord.hubResources,
               targetTenantRecord.id,
               targetTenantRecord.legalNoticeText,
               targetTenantRecord.legalNoticeUrl,

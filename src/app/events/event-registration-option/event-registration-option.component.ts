@@ -1,12 +1,15 @@
 import { CurrencyPipe } from '@angular/common';
 import {
   afterNextRender,
+  afterRenderEffect,
   ChangeDetectionStrategy,
   Component,
   computed,
+  ElementRef,
   inject,
   input,
   signal,
+  viewChild,
 } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { MatButtonModule } from '@angular/material/button';
@@ -23,7 +26,10 @@ import { interval, map } from 'rxjs';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
-import { TenantDatePipe } from '../../core/tenant-date.pipe';
+import {
+  TENANT_DATE_PIPE_TIMEZONE,
+  TenantDatePipe,
+} from '../../core/tenant-date.pipe';
 import { PriceWithTaxComponent } from '../../shared/components/inclusive-price-label/price-with-tax.component';
 
 export interface EventRegistrationAddonView {
@@ -416,10 +422,33 @@ export class EventRegistrationOptionComponent {
     return registrationOptionCanJoinWaitlist(this.registrationOption());
   });
 
+  protected readonly timezone = inject(TENANT_DATE_PIPE_TIMEZONE);
+  protected readonly openingCountdown = computed(() => {
+    const seconds = Math.max(
+      0,
+      (new Date(this.registrationOption().openRegistrationTime).getTime() -
+        this.currentTime().getTime()) /
+        1000,
+    );
+    const formatter = new Intl.RelativeTimeFormat('en', { numeric: 'always' });
+    if (seconds >= 86_400)
+      return formatter.format(Math.round(seconds / 86_400), 'day');
+    if (seconds >= 3600)
+      return formatter.format(Math.round(seconds / 3600), 'hour');
+    return formatter.format(Math.max(1, Math.ceil(seconds / 60)), 'minute');
+  });
+  private readonly writeFeedback =
+    viewChild<ElementRef<HTMLElement>>('writeFeedback');
   private queryClient = inject(QueryClient);
 
   constructor() {
     afterNextRender(() => this.controlsInteractive.set(true));
+    afterRenderEffect(() => {
+      const feedback = this.writeFeedback();
+      if (!feedback) return;
+      feedback.nativeElement.focus({ preventScroll: true });
+      feedback.nativeElement.scrollIntoView({ block: 'nearest' });
+    });
   }
 
   addonIncludedQuantity(addOn: EventRegistrationAddonView): number {
@@ -460,6 +489,7 @@ export class EventRegistrationOptionComponent {
 
   joinWaitlist(registrationOption: { eventId: string; id: string }) {
     if (
+      this.registrationOpen() !== 'open' ||
       registrationOptionWriteActionDisabled({
         answersTooLong: this.registrationQuestionAnswersTooLong(),
         controlsInteractive: this.controlsInteractive(),
@@ -490,6 +520,7 @@ export class EventRegistrationOptionComponent {
 
   register(registrationOption: { eventId: string; id: string }) {
     if (
+      this.registrationOpen() !== 'open' ||
       registrationOptionWriteActionDisabled({
         answersTooLong: this.registrationQuestionAnswersTooLong(),
         controlsInteractive: this.controlsInteractive(),

@@ -1,3 +1,5 @@
+import { addExampleUsers } from '../../../helpers/add-roles';
+import { organizerStateFile } from '../../../helpers/user-data';
 import { expect, test } from '../../support/fixtures/parallel-test';
 
 const requireSeededEvent = <T>(event: T | undefined, handleName: string): T => {
@@ -180,5 +182,66 @@ test.describe('baseline seed invariants', () => {
         ),
       )
       .toBeTruthy();
+  });
+});
+
+test.describe('Members Hub seed', () => {
+  test.use({ storageState: organizerStateFile });
+  test('shows seeded membership groups and their assigned members', async ({
+    page,
+    database,
+    roles,
+    tenant,
+  }) => {
+    await addExampleUsers(database, roles, tenant);
+    const treasurer = await database.query.roles.findFirst({
+      where: { tenantId: tenant.id, name: 'Treasurer' },
+      with: { usersToTenants: { with: { user: true } } },
+    });
+    const sharedMember = treasurer?.usersToTenants[0]?.user;
+    if (!sharedMember) throw new Error('Expected a seeded treasurer');
+    const decorativeRole = await database.query.roles.findFirst({
+      where: { tenantId: tenant.id, name: 'First aid' },
+    });
+    expect(decorativeRole?.permissions).toEqual([]);
+    await page.goto('/events');
+    await page
+      .getByRole('navigation', { name: 'Main navigation' })
+      .getByRole('link', { name: 'Members Hub', exact: true })
+      .click();
+    await expect(
+      page.getByRole('heading', { name: 'Members Hub', exact: true }),
+    ).toBeVisible();
+    const hub = page.locator('app-members-hub');
+    await expect(
+      hub
+        .getByRole('region', { name: 'Admin', exact: true })
+        .getByRole('listitem'),
+    ).toHaveCount(2);
+    await expect(
+      hub
+        .getByRole('region', { name: 'Event manager', exact: true })
+        .getByRole('listitem'),
+    ).toHaveCount(2);
+    await expect(
+      hub
+        .getByRole('region', { name: 'Treasurer', exact: true })
+        .getByRole('listitem'),
+    ).toHaveCount(1);
+    await expect(
+      hub.getByRole('region', { name: 'Section member', exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      hub.getByRole('region', { name: 'Trial member', exact: true }),
+    ).toHaveCount(0);
+    for (const name of ['Event manager', 'Treasurer', 'First aid']) {
+      await expect(
+        hub
+          .getByRole('region', { name, exact: true })
+          .getByText(`${sharedMember.firstName} ${sharedMember.lastName}`, {
+            exact: true,
+          }),
+      ).toBeVisible();
+    }
   });
 });

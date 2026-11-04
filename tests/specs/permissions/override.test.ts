@@ -57,10 +57,7 @@ test('adds internal:viewInternalPages to Regular user opens Members Hub', async 
     await membersHubLink.click();
     await expect(page).toHaveURL(/\/internal\/members-hub$/);
     await expect(
-      page.getByRole('heading', { name: 'Members Hub' }),
-    ).toBeVisible();
-    await expect(
-      page.getByRole('heading', { name: "Who's who" }),
+      page.getByRole('heading', { name: 'Members Hub', exact: true }),
     ).toBeVisible();
     await expect(page.getByText('Members Hub Test Team')).toBeVisible();
     await expect(page.getByText('Visible in Members Hub')).toBeVisible();

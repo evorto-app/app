@@ -1,20 +1,12 @@
 import type { EventsEventListDayRecord } from '@shared/rpc-contracts/app-rpcs/events.rpcs';
 
-import { isPlatformServer } from '@angular/common';
-import {
-  computed,
-  DestroyRef,
-  effect,
-  inject,
-  Injectable,
-  PendingTasks,
-  PLATFORM_ID,
-} from '@angular/core';
+import { computed, inject, Injectable } from '@angular/core';
 import { MAX_PAGE_LIMIT } from '@shared/schema-utilities';
 import { injectInfiniteQuery } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../core/effect-rpc-angular-client';
 import { PermissionsService } from '../core/permissions.service';
+import { holdServerRenderWhile } from '../core/server-render-pending';
 
 export const EVENT_LIST_PAGE_SIZE = MAX_PAGE_LIMIT;
 
@@ -93,20 +85,6 @@ export class EventListService {
   );
 
   constructor() {
-    if (!isPlatformServer(inject(PLATFORM_ID))) return;
-
-    const pendingTasks = inject(PendingTasks);
-    let complete: (() => void) | undefined = pendingTasks.add();
-    inject(DestroyRef).onDestroy(() => complete?.());
-
-    // HTTP completion can precede publication of the query result to Angular.
-    effect(() => {
-      if (this.eventQuery.isPending()) {
-        complete ??= pendingTasks.add();
-      } else {
-        complete?.();
-        complete = undefined;
-      }
-    });
+    holdServerRenderWhile(() => this.eventQuery.isPending());
   }
 }

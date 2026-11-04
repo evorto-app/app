@@ -1509,7 +1509,7 @@ The previous owner can reopen the event at any time. **Transferred tickets** sho
     body: `
 ## Operator recovery
 
-An Evorto administrator opens the affected organization, selects **Review finance**, and then opens **Refunds needing attention**. Find the failed refund by its event, amount, failed state, and related sign-up-transfer activity. Select **Review refund**, enter the required reason for the change, and choose **Try failed refund again**.
+An Evorto administrator opens the affected organization, selects **Payment support**, and then opens **Refunds needing attention**. Find the failed refund by its event, amount, failed state, and related sign-up-transfer activity. Select **Review refund**, enter the required reason for the change, and choose **Try failed refund again**.
 
 Evorto keeps the failed refund in payment history, starts a new refund attempt for the same amount, and returns the attendee page to **Transfer complete — refund in progress**. Recovery never creates a second transfer, sign-up, payment, or refund obligation.
 `,
@@ -1522,11 +1522,13 @@ Evorto keeps the failed refund in payment history, starts a new refund attempt f
     testClock,
   });
   registerDatabaseCleanup(() => operatorPage.close());
-  await operatorPage.page.goto(`/global-admin/tenants/${tenant.id}/finance`);
+  await operatorPage.page.goto(
+    `/global-admin/tenants/${tenant.id}/payment-support`,
+  );
   await expect(
     operatorPage.page.getByRole('heading', {
       level: 1,
-      name: 'Organization finance',
+      name: 'Payment support',
     }),
   ).toBeVisible();
   await operatorPage.page

@@ -29,6 +29,7 @@ import {
   EventListComponent,
   eventListSignUpStateLabel,
 } from './event-list.component';
+import { EventPreviewService } from './event-preview.service';
 
 const eventQueryState = signal<'error' | 'success'>('error');
 const hasNextPage = signal(false);
@@ -109,6 +110,13 @@ describe('EventListComponent load recovery', () => {
     await TestBed.configureTestingModule({
       imports: [EventListComponent],
       providers: [
+        {
+          provide: EventPreviewService,
+          useValue: {
+            events: () => listedEvents.flatMap((day) => day.events),
+            failed: () => false,
+          },
+        },
         provideRouter([]),
         { provide: TENANT_DATE_PIPE_TIMEZONE, useValue: 'Europe/Berlin' },
         {
@@ -147,6 +155,33 @@ describe('EventListComponent load recovery', () => {
 
   afterEach(() => {
     TestBed.resetTestingModule();
+  });
+
+  it('offers View event for upcoming previews and leaves past previews unlinked', () => {
+    const upcoming = listedEvents[0]?.events[0];
+    if (!upcoming) throw new Error('Expected an upcoming event');
+    const previews = signal([upcoming]);
+    TestBed.overrideProvider(EventPreviewService, {
+      useValue: { events: previews, failed: () => false },
+    });
+    eventQueryState.set('success');
+    const fixture = TestBed.createComponent(EventListComponent);
+    fixture.detectChanges();
+    const preview: HTMLElement | null = fixture.nativeElement.querySelector(
+      '[aria-labelledby="event-selection-heading"]',
+    );
+    expect(preview?.querySelector('a')?.textContent).toContain('View event');
+    previews.set([
+      {
+        ...upcoming,
+        id: 'past-preview',
+        start: '2020-01-01T12:00:00.000Z',
+        title: 'Last hike',
+      },
+    ]);
+    fixture.detectChanges();
+    expect(preview?.querySelector('h3')?.textContent).toContain('Last hike');
+    expect(preview?.querySelector('a')).toBeNull();
   });
 
   it('explains the discovery failure and recovers after retry', async () => {
@@ -551,6 +586,13 @@ describe('EventListComponent server rendering readiness', () => {
       providers: [
         provideRouter([]),
         provideTanStackQuery(queryClient),
+        {
+          provide: EventPreviewService,
+          useValue: {
+            events: () => listedEvents.flatMap((day) => day.events),
+            failed: () => false,
+          },
+        },
         { provide: PLATFORM_ID, useValue: 'server' },
         { provide: TENANT_DATE_PIPE_TIMEZONE, useValue: 'Europe/Berlin' },
         {

@@ -1,6 +1,6 @@
 # Templates Module Guidelines
 
-- Project Font Awesome icons into Material button icon slots with `matButtonIcon`. Extended FAB icons need an explicit 24px size and spacing; leaving them inside the label can stack the icon above the text.
+- Project Font Awesome icons into labeled Material buttons using `matButtonIcon class="mat-icon"`. Shared styles provide the base SVG box; Material supplies button spacing and normal-button sizing. Do not repeat icon size or margin utilities on each FAB.
 - Keep template form workflows Signal Forms-first and strongly typed.
 - Event creation starts with an editable copy of template add-ons and sign-up questions. Explicit empty selections omit them; never re-copy omitted items on the server or change the source template. Apply paid-item and tax checks to the selected event configuration.
 - Maintain clear mapping from template models to event-creation payloads.

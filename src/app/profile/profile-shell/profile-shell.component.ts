@@ -26,6 +26,7 @@ import { injectQuery } from '@tanstack/angular-query-experimental';
 
 import { ConfigService } from '../../core/config.service';
 import { AppRpc } from '../../core/effect-rpc-angular-client';
+import { TwoColumnLayoutComponent } from '../../shared/components/two-column-layout/two-column-layout.component';
 
 export const profileChildPageActive = (
   childPath: string | undefined,
@@ -43,7 +44,13 @@ export const focusProfileDetailHeading = (content: HTMLElement): void => {
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FontAwesomeModule, RouterLink, RouterLinkActive, RouterOutlet],
+  imports: [
+    TwoColumnLayoutComponent,
+    FontAwesomeModule,
+    RouterLink,
+    RouterLinkActive,
+    RouterOutlet,
+  ],
   selector: 'app-profile-shell',
   templateUrl: './profile-shell.component.html',
 })

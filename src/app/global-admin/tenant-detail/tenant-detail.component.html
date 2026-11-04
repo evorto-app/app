@@ -51,8 +51,8 @@
         <div>
           <h2 class="title-medium">{{ tenant.name }}</h2>
           <p class="body-medium text-on-surface-variant">
-            Review this organization's settings and manage its events, members,
-            roles, and finances.
+            Review this organization's settings. Open its website to manage
+            events, templates, members, and finances.
           </p>
         </div>
         <div class="grow"></div>
@@ -62,9 +62,14 @@
         >
           Edit organization
         </a>
+        <a
+          mat-button
+          [routerLink]="['/global-admin/tenants', tenant.id, 'payment-support']"
+          >Payment support</a
+        >
         @if (tenantPublicOrigin(tenant.domain); as tenantPublicOrigin) {
           <a
-            mat-button
+            matButton="filled"
             [href]="tenantPublicOrigin"
             target="_blank"
             rel="noopener noreferrer"
@@ -86,61 +91,6 @@
           </div>
         }
       </dl>
-
-      <nav
-        aria-label="Organization management"
-        class="border-outline-variant mt-6 border-t pt-4"
-      >
-        <h3 class="title-small">Organization management</h3>
-        <p class="body-small text-on-surface-variant mt-1">
-          Changes made here affect only this organization. They do not add you
-          as a member.
-        </p>
-        <div class="mt-3 flex flex-wrap gap-2">
-          <a
-            mat-stroked-button
-            [routerLink]="['/global-admin/tenants', tenant.id, 'events']"
-          >
-            Manage events
-          </a>
-          <a
-            mat-stroked-button
-            [routerLink]="['/global-admin/tenants', tenant.id, 'templates']"
-          >
-            Manage templates
-          </a>
-          <a
-            mat-stroked-button
-            [routerLink]="['/global-admin/tenants', tenant.id, 'scanner']"
-          >
-            Ticket support
-          </a>
-          <a
-            mat-stroked-button
-            [routerLink]="['/global-admin/tenants', tenant.id, 'users']"
-          >
-            Manage members
-          </a>
-          <a
-            mat-stroked-button
-            [routerLink]="['/global-admin/tenants', tenant.id, 'roles']"
-          >
-            Manage roles
-          </a>
-          <a
-            mat-stroked-button
-            [routerLink]="['/global-admin/tenants', tenant.id, 'tax-rates']"
-          >
-            Manage tax rates
-          </a>
-          <a
-            mat-stroked-button
-            [routerLink]="['/global-admin/tenants', tenant.id, 'finance']"
-          >
-            Review finance
-          </a>
-        </div>
-      </nav>
     </section>
   } @else {
     <section class="bg-surface text-on-surface rounded-2xl p-4">

@@ -271,7 +271,6 @@ describe('registrationAudienceCopy', () => {
     ).toEqual({
       audienceLabel: 'Organizer/helper',
       confirmedStatus: 'Organizer/helper ticket confirmed',
-      passHeading: 'Your organizer/helper pass',
       paymentPendingStatus:
         'Complete payment to confirm your organizer/helper place. Organizer access starts only after payment succeeds.',
       pendingApprovalStatus:
@@ -682,6 +681,50 @@ describe('EventActiveRegistrationComponent add-on purchase', () => {
     return fixture;
   };
 
+  it.each(['CONFIRMED', 'PENDING', 'WAITLIST'] as const)(
+    'shows the meeting point only for confirmed tickets: %s',
+    (status) => {
+      const fixture = render(
+        registrationStatus({
+          location: {
+            address: 'Station Square 5',
+            coordinates: { lat: 48, lng: 11 },
+            name: 'North entrance',
+            type: 'coordinate',
+          },
+          status,
+        }),
+      );
+      const root: HTMLElement = fixture.nativeElement;
+      expect(root.textContent?.includes('Station Square 5')).toBe(
+        status === 'CONFIRMED',
+      );
+      expect(root.querySelector('[aria-label="Meeting point"]') !== null).toBe(
+        status === 'CONFIRMED',
+      );
+    },
+  );
+
+  it('puts the online joining link and instructions alongside the confirmed ticket', () => {
+    const fixture = render(
+      registrationStatus({
+        location: {
+          meetingInstructions: 'Use your registered name.',
+          meetingProvider: 'other',
+          meetingUrl: 'https://meeting.example.org/session',
+          name: 'Online workshop',
+          type: 'online',
+        },
+      }),
+    );
+    const root: HTMLElement = fixture.nativeElement;
+    const joining = root.querySelector('[aria-label="Joining details"]');
+    expect(joining?.textContent).toContain('Use your registered name.');
+    expect(joining?.querySelector('a')?.getAttribute('href')).toBe(
+      'https://meeting.example.org/session',
+    );
+  });
+
   it('shows the confirmed ticket QR immediately and keeps organizer notes expandable', () => {
     const fixture = render(
       registrationStatus({
@@ -695,7 +738,7 @@ describe('EventActiveRegistrationComponent add-on purchase', () => {
     const instructions = root.querySelector('details');
     expect(qr).not.toBeNull();
     expect(root.querySelector('[role="status"]')?.textContent).toContain(
-      'Your ticket is confirmed',
+      'Confirmed',
     );
     expect(instructions?.open).toBe(false);
     expect(instructions?.textContent).toContain('Meet at the north entrance.');

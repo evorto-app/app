@@ -617,10 +617,74 @@ describe('EventRegistrationOptionComponent input limits', () => {
       throw new Error('Expected an HTML registration root');
     await vi.waitFor(() => {
       fixture.detectChanges();
-      expect(element.querySelector('button')).not.toBeNull();
+      expect(element.querySelector('button, time')).not.toBeNull();
     });
     return { element, fixture };
   };
+
+  it.each([true, false])(
+    'hides the entire form before opening (signed in: %s)',
+    async (authenticated) => {
+      checkAuthentication.mockResolvedValue(authenticated);
+      const opening = new Date(Date.now() + 2 * 86_400_000).toISOString();
+      const { element } = await render(
+        boundedRegistrationOption({ openRegistrationTime: opening }),
+      );
+      expect(element.textContent).toContain('Sign-up opens in 2 days');
+      expect(element.querySelector('time')?.getAttribute('title')).toBe(
+        'Europe/Berlin',
+      );
+      expect(element.querySelector('time')?.getAttribute('datetime')).toBe(
+        opening,
+      );
+      expect(element.querySelector('input, textarea, button, a')).toBeNull();
+    },
+  );
+
+  it('reveals the form automatically when sign-up opens', async () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] });
+    try {
+      const { element, fixture } = await render(
+        boundedRegistrationOption({
+          openRegistrationTime: new Date(Date.now() + 1000).toISOString(),
+        }),
+      );
+      expect(element.querySelector('textarea')).toBeNull();
+      await vi.advanceTimersByTimeAsync(1001);
+      fixture.detectChanges();
+      await fixture.whenStable();
+      expect(element.querySelector('textarea')).not.toBeNull();
+      expect(element.textContent).not.toContain('Sign-up opens');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('focuses failed submission feedback above the form and preserves answers', async () => {
+    submitRegistration.mockRejectedValueOnce({
+      _tag: 'EventRegistrationConflictError',
+      message: 'This sign-up choice is now full.',
+    });
+    const { element, fixture } = await render(boundedRegistrationOption());
+    const answer = element.querySelector('textarea');
+    if (!(answer instanceof HTMLTextAreaElement))
+      throw new Error('Expected answer');
+    answer.value = 'Keep my answer';
+    answer.dispatchEvent(new Event('input', { bubbles: true }));
+    fixture.detectChanges();
+    element.querySelector('button')?.click();
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(element.querySelector('[role="alert"]')?.textContent).toContain(
+        'This sign-up choice is now full.',
+      );
+    });
+    await fixture.whenStable();
+    expect(document.activeElement).toBe(
+      element.querySelector('[role="alert"]'),
+    );
+    expect(answer.value).toBe('Keep my answer');
+  });
 
   it('keeps answers and guests while checking sign-in again without submitting', async () => {
     const { element, fixture } = await render(boundedRegistrationOption());

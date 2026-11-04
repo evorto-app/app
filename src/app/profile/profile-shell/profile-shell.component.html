@@ -1,68 +1,64 @@
-<div class="grid grid-cols-1 items-start gap-4 lg:grid-cols-[300px_1fr] lg:p-4">
-  <div
-    class="{{
-      childPageActive() ? 'hidden' : 'grid'
-    }} content-start gap-4 lg:grid"
-  >
+<app-two-column-layout [detailActive]="childPageActive()">
+  <div twoColumnHeader>
     @if (childPageActive()) {
       <p class="title-large">Profile</p>
     } @else {
       <h1 class="title-large" id="profile-overview-heading">Profile</h1>
     }
-    <nav aria-label="Profile sections" class="grid gap-3">
-      <a
-        routerLink="/profile"
-        routerLinkActive="bg-secondary-container! text-on-secondary-container!"
-        [routerLinkActiveOptions]="{ exact: true }"
-        ariaCurrentWhenActive="page"
-        class="bg-surface text-on-surface rounded-2xl p-4"
-      >
-        <div class="flex items-center gap-3">
-          <fa-duotone-icon [icon]="faUser" />
-          <span class="title-medium">Overview</span>
-        </div>
-      </a>
-      <a
-        routerLink="events"
-        routerLinkActive="bg-secondary-container! text-on-secondary-container!"
-        ariaCurrentWhenActive="page"
-        class="bg-surface text-on-surface rounded-2xl p-4"
-      >
-        <div class="flex items-center gap-3">
-          <fa-duotone-icon [icon]="faCalendarDays" />
-          <span class="title-medium">Events</span>
-        </div>
-      </a>
-      @if (esnEnabled()) {
-        <a
-          routerLink="discounts"
-          routerLinkActive="bg-secondary-container! text-on-secondary-container!"
-          ariaCurrentWhenActive="page"
-          class="bg-surface text-on-surface rounded-2xl p-4"
-        >
-          <div class="flex items-center gap-3">
-            <fa-duotone-icon [icon]="faTags" />
-            <span class="title-medium">Discounts</span>
-          </div>
-        </a>
-      }
-      @if (showReceipts()) {
-        <a
-          routerLink="receipts"
-          routerLinkActive="bg-secondary-container! text-on-secondary-container!"
-          ariaCurrentWhenActive="page"
-          class="bg-surface text-on-surface rounded-2xl p-4"
-        >
-          <div class="flex items-center gap-3">
-            <fa-duotone-icon [icon]="faReceipt" />
-            <span class="title-medium">Receipts</span>
-          </div>
-        </a>
-      }
-    </nav>
   </div>
-
+  <nav twoColumnSidebar aria-label="Profile sections" class="grid gap-3">
+    <a
+      routerLink="/profile"
+      routerLinkActive="bg-secondary-container! text-on-secondary-container!"
+      [routerLinkActiveOptions]="{ exact: true }"
+      ariaCurrentWhenActive="page"
+      class="bg-surface text-on-surface rounded-2xl p-4"
+    >
+      <div class="flex items-center gap-3">
+        <fa-duotone-icon [icon]="faUser" />
+        <span class="title-medium">Overview</span>
+      </div>
+    </a>
+    <a
+      routerLink="events"
+      routerLinkActive="bg-secondary-container! text-on-secondary-container!"
+      ariaCurrentWhenActive="page"
+      class="bg-surface text-on-surface rounded-2xl p-4"
+    >
+      <div class="flex items-center gap-3">
+        <fa-duotone-icon [icon]="faCalendarDays" />
+        <span class="title-medium">Events</span>
+      </div>
+    </a>
+    @if (esnEnabled()) {
+      <a
+        routerLink="discounts"
+        routerLinkActive="bg-secondary-container! text-on-secondary-container!"
+        ariaCurrentWhenActive="page"
+        class="bg-surface text-on-surface rounded-2xl p-4"
+      >
+        <div class="flex items-center gap-3">
+          <fa-duotone-icon [icon]="faTags" />
+          <span class="title-medium">Discounts</span>
+        </div>
+      </a>
+    }
+    @if (showReceipts()) {
+      <a
+        routerLink="receipts"
+        routerLinkActive="bg-secondary-container! text-on-secondary-container!"
+        ariaCurrentWhenActive="page"
+        class="bg-surface text-on-surface rounded-2xl p-4"
+      >
+        <div class="flex items-center gap-3">
+          <fa-duotone-icon [icon]="faReceipt" />
+          <span class="title-medium">Receipts</span>
+        </div>
+      </a>
+    }
+  </nav>
   <main
+    twoColumnDetail
     #profileContent
     [attr.aria-labelledby]="
       childPageActive() ? 'profile-detail-heading' : 'profile-overview-heading'
@@ -81,4 +77,4 @@
       (deactivate)="childPageActive.set(false)"
     />
   </main>
-</div>
+</app-two-column-layout>

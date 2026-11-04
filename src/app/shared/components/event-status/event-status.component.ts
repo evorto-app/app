@@ -27,20 +27,24 @@ export const eventStatusLabel = (status: EventStatus): string => {
       return 'Draft';
     }
     case 'PENDING_REVIEW': {
-      return 'Pending Review';
+      return 'In review';
     }
   }
 };
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { class: 'inline-flex flex-wrap items-center gap-2' },
   selector: 'app-event-status',
   template: `
-    <span [class]="getStatusClass()" class="rounded px-2 py-1 text-sm">
+    <span
+      [class]="getStatusClass()"
+      class="inline-block whitespace-nowrap rounded px-2 py-1 text-sm"
+    >
       {{ getStatusLabel() }}
     </span>
     @if (comment()) {
-      <span class="text-on-surface-variant ml-2 text-sm"
+      <span class="text-on-surface-variant text-sm"
         >Review feedback: {{ comment() }}
         @if (reviewer()) {
           ({{ reviewer() }})

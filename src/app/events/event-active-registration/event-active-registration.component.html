@@ -1,541 +1,669 @@
-<div class="bg-surface text-on-surface @container flex flex-col rounded-xl p-4">
-  @for (
-    registration of registrations();
-    track registration.id;
-    let first = $first
-  ) {
-    @let audience = registrationAudienceCopy(registration);
-    <article
-      class="grid grid-cols-1 gap-4 py-5 @md:grid-cols-2"
-      [class.border-outline-variant]="!first"
-      [class.border-t]="!first"
-      [class.pt-0]="first"
+<div class="@container">
+  <div
+    class="grid items-start gap-4 @4xl:grid-cols-[minmax(0,1fr)_minmax(20rem,28rem)]"
+  >
+    <div
+      class="contents @4xl:order-2 @4xl:sticky @4xl:top-4 @4xl:grid @4xl:gap-4"
     >
-      <div
-        class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 @md:col-span-2"
-      >
-        <div class="grid gap-1">
-          @if (
-            registration.status !== "CONFIRMED" ||
-            registration.organizingRegistration
-          ) {
-            <p class="label-medium text-primary">
-              {{ audience.audienceLabel }}
-            </p>
-          }
-          <h3 class="title-medium">
-            {{ registration.registrationOptionTitle }}
-          </h3>
-        </div>
-        @if (registration.status === "CONFIRMED") {
-          <p class="body-medium text-success" role="status">
-            {{ audience.confirmedStatus }}
-          </p>
-        }
-      </div>
-      @if (registration.guestCount > 0) {
-        <p class="body-medium text-on-surface-variant @md:col-span-2">
-          Includes {{ registration.guestCount }}
-          {{ registration.guestCount === 1 ? "guest" : "guests" }} plus you.
-        </p>
-      }
-      @if (registration.appliedDiscountType === "esnCard") {
-        <div
-          class="bg-primary-container text-on-primary-container rounded-md px-3 py-2 @md:col-span-2"
-        >
-          ESNcard discount applied
-          @if (
-            registration.basePriceAtRegistration !== null &&
-            registration.basePriceAtRegistration !== undefined &&
-            registration.appliedDiscountedPrice !== null &&
-            registration.appliedDiscountedPrice !== undefined
-          ) {
-            ({{ registration.basePriceAtRegistration / 100 | currency }} →
-            {{ registration.appliedDiscountedPrice / 100 | currency }})
-          }
-        </div>
-      }
-
-      @if (registration.status === "PENDING") {
-        @if (registration.paymentPending) {
-          @if (
-            registrationCheckoutUrl(registration.checkoutUrl);
-            as registrationCheckoutUrl
-          ) {
-            <div class="text-warning @md:col-span-2" role="status">
-              {{ audience.paymentPendingStatus }}
-            </div>
-            <a [href]="registrationCheckoutUrl" mat-flat-button> Pay now </a>
-          } @else if (registration.checkoutUrl) {
-            <div
-              class="bg-error-container text-on-error-container rounded-md p-3 @md:col-span-2"
-              role="alert"
-            >
-              Evorto received an invalid payment link and did not open it.
-              Contact an organizer for help.
-            </div>
-          } @else {
-            <div class="text-warning @md:col-span-2" role="status">
-              Your payment link is not ready yet. Contact an organizer to review
-              this payment. Keep this sign-up and do not start another payment.
-              Your ticket is not confirmed until payment succeeds.
-            </div>
-          }
-        } @else {
-          <div class="text-warning @md:col-span-2" role="status">
-            {{ audience.pendingApprovalStatus }}
-          </div>
-        }
-      } @else if (registration.status === "WAITLIST") {
-        <div class="text-warning @md:col-span-2" role="status">
-          You are currently on the waitlist. We will contact you if a spot
-          becomes available.
-        </div>
-      } @else if (registration.status === "CONFIRMED") {
-        <div
-          class="bg-surface-container-high text-on-surface flex flex-col gap-4 rounded-lg p-4"
-        >
-          @if (registration.organizingRegistration) {
-            <p class="title-medium">{{ audience.passHeading }}</p>
-          }
-          <img
-            ngSrc="/qr/registration/{{ registration.id }}"
-            priority
-            width="200"
-            height="200"
-            [alt]="audience.qrAlt"
-          />
-        </div>
-        @if (registration.registeredDescription) {
-          <details class="@md:col-span-2">
-            <summary class="body-medium cursor-pointer">
-              Event instructions
-            </summary>
-            <div
-              class="prose dark:prose-invert mt-3 max-w-none"
-              [innerHtml]="registration.registeredDescription"
-            ></div>
-          </details>
-        }
-      }
-
-      @if (registration.registrationAddOns.length > 0) {
-        <section
-          class="border-outline-variant border-t pt-4 @md:col-span-2"
-          [attr.aria-labelledby]="'registration-addons-' + registration.id"
-        >
-          <div class="grid gap-1">
-            <h4
-              class="title-medium"
-              [id]="'registration-addons-' + registration.id"
-            >
-              Add-ons
-            </h4>
-            <p class="body-small text-on-surface-variant">
-              Review what is on this ticket or buy another available add-on.
-            </p>
-          </div>
-
-          <ul class="divide-outline-variant mt-2 divide-y">
-            @for (
-              addOn of registration.registrationAddOns;
-              track addOn.addOnId
-            ) {
-              <li
-                class="grid gap-4 py-4 @md:grid-cols-[minmax(0,1fr)_minmax(12rem,16rem)]"
+      <section class="order-1 p-4">
+        <h2 class="headline-small mb-4">Your sign-up</h2>
+        @for (
+          registration of registrations();
+          track registration.id;
+          let first = $first
+        ) {
+          @let audience = registrationAudienceCopy(registration);
+          <article class="grid grid-cols-1 gap-4 py-5" [class.pt-0]="first">
+            @if (registration.status !== "CONFIRMED") {
+              <div
+                class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1"
               >
-                <div class="grid content-start gap-3">
-                  <div class="grid gap-1">
-                    <h5 class="title-small">{{ addOn.title }}</h5>
-                    @if (addOn.description) {
-                      <p class="body-medium text-on-surface-variant">
-                        {{ addOn.description }}
+                <div class="grid gap-1">
+                  <p class="label-medium text-primary">
+                    {{ audience.audienceLabel }}
+                  </p>
+                  <h3 class="title-medium">
+                    {{ registration.registrationOptionTitle }}
+                  </h3>
+                </div>
+              </div>
+            }
+            @if (
+              registration.status !== "CONFIRMED" && registration.guestCount > 0
+            ) {
+              <p class="body-medium text-on-surface-variant">
+                Includes {{ registration.guestCount }}
+                {{ registration.guestCount === 1 ? "guest" : "guests" }} plus
+                you.
+              </p>
+            }
+            @if (registration.appliedDiscountType === "esnCard") {
+              <div
+                class="bg-primary-container text-on-primary-container rounded-md px-3 py-2"
+              >
+                ESNcard discount applied
+                @if (
+                  registration.basePriceAtRegistration !== null &&
+                  registration.basePriceAtRegistration !== undefined &&
+                  registration.appliedDiscountedPrice !== null &&
+                  registration.appliedDiscountedPrice !== undefined
+                ) {
+                  ({{ registration.basePriceAtRegistration / 100 | currency }} →
+                  {{ registration.appliedDiscountedPrice / 100 | currency }})
+                }
+              </div>
+            }
+
+            @if (registration.status === "PENDING") {
+              @if (registration.paymentPending) {
+                @if (
+                  registrationCheckoutUrl(registration.checkoutUrl);
+                  as registrationCheckoutUrl
+                ) {
+                  <div class="text-warning" role="status">
+                    {{ audience.paymentPendingStatus }}
+                  </div>
+                  <a [href]="registrationCheckoutUrl" mat-flat-button>
+                    Pay now
+                  </a>
+                } @else if (registration.checkoutUrl) {
+                  <div
+                    class="bg-error-container text-on-error-container rounded-md p-3"
+                    role="alert"
+                  >
+                    Evorto received an invalid payment link and did not open it.
+                    Contact an organizer for help.
+                  </div>
+                } @else {
+                  <div class="text-warning" role="status">
+                    Your payment link is not ready yet. Contact an organizer to
+                    review this payment. Keep this sign-up and do not start
+                    another payment. Your ticket is not confirmed until payment
+                    succeeds.
+                  </div>
+                }
+              } @else {
+                <div class="text-warning" role="status">
+                  {{ audience.pendingApprovalStatus }}
+                </div>
+              }
+            } @else if (registration.status === "WAITLIST") {
+              <div class="text-warning" role="status">
+                You are currently on the waitlist. We will contact you if a spot
+                becomes available.
+              </div>
+            } @else if (registration.status === "CONFIRMED") {
+              <div
+                class="ticket-pass bg-surface-container-high text-on-surface grid overflow-hidden grid-cols-[9.5rem_minmax(0,1fr)] items-center rounded-xl"
+              >
+                <div
+                  class="grid content-center justify-items-center gap-2 self-stretch bg-white p-3 text-black"
+                >
+                  <img
+                    ngSrc="/qr/registration/{{ registration.id }}"
+                    priority
+                    width="200"
+                    height="200"
+                    class="h-32 w-32"
+                    [alt]="audience.qrAlt"
+                  />
+                  <p class="body-small">Show at check-in</p>
+                </div>
+                <div
+                  class="border-outline-variant grid min-w-0 content-center gap-2 self-stretch border-l border-dashed p-3 break-words"
+                >
+                  <h3 class="title-medium break-words">
+                    {{ registration.registrationOptionTitle }}
+                  </h3>
+                  @if (registration.organizingRegistration) {
+                    <p class="body-small">{{ audience.audienceLabel }}</p>
+                  }
+                  <p
+                    class="body-medium text-success"
+                    role="status"
+                    [attr.aria-label]="audience.confirmedStatus"
+                  >
+                    Confirmed
+                  </p>
+                  @if (registration.guestCount > 0) {
+                    <p class="body-small text-on-surface-variant">
+                      Includes {{ registration.guestCount }}
+                      {{ registration.guestCount === 1 ? "guest" : "guests" }}
+                      plus you.
+                    </p>
+                  }
+                </div>
+              </div>
+              @if (registration.location; as location) {
+                <section
+                  class="grid content-start gap-2"
+                  [attr.aria-label]="
+                    location.type === 'online'
+                      ? 'Joining details'
+                      : 'Meeting point'
+                  "
+                >
+                  <h4 class="title-medium">
+                    {{
+                      location.type === "online"
+                        ? "Joining details"
+                        : "Meeting point"
+                    }}
+                  </h4>
+                  <p class="body-large">{{ location.name }}</p>
+                  @if (location.type === "online") {
+                    @if (isWebUrl(location.meetingUrl)) {
+                      <a
+                        mat-stroked-button
+                        [href]="location.meetingUrl"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        >Join online</a
+                      >
+                    } @else {
+                      <p class="body-medium text-error">
+                        The joining link is unavailable. Contact an organizer.
                       </p>
+                    }
+                    @if (location.meetingInstructions) {
+                      <p class="body-medium whitespace-pre-line">
+                        {{ location.meetingInstructions }}
+                      </p>
+                    }
+                  } @else if (location.address) {
+                    <p class="body-medium">{{ location.address }}</p>
+                  }
+                </section>
+              }
+            }
+          </article>
+        }
+      </section>
+      <section class="order-3 p-4">
+        @for (registration of registrations(); track registration.id) {
+          <div class="grid gap-4">
+            @if (!registration.activeTransfer) {
+              @if (transferActionCopy(registration); as transferAction) {
+                <div class="flex flex-col items-start gap-2">
+                  <button
+                    mat-stroked-button
+                    type="button"
+                    (click)="transferRegistration(registration)"
+                    [disabled]="
+                      registrationTransferActionDisabled({
+                        addonPurchasePending:
+                          purchaseRegistrationAddonMutation.isPending() ||
+                          registrationHasPendingAddonPayment(registration),
+                        cancellationPending:
+                          cancelRegistrationMutation.isPending(),
+                        transferAvailable: registration.transferAvailable,
+                        transferPending:
+                          transferRegistrationMutation.isPending() ||
+                          cancelTransferMutation.isPending(),
+                      })
+                    "
+                  >
+                    {{ transferAction.buttonLabel }}
+                  </button>
+                  <p class="body-small text-on-surface-variant">
+                    {{ transferAction.helperText }}
+                  </p>
+                </div>
+              }
+            }
+
+            @if (registration.activeTransfer; as activeTransfer) {
+              @let transferStatus =
+                registrationActiveTransferStatusCopy(activeTransfer);
+              <div
+                class="grid gap-3 rounded-lg p-4"
+                [class.bg-error-container]="transferStatus.tone === 'error'"
+                [class.text-on-error-container]="
+                  transferStatus.tone === 'error'
+                "
+                [class.bg-surface-container-high]="
+                  transferStatus.tone !== 'error'
+                "
+                [class.text-on-surface]="transferStatus.tone !== 'error'"
+                [attr.role]="
+                  transferStatus.tone === 'error' ? 'alert' : 'status'
+                "
+              >
+                <div>
+                  <p class="title-small">{{ transferStatus.title }}</p>
+                  <p
+                    class="body-small mt-1"
+                    [class.text-on-error-container]="
+                      transferStatus.tone === 'error'
+                    "
+                    [class.text-on-surface-variant]="
+                      transferStatus.tone !== 'error'
+                    "
+                  >
+                    {{ transferStatus.body }}
+                    @if (transferStatus.showExpiry) {
+                      The private offer expires
+                      {{ activeTransfer.expiresAt | date: "medium" }}.
+                    }
+                  </p>
+                </div>
+                @if (
+                  activeTransfer.status === "open" &&
+                  activeTransfer.registrationSide === "source"
+                ) {
+                  <button
+                    mat-stroked-button
+                    type="button"
+                    (click)="reopenTransfer(registration.id)"
+                    [disabled]="
+                      reopenTransferMutation.isPending() ||
+                      cancelTransferMutation.isPending()
+                    "
+                  >
+                    {{
+                      reopenTransferMutation.isPending()
+                        ? "Opening transfer code…"
+                        : "Show transfer code"
+                    }}
+                  </button>
+                }
+                @if (transferStatus.cancelLabel; as cancelLabel) {
+                  <button
+                    mat-stroked-button
+                    type="button"
+                    (click)="cancelTransfer(activeTransfer.transferId)"
+                    [disabled]="
+                      purchaseRegistrationAddonMutation.isPending() ||
+                      transferRegistrationMutation.isPending() ||
+                      cancelTransferMutation.isPending()
+                    "
+                  >
+                    {{ cancelLabel }}
+                  </button>
+                }
+              </div>
+            } @else if (cancellationCopy(registration); as cancellation) {
+              <div class="flex flex-col items-start gap-2">
+                @if (
+                  !cancellation.buttonLabel ||
+                  registration.status !== "CONFIRMED"
+                ) {
+                  <p class="body-small text-on-surface-variant">
+                    {{ cancellation.helperText }}
+                  </p>
+                }
+                @if (cancellation.buttonLabel; as cancellationButtonLabel) {
+                  @if (registrationHasPendingAddonPayment(registration)) {
+                    <p class="body-small text-on-surface-variant" role="status">
+                      Finish an available add-on payment, or wait for that
+                      payment page to expire, before cancelling this ticket. If
+                      no payment link is available, contact an organizer to
+                      review it.
+                    </p>
+                  }
+                  <button
+                    type="button"
+                    mat-button
+                    (click)="cancelRegistration(registration)"
+                    [disabled]="
+                      registrationCancellationActionDisabled({
+                        addonPurchasePending:
+                          purchaseRegistrationAddonMutation.isPending() ||
+                          registrationHasPendingAddonPayment(registration),
+                        cancellationPending:
+                          cancelRegistrationMutation.isPending(),
+                        transferPending:
+                          transferRegistrationMutation.isPending() ||
+                          cancelTransferMutation.isPending(),
+                      })
+                    "
+                  >
+                    {{ cancellationButtonLabel }}
+                  </button>
+                }
+              </div>
+            }
+
+            @if (deferredActionCopy(registration); as deferredAction) {
+              <p class="body-small text-on-surface-variant">
+                {{ deferredAction }}
+              </p>
+            }
+          </div>
+        }
+      </section>
+    </div>
+
+    <div
+      class="bg-surface text-on-surface order-2 grid min-w-0 content-start gap-6 rounded-xl p-4 sm:p-6 @4xl:order-1"
+    >
+      <ng-content />
+      @for (registration of registrations(); track registration.id) {
+        @if (
+          registration.status === "CONFIRMED" &&
+          registration.registeredDescription
+        ) {
+          <section aria-label="Event instructions">
+            <details>
+              <summary class="body-medium cursor-pointer">
+                Event instructions
+              </summary>
+              <div
+                class="prose dark:prose-invert mt-3 max-w-none"
+                [innerHtml]="registration.registeredDescription"
+              ></div>
+            </details>
+          </section>
+        }
+        @if (registration.registrationAddOns.length > 0) {
+          <section
+            class="grid gap-2"
+            [attr.aria-labelledby]="'registration-addons-' + registration.id"
+          >
+            <div class="grid gap-1">
+              <h4
+                class="title-medium"
+                [id]="'registration-addons-' + registration.id"
+              >
+                Add-ons
+              </h4>
+            </div>
+
+            <ul class="divide-outline-variant mt-2 divide-y">
+              @for (
+                addOn of registration.registrationAddOns;
+                track addOn.addOnId
+              ) {
+                <li
+                  class="grid gap-4 py-4 @md:grid-cols-[minmax(0,1fr)_minmax(12rem,16rem)]"
+                >
+                  <div class="grid content-start gap-3">
+                    <div class="grid gap-1">
+                      <h5 class="title-small">{{ addOn.title }}</h5>
+                      @if (addOn.description) {
+                        <p class="body-medium text-on-surface-variant">
+                          {{ addOn.description }}
+                        </p>
+                      }
+                    </div>
+
+                    <dl class="body-small flex flex-wrap gap-x-4 gap-y-2">
+                      @if (addOn.includedQuantity > 0) {
+                        <div class="flex items-baseline gap-1">
+                          <dt class="text-on-surface-variant">Included</dt>
+                          <dd class="font-medium">
+                            {{ addOn.includedQuantity }}
+                          </dd>
+                        </div>
+                      }
+                      @if (addOn.settledPurchasedQuantity > 0) {
+                        <div class="flex items-baseline gap-1">
+                          <dt class="text-on-surface-variant">Purchased</dt>
+                          <dd class="font-medium">
+                            {{ addOn.settledPurchasedQuantity }}
+                          </dd>
+                        </div>
+                      }
+                      @if (addOn.pendingQuantity > 0) {
+                        <div class="flex items-baseline gap-1">
+                          <dt class="text-on-surface-variant">
+                            Payment pending
+                          </dt>
+                          <dd class="font-medium">
+                            {{ addOn.pendingQuantity }}
+                          </dd>
+                        </div>
+                      }
+                      <div class="flex items-baseline gap-1">
+                        <dt class="text-on-surface-variant">
+                          Available to use
+                        </dt>
+                        <dd class="font-medium">
+                          {{ addOn.remainingQuantity }}
+                        </dd>
+                      </div>
+                      @if (addOn.redeemedQuantity > 0) {
+                        <div class="flex items-baseline gap-1">
+                          <dt class="text-on-surface-variant">Redeemed</dt>
+                          <dd class="font-medium">
+                            {{ addOn.redeemedQuantity }}
+                          </dd>
+                        </div>
+                      }
+                      @if (addOn.cancelledQuantity > 0) {
+                        <div class="flex items-baseline gap-1">
+                          <dt class="text-on-surface-variant">Cancelled</dt>
+                          <dd class="font-medium">
+                            {{ addOn.cancelledQuantity }}
+                          </dd>
+                        </div>
+                      }
+                    </dl>
+
+                    @if (addOn.nextPurchaseUnitGrossAmount !== null) {
+                      <div
+                        class="body-small flex flex-wrap items-baseline gap-1"
+                      >
+                        @if (
+                          addOn.isPaid && addOn.nextPurchaseUnitGrossAmount > 0
+                        ) {
+                          @if (addOnTaxRate(addOn); as taxRate) {
+                            <app-price-with-tax
+                              [amount]="addOn.nextPurchaseUnitGrossAmount"
+                              [currency]="addOn.currency"
+                              [taxRate]="taxRate"
+                            />
+                          } @else {
+                            <span class="label-large">
+                              {{
+                                addOn.nextPurchaseUnitGrossAmount / 100
+                                  | currency
+                                    : addOn.currency
+                                    : "symbol"
+                                    : "1.2-2"
+                              }}
+                            </span>
+                          }
+                        } @else {
+                          <span class="label-large">Free</span>
+                        }
+                        <span class="text-on-surface-variant">per item</span>
+                      </div>
                     }
                   </div>
 
-                  <dl class="body-small grid grid-cols-2 gap-x-4 gap-y-1">
-                    @if (addOn.includedQuantity > 0) {
-                      <div class="contents">
-                        <dt class="text-on-surface-variant">Included</dt>
-                        <dd class="text-right">{{ addOn.includedQuantity }}</dd>
-                      </div>
-                    }
-                    @if (addOn.settledPurchasedQuantity > 0) {
-                      <div class="contents">
-                        <dt class="text-on-surface-variant">Purchased</dt>
-                        <dd class="text-right">
-                          {{ addOn.settledPurchasedQuantity }}
-                        </dd>
-                      </div>
-                    }
-                    @if (addOn.pendingQuantity > 0) {
-                      <div class="contents">
-                        <dt class="text-on-surface-variant">Payment pending</dt>
-                        <dd class="text-right">{{ addOn.pendingQuantity }}</dd>
-                      </div>
-                    }
-                    <div class="contents">
-                      <dt class="text-on-surface-variant">Available to use</dt>
-                      <dd class="text-right">{{ addOn.remainingQuantity }}</dd>
-                    </div>
-                    @if (addOn.redeemedQuantity > 0) {
-                      <div class="contents">
-                        <dt class="text-on-surface-variant">Redeemed</dt>
-                        <dd class="text-right">{{ addOn.redeemedQuantity }}</dd>
-                      </div>
-                    }
-                    @if (addOn.cancelledQuantity > 0) {
-                      <div class="contents">
-                        <dt class="text-on-surface-variant">Cancelled</dt>
-                        <dd class="text-right">
-                          {{ addOn.cancelledQuantity }}
-                        </dd>
-                      </div>
-                    }
-                  </dl>
-
-                  @if (addOn.nextPurchaseUnitGrossAmount !== null) {
-                    <div class="body-small flex flex-wrap items-baseline gap-1">
-                      @if (
-                        addOn.isPaid && addOn.nextPurchaseUnitGrossAmount > 0
-                      ) {
-                        @if (addOnTaxRate(addOn); as taxRate) {
-                          <app-price-with-tax
-                            [amount]="addOn.nextPurchaseUnitGrossAmount"
-                            [currency]="addOn.currency"
-                            [taxRate]="taxRate"
-                          />
-                        } @else {
-                          <span class="label-large">
-                            {{
-                              addOn.nextPurchaseUnitGrossAmount / 100
-                                | currency: addOn.currency : "symbol" : "1.2-2"
-                            }}
-                          </span>
-                        }
-                      } @else {
-                        <span class="label-large">Free</span>
-                      }
-                      <span class="text-on-surface-variant">per item</span>
-                    </div>
-                  }
-                </div>
-
-                <div class="grid content-start gap-3">
-                  @if (registrationAddonHasCanonicalPendingOrder(addOn)) {
-                    @if (addOn.pendingCheckoutExpired) {
-                      <div
-                        class="bg-error-container text-on-error-container grid gap-2 rounded-md p-3"
-                        role="alert"
-                      >
-                        <p class="label-large">The payment window has ended</p>
-                        <p class="body-small">
-                          Evorto has not confirmed payment for
-                          {{ addOn.pendingQuantity }} × {{ addOn.title }} yet.
-                          These items are not on your ticket. Contact an
-                          organizer before trying to buy them again.
-                        </p>
-                      </div>
-                    } @else if (pendingCheckoutUrlInvalid(addOn)) {
-                      <div
-                        class="bg-error-container text-on-error-container grid gap-2 rounded-md p-3"
-                        role="alert"
-                      >
-                        <p class="label-large">
-                          Payment is pending, but the link is invalid
-                        </p>
-                        <p class="body-small">
-                          Payment is pending for {{ addOn.pendingQuantity }} ×
-                          {{ addOn.title }}. Evorto did not open the invalid
-                          payment link. Contact an organizer before trying
-                          again. Your ticket updates only after the online
-                          payment is confirmed.
-                        </p>
-                      </div>
-                    } @else {
-                      <div
-                        class="bg-secondary-container text-on-secondary-container grid gap-2 rounded-md p-3"
-                        aria-live="polite"
-                        role="status"
-                      >
-                        <p class="label-large">Payment is pending</p>
-                        <p class="body-small">
-                          Payment is pending for {{ addOn.pendingQuantity }} ×
-                          {{ addOn.title }}.
-                          @if (
-                            addOn.pendingCheckoutExpiresAt &&
-                            checkoutUrl(registration.id, addOn)
-                          ) {
-                            Continue the same payment page before
-                            {{
-                              addOn.pendingCheckoutExpiresAt | date: "medium"
-                            }}.
-                          }
-                          Your ticket updates only after the online payment is
-                          confirmed.
-                        </p>
-
-                        @if (
-                          checkoutUrl(registration.id, addOn);
-                          as checkoutUrl
-                        ) {
-                          <a [href]="checkoutUrl" mat-flat-button>
-                            Continue to payment
-                          </a>
-                        } @else {
-                          <p class="body-small" role="status">
-                            This add-on payment needs review. No payment link
-                            has been confirmed for these items. Keep this
-                            pending purchase and contact an organizer before
-                            trying to buy them again.
+                  <div class="grid content-start gap-3">
+                    @if (registrationAddonHasCanonicalPendingOrder(addOn)) {
+                      @if (addOn.pendingCheckoutExpired) {
+                        <div
+                          class="bg-error-container text-on-error-container grid gap-2 rounded-md p-3"
+                          role="alert"
+                        >
+                          <p class="label-large">
+                            The payment window has ended
                           </p>
-                        }
-                      </div>
-                    }
-                  } @else if (addOn.purchaseAvailable) {
-                    <mat-form-field
-                      appearance="outline"
-                      subscriptSizing="dynamic"
-                    >
-                      <mat-label>Quantity</mat-label>
-                      <input
-                        matInput
-                        type="number"
-                        inputmode="numeric"
-                        min="1"
-                        step="1"
-                        [attr.aria-label]="'Quantity for ' + addOn.title"
+                          <p class="body-small">
+                            Evorto has not confirmed payment for
+                            {{ addOn.pendingQuantity }} × {{ addOn.title }} yet.
+                            These items are not on your ticket. Contact an
+                            organizer before trying to buy them again.
+                          </p>
+                        </div>
+                      } @else if (pendingCheckoutUrlInvalid(addOn)) {
+                        <div
+                          class="bg-error-container text-on-error-container grid gap-2 rounded-md p-3"
+                          role="alert"
+                        >
+                          <p class="label-large">
+                            Payment is pending, but the link is invalid
+                          </p>
+                          <p class="body-small">
+                            Payment is pending for
+                            {{ addOn.pendingQuantity }} × {{ addOn.title }}.
+                            Evorto did not open the invalid payment link.
+                            Contact an organizer before trying again. Your
+                            ticket updates only after the online payment is
+                            confirmed.
+                          </p>
+                        </div>
+                      } @else {
+                        <div
+                          class="bg-secondary-container text-on-secondary-container grid gap-2 rounded-md p-3"
+                          aria-live="polite"
+                          role="status"
+                        >
+                          <p class="label-large">Payment is pending</p>
+                          <p class="body-small">
+                            Payment is pending for
+                            {{ addOn.pendingQuantity }} × {{ addOn.title }}.
+                            @if (
+                              addOn.pendingCheckoutExpiresAt &&
+                              checkoutUrl(registration.id, addOn)
+                            ) {
+                              Continue the same payment page before
+                              {{
+                                addOn.pendingCheckoutExpiresAt | date: "medium"
+                              }}.
+                            }
+                            Your ticket updates only after the online payment is
+                            confirmed.
+                          </p>
+
+                          @if (
+                            checkoutUrl(registration.id, addOn);
+                            as checkoutUrl
+                          ) {
+                            <a [href]="checkoutUrl" mat-flat-button>
+                              Continue to payment
+                            </a>
+                          } @else {
+                            <p class="body-small" role="status">
+                              This add-on payment needs review. No payment link
+                              has been confirmed for these items. Keep this
+                              pending purchase and contact an organizer before
+                              trying to buy them again.
+                            </p>
+                          }
+                        </div>
+                      }
+                    } @else if (addOn.purchaseAvailable) {
+                      <mat-form-field
+                        appearance="outline"
+                        subscriptSizing="dynamic"
+                      >
+                        <mat-label>Quantity</mat-label>
+                        <input
+                          matInput
+                          type="number"
+                          inputmode="numeric"
+                          min="1"
+                          step="1"
+                          [attr.aria-label]="'Quantity for ' + addOn.title"
+                          [disabled]="
+                            purchaseRegistrationAddonMutation.isPending()
+                          "
+                          [id]="
+                            'addon-quantity-' +
+                            registration.id +
+                            '-' +
+                            addOn.addOnId
+                          "
+                          [max]="addOn.maxPurchasableQuantity"
+                          [value]="
+                            selectedAddonQuantity(registration.id, addOn)
+                          "
+                          (input)="
+                            updateAddonQuantity(registration.id, addOn, $event)
+                          "
+                        />
+                        <mat-hint>
+                          Up to {{ addOn.maxPurchasableQuantity }} available
+                        </mat-hint>
+                      </mat-form-field>
+                      <button
+                        type="button"
+                        mat-flat-button
+                        (click)="
+                          purchaseRegistrationAddon(registration.id, addOn)
+                        "
                         [disabled]="
                           purchaseRegistrationAddonMutation.isPending()
                         "
-                        [id]="
-                          'addon-quantity-' +
-                          registration.id +
-                          '-' +
-                          addOn.addOnId
-                        "
-                        [max]="addOn.maxPurchasableQuantity"
-                        [value]="selectedAddonQuantity(registration.id, addOn)"
-                        (input)="
-                          updateAddonQuantity(registration.id, addOn, $event)
-                        "
-                      />
-                      <mat-hint>
-                        Up to {{ addOn.maxPurchasableQuantity }} available
-                      </mat-hint>
-                    </mat-form-field>
-                    <button
-                      type="button"
-                      mat-flat-button
-                      (click)="
-                        purchaseRegistrationAddon(registration.id, addOn)
-                      "
-                      [disabled]="purchaseRegistrationAddonMutation.isPending()"
-                    >
-                      {{
-                        activePurchaseKey() ===
-                        registration.id + ":" + addOn.addOnId
-                          ? addOn.isPaid
-                            ? "Preparing payment page…"
-                            : "Adding…"
-                          : addOn.isPaid
-                            ? "Continue to payment"
-                            : "Add to ticket"
-                      }}
-                    </button>
-                  } @else if (
-                    registrationAddonPurchaseBlockedCopy(
-                      addOn.purchaseBlockedReason
-                    );
-                    as blockedCopy
-                  ) {
-                    <p class="body-small text-on-surface-variant">
-                      {{ blockedCopy }}
-                    </p>
-                  }
-
-                  @if (!registrationAddonHasCanonicalPendingOrder(addOn)) {
-                    @if (
-                      purchaseNotice(registration.id, addOn.addOnId);
-                      as notice
+                      >
+                        {{
+                          activePurchaseKey() ===
+                          registration.id + ":" + addOn.addOnId
+                            ? addOn.isPaid
+                              ? "Preparing payment page…"
+                              : "Adding…"
+                            : addOn.isPaid
+                              ? "Continue to payment"
+                              : "Add to ticket"
+                        }}
+                      </button>
+                    } @else if (
+                      registrationAddonPurchaseBlockedCopy(
+                        addOn.purchaseBlockedReason
+                      );
+                      as blockedCopy
                     ) {
-                      @switch (notice.kind) {
-                        @case ("completed") {
-                          <div
-                            class="bg-primary-container text-on-primary-container rounded-md p-3"
-                            aria-live="polite"
-                            role="status"
-                          >
-                            {{ notice.message }}
-                          </div>
-                        }
-                        @case ("pending") {
-                          <div
-                            class="bg-secondary-container text-on-secondary-container grid gap-2 rounded-md p-3"
-                            aria-live="polite"
-                            role="status"
-                          >
-                            <p>{{ notice.message }}</p>
-                            @if (
-                              checkoutUrl(registration.id, addOn);
-                              as checkoutUrl
-                            ) {
-                              <a [href]="checkoutUrl" mat-flat-button>
-                                Continue to payment
-                              </a>
-                            }
-                          </div>
-                        }
-                        @case ("error") {
-                          <div
-                            class="bg-error-container text-on-error-container rounded-md p-3"
-                            role="alert"
-                          >
-                            {{ notice.message }}
-                          </div>
+                      <p class="body-small text-on-surface-variant">
+                        {{ blockedCopy }}
+                      </p>
+                    }
+
+                    @if (!registrationAddonHasCanonicalPendingOrder(addOn)) {
+                      @if (
+                        purchaseNotice(registration.id, addOn.addOnId);
+                        as notice
+                      ) {
+                        @switch (notice.kind) {
+                          @case ("completed") {
+                            <div
+                              class="bg-primary-container text-on-primary-container rounded-md p-3"
+                              aria-live="polite"
+                              role="status"
+                            >
+                              {{ notice.message }}
+                            </div>
+                          }
+                          @case ("pending") {
+                            <div
+                              class="bg-secondary-container text-on-secondary-container grid gap-2 rounded-md p-3"
+                              aria-live="polite"
+                              role="status"
+                            >
+                              <p>{{ notice.message }}</p>
+                              @if (
+                                checkoutUrl(registration.id, addOn);
+                                as checkoutUrl
+                              ) {
+                                <a [href]="checkoutUrl" mat-flat-button>
+                                  Continue to payment
+                                </a>
+                              }
+                            </div>
+                          }
+                          @case ("error") {
+                            <div
+                              class="bg-error-container text-on-error-container rounded-md p-3"
+                              role="alert"
+                            >
+                              {{ notice.message }}
+                            </div>
+                          }
                         }
                       }
                     }
-                  }
-                </div>
-              </li>
-            }
-          </ul>
-        </section>
-      }
-
-      @if (registration.activeTransfer; as activeTransfer) {
-        @let transferStatus =
-          registrationActiveTransferStatusCopy(activeTransfer);
-        <div
-          class="grid gap-3 rounded-lg p-4 @md:col-span-2"
-          [class.bg-error-container]="transferStatus.tone === 'error'"
-          [class.text-on-error-container]="transferStatus.tone === 'error'"
-          [class.bg-surface-container-high]="transferStatus.tone !== 'error'"
-          [class.text-on-surface]="transferStatus.tone !== 'error'"
-          [attr.role]="transferStatus.tone === 'error' ? 'alert' : 'status'"
-        >
-          <div>
-            <p class="title-small">{{ transferStatus.title }}</p>
-            <p
-              class="body-small mt-1"
-              [class.text-on-error-container]="transferStatus.tone === 'error'"
-              [class.text-on-surface-variant]="transferStatus.tone !== 'error'"
-            >
-              {{ transferStatus.body }}
-              @if (transferStatus.showExpiry) {
-                The private offer expires
-                {{ activeTransfer.expiresAt | date: "medium" }}.
+                  </div>
+                </li>
               }
-            </p>
-          </div>
-          @if (
-            activeTransfer.status === "open" &&
-            activeTransfer.registrationSide === "source"
-          ) {
-            <button
-              mat-stroked-button
-              type="button"
-              (click)="reopenTransfer(registration.id)"
-              [disabled]="
-                reopenTransferMutation.isPending() ||
-                cancelTransferMutation.isPending()
-              "
-            >
-              {{
-                reopenTransferMutation.isPending()
-                  ? "Opening transfer code…"
-                  : "Show transfer code"
-              }}
-            </button>
-          }
-          @if (transferStatus.cancelLabel; as cancelLabel) {
-            <button
-              mat-stroked-button
-              type="button"
-              (click)="cancelTransfer(activeTransfer.transferId)"
-              [disabled]="
-                purchaseRegistrationAddonMutation.isPending() ||
-                transferRegistrationMutation.isPending() ||
-                cancelTransferMutation.isPending()
-              "
-            >
-              {{ cancelLabel }}
-            </button>
-          }
-        </div>
-      } @else if (cancellationCopy(registration); as cancellation) {
-        <div class="flex flex-col items-start gap-2 @md:col-span-2">
-          <p class="body-small text-on-surface-variant">
-            {{ cancellation.helperText }}
-          </p>
-          @if (cancellation.buttonLabel; as cancellationButtonLabel) {
-            @if (registrationHasPendingAddonPayment(registration)) {
-              <p class="body-small text-on-surface-variant" role="status">
-                Finish an available add-on payment, or wait for that payment
-                page to expire, before cancelling this ticket. If no payment
-                link is available, contact an organizer to review it.
-              </p>
-            }
-            <button
-              type="button"
-              mat-stroked-button
-              (click)="cancelRegistration(registration)"
-              [disabled]="
-                registrationCancellationActionDisabled({
-                  addonPurchasePending:
-                    purchaseRegistrationAddonMutation.isPending() ||
-                    registrationHasPendingAddonPayment(registration),
-                  cancellationPending: cancelRegistrationMutation.isPending(),
-                  transferPending:
-                    transferRegistrationMutation.isPending() ||
-                    cancelTransferMutation.isPending(),
-                })
-              "
-            >
-              {{ cancellationButtonLabel }}
-            </button>
-          }
-        </div>
-      }
-
-      @if (!registration.activeTransfer) {
-        @if (transferActionCopy(registration); as transferAction) {
-          <div class="flex flex-col items-start gap-2 @md:col-span-2">
-            <p class="body-small text-on-surface-variant">
-              {{ transferAction.helperText }}
-            </p>
-            <button
-              mat-stroked-button
-              type="button"
-              (click)="transferRegistration(registration)"
-              [disabled]="
-                registrationTransferActionDisabled({
-                  addonPurchasePending:
-                    purchaseRegistrationAddonMutation.isPending() ||
-                    registrationHasPendingAddonPayment(registration),
-                  cancellationPending: cancelRegistrationMutation.isPending(),
-                  transferAvailable: registration.transferAvailable,
-                  transferPending:
-                    transferRegistrationMutation.isPending() ||
-                    cancelTransferMutation.isPending(),
-                })
-              "
-            >
-              {{ transferAction.buttonLabel }}
-            </button>
-          </div>
+            </ul>
+          </section>
         }
       }
-
-      @if (deferredActionCopy(registration); as deferredAction) {
-        <p class="body-small text-on-surface-variant @md:col-span-2">
-          {{ deferredAction }}
-        </p>
-      }
-    </article>
-  }
+    </div>
+  </div>
 </div>
 
 @if (cancelRegistrationMutation.isError()) {

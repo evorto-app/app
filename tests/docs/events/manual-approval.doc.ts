@@ -318,7 +318,7 @@ Once approval finishes, the application and approval actions disappear. The even
     });
     await page.reload();
     await waitForRegistrationStatus(page);
-    await expect(page.getByText('Your ticket is confirmed')).toBeVisible();
+    await expect(page.getByText('Confirmed', { exact: true })).toBeVisible();
     await expect(
       page.getByRole('img', { name: 'QR code for your event ticket' }),
     ).toBeVisible();
@@ -787,7 +787,7 @@ After payment succeeds, reopen the event to see the confirmed ticket and QR code
     });
     await page.reload();
     await waitForRegistrationStatus(page);
-    await expect(page.getByText('Your ticket is confirmed')).toBeVisible();
+    await expect(page.getByText('Confirmed', { exact: true })).toBeVisible();
     await expect(
       page.getByRole('img', { name: 'QR code for your event ticket' }),
     ).toBeVisible();

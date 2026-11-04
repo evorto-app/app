@@ -10,7 +10,7 @@ import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 import { waitForRegistrationPage } from '../../support/utils/event-registration-page';
 import { futureServerEventWindow } from '../../support/utils/server-test-clock';
 
-test.use({ storageState: userStateFile });
+test.use({ storageState: userStateFile, timezoneId: 'America/Los_Angeles' });
 test.setTimeout(180_000);
 
 const eventCard = (page: Page, eventId: string): Locator =>
@@ -248,6 +248,8 @@ Check the organization name and address before choosing an event. Each organizat
 1. Use the main navigation and select **Events**.
 2. Read the date headings from top to bottom. Evorto groups upcoming cards by the event date in the organization's time zone and shows each start time on its card.
 3. Read the title and sign-up status before selecting a card. **Place confirmed**, **Waiting for approval**, **Finish payment**, and **On waitlist** show exactly where you stand. Open the event when you need details or an action.
+
+On desktop, **What will you do next?** fills the detail area until you select an event. It previews distinct icons from upcoming events, filling gaps from recent events, with each event's title and relative date. Upcoming previews offer **View event**; past previews have no link. You can also select a list card to open an upcoming event. The preview stays still when reduced motion is enabled; recent events are not added to the upcoming list.
 `,
   });
 
@@ -267,6 +269,9 @@ Check the organization name and address before choosing an event. Each organizat
   let otherCard = eventCard(page, otherEventId);
   await expect(registeredCard).toBeVisible({ timeout: 20_000 });
   await expect(otherCard).toBeVisible({ timeout: 20_000 });
+  await expect(
+    page.getByRole('heading', { name: 'What will you do next?' }),
+  ).toBeVisible();
   await expect(eventCard(page, ineligibleEventId)).toHaveCount(0);
   await expect(registeredCard).toHaveClass(/ring-primary/u);
   await expect(
@@ -305,7 +310,9 @@ Select the event card. When there is enough space, the event list stays on the l
   registeredCard = eventCard(page, registeredEventId);
   await expect(registeredCard).toBeVisible();
   await expect(
-    page.getByRole('link', { exact: true, name: 'Back to events' }),
+    page
+      .getByRole('navigation', { name: 'Event navigation' })
+      .getByRole('link', { exact: true, name: 'Events' }),
   ).toBeHidden();
   await takeScreenshot(
     testInfo,
@@ -318,7 +325,7 @@ Select the event card. When there is enough space, the event list stays on the l
     body: `
 ## Open an event on a small screen
 
-The same **Events** list is used on a small screen. Selecting a card opens the event details across the available space. Use **Back to events** at the top of the detail page to return to the list.
+The same **Events** list is used on a small screen. Selecting a card opens the event details across the available space. Use the **Events** back link at the top of the detail page to return to the list.
 `,
   });
   await page.setViewportSize({ height: 844, width: 390 });
@@ -334,17 +341,19 @@ The same **Events** list is used on a small screen. Selecting a card opens the e
     page.getByRole('heading', { exact: true, level: 1, name: otherTitle }),
   ).toBeVisible({ timeout: 20_000 });
   await waitForRegistrationPage(page);
-  const backToEvents = page.getByRole('link', {
-    exact: true,
-    name: 'Back to events',
-  });
+  const backToEvents = page
+    .getByRole('navigation', { name: 'Event navigation' })
+    .getByRole('link', {
+      exact: true,
+      name: 'Events',
+    });
   await expect(backToEvents).toBeVisible();
   await expect(eventCard(page, otherEventId)).toBeHidden();
   await takeScreenshot(
     testInfo,
     page.locator('app-event-list'),
     page,
-    'Selected event with the Back to events action',
+    'Selected event with the Events back link',
   );
   await backToEvents.click();
   await expect(page).toHaveURL('/events');
@@ -469,23 +478,25 @@ The same **Events** list is used on a small screen. Selecting a card opens the e
     body: `
 ## Browse before signing in
 
-Before signing in, visitors may see published events that are open to new members. Open an event to read its start and end dates, times, and location above the description. Dates and times follow the organization’s timezone, which is named beside the schedule. The page shows public event details and may show sign-up choices open to everyone or to new members. These choices ask visitors to sign in before signing up. Choices restricted to other roles remain hidden. A shared link to another published event still opens its public details and explains when signing in is needed to see more choices. Announcements do not appear before sign-in, but their public details still open from a shared link.
+Before signing in, visitors may see published events that are open to new members. Open an event to read its schedule above the description. Same-day events show one date and a time range; events spanning several days show both dates. Dates and times follow the organization’s timezone, which is named beside the schedule when it differs from the device timezone or the device timezone is not known. Meeting points and online joining details appear with a confirmed ticket after sign-up, not in the public event details. The page may show sign-up choices open to everyone or to new members. These choices ask visitors to sign in before signing up. Choices restricted to other roles remain hidden. A shared link to another published event still opens its public details and explains when signing in is needed to see more choices. Announcements do not appear before sign-in, but their public details still open from a shared link.
 `,
   });
   await page.goto(`/events/${ineligibleEventId}`);
   const publicDetails = page.getByRole('region', { name: 'Event details' });
   await expect(publicDetails).toBeVisible();
   await expect(
-    publicDetails.getByText(`Times shown in ${tenantSettings.timezone}.`, {
-      exact: true,
-    }),
+    page
+      .locator('header')
+      .getByText(`Times shown in ${tenantSettings.timezone}.`, {
+        exact: true,
+      }),
   ).toBeVisible();
-  await expect(publicDetails.locator('time')).toHaveCount(2);
-  await expect(publicDetails.locator('time').first()).toHaveAttribute(
+  await expect(page.locator('header time')).toHaveCount(2);
+  await expect(page.locator('header time').first()).toHaveAttribute(
     'datetime',
     ineligibleWindow.start.toISOString(),
   );
-  await expect(publicDetails.locator('time').last()).toHaveAttribute(
+  await expect(page.locator('header time').last()).toHaveAttribute(
     'datetime',
     ineligibleWindow.end.toISOString(),
   );

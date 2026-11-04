@@ -438,7 +438,10 @@ export class TemplateCreateEventComponent {
                 ? addOn.stripeTaxRateId
                 : null,
           })),
-          end: this.toDateTime(formValue.end).toJSDate().toISOString(),
+          end: this.toDateTime(formValue.end)
+            .startOf('minute')
+            .toJSDate()
+            .toISOString(),
           icon: formValue.icon,
           questions: this.extrasModel().questions.map((question) => ({
             ...question,
@@ -451,6 +454,7 @@ export class TemplateCreateEventComponent {
             cancellationDeadlineHoursBeforeStart:
               option.cancellationDeadlineHoursBeforeStart,
             closeRegistrationTime: this.toDateTime(option.closeRegistrationTime)
+              .startOf('minute')
               .toJSDate()
               .toISOString(),
             description: option.description?.trim() ? option.description : null,
@@ -462,6 +466,7 @@ export class TemplateCreateEventComponent {
                 : null,
             isPaid: option.isPaid,
             openRegistrationTime: this.toDateTime(option.openRegistrationTime)
+              .startOf('minute')
               .toJSDate()
               .toISOString(),
             organizingRegistration: option.organizingRegistration,
@@ -481,7 +486,10 @@ export class TemplateCreateEventComponent {
             transferDeadlineHoursBeforeStart:
               option.transferDeadlineHoursBeforeStart,
           })),
-          start: this.toDateTime(formValue.start).toJSDate().toISOString(),
+          start: this.toDateTime(formValue.start)
+            .startOf('minute')
+            .toJSDate()
+            .toISOString(),
           templateId: this.templateId(),
         });
         phase = 'list';

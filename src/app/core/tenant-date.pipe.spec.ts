@@ -34,10 +34,10 @@ describe('TenantDatePipe', () => {
     const pipe = TestBed.inject(TenantDatePipe);
 
     expect(pipe.transform('2026-01-15T23:30:45.000Z', 'medium')).toBe(
-      '16.01.2026, 00:30:45',
+      '16.01.2026, 00:30',
     );
     expect(pipe.transform('2026-07-15T22:30:45.000Z', 'medium')).toBe(
-      '16.07.2026, 00:30:45',
+      '16.07.2026, 00:30',
     );
   });
 

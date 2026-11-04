@@ -44,6 +44,11 @@ export class EventEditIconUsage extends Schema.TaggedClass<EventEditIconUsage>()
   { eventId: Schema.NonEmptyString },
 ) {}
 
+export class HubResourceIconUsage extends Schema.TaggedClass<HubResourceIconUsage>()(
+  'hubResource',
+  {},
+) {}
+
 export class TemplateCreateIconUsage extends Schema.TaggedClass<TemplateCreateIconUsage>()(
   'templateCreate',
   {},
@@ -55,6 +60,7 @@ export class TemplateEditIconUsage extends Schema.TaggedClass<TemplateEditIconUs
 ) {}
 
 export const IconAddUsage = Schema.Union([
+  HubResourceIconUsage,
   EventCreateIconUsage,
   EventEditIconUsage,
   TemplateCreateIconUsage,

@@ -9,6 +9,8 @@ import {
 } from '@angular/router';
 import { describe, expect, it } from 'vitest';
 
+import { type PlatformAdministratorAuthority } from '../../../types/custom/platform-authority';
+import { ConfigService } from '../config.service';
 import {
   requiresTenantOnboarding,
   resolveOnboardingGuardState,
@@ -20,6 +22,7 @@ const state = { url: '/admin' } as RouterStateSnapshot;
 
 const configureRequestContext = (requestContext: {
   readonly authentication: { readonly isAuthenticated: boolean };
+  readonly platformAuthority?: PlatformAdministratorAuthority;
   readonly user?: object | undefined;
 }) =>
   TestBed.configureTestingModule({
@@ -86,6 +89,42 @@ describe('requiresTenantOnboarding', () => {
   ])('allows a $name SSR request', async ({ requestContext }) => {
     configureRequestContext(requestContext);
 
+    expect(
+      await TestBed.runInInjectionContext(() => userAccountGuard(route, state)),
+    ).toBe(true);
+  });
+
+  it('allows a global administrator during SSR without tenant onboarding', async () => {
+    configureRequestContext({
+      authentication: { isAuthenticated: true },
+      platformAuthority: {
+        actorEmail: null,
+        actorId: 'auth0|global',
+        kind: 'platformAdministrator',
+      },
+    });
+    expect(
+      await TestBed.runInInjectionContext(() => userAccountGuard(route, state)),
+    ).toBe(true);
+  });
+
+  it('allows a global administrator in the browser without querying tenant onboarding', async () => {
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([]),
+        { provide: REQUEST_CONTEXT, useValue: null },
+        {
+          provide: ConfigService,
+          useValue: {
+            platformAuthority: {
+              actorEmail: null,
+              actorId: 'auth0|global',
+              kind: 'platformAdministrator',
+            },
+          } satisfies Pick<ConfigService, 'platformAuthority'>,
+        },
+      ],
+    });
     expect(
       await TestBed.runInInjectionContext(() => userAccountGuard(route, state)),
     ).toBe(true);

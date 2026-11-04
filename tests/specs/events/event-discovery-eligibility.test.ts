@@ -7,6 +7,7 @@ import { getId } from '../../../helpers/get-id';
 import type { EventLocationType } from '../../../src/types/location';
 import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
+import { futureServerEventWindow } from '../../support/utils/server-test-clock';
 
 type DiscoveryEvent = SeedTenantResult['events'][number];
 
@@ -47,9 +48,11 @@ const expectPublicEventDetails = async (
   const details = page.getByRole('region', { name: 'Event details' });
   await expect(details).toBeVisible();
   await expect(
-    details.getByText(`Times shown in ${timezone}.`, { exact: true }),
+    page
+      .locator('header')
+      .getByText(`Times shown in ${timezone}.`, { exact: true }),
   ).toBeVisible();
-  const times = details.locator('time');
+  const times = page.locator('header time');
   await expect(times).toHaveCount(2);
   for (const [index, value] of [event.start, event.end].entries()) {
     const date = DateTime.fromJSDate(value, { zone: timezone });
@@ -57,11 +60,17 @@ const expectPublicEventDetails = async (
       'datetime',
       value.toISOString(),
     );
+    const sameDay = DateTime.fromJSDate(event.start, {
+      zone: timezone,
+    }).hasSame(DateTime.fromJSDate(event.end, { zone: timezone }), 'day');
     await expect(times.nth(index)).toHaveText(
-      `${date.toFormat('dd.MM.yyyy')} · ${date.toFormat('HH:mm')}`,
+      index === 1 && sameDay
+        ? date.toFormat('HH:mm')
+        : `${date.toFormat('dd.MM.yyyy')} · ${date.toFormat('HH:mm')}`,
     );
   }
-  await expect(details).toContainText(event.location?.name ?? 'Not specified');
+  if (event.location)
+    await expect(details).not.toContainText(event.location.name);
 };
 
 test.describe('Signed-in event discovery', () => {
@@ -638,112 +647,145 @@ test.describe('Anonymous event route scrolling', () => {
   });
 });
 
-test.describe('Desktop event columns', () => {
-  test.use({
-    storageState: { cookies: [], origins: [] },
-    viewport: { height: 500, width: 1280 },
-  });
+for (const javaScriptEnabled of [true, false]) {
+  test.describe(
+    javaScriptEnabled
+      ? 'Desktop event columns'
+      : 'Server-rendered event columns',
+    () => {
+      test.use({
+        javaScriptEnabled,
+        storageState: { cookies: [], origins: [] },
+        viewport: { height: 500, width: 1280 },
+      });
 
-  test('scrolls the list and selected event independently', async ({
-    database,
-    events,
-    page,
-    seeded,
-    tenant,
-  }) => {
-    const event = requireApprovedEvent(
-      events,
-      seeded.scenario.events.paidOpen.eventId,
-      tenant.id,
-    );
-    await database
-      .update(schema.eventInstances)
-      .set({ description: '<p>Information about this event.</p>'.repeat(40) })
-      .where(
-        and(
-          eq(schema.eventInstances.id, event.id),
-          eq(schema.eventInstances.tenantId, tenant.id),
-        ),
-      );
-    await page.goto(`/events/${event.id}`);
-    const list = page.getByRole('region', { exact: true, name: 'Event list' });
-    const detail = page.getByRole('region', {
-      exact: true,
-      name: 'Selected event',
-    });
-    await expect(
-      detail.getByRole('heading', { level: 1, name: event.title }),
-    ).toBeVisible();
+      test('scrolls the list and selected event independently', async ({
+        database,
+        events,
+        page,
+        seeded,
+        tenant,
+      }) => {
+        const future = futureServerEventWindow();
+        await database
+          .update(schema.eventInstances)
+          .set({ start: future.start, end: future.end })
+          .where(eq(schema.eventInstances.tenantId, tenant.id));
+        const event = requireApprovedEvent(
+          events,
+          seeded.scenario.events.paidOpen.eventId,
+          tenant.id,
+        );
+        await database
+          .update(schema.eventInstances)
+          .set({
+            description: '<p>Information about this event.</p>'.repeat(40),
+          })
+          .where(
+            and(
+              eq(schema.eventInstances.id, event.id),
+              eq(schema.eventInstances.tenantId, tenant.id),
+            ),
+          );
+        await page.goto(`/events/${event.id}`);
+        const list = page.getByRole('region', {
+          exact: true,
+          name: 'Event list',
+        });
+        const detail = page.getByRole('region', {
+          exact: true,
+          name: 'Selected event',
+        });
+        await expect(
+          detail.getByRole('heading', { level: 1, name: event.title }),
+        ).toBeVisible();
 
-    await expect(eventCard(page, event.id)).toBeVisible();
-    await expect(eventCard(page, event.id)).not.toHaveAttribute(
-      'jsaction',
-      /click/,
-    );
-    await expect
-      .poll(() =>
-        list.evaluate((element) => element.scrollHeight - element.clientHeight),
-      )
-      .toBeGreaterThan(0);
-    const viewport = page.viewportSize();
-    if (!viewport) throw new Error('Expected the desktop test viewport.');
-    const listBounds = await list.boundingBox();
-    const detailBounds = await detail.boundingBox();
-    const footer = page.locator('app-root footer');
-    await expect(
-      footer.getByRole('link', { name: 'Imprint', exact: true }),
-    ).toBeInViewport();
-    await expect(
-      footer.getByRole('link', { name: 'Privacy', exact: true }),
-    ).toBeInViewport();
-    const footerBounds = await footer.boundingBox();
-    if (!footerBounds) throw new Error('Expected the organization footer.');
-    const paneHeight = viewport.height - footerBounds.height;
-    expect(listBounds?.y).toBe(0);
-    expect(detailBounds?.y).toBe(0);
-    const listHeading = list.getByRole('heading', {
-      level: 1,
-      name: 'Events',
-      exact: true,
-    });
-    const detailHeading = detail.getByRole('heading', {
-      level: 1,
-      name: event.title,
-      exact: true,
-    });
-    expect((await listHeading.boundingBox())?.y).toBeGreaterThanOrEqual(24);
-    expect((await detailHeading.boundingBox())?.y).toBeGreaterThanOrEqual(24);
-    expect(listBounds?.height).toBeGreaterThanOrEqual(paneHeight - 1);
-    expect(detailBounds?.height).toBeGreaterThanOrEqual(paneHeight - 1);
-    expect(footerBounds.y + footerBounds.height).toBeLessThanOrEqual(
-      viewport.height,
-    );
+        await expect(eventCard(page, event.id)).toBeVisible();
+        if (javaScriptEnabled) {
+          await expect(eventCard(page, event.id)).not.toHaveAttribute(
+            'jsaction',
+            /click/,
+          );
+        }
+        await expect
+          .poll(() =>
+            list.evaluate(
+              (element) => element.scrollHeight - element.clientHeight,
+            ),
+          )
+          .toBeGreaterThan(0);
+        const viewport = page.viewportSize();
+        if (!viewport) throw new Error('Expected the desktop test viewport.');
+        const listBounds = await list.boundingBox();
+        const detailBounds = await detail.boundingBox();
+        const footer = page.locator('app-root footer');
+        await expect(
+          footer.getByRole('link', { name: 'Imprint', exact: true }),
+        ).toBeInViewport();
+        await expect(
+          footer.getByRole('link', { name: 'Privacy', exact: true }),
+        ).toBeInViewport();
+        const footerBounds = await footer.boundingBox();
+        if (!footerBounds) throw new Error('Expected the organization footer.');
+        const paneHeight = viewport.height - footerBounds.height;
+        expect(listBounds?.y).toBeGreaterThan(0);
+        expect(detailBounds?.y).toBe(0);
+        const listHeading = page.getByRole('heading', {
+          level: 1,
+          name: 'Events',
+          exact: true,
+        });
+        const detailHeading = detail.getByRole('heading', {
+          level: 1,
+          name: event.title,
+          exact: true,
+        });
+        expect((await listHeading.boundingBox())?.y).toBeGreaterThanOrEqual(24);
+        expect((await detailHeading.boundingBox())?.y).toBeGreaterThanOrEqual(
+          24,
+        );
+        expect(
+          (listBounds?.y ?? 0) + (listBounds?.height ?? 0),
+        ).toBeGreaterThanOrEqual(paneHeight - 1);
+        expect(detailBounds?.height).toBeGreaterThanOrEqual(paneHeight - 1);
+        expect(footerBounds.y + footerBounds.height).toBeLessThanOrEqual(
+          viewport.height,
+        );
 
-    await list.hover();
-    // Hover may reveal the full region by scrolling the document first.
-    // The wheel gesture itself must leave that document position unchanged.
-    const documentPosition = await page.evaluate(() => window.scrollY);
-    await page.mouse.wheel(0, 300);
-    await expect
-      .poll(() => list.evaluate((element) => element.scrollTop))
-      .toBeGreaterThan(0);
-    await expect(listHeading).not.toBeInViewport();
-    const listPosition = await list.evaluate((element) => element.scrollTop);
-    expect(await detail.evaluate((element) => element.scrollTop)).toBe(0);
-    expect(await page.evaluate(() => window.scrollY)).toBe(documentPosition);
+        await list.hover();
+        // Hover may reveal the full region by scrolling the document first.
+        // The wheel gesture itself must leave that document position unchanged.
+        const documentPosition = await page.evaluate(() => window.scrollY);
+        await page.mouse.wheel(0, 300);
+        await expect
+          .poll(() => list.evaluate((element) => element.scrollTop))
+          .toBeGreaterThan(0);
+        await expect(listHeading).toBeInViewport();
+        expect((await listHeading.boundingBox())?.y).toBeGreaterThanOrEqual(24);
+        const listPosition = await list.evaluate(
+          (element) => element.scrollTop,
+        );
+        expect(await detail.evaluate((element) => element.scrollTop)).toBe(0);
+        expect(await page.evaluate(() => window.scrollY)).toBe(
+          documentPosition,
+        );
 
-    await detail.hover();
-    const detailDocumentPosition = await page.evaluate(() => window.scrollY);
-    await page.mouse.wheel(0, 300);
-    await expect
-      .poll(() => detail.evaluate((element) => element.scrollTop))
-      .toBeGreaterThan(0);
-    await expect(detailHeading).not.toBeInViewport();
-    expect(await list.evaluate((element) => element.scrollTop)).toBe(
-      listPosition,
-    );
-    expect(await page.evaluate(() => window.scrollY)).toBe(
-      detailDocumentPosition,
-    );
-  });
-});
+        await detail.hover();
+        const detailDocumentPosition = await page.evaluate(
+          () => window.scrollY,
+        );
+        await page.mouse.wheel(0, 300);
+        await expect
+          .poll(() => detail.evaluate((element) => element.scrollTop))
+          .toBeGreaterThan(0);
+        await expect(detailHeading).not.toBeInViewport();
+        expect(await list.evaluate((element) => element.scrollTop)).toBe(
+          listPosition,
+        );
+        expect(await page.evaluate(() => window.scrollY)).toBe(
+          detailDocumentPosition,
+        );
+      });
+    },
+  );
+}

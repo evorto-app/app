@@ -15,10 +15,12 @@ import {
   and,
   arrayOverlaps,
   asc,
+  desc,
   eq,
   exists,
   gt,
   inArray,
+  lte,
   not,
   or,
   sql,
@@ -401,6 +403,9 @@ export const eventQueryHandlers = {
             .where(
               and(
                 eventDiscoveryWindow(startAfter),
+                input.endedBefore
+                  ? lte(eventInstances.end, new Date(input.endedBefore))
+                  : undefined,
                 eq(eventInstances.tenantId, tenant.id),
                 inArray(eventInstances.status, [...input.status]),
                 canInspectAllUnpublishedEvents
@@ -452,7 +457,11 @@ export const eventQueryHandlers = {
             )
             .limit(input.limit)
             .offset(input.offset)
-            .orderBy(...eventListOrder()),
+            .orderBy(
+              ...(input.endedBefore
+                ? [desc(eventInstances.start), desc(eventInstances.id)]
+                : eventListOrder()),
+            ),
         );
         yield* Effect.annotateCurrentSpan({
           'db.response.returned_rows': events.length,
@@ -1000,7 +1009,7 @@ export const eventQueryHandlers = {
         hasRegistrationOptions: hasAnyRegistrationOption,
         icon: event.icon,
         id: event.id,
-        location: event.location ?? null,
+        location: null,
         registrationOptions: visibleRegistrationOptions.map(
           (registrationOption) => {
             const esnCardDiscountedPrice =

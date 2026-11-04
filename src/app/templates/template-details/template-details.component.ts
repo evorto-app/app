@@ -23,6 +23,7 @@ import { registrationModeLabel } from '@shared/registration-modes';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
+import { holdServerRenderWhile } from '../../core/server-render-pending';
 import { IconComponent } from '../../shared/components/icon/icon.component';
 import { PriceWithTaxComponent } from '../../shared/components/inclusive-price-label/price-with-tax.component';
 import { IfPermissionDirective } from '../../shared/directives/if-permission.directive';
@@ -101,6 +102,12 @@ export class TemplateDetailsComponent {
   protected readonly templateQuery = injectQuery(() =>
     this.rpc.templates.findOne.queryOptions({ id: this.templateId() }),
   );
+
+  constructor() {
+    holdServerRenderWhile(
+      () => this.templateQuery.isPending() || this.taxRatesQuery.isPending(),
+    );
+  }
 
   protected errorMessage(error: unknown): string {
     return templateDetailsErrorMessage(error);

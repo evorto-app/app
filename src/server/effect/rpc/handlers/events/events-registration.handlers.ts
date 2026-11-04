@@ -2795,6 +2795,7 @@ export const eventRegistrationHandlers = {
             event: {
               columns: {
                 end: true,
+                location: true,
                 start: true,
                 status: true,
               },
@@ -3353,9 +3354,16 @@ export const eventRegistrationHandlers = {
             )?.stripeCheckoutUrl,
             guestCount: registration.guestCount,
             id: registration.id,
+            location:
+              registration.status === 'CONFIRMED'
+                ? (event.location ?? null)
+                : null,
             organizingRegistration: registrationOption.organizingRegistration,
             paymentPending,
-            registeredDescription: registrationOption.registeredDescription,
+            registeredDescription:
+              registration.status === 'CONFIRMED'
+                ? registrationOption.registeredDescription
+                : null,
             registrationAddOns,
             registrationOptionId: registration.registrationOptionId,
             registrationOptionTitle: registrationOption.title,

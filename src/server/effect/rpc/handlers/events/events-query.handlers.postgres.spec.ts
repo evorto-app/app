@@ -190,10 +190,12 @@ const handlerLayer = Layer.mergeAll(
 const runEventList = (
   context: RpcRequestContextShape,
   status: readonly ('APPROVED' | 'DRAFT' | 'PENDING_REVIEW')[] = ['APPROVED'],
+  endedBefore?: string,
 ) =>
   Effect.runPromise(
     eventQueryHandlers['events.eventList'](
       {
+        endedBefore,
         limit: 100,
         offset: 0,
         startAfter: '2099-01-01T00:00:00.000Z',
@@ -731,6 +733,57 @@ describe('optionless announcement discovery', () => {
         { cause: failures[0] },
       );
     }
+  });
+
+  it('withholds the meeting point from public event payloads for visitors and members', async () => {
+    await database
+      .update(eventInstances)
+      .set({
+        location: {
+          address: 'Private Court 17',
+          coordinates: { lat: 48, lng: 11 },
+          name: 'Private ticket entrance',
+          type: 'coordinate',
+        },
+      })
+      .where(eq(eventInstances.id, optionfulDefaultRoleId));
+    for (const context of [
+      anonymousContext,
+      authenticatedContext({
+        roleIds: [matchingRoleId],
+        userId: matchingUserId,
+      }),
+    ]) {
+      const details = await runFindOne(context, optionfulDefaultRoleId);
+      expect(details.location).toBeNull();
+      expect(JSON.stringify(details)).not.toContain('Private Court 17');
+    }
+  });
+
+  it('returns recent eligible events newest first without exposing other roles or tenants', async () => {
+    const upcoming = await runEventList(anonymousContext);
+    const recent = await runEventList(
+      anonymousContext,
+      ['APPROVED'],
+      '2100-01-03T00:00:00.000Z',
+    );
+    expect(
+      recent.flatMap((day) => day.events.map((event) => event.id)),
+    ).toEqual(
+      upcoming
+        .flatMap((day) => day.events.map((event) => event.id))
+        .toReversed(),
+    );
+    expect(listedEventIds(recent)).toEqual(
+      [optionfulDefaultRoleId, optionfulUnrestrictedId].toSorted(),
+    );
+    expect(
+      await runEventList(
+        anonymousContext,
+        ['APPROVED'],
+        '2100-01-02T11:59:00.000Z',
+      ),
+    ).toEqual([]);
   });
 
   it('keeps announcement targeting separate from option eligibility and preserves direct links', async () => {

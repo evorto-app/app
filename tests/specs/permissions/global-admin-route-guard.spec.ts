@@ -81,13 +81,7 @@ test.describe('global admin route guard allow path', () => {
     tenant,
   }) => {
     const operations = [
-      { heading: 'Events', path: 'events' },
-      { heading: 'Event templates', path: 'templates' },
-      { heading: 'Ticket support', path: 'scanner' },
-      { heading: 'Organization members', path: 'users' },
-      { heading: 'Organization roles', path: 'roles' },
-      { heading: 'Organization tax rates', path: 'tax-rates' },
-      { heading: 'Organization finance', path: 'finance' },
+      { heading: 'Payment support', path: 'payment-support' },
     ] as const;
 
     for (const operation of operations) {
@@ -151,17 +145,7 @@ test.describe('global admin route guard deny path', () => {
   }) => {
     test.setTimeout(60_000);
 
-    for (const operation of [
-      'events',
-      'templates',
-      'scanner',
-      'users',
-      'roles',
-      'tax-rates',
-      'finance',
-    ]) {
-      await page.goto(`/global-admin/tenants/${tenant.id}/${operation}`);
-      await expect(page).toHaveURL(/\/403/);
-    }
+    await page.goto(`/global-admin/tenants/${tenant.id}/payment-support`);
+    await expect(page).toHaveURL(/\/403/);
   });
 });

@@ -191,11 +191,15 @@ Auth-related changes should preserve:
 - home tenant support
 - social login / lightweight account creation where available
 
-Persisted tenant-role grants must decode against the current tenant permission
-schema before a request receives its user context. Invalid or retired grants
-fail request resolution instead of being silently ignored. Platform authority
+For ordinary role-based access, persisted tenant-role grants must decode against
+the current tenant permission schema before a request receives its user context.
+Invalid or retired grants fail request resolution instead of being silently ignored. Platform authority
 comes only from the explicit platform principal, never a tenant role. The
-current tax permission is `admin:tax`; the retired `admin:manageTaxes` alias is
+verified platform-administrator claim grants all tenant permission keys in both
+request permissions and the real app user's effective permissions, regardless
+of membership, tenant onboarding, or assigned role grants. Do not persist this
+override as a tenant role or membership. Ordinary users still require membership,
+current onboarding, and valid persisted role grants. The current tax permission is `admin:tax`; the retired `admin:manageTaxes` alias is
 not accepted by role forms or request resolution.
 
 Tenant onboarding is part of the auth boundary. A cross-tenant join records
@@ -217,7 +221,14 @@ Changing auth provider is possible in the future, but not an incidental task.
 Platform administrators are independent platform principals. They may perform
 any platform operation for any tenant at any time without a tenant membership.
 Keep that authority explicit in the request context and audit trail rather than
-silently reusing a tenant user's identity or roles. Record actor, target tenant,
+silently impersonating another tenant user or depending on tenant roles. A
+verified platform administrator's own persisted app identity may be used by
+ordinary tenant APIs with every tenant capability; those requests retain their
+resolved tenant boundary. The global-admin UI links to the organization's own
+website for ordinary management rather than shipping parallel editors. Its
+organization-scoped support page contains only payment and refund recovery.
+Dedicated platform-operation contracts keep their
+explicit target, reason, and audit requirements. Record actor, target tenant,
 action, before/after data, reason, and timestamp in application/API append-only
 audit entries for every cross-tenant platform action. Authorization remains in
 the Effect server layer; the database schema does not install RLS policies or

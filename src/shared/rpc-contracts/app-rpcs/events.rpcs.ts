@@ -282,6 +282,7 @@ export const EventsCreate = asRpcMutation(
 );
 
 export const EventsEventListInput = Schema.Struct({
+  endedBefore: Schema.optional(CanonicalUtcTimestamp),
   limit: PageLimit.pipe(Schema.withDecodingDefaultTypeKey(Effect.succeed(100))),
   offset: PageOffset.pipe(Schema.withDecodingDefaultTypeKey(Effect.succeed(0))),
   startAfter: CanonicalUtcTimestamp.pipe(
@@ -649,6 +650,7 @@ export const EventsRegistrationStatusRecord = Schema.Struct({
   discountAmount: Schema.optional(Schema.NullOr(Schema.Number)),
   guestCount: Schema.Number,
   id: Schema.NonEmptyString,
+  location: Schema.optional(Schema.NullOr(EventLocation)),
   organizingRegistration: Schema.Boolean,
   paymentPending: Schema.Boolean,
   registeredDescription: Schema.optional(Schema.NullOr(Schema.String)),

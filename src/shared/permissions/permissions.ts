@@ -51,7 +51,7 @@ const USERS_GROUP = {
 
 const INTERNAL_GROUP = {
   key: 'internal',
-  permissions: ['viewInternalPages'] as const,
+  permissions: ['viewInternalPages', 'manageResources'] as const,
 } as const;
 
 const FINANCE_GROUP = {
@@ -197,6 +197,10 @@ const PERMISSION_METADATA = {
     description:
       'View money received and spent, including amounts, payment methods, fees, and comments.',
     label: 'View money received and spent',
+  },
+  'internal:manageResources': {
+    description: 'Add, edit, remove, and reorder links in Members Hub.',
+    label: 'Manage hub resources',
   },
   'internal:viewInternalPages': {
     description:

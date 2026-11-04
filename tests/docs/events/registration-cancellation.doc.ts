@@ -227,7 +227,7 @@ This example has one guest, so cancelling releases two occupied spots. The sign-
       const activeRegistration = page.locator('app-event-active-registration');
       await expect(activeRegistration).toBeVisible();
       await expect(
-        activeRegistration.getByText('Your ticket is confirmed'),
+        activeRegistration.getByText('Confirmed', { exact: true }),
       ).toBeVisible();
       await expect(
         activeRegistration.getByText(
@@ -476,7 +476,7 @@ The availability message sends the waitlisted attendee back to this event. It do
       await expect(
         recipientPage
           .locator('app-event-active-registration')
-          .getByText('Your ticket is confirmed'),
+          .getByText('Confirmed', { exact: true }),
       ).toBeVisible({ timeout: 20_000 });
 
       const followUpRegistration =
@@ -1351,7 +1351,7 @@ Switch to an organizer account with access to check-in and add-on fulfillment fo
 
 An update that requires action on the payment account keeps the sign-up cancelled and links the update to the same refund. The profile asks the attendee to **Contact the organizer**, while the organizer scanner shows **Refund needs review**. The attendee should not sign up, pay, or cancel again. The organizer can explain that the connected payment account needs action before an Evorto administrator resumes status checks for this exact refund.
 
-When the safe automatic checks have stopped, open the organization's **Review finance** page. The **Payment history** tab shows **Payment action needed**. In **Refunds needing attention**, match the event and refund amount, then choose **Review refund**. The review shows the safe next step without exposing internal payment identifiers or technical payment errors. **Continue refund** continues checking the same refund; it does not issue another refund.
+When the safe automatic checks have stopped, open the organization's **Payment support** page. In **Refunds needing attention**, match the event and refund amount, then choose **Review refund**. The review shows the safe next step without exposing internal payment identifiers or technical payment errors. **Continue refund** continues checking the same refund; it does not issue another refund.
 `,
     });
 
@@ -1364,22 +1364,14 @@ When the safe automatic checks have stopped, open the organization's **Review fi
     });
     await recoveryPage.page.goto(`/global-admin/tenants/${tenant.id}`);
     await recoveryPage.page
-      .getByRole('link', { name: 'Review finance' })
+      .getByRole('link', { name: 'Payment support' })
       .click();
     await expect(
       recoveryPage.page.getByRole('heading', {
         level: 1,
-        name: 'Organization finance',
+        name: 'Payment support',
       }),
     ).toBeVisible();
-    const providerActionTransactionRow = recoveryPage.page
-      .getByRole('row')
-      .filter({ hasText: refundAmountLabel })
-      .filter({ hasText: 'Payment action needed' });
-    await expect(providerActionTransactionRow).toBeVisible({ timeout: 20_000 });
-    await expect(providerActionTransactionRow).toContainText(
-      "Complete the required step in the organization's payment account, then open Refunds needing attention to continue.",
-    );
     await recoveryPage.page
       .getByRole('tab', { name: 'Refunds needing attention' })
       .click();
@@ -1536,7 +1528,7 @@ When the safe automatic checks have stopped, open the organization's **Review fi
 
 After status checks resume, an update saying the refund **failed** for the same refund asks the attendee to **Contact the organizer** and changes the organizer result to **Refund needs attention**. It does not create a second refund.
 
-Switch to an Evorto administrator account; an organization Admin role is not sufficient. Open the affected organization, select **Review finance**, open **Refunds needing attention**, and review the event, attendee, refund amount, failed state, and safe next step. Internal payment identifiers and technical payment errors remain hidden. Enter a specific **Reason for this action**, then choose **Try failed refund again**. Evorto keeps the failed refund in payment history, starts a new attempt for the same amount, and includes the reason in change history. It does not create a second refund.
+Switch to an Evorto administrator account; an organization Admin role is not sufficient. Open the affected organization, select **Payment support**, open **Refunds needing attention**, and review the event, attendee, refund amount, failed state, and safe next step. Internal payment identifiers and technical payment errors remain hidden. Enter a specific **Reason for this action**, then choose **Try failed refund again**. Evorto keeps the failed refund in payment history, starts a new attempt for the same amount, and includes the reason in change history. It does not create a second refund.
 `,
     });
     await takeScreenshot(
@@ -1549,7 +1541,7 @@ Switch to an Evorto administrator account; an organization Admin role is not suf
     await expect(
       recoveryPage.page.getByRole('heading', {
         level: 1,
-        name: 'Organization finance',
+        name: 'Payment support',
       }),
     ).toBeVisible();
     await recoveryPage.page
@@ -1858,7 +1850,7 @@ Open **Events**, select the event, and review the confirmed ticket. Evorto expla
       ).toHaveCount(0);
       await expect(activeRegistration).toBeVisible();
       await expect(
-        activeRegistration.getByText('Your ticket is confirmed'),
+        activeRegistration.getByText('Confirmed', { exact: true }),
       ).toBeVisible();
 
       const persistedRegistration =

@@ -7,7 +7,7 @@
     class="fab-fixed"
     routerLink="/global-admin/tenants/create"
   >
-    <fa-duotone-icon [icon]="faPlus" />
+    <fa-duotone-icon matButtonIcon class="mat-icon" [icon]="faPlus" />
     <span>Create organization</span>
   </a>
 </div>
@@ -57,7 +57,11 @@
           <h2 class="title-medium">{{ tenant.name }}</h2>
           <div class="grow"></div>
           <a mat-button [routerLink]="['/global-admin/tenants', tenant.id]">
-            <fa-duotone-icon [icon]="faArrowRight" class="mr-2" />
+            <fa-duotone-icon
+              matButtonIcon
+              [icon]="faArrowRight"
+              class="mat-icon"
+            />
             Review organization
           </a>
         </div>

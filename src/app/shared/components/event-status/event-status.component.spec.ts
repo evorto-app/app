@@ -20,7 +20,7 @@ describe('eventStatusLabel', () => {
 
   it('keeps review workflow labels readable', () => {
     expect(eventStatusLabel('DRAFT')).toBe('Draft');
-    expect(eventStatusLabel('PENDING_REVIEW')).toBe('Pending Review');
+    expect(eventStatusLabel('PENDING_REVIEW')).toBe('In review');
   });
 
   it('labels persisted feedback on a returned draft', () => {

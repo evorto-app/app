@@ -3,7 +3,7 @@ import type {
   EventsOutgoingRegistrationTransferRecord,
 } from '@shared/rpc-contracts/app-rpcs/events.rpcs';
 
-import { CurrencyPipe } from '@angular/common';
+import { CurrencyPipe, NgTemplateOutlet } from '@angular/common';
 import {
   afterNextRender,
   ChangeDetectionStrategy,
@@ -34,13 +34,19 @@ import {
 } from '@tanstack/angular-query-experimental';
 import consola from 'consola/browser';
 import { convert } from 'html-to-text';
+import { DateTime } from 'luxon';
 import { firstValueFrom } from 'rxjs';
 
 import { ConfigService } from '../../core/config.service';
+import {
+  DeviceTimezoneService,
+  shouldShowTimezone,
+} from '../../core/device-timezone.service';
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
 import { NotificationService } from '../../core/notification.service';
 import { PermissionsService } from '../../core/permissions.service';
+import { holdServerRenderWhile } from '../../core/server-render-pending';
 import {
   TENANT_DATE_PIPE_TIMEZONE,
   TenantDatePipe,
@@ -308,6 +314,7 @@ export class EventDetailsOperations {
   },
   imports: [
     CurrencyPipe,
+    NgTemplateOutlet,
     TenantDatePipe,
     MatButtonModule,
     RouterLink,
@@ -324,15 +331,14 @@ export class EventDetailsOperations {
   styles: `
     header {
       view-transition-name: header;
-      //h1 {
-      //  view-transition-name: header-title;
-      //}
-      //app-shape {
-      //  view-transition-name: header-shape;
-      //}
-      //app-icon {
-      //  view-transition-name: header-icon;
-      //}
+      transition:
+        background-color 350ms ease-in-out,
+        color 350ms ease-in-out;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      header {
+        transition: none;
+      }
     }
     .description {
       view-transition-name: event-description;
@@ -438,7 +444,20 @@ export class EventDetailsComponent {
   protected readonly eventReviewActionDisabled = eventReviewActionDisabled;
   protected readonly eventSubmitForReviewActionDisabled =
     eventSubmitForReviewActionDisabled;
+  private readonly deviceTimezone = inject(DeviceTimezoneService);
   protected readonly eventTimezone = inject(TENANT_DATE_PIPE_TIMEZONE);
+  protected readonly showEventTimezone = computed(() =>
+    shouldShowTimezone(this.eventTimezone, this.deviceTimezone.timezone()),
+  );
+  protected readonly eventIsSameDay = computed(() => {
+    const event = this.eventQuery.data();
+    return event
+      ? DateTime.fromISO(event.start, { zone: this.eventTimezone }).hasSame(
+          DateTime.fromISO(event.end, { zone: this.eventTimezone }),
+          'day',
+        )
+      : false;
+  });
 
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly faUsers = faUsers;
@@ -491,6 +510,12 @@ export class EventDetailsComponent {
   }>(null);
 
   constructor() {
+    holdServerRenderWhile(
+      () =>
+        this.eventQuery.isPending() ||
+        this.registrationStatusQuery.isPending() ||
+        this.canOrganizeQuery.isPending(),
+    );
     afterNextRender(() => this.controlsInteractive.set(true));
 
     effect(() => {

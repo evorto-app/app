@@ -1,5 +1,6 @@
 import { RpcBadRequestError } from '@shared/errors/rpc-errors';
 import { resolveReceiptCountrySettings } from '@shared/finance/receipt-countries';
+import { HubResources, HubResourcesConflictError } from '@shared/hub-resources';
 import {
   AdminRoleNotFoundError,
   AdminTenantNotFoundError,
@@ -372,6 +373,46 @@ const normalizeHubRoleRecord = (role: {
 const decodeAdminRoleRecord = Schema.decodeUnknownSync(AdminRoleRecord);
 
 export const adminHandlers = {
+  'admin.hub.findResources': () =>
+    Effect.gen(function* () {
+      yield* RpcAccess.ensurePermission('internal:viewInternalPages');
+      const { tenant } = yield* RpcAccess.current();
+      const rows = yield* databaseEffect((database) =>
+        database
+          .select({ resources: tenants.hubResources })
+          .from(tenants)
+          .where(eq(tenants.id, tenant.id)),
+      );
+      const row = rows[0];
+      if (!row)
+        return yield* Effect.die(new Error('Members Hub tenant missing'));
+      return yield* Schema.decodeUnknownEffect(HubResources)(
+        row.resources,
+      ).pipe(Effect.orDie);
+    }),
+  'admin.hub.saveResources': ({ expectedResources, resources }) =>
+    Effect.gen(function* () {
+      yield* RpcAccess.ensurePermission('internal:manageResources');
+      yield* RpcAccess.ensurePermission('internal:viewInternalPages');
+      const { tenant } = yield* RpcAccess.current();
+      const updated = yield* databaseEffect((database) =>
+        database
+          .update(tenants)
+          .set({ hubResources: resources })
+          .where(
+            and(
+              eq(tenants.id, tenant.id),
+              eq(tenants.hubResources, expectedResources),
+            ),
+          )
+          .returning({ id: tenants.id }),
+      );
+      if (updated.length === 0)
+        return yield* new HubResourcesConflictError({
+          message:
+            'Someone else changed the resources. Cancel and reopen the editor to load the latest list.',
+        });
+    }),
   'admin.roles.create': (input, _options) =>
     Effect.gen(function* () {
       yield* RpcAccess.ensurePermission('admin:manageRoles');
@@ -808,6 +849,7 @@ export const adminHandlers = {
               .set({
                 ...brandAssets,
                 footerLinks: input.footerLinks,
+                homePageUrl: input.homePageUrl,
                 seoDescription: input.seoDescription?.trim() || null,
                 seoTitle: input.seoTitle?.trim() || null,
                 theme: input.theme,

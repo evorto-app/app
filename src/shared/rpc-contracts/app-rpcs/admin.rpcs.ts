@@ -1,4 +1,6 @@
 import { asRpcMutation, asRpcQuery } from '@heddendorp/effect-angular-query';
+import { ForbiddenOrUnauthorizedRpcError } from '@shared/errors/rpc-errors';
+import { HubResources, HubResourcesConflictError } from '@shared/hub-resources';
 import { notificationEmailPattern } from '@shared/notification-email';
 import {
   literalUnion,
@@ -6,6 +8,7 @@ import {
 } from '@shared/schema-utilities';
 import { TenantReceiptSettingsSchema } from '@shared/tenant-config';
 import { TenantFooterLinks } from '@shared/tenant-footer-links';
+import { TenantHomePageUrl } from '@shared/tenant-home-page';
 import {
   AdminTenantAppearanceSettingsSnapshot,
   AdminTenantLegalSettingsSnapshot,
@@ -264,6 +267,7 @@ export const AdminTenantUpdateAppearanceSettingsInput = strictSettingsInput({
   expectedSettings: AdminTenantAppearanceSettingsSnapshot,
   faviconUrl: Schema.optional(TenantBrandAssetUrlString),
   footerLinks: Schema.optional(TenantFooterLinks),
+  homePageUrl: Schema.optional(Schema.NullOr(TenantHomePageUrl)),
   logoUrl: Schema.optional(TenantBrandAssetUrlString),
   seoDescription: Schema.optional(Schema.String),
   seoTitle: Schema.optional(Schema.String),
@@ -412,7 +416,29 @@ export const AdminTenantUpdateRegistrationSettings = asRpcMutation(
   }),
 );
 
+export const AdminHubFindResources = asRpcQuery(
+  Rpc.make('admin.hub.findResources', {
+    error: ForbiddenOrUnauthorizedRpcError,
+    success: HubResources,
+  }),
+);
+export const AdminHubSaveResources = asRpcMutation(
+  Rpc.make('admin.hub.saveResources', {
+    error: Schema.Union([
+      ForbiddenOrUnauthorizedRpcError,
+      HubResourcesConflictError,
+    ]),
+    payload: Schema.Struct({
+      expectedResources: HubResources,
+      resources: HubResources,
+    }),
+    success: Schema.Void,
+  }),
+);
+
 export class AdminRpcs extends RpcGroup.make(
+  AdminHubFindResources,
+  AdminHubSaveResources,
   AdminRolesCreate,
   AdminRolesDelete,
   AdminRolesFindHubRoles,

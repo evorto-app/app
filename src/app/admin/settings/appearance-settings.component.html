@@ -69,6 +69,37 @@
     </section>
 
     <section class="grid grid-cols-1">
+      <h2 class="title-small mb-2">Home page</h2>
+      <mat-form-field>
+        <mat-label>Home page</mat-label>
+        <mat-select [formField]="settingsForm.homePageMode">
+          <mat-option value="none">No home page</mat-option>
+          <mat-option value="link">External link</mat-option>
+        </mat-select>
+      </mat-form-field>
+      @if (settingsForm.homePageMode().value() === "link") {
+        <mat-form-field>
+          <mat-label>Home page web address</mat-label>
+          <input
+            matInput
+            type="url"
+            [formField]="settingsForm.homePageUrl"
+            placeholder="https://section.example.org"
+          />
+          <mat-hint
+            >The Home navigation link opens this page in a new tab.</mat-hint
+          >
+          @for (
+            error of settingsForm.homePageUrl().errors();
+            track error.kind
+          ) {
+            <mat-error>{{ error.message }}</mat-error>
+          }
+        </mat-form-field>
+      }
+    </section>
+
+    <section class="grid grid-cols-1">
       <h2 class="title-small mb-2">Branding</h2>
       <p class="text-on-surface-variant mb-3 text-sm">
         Upload a logo or tab icon, or enter its web address.
@@ -96,7 +127,7 @@
         [disabled]="brandAssetUploadDisabled()"
         (click)="logoAssetInput.click()"
       >
-        <fa-duotone-icon [icon]="faUpload" class="mr-2" />
+        <fa-duotone-icon matButtonIcon [icon]="faUpload" class="mat-icon" />
         {{
           uploadingBrandAsset() === "logo" ? "Uploading logo" : "Upload logo"
         }}
@@ -125,7 +156,7 @@
         [disabled]="brandAssetUploadDisabled()"
         (click)="faviconAssetInput.click()"
       >
-        <fa-duotone-icon [icon]="faUpload" class="mr-2" />
+        <fa-duotone-icon matButtonIcon [icon]="faUpload" class="mat-icon" />
         {{
           uploadingBrandAsset() === "favicon"
             ? "Uploading tab icon"

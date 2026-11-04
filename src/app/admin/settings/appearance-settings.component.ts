@@ -19,6 +19,7 @@ import {
   disabled,
   form,
   FormField,
+  hidden,
   maxLength,
   required,
   submit,
@@ -36,6 +37,7 @@ import {
   MAX_TENANT_FOOTER_LINKS,
   type TenantFooterLink,
 } from '@shared/tenant-footer-links';
+import { isTenantHomePageUrl } from '@shared/tenant-home-page';
 import {
   type AdminTenantAppearanceSettingsSnapshot,
   adminTenantAppearanceSettingsSnapshot,
@@ -65,6 +67,8 @@ import {
 interface AppearanceSettingsModel {
   faviconUrl: string;
   footerLinks: TenantFooterLink[];
+  homePageMode: 'link' | 'none';
+  homePageUrl: string;
   logoUrl: string;
   seoDescription: string;
   seoTitle: string;
@@ -184,6 +188,8 @@ export class AppearanceSettingsComponent {
   private readonly model = signal<AppearanceSettingsModel>({
     faviconUrl: '',
     footerLinks: [],
+    homePageMode: 'none',
+    homePageUrl: '',
     logoUrl: '',
     seoDescription: '',
     seoTitle: '',
@@ -191,6 +197,21 @@ export class AppearanceSettingsComponent {
   });
   protected readonly settingsForm = form(this.model, (settings) => {
     disabled(settings, () => this.settingsLocked());
+    hidden(
+      settings.homePageUrl,
+      ({ valueOf }) => valueOf(settings.homePageMode) === 'none',
+    );
+    required(settings.homePageUrl, {
+      message: 'Enter the home page web address.',
+    });
+    validate(settings.homePageUrl, ({ value }) =>
+      isTenantHomePageUrl(value().trim())
+        ? undefined
+        : {
+            kind: 'url',
+            message: 'Use an http:// or https:// address without credentials.',
+          },
+    );
     applyEach(settings.footerLinks, (link) => {
       required(link.label, { message: 'Enter a link label.' });
       validate(link.label, ({ value }) =>
@@ -277,6 +298,10 @@ export class AppearanceSettingsComponent {
               href: link.href.trim(),
               label: link.label.trim(),
             })),
+            homePageUrl:
+              settings.homePageMode === 'link'
+                ? settings.homePageUrl.trim()
+                : null,
             logoUrl: optionalTrimmed(settings.logoUrl),
             seoDescription: optionalTrimmed(settings.seoDescription),
             seoTitle: optionalTrimmed(settings.seoTitle),
@@ -410,6 +435,8 @@ export class AppearanceSettingsComponent {
       this.model.set({
         faviconUrl: tenant.faviconUrl ?? '',
         footerLinks: [...(tenant.footerLinks ?? [])],
+        homePageMode: tenant.homePageUrl ? 'link' : 'none',
+        homePageUrl: tenant.homePageUrl ?? '',
         logoUrl: tenant.logoUrl ?? '',
         seoDescription: tenant.seoDescription ?? '',
         seoTitle: tenant.seoTitle ?? '',

@@ -196,7 +196,6 @@ Use the search field to find the person by name or email. Open **Assigned roles*
     await expect(assignmentOption).toHaveAttribute('aria-selected', 'false');
     await assignmentOption.click();
     await page.keyboard.press('Escape');
-    await expect(page.getByText('Member roles updated')).toBeVisible();
     await expect
       .poll(assignmentScenario.readAssignedRoleIds)
       .toEqual([assignmentScenario.role.id]);
@@ -461,7 +460,6 @@ Return to **Admin Tools** → **Members**, search for the member, and select the
     );
     await regularAssignmentOption.click();
     await page.keyboard.press('Escape');
-    await expect(page.getByText('Member roles updated')).toBeVisible();
     await expect
       .poll(async () => {
         const assignments = await database
@@ -510,9 +508,6 @@ Return to **Admin Tools** → **Members**, search for the member, and select the
       await expect(memberSession.page).toHaveURL(/\/internal\/members-hub$/u);
       await expect(
         memberSession.page.getByRole('heading', { name: 'Members Hub' }),
-      ).toBeVisible();
-      await expect(
-        memberSession.page.getByRole('heading', { name: "Who's who" }),
       ).toBeVisible();
       await expect(
         memberSession.page.getByText(roleName, { exact: true }),

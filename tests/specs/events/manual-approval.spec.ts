@@ -223,7 +223,7 @@ test.describe('Manual approval registrations', () => {
 
     await page.reload();
     await waitForRegistrationStatus(page);
-    await expect(page.getByText('Your ticket is confirmed')).toBeVisible();
+    await expect(page.getByText('Confirmed', { exact: true })).toBeVisible();
     await expect(
       page.getByRole('img', { name: 'QR code for your event ticket' }),
     ).toBeVisible();
@@ -391,7 +391,7 @@ test.describe('Manual approval registrations', () => {
 
     await page.reload();
     await waitForRegistrationStatus(page);
-    await expect(page.getByText('Your ticket is confirmed')).toBeVisible();
+    await expect(page.getByText('Confirmed', { exact: true })).toBeVisible();
     await expect(
       page.getByRole('img', { name: 'QR code for your event ticket' }),
     ).toBeVisible();

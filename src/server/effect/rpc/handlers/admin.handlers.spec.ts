@@ -1913,3 +1913,47 @@ describe('adminHandlers tenant settings', () => {
       }),
   );
 });
+
+describe('Members Hub resource access', () => {
+  it.effect.each([
+    { authenticated: true, errorTag: 'RpcForbiddenError', permissions: [] },
+    {
+      authenticated: false,
+      errorTag: 'RpcUnauthorizedError',
+      permissions: ['internal:viewInternalPages'],
+    },
+  ] as const)(
+    'denies reading resources without authenticated hub access',
+    (scenario) =>
+      Effect.gen(function* () {
+        const error = yield* adminHandlers['admin.hub.findResources']().pipe(
+          Effect.provide(
+            requestContextLayer({
+              ...createRequestContext([...scenario.permissions]),
+              authenticated: scenario.authenticated,
+            }),
+          ),
+          Effect.provide(unavailableDatabaseLayer),
+          Effect.flip,
+        );
+        expect(error._tag).toBe(scenario.errorTag);
+      }),
+  );
+  it.effect('does not let a section member write resources', () =>
+    Effect.gen(function* () {
+      const error = yield* adminHandlers['admin.hub.saveResources']({
+        expectedResources: [],
+        resources: [],
+      }).pipe(
+        Effect.provide(
+          requestContextLayer(
+            createRequestContext(['internal:viewInternalPages']),
+          ),
+        ),
+        Effect.provide(unavailableDatabaseLayer),
+        Effect.flip,
+      );
+      expect(error._tag).toBe('RpcForbiddenError');
+    }),
+  );
+});

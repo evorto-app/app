@@ -104,22 +104,29 @@ information.
 
 Platform administrators are platform principals, not tenant roles. They may
 perform any platform operation for any tenant at any time without a tenant
-membership. Their access must remain explicit and auditable; it must not depend
-on silently pretending to be a tenant user.
+membership. The verified platform-administrator claim also grants every tenant
+permission in ordinary tenant pages and APIs, regardless of assigned roles.
+Use the administrator's real app identity without creating memberships or role
+assignments; management access is independent of tenant onboarding. Keep the
+platform authority explicit alongside the effective tenant permissions.
 
-Each platform operation names its target tenant explicitly. Every platform
-mutation requires an operational reason and records the Auth0 platform actor,
-target tenant, action, timestamp, and typed before/after state in the same
-transaction as the domain change. A platform-created event must name an active
-target-tenant member as its attributed owner; that attribution does not turn
-the platform actor into a tenant user.
+Global administration provides organization configuration, delivery outcomes,
+change history, and payment/refund recovery. To manage events, templates,
+members, roles, tax rates, scanning, or routine finance, open the organization's
+website and use its ordinary pages. Do not duplicate those screens in the
+platform workspace.
+
+Dedicated platform actions name the target tenant explicitly, require an
+operational reason, and record the platform actor, target tenant, action,
+timestamp, and typed before/after state in the same transaction as the change.
 
 Platform authority does not replace participant identity. Participant profile
 and home views, joining or leaving a tenant, submitting personal receipts, and
 self-service registration transfer or resale remain participant-owned flows.
-Platform tools may operate on target-tenant records only through dedicated
-target-scoped contracts; they must never merge tenant-role permissions into the
-platform principal.
+Dedicated platform tools use target-scoped contracts and retain their operational
+reason and audit requirements. Ordinary tenant operations remain scoped to the
+resolved request tenant. Platform authority grants capabilities independently of
+tenant-role grants; it does not invent participant records or confirmed tickets.
 
 ## Core Workflows
 

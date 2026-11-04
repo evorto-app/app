@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 
+import { eventDetailsReadyResolver } from './event-details-ready.resolver';
 import { eventEditGuard } from './guards/event-edit.guard';
 import { eventOrganizerGuard } from './guards/event-organizer.guard';
 
@@ -7,11 +8,13 @@ export const EVENT_ROUTES: Routes = [
   {
     children: [
       {
+        data: { eventShapeMorph: true },
         loadComponent: () =>
           import('./event-details/event-details.component').then(
             (m) => m.EventDetailsComponent,
           ),
         path: ':eventId',
+        resolve: { eventReady: eventDetailsReadyResolver },
       },
       {
         canActivate: [eventOrganizerGuard],

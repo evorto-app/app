@@ -253,13 +253,10 @@ test('simple organizer signup grants and revokes event-scoped access while prese
       }),
     ).toBeVisible();
     await expect(
-      activeOrganizerRegistration.getByText(
-        'Organizer/helper ticket confirmed',
-        { exact: true },
-      ),
+      activeOrganizerRegistration.getByText('Confirmed', { exact: true }),
     ).toBeVisible();
     await expect(
-      activeOrganizerRegistration.getByText('Your organizer/helper pass', {
+      activeOrganizerRegistration.getByText('Organizer/helper', {
         exact: true,
       }),
     ).toBeVisible();
@@ -532,7 +529,7 @@ test('simple organizer signup grants and revokes event-scoped access while prese
       }),
     ).toBeVisible();
     await expect(
-      activeParticipantRegistration.getByText('Your ticket is confirmed', {
+      activeParticipantRegistration.getByText('Confirmed', {
         exact: true,
       }),
     ).toBeVisible();
@@ -783,13 +780,10 @@ test('advanced organizer application stays pending until an administrator approv
     const confirmedOrganizerRegistration =
       await waitForActiveRegistration(page);
     await expect(
-      confirmedOrganizerRegistration.getByText(
-        'Organizer/helper ticket confirmed',
-        { exact: true },
-      ),
+      confirmedOrganizerRegistration.getByText('Confirmed', { exact: true }),
     ).toBeVisible();
     await expect(
-      confirmedOrganizerRegistration.getByText('Your organizer/helper pass', {
+      confirmedOrganizerRegistration.getByText('Organizer/helper', {
         exact: true,
       }),
     ).toBeVisible();

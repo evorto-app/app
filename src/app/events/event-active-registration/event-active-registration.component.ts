@@ -25,6 +25,7 @@ import {
   registrationCancellationKind,
 } from '@shared/registration-cancellation';
 import { RegistrationTransfersRpcError } from '@shared/rpc-contracts/app-rpcs/registration-transfers.errors';
+import { isWebUrl } from '@shared/web-url';
 import {
   injectMutation,
   QueryClient,
@@ -176,7 +177,6 @@ export const registrationAudienceCopy = (
 ): {
   audienceLabel: string;
   confirmedStatus: string;
-  passHeading: string;
   paymentPendingStatus: string;
   pendingApprovalStatus: string;
   qrAlt: string;
@@ -185,7 +185,6 @@ export const registrationAudienceCopy = (
     ? {
         audienceLabel: 'Organizer/helper',
         confirmedStatus: 'Organizer/helper ticket confirmed',
-        passHeading: 'Your organizer/helper pass',
         paymentPendingStatus:
           'Complete payment to confirm your organizer/helper place. Organizer access starts only after payment succeeds.',
         pendingApprovalStatus:
@@ -195,7 +194,6 @@ export const registrationAudienceCopy = (
     : {
         audienceLabel: 'Participant',
         confirmedStatus: 'Your ticket is confirmed',
-        passHeading: 'Your event ticket',
         paymentPendingStatus: 'Complete payment to confirm your ticket.',
         pendingApprovalStatus: 'Your ticket is pending organizer approval.',
         qrAlt: 'QR code for your event ticket',
@@ -345,8 +343,7 @@ export const registrationTransferActionCopy = (registration: {
   if (registration.transferAvailable) {
     return {
       buttonLabel: 'Create transfer link',
-      helperText:
-        'Create a private link and code for one organization member who can use this sign-up choice. They review the current questions, add-ons, discount, and price before claiming it.',
+      helperText: 'Share your ticket privately with another eligible member.',
     };
   }
 
@@ -489,10 +486,20 @@ export const registrationTransferActionDisabled = (input: {
     PriceWithTaxComponent,
   ],
   selector: 'app-event-active-registration',
-  styles: ``,
+  styles: `
+    .ticket-pass {
+      mask-image:
+        radial-gradient(circle at 9.5rem 0, transparent 11px, #000 12px),
+        radial-gradient(circle at 9.5rem 100%, transparent 11px, #000 12px),
+        radial-gradient(circle at 0 50%, transparent 7px, #000 8px),
+        radial-gradient(circle at 100% 50%, transparent 7px, #000 8px);
+      mask-composite: intersect;
+    }
+  `,
   templateUrl: './event-active-registration.component.html',
 })
 export class EventActiveRegistrationComponent {
+  protected readonly isWebUrl = isWebUrl;
   public readonly eventId = input.required<string>();
   public readonly registrations =
     input.required<readonly EventsRegistrationStatusRecord[]>();

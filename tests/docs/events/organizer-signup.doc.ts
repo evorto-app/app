@@ -162,7 +162,7 @@ Attendee sign-up cards are for attending the event. Choose an organizer/helper c
       body: `
 ### Confirm the organizer/helper ticket
 
-Select **Sign up**. A free first-come, first-served category confirms immediately when the choice is still available to you and a place remains. The event page then shows **Organizer/helper ticket confirmed**, your organizer/helper pass, and **Organize this event**.
+Select **Sign up**. A free first-come, first-served category confirms immediately when the choice is still available to you and a place remains. The event page then shows **Confirmed**, your organizer/helper pass, and **Organize this event**.
 
 The pass identifies this as an organizer/helper ticket. Organizer tools become available only after the ticket is confirmed; copying an organizer link does not make them available.
 `,
@@ -172,12 +172,12 @@ The pass identifies this as an organizer/helper ticket. Organizer tools become a
     const activeRegistration = page.locator('app-event-active-registration');
     await expect(activeRegistration).toBeVisible({ timeout: 20_000 });
     await expect(
-      activeRegistration.getByText('Organizer/helper ticket confirmed', {
+      activeRegistration.getByText('Confirmed', {
         exact: true,
       }),
     ).toBeVisible();
     await expect(
-      activeRegistration.getByText('Your organizer/helper pass', {
+      activeRegistration.getByText('Organizer/helper', {
         exact: true,
       }),
     ).toBeVisible();
@@ -694,7 +694,7 @@ People with receipt-only or otherwise limited access do not see approval, transf
         body: `
 ### Confirm access after approval
 
-Open the applicant's event again after approval. This free application now shows **Organizer/helper ticket confirmed**, the organizer/helper pass, and **Organize this event**. A paid category remains pending until payment succeeds; the pass and organizer tools do not appear before then.
+Open the applicant's event again after approval. This free application now shows **Confirmed**, the organizer/helper pass, and **Organize this event**. A paid category remains pending until payment succeeds; the pass and organizer tools do not appear before then.
 `,
       });
 
@@ -728,12 +728,12 @@ Open the applicant's event again after approval. This free application now shows
       await page.reload();
       await waitForRegistrationPage(page);
       await expect(
-        page.getByText('Organizer/helper ticket confirmed', {
+        page.getByText('Confirmed', {
           exact: true,
         }),
       ).toBeVisible({ timeout: 20_000 });
       await expect(
-        page.getByText('Your organizer/helper pass', { exact: true }),
+        page.getByText('Organizer/helper', { exact: true }),
       ).toBeVisible();
       await expect(
         page.getByRole('link', {

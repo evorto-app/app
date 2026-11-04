@@ -16,7 +16,7 @@ The database seeding process serves two distinct goals:
 - `database.ts`: Main entry point for database setup and seeding
 - `seed-tenant.ts`: Shared tenant seeding logic used by tests, development, and demos
 - `add-events.ts`: Creates events with deterministic dates, statuses, and visibilities
-- `add-roles.ts`: Sets up user roles and permissions. Section and trial members can browse templates and create events from them; template creation and editing require explicit grants. Admins retain template management access.
+- `add-roles.ts`: Sets up user roles and permissions. Members Hub lists admins, event managers, a treasurer, helpers, and a decorative First aid role with no permissions. Broad section-member, trial-member, and regular-user groups stay hidden through `displayInHub`. Specialists also hold section membership; one event manager is also treasurer and first-aid trained. Event manager and treasurer are explicit assignments, never default roles. Section and trial members can browse templates and create events from them; template creation and editing require explicit grants. Admins retain template management access.
 - `add-templates.ts`: Creates event templates
 - `add-template-categories.ts`: Sets up template categories
 - `user-data.ts`: Defines test users
@@ -352,3 +352,61 @@ and test artifacts while retaining application inputs. Run
 `bun run image:verify -- IMAGE` checks an already-built runtime image.
 Review immutable Docker/Compose image digests when updating dependencies; the
 existing Dependabot entries propose image updates.
+
+## Manual walkthrough clock
+
+Automated test runs use a fixed `E2E_NOW_ISO`. For a manual walkthrough against
+existing data, clear that pin after runtime environment generation so the browser,
+web server, and worker use the current time. Rebuild only the running app services;
+this preserves the database and skips setup services:
+
+```sh
+APP_HOST_PORT=4200 bun run env:run -- env -u E2E_RUNTIME_MODE E2E_NOW_ISO= docker compose up --detach --build --no-deps evorto worker
+```
+
+Keep the fixed clock when running deterministic Playwright suites.
+
+## Local walkthrough dataset
+
+The descriptions use original association-style copy, informed by public TUMi event pages: a mix of short social invitations, longer activity plans, practical lists and rich-text headings. Reusable template descriptions live in `template-description-copy.ts`; curated event copy and existing-icon choices live in `walkthrough-event-copy.ts`. Meeting instructions stay in private post-registration content, and fixture prices/dates remain controlled by the seed's existing configuration.
+
+The `demo` profile adds these named, deterministic examples alongside the varied calendar:
+
+| Event                 | What to review                                                                                |
+| --------------------- | --------------------------------------------------------------------------------------------- |
+| Welcome evening       | Open free sign-up, a required dietary question, optional welcome pack, organizer access       |
+| City walk             | Sign-up opening tomorrow with relative and exact opening times                                |
+| Last-minute city tour | Sign-up already closed for a future event                                                     |
+| Museum visit          | Full capacity and the regular user's waitlist place                                           |
+| Weekend planning      | Application awaiting organizer approval                                                       |
+| Lakeside picnic       | Confirmed ticket for the regular user plus one guest; cancellation and transfer are available |
+| Board game evening    | Cancelled sign-up in the regular user's event history                                         |
+| Sunday football       | Paid choice ready for real Stripe test-mode checkout                                          |
+| Yesterday’s welcome   | A checked-in attendee with an outstanding guest arrival                                       |
+| Meet your section     | Announcement without a sign-up form                                                           |
+
+Use `user@evorto.app` for attendee states, `organizer@evorto.app` for the
+confirmed organizer tickets, and `admin@evorto.app` for event review, templates,
+roles, and finance. `global-admin@evorto.app` can open organizations and use
+payment support. Credentials remain in the ignored local environment.
+The existing calendar includes drafts and events in review; Members Hub shows
+small admin, event-manager, treasurer, helper, and first-aid groups; broad membership groups remain hidden. Finance includes submitted
+receipts and approved reimbursements. Local CLI/Docker seeding writes actual
+sample PDF evidence into MinIO so receipt preview and approval work.
+
+Paid registrations and provider outcomes are created through Stripe test mode,
+not fabricated by the seed. Start a checkout from Sunday football to review
+payment, payment cancellation, and subsequent refund behavior. Start a transfer
+from Lakeside picnic to review its code, claim, and cancellation flows.
+
+For a fresh walkthrough, use the supported `bun run db:reset` against the local
+stack with `E2E_NOW_ISO` set to today's date, then restart the app and worker
+with the manual clock unpinned (`E2E_NOW_ISO=` and `E2E_RUNTIME_MODE` unset).
+This intentionally replaces local walkthrough data. Ordinary `docker:resume`
+continues to preserve it.
+
+Members Hub also seeds a small resource list (shared drive, calendar, and a sample
+team email). Admins and explicitly assigned event managers can manage it; ordinary
+section members can follow links. Resources remain private to authenticated hub
+readers and are independent of public footer links. Apply the current schema with
+`bun run db:push` when adding this feature to an existing local database.

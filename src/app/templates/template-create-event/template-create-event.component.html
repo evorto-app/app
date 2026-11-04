@@ -11,7 +11,7 @@
   </h1>
 </div>
 
-<main class="flex flex-col gap-6">
+<main class="@container flex min-w-0 flex-col gap-6">
   @if (creationOutcomeMessage() || createEventMutation.isError()) {
     <section
       class="bg-error-container text-on-error-container rounded-lg p-4"
@@ -131,11 +131,11 @@
             </div>
           }
           <div
-            class="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:[grid-template-rows:auto_auto_auto_auto_auto_auto_auto]"
+            class="grid grid-cols-1 gap-6 @3xl:grid-cols-2 @3xl:[grid-template-rows:auto_auto_auto_auto_auto_auto_auto]"
           >
             @for (option of createEventForm.registrationOptions; track option) {
               <app-registration-option-form
-                class="bg-surface text-on-surface rounded-xl p-4 grid gap-4 lg:row-span-7 lg:grid-rows-subgrid"
+                class="bg-surface text-on-surface rounded-xl p-4 grid gap-4 @3xl:row-span-7 @3xl:grid-rows-subgrid"
                 [esnEnabled]="esnEnabled()"
                 [registrationOptionForm]="option"
                 [registrationModes]="registrationModes"

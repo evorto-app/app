@@ -128,6 +128,8 @@ const createTenant = (domain: string) =>
     emailSenderName: null,
     faviconUrl: null,
     footerLinks: [],
+    homePageUrl: null,
+    hubResources: [],
     id: 'tenant-fixture',
     legalNoticeText: null,
     legalNoticeUrl: null,
