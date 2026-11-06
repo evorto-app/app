@@ -184,9 +184,9 @@ for (const mode of ['omit', 'customize', 'add'] as const) {
         .getByRole('button', { name: 'Submit for Review', exact: true })
         .click();
       await expect(dialog).not.toBeVisible();
-      await expect(ownEvent).toContainText('pending review');
+      await expect(ownEvent).toContainText('In review');
       await page.reload();
-      await expect(ownEvent).toContainText('pending review');
+      await expect(ownEvent).toContainText('In review');
       await page.screenshot({
         path: 'test-results/own-submitted-event-in-list.png',
       });

@@ -459,9 +459,7 @@ Each paid sign-up displays the final price together with its inclusive tax label
     const organizerSection = editForm
       .locator('app-template-registration-option-editor')
       .filter({
-        has: page.getByRole('textbox', {
-          name: 'Sign-up choice name',
-        }),
+        has: page.getByRole('group', { exact: true, name: 'Organizer' }),
       })
       .filter({
         has: page.getByRole('combobox', {

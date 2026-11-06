@@ -219,7 +219,7 @@ This example has one guest, so cancelling releases two occupied spots. The sign-
 1. Sign in as the attendee who owns the ticket.
 2. Open **Events** from the main navigation.
 3. Select the event, then find the confirmed ticket on its details page.
-4. Read the cancellation explanation before selecting **Cancel ticket**.
+4. Select **Cancel ticket**, then review its consequences in the confirmation before continuing.
 `,
       });
 
@@ -228,12 +228,6 @@ This example has one guest, so cancelling releases two occupied spots. The sign-
       await expect(activeRegistration).toBeVisible();
       await expect(
         activeRegistration.getByText('Confirmed', { exact: true }),
-      ).toBeVisible();
-      await expect(
-        activeRegistration.getByText(
-          'This cancels your ticket and releases all selected places.',
-          { exact: false },
-        ),
       ).toBeVisible();
       const cancelRegistration = activeRegistration.getByRole('button', {
         exact: true,
@@ -276,6 +270,7 @@ This free sign-up has no refund obligation. Paid tickets and paid add-ons are pa
       await expect(cancellationDialog).toContainText(
         'If a refund applies, it will be requested and may take time to appear.',
       );
+      await expect(cancellationDialog).toContainText('releases your place');
       const keepRegistration = cancellationDialog.getByRole('button', {
         name: 'Go back',
       });
@@ -1553,9 +1548,11 @@ Switch to an Evorto administrator account; an organization Admin role is not suf
     await expect(terminalRecoveryRow).toBeVisible({ timeout: 20_000 });
     await expect(terminalRecoveryRow).toContainText(scenario.title);
     await expect(terminalRecoveryRow).toContainText(refundAmountLabel);
-    await terminalRecoveryRow
-      .getByRole('button', { name: 'Review refund' })
-      .click();
+    const reviewFailedRefund = terminalRecoveryRow.getByRole('button', {
+      name: 'Review refund',
+    });
+    await expect(reviewFailedRefund).not.toHaveAttribute('jsaction', /click/);
+    await reviewFailedRefund.click();
     const retryRecoveryForm = recoveryPage.page
       .getByRole('heading', {
         level: 2,

@@ -26,8 +26,8 @@ test('template header and footer remain visible while its list scrolls', async (
   await expect(heading).toBeVisible();
   await expect(list.getByRole('link', { name: template.title })).toBeVisible();
   const headingTop = (await heading.boundingBox())?.y;
-  await list.hover();
-  await page.mouse.wheel(0, 600);
+  await list.focus();
+  await page.keyboard.press('PageDown');
   await expect
     .poll(() => list.evaluate((element) => element.scrollTop))
     .toBeGreaterThan(0);

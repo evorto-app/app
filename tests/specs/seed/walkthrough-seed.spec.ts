@@ -1,6 +1,10 @@
+import { and, eq } from 'drizzle-orm';
+
 import { addWalkthroughEvents } from '../../../helpers/add-walkthrough-events';
 import { userStateFile } from '../../../helpers/user-data';
+import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
+import { futureServerEventWindow } from '../../support/utils/server-test-clock';
 
 test.use({ storageState: userStateFile });
 
@@ -26,6 +30,22 @@ test('walkthrough fixtures expose ready sign-ups and actionable tickets without 
   const ticket = scenarios['ticket'];
   if (!opening || !open || !ticket)
     throw new Error('Expected walkthrough handles');
+  // Transfers check wall-clock deadlines as well as the browser's test clock.
+  const { start, end, openRegistrationTime, closeRegistrationTime } =
+    futureServerEventWindow();
+  await database
+    .update(schema.eventInstances)
+    .set({ start, end })
+    .where(
+      and(
+        eq(schema.eventInstances.id, ticket.eventId),
+        eq(schema.eventInstances.tenantId, tenant.id),
+      ),
+    );
+  await database
+    .update(schema.eventRegistrationOptions)
+    .set({ openRegistrationTime, closeRegistrationTime })
+    .where(eq(schema.eventRegistrationOptions.eventId, ticket.eventId));
   await page.goto(`/events/${opening.eventId}`);
   await expect(page.getByText(/Sign-up opens in/).first()).toBeVisible();
   await expect(
@@ -47,6 +67,9 @@ test('walkthrough fixtures expose ready sign-ups and actionable tickets without 
   await expect(createTransfer).not.toHaveAttribute('jsaction', /click/);
   await createTransfer.click();
   const dialog = page.getByRole('dialog');
+  const alerts = page.getByRole('alert');
+  await expect(dialog.or(alerts).first()).toBeVisible();
+  expect(await alerts.allTextContents()).toEqual([]);
   await expect(dialog.getByLabel('Transfer code')).not.toHaveValue('');
   await dialog.getByRole('button', { name: 'Done', exact: true }).click();
   await expect(
