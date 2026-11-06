@@ -8,12 +8,15 @@ import { relations } from '../src/db/relations';
 import * as schema from '../src/db/schema';
 import { getId } from './get-id';
 import { requireSeedUserId } from './seed-requirements';
+import type { SeedReceiptEvidence } from './seed-receipt-evidence';
 import { usersToAuthenticate } from './user-data';
 
 export const addFinanceReceipts = async (
   database: NodePgDatabase<typeof relations>,
   options: {
     currency: 'AUD' | 'CZK' | 'EUR';
+    receiptEvidence?: SeedReceiptEvidence | undefined;
+    seedDate?: Date;
     eventIds: string[];
     tenantId: string;
   },
@@ -36,7 +39,7 @@ export const addFinanceReceipts = async (
     paypalEmail: 'organizer-refunds@example.com',
   });
 
-  const now = new Date();
+  const now = options.seedDate ?? new Date();
   const receiptDate = now.toISOString().slice(0, 10);
   const [eventA, eventB, eventC] = options.eventIds;
   const kitchenSuppliesUploadId = getId();
@@ -48,28 +51,28 @@ export const addFinanceReceipts = async (
       eventId: eventA,
       fileName: 'kitchen-supplies.pdf',
       id: kitchenSuppliesUploadId,
-      sizeBytes: 42_000,
+      sizeBytes: options.receiptEvidence?.body.byteLength ?? 42_000,
       uploadedByUserId: reimbursementUserId,
     },
     {
       eventId: eventB ?? eventA,
       fileName: 'venue-deposit.pdf',
       id: venueDepositUploadId,
-      sizeBytes: 48_000,
+      sizeBytes: options.receiptEvidence?.body.byteLength ?? 48_000,
       uploadedByUserId: reimbursementUserId,
     },
     {
       eventId: eventC ?? eventA,
       fileName: 'transport-ticket.pdf',
       id: transportTicketUploadId,
-      sizeBytes: 21_000,
+      sizeBytes: options.receiptEvidence?.body.byteLength ?? 21_000,
       uploadedByUserId: reimbursementUserId,
     },
     {
       eventId: eventA,
       fileName: 'profile-receipt.pdf',
       id: profileReceiptUploadId,
-      sizeBytes: 30_000,
+      sizeBytes: options.receiptEvidence?.body.byteLength ?? 30_000,
       uploadedByUserId: regularUserId,
     },
   ].map((upload) => ({
@@ -81,19 +84,24 @@ export const addFinanceReceipts = async (
     uploadedAt: now,
   }));
 
-  await database.insert(schema.financeReceiptUploads).values(
-    receiptUploads.map((upload) => ({
-      ...upload,
-      storageKey: buildReceiptStorageKey({
-        contentDigest: createHash('sha256').update(upload.id).digest('hex'),
-        eventId: upload.eventId,
-        fileName: upload.fileName,
-        tenantId: options.tenantId,
-        uploadId: upload.id,
-        userId: upload.uploadedByUserId,
-      }),
-    })),
-  );
+  const availableUploads = receiptUploads.map((upload) => ({
+    ...upload,
+    storageKey: buildReceiptStorageKey({
+      contentDigest: createHash('sha256')
+        .update(options.receiptEvidence?.body ?? upload.id)
+        .digest('hex'),
+      eventId: upload.eventId,
+      fileName: upload.fileName,
+      tenantId: options.tenantId,
+      uploadId: upload.id,
+      userId: upload.uploadedByUserId,
+    }),
+  }));
+  await database.insert(schema.financeReceiptUploads).values(availableUploads);
+  if (options.receiptEvidence) {
+    for (const upload of availableUploads)
+      await options.receiptEvidence.write(upload.storageKey);
+  }
 
   await database.insert(schema.financeReceipts).values([
     {

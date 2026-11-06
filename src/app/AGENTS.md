@@ -26,10 +26,17 @@
 
 ## UI & Design System
 
-- Prefer `@angular/material` components where suitable.
+- Read the `design-taste-frontend` and `project-design` skills before UI design, refinement, or review. For application screens, follow Taste's `references/app-screens.md`; the marketing-page workflow applies only to actual marketing pages.
+- Prefer spacing and tonal surfaces over bordered card wrappers. Do not surround ordinary page sections, ticket actions, or already-distinct surfaces with outlined cards. Use cards only when the content needs that component.
+
+- Keep implementation details out of visible copy, badges, tooltips, accessible names, and errors. Explain what happened and what the user can do. Before adding explanatory UI, identify the decision it helps this viewer make; omit it if there is none. Configuration explanations belong beside the authorized management control, not on attendee cards.
+
+- Prefer available Material You / Material 3 Expressive components from `@angular/material`. Use native component structure and theming before custom markup or styling. If no suitable component exists and a custom component is needed, check with the user before building it.
+- Desktop list/detail routes reserve space for the organization footer; other pages retain normal document scrolling. List/detail page hosts fill their parent (`lg:h-full`) so both panes scroll independently above it; do not give them another viewport height. Use `TwoColumnLayoutComponent` for shared list/detail and settings navigation layouts. Its left header stays visible above the scrolling navigation; initial detail padding scrolls with detail content. Ordinary pages keep their padding in document flow.
+- Apply `appMaterialTheme` at the active page boundary. It also themes Material overlays while that page is active and restores their previous colors on navigation; do not add per-dialog color plumbing.
 - Use viewport breakpoints (`sm:`, `md:`, `lg:`) for page layout and Tailwind v4 container queries (`@container` with `@sm:`/`@md:`/`@lg:`) for component-level responsiveness.
 - Iconography standard: use Font Awesome Duotone Regular icons via `<fa-duotone-icon>` from `@fortawesome/angular-fontawesome`.
-- Do not introduce new `<mat-icon>` usage.
+- Do not introduce new `<mat-icon>` usage. For Font Awesome icons in labeled Material buttons (including extended FABs), use `matButtonIcon class="mat-icon"` on the direct icon child. This opts into Material’s projection and native spacing/RTL rules; shared styles provide the base SVG box. Do not add per-button icon margins or size classes.
 - Floating actions: use extended FAB pattern (`<button|a mat-fab extended class="fab-fixed">`) with `<fa-duotone-icon>` followed by a text label.
 
 ## App-Specific Practices

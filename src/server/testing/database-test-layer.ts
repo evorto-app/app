@@ -1,4 +1,4 @@
-import type * as SqlConnection from 'effect/unstable/sql/SqlConnection';
+import type * as SqlConnection from 'effect/sql/SqlConnection';
 
 import * as PgClient from '@effect/sql-pg/PgClient';
 import { makePgTestClient } from '@server/testing/pg-test-client';

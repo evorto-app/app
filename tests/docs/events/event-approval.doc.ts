@@ -28,8 +28,7 @@ const eventStatusSurface = (
 ): Locator => {
   const texts = Array.isArray(requiredText) ? requiredText : [requiredText];
   let surface = page
-    .locator('app-event-status')
-    .locator('xpath=ancestor::div[contains(@class,"bg-surface")]')
+    .getByRole('navigation', { name: 'Event management' })
     .filter({ hasText: texts[0] ?? '' });
 
   for (const text of texts.slice(1)) {
@@ -216,7 +215,7 @@ test('Review and publish an event', async ({
 Use two different organization accounts so creation and approval remain independent:
 
 - The **creator** needs **Create events** access and can edit the event they created. Saving a new event opens its details page, where they can submit it for review.
-- **Create events** does not include **View draft events**. Without the latter access, the creator's draft is intentionally absent from **Events**, so continue from the post-save details page or reopen that exact event link.
+- Creators can find their own drafts and events in review under **Events**. **View draft events** grants access to other people's unpublished events.
 - The **reviewer** needs **Review events** access. Start from **Admin Tools** → **Event reviews**. Review access alone does not grant event editing.
 - No payment is needed for this free event.
 {% /callout %}
@@ -225,12 +224,12 @@ Use two different organization accounts so creation and approval remain independ
 The event publishing lifecycle is:
 
 - **Draft**
-- **Pending review**
+- **In review**
 - **Published**
 
 Publishing is the approval act. There is no separate approved-but-unpublished state in the publishing steps.
 
-Pending review and published events are both locked against material editing. A reviewer can return a pending event to draft with feedback, which restores editing so the creator can make corrections. Publishing is the final normal authoring state: approval does not reopen the editor.
+Events in review and published events are both locked against material editing. A reviewer can return an event in review to draft with feedback, which restores editing so the creator can make corrections. Publishing is the final normal authoring state: approval does not reopen the editor.
 
 This guide demonstrates submitting an event, returning it to draft with feedback, re-submitting, publishing through approval, and proving that the published event remains locked.
 `,
@@ -249,7 +248,7 @@ This guide demonstrates submitting an event, returning it to draft with feedback
     body: `
 ## 1. Submit a draft for review
 
-After **Save Event** succeeds, Evorto opens the newly created event's details page. Submit the draft from that page. If you navigated away and cannot see the draft under **Events**, reopen its exact link; listing drafts requires the separate **View draft events** access.
+After **Save Event** succeeds, Evorto opens the newly created event's details page. Submit the draft from that page, or find your draft again under **Events** if you navigated away.
 The screenshot below highlights the draft status and exact action before the status transition.
 `,
   });
@@ -273,13 +272,11 @@ The screenshot below highlights the draft status and exact action before the sta
     submitDialog.getByRole('button', { name: 'Submit for Review' }),
   );
   await expect(
-    page
-      .locator('app-event-status')
-      .getByText('Pending Review', { exact: true }),
+    page.locator('app-event-status').getByText('In review', { exact: true }),
   ).toBeVisible();
   await expect((await readGeneratedEvent()).status).toBe('PENDING_REVIEW');
 
-  const creatorPendingStatus = eventStatusSurface(page, 'Pending Review');
+  const creatorPendingStatus = eventStatusSurface(page, 'In review');
   await expect(creatorPendingStatus).toBeVisible();
   await expect(
     creatorPendingStatus.getByRole('button', { name: 'Return to draft' }),
@@ -514,9 +511,7 @@ This gives creators clear guidance before they re-submit.
     resubmitDialog.getByRole('button', { name: 'Submit for Review' }),
   );
   await expect(
-    page
-      .locator('app-event-status')
-      .getByText('Pending Review', { exact: true }),
+    page.locator('app-event-status').getByText('In review', { exact: true }),
   ).toBeVisible();
   await expect((await readGeneratedEvent()).status).toBe('PENDING_REVIEW');
 
@@ -580,10 +575,10 @@ Published events are locked. Even the creator no longer sees **Edit Event**. If 
     body: `
 ## Expected Outcomes
 
-- Submitting moves the event to **Pending review**.
+- Submitting moves the event to **In review**.
 - The creator cannot run review actions, and the review-only account cannot organize or edit the event.
 - Returning to draft requires feedback, and that feedback is shown on the event details page.
-- Re-submitting returns the event to **Pending review**.
+- Re-submitting returns the event to **In review**.
 - Approving publishes the event with the final status **Published**.
 - Published events expose no edit action, and direct edit web addresses return to the event details page.
 `,

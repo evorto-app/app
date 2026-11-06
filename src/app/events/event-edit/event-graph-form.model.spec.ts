@@ -129,6 +129,29 @@ describe('event graph form mapping', () => {
     });
   });
 
+  it('saves event times and sign-up deadlines at the minute shown in the form', () => {
+    const record = {
+      ...eventGraph(),
+      end: '2027-01-10T18:00:59.999Z',
+      registrationOptions: eventGraph().registrationOptions.map((option) => ({
+        ...option,
+        closeRegistrationTime: '2027-01-09T12:00:59.999Z',
+        openRegistrationTime: '2026-12-01T12:00:47.321Z',
+      })),
+      start: '2027-01-10T12:00:47.321Z',
+    };
+    const loaded = eventGraphRecordToFormModel(record, DEFAULT_TENANT_TIMEZONE);
+    if (!('model' in loaded)) throw new Error('Expected an editable event');
+    const result = eventGraphFormToPayload(loaded.model, false);
+    if (!('payload' in result)) throw new Error('Expected valid event dates');
+    expect(result.payload.start).toBe('2027-01-10T12:00:00.000Z');
+    expect(result.payload.end).toBe('2027-01-10T18:00:00.000Z');
+    for (const option of result.payload.registrationOptions) {
+      expect(option.openRegistrationTime).toBe('2026-12-01T12:00:00.000Z');
+      expect(option.closeRegistrationTime).toBe('2027-01-09T12:00:00.000Z');
+    }
+  });
+
   it('enforces simple compatibility while advanced category gaps remain warnings', () => {
     const options = [
       { organizingRegistration: true },

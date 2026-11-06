@@ -197,7 +197,7 @@ export class EditorComponent implements OnDestroy {
       editorProps: {
         attributes: {
           class:
-            'ProseMirror prose prose-sm max-w-none min-h-[200px] outline-none',
+            'ProseMirror prose prose-sm dark:prose-invert max-w-none min-h-[200px] outline-none',
           'data-placeholder': 'Start writing…',
           'data-testid': 'rich-editor-content',
         },

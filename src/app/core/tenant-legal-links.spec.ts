@@ -47,7 +47,7 @@ describe('tenantLegalLinks', () => {
     ]);
   });
 
-  it('omits missing or blank links', () => {
+  it('keeps imprint and privacy reachable while omitting unconfigured terms', () => {
     expect(
       tenantLegalLinks({
         legalNoticeUrl: ' ',
@@ -55,6 +55,7 @@ describe('tenantLegalLinks', () => {
         termsUrl: null,
       }),
     ).toEqual([
+      { external: false, href: '/legal/imprint', label: 'Imprint' },
       {
         external: true,
         href: 'https://section.example.org/privacy',

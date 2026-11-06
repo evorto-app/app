@@ -1,4 +1,4 @@
-import type * as HttpServerRequest from 'effect/unstable/http/HttpServerRequest';
+import type * as HttpServerRequest from 'effect/http/HttpServerRequest';
 
 import { EffectDrizzleQueryError } from 'drizzle-orm/effect-core';
 import { Effect, Option, Schema } from 'effect';

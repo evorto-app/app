@@ -18,8 +18,8 @@ import {
   Fiber,
   Layer,
 } from 'effect';
+import { HttpRouter } from 'effect/http';
 import { TestClock } from 'effect/testing';
-import { HttpRouter } from 'effect/unstable/http';
 import { randomUUID } from 'node:crypto';
 import { Pool } from 'pg';
 

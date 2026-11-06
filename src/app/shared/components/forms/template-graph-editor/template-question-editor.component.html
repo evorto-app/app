@@ -3,8 +3,10 @@
   <legend class="title-small pr-3">
     {{ question.title().value().trim() || "Sign-up question" }}
   </legend>
-  <div class="grid gap-4 @md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_8rem_auto]">
-    <mat-form-field>
+  <div
+    class="grid items-start gap-4 @md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_8rem_auto]"
+  >
+    <mat-form-field subscriptSizing="dynamic">
       <mat-label>Question</mat-label>
       <input matInput [formField]="question.title" />
       <mat-hint>
@@ -14,7 +16,7 @@
         <mat-error>{{ error.message }}</mat-error>
       }
     </mat-form-field>
-    <mat-form-field>
+    <mat-form-field subscriptSizing="dynamic">
       <mat-label>Ask during</mat-label>
       <mat-select [formField]="question.registrationOptionKey">
         @for (option of optionChoices(); track option.key) {
@@ -25,7 +27,7 @@
         <mat-error>{{ error.message }}</mat-error>
       }
     </mat-form-field>
-    <mat-form-field>
+    <mat-form-field subscriptSizing="dynamic">
       <mat-label>Question order</mat-label>
       <input matInput type="number" [formField]="question.sortOrder" />
       <mat-hint>Lower numbers appear first.</mat-hint>
@@ -43,7 +45,7 @@
       <fa-duotone-icon [icon]="faTrashCan" />
     </button>
   </div>
-  <mat-form-field>
+  <mat-form-field subscriptSizing="dynamic">
     <mat-label>Help text</mat-label>
     <textarea matInput rows="3" [formField]="question.description"></textarea>
     <mat-hint>

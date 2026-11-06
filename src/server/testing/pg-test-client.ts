@@ -1,6 +1,6 @@
 import * as PgClient from '@effect/sql-pg/PgClient';
 import { Effect } from 'effect';
-import * as SqlClient from 'effect/unstable/sql/SqlClient';
+import * as SqlClient from 'effect/sql/SqlClient';
 
 /** Query-construction fixture without a network connection or native pool. */
 export const makePgTestClient = Effect.fn(function* (
@@ -12,6 +12,7 @@ export const makePgTestClient = Effect.fn(function* (
   const sql = yield* SqlClient.make({
     ...options,
     compiler: PgClient.makeCompiler(),
+    driver: 'pg',
     spanAttributes: [],
   });
   const postgres = {

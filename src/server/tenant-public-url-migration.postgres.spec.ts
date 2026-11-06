@@ -17,8 +17,8 @@ import {
   type NodePgTransaction,
 } from 'drizzle-orm/node-postgres';
 import { ConfigProvider, Effect, Layer, Schema } from 'effect';
-import * as Headers from 'effect/unstable/http/Headers';
-import { Rpc, RpcMessage } from 'effect/unstable/rpc';
+import * as Headers from 'effect/http/Headers';
+import { Rpc, RpcMessage } from 'effect/rpc';
 import { createHash, randomUUID } from 'node:crypto';
 import { Pool } from 'pg';
 import Stripe from 'stripe';

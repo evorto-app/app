@@ -12,3 +12,27 @@ diff --git a/package.json b/package.json
      "@tanstack/angular-query-experimental": "^5.100.9",
      "effect": ">=4.0.0-beta.60 <5"
    },
+diff --git a/types/heddendorp-effect-angular-query.d.ts b/types/heddendorp-effect-angular-query.d.ts
+--- a/types/heddendorp-effect-angular-query.d.ts
++++ b/types/heddendorp-effect-angular-query.d.ts
+@@ -3,7 +3,7 @@
+ import * as Context from 'effect/Context';
+ import * as Effect from 'effect/Effect';
+ import * as Layer from 'effect/Layer';
+-import { Rpc, RpcClientError, RpcGroup, RpcClient } from 'effect/unstable/rpc';
++import { Rpc, RpcClientError, RpcGroup, RpcClient } from 'effect/rpc';
+ 
+ type RpcQueryKeyType = 'query' | 'path' | 'mutation';
+ type RpcQueryKeyMeta<TInput> = {
+diff --git a/fesm2022/heddendorp-effect-angular-query.mjs b/fesm2022/heddendorp-effect-angular-query.mjs
+--- a/fesm2022/heddendorp-effect-angular-query.mjs
++++ b/fesm2022/heddendorp-effect-angular-query.mjs
+@@ -2,7 +2,7 @@
+ import * as Context from 'effect/Context';
+ import * as Effect from 'effect/Effect';
+ import * as Option from 'effect/Option';
+-import { RpcSchema, RpcClient } from 'effect/unstable/rpc';
++import { RpcSchema, RpcClient } from 'effect/rpc';
+ 
+ const normalizeKeyPrefix = (keyPrefix) => {
+     if (!keyPrefix) {

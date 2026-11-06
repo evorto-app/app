@@ -30,3 +30,17 @@ export const eventReviewActionErrorRequiresRefresh = (
   const tag = eventRpcErrorTag(error);
   return tag === 'EventConflictError' || tag === 'EventNotFoundError';
 };
+
+export const eventLoadErrorTitle = (error: unknown): string => {
+  switch (eventRpcErrorTag(error)) {
+    case 'EventConflictError': {
+      return 'Registration unavailable';
+    }
+    case 'EventNotFoundError': {
+      return 'Event not found';
+    }
+    default: {
+      return 'Event could not be loaded';
+    }
+  }
+};

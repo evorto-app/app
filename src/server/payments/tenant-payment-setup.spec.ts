@@ -5,7 +5,7 @@ import type {
   tenantStripeTaxRates,
   transactions,
 } from '@db/schema';
-import type * as SqlConnection from 'effect/unstable/sql/SqlConnection';
+import type * as SqlConnection from 'effect/sql/SqlConnection';
 
 import { describe, expect, it, layer } from '@effect/vitest';
 import { Cause, Effect, Exit, Layer, Schema } from 'effect';

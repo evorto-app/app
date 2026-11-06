@@ -98,6 +98,7 @@ describe('events RPC list record schema', () => {
       null,
       'approvalPending',
       'confirmed',
+      'organizerConfirmed',
       'paymentRequired',
       'waitlisted',
     ]) {

@@ -12,8 +12,8 @@ import {
 import { eq, inArray } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { Cause, ConfigProvider, Effect, Exit, Layer, Schema } from 'effect';
-import { Headers } from 'effect/unstable/http';
-import { Rpc, RpcMessage } from 'effect/unstable/rpc';
+import { Headers } from 'effect/http';
+import { Rpc, RpcMessage } from 'effect/rpc';
 import { Pool } from 'pg';
 
 import { databaseLayer } from '../../db';

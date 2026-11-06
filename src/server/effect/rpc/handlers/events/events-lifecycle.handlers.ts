@@ -1,3 +1,8 @@
+import type {
+  EventGraphAddonInput,
+  EventGraphQuestionInput,
+} from '@shared/rpc-contracts/app-rpcs/events.rpcs';
+
 import {
   RpcBadRequestError,
   RpcForbiddenError,
@@ -25,8 +30,6 @@ import {
   eventRegistrationOptions,
   eventRegistrationQuestions,
   eventTemplates,
-  templateEventAddons,
-  templateRegistrationQuestions,
 } from '../../../../../db/schema';
 import {
   ensureStripeForPaidEventConfiguration,
@@ -47,7 +50,10 @@ import {
 import { validateTaxRate } from '../../../../utils/validate-tax-rate';
 import { RpcAccess } from '../shared/rpc-access.service';
 import { loadEventGraphDetail } from './event-graph.loader';
-import { updateEventGraph } from './event-graph.service';
+import {
+  updateEventGraph,
+  validateEventGraphExtras,
+} from './event-graph.service';
 import {
   canEditEvent,
   databaseEffect,
@@ -173,15 +179,20 @@ export interface EventCreationAttributionShape {
 }
 
 type EventCreateInput = Parameters<AppRpcHandlers['events.create']>[0];
-type TemplateAddonCopyRecord = typeof templateEventAddons.$inferSelect & {
+type TemplateAddonCopyRecord = Omit<
+  EventGraphAddonInput,
+  'id' | 'key' | 'registrationOptions'
+> & {
   registrationOptions: {
     includedQuantity: number;
     optionalPurchaseQuantity: number;
     registrationOptionId: string;
   }[];
 };
-type TemplateQuestionCopyRecord =
-  typeof templateRegistrationQuestions.$inferSelect;
+type TemplateQuestionCopyRecord = Pick<
+  EventGraphQuestionInput,
+  'description' | 'id' | 'required' | 'sortOrder' | 'title'
+>;
 
 export class EventCreationAttribution extends Context.Service<
   EventCreationAttribution,
@@ -255,7 +266,7 @@ export const buildEventQuestionInsert = ({
   registrationOptionId,
   required: question.required,
   sortOrder: question.sortOrder,
-  sourceTemplateQuestionId: question.id,
+  sourceTemplateQuestionId: question.id ?? null,
   title: question.title,
 });
 
@@ -522,7 +533,7 @@ export const createEventGraph = (input: EventCreateInput) =>
             }),
           )
         : [];
-    if (templateAddons.length > MAX_EVENT_ADDON_TYPES) {
+    if ((input.addOns ?? templateAddons).length > MAX_EVENT_ADDON_TYPES) {
       return yield* Effect.fail(
         new RpcBadRequestError({
           message: `An event can have at most ${MAX_EVENT_ADDON_TYPES} add-on types.`,
@@ -530,7 +541,9 @@ export const createEventGraph = (input: EventCreateInput) =>
         }),
       );
     }
-    if (templateQuestions.length > MAX_REGISTRATION_QUESTIONS) {
+    if (
+      (input.questions ?? templateQuestions).length > MAX_REGISTRATION_QUESTIONS
+    ) {
       return yield* Effect.fail(
         new RpcBadRequestError({
           message: `An event can have at most ${MAX_REGISTRATION_QUESTIONS} sign-up questions.`,
@@ -570,16 +583,79 @@ export const createEventGraph = (input: EventCreateInput) =>
         'question',
       );
     }
-    const templateAddonsToCopy: TemplateAddonCopyRecord[] = templateAddons.map(
+    const selectedAddons =
+      input.addOns ??
+      templateAddons.map((addOn) => ({
+        ...addOn,
+        key: addOn.id,
+        registrationOptions: templateAddonRegistrationOptions
+          .filter((mapping) => mapping.addonId === addOn.id)
+          .map((mapping) => ({
+            includedQuantity: mapping.includedQuantity,
+            optionalPurchaseQuantity: mapping.optionalPurchaseQuantity,
+            registrationOptionKey: mapping.registrationOptionId,
+          })),
+      }));
+    const selectedQuestions =
+      input.questions ??
+      templateQuestions.map((question) => ({
+        ...question,
+        key: question.id,
+        registrationOptionKey: question.registrationOptionId,
+      }));
+    const templateQuestionIds = new Set(
+      templateQuestions.map((question) => question.id),
+    );
+    const submittedAddonIds = selectedAddons.flatMap((addOn) =>
+      addOn.id ? [addOn.id] : [],
+    );
+    const submittedQuestionIds = selectedQuestions.flatMap((question) =>
+      question.id ? [question.id] : [],
+    );
+    if (
+      new Set(submittedAddonIds).size !== submittedAddonIds.length ||
+      new Set(submittedQuestionIds).size !== submittedQuestionIds.length
+    ) {
+      return yield* Effect.fail(
+        new RpcBadRequestError({
+          message: 'Use each template add-on or question only once.',
+          reason: 'duplicateTemplateExtrasSource',
+        }),
+      );
+    }
+    if (
+      selectedAddons.some(
+        (addOn) => addOn.id && !templateAddonIdSet.has(addOn.id),
+      ) ||
+      selectedQuestions.some(
+        (question) => question.id && !templateQuestionIds.has(question.id),
+      )
+    ) {
+      return yield* Effect.fail(
+        new RpcBadRequestError({
+          message:
+            'An add-on or question does not belong to this template. Reload the template and try again.',
+          reason: 'invalidTemplateExtrasSource',
+        }),
+      );
+    }
+    const extrasError = validateEventGraphExtras({
+      addOns: selectedAddons,
+      optionKeys: sourceTemplateOptionIds,
+      questions: selectedQuestions,
+    });
+    if (extrasError) return yield* Effect.fail(extrasError);
+    const templateAddonsToCopy: TemplateAddonCopyRecord[] = selectedAddons.map(
       (addOn) => ({
         ...addOn,
-        registrationOptions: templateAddonRegistrationOptions
-          .filter((option) => option.addonId === addOn.id)
-          .map((option) => ({
-            includedQuantity: option.includedQuantity,
-            optionalPurchaseQuantity: option.optionalPurchaseQuantity,
-            registrationOptionId: option.registrationOptionId,
-          })),
+        description: sanitizeOptionalRichTextHtml(addOn.description),
+        price: addOn.isPaid ? addOn.price : 0,
+        registrationOptions: addOn.registrationOptions.map((mapping) => ({
+          includedQuantity: mapping.includedQuantity,
+          optionalPurchaseQuantity: mapping.optionalPurchaseQuantity,
+          registrationOptionId: mapping.registrationOptionKey,
+        })),
+        stripeTaxRateId: addOn.isPaid ? addOn.stripeTaxRateId : null,
       }),
     );
     if (
@@ -733,14 +809,14 @@ export const createEventGraph = (input: EventCreateInput) =>
       }
     }
 
-    if (templateQuestions.length > 0) {
-      const questionInserts = templateQuestions.map((question) =>
+    if (selectedQuestions.length > 0) {
+      const questionInserts = selectedQuestions.map((question) =>
         buildEventQuestionInsert({
           eventId: event.id,
           question,
           registrationOptionId: requireCreatedEventOption(
             createdOptionBySourceTemplateOptionId,
-            question.registrationOptionId,
+            question.registrationOptionKey,
             'question',
           ).createdOptionId,
         }),

@@ -4,12 +4,14 @@ import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
 import { relations } from '../src/db/relations';
 import * as schema from '../src/db/schema';
+import type { EventLocationType } from '../src/types/location';
 import { getId } from './get-id';
 import {
   requireSeedFixture,
   requireSeedRoles,
   requireSeedStripeTaxRates,
 } from './seed-requirements';
+import { seedTemplateCopy } from './template-description-copy';
 import { getCityTourTemplates } from './templates/city-tour-templates';
 import { getCityTripTemplates } from './templates/city-trip-templates';
 import { getExampleConfigTemplates } from './templates/example-config-templates';
@@ -22,7 +24,9 @@ export interface SeedTemplate {
   description: string;
   icon: { iconColor: number; iconName: string };
   id: string;
+  location?: EventLocationType | null;
   questions: SeedTemplateQuestion[];
+  registeredDescription?: null | string;
   seedKey: SeedTemplateKey;
   tenantId: string;
   title: string;
@@ -130,6 +134,37 @@ export const addTemplates = async (
   }[],
 ) => {
   const tenantId = categories[0]?.tenantId;
+  const privateInstructions = new Map<string, string>();
+  const publicSeedTemplate = <
+    T extends {
+      categoryId: string;
+      description: string;
+      id: string;
+      title: string;
+    },
+  >(
+    template: T,
+  ) => {
+    const category = requireSeedFixture(
+      categories.find((candidate) => candidate.id === template.categoryId),
+      `category for template ${template.title}`,
+    );
+    const meetingPoints =
+      template.description.match(/<li>Meeting Point:[^<]+<\/li>/gu) ?? [];
+    const copy = seedTemplateCopy(
+      template.title,
+      category.title,
+      template.description.replaceAll(/<li>Meeting Point:[^<]+<\/li>/gu, ''),
+    );
+    privateInstructions.set(
+      template.id,
+      `${meetingPoints.length > 0 ? `<ul>${meetingPoints.join('')}</ul>` : ''}${copy.registeredDescription}`,
+    );
+    return {
+      ...template,
+      description: copy.description,
+    };
+  };
   if (!tenantId) {
     throw new Error('Cannot determine tenantId from categories');
   }
@@ -220,7 +255,11 @@ export const addTemplates = async (
 
   const createdFreeTemplatesRaw = await database
     .insert(schema.eventTemplates)
-    .values(freeTemplates.map(({ seedKey: _seedKey, ...template }) => template))
+    .values(
+      freeTemplates.map(({ seedKey: _seedKey, ...template }) =>
+        publicSeedTemplate(template),
+      ),
+    )
     .returning();
   consola.success(`Inserted ${createdFreeTemplatesRaw.length} free templates`);
 
@@ -237,6 +276,7 @@ export const addTemplates = async (
       {
         closeRegistrationOffset: 1,
         description: 'Organizer registration',
+        registeredDescription: privateInstructions.get(template.id) ?? null,
         isPaid: false,
         openRegistrationOffset: 168,
         organizingRegistration: true,
@@ -250,6 +290,7 @@ export const addTemplates = async (
       {
         closeRegistrationOffset: 1,
         description: 'Participant registration',
+        registeredDescription: privateInstructions.get(template.id) ?? null,
         isPaid: false,
         openRegistrationOffset: 168,
         organizingRegistration: false,
@@ -279,7 +320,11 @@ export const addTemplates = async (
     }));
   const createdPaidTemplatesRaw = await database
     .insert(schema.eventTemplates)
-    .values(paidTemplates.map(({ seedKey: _seedKey, ...template }) => template))
+    .values(
+      paidTemplates.map(({ seedKey: _seedKey, ...template }) =>
+        publicSeedTemplate(template),
+      ),
+    )
     .returning();
   consola.success(`Inserted ${createdPaidTemplatesRaw.length} paid templates`);
 
@@ -296,6 +341,7 @@ export const addTemplates = async (
       {
         closeRegistrationOffset: 1,
         description: 'Organizer registration',
+        registeredDescription: privateInstructions.get(template.id) ?? null,
         isPaid: true,
         openRegistrationOffset: 168,
         organizingRegistration: true,
@@ -310,6 +356,7 @@ export const addTemplates = async (
       {
         closeRegistrationOffset: 1,
         description: 'Participant registration',
+        registeredDescription: privateInstructions.get(template.id) ?? null,
         isPaid: true,
         openRegistrationOffset: 168,
         organizingRegistration: false,
@@ -490,7 +537,9 @@ export const addTemplates = async (
       description: template.description,
       icon: template.icon,
       id: template.id,
+      location: template.location ?? null,
       questions: questionByTemplateId.get(template.id) ?? [],
+      registeredDescription: privateInstructions.get(template.id) ?? null,
       seedKey: template.seedKey,
       tenantId: template.tenantId,
       title: template.title,

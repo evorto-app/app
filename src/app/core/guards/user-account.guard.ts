@@ -2,6 +2,7 @@ import { inject, REQUEST_CONTEXT } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
 
 import { Context } from '../../../types/custom/context';
+import { ConfigService } from '../config.service';
 import { AppRpc } from '../effect-rpc-angular-client';
 
 interface OnboardingGuardState {
@@ -28,6 +29,10 @@ export const userAccountGuard: CanActivateFn = async () => {
   const requestContext = inject(REQUEST_CONTEXT, {
     optional: true,
   }) as Context | null;
+  const platformAuthority = requestContext
+    ? requestContext.platformAuthority
+    : inject(ConfigService).platformAuthority;
+  if (platformAuthority?.kind === 'platformAdministrator') return true;
   const router = inject(Router);
   const rpc = requestContext ? undefined : AppRpc.injectClient();
   const state = await resolveOnboardingGuardState(requestContext, async () => {

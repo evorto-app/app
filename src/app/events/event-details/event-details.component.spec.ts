@@ -594,7 +594,7 @@ describe('EventDetailsComponent load recovery', () => {
   };
 
   it.each([false, true])(
-    'shows the event schedule in the tenant timezone and physical location with signed-in state %s',
+    'combines the same local day and hides the location before confirmation with signed-in state %s',
     async (signedIn) => {
       registerLocaleData(localeDe);
       TestBed.overrideProvider(LOCALE_ID, { useValue: 'de-DE' });
@@ -623,13 +623,8 @@ describe('EventDetailsComponent load recovery', () => {
         expect(queryClient.getQueryData(['event-authentication'])).toEqual(
           signedIn,
         );
-        expect(normalizeText(fixture)).toContain(
-          'Starts 03.01.2030 · 00:30 Ends 03.01.2030 · 03:00',
-        );
+        expect(normalizeText(fixture)).toContain('03.01.2030 · 00:30 – 03:00');
       });
-      expect(
-        normalizeText(fixture).match(/Times shown in Europe\/Berlin\./gu),
-      ).toHaveLength(1);
       const root: HTMLElement = fixture.nativeElement;
       expect(
         [
@@ -637,7 +632,8 @@ describe('EventDetailsComponent load recovery', () => {
             ':scope section[aria-label="Event details"] dd p',
           ),
         ].map((paragraph) => paragraph.textContent?.trim()),
-      ).toEqual(['Theatre entrance', 'Theaterplatz 2, 78467 Konstanz']);
+      ).toEqual([]);
+      expect(normalizeText(fixture)).not.toContain('Theatre entrance');
       expect(
         [...root.querySelectorAll('time')].map((time) =>
           time.getAttribute('datetime'),
@@ -647,7 +643,30 @@ describe('EventDetailsComponent load recovery', () => {
     },
   );
 
-  it('identifies an online location without inventing a physical address', async () => {
+  it('keeps both dates when the event spans different local days', async () => {
+    registerLocaleData(localeDe);
+    TestBed.overrideProvider(LOCALE_ID, { useValue: 'de-DE' });
+    findAuthentication.mockResolvedValue(false);
+    findEvent.mockResolvedValue({
+      ...eventDetails,
+      end: '2030-01-03T02:00:00.000Z',
+      start: '2030-01-02T22:30:00.000Z',
+    });
+    const fixture = render();
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(normalizeText(fixture)).toContain('Starts');
+      expect(normalizeText(fixture)).toContain('Ends');
+    });
+    const root: HTMLElement = fixture.nativeElement;
+    expect(
+      [...root.querySelectorAll('time')].map((time) =>
+        time.textContent?.trim(),
+      ),
+    ).toEqual(['02.01.2030 · 23:30', '03.01.2030 · 03:00']);
+  });
+
+  it('keeps online joining details out of the public description', async () => {
     findAuthentication.mockResolvedValue(false);
     findEvent.mockResolvedValue({
       ...eventDetails,
@@ -667,8 +686,7 @@ describe('EventDetailsComponent load recovery', () => {
     const fixture = render();
     await vi.waitFor(() => {
       fixture.detectChanges();
-      expect(normalizeText(fixture)).toContain('Online workshop');
-      expect(normalizeText(fixture)).toContain('Times shown in Europe/Berlin.');
+      expect(normalizeText(fixture)).toContain('Bring a notebook.');
     });
     const root: HTMLElement = fixture.nativeElement;
     expect(
@@ -677,7 +695,8 @@ describe('EventDetailsComponent load recovery', () => {
           ':scope section[aria-label="Event details"] dd p',
         ),
       ].map((paragraph) => paragraph.textContent?.trim()),
-    ).toEqual(['Online workshop', 'Online']);
+    ).toEqual([]);
+    expect(normalizeText(fixture)).not.toContain('Online workshop');
     expect(normalizeText(fixture)).not.toContain('Not specified');
   });
 
@@ -1077,7 +1096,7 @@ describe('EventDetailsComponent load recovery', () => {
     await vi.waitFor(() => {
       fixture.detectChanges();
       expect(root.querySelector('h1')?.textContent?.trim()).toBe(
-        'Event unavailable',
+        'Event could not be loaded',
       );
       expect(normalizeText(fixture)).toContain('Event could not be loaded');
     });
@@ -1100,7 +1119,7 @@ describe('EventDetailsComponent load recovery', () => {
     });
     expect(findEvent).toHaveBeenCalledTimes(2);
     expect(fixture.nativeElement.querySelector('[role="alert"]')).toBeNull();
-    expect(normalizeText(fixture)).toContain('Not specified');
+    expect(normalizeText(fixture)).not.toContain('Not specified');
   });
 
   it('refreshes deleted event details and invalidates list and review caches after approval fails', async () => {

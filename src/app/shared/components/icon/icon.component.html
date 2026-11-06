@@ -3,4 +3,6 @@
   [height]="size()"
   [ngSrc]="iconUrl()"
   [alt]="iconName()"
+  [loading]="loading()"
+  (load)="loaded.emit(iconCommonName().iconName)"
 />

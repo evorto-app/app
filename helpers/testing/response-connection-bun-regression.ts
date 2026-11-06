@@ -1,12 +1,8 @@
 import * as BunHttpServer from '@effect/platform-bun/BunHttpServer';
 import * as BunRuntime from '@effect/platform-bun/BunRuntime';
 import { Effect, FileSystem, Layer, Path } from 'effect';
-import {
-  HttpRouter,
-  HttpServer,
-  HttpServerResponse,
-} from 'effect/unstable/http';
-import * as NetAddress from 'effect/unstable/net/NetAddress';
+import { HttpRouter, HttpServer, HttpServerResponse } from 'effect/http';
+import * as NetAddress from 'effect/net/NetAddress';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 

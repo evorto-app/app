@@ -361,7 +361,7 @@ export const eventGraphFormToPayload = (
         totalAvailableQuantity: addOn.totalAvailableQuantity,
       })),
       description: model.description,
-      end: model.end.toJSDate().toISOString(),
+      end: model.end.startOf('minute').toJSDate().toISOString(),
       icon: model.icon,
       location: model.location,
       questions: model.questions.map((question) => ({
@@ -377,6 +377,7 @@ export const eventGraphFormToPayload = (
         cancellationDeadlineHoursBeforeStart:
           option.cancellationDeadlineHoursBeforeStart,
         closeRegistrationTime: option.closeRegistrationTime
+          .startOf('minute')
           .toJSDate()
           .toISOString(),
         description: optionalText(option.description),
@@ -390,6 +391,7 @@ export const eventGraphFormToPayload = (
         isPaid: option.isPaid,
         key: option.key,
         openRegistrationTime: option.openRegistrationTime
+          .startOf('minute')
           .toJSDate()
           .toISOString(),
         organizingRegistration: option.organizingRegistration,
@@ -408,7 +410,7 @@ export const eventGraphFormToPayload = (
           option.transferDeadlineHoursBeforeStart,
       })),
       simpleModeEnabled: model.simpleModeEnabled,
-      start: model.start.toJSDate().toISOString(),
+      start: model.start.startOf('minute').toJSDate().toISOString(),
       title: model.title.trim(),
     },
   };

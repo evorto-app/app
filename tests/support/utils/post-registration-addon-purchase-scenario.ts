@@ -644,7 +644,7 @@ export const seedPostRegistrationAddonPurchaseScenario = async (
       organizingRegistration: false,
       price: 0,
       refundFeesOnCancellation: true,
-      registeredDescription: 'Your ticket is confirmed.',
+      registeredDescription: 'Confirmed.',
       registrationMode: 'fcfs',
       reservedSpots: 0,
       roleIds: [],

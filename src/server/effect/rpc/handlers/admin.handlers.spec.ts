@@ -10,9 +10,9 @@ import {
 } from '@shared/tenant-settings-snapshot';
 import * as PgDrizzle from 'drizzle-orm/effect-postgres';
 import { Cause, Effect, Exit, Layer, Schema, SchemaIssue } from 'effect';
-import * as Headers from 'effect/unstable/http/Headers';
-import { Rpc, RpcMessage } from 'effect/unstable/rpc';
-import { SqlError, UniqueViolation } from 'effect/unstable/sql/SqlError';
+import * as Headers from 'effect/http/Headers';
+import { Rpc, RpcMessage } from 'effect/rpc';
+import { SqlError, UniqueViolation } from 'effect/sql/SqlError';
 import Stripe from 'stripe';
 
 import { Database, type DatabaseClient } from '../../../../db';
@@ -1911,5 +1911,49 @@ describe('adminHandlers tenant settings', () => {
         expect(capturedUpdate).not.toHaveProperty('stripeAccountId');
         expect(result).toBeUndefined();
       }),
+  );
+});
+
+describe('Members Hub resource access', () => {
+  it.effect.each([
+    { authenticated: true, errorTag: 'RpcForbiddenError', permissions: [] },
+    {
+      authenticated: false,
+      errorTag: 'RpcUnauthorizedError',
+      permissions: ['internal:viewInternalPages'],
+    },
+  ] as const)(
+    'denies reading resources without authenticated hub access',
+    (scenario) =>
+      Effect.gen(function* () {
+        const error = yield* adminHandlers['admin.hub.findResources']().pipe(
+          Effect.provide(
+            requestContextLayer({
+              ...createRequestContext([...scenario.permissions]),
+              authenticated: scenario.authenticated,
+            }),
+          ),
+          Effect.provide(unavailableDatabaseLayer),
+          Effect.flip,
+        );
+        expect(error._tag).toBe(scenario.errorTag);
+      }),
+  );
+  it.effect('does not let a section member write resources', () =>
+    Effect.gen(function* () {
+      const error = yield* adminHandlers['admin.hub.saveResources']({
+        expectedResources: [],
+        resources: [],
+      }).pipe(
+        Effect.provide(
+          requestContextLayer(
+            createRequestContext(['internal:viewInternalPages']),
+          ),
+        ),
+        Effect.provide(unavailableDatabaseLayer),
+        Effect.flip,
+      );
+      expect(error._tag).toBe('RpcForbiddenError');
+    }),
   );
 });

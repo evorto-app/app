@@ -31,7 +31,7 @@ describe('TEMPLATE_ROUTES', () => {
       );
 
       expect(childRoute?.canActivate).toContain(permissionGuard);
-      expect(childRoute?.data).toEqual({ permissions });
+      expect(childRoute?.data?.['permissions']).toEqual(permissions);
     },
   );
 

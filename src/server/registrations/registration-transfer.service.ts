@@ -4,6 +4,7 @@ import type Stripe from 'stripe';
 import { createId } from '@db/create-id';
 import { Database } from '@db/index';
 import {
+  activeRegistrationTransferSourceUniqueIndexName,
   eventAddons,
   eventInstances,
   eventRegistrationAddonPurchaseLots,
@@ -34,6 +35,7 @@ import {
   users,
   usersToTenants,
 } from '@db/schema';
+import { isUniqueConstraintViolation } from '@db/sql-error';
 import { lockUserDiscountCards } from '@server/discounts/user-discount-card-lock';
 import {
   MAX_EVENT_ADDON_TYPES,
@@ -59,7 +61,7 @@ import {
   type TenantDiscountProviders,
 } from '@shared/tenant-config';
 import { and, desc, eq, inArray, isNull, lte, not, or, sql } from 'drizzle-orm';
-import { Context, Effect, Layer, Schema } from 'effect';
+import { Config, Context, Effect, Layer, Redacted, Schema } from 'effect';
 
 import type { Tenant } from '../../types/custom/tenant';
 import type { User } from '../../types/custom/user';
@@ -97,10 +99,9 @@ import {
 import { registrationCheckoutHasTooManyLines } from './registration-checkout-lines';
 import { isUserEligibleForRegistrationOption } from './registration-eligibility';
 import {
-  createRegistrationTransferClaimCode,
+  deriveRegistrationTransferClaimCode,
   hashRegistrationTransferClaimCode,
 } from './registration-transfer-claim-code';
-import { isActiveRegistrationTransferUniqueViolation } from './registration-transfer-constraint';
 import { expireRegistrationTransferCheckout } from './registration-transfer-finalization';
 import {
   registrationTransferBasePrice,
@@ -671,6 +672,55 @@ const createOffer = Effect.fn('RegistrationTransferService.createOffer')(
       });
     }
 
+    const existingOffer = yield* databaseEffect((database) =>
+      database.query.registrationTransfers.findFirst({
+        where: {
+          sourceRegistrationId: source.id,
+          sourceUserId: user.id,
+          status: 'open',
+          tenantId: tenant.id,
+        },
+      }),
+    );
+    const codeSecret = yield* Config.Redacted('SECRET').pipe(
+      mapRegistrationTransferInternalError(
+        'registrationTransfer.offer.codeKey',
+        'The transfer code could not be opened. Try again.',
+      ),
+    );
+    const transferId =
+      existingOffer && existingOffer.expiresAt > now
+        ? existingOffer.id
+        : createId();
+    const claimCredential = deriveRegistrationTransferClaimCode(
+      Redacted.value(codeSecret),
+      tenant.id,
+      transferId,
+    );
+    if (existingOffer && existingOffer.expiresAt > now) {
+      if (claimCredential.claimCodeHash !== existingOffer.claimCodeHash) {
+        return yield* new RegistrationTransferConflictError({
+          message:
+            'This code cannot be shown again. Cancel this transfer and create a new one to get a new code.',
+        });
+      }
+      const claimPageUrl = yield* tenantOutboundUrl(
+        tenant,
+        '/registration-transfers',
+      ).pipe(
+        mapRegistrationTransferInternalError(
+          'registrationTransfer.offer.reopenUrl',
+          'The transfer page link could not be opened. Try again.',
+        ),
+      );
+      return RegistrationTransferOfferResult.make({
+        claimCode: claimCredential.claimCode,
+        claimPageUrl,
+        expiresAt: existingOffer.expiresAt.toISOString(),
+        status: 'open',
+      });
+    }
+
     yield* resolveRegistrationTransferDeadline({
       eventStart: source.event.start,
       now,
@@ -684,7 +734,6 @@ const createOffer = Effect.fn('RegistrationTransferService.createOffer')(
         ),
       ),
     );
-    const claimCredential = createRegistrationTransferClaimCode();
 
     const transferResult = yield* Database.use((database) =>
       database
@@ -1271,6 +1320,7 @@ const createOffer = Effect.fn('RegistrationTransferService.createOffer')(
                 claimCodeHash: claimCredential.claimCodeHash,
                 eventId: lockedSource.eventId,
                 expiresAt: lockedExpiresAt,
+                id: transferId,
                 registrationOptionId: lockedSource.registrationOptionId,
                 sourceRegistrationId: lockedSource.id,
                 sourceSpotCount: lockedSource.guestCount + 1,
@@ -1423,7 +1473,12 @@ const createOffer = Effect.fn('RegistrationTransferService.createOffer')(
               | RegistrationTransferConflictError
               | RegistrationTransferInternalError
             > => {
-              if (isActiveRegistrationTransferUniqueViolation(error)) {
+              if (
+                isUniqueConstraintViolation(
+                  error,
+                  activeRegistrationTransferSourceUniqueIndexName,
+                )
+              ) {
                 return Effect.fail(
                   new RegistrationTransferConflictError({
                     message:

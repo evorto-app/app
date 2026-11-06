@@ -2,6 +2,7 @@ import consola from 'consola';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { reset } from 'drizzle-seed';
 
+import type { SeedReceiptEvidence } from '../../helpers/seed-receipt-evidence';
 import type { SeedTenantOptions } from '../../helpers/seed-tenant';
 import type { SupportedTenantCurrency } from '../types/custom/tenant';
 
@@ -27,6 +28,7 @@ export async function setupDatabase(
   database: NodePgDatabase<typeof relations>,
   options?: {
     onlyDevelopmentTenants?: boolean;
+    receiptEvidence?: SeedReceiptEvidence | undefined;
     seedDate?: Date;
     stripeTestAccountId?: string;
   },
@@ -77,6 +79,7 @@ export async function setupDatabase(
         includeExampleUsers: true,
         includeRegistrations: true,
         profile: 'demo',
+        receiptEvidence: options?.receiptEvidence,
         seedDate,
         ...(stripeTestAccountId && { stripeAccountId: stripeTestAccountId }),
       };

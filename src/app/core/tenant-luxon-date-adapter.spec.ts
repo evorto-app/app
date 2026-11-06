@@ -1,7 +1,7 @@
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { MAT_DATE_LOCALE } from '@angular/material/core';
-import { Settings } from 'luxon';
+import { DateTime, Settings } from 'luxon';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { ConfigService } from './config.service';
@@ -41,6 +41,17 @@ describe('TenantLuxonDateAdapter', () => {
     expect(date?.zoneName).toBe('Australia/Brisbane');
     expect(date?.toFormat('yyyy-MM-dd HH:mm')).toBe('2026-01-02 10:30');
     expect(date?.toJSDate().toISOString()).toBe('2026-01-02T00:30:00.000Z');
+  });
+
+  it('sets entered times to whole minutes without changing the selected minute', () => {
+    const value = DateTime.fromISO('2026-01-02T10:30:47.321+10:00', {
+      setZone: true,
+    });
+    expect(adapter.setTime(value, 14, 15, 47).toISO()).toBe(
+      '2026-01-02T14:15:00.000+10:00',
+    );
+    expect(adapter.today().second).toBe(0);
+    expect(adapter.today().millisecond).toBe(0);
   });
 
   it('does not mutate Luxon global defaults shared by concurrent SSR requests', () => {

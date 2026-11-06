@@ -5,8 +5,8 @@ import {
 } from '@shared/notification-email';
 import { literalUnion } from '@shared/schema-utilities';
 import { Schema } from 'effect';
-import * as Rpc from 'effect/unstable/rpc/Rpc';
-import * as RpcGroup from 'effect/unstable/rpc/RpcGroup';
+import * as Rpc from 'effect/rpc/Rpc';
+import * as RpcGroup from 'effect/rpc/RpcGroup';
 
 import { RpcUnauthorizedError } from '../../errors/rpc-errors';
 import {

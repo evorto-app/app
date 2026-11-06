@@ -8,6 +8,15 @@ test.setTimeout(120000);
 
 test.use({ storageState: organizerStateFile });
 
+// Template authoring is an explicit capability, not a section-member default.
+test.beforeEach(async ({ permissionOverride }) => {
+  await permissionOverride({
+    add: ['templates:create'],
+    remove: [],
+    roleName: 'Section member',
+  });
+});
+
 test('create template in empty category', async ({
   database,
   page,

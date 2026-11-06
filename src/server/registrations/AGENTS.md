@@ -67,3 +67,8 @@ completion and cleanup. Transfer behavior remains in the transfer modules.
 Unit fixtures use real Drizzle construction with explicit typed connection rows.
 PostgreSQL tests prove locking, rollback, leases and replay behavior against the
 owned disposable database; connection-free unit tests do not prove those properties.
+
+## Transfer code recovery
+
+- New transfer codes use a domain-separated HMAC of the tenant and transfer id with the server `SECRET`; persist only the code hash. Owner redisplay must enforce the same tenant, source registration, source user, open status, and expiry checks as creation.
+- Keep the server key stable while offers are open. Key rotation prevents redisplay of existing codes but does not invalidate an already-shared code whose hash is stored. Never silently rotate an offer code to make recovery succeed.

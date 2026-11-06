@@ -3,6 +3,7 @@ import type { Page } from '@playwright/test';
 import { getId } from '../../../helpers/get-id';
 import { adminStateFile } from '../../../helpers/user-data';
 import { expect, test } from '../../support/fixtures/axe-test';
+import { waitForEventCreationFormReady } from '../../support/utils/event-creation-form';
 
 test.setTimeout(120_000);
 test.use({ storageState: adminStateFile });
@@ -135,6 +136,7 @@ test('template event creation preserves the form after a save failure and succee
 
   const createEventPath = `/templates/${template.id}/create-event`;
   await page.goto(createEventPath, { waitUntil: 'networkidle' });
+  await waitForEventCreationFormReady(page);
 
   const titleInput = page.getByLabel('Event title');
   await expect(titleInput).toHaveValue(template.title, { timeout: 20_000 });

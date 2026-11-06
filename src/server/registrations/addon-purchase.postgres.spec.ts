@@ -32,8 +32,8 @@ import {
   Option,
   Schema,
 } from 'effect';
-import { Headers } from 'effect/unstable/http';
-import { Rpc, RpcMessage } from 'effect/unstable/rpc';
+import { Headers } from 'effect/http';
+import { Rpc, RpcMessage } from 'effect/rpc';
 import { Pool } from 'pg';
 import Stripe from 'stripe';
 
@@ -193,6 +193,7 @@ const makeLayer = (url: string, stripe: Stripe = fakeStripe) => {
         DATABASE_TLS_REQUIRED: 'false',
         DATABASE_URL: url,
         NODE_ENV: 'test',
+        SECRET: 'addon-transfer-test-secret-32-bytes',
       },
     }),
   );
@@ -806,6 +807,7 @@ const makeBarrierLayer = (url: string, stripe: Stripe) => {
         BASE_URL: 'https://addon-purchase.example',
         DATABASE_TLS_REQUIRED: 'false',
         NODE_ENV: 'test',
+        SECRET: 'addon-transfer-test-secret-32-bytes',
       },
     }),
   );

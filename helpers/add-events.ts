@@ -369,6 +369,7 @@ const createEvents = (
       const event = {
         creatorId,
         description: template.description,
+        location: template.location ?? null,
         end: DateTime.fromJSDate(eventStart).plus({ hours: 6 }).toJSDate(),
         icon: template.icon,
         id: eventId,
@@ -396,14 +397,14 @@ const createEvents = (
       registrationOptions.push(
         {
           closeRegistrationTime,
-          description: `${template.title} attendee sign-up ${index + 1}`,
+          description: null,
           eventId,
           id: participantOptionId,
           isPaid: options.paid,
           openRegistrationTime,
           organizingRegistration: false,
           price: options.paid ? 100 * 25 : 0,
-          registeredDescription: 'Your place is confirmed',
+          registeredDescription: template.registeredDescription ?? null,
           registrationMode: 'fcfs',
           roleIds: defaultUserRoles.map((role) => role.id),
           spots: 15,
@@ -412,14 +413,15 @@ const createEvents = (
         },
         {
           closeRegistrationTime,
-          description: `${template.title} organizer sign-up ${index + 1}`,
+          description:
+            'Help welcome the group and keep the activity running smoothly.',
           eventId,
           id: organizerOptionId,
           isPaid: options.paid,
           openRegistrationTime,
           organizingRegistration: true,
           price: options.paid ? 100 * 10 : 0,
-          registeredDescription: 'Your place is confirmed',
+          registeredDescription: template.registeredDescription ?? null,
           registrationMode: 'fcfs',
           roleIds: defaultOrganizerRoles.map((role) => role.id),
           spots: 3,

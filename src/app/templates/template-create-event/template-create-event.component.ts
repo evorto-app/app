@@ -1,4 +1,6 @@
 import {
+  afterNextRender,
+  ApplicationRef,
   ChangeDetectionStrategy,
   Component,
   computed,
@@ -9,15 +11,21 @@ import {
   signal,
   untracked,
 } from '@angular/core';
-import { FieldTree, form, submit } from '@angular/forms/signals';
+import {
+  applyEach,
+  disabled,
+  FieldTree,
+  form,
+  schema,
+  submit,
+} from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
 import { Router, RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
-import {
-  faArrowLeft,
-  faCircleInfo,
-} from '@fortawesome/duotone-regular-svg-icons';
+import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
 import { registrationModes } from '@shared/registration-modes';
+import { MAX_EVENT_ADDON_TYPES } from '@shared/registration-quantity-limits';
+import { MAX_REGISTRATION_QUESTIONS } from '@shared/registration-question-limits';
 import { EventCreateIconUsage } from '@shared/rpc-contracts/app-rpcs/icons.rpcs';
 import {
   injectMutation,
@@ -31,6 +39,7 @@ import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
 import {
   resolveTenantRuntimeTimezone,
+  tenantCurrencyCode,
   toTenantDateTime,
 } from '../../core/tenant-runtime';
 import { EventGeneralForm } from '../../shared/components/forms/event-general-form/event-general-form';
@@ -40,7 +49,27 @@ import {
   eventGeneralFormSchemaWithPaymentAvailability,
 } from '../../shared/components/forms/event-general-form/event-general-form.schema';
 import { RegistrationOptionForm } from '../../shared/components/forms/registration-option-form/registration-option-form';
-import { createEventFormModelFromTemplate } from './template-create-event.mapper';
+import {
+  templateGraphAddonFormSchema,
+  templateGraphQuestionFormSchema,
+} from '../../shared/components/forms/template-graph-editor/ordinary-template-graph-form.schema';
+import { TemplateAddonEditorComponent } from '../../shared/components/forms/template-graph-editor/template-addon-editor.component';
+import {
+  createTemplateGraphAddonFormModel,
+  createTemplateGraphQuestionFormModel,
+  TemplateGraphAddonFormModel,
+  TemplateGraphQuestionFormModel,
+} from '../../shared/components/forms/template-graph-editor/template-graph-form.model';
+import { TemplateQuestionEditorComponent } from '../../shared/components/forms/template-graph-editor/template-question-editor.component';
+import {
+  createEventExtrasFromTemplate,
+  createEventFormModelFromTemplate,
+} from './template-create-event.mapper';
+
+interface EventExtrasFormModel {
+  addOns: TemplateGraphAddonFormModel[];
+  questions: TemplateGraphQuestionFormModel[];
+}
 
 @Injectable({ providedIn: 'root' })
 export class TemplateCreateEventOperations {
@@ -89,11 +118,6 @@ export const templateCreateEventSubmitDisabled = ({
   formSubmitting ||
   mutationPending;
 
-export const templateAddOnCopyNotice = (addOnCount: number): null | string =>
-  addOnCount > 0
-    ? `This template includes ${addOnCount} add-on${addOnCount === 1 ? '' : 's'}.`
-    : null;
-
 export const templateCreateEventErrorMessage = (error: unknown): string =>
   getErrorMessage(
     error,
@@ -105,6 +129,8 @@ export const templateCreateEventErrorMessage = (error: unknown): string =>
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     FontAwesomeModule,
+    TemplateAddonEditorComponent,
+    TemplateQuestionEditorComponent,
     MatButtonModule,
     RouterLink,
     RegistrationOptionForm,
@@ -113,18 +139,16 @@ export const templateCreateEventErrorMessage = (error: unknown): string =>
   templateUrl: './template-create-event.component.html',
 })
 export class TemplateCreateEventComponent {
+  protected readonly controlsInteractive = computed(
+    () =>
+      this.clientReady() && this.initializedTemplateId() === this.templateId(),
+  );
   protected readonly templateId = input.required<string>();
   private readonly operations = inject(TemplateCreateEventOperations);
-  protected readonly templateQuery = injectQuery(() =>
-    this.operations.findTemplate(this.templateId()),
-  );
-  protected readonly addOnCopyNotice = computed(() =>
-    templateAddOnCopyNotice(
-      this.templateQuery.isSuccess()
-        ? this.templateQuery.data().addOns.length
-        : 0,
-    ),
-  );
+  protected readonly templateQuery = injectQuery(() => ({
+    ...this.operations.findTemplate(this.templateId()),
+    retryOnMount: false,
+  }));
   protected readonly taxRatesQuery = injectQuery(() =>
     this.operations.taxRates(),
   );
@@ -180,7 +204,33 @@ export class TemplateCreateEventComponent {
     () => this.discountProviderState() === 'esnEnabled',
   );
   protected readonly faArrowLeft = faArrowLeft;
-  protected readonly faCircleInfo = faCircleInfo;
+  protected readonly maxAddOns = MAX_EVENT_ADDON_TYPES;
+  protected readonly maxQuestions = MAX_REGISTRATION_QUESTIONS;
+  protected readonly extrasModel = signal<EventExtrasFormModel>({
+    addOns: [],
+    questions: [],
+  });
+  protected readonly extrasForm = form(
+    this.extrasModel,
+    schema<EventExtrasFormModel>((fields) => {
+      applyEach(fields.addOns, templateGraphAddonFormSchema);
+      applyEach(fields.questions, templateGraphQuestionFormSchema);
+      applyEach(fields.addOns, (addOn) => {
+        disabled(addOn.isPaid, () => !this.stripeConnected());
+        disabled(addOn.price, () => !this.stripeConnected());
+        disabled(addOn.stripeTaxRateId, () => !this.stripeConnected());
+      });
+    }),
+  );
+  protected readonly optionChoices = computed(() =>
+    this.createEventModel().registrationOptions.map((option) => ({
+      key: option.id,
+      title: option.title,
+    })),
+  );
+  protected readonly currencyCode = computed(() =>
+    tenantCurrencyCode(this.config),
+  );
   protected readonly iconUsage = EventCreateIconUsage.make({});
   protected readonly stripeConnectionKnown = computed(
     () => this.config.tenantSignal() !== null,
@@ -194,8 +244,7 @@ export class TemplateCreateEventComponent {
       (this.createEventModel().registrationOptions.some(
         (option) => option.isPaid,
       ) ||
-        (this.templateQuery.isSuccess() &&
-          this.templateQuery.data().addOns.some((addOn) => addOn.isPaid))),
+        this.extrasModel().addOns.some((addOn) => addOn.isPaid)),
   );
   protected readonly registrationModes = registrationModes;
   protected readonly taxRatesReady = computed(
@@ -210,6 +259,7 @@ export class TemplateCreateEventComponent {
   );
   protected readonly templateCreateEventSubmitDisabled =
     templateCreateEventSubmitDisabled;
+  private readonly clientReady = signal(false);
   private readonly initializedTemplateId = signal<null | string>(null);
   private readonly lastStart = signal<DateTime | null>(null);
 
@@ -217,15 +267,21 @@ export class TemplateCreateEventComponent {
   private readonly router = inject(Router);
 
   constructor() {
+    const applicationRef = inject(ApplicationRef);
+    afterNextRender(() => {
+      void applicationRef.whenStable().then(() => this.clientReady.set(true));
+    });
     effect(() => {
       if (!this.templateQuery.isSuccess()) return;
       const template = this.templateQuery.data();
+      this.config.updateTitle(`Create event from ${template.title}`);
       if (this.initializedTemplateId() === template.id) return;
       const startDateTime = this.toDateTime(
         untracked(() => this.createEventForm.start().value()),
       );
       const model = createEventFormModelFromTemplate(template, startDateTime);
       this.createEventModel.set(model);
+      this.extrasModel.set(createEventExtrasFromTemplate(template));
       this.lastStart.set(startDateTime);
       this.initializedTemplateId.set(template.id);
     });
@@ -270,9 +326,92 @@ export class TemplateCreateEventComponent {
     });
   }
 
+  protected addAddOn(): void {
+    if (this.extrasModel().addOns.length >= MAX_EVENT_ADDON_TYPES) return;
+    this.extrasModel.update((model) => ({
+      ...model,
+      addOns: [
+        ...model.addOns,
+        createTemplateGraphAddonFormModel(this.optionChoices()[0]?.key),
+      ],
+    }));
+  }
+  protected removeAddOn(index: number): void {
+    this.extrasModel.update((model) => ({
+      ...model,
+      addOns: model.addOns.filter((_, current) => current !== index),
+    }));
+  }
+  protected addQuestion(): void {
+    const key = this.optionChoices()[0]?.key;
+    if (
+      !key ||
+      this.extrasModel().questions.length >= MAX_REGISTRATION_QUESTIONS
+    )
+      return;
+    this.extrasModel.update((model) => ({
+      ...model,
+      questions: [
+        ...model.questions,
+        {
+          ...createTemplateGraphQuestionFormModel(key),
+          sortOrder: model.questions.length,
+        },
+      ],
+    }));
+  }
+  protected removeQuestion(index: number): void {
+    this.extrasModel.update((model) => ({
+      ...model,
+      questions: model.questions.filter((_, current) => current !== index),
+    }));
+  }
+  protected addAddOnMapping(index: number): void {
+    this.extrasModel.update((model) => ({
+      ...model,
+      addOns: model.addOns.map((addOn, current) => {
+        if (current !== index) return addOn;
+        const option = this.optionChoices().find((option) =>
+          addOn.registrationOptions.every(
+            (mapping) => mapping.registrationOptionKey !== option.key,
+          ),
+        );
+        return option
+          ? {
+              ...addOn,
+              registrationOptions: [
+                ...addOn.registrationOptions,
+                {
+                  includedQuantity: 1,
+                  optionalPurchaseQuantity: 0,
+                  registrationOptionKey: option.key,
+                },
+              ],
+            }
+          : addOn;
+      }),
+    }));
+  }
+  protected removeAddOnMapping(index: number, mappingIndex: number): void {
+    this.extrasModel.update((model) => ({
+      ...model,
+      addOns: model.addOns.map((addOn, current) =>
+        current === index
+          ? {
+              ...addOn,
+              registrationOptions: addOn.registrationOptions.filter(
+                (_, mapping) => mapping !== mappingIndex,
+              ),
+            }
+          : addOn,
+      ),
+    }));
+  }
+
   async onSubmit(event: Event) {
     event.preventDefault();
     if (
+      this.extrasForm().invalid() ||
       this.createEventMutation.isSuccess() ||
       templateCreateEventSubmitDisabled({
         discountProvidersReady: this.discountProvidersReady(),
@@ -302,12 +441,33 @@ export class TemplateCreateEventComponent {
       try {
         const data = await this.createEventMutation.mutateAsync({
           ...formValue,
-          end: this.toDateTime(formValue.end).toJSDate().toISOString(),
+          addOns: this.extrasModel().addOns.map((addOn) => ({
+            ...addOn,
+            description: addOn.description.trim() ? addOn.description : null,
+            id: addOn.id || undefined,
+            price: addOn.isPaid ? addOn.price : 0,
+            stripeTaxRateId:
+              addOn.isPaid && addOn.stripeTaxRateId
+                ? addOn.stripeTaxRateId
+                : null,
+          })),
+          end: this.toDateTime(formValue.end)
+            .startOf('minute')
+            .toJSDate()
+            .toISOString(),
           icon: formValue.icon,
+          questions: this.extrasModel().questions.map((question) => ({
+            ...question,
+            description: question.description.trim()
+              ? question.description
+              : null,
+            id: question.id || undefined,
+          })),
           registrationOptions: formValue.registrationOptions.map((option) => ({
             cancellationDeadlineHoursBeforeStart:
               option.cancellationDeadlineHoursBeforeStart,
             closeRegistrationTime: this.toDateTime(option.closeRegistrationTime)
+              .startOf('minute')
               .toJSDate()
               .toISOString(),
             description: option.description?.trim() ? option.description : null,
@@ -319,6 +479,7 @@ export class TemplateCreateEventComponent {
                 : null,
             isPaid: option.isPaid,
             openRegistrationTime: this.toDateTime(option.openRegistrationTime)
+              .startOf('minute')
               .toJSDate()
               .toISOString(),
             organizingRegistration: option.organizingRegistration,
@@ -338,7 +499,10 @@ export class TemplateCreateEventComponent {
             transferDeadlineHoursBeforeStart:
               option.transferDeadlineHoursBeforeStart,
           })),
-          start: this.toDateTime(formValue.start).toJSDate().toISOString(),
+          start: this.toDateTime(formValue.start)
+            .startOf('minute')
+            .toJSDate()
+            .toISOString(),
           templateId: this.templateId(),
         });
         phase = 'list';

@@ -28,11 +28,13 @@ import { interval } from 'rxjs';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { PermissionsService } from '../../core/permissions.service';
+import { TwoColumnLayoutComponent } from '../../shared/components/two-column-layout/two-column-layout.component';
 import { IfPermissionDirective } from '../../shared/directives/if-permission.directive';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    TwoColumnLayoutComponent,
     RouterOutlet,
     RouterLink,
     RouterLinkActive,

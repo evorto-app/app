@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@effect/vitest';
 import { ConfigProvider, Effect, Layer } from 'effect';
-import { HttpRouter as HttpLayerRouter } from 'effect/unstable/http';
+import { HttpRouter as HttpLayerRouter } from 'effect/http';
 import Stripe from 'stripe';
 
 import { DeploymentRuntimeConfig } from '../config/deployment-config';

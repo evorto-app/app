@@ -38,6 +38,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
     environment:
       DATABASE_TLS_REQUIRED: "false"
       DATABASE_URL: "${DOCKER_DATABASE_URL:?Run Docker through a supported bun package command}"
@@ -46,6 +48,10 @@ services:
       LOCAL_DATABASE: "true"
       LOCAL_DATABASE_CONFIRM_RESET: evorto-local-reset
       POSTGRES_DB: "${POSTGRES_DB:-appdb}"
+      S3_ENDPOINT: http://minio:9000
+      S3_BUCKET: "${S3_BUCKET:-evorto-testing}"
+      MINIO_ROOT_USER: "${MINIO_ROOT_USER:-minioadmin}"
+      MINIO_ROOT_PASSWORD: "${MINIO_ROOT_PASSWORD:-minioadmin}"
       STRIPE_TEST_ACCOUNT_ID:
     command:
       - /bin/sh

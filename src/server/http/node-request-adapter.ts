@@ -1,7 +1,7 @@
 import type { IncomingMessage } from 'node:http';
 
 import { Effect } from 'effect';
-import { HttpServerResponse } from 'effect/unstable/http';
+import { HttpServerResponse } from 'effect/http';
 
 import {
   discardNodeRequestBody,

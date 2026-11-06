@@ -2,7 +2,7 @@
 <h3 class="font-medium">{{ form.title().value() }}</h3>
 
 <section class="grid content-start gap-4">
-  <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+  <div class="grid grid-cols-1 gap-4 @md:grid-cols-2">
     <mat-form-field class="w-full">
       <mat-label>How places are assigned</mat-label>
       <mat-select [formField]="form.registrationMode">
@@ -28,7 +28,7 @@
 <section class="grid content-start gap-4">
   <h4 class="title-medium">When sign-up is open</h4>
 
-  <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+  <div class="grid grid-cols-1 gap-4 @md:grid-cols-2">
     <mat-form-field class="w-full">
       <mat-label>Start date</mat-label>
       <input

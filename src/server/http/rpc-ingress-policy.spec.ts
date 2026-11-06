@@ -1,4 +1,4 @@
-import { Headers as EffectHeaders } from 'effect/unstable/http';
+import { Headers as EffectHeaders } from 'effect/http';
 import { describe, expect, it, vi } from 'vitest';
 
 import {

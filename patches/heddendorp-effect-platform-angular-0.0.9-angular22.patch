@@ -12,3 +12,32 @@ diff --git a/package.json b/package.json
      "effect": ">=4.0.0-beta.60 <5"
    },
    "dependencies": {
+diff --git a/types/heddendorp-effect-platform-angular.d.ts b/types/heddendorp-effect-platform-angular.d.ts
+--- a/types/heddendorp-effect-platform-angular.d.ts
++++ b/types/heddendorp-effect-platform-angular.d.ts
+@@ -1,7 +1,7 @@
+ import { InjectionToken, EnvironmentProviders } from '@angular/core';
+ import * as Layer from 'effect/Layer';
+-import { HttpClient } from 'effect/unstable/http';
+-import { RpcClient, RpcSerialization } from 'effect/unstable/rpc';
++import { HttpClient } from 'effect/http';
++import { RpcClient, RpcSerialization } from 'effect/rpc';
+ 
+ declare const EFFECT_HTTP_CLIENT: InjectionToken<HttpClient.HttpClient>;
+ declare const EFFECT_HTTP_CLIENT_LAYER: InjectionToken<Layer.Layer<HttpClient.HttpClient, never, never>>;
+diff --git a/fesm2022/heddendorp-effect-platform-angular.mjs b/fesm2022/heddendorp-effect-platform-angular.mjs
+--- a/fesm2022/heddendorp-effect-platform-angular.mjs
++++ b/fesm2022/heddendorp-effect-platform-angular.mjs
+@@ -1,10 +1,10 @@
+ import { HttpHeaders, HttpErrorResponse, HttpResponse, HttpClient as HttpClient$1 } from '@angular/common/http';
+ import { InjectionToken, makeEnvironmentProviders, inject } from '@angular/core';
+ import * as Layer from 'effect/Layer';
+-import { HttpClientError, HttpClientResponse, HttpClient } from 'effect/unstable/http';
++import { HttpClientError, HttpClientResponse, HttpClient } from 'effect/http';
+ import * as Effect from 'effect/Effect';
+ import * as Stream from 'effect/Stream';
+-import { RpcSerialization, RpcClient } from 'effect/unstable/rpc';
++import { RpcSerialization, RpcClient } from 'effect/rpc';
+ 
+ // Convert Effect stream bodies into a single Uint8Array payload for HttpClient.
+ const collectStreamBody = (request, body) => Effect.matchEffect(Effect.scoped(Stream.runFold(body.stream, () => new Uint8Array(0), appendChunk)), {

@@ -118,8 +118,11 @@ export class NavigationComponent {
   protected readonly faRightToBracket = faRightToBracket;
   protected readonly faScannerGun = faScannerGun;
   protected readonly faUser = faUser;
-  protected readonly platformAuthority =
-    inject(ConfigService).platformAuthoritySignal;
+  private readonly config = inject(ConfigService);
+  protected readonly platformAuthority = this.config.platformAuthoritySignal;
+  protected readonly homePageUrl = computed(
+    () => this.config.tenantSignal()?.homePageUrl ?? null,
+  );
   private readonly permissions = inject(PermissionsService);
   protected readonly mobileMoreNavigationAvailable = computed(() =>
     mobileMoreNavigationAvailable({

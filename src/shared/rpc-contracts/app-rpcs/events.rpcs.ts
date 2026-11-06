@@ -21,8 +21,8 @@ import {
   positiveNumber,
 } from '@shared/schema-utilities';
 import { Effect, Schema } from 'effect';
-import * as Rpc from 'effect/unstable/rpc/Rpc';
-import * as RpcGroup from 'effect/unstable/rpc/RpcGroup';
+import * as Rpc from 'effect/rpc/Rpc';
+import * as RpcGroup from 'effect/rpc/RpcGroup';
 
 import { EventLocation } from '../../../types/location';
 import { iconSchema } from '../../types/icon';
@@ -189,6 +189,49 @@ export const EventsCheckInRegistration = asRpcMutation(
   }),
 );
 
+export const EventGraphAddonRegistrationOptionInput = Schema.Struct({
+  includedQuantity: RegistrationAddonQuantity,
+  optionalPurchaseQuantity: RegistrationAddonQuantity,
+  registrationOptionKey: Schema.NonEmptyString,
+});
+
+export const EventGraphAddonInput = Schema.Struct({
+  allowMultiple: Schema.Boolean,
+  allowPurchaseBeforeEvent: Schema.Boolean,
+  allowPurchaseDuringEvent: Schema.Boolean,
+  allowPurchaseDuringRegistration: Schema.Boolean,
+  description: Schema.NullOr(Schema.String),
+  id: Schema.optional(Schema.NonEmptyString),
+  isPaid: Schema.Boolean,
+  key: Schema.NonEmptyString,
+  maxQuantityPerUser: PositiveRegistrationAddonQuantity,
+  price: NonNegativeInteger,
+  registrationOptions: Schema.mutable(
+    Schema.Array(EventGraphAddonRegistrationOptionInput),
+  ),
+  stripeTaxRateId: Schema.NullOr(Schema.NonEmptyString),
+  title: Schema.NonEmptyString,
+  totalAvailableQuantity: NonNegativeInteger,
+});
+
+export type EventGraphAddonInput = Schema.Schema.Type<
+  typeof EventGraphAddonInput
+>;
+
+export const EventGraphQuestionInput = Schema.Struct({
+  description: RegistrationQuestionDescription,
+  id: Schema.optional(Schema.NonEmptyString),
+  key: Schema.NonEmptyString,
+  registrationOptionKey: Schema.NonEmptyString,
+  required: Schema.Boolean,
+  sortOrder: NonNegativeInteger,
+  title: RegistrationQuestionTitle,
+});
+
+export type EventGraphQuestionInput = Schema.Schema.Type<
+  typeof EventGraphQuestionInput
+>;
+
 export const EventsCreateRegistrationOptionInput = Schema.Struct({
   cancellationDeadlineHoursBeforeStart: NullablePolicyHoursInput,
   closeRegistrationTime: Schema.NonEmptyString,
@@ -213,10 +256,20 @@ export const EventsCreate = asRpcMutation(
   Rpc.make('events.create', {
     error: EventsCreateRpcError,
     payload: Schema.Struct({
+      addOns: Schema.optional(
+        Schema.Array(EventGraphAddonInput).check(
+          Schema.isMaxLength(MAX_EVENT_ADDON_TYPES),
+        ),
+      ),
       description: Schema.NonEmptyString,
       end: Schema.NonEmptyString,
       icon: iconSchema,
       location: Schema.optional(Schema.NullOr(EventLocation)),
+      questions: Schema.optional(
+        Schema.Array(EventGraphQuestionInput).check(
+          Schema.isMaxLength(MAX_REGISTRATION_QUESTIONS),
+        ),
+      ),
       registrationOptions: Schema.Array(EventsCreateRegistrationOptionInput),
       start: Schema.NonEmptyString,
       templateId: Schema.NonEmptyString,
@@ -229,6 +282,7 @@ export const EventsCreate = asRpcMutation(
 );
 
 export const EventsEventListInput = Schema.Struct({
+  endedBefore: Schema.optional(CanonicalUtcTimestamp),
   limit: PageLimit.pipe(Schema.withDecodingDefaultTypeKey(Effect.succeed(100))),
   offset: PageOffset.pipe(Schema.withDecodingDefaultTypeKey(Effect.succeed(0))),
   startAfter: CanonicalUtcTimestamp.pipe(
@@ -248,6 +302,7 @@ export type EventsEventListInput = Schema.Schema.Type<
 export const EventsEventListUserSignUpState = literalUnion(
   'approvalPending',
   'confirmed',
+  'organizerConfirmed',
   'paymentRequired',
   'waitlisted',
 );
@@ -595,6 +650,7 @@ export const EventsRegistrationStatusRecord = Schema.Struct({
   discountAmount: Schema.optional(Schema.NullOr(Schema.Number)),
   guestCount: Schema.Number,
   id: Schema.NonEmptyString,
+  location: Schema.optional(Schema.NullOr(EventLocation)),
   organizingRegistration: Schema.Boolean,
   paymentPending: Schema.Boolean,
   registeredDescription: Schema.optional(Schema.NullOr(Schema.String)),
@@ -936,49 +992,6 @@ export const EventGraphRegistrationOptionInput = Schema.Struct({
 
 export type EventGraphRegistrationOptionInput = Schema.Schema.Type<
   typeof EventGraphRegistrationOptionInput
->;
-
-export const EventGraphAddonRegistrationOptionInput = Schema.Struct({
-  includedQuantity: RegistrationAddonQuantity,
-  optionalPurchaseQuantity: RegistrationAddonQuantity,
-  registrationOptionKey: Schema.NonEmptyString,
-});
-
-export const EventGraphAddonInput = Schema.Struct({
-  allowMultiple: Schema.Boolean,
-  allowPurchaseBeforeEvent: Schema.Boolean,
-  allowPurchaseDuringEvent: Schema.Boolean,
-  allowPurchaseDuringRegistration: Schema.Boolean,
-  description: Schema.NullOr(Schema.String),
-  id: Schema.optional(Schema.NonEmptyString),
-  isPaid: Schema.Boolean,
-  key: Schema.NonEmptyString,
-  maxQuantityPerUser: PositiveRegistrationAddonQuantity,
-  price: NonNegativeInteger,
-  registrationOptions: Schema.mutable(
-    Schema.Array(EventGraphAddonRegistrationOptionInput),
-  ),
-  stripeTaxRateId: Schema.NullOr(Schema.NonEmptyString),
-  title: Schema.NonEmptyString,
-  totalAvailableQuantity: NonNegativeInteger,
-});
-
-export type EventGraphAddonInput = Schema.Schema.Type<
-  typeof EventGraphAddonInput
->;
-
-export const EventGraphQuestionInput = Schema.Struct({
-  description: RegistrationQuestionDescription,
-  id: Schema.optional(Schema.NonEmptyString),
-  key: Schema.NonEmptyString,
-  registrationOptionKey: Schema.NonEmptyString,
-  required: Schema.Boolean,
-  sortOrder: NonNegativeInteger,
-  title: RegistrationQuestionTitle,
-});
-
-export type EventGraphQuestionInput = Schema.Schema.Type<
-  typeof EventGraphQuestionInput
 >;
 
 export const EventGraphAddonRecord = Schema.Struct({

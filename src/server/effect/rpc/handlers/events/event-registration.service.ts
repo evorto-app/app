@@ -1,3 +1,5 @@
+import { activeEventRegistrationUniqueIndexName } from '@db/schema';
+import { isUniqueConstraintViolation } from '@db/sql-error';
 import { lockUserDiscountCards } from '@server/discounts/user-discount-card-lock';
 import {
   MAX_EVENT_ADDON_TYPES,
@@ -86,10 +88,6 @@ import {
   tenantOutboundUrl,
 } from '../../../../tenant-outbound-url';
 import { safeServerErrorSummary } from '../../../../utils/safe-server-error-summary';
-import {
-  ACTIVE_REGISTRATION_UNIQUE_CONSTRAINT,
-  isUniqueConstraintViolation,
-} from './database-constraint-errors';
 import {
   EventRegistrationConflictError,
   EventRegistrationInternalError,
@@ -4131,7 +4129,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                 if (
                   isUniqueConstraintViolation(
                     error,
-                    ACTIVE_REGISTRATION_UNIQUE_CONSTRAINT,
+                    activeEventRegistrationUniqueIndexName,
                   )
                 ) {
                   return Effect.succeed({
@@ -4511,7 +4509,7 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                   if (
                     isUniqueConstraintViolation(
                       error,
-                      ACTIVE_REGISTRATION_UNIQUE_CONSTRAINT,
+                      activeEventRegistrationUniqueIndexName,
                     )
                   ) {
                     return Effect.succeed({

@@ -23,7 +23,9 @@ import {
 } from '@angular/platform-browser';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import {
+  type ActivatedRouteSnapshot,
   provideRouter,
+  TitleStrategy,
   withComponentInputBinding,
   withInMemoryScrolling,
   withRouterConfig,
@@ -42,6 +44,7 @@ import { authTokenInterceptor } from './core/auth-token.interceptor';
 import { BrowserErrorHandler } from './core/browser-error-handler';
 import { ConfigService } from './core/config.service';
 import { AppRpc, resolveRpcUrl } from './core/effect-rpc-angular-client';
+import { PageTitleStrategy } from './core/page-title-strategy';
 import { TENANT_DATE_PIPE_TIMEZONE } from './core/tenant-date.pipe';
 import { TenantLuxonDateAdapter } from './core/tenant-luxon-date-adapter';
 import {
@@ -57,8 +60,15 @@ export const initializeApplicationConfig = async (): Promise<void> => {
   await inject(ConfigService).initialize();
 };
 
+// Native page snapshots crossfade raster images. Event-to-event navigation
+// keeps the SVG live so its CSS path transition can visibly interpolate.
+const hasEventShapeMorph = (route: ActivatedRouteSnapshot): boolean =>
+  route.data['eventShapeMorph'] === true ||
+  route.children.some((child) => hasEventShapeMorph(child));
+
 export const appConfig: ApplicationConfig = {
   providers: [
+    { provide: TitleStrategy, useClass: PageTitleStrategy },
     provideAppInitializer(() => registerLocaleData(localeDe)),
     provideAnimationsAsync(),
     provideZonelessChangeDetection(),
@@ -66,7 +76,12 @@ export const appConfig: ApplicationConfig = {
       routes,
       withComponentInputBinding(),
       withInMemoryScrolling({ scrollPositionRestoration: 'enabled' }),
-      withViewTransitions(),
+      withViewTransitions({
+        onViewTransitionCreated: ({ from, to, transition }) => {
+          if (hasEventShapeMorph(from) && hasEventShapeMorph(to))
+            transition.skipTransition();
+        },
+      }),
       withRouterConfig({ paramsInheritanceStrategy: 'always' }),
     ),
     provideHttpClient(withFetch(), withInterceptors([authTokenInterceptor])),

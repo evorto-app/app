@@ -78,15 +78,12 @@ const applyForApproval = async (
     .locator('app-event-registration-option')
     .filter({ hasText: scenario.optionTitle });
   await expect(
-    registrationCard.getByText('Organizer approval required'),
-  ).toBeVisible();
-  await expect(
     registrationCard.getByText(
-      'Applying does not charge you or confirm a place. An organizer reviews the application first; if this choice has a fee, payment starts only after approval.',
+      'Approval required. Any payment follows approval.',
     ),
   ).toBeVisible();
   const applyButton = registrationCard.getByRole('button', {
-    name: 'Apply for approval',
+    name: 'Apply',
   });
   // SSR exposes the application action before Angular attaches its live click
   // listener. Event replay removes `jsaction` once the action is interactive.
@@ -165,7 +162,7 @@ Manual approval is useful when organizers need to review each attendee before co
 
 1. Sign in and select **Events** in the main navigation.
 2. Open the event you want to attend.
-3. Find the card labeled **Organizer approval required**.
+3. Find the application card.
 `,
     });
 
@@ -187,11 +184,8 @@ Manual approval is useful when organizers need to review each attendee before co
       .locator('app-event-registration-option')
       .filter({ hasText: scenario.optionTitle });
     await expect(
-      applicationCard.getByText('Organizer approval required'),
-    ).toBeVisible();
-    await expect(
       applicationCard.getByText(
-        'Applying does not charge you or confirm a place. An organizer reviews the application first; if this choice has a fee, payment starts only after approval.',
+        'Approval required. Any payment follows approval.',
       ),
     ).toBeVisible();
     await takeScreenshot(
@@ -205,13 +199,11 @@ Manual approval is useful when organizers need to review each attendee before co
       body: `
 ### Apply for review
 
-Select **Apply for approval** only after reviewing the choice. The application is saved immediately, but no place is reserved and no payment is started. You may withdraw it from the event page while it is still pending.
+Select **Apply** only after reviewing the choice. The application is saved immediately, but no place is reserved and no payment is started. You may withdraw it from the event page while it is still pending.
 `,
     });
     await applyForApproval(page, scenario);
-    await expect(
-      page.getByRole('button', { name: 'Apply for approval' }),
-    ).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Apply' })).toHaveCount(0);
     await expect(page.getByRole('link', { name: 'Pay now' })).toHaveCount(0);
     await expect(
       page.getByRole('img', { name: 'QR code for your event ticket' }),
@@ -319,20 +311,18 @@ For a free choice, this decision immediately confirms one place. Evorto also tri
       body: `
 ### See the confirmed ticket
 
-Open the event again after the organizer finishes to see the confirmed ticket and its QR code.
+Open the event again after the organizer finishes to see the confirmed ticket and its QR code. Additional organizer notes are available under **Event instructions**.
 
 Once approval finishes, the application and approval actions disappear. The event keeps the same confirmed ticket and does not offer another approval action. No further action is needed.
 `,
     });
     await page.reload();
     await waitForRegistrationStatus(page);
-    await expect(page.getByText('Your place is confirmed')).toBeVisible();
+    await expect(page.getByText('Confirmed', { exact: true })).toBeVisible();
     await expect(
       page.getByRole('img', { name: 'QR code for your event ticket' }),
     ).toBeVisible();
-    await expect(
-      page.getByRole('button', { name: 'Apply for approval' }),
-    ).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Apply' })).toHaveCount(0);
     await takeScreenshot(
       testInfo,
       page.locator('app-event-active-registration'),
@@ -386,7 +376,7 @@ Once approval finishes, the application and approval actions disappear. The even
     await testInfo.attach('markdown', {
       body: `
 {% callout type="note" title="Before you start" %}
-Start with a published event that has an open **Organizer approval required** choice. You must be signed in and allowed to use that choice.
+Start with a published event that has an open application choice. You must be signed in and allowed to use that choice.
 
 Withdrawing is available only while the application is still waiting for organizer approval. It does not cancel a confirmed ticket or a sign-up waiting for payment. Applying for the paid choice in this example does not charge the attendee or reserve a place.
 {% /callout %}
@@ -394,7 +384,7 @@ Withdrawing is available only while the application is still waiting for organiz
 
 1. Select **Events** in the main navigation.
 2. Open the event.
-3. Find the **Organizer approval required** choice and select **Apply for approval**.
+3. Find the application choice and select **Apply**.
 4. Wait for **Your ticket is pending organizer approval**.
 
 The pending application card explains that withdrawal happens before approval. It has no QR ticket or payment action because the organizer has not approved it.
@@ -500,7 +490,7 @@ The confirmation explains exactly what changes: the pending application is withd
       .click();
     await expect(activeApplication).toHaveCount(0, { timeout: 20_000 });
     await expect(
-      applicationCard.getByRole('button', { name: 'Apply for approval' }),
+      applicationCard.getByRole('button', { name: 'Apply' }),
     ).toBeVisible({ timeout: 20_000 });
 
     await expect
@@ -536,9 +526,9 @@ The confirmation explains exactly what changes: the pending application is withd
       body: `
 ### Apply again if you still want to attend
 
-After withdrawal, the event shows **Apply for approval** again. The cancelled application no longer blocks a new application.
+After withdrawal, the event shows **Apply** again. The cancelled application no longer blocks a new application.
 
-Select **Apply for approval** to apply again. This still does not reserve a place or start payment; a paid option asks for payment only after organizer approval.
+Select **Apply** to apply again. This still does not reserve a place or start payment; a paid option asks for payment only after organizer approval.
 `,
     });
 
@@ -612,7 +602,7 @@ Select **Apply for approval** to apply again. This still does not reserve a plac
     await testInfo.attach('markdown', {
       body: `
 
-A paid manual-approval choice still begins with an application, not a payment. Open **Events**, select the event, find the card labeled **Organizer approval required**, and select **Apply for approval**. The attendee is not charged before the organizer approves the application.
+A paid manual-approval choice still begins with an application, not a payment. Open **Events**, select the event, find the application card, and select **Apply**. The attendee is not charged before the organizer approves the application.
 `,
     });
     await openEventFromNormalNavigation(page, scenario);
@@ -797,7 +787,7 @@ After payment succeeds, reopen the event to see the confirmed ticket and QR code
     });
     await page.reload();
     await waitForRegistrationStatus(page);
-    await expect(page.getByText('Your place is confirmed')).toBeVisible();
+    await expect(page.getByText('Confirmed', { exact: true })).toBeVisible();
     await expect(
       page.getByRole('img', { name: 'QR code for your event ticket' }),
     ).toBeVisible();

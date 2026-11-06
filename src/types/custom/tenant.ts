@@ -7,6 +7,8 @@ import {
   TenantDiscountProvidersSchema,
   TenantReceiptSettingsSchema,
 } from '@shared/tenant-config';
+import { TenantFooterLinks } from '@shared/tenant-footer-links';
+import { TenantHomePageUrl } from '@shared/tenant-home-page';
 import { Effect, Schema, SchemaGetter } from 'effect';
 
 import { GoogleLocation } from '../location';
@@ -75,6 +77,8 @@ export class Tenant extends Schema.Class<Tenant>('Tenant')({
   emailSenderEmail: optionalNullable(Schema.NonEmptyString),
   emailSenderName: optionalNullable(Schema.NonEmptyString),
   faviconUrl: optionalNullable(Schema.NonEmptyString),
+  footerLinks: Schema.optional(TenantFooterLinks),
+  homePageUrl: optionalNullable(TenantHomePageUrl),
   id: Schema.NonEmptyString,
   legalNoticeText: optionalNullable(Schema.NonEmptyString),
   legalNoticeUrl: optionalNullable(Schema.NonEmptyString),

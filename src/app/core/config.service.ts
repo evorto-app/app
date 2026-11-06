@@ -75,6 +75,7 @@ export class ConfigService {
   private readonly requestContext = inject(REQUEST_CONTEXT) as Context | null;
 
   private readonly title = inject(Title);
+  private pageTitle: null | string | undefined;
 
   constructor() {
     effect(() => {
@@ -119,8 +120,13 @@ export class ConfigService {
     this.meta.updateTag({ content: description, name: 'description' });
   }
 
-  public updateTitle(title: string): void {
-    this.title.setTitle(`${title} | ${this.tenant.name}`);
+  public updateTitle(title: null | string): void {
+    this.pageTitle = title;
+    this.title.setTitle(
+      title
+        ? `${title} | ${this.tenant.name}`
+        : (this.tenant.seoTitle ?? this.tenant.name),
+    );
   }
 
   private applyTenantConfig(tenant: ClientTenantConfig): void {
@@ -149,7 +155,11 @@ export class ConfigService {
 
     this._tenant = tenant;
     this.tenantSignal.set(tenant);
-    this.title.setTitle(tenant.seoTitle ?? tenant.name);
+    // Preserve the server-rendered title while the browser hydrates. The router
+    // supplies the active page title after its first navigation completes.
+    if (this.pageTitle !== undefined || isPlatformServer(this.platformId)) {
+      this.updateTitle(this.pageTitle ?? null);
+    }
     this.updateFavicon(tenant.faviconUrl ?? 'favicon.ico');
     if (tenant.seoDescription) {
       this.updateDescription(tenant.seoDescription);

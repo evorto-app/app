@@ -659,7 +659,7 @@ Event status controls publication. Sign-up events appear in **Events** according
 Event status values:
 
 - **Draft**
-- **Pending Review**
+- **In review**
 - **Published**
 
 When a reviewer requests changes, the event returns to **Draft** and the
@@ -674,7 +674,7 @@ For the review and approval steps, see [Review and publish an event](/docs/revie
   });
 
   // Take a screenshot of the event status section
-  const statusChip = page.getByText(/Draft|Pending Review|Published/i).first();
+  const statusChip = page.getByText(/Draft|In review|Published/i).first();
   try {
     await statusChip.waitFor({ state: 'visible', timeout: 2000 });
     await takeScreenshot(testInfo, statusChip, page, 'Event status section');

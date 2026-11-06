@@ -2,8 +2,8 @@ import { afterAll, beforeAll, describe, expect, it } from '@effect/vitest';
 import { eq, inArray, sql } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { Cause, ConfigProvider, Effect, Exit, Layer, Schema } from 'effect';
-import { Headers } from 'effect/unstable/http';
-import { Rpc, RpcMessage } from 'effect/unstable/rpc';
+import { Headers } from 'effect/http';
+import { Rpc, RpcMessage } from 'effect/rpc';
 import { randomUUID } from 'node:crypto';
 import { Pool } from 'pg';
 

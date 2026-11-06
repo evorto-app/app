@@ -1,5 +1,5 @@
 import { Context } from 'effect';
-import { RpcMiddleware } from 'effect/unstable/rpc';
+import { RpcMiddleware } from 'effect/rpc';
 
 import { type PlatformAdministratorAuthority } from '../../../types/custom/platform-authority';
 import { Tenant } from '../../../types/custom/tenant';

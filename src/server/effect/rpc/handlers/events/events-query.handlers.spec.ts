@@ -25,6 +25,7 @@ describe('eventListUserSignUpState', () => {
     expect(
       eventListUserSignUpState({
         hasPendingRegistrationTransaction: false,
+        organizingRegistration: false,
         registrationId: 'confirmed-registration',
         registrationMode: 'fcfs',
         registrationStatus: 'CONFIRMED',
@@ -33,6 +34,7 @@ describe('eventListUserSignUpState', () => {
     expect(
       eventListUserSignUpState({
         hasPendingRegistrationTransaction: false,
+        organizingRegistration: false,
         registrationId: 'waitlist-registration',
         registrationMode: 'fcfs',
         registrationStatus: 'WAITLIST',
@@ -41,6 +43,7 @@ describe('eventListUserSignUpState', () => {
     expect(
       eventListUserSignUpState({
         hasPendingRegistrationTransaction: true,
+        organizingRegistration: false,
         registrationId: 'payment-registration',
         registrationMode: 'fcfs',
         registrationStatus: 'PENDING',
@@ -49,6 +52,7 @@ describe('eventListUserSignUpState', () => {
     expect(
       eventListUserSignUpState({
         hasPendingRegistrationTransaction: false,
+        organizingRegistration: false,
         registrationId: 'application-registration',
         registrationMode: 'application',
         registrationStatus: 'PENDING',
@@ -56,10 +60,23 @@ describe('eventListUserSignUpState', () => {
     ).toBe('approvalPending');
   });
 
+  it('distinguishes a confirmed event organizer from an attendee', () => {
+    expect(
+      eventListUserSignUpState({
+        hasPendingRegistrationTransaction: false,
+        organizingRegistration: true,
+        registrationId: 'organizer-registration',
+        registrationMode: 'fcfs',
+        registrationStatus: 'CONFIRMED',
+      }),
+    ).toBe('organizerConfirmed');
+  });
+
   it('fails loudly for a pending first-come-first-served registration without payment', () => {
     expect(() =>
       eventListUserSignUpState({
         hasPendingRegistrationTransaction: false,
+        organizingRegistration: false,
         registrationId: 'registration-1',
         registrationMode: 'fcfs',
         registrationStatus: 'PENDING',

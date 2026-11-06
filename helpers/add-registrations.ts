@@ -1,21 +1,7 @@
 import { randChanceBoolean, randFloat, randNumber } from '@ngneat/falso';
 import consola from 'consola';
-/**
- * Registration Helper
- *
- * This helper creates realistic event registrations for testing and development.
- *
- * Key features:
- * 1. Creates varied registration patterns: some events full with waitlists, others partially filled
- * 2. Simulates realistic payment scenarios (successful, pending, failed) for paid events
- * 3. Excludes admin user from seeded registrations
- * 4. Creates waitlists for popular events (full + additional 20% on waitlist)
- * 5. Simulates check-ins for past events with realistic attendance rates
- * 6. Uses batch operations for efficient database seeding
- * 7. Creates different event popularity patterns: very popular, popular, moderate, less popular, new/unpopular
- * 8. For paid registrations, creates associated transactions as if Stripe webhooks fired
- * 9. Handles various registration statuses and payment transaction outcomes for comprehensive testing scenarios
- */
+// Seed free attendance only. Paid registrations and payment outcomes must be
+// created through the real Stripe test-mode flow, never synthetic provider IDs.
 import { eq, InferInsertModel } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
@@ -106,7 +92,6 @@ export const validateRegistrationSeedEventOwnership = (
  * - Some events are fully booked with waitlists
  * - Others have varying levels of popularity and availability
  * - Past events include realistic check-in patterns
- * - Payment transaction outcomes reflect real scenarios (successful, pending, failed)
  * - Uses batch inserts for improved performance during database setup
  *
  * @param database - The database connection
@@ -115,7 +100,7 @@ export const validateRegistrationSeedEventOwnership = (
  */
 export async function addRegistrations(
   database: NodePgDatabase<typeof relations>,
-  { currency, events, seedDate, tenantId }: AddRegistrationsInput,
+  { events, seedDate, tenantId }: AddRegistrationsInput,
 ) {
   validateRegistrationSeedEventOwnership(events, tenantId);
 
@@ -146,7 +131,6 @@ export async function addRegistrations(
   // Prepare batch operation arrays
   const registrations: InferInsertModel<typeof schema.eventRegistrations>[] =
     [];
-  const transactions: InferInsertModel<typeof schema.transactions>[] = [];
   const optionUpdates = new Map<
     string,
     { checkedInSpots: number; confirmedSpots: number; waitlistSpots: number }
@@ -252,6 +236,7 @@ export async function addRegistrations(
 
     // Process each registration option
     for (const option of event.registrationOptions) {
+      if (option.isPaid) continue;
       // Eligible users for this option (union of role holders within tenant)
       const eligibleUsers = getEligibleUsers(tenantId, option.roleIds);
 
@@ -302,7 +287,6 @@ export async function addRegistrations(
 
         // Determine registration status based on various factors
         let status: 'CANCELLED' | 'CONFIRMED' | 'PENDING' | 'WAITLIST';
-        let paymentState: 'cancelled' | 'pending' | 'successful' | null = null;
         let checkInTime: Date | null = null;
 
         // First determine if this should be waitlisted
@@ -311,29 +295,13 @@ export async function addRegistrations(
           waitlistCount++;
         } else {
           // Regular registration
-          if (option.isPaid) {
-            // For paid events, create more realistic payment scenarios
-            const paymentScenario = randFloat({ fraction: 4, max: 1, min: 0 });
-            if (paymentScenario < 0.85) {
-              status = 'CONFIRMED';
-              paymentState = 'successful';
-              confirmedCount++;
-            } else if (paymentScenario < 0.95) {
-              status = 'PENDING';
-              paymentState = 'pending';
-            } else {
-              status = 'CANCELLED';
-              paymentState = 'cancelled';
-            }
+          // Free events are typically confirmed immediately
+          const confirmationRate = isPastEvent ? 0.95 : 0.9;
+          if (randChanceBoolean({ chanceTrue: confirmationRate })) {
+            status = 'CONFIRMED';
+            confirmedCount++;
           } else {
-            // Free events are typically confirmed immediately
-            const confirmationRate = isPastEvent ? 0.95 : 0.9;
-            if (randChanceBoolean({ chanceTrue: confirmationRate })) {
-              status = 'CONFIRMED';
-              confirmedCount++;
-            } else {
-              status = 'CANCELLED';
-            }
+            status = 'CANCELLED';
           }
         }
 
@@ -357,7 +325,7 @@ export async function addRegistrations(
         registrations.push({
           appliedDiscountedPrice: null,
           appliedDiscountType: null,
-          basePriceAtRegistration: option.isPaid ? option.price : 0,
+          basePriceAtRegistration: 0,
           checkInTime,
           discountAmount: 0,
           eventId: event.id,
@@ -367,26 +335,6 @@ export async function addRegistrations(
           tenantId,
           userId: user.id,
         });
-
-        // For paid registrations, create a transaction record
-        if (option.isPaid && paymentState) {
-          transactions.push({
-            amount: option.price,
-            comment: `Ticket for ${event.title}`,
-            currency,
-            eventId: event.id,
-            eventRegistrationId: registrationId,
-            executiveUserId: user.id,
-            id: getId(),
-            method: 'stripe',
-            status: paymentState,
-            stripeChargeId: paymentState === 'successful' ? getId() : null,
-            stripePaymentIntentId: getId(),
-            targetUserId: user.id,
-            tenantId,
-            type: 'registration',
-          });
-        }
       }
 
       // Record realistic spot counts for batch processing
@@ -403,10 +351,6 @@ export async function addRegistrations(
     await database.insert(schema.eventRegistrations).values(registrations);
   }
 
-  if (transactions.length > 0) {
-    await database.insert(schema.transactions).values(transactions);
-  }
-
   if (optionUpdates.size > 0) {
     for (const [id, counts] of optionUpdates) {
       await database
@@ -419,8 +363,6 @@ export async function addRegistrations(
         .where(eq(schema.eventRegistrationOptions.id, id));
     }
   }
-  consola.success(
-    `Created ${registrations.length} registrations and ${transactions.length} transactions`,
-  );
+  consola.success(`Created ${registrations.length} free registrations`);
   return registrations;
 }

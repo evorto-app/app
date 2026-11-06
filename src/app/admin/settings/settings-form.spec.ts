@@ -319,6 +319,8 @@ const settingsCases: readonly {
     name: 'appearance',
     payload: {
       faviconUrl: undefined,
+      footerLinks: [],
+      homePageUrl: null,
       logoUrl: undefined,
       seoDescription: undefined,
       seoTitle: 'New search title',
@@ -1587,6 +1589,8 @@ describe('focused settings named optional payloads', () => {
                 faviconUrl: blank
                   ? undefined
                   : 'https://cdn.example.org/favicon.ico',
+                footerLinks: [],
+                homePageUrl: null,
                 logoUrl: blank ? undefined : 'https://cdn.example.org/logo.svg',
                 seoDescription: blank ? undefined : 'Public tenant description',
                 seoTitle: blank ? undefined : 'Public tenant title',

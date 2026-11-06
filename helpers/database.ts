@@ -4,6 +4,7 @@ import { stripeConfig } from '@server/config/stripe-config';
 import consola from 'consola';
 import { Config, ConfigProvider, Effect, Option, Redacted } from 'effect';
 
+import { createLocalSeedReceiptEvidence } from './seed-receipt-evidence';
 import { createDatabaseClient } from '../src/db/database-client';
 import {
   resolveDatabaseSeedInputs,
@@ -83,6 +84,34 @@ const main = Effect.gen(function* () {
     return;
   }
 
+  const localSeedStorage = yield* Config.all({
+    local: Config.Boolean('LOCAL_DATABASE').pipe(Config.withDefault(false)),
+    endpoint: Config.option(Config.String('S3_ENDPOINT')),
+    port: Config.String('MINIO_HOST_PORT').pipe(Config.withDefault('9000')),
+    bucket: Config.String('S3_BUCKET').pipe(
+      Config.withDefault('evorto-testing'),
+    ),
+    accessKeyId: Config.String('MINIO_ROOT_USER').pipe(
+      Config.withDefault('minioadmin'),
+    ),
+    secretAccessKey: Config.String('MINIO_ROOT_PASSWORD').pipe(
+      Config.withDefault('minioadmin'),
+    ),
+  }).parse(runtimeConfigProvider);
+  const receiptEvidence = localSeedStorage.local
+    ? yield* Effect.tryPromise(() =>
+        createLocalSeedReceiptEvidence({
+          accessKeyId: localSeedStorage.accessKeyId,
+          secretAccessKey: localSeedStorage.secretAccessKey,
+          bucket: localSeedStorage.bucket,
+          endpoint: Option.getOrElse(
+            localSeedStorage.endpoint,
+            () => `http://127.0.0.1:${localSeedStorage.port}`,
+          ),
+        }),
+      )
+    : undefined;
+
   const caCertificate = config.DATABASE_TLS_CA_CERTIFICATE.pipe(
     Option.map((certificate) => Redacted.value(certificate)),
     Option.getOrUndefined,
@@ -118,7 +147,7 @@ const main = Effect.gen(function* () {
         }
       }
 
-      await setupDatabase(database, setupOptions);
+      await setupDatabase(database, { ...setupOptions, receiptEvidence });
     } finally {
       await pool.end();
     }

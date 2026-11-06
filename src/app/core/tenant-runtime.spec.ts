@@ -61,10 +61,13 @@ describe('tenant runtime time configuration', () => {
   });
 
   it('creates tenant-local defaults from the same clock instant', () => {
-    const instant = DateTime.fromISO('2026-07-10T22:30:00.000Z', {
+    const instant = DateTime.fromISO('2026-07-10T22:30:47.321Z', {
       zone: 'utc',
     });
 
+    expect(tenantNow('Europe/Berlin', instant).toUTC().toISO()).toBe(
+      '2026-07-10T22:30:00.000Z',
+    );
     expect(
       tenantNow('Europe/Berlin', instant).toFormat('yyyy-MM-dd HH:mm'),
     ).toBe('2026-07-11 00:30');

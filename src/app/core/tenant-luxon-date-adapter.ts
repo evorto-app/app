@@ -122,7 +122,19 @@ export class TenantLuxonDateAdapter extends LuxonDateAdapter {
     return null;
   }
 
+  override setTime(
+    target: DateTime,
+    hours: number,
+    minutes: number,
+    seconds: number,
+  ): DateTime {
+    return super.setTime(target, hours, minutes, seconds).startOf('minute');
+  }
+
   override today(): DateTime {
-    return DateTime.now().setZone(this.timezone).setLocale(this.locale);
+    return DateTime.now()
+      .setZone(this.timezone)
+      .setLocale(this.locale)
+      .startOf('minute');
   }
 }

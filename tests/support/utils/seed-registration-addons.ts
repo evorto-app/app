@@ -96,6 +96,7 @@ export const seedRequiredRegistrationQuestion = async ({
 // Cleanup is registered before setup but acquires ownership only after commit.
 export const seedFreeAddonRegistrationEvent = async ({
   database,
+  eventId = getId(),
   registerDatabaseCleanup,
   sourceEventId,
   sourceOptionId,
@@ -103,6 +104,7 @@ export const seedFreeAddonRegistrationEvent = async ({
   window,
 }: {
   database: TestDatabase;
+  eventId?: string;
   registerDatabaseCleanup: (
     cleanup: (database: TestDatabase) => Promise<void>,
   ) => void;
@@ -122,7 +124,6 @@ export const seedFreeAddonRegistrationEvent = async ({
       'Expected a tenant-owned free registration event and option',
     );
   }
-  const eventId = getId();
   const optionId = getId();
   let ownsEvent = false;
 

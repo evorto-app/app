@@ -1,20 +1,12 @@
 import type { EventsEventListDayRecord } from '@shared/rpc-contracts/app-rpcs/events.rpcs';
 
-import { isPlatformServer } from '@angular/common';
-import {
-  computed,
-  DestroyRef,
-  effect,
-  inject,
-  Injectable,
-  PendingTasks,
-  PLATFORM_ID,
-} from '@angular/core';
+import { computed, inject, Injectable } from '@angular/core';
 import { MAX_PAGE_LIMIT } from '@shared/schema-utilities';
 import { injectInfiniteQuery } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../core/effect-rpc-angular-client';
 import { PermissionsService } from '../core/permissions.service';
+import { holdServerRenderWhile } from '../core/server-render-pending';
 
 export const EVENT_LIST_PAGE_SIZE = MAX_PAGE_LIMIT;
 
@@ -64,19 +56,15 @@ export class EventListService {
     this.permissions.hasPermission('events:seeDrafts');
   private readonly startAfter = new Date().toISOString();
 
-  private readonly filterInput = computed(() => {
-    const status = this.canSeeDrafts()
-      ? (['APPROVED', 'DRAFT', 'PENDING_REVIEW'] as const)
-      : (['APPROVED'] as const);
-    return {
-      limit: EVENT_LIST_PAGE_SIZE,
-      startAfter: this.startAfter,
-      status,
-    };
-  });
+  private readonly filterInput = {
+    limit: EVENT_LIST_PAGE_SIZE,
+    startAfter: this.startAfter,
+    // The server scopes unpublished rows to the creator or authorized viewers.
+    status: ['APPROVED', 'DRAFT', 'PENDING_REVIEW'] as const,
+  };
 
   readonly eventQuery = injectInfiniteQuery(() => {
-    const input = this.filterInput();
+    const input = this.filterInput;
     return {
       getNextPageParam: (
         lastPage: readonly EventsEventListDayRecord[],
@@ -85,7 +73,10 @@ export class EventListService {
       initialPageParam: 0,
       queryFn: ({ pageParam }: { readonly pageParam: number }) =>
         this.findEvents.call({ ...input, offset: pageParam }),
-      queryKey: this.findEvents.queryKey({ ...input, offset: 0 }),
+      queryKey: [
+        ...this.findEvents.queryKey({ ...input, offset: 0 }),
+        { canSeeDrafts: this.canSeeDrafts() },
+      ],
     };
   });
 
@@ -94,20 +85,6 @@ export class EventListService {
   );
 
   constructor() {
-    if (!isPlatformServer(inject(PLATFORM_ID))) return;
-
-    const pendingTasks = inject(PendingTasks);
-    let complete: (() => void) | undefined = pendingTasks.add();
-    inject(DestroyRef).onDestroy(() => complete?.());
-
-    // HTTP completion can precede publication of the query result to Angular.
-    effect(() => {
-      if (this.eventQuery.isPending()) {
-        complete ??= pendingTasks.add();
-      } else {
-        complete?.();
-        complete = undefined;
-      }
-    });
+    holdServerRenderWhile(() => this.eventQuery.isPending());
   }
 }

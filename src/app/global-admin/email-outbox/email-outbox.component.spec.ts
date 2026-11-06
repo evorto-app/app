@@ -209,8 +209,8 @@ describe('EmailOutboxComponent overview', () => {
     await vi.waitFor(async () => {
       await fixture.whenStable();
       const text = normalizeText(fixture);
-      expect(text).toContain('Jul 16, 2026, 12:30:00 AM');
-      expect(text).not.toContain('Jul 15, 2026, 4:30:00 PM');
+      expect(text).toContain('Jul 16, 2026, 12:30 AM');
+      expect(text).not.toContain('Jul 15, 2026, 4:30 PM');
       expect(text).toContain(
         'Evorto is sending this message. If delivery cannot be confirmed, it will not be sent again.',
       );

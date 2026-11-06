@@ -1,4 +1,4 @@
-import type * as SqlConnection from 'effect/unstable/sql/SqlConnection';
+import type * as SqlConnection from 'effect/sql/SqlConnection';
 
 import * as PgClient from '@effect/sql-pg/PgClient';
 import { afterEach, describe, expect, it, vi } from '@effect/vitest';
@@ -6,8 +6,8 @@ import { makePgTestClient } from '@server/testing/pg-test-client';
 import { getTableColumns } from 'drizzle-orm';
 import * as PgDrizzle from 'drizzle-orm/effect-postgres';
 import { Cause, ConfigProvider, Effect, Layer, Stream } from 'effect';
-import { HttpRouter, HttpServerResponse } from 'effect/unstable/http';
-import { ConnectionError, SqlError } from 'effect/unstable/sql/SqlError';
+import { HttpRouter, HttpServerResponse } from 'effect/http';
+import { ConnectionError, SqlError } from 'effect/sql/SqlError';
 
 import { Database } from '../../db';
 import { relations } from '../../db/relations';
@@ -127,6 +127,9 @@ const createTenant = (domain: string) =>
     emailSenderEmail: null,
     emailSenderName: null,
     faviconUrl: null,
+    footerLinks: [],
+    homePageUrl: null,
+    hubResources: [],
     id: 'tenant-fixture',
     legalNoticeText: null,
     legalNoticeUrl: null,

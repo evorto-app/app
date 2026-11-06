@@ -1,4 +1,4 @@
-import * as HttpServerResponse from 'effect/unstable/http/HttpServerResponse';
+import * as HttpServerResponse from 'effect/http/HttpServerResponse';
 import { describe, expect, it } from 'vitest';
 
 import { applySecurityHeaders } from './security-headers';

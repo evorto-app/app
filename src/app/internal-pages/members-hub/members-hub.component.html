@@ -1,48 +1,217 @@
 <h1 class="title-large mb-6">Members Hub</h1>
 
-<div class="bg-surface text-on-surface @container rounded-md p-2">
-  <h2 class="title-medium mb-4">Who's who</h2>
-  @if (rolesQuery.isError()) {
-    <div class="text-error p-4">
-      We could not load the member list. Try again.
-    </div>
-  } @else if (rolesQuery.isSuccess()) {
-    <div class="@lg:grid-cols-3 @md:grid-cols-2 grid gap-4">
-      @for (role of rolesQuery.data(); track role.id) {
-        <div class="">
-          <div
-            class="bg-primary-container text-on-primary-container label-large flex items-baseline justify-between rounded-full px-3 py-1"
+<div class="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_20rem]">
+  <section
+    class="bg-surface text-on-surface @container rounded-2xl p-4 sm:p-6 xl:only:col-span-2"
+    aria-labelledby="hub-directory-heading"
+  >
+    <h2 id="hub-directory-heading" class="title-medium mb-4">Who’s who</h2>
+    @if (rolesQuery.isError()) {
+      <p class="text-error" role="alert">
+        We could not load the member list. Try again.
+      </p>
+    } @else if (rolesQuery.isSuccess()) {
+      <div
+        class="grid items-start gap-x-10 gap-y-8 @xl:grid-cols-2 @5xl:grid-cols-3"
+      >
+        @for (role of rolesQuery.data(); track role.id) {
+          <section
+            class="border-outline-variant min-w-0 border-t pt-4"
+            [attr.aria-labelledby]="'hub-role-' + role.id"
           >
-            <span> {{ role.name }}</span>
-            @if (role.userCount > 1) {
-              <span class="label-medium">{{ role.userCount }} members</span>
-            }
-          </div>
-          <div class="px-3">
+            <h3
+              class="title-medium mb-2 break-words"
+              [id]="'hub-role-' + role.id"
+            >
+              {{ role.name }}
+            </h3>
             @if (role.description) {
-              <p class="text-on-surface-variant text-sm">
+              <p class="body-medium text-on-surface-variant mb-4">
                 {{ role.description }}
               </p>
             }
-            @if (role.users.length > 0) {
-              <div class="flex flex-wrap gap-2">
-                @for (user of role.users; track $index; let last = $last) {
-                  @if (user) {
-                    <span>
-                      {{ user.firstName }} {{ user.lastName
-                      }}{{ last ? "" : ", " }}
-                    </span>
-                  }
+            <ul class="body-large space-y-2" role="list">
+              @for (user of role.users; track user.id) {
+                <li class="break-words">
+                  {{ user.firstName }} {{ user.lastName }}
+                </li>
+              } @empty {
+                <li class="body-medium text-on-surface-variant">
+                  No members assigned.
+                </li>
+              }
+            </ul>
+          </section>
+        } @empty {
+          <p class="body-medium text-on-surface-variant">
+            No roles are listed yet.
+          </p>
+        }
+      </div>
+    } @else {
+      <p class="body-medium text-on-surface-variant" role="status">
+        Loading members…
+      </p>
+    }
+  </section>
+
+  @if (
+    resourcesQuery.isError() ||
+    (resourcesQuery.isSuccess() &&
+      (resourcesQuery.data().length > 0 || canManage()))
+  ) {
+    <section
+      class="bg-surface text-on-surface @container min-w-0 rounded-2xl"
+      aria-labelledby="hub-resources-heading"
+    >
+      <div class="flex flex-wrap items-center justify-between gap-3 px-4 pt-4">
+        <h2 id="hub-resources-heading" class="title-medium">Resources</h2>
+        @if (canManage() && !editingResources()) {
+          <button
+            mat-button
+            type="button"
+            [disabled]="!resourcesQuery.isSuccess()"
+            (click)="beginResourceEdit()"
+          >
+            Manage resources
+          </button>
+        }
+      </div>
+      @if (resourcesQuery.isError()) {
+        <p role="alert" class="text-error px-4 pt-4">
+          Resources could not be loaded.
+        </p>
+        <button mat-button type="button" (click)="resourcesQuery.refetch()">
+          Try again
+        </button>
+      } @else if (editingResources()) {
+        <form class="p-4" (submit)="saveResources($event)">
+          @if (resourceError()) {
+            <p role="alert" class="text-error mb-4">{{ resourceError() }}</p>
+          }
+          @for (
+            resource of resourceForm.resources;
+            track resource;
+            let index = $index
+          ) {
+            <fieldset
+              class="border-outline-variant mb-4 grid min-w-0 gap-3 border-0 border-b pb-4 @4xl:grid-cols-[1fr_2fr_1fr]"
+              [disabled]="saveMutation.isPending()"
+            >
+              <legend class="body-medium mb-3">Resource {{ index + 1 }}</legend>
+              <mat-form-field
+                ><mat-label>Name</mat-label
+                ><input matInput [formField]="resource.label" />
+                @for (error of resource.label().errors(); track error) {
+                  <mat-error>{{ error.message }}</mat-error>
                 }
+              </mat-form-field>
+              <mat-form-field
+                ><mat-label>Web or email address</mat-label
+                ><input matInput [formField]="resource.href" />
+                @for (error of resource.href().errors(); track error) {
+                  <mat-error>{{ error.message }}</mat-error>
+                }
+              </mat-form-field>
+              <app-icon-selector-field
+                [formField]="resource.icon"
+                [usage]="resourceIconUsage"
+              />
+              <div class="flex flex-wrap gap-2 @4xl:col-span-3">
+                <button
+                  mat-button
+                  type="button"
+                  [disabled]="index === 0 || saveMutation.isPending()"
+                  (click)="moveResource(index, -1)"
+                  [attr.aria-label]="'Move resource ' + (index + 1) + ' up'"
+                >
+                  Move up
+                </button>
+                <button
+                  mat-button
+                  type="button"
+                  [disabled]="
+                    index === resourceModel().resources.length - 1 ||
+                    saveMutation.isPending()
+                  "
+                  (click)="moveResource(index, 1)"
+                  [attr.aria-label]="'Move resource ' + (index + 1) + ' down'"
+                >
+                  Move down
+                </button>
+                <button
+                  mat-button
+                  type="button"
+                  [disabled]="saveMutation.isPending()"
+                  (click)="removeResource(index)"
+                  [attr.aria-label]="'Remove resource ' + (index + 1)"
+                >
+                  Remove
+                </button>
               </div>
-            }
+            </fieldset>
+          }
+          <button
+            mat-stroked-button
+            type="button"
+            [disabled]="
+              resourceModel().resources.length >= maxResources ||
+              saveMutation.isPending()
+            "
+            (click)="addResource()"
+          >
+            Add resource
+          </button>
+          <div class="mt-4 flex flex-wrap gap-3">
+            <button
+              mat-flat-button
+              type="submit"
+              [disabled]="resourceForm().invalid() || saveMutation.isPending()"
+            >
+              {{ saveMutation.isPending() ? "Saving…" : "Save resources" }}
+            </button>
+            <button
+              mat-button
+              type="button"
+              [disabled]="saveMutation.isPending()"
+              (click)="cancelResourceEdit()"
+            >
+              Cancel
+            </button>
           </div>
-        </div>
+        </form>
+      } @else if (resourcesQuery.isSuccess()) {
+        @if (resourcesQuery.data().length > 0) {
+          <mat-nav-list
+            style="margin: 4px"
+            aria-labelledby="hub-resources-heading"
+          >
+            @for (resource of resourcesQuery.data(); track $index) {
+              <a
+                mat-list-item
+                [href]="resource.href"
+                [attr.target]="
+                  resource.href.startsWith('mailto:') ? null : '_blank'
+                "
+                rel="noopener noreferrer"
+                [title]="resource.label"
+              >
+                <app-icon
+                  matListItemIcon
+                  [iconCommonName]="resource.icon"
+                  size="24"
+                  aria-hidden="true"
+                />
+                <span matListItemTitle>{{ resource.label }}</span>
+              </a>
+            }
+          </mat-nav-list>
+        } @else {
+          <p class="body-medium text-on-surface-variant p-4">
+            No resources added yet.
+          </p>
+        }
       }
-    </div>
-  } @else {
-    <div class="flex justify-center p-8">
-      <div class="text-on-surface-variant">Loading roles…</div>
-    </div>
+    </section>
   }
 </div>

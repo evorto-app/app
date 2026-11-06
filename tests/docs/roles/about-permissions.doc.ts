@@ -35,7 +35,7 @@ Permissions belong to an organization and are assigned through roles. A member r
 
 Some permissions automatically provide the other permissions needed to open and use the same area. Those additions appear below as **You also receive**, using the same names shown in the role editor.
 
-Evorto administrator access is separate from organization roles and cannot be granted in the role editor.
+Evorto administrator access is separate from organization roles and cannot be granted in the role editor. Evorto administrators receive every permission in every organization, including organizations where they have no membership or assigned role. This does not create a membership or an event ticket.
 
 ${permissionLines().join('\n')}
 `,

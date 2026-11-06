@@ -17,6 +17,7 @@ export const PROFILE_ROUTES: Routes = [
             (m) => m.ProfileEventsComponent,
           ),
         path: 'events',
+        title: 'My events',
       },
       {
         loadComponent: () =>
@@ -24,6 +25,7 @@ export const PROFILE_ROUTES: Routes = [
             (m) => m.ProfileDiscountsComponent,
           ),
         path: 'discounts',
+        title: 'My discounts',
       },
       {
         loadComponent: () =>
@@ -31,6 +33,7 @@ export const PROFILE_ROUTES: Routes = [
             (m) => m.ProfileReceiptsComponent,
           ),
         path: 'receipts',
+        title: 'My receipts',
       },
     ],
     loadComponent: () =>

@@ -20,7 +20,10 @@ const outboxRow = (page: Page, item: EmailOutboxScenarioItem) =>
     .getByRole('heading', { name: 'Delivery details' })
     .locator('..')
     .locator(':scope > div')
-    .filter({ has: page.getByRole('heading', { name: item.subject }) });
+    .filter({
+      has: page.getByRole('heading', { name: item.subject, exact: true }),
+    })
+    .filter({ hasText: item.tenantDomain });
 
 test('Review email delivery across organizations @admin @globalAdmin', async ({
   database,

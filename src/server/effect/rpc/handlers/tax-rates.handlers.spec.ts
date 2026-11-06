@@ -1,7 +1,7 @@
 import { expect, layer } from '@effect/vitest';
 import { Effect, Layer } from 'effect';
-import * as Headers from 'effect/unstable/http/Headers';
-import { Rpc, RpcMessage } from 'effect/unstable/rpc';
+import * as Headers from 'effect/http/Headers';
+import { Rpc, RpcMessage } from 'effect/rpc';
 
 import { type Permission } from '../../../../shared/permissions/permissions';
 import {

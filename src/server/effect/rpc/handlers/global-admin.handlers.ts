@@ -7,6 +7,7 @@ import type {
   GlobalAdminTenantWriteInput,
 } from '@shared/rpc-contracts/app-rpcs/global-admin.rpcs';
 
+import { isUniqueConstraintViolation } from '@db/sql-error';
 import {
   RpcBadRequestError,
   RpcForbiddenError,
@@ -68,7 +69,6 @@ import {
   tenantHasCurrencyDependentData,
 } from '../../../tenant-currency-integrity';
 import { richTextToPlainText } from '../../../utils/rich-text-sanitize';
-import { isUniqueConstraintViolation } from './events/database-constraint-errors';
 import { RpcAccess } from './shared/rpc-access.service';
 
 const databaseEffect = <A>(

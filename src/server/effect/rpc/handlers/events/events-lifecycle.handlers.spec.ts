@@ -1,4 +1,4 @@
-import type * as SqlConnection from 'effect/unstable/sql/SqlConnection';
+import type * as SqlConnection from 'effect/sql/SqlConnection';
 
 import { describe, expect, it } from '@effect/vitest';
 import { createDatabaseTestLayer } from '@server/testing/database-test-layer';
@@ -7,8 +7,8 @@ import { MAX_EVENT_ADDON_TYPES } from '@shared/registration-quantity-limits';
 import { MAX_REGISTRATION_QUESTIONS } from '@shared/registration-question-limits';
 import { EventsCreateRpcError } from '@shared/rpc-contracts/app-rpcs/events.errors';
 import { Effect, Layer, Schema } from 'effect';
-import * as Headers from 'effect/unstable/http/Headers';
-import { Rpc, RpcMessage } from 'effect/unstable/rpc';
+import * as Headers from 'effect/http/Headers';
+import { Rpc, RpcMessage } from 'effect/rpc';
 import { vi } from 'vitest';
 
 import { Database } from '../../../../../db';
@@ -282,7 +282,7 @@ const createGraphUpdateDatabase = ({
         sqlCalls(statement, parameters);
         if (
           statement.startsWith(
-            'select "d0"."creatorId" as "creatorId", "d0"."status" as "status"',
+            'select "d0"."creatorId" as "creatorId", "d0"."status"::text as "status"',
           )
         ) {
           expect(statement).toContain('from "event_instances" as "d0"');
@@ -2192,9 +2192,10 @@ describe('announcement discovery lifecycle', () => {
           'write',
         ]);
         expect(fixture.writes).toHaveBeenCalledTimes(1);
-        expect(fixture.writes.mock.calls[0]?.[1]).toContain(
-          '{"role-a","role-b"}',
-        );
+        expect(fixture.writes.mock.calls[0]?.[1]).toContainEqual([
+          'role-a',
+          'role-b',
+        ]);
         expect(fixture.transactionCommands).toEqual(['BEGIN', 'COMMIT']);
       }),
   );

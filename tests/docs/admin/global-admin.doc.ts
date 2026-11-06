@@ -341,7 +341,7 @@ Evorto administrators can review, create, and edit organizations from **Evorto a
   await expect(page).toHaveURL(/\/global-admin\/tenants\/[^/]+$/);
   await expect(
     page.getByText(
-      "Review this organization's settings and manage its events, members, roles, and finances.",
+      "Review this organization's settings. Open its website to manage events, templates, members, and finances.",
     ),
   ).toBeVisible();
   await expectGlobalAdminTenantRows(page, createdTenant);

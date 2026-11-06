@@ -9,9 +9,9 @@ import {
 import { RpcRequestContext } from '@shared/rpc-contracts/app-rpcs/rpc-request-context.middleware';
 import { getTableColumns } from 'drizzle-orm';
 import { Cause, Effect, Exit, Layer, Schema } from 'effect';
-import * as Headers from 'effect/unstable/http/Headers';
-import { Rpc, RpcMessage } from 'effect/unstable/rpc';
-import { SqlError, UniqueViolation } from 'effect/unstable/sql/SqlError';
+import * as Headers from 'effect/http/Headers';
+import { Rpc, RpcMessage } from 'effect/rpc';
+import { SqlError, UniqueViolation } from 'effect/sql/SqlError';
 
 import {
   roleTenantNameUniqueConstraintName,
@@ -45,6 +45,9 @@ const roleTenant = {
   emailSenderEmail: null,
   emailSenderName: null,
   faviconUrl: null,
+  footerLinks: [],
+  homePageUrl: null,
+  hubResources: [],
   id: 'tenant-target',
   legalNoticeText: null,
   legalNoticeUrl: null,
