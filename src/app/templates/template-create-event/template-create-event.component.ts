@@ -139,9 +139,10 @@ export const templateCreateEventErrorMessage = (error: unknown): string =>
 export class TemplateCreateEventComponent {
   protected readonly templateId = input.required<string>();
   private readonly operations = inject(TemplateCreateEventOperations);
-  protected readonly templateQuery = injectQuery(() =>
-    this.operations.findTemplate(this.templateId()),
-  );
+  protected readonly templateQuery = injectQuery(() => ({
+    ...this.operations.findTemplate(this.templateId()),
+    retryOnMount: false,
+  }));
   protected readonly taxRatesQuery = injectQuery(() =>
     this.operations.taxRates(),
   );
@@ -262,6 +263,7 @@ export class TemplateCreateEventComponent {
     effect(() => {
       if (!this.templateQuery.isSuccess()) return;
       const template = this.templateQuery.data();
+      this.config.updateTitle(`Create event from ${template.title}`);
       if (this.initializedTemplateId() === template.id) return;
       const startDateTime = this.toDateTime(
         untracked(() => this.createEventForm.start().value()),

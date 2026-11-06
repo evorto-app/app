@@ -233,7 +233,8 @@ describe('TemplateCreateEventComponent load recovery', () => {
           provide: ConfigService,
           useValue: {
             tenantSignal: signal<ClientTenantConfig | null>(tenantConfig),
-          } satisfies Pick<ConfigService, 'tenantSignal'>,
+            updateTitle: vi.fn(),
+          } satisfies Pick<ConfigService, 'tenantSignal' | 'updateTitle'>,
         },
         {
           provide: TemplateCreateEventOperations,
@@ -268,41 +269,54 @@ describe('TemplateCreateEventComponent load recovery', () => {
     TestBed.resetTestingModule();
   });
 
-  it('announces a failed first load and retries the template query', async () => {
-    findTemplate
-      .mockRejectedValueOnce(new Error('Template unavailable'))
-      .mockReturnValue(
-        new Promise(() => {
-          // Keep the retry in flight so the retry state remains observable.
-        }),
+  it.each([false, true])(
+    'announces a failed load and retries explicitly (prefetched: %s)',
+    async (prefetched) => {
+      findTemplate
+        .mockRejectedValueOnce(new Error('Template unavailable'))
+        .mockResolvedValue(templateWithoutOptions);
+
+      if (prefetched) {
+        await queryClient.prefetchQuery({
+          gcTime: Infinity,
+          queryFn: findTemplate,
+          queryKey: ['template', 'template-1'],
+        });
+      }
+
+      const fixture = TestBed.createComponent(TemplateCreateEventComponent);
+      fixture.componentRef.setInput('templateId', 'template-1');
+      fixture.detectChanges();
+
+      await vi.waitFor(() => {
+        fixture.detectChanges();
+        expect(normalizeText(fixture)).toContain(
+          'Template could not be loaded',
+        );
+      });
+
+      const alert: HTMLElement | null =
+        fixture.nativeElement.querySelector('[role="alert"]');
+      expect(alert?.textContent).toContain(
+        'The event form cannot be prepared until the selected template is available.',
       );
+      expect(normalizeText(fixture)).toContain('Create event');
+      expect(findTemplate).toHaveBeenCalledOnce();
 
-    const fixture = TestBed.createComponent(TemplateCreateEventComponent);
-    fixture.componentRef.setInput('templateId', 'template-1');
-    fixture.detectChanges();
+      const retryButton: HTMLButtonElement | null =
+        alert?.querySelector('button') ?? null;
+      expect(retryButton?.textContent?.trim()).toBe('Try again');
+      retryButton?.click();
 
-    await vi.waitFor(() => {
-      fixture.detectChanges();
-      expect(normalizeText(fixture)).toContain('Template could not be loaded');
-    });
-
-    const alert: HTMLElement | null =
-      fixture.nativeElement.querySelector('[role="alert"]');
-    expect(alert?.textContent).toContain(
-      'The event form cannot be prepared until the selected template is available.',
-    );
-    expect(normalizeText(fixture)).toContain('Create event');
-
-    const retryButton: HTMLButtonElement | null =
-      alert?.querySelector('button') ?? null;
-    expect(retryButton?.textContent?.trim()).toBe('Try again');
-    retryButton?.click();
-
-    await vi.waitFor(() => {
-      fixture.detectChanges();
-      expect(findTemplate).toHaveBeenCalledTimes(2);
-    });
-  });
+      await vi.waitFor(() => {
+        fixture.detectChanges();
+        expect(findTemplate).toHaveBeenCalledTimes(2);
+        expect(TestBed.inject(ConfigService).updateTitle).toHaveBeenCalledWith(
+          `Create event from ${templateWithoutOptions.title}`,
+        );
+      });
+    },
+  );
 
   it('announces a failed submission while retaining entries and enabling retry', async () => {
     findTemplate.mockResolvedValue({
