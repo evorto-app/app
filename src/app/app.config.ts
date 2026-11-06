@@ -25,6 +25,7 @@ import { provideAnimationsAsync } from '@angular/platform-browser/animations/asy
 import {
   type ActivatedRouteSnapshot,
   provideRouter,
+  TitleStrategy,
   withComponentInputBinding,
   withInMemoryScrolling,
   withRouterConfig,
@@ -43,6 +44,7 @@ import { authTokenInterceptor } from './core/auth-token.interceptor';
 import { BrowserErrorHandler } from './core/browser-error-handler';
 import { ConfigService } from './core/config.service';
 import { AppRpc, resolveRpcUrl } from './core/effect-rpc-angular-client';
+import { PageTitleStrategy } from './core/page-title-strategy';
 import { TENANT_DATE_PIPE_TIMEZONE } from './core/tenant-date.pipe';
 import { TenantLuxonDateAdapter } from './core/tenant-luxon-date-adapter';
 import {
@@ -66,6 +68,7 @@ const hasEventShapeMorph = (route: ActivatedRouteSnapshot): boolean =>
 
 export const appConfig: ApplicationConfig = {
   providers: [
+    { provide: TitleStrategy, useClass: PageTitleStrategy },
     provideAppInitializer(() => registerLocaleData(localeDe)),
     provideAnimationsAsync(),
     provideZonelessChangeDetection(),

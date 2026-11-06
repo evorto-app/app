@@ -60,7 +60,10 @@ import {
   EventReviewDialogComponent,
   type EventReviewDialogData,
 } from '../event-review-dialog/event-review-dialog.component';
-import { eventReviewActionErrorRequiresRefresh } from '../event-rpc-error';
+import {
+  eventLoadErrorTitle,
+  eventReviewActionErrorRequiresRefresh,
+} from '../event-rpc-error';
 import { SubmitEventDialogComponent } from '../submit-event-dialog/submit-event-dialog.component';
 import {
   UpdateAnnouncementDiscoveryDialogComponent,
@@ -519,10 +522,12 @@ export class EventDetailsComponent {
     afterNextRender(() => this.controlsInteractive.set(true));
 
     effect(() => {
-      const event = this.eventQuery.data();
-      if (event) {
+      if (this.eventQuery.isSuccess()) {
+        const event = this.eventQuery.data();
         this.config.updateTitle(event.title);
         this.config.updateDescription(convert(event.description));
+      } else if (this.eventQuery.isError()) {
+        this.config.updateTitle(eventLoadErrorTitle(this.eventQuery.error()));
       }
     });
   }

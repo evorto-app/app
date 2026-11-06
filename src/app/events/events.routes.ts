@@ -14,21 +14,25 @@ export const EVENT_ROUTES: Routes = [
             (m) => m.EventDetailsComponent,
           ),
         path: ':eventId',
-        resolve: { eventReady: eventDetailsReadyResolver },
+        title: eventDetailsReadyResolver,
       },
       {
         canActivate: [eventOrganizerGuard],
+        data: { eventTitleAction: 'Organize' },
         loadComponent: () =>
           import('./event-organize/event-organize').then(
             (m) => m.EventOrganize,
           ),
         path: ':eventId/organize',
+        title: eventDetailsReadyResolver,
       },
       {
         canActivate: [eventEditGuard],
+        data: { eventTitleAction: 'Edit' },
         loadComponent: () =>
           import('./event-edit/event-edit').then((m) => m.EventEdit),
         path: ':eventId/edit',
+        title: eventDetailsReadyResolver,
       },
     ],
     loadComponent: () =>

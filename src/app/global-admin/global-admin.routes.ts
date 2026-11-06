@@ -12,6 +12,7 @@ export const GLOBAL_ADMIN_ROUTES: Routes = [
             (m) => m.PlatformAuditComponent,
           ),
         path: 'audit',
+        title: 'Platform audit',
       },
       {
         loadComponent: () =>
@@ -19,6 +20,7 @@ export const GLOBAL_ADMIN_ROUTES: Routes = [
             (m) => m.TenantCreateComponent,
           ),
         path: 'tenants/create',
+        title: 'Create organization',
       },
       {
         loadComponent: () =>
@@ -26,6 +28,7 @@ export const GLOBAL_ADMIN_ROUTES: Routes = [
             (m) => m.TenantEditComponent,
           ),
         path: 'tenants/:tenantId/edit',
+        title: 'Edit organization',
       },
       {
         loadComponent: () =>
@@ -33,6 +36,7 @@ export const GLOBAL_ADMIN_ROUTES: Routes = [
             (m) => m.PlatformFinanceComponent,
           ),
         path: 'tenants/:tenantId/payment-support',
+        title: 'Payment recovery',
       },
       {
         loadComponent: () =>
@@ -40,6 +44,7 @@ export const GLOBAL_ADMIN_ROUTES: Routes = [
             (m) => m.TenantDetailComponent,
           ),
         path: 'tenants/:tenantId',
+        title: 'Organization details',
       },
       {
         loadComponent: () =>
@@ -47,6 +52,7 @@ export const GLOBAL_ADMIN_ROUTES: Routes = [
             (m) => m.EmailOutboxComponent,
           ),
         path: 'email-outbox',
+        title: 'Email delivery',
       },
       {
         loadComponent: () =>
@@ -54,6 +60,7 @@ export const GLOBAL_ADMIN_ROUTES: Routes = [
             (m) => m.TenantListComponent,
           ),
         path: 'tenants',
+        title: 'Organizations',
       },
     ],
     loadComponent: () =>

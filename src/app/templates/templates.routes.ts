@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 
 import { permissionGuard } from '../core/guards/permission.guard';
+import { templateTitleResolver } from './template-title.resolver';
 
 export const TEMPLATE_ROUTES: Routes = [
   {
@@ -15,6 +16,7 @@ export const TEMPLATE_ROUTES: Routes = [
             (m) => m.TemplateCreateComponent,
           ),
         path: 'create',
+        title: 'Create template',
       },
       {
         canActivate: [permissionGuard],
@@ -26,6 +28,7 @@ export const TEMPLATE_ROUTES: Routes = [
             (m) => m.TemplateCreateComponent,
           ),
         path: 'create/:categoryId',
+        title: 'Create template',
       },
       {
         loadComponent: () =>
@@ -33,6 +36,7 @@ export const TEMPLATE_ROUTES: Routes = [
             (m) => m.CategoryListComponent,
           ),
         path: 'categories',
+        title: 'Template categories',
       },
       {
         loadComponent: () =>
@@ -40,11 +44,13 @@ export const TEMPLATE_ROUTES: Routes = [
             (m) => m.TemplateDetailsComponent,
           ),
         path: ':templateId',
+        title: templateTitleResolver,
       },
       {
         canActivate: [permissionGuard],
         data: {
           permissions: ['templates:editAll', 'templates:view'],
+          templateTitleAction: 'Edit template:',
         },
         loadComponent: () =>
           import('./template-edit/template-edit.component').then(
@@ -52,17 +58,20 @@ export const TEMPLATE_ROUTES: Routes = [
           ),
 
         path: ':templateId/edit',
+        title: templateTitleResolver,
       },
       {
         canActivate: [permissionGuard],
         data: {
           permissions: ['events:create'],
+          templateTitleAction: 'Create event from',
         },
         loadComponent: () =>
           import('./template-create-event/template-create-event.component').then(
             (m) => m.TemplateCreateEventComponent,
           ),
         path: ':templateId/create-event',
+        title: templateTitleResolver,
       },
     ],
     loadComponent: () =>

@@ -16,6 +16,7 @@ export const FINANCE_ROUTES: Routes = [
             (m) => m.TransactionListComponent,
           ),
         path: 'transactions',
+        title: 'Transactions',
       },
       {
         canActivate: [permissionGuard],
@@ -27,6 +28,7 @@ export const FINANCE_ROUTES: Routes = [
             (m) => m.ReceiptApprovalListComponent,
           ),
         path: 'receipts-approval',
+        title: 'Receipt approvals',
       },
       {
         canActivate: [permissionGuard],
@@ -38,6 +40,7 @@ export const FINANCE_ROUTES: Routes = [
             (m) => m.ReceiptApprovalDetailComponent,
           ),
         path: 'receipts-approval/:receiptId',
+        title: 'Review receipt',
       },
       {
         canActivate: [permissionGuard],
@@ -49,6 +52,7 @@ export const FINANCE_ROUTES: Routes = [
             (m) => m.ReceiptRefundListComponent,
           ),
         path: 'receipts-refunds',
+        title: 'Receipt reimbursements',
       },
     ],
     data: {

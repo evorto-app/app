@@ -14,7 +14,6 @@ import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faClock } from '@fortawesome/duotone-regular-svg-icons';
 
-import { ConfigService } from '../../core/config.service';
 import {
   TENANT_DATE_PIPE_TIMEZONE,
   TenantDatePipe,
@@ -116,10 +115,8 @@ export class EventListComponent {
         )
       : null;
   });
-  private readonly config = inject(ConfigService);
 
   constructor() {
-    this.config.updateTitle('Events');
     afterNextRender(() => this.previewReady.set(true));
     effect((onCleanup) => {
       const count = this.previews.events().length;

@@ -17,6 +17,7 @@ export const ADMIN_ROUTES: Routes = [
             (m) => m.RoleListComponent,
           ),
         path: 'roles',
+        title: 'Roles',
       },
       {
         canActivate: [permissionGuard],
@@ -28,6 +29,7 @@ export const ADMIN_ROUTES: Routes = [
             (m) => m.RoleCreateComponent,
           ),
         path: 'roles/create',
+        title: 'Create role',
       },
       {
         canActivate: [permissionGuard],
@@ -39,6 +41,7 @@ export const ADMIN_ROUTES: Routes = [
             (m) => m.RoleDetailsComponent,
           ),
         path: 'roles/:roleId',
+        title: 'Role details',
       },
       {
         canActivate: [permissionGuard],
@@ -50,6 +53,7 @@ export const ADMIN_ROUTES: Routes = [
             (m) => m.RoleEditComponent,
           ),
         path: 'roles/:roleId/edit',
+        title: 'Edit role',
       },
       {
         canActivate: [permissionGuard],
@@ -61,6 +65,7 @@ export const ADMIN_ROUTES: Routes = [
             (m) => m.OnboardingSettingsComponent,
           ),
         path: 'onboarding',
+        title: 'Member onboarding',
       },
       {
         canActivate: [permissionGuard],
@@ -73,6 +78,7 @@ export const ADMIN_ROUTES: Routes = [
             (m) => m.AppearanceSettingsComponent,
           ),
         path: 'settings/appearance',
+        title: 'Appearance',
       },
       {
         canActivate: [permissionGuard],
@@ -85,6 +91,7 @@ export const ADMIN_ROUTES: Routes = [
             (m) => m.LegalSettingsComponent,
           ),
         path: 'settings/legal',
+        title: 'Legal settings',
       },
       {
         canActivate: [permissionGuard],
@@ -97,6 +104,7 @@ export const ADMIN_ROUTES: Routes = [
             (m) => m.PaymentProviderSettingsComponent,
           ),
         path: 'settings/payments',
+        title: 'Payment settings',
       },
       {
         canActivate: [permissionGuard],
@@ -109,6 +117,7 @@ export const ADMIN_ROUTES: Routes = [
             (m) => m.RegistrationSettingsComponent,
           ),
         path: 'settings/registration',
+        title: 'Sign-up settings',
       },
       {
         canActivate: [permissionGuard],
@@ -121,6 +130,7 @@ export const ADMIN_ROUTES: Routes = [
             (m) => m.OrganizationSettingsComponent,
           ),
         path: 'settings',
+        title: 'Organization settings',
       },
       {
         canActivate: [permissionGuard],
@@ -132,6 +142,7 @@ export const ADMIN_ROUTES: Routes = [
             (m) => m.TaxRatesSettingsComponent,
           ),
         path: 'tax-rates',
+        title: 'Tax rates',
       },
       {
         canActivate: [permissionGuard],
@@ -143,6 +154,7 @@ export const ADMIN_ROUTES: Routes = [
             (m) => m.UserListComponent,
           ),
         path: 'users',
+        title: 'Members',
       },
       {
         canActivate: [permissionGuard],
@@ -154,6 +166,7 @@ export const ADMIN_ROUTES: Routes = [
             (m) => m.EventReviewsComponent,
           ),
         path: 'event-reviews',
+        title: 'Event reviews',
       },
     ],
     data: {

@@ -1,5 +1,6 @@
 import { DOCUMENT, PLATFORM_ID, REQUEST_CONTEXT } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { Title } from '@angular/platform-browser';
 import {
   provideTanStackQuery,
   QueryClient,
@@ -113,6 +114,39 @@ describe('ConfigService theme initialization', () => {
     }
     queryClient.clear();
     TestBed.resetTestingModule();
+  });
+
+  it('preserves the server-rendered title until browser navigation supplies a title', async () => {
+    const config = configure();
+    TestBed.inject(Title).setTitle('Lakeside picnic | Section');
+    await config.initialize();
+    TestBed.tick();
+    expect(TestBed.inject(Title).getTitle()).toBe('Lakeside picnic | Section');
+  });
+
+  it('preserves the selected page when tenant settings refresh and uses the new tenant name', async () => {
+    const config = configure();
+    await config.initialize();
+    config.updateTitle('Lakeside picnic');
+    queryClient.setQueryData(['config', 'tenant'], {
+      ...toClientTenantConfig(createTenant('esn')),
+      name: 'Renamed section',
+    });
+
+    await vi.waitFor(() => {
+      TestBed.tick();
+      expect(TestBed.inject(Title).getTitle()).toBe(
+        'Lakeside picnic | Renamed section',
+      );
+    });
+  });
+
+  it('clears the previous page title when navigation has no page title', async () => {
+    const config = configure();
+    await config.initialize();
+    config.updateTitle('Lakeside picnic');
+    config.updateTitle(null);
+    expect(TestBed.inject(Title).getTitle()).toBe('Section');
   });
 
   it('fails visibly when Angular did not provide request context', async () => {
