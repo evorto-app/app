@@ -54,7 +54,7 @@
     </div>
   } @else if (templateQuery.isSuccess()) {
     <form
-      [inert]="!controlsInteractive()"
+      [attr.inert]="!controlsInteractive() || null"
       (submit)="onSubmit($event)"
       [attr.aria-busy]="
         createEventForm().submitting() || createEventMutation.isPending()

@@ -185,7 +185,13 @@ for (const scenario of [
     await templateLink.click();
     await expect(page).toHaveURL(`/templates/${template.id}`);
     await page.getByRole('link', { name: 'Create event', exact: true }).click();
-    await page.getByLabel('Event title', { exact: true }).fill(title);
+    const creationForm = page.locator('form').filter({
+      has: page.getByRole('textbox', { name: 'Event title', exact: true }),
+    });
+    await expect(creationForm).not.toHaveAttribute('inert');
+    await page
+      .getByRole('textbox', { name: 'Event title', exact: true })
+      .fill(title);
     const optionForm = page.locator('app-registration-option-form').filter({
       has: page.getByRole('heading', {
         name: participantOption.title,
@@ -221,14 +227,20 @@ for (const scenario of [
     await expect(createButton).toBeEnabled();
     await createButton.click();
     await expect(page).toHaveURL(/\/events\/[^/]+$/, { timeout: 20_000 });
-    await expect(
-      page.getByRole('heading', { name: title, exact: true }).last(),
-    ).toBeVisible();
-
+    const createdEventId = new URL(page.url()).pathname.split('/').at(-1);
+    if (!createdEventId) throw new Error('Expected the created event URL');
     const createdEvent = await database.query.eventInstances.findFirst({
-      where: { templateId: template.id, tenantId: tenant.id, title },
+      where: { id: createdEventId, tenantId: tenant.id },
     });
     if (!createdEvent) throw new Error('Expected the event to be created.');
+    expect(createdEvent.title).toBe(title);
+    expect(createdEvent.templateId).toBe(template.id);
+    await expect(page).toHaveURL(`/events/${createdEvent.id}`);
+    await expect(
+      page
+        .getByRole('region', { name: 'Selected event', exact: true })
+        .getByRole('heading', { level: 1 }),
+    ).toHaveText(title);
     const createdOption =
       await database.query.eventRegistrationOptions.findFirst({
         where: { eventId: createdEvent.id, organizingRegistration: false },

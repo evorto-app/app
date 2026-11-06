@@ -138,7 +138,11 @@ export const templateCreateEventErrorMessage = (error: unknown): string =>
   templateUrl: './template-create-event.component.html',
 })
 export class TemplateCreateEventComponent {
-  protected readonly controlsInteractive = signal(false);
+  protected readonly controlsInteractive = computed(
+    () =>
+      this.clientRendered() &&
+      this.initializedTemplateId() === this.templateId(),
+  );
   protected readonly templateId = input.required<string>();
   private readonly operations = inject(TemplateCreateEventOperations);
   protected readonly templateQuery = injectQuery(() => ({
@@ -255,6 +259,7 @@ export class TemplateCreateEventComponent {
   );
   protected readonly templateCreateEventSubmitDisabled =
     templateCreateEventSubmitDisabled;
+  private readonly clientRendered = signal(false);
   private readonly initializedTemplateId = signal<null | string>(null);
   private readonly lastStart = signal<DateTime | null>(null);
 
@@ -262,7 +267,7 @@ export class TemplateCreateEventComponent {
   private readonly router = inject(Router);
 
   constructor() {
-    afterNextRender(() => this.controlsInteractive.set(true));
+    afterNextRender(() => this.clientRendered.set(true));
     effect(() => {
       if (!this.templateQuery.isSuccess()) return;
       const template = this.templateQuery.data();

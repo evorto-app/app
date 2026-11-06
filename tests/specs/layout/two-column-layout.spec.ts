@@ -13,7 +13,7 @@ test('template header and footer remain visible while its list scrolls', async (
     where: { tenantId: tenant.id },
   });
   if (!template) throw new Error('Expected a template');
-  await page.goto(`/templates/${template.id}`);
+  await page.goto(`/templates/${template.id}`, { waitUntil: 'networkidle' });
   const list = page.getByRole('region', { name: 'Template list', exact: true });
   const detail = page.getByRole('region', {
     name: 'Selected template',
@@ -25,8 +25,14 @@ test('template header and footer remain visible while its list scrolls', async (
   });
   await expect(heading).toBeVisible();
   await expect(list.getByRole('link', { name: template.title })).toBeVisible();
+  await expect
+    .poll(() =>
+      list.evaluate((element) => element.scrollHeight > element.clientHeight),
+    )
+    .toBe(true);
   const headingTop = (await heading.boundingBox())?.y;
   await list.focus();
+  await expect(list).toBeFocused();
   await page.keyboard.press('PageDown');
   await expect
     .poll(() => list.evaluate((element) => element.scrollTop))

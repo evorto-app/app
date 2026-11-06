@@ -2,4 +2,4 @@
 default: patch
 ---
 
-Keep the event-creation form inert until its client handlers are ready, preventing a premature native submission from putting form entries in the URL.
+Keep the event-creation form inert until its initial template values and client handlers are ready. Prevent premature native submissions from putting form entries in the URL or initial loading from replacing the user's input.
