@@ -16,7 +16,7 @@ export const isTenantFooterHref = (value: string): boolean => {
     const url = new URL(value);
     if (url.username || url.password) return false;
     return url.protocol === 'https:' || url.protocol === 'http:'
-      ? Boolean(url.hostname)
+      ? /^https?:\/\//i.test(value) && Boolean(url.hostname)
       : url.protocol === 'mailto:' &&
           /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(url.pathname);
   } catch {

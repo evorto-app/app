@@ -503,6 +503,9 @@ describe('public footer link configuration', () => {
     '//example.org',
     'https://user:password@example.org',
     'mailto:',
+    'https:community.example.org',
+    'https:/community.example.org',
+    'http:community.example.org',
   ])('rejects unsafe footer destination %s', (href) => {
     expect(
       Schema.is(AdminTenantUpdateAppearanceSettingsInput)({

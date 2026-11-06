@@ -26,6 +26,9 @@ describe('hub resource input', () => {
     'https://user:password@example.org',
     'https://example.org\n',
     '/internal',
+    'https:community.example.org',
+    'https:/community.example.org',
+    'http:community.example.org',
   ])('rejects unsafe or ambiguous destinations: %s', (href) => {
     expect(() =>
       decode([
