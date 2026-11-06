@@ -3,9 +3,11 @@
     class="grid items-start gap-4 @4xl:grid-cols-[minmax(0,1fr)_minmax(20rem,28rem)]"
   >
     <div
-      class="contents @4xl:order-2 @4xl:sticky @4xl:top-4 @4xl:grid @4xl:gap-4"
+      class="contents @4xl:bg-surface @4xl:text-on-surface @4xl:order-2 @4xl:sticky @4xl:top-4 @4xl:grid @4xl:min-w-0 @4xl:gap-5 @4xl:rounded-xl @4xl:p-6"
     >
-      <section class="order-1 p-4">
+      <section
+        class="bg-surface text-on-surface order-1 min-w-0 rounded-xl p-4 sm:p-6 @4xl:rounded-none @4xl:bg-transparent @4xl:p-0"
+      >
         <h2 class="headline-small mb-4">Your sign-up</h2>
         @for (
           registration of registrations();
@@ -13,7 +15,10 @@
           let first = $first
         ) {
           @let audience = registrationAudienceCopy(registration);
-          <article class="grid grid-cols-1 gap-4 py-5" [class.pt-0]="first">
+          <article
+            class="grid grid-cols-1 gap-4 py-4 last:pb-0"
+            [class.pt-0]="first"
+          >
             @if (registration.status !== "CONFIRMED") {
               <div
                 class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1"
@@ -179,7 +184,9 @@
           </article>
         }
       </section>
-      <section class="order-3 p-4">
+      <section
+        class="bg-surface text-on-surface order-3 grid min-w-0 gap-6 rounded-xl p-4 sm:p-6 @4xl:rounded-none @4xl:bg-transparent @4xl:p-0"
+      >
         @for (registration of registrations(); track registration.id) {
           <div class="grid gap-4">
             @if (!registration.activeTransfer) {
@@ -188,6 +195,7 @@
                   <button
                     mat-stroked-button
                     type="button"
+                    class="w-full"
                     (click)="transferRegistration(registration)"
                     [disabled]="
                       registrationTransferActionDisabled({
