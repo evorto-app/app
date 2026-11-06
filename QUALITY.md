@@ -230,7 +230,7 @@ Use screenshots for visible UI changes.
 Use Browser verification for:
 
 - layout changes
-- Material 3 component behavior
+- Angular Material component behavior
 - Tailwind responsive behavior
 - forms
 - modals/dialogs

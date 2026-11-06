@@ -5,6 +5,28 @@ description: Project-specific UI and styling guidance for Evorto, including when
 
 # Project Design
 
+## Taste Integration
+
+Use `design-taste-frontend` for UI composition, hierarchy, density, and visual critique.
+It replaces the project's former `uncodixfy` and `material-3` skills.
+
+1. Read `PRODUCT.md`, `ARCHITECTURE.md`, `QUALITY.md`, and the nearest app guidance before changing UI.
+2. For event lists/details, registration, forms, admin, and other working screens, read Taste's `references/app-screens.md` in full. Use the marketing-page workflow only for actual marketing pages.
+3. Audit the existing screen first. State the user's main task, real content and states, and the intended improvement. For a component change, match its surroundings; skip a new design draw unless a direction is missing. For a broader design draw, retain the existing palette and typography with `--keep palette,type` and adapt composition to the current shell.
+4. Preserve Angular, Angular Material components, Font Awesome Duotone icons, semantic theme tokens, tenant branding, routes, forms, and working flows. Project requirements take precedence over upstream aesthetic defaults. Do not introduce React, a replacement component library, random palettes/fonts, invented product data, or decorative motion to satisfy a visual quota.
+5. Keep decision-relevant status labels, eligibility/payment guidance, accessible field help, and useful repeated lists or panels. Taste's marketing-page bans must not erase meaningful application UI.
+6. Verify visible changes in the browser at desktop and mobile sizes and in relevant themes and states. Follow `QUALITY.md` for durable behavior coverage. Use Taste's app inspector where compatible; its phrase scanners and visual quotas are advisory when they conflict with product or accessibility requirements. Report checks actually run and explain any relevant exception.
+
+### Installation and Updates
+
+Manage third-party project skills with `npx skills`. Keep the upstream Taste files unchanged and put Evorto-specific adaptations here so updates retain them.
+
+```bash
+npx skills add Leonxlnx/taste-skill --skill design-taste-frontend --agent codex --yes
+```
+
+Commit the installed skill directory and `skills-lock.json` together so another checkout retains the skill and its source metadata. If npm rejects this repository's Bun-style dependency overrides, use `npx --prefix /tmp --yes skills add ...` from the project root; the skill remains project-local.
+
 ## Container Queries
 
 Use viewport queries for page-level layout changes and container queries for component-level adaptation.
@@ -37,7 +59,7 @@ Use viewport queries for page-level layout changes and container queries for com
 
 ## Material Theming (Tailwind-First)
 
-In this project, Material theming is consumed primarily through Tailwind tokens defined in `/Users/hedde/code/evorto/src/tailwind.css`, not through Angular Material utility classes.
+In this project, Material theming is consumed primarily through Tailwind tokens defined in `src/tailwind.css`, not through Angular Material utility classes.
 
 ### Rules
 

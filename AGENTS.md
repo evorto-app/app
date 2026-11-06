@@ -125,7 +125,8 @@ standalone inspection. Child commands preserve process environment values over
 - Angular app guidance lives in `src/app/AGENTS.md`.
 - Server/runtime guidance lives in `src/server/AGENTS.md`.
 - Database guidance lives in `src/db/AGENTS.md`.
-- Use Angular Material components, Material 3 design direction, and Tailwind styling.
+- Use Angular Material components and Tailwind styling with the existing semantic theme tokens.
+- For UI design, refinement, and review, read `.agents/skills/design-taste-frontend/SKILL.md` and `.agents/skills/project-design/SKILL.md`. Taste replaces the former `uncodixfy` and `material-3` skills; project requirements govern stack, tokens, accessibility, and behavior.
 - Use Effect RPC and Effect Schema for API boundaries.
 - Use Drizzle as the source of truth for persisted shapes.
 - Use Stripe as the source of truth for payment state.

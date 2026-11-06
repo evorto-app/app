@@ -31,7 +31,7 @@ Do not casually replace these choices:
 - Angular SSR
 - cookie-based authentication
 - Angular Material for components
-- Material 3 design direction
+- Taste-guided UI composition within the existing semantic theme tokens
 - Tailwind for styling/layout utilities
 - TanStack Query for client data/query state
 - Effect v4
@@ -111,7 +111,7 @@ The Angular app should follow the repo's app guidance:
 - native control flow
 - Signal Forms for new form work
 - Angular Material components where suitable
-- Material 3 design direction
+- Taste app-screen guidance, adapted through the `project-design` skill
 - Tailwind for styling and responsive layout
 - Font Awesome Duotone icons through `<fa-duotone-icon>`
 - no new `<mat-icon>` usage

@@ -26,6 +26,7 @@
 
 ## UI & Design System
 
+- Read the `design-taste-frontend` and `project-design` skills before UI design, refinement, or review. For application screens, follow Taste's `references/app-screens.md`; the marketing-page workflow applies only to actual marketing pages.
 - Prefer spacing and tonal surfaces over bordered card wrappers. Do not surround ordinary page sections, ticket actions, or already-distinct surfaces with outlined cards. Use cards only when the content needs that component.
 
 - Keep implementation details out of visible copy, badges, tooltips, accessible names, and errors. Explain what happened and what the user can do. Before adding explanatory UI, identify the decision it helps this viewer make; omit it if there is none. Configuration explanations belong beside the authorized management control, not on attendee cards.
