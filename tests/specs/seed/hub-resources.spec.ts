@@ -5,6 +5,7 @@ import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
 
 test.use({ storageState: organizerStateFile });
+test.setTimeout(60_000);
 test('members view resources; an explicit manager can maintain ordered links without overwriting another editor', async ({
   page,
   database,
@@ -115,7 +116,9 @@ test('members view resources; an explicit manager can maintain ordered links wit
     'Section calendar',
     'Shared documents',
   ]);
+  await expect(manage).not.toHaveAttribute('jsaction', /click/);
   await manage.click();
+  await expect(first).toBeVisible();
   await first.getByLabel('Name', { exact: true }).fill('My draft');
   const concurrent = [
     {

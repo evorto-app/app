@@ -3,6 +3,7 @@ import { organizerStateFile } from '../../../helpers/user-data';
 import type { Locator, Page } from '@playwright/test';
 import { DateTime } from 'luxon';
 import { expect, test } from '../../support/fixtures/axe-test';
+import { waitForEventCreationFormReady } from '../../support/utils/event-creation-form';
 
 test.setTimeout(120_000);
 
@@ -278,6 +279,7 @@ test('create event form template', async ({ database, page, templates }) => {
   await page.getByRole('link', { name: template.title }).click();
   await page.getByRole('link', { name: 'Create event' }).click();
   await expect(page).toHaveURL(`/templates/${template.id}/create-event`);
+  await waitForEventCreationFormReady(page);
   await expect(page.getByLabel('Event title')).toHaveValue(template.title, {
     timeout: 20_000,
   });

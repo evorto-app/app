@@ -4,6 +4,7 @@ import { getId } from '../../../helpers/get-id';
 import { organizerStateFile } from '../../../helpers/user-data';
 import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
+import { waitForEventCreationFormReady } from '../../support/utils/event-creation-form';
 
 test.use({ storageState: organizerStateFile });
 
@@ -185,10 +186,7 @@ for (const scenario of [
     await templateLink.click();
     await expect(page).toHaveURL(`/templates/${template.id}`);
     await page.getByRole('link', { name: 'Create event', exact: true }).click();
-    const creationForm = page.locator('form').filter({
-      has: page.getByRole('textbox', { name: 'Event title', exact: true }),
-    });
-    await expect(creationForm).not.toHaveAttribute('inert');
+    await waitForEventCreationFormReady(page);
     await page
       .getByRole('textbox', { name: 'Event title', exact: true })
       .fill(title);

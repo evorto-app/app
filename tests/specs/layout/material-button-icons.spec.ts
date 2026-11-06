@@ -9,6 +9,9 @@ const expectIconBesideLabel = async (
   size = 24,
 ) => {
   await expect(action).toBeVisible();
+  await action.evaluate(async () => {
+    await document.fonts.ready;
+  });
   const icon = action.locator('fa-duotone-icon, fa-icon');
   const label = action.getByText(labelText, { exact: true });
   const iconBox = await icon.boundingBox();
