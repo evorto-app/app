@@ -1,4 +1,5 @@
 import {
+  afterNextRender,
   ChangeDetectionStrategy,
   Component,
   computed,
@@ -137,6 +138,7 @@ export const templateCreateEventErrorMessage = (error: unknown): string =>
   templateUrl: './template-create-event.component.html',
 })
 export class TemplateCreateEventComponent {
+  protected readonly controlsInteractive = signal(false);
   protected readonly templateId = input.required<string>();
   private readonly operations = inject(TemplateCreateEventOperations);
   protected readonly templateQuery = injectQuery(() => ({
@@ -260,6 +262,7 @@ export class TemplateCreateEventComponent {
   private readonly router = inject(Router);
 
   constructor() {
+    afterNextRender(() => this.controlsInteractive.set(true));
     effect(() => {
       if (!this.templateQuery.isSuccess()) return;
       const template = this.templateQuery.data();
