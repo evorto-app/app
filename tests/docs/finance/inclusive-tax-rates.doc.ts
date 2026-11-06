@@ -6,6 +6,7 @@ import { taxRateRegionLabel } from '../../../src/app/core/geography-labels';
 import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
+import { waitForEventCreationFormReady } from '../../support/utils/event-creation-form';
 
 test.describe.configure({ mode: 'default' });
 
@@ -530,6 +531,7 @@ Paid organizer tickets require a compatible inclusive tax rate. Select the inten
     ).toBeVisible();
 
     await page.getByRole('link', { name: 'Create event' }).click();
+    await waitForEventCreationFormReady(page);
 
     const eventForm = page.locator('app-event-general-form');
     const futureStart = DateTime.fromJSDate(seedDate).plus({ days: 7 });

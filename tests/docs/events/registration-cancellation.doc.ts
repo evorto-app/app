@@ -1378,9 +1378,11 @@ When the safe automatic checks have stopped, open the organization's **Payment s
     await expect(stoppedRecoveryRow).toBeVisible({ timeout: 20_000 });
     await expect(stoppedRecoveryRow).toContainText(scenario.title);
     await expect(stoppedRecoveryRow).toContainText(refundAmountLabel);
-    await stoppedRecoveryRow
-      .getByRole('button', { name: 'Review refund' })
-      .click();
+    const reviewStoppedRefund = stoppedRecoveryRow.getByRole('button', {
+      name: 'Review refund',
+    });
+    await expect(reviewStoppedRefund).not.toHaveAttribute('jsaction', /click/);
+    await reviewStoppedRefund.click();
     const resumeRecoveryForm = recoveryPage.page
       .getByRole('heading', {
         level: 2,

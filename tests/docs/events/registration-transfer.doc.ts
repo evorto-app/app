@@ -1563,7 +1563,11 @@ Evorto keeps the failed refund in payment history, starts a new refund attempt f
     await expect(platformFinance).not.toContainText(hiddenIdentifier);
   }
   await expect(platformFinance).not.toContainText(rawProviderError);
-  await recoveryRow.getByRole('button', { name: 'Review refund' }).click();
+  const reviewRefund = recoveryRow.getByRole('button', {
+    name: 'Review refund',
+  });
+  await expect(reviewRefund).not.toHaveAttribute('jsaction', /click/);
+  await reviewRefund.click();
   const refundRecoveryHeading = operatorPage.page.getByRole('heading', {
     level: 2,
     name: 'Try failed refund again',
