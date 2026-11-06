@@ -303,6 +303,14 @@ High-risk payment flows:
 - tenant payment configuration
 - financial reporting
 
+Stripe webhook receipts carry a fresh `claim_id` UUID on insertion and each
+stale-claim takeover. Completion and release require that token and processing
+status, so a late former owner cannot acknowledge or delete a recovered claim.
+The schema adds this non-null column with a PostgreSQL UUID default; apply the
+fresh target schema to the isolated local database before testing. No provider
+credentials or payment records change. Claim fencing protects receipt ownership;
+payment transitions still require their own transactional idempotency guards.
+
 Agents must not fake successful payment state locally without respecting Stripe lifecycle.
 Application approval, capacity reservation, and Checkout creation must have one
 durable owner and one live payment transaction per registration. Capacity and
