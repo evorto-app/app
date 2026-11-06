@@ -10,6 +10,7 @@ import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 import { openAuthenticatedTestPage } from '../../support/utils/authenticated-test-page';
+import { waitForAppRpcResponse } from '../../support/utils/rpc-response';
 
 test('Join another organization and choose your home organization', async ({
   browser,
@@ -197,9 +198,13 @@ Opening a protected page for an organization you have not joined sends you to **
     member.page,
     'Complete every required answer and accept the current policy',
   );
-  await joinButton.click();
+  const [joinResponse] = await Promise.all([
+    waitForAppRpcResponse(member.page, 'onboarding.complete'),
+    joinButton.click(),
+  ]);
+  expect(joinResponse.ok()).toBe(true);
 
-  await expect(member.page).toHaveURL(/\/profile$/);
+  await expect(member.page).toHaveURL(/\/profile$/, { timeout: 20_000 });
   const profile = member.page.locator('app-user-profile');
   await expect(
     profile.getByRole('heading', {

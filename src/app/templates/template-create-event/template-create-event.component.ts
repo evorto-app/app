@@ -1,5 +1,6 @@
 import {
   afterNextRender,
+  ApplicationRef,
   ChangeDetectionStrategy,
   Component,
   computed,
@@ -140,8 +141,7 @@ export const templateCreateEventErrorMessage = (error: unknown): string =>
 export class TemplateCreateEventComponent {
   protected readonly controlsInteractive = computed(
     () =>
-      this.clientRendered() &&
-      this.initializedTemplateId() === this.templateId(),
+      this.clientReady() && this.initializedTemplateId() === this.templateId(),
   );
   protected readonly templateId = input.required<string>();
   private readonly operations = inject(TemplateCreateEventOperations);
@@ -259,7 +259,7 @@ export class TemplateCreateEventComponent {
   );
   protected readonly templateCreateEventSubmitDisabled =
     templateCreateEventSubmitDisabled;
-  private readonly clientRendered = signal(false);
+  private readonly clientReady = signal(false);
   private readonly initializedTemplateId = signal<null | string>(null);
   private readonly lastStart = signal<DateTime | null>(null);
 
@@ -267,7 +267,10 @@ export class TemplateCreateEventComponent {
   private readonly router = inject(Router);
 
   constructor() {
-    afterNextRender(() => this.clientRendered.set(true));
+    const applicationRef = inject(ApplicationRef);
+    afterNextRender(() => {
+      void applicationRef.whenStable().then(() => this.clientReady.set(true));
+    });
     effect(() => {
       if (!this.templateQuery.isSuccess()) return;
       const template = this.templateQuery.data();
