@@ -102,6 +102,53 @@ describe('createEventFormModelFromTemplate', () => {
     );
   });
 
+  it('keeps registration windows on the clock time of the event start across a DST change', () => {
+    // Thu 2027-04-01 19:00 in Berlin; summer time starts Sun 2027-03-28.
+    const model = createEventFormModelFromTemplate(
+      {
+        addOns: [],
+        categoryId: 'category-1',
+        description: '<p>Template description</p>',
+        icon: { iconColor: 2, iconName: 'calendar:fas' },
+        id: 'template-1',
+        location: null,
+        planningTips: null,
+        questions: [],
+        registrationOptions: [
+          {
+            cancellationDeadlineHoursBeforeStart: null,
+            closeRegistrationOffset: 24,
+            description: null,
+            esnCardDiscountedPrice: null,
+            id: 'template-option-1',
+            isPaid: false,
+            openRegistrationOffset: 168,
+            organizingRegistration: false,
+            price: 0,
+            refundFeesOnCancellation: null,
+            registeredDescription: null,
+            registrationMode: 'fcfs',
+            roleIds: [],
+            roles: [],
+            spots: 40,
+            stripeTaxRateId: null,
+            title: 'Participant',
+            transferDeadlineHoursBeforeStart: null,
+          },
+        ],
+        title: 'Weekly meetup',
+      },
+      DateTime.fromISO('2027-04-01T19:00', { zone: 'Europe/Berlin' }),
+    );
+
+    expect(model.registrationOptions[0]?.openRegistrationTime.toISO()).toBe(
+      '2027-03-25T19:00:00.000+01:00',
+    );
+    expect(model.registrationOptions[0]?.closeRegistrationTime.toISO()).toBe(
+      '2027-03-31T19:00:00.000+02:00',
+    );
+  });
+
   it('keeps organizer planning tips private to the template surface', () => {
     const model = createEventFormModelFromTemplate(
       {

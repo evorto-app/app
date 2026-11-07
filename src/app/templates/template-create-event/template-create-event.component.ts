@@ -26,6 +26,7 @@ import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
 import { registrationModes } from '@shared/registration-modes';
 import { MAX_EVENT_ADDON_TYPES } from '@shared/registration-quantity-limits';
 import { MAX_REGISTRATION_QUESTIONS } from '@shared/registration-question-limits';
+import { registrationTimeBeforeStart } from '@shared/registration-window-offset';
 import { EventCreateIconUsage } from '@shared/rpc-contracts/app-rpcs/icons.rpcs';
 import {
   injectMutation,
@@ -307,12 +308,14 @@ export class TemplateCreateEventComponent {
       for (const [index, option] of template.registrationOptions.entries()) {
         const optionForm = this.createEventForm.registrationOptions[index];
         if (!optionForm) continue;
-        const openRegistrationTime = startDateTime.minus({
-          hours: option.openRegistrationOffset,
-        });
-        const closeRegistrationTime = startDateTime.minus({
-          hours: option.closeRegistrationOffset,
-        });
+        const openRegistrationTime = registrationTimeBeforeStart(
+          startDateTime,
+          option.openRegistrationOffset,
+        );
+        const closeRegistrationTime = registrationTimeBeforeStart(
+          startDateTime,
+          option.closeRegistrationOffset,
+        );
 
         this.updateIfPristine(
           optionForm.openRegistrationTime,
