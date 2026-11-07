@@ -85,6 +85,10 @@ const dockerRequiredVariables = [
     description: 'Stripe connected account id for seeded paid flows',
     name: 'STRIPE_TEST_ACCOUNT_ID',
   },
+  {
+    description: 'Google Maps browser key the web server requires at startup',
+    name: 'PUBLIC_GOOGLE_MAPS_API_KEY',
+  },
 ] satisfies RequiredVariable[];
 
 const playwrightRequiredVariables = [
