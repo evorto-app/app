@@ -19,7 +19,3 @@
   cash/manual paid-event cancellation as supported behavior.
 - Google Maps is required release evidence. Cloudflare Images removal is not a
   provider release gate.
-- After every test file edit, run `bun run lint` and `bun run format:write`.
-- Before calling WebStorm `get_file_problems` on edited test files, run `bun run lint` first.
-- Markdown files do not need a WebStorm `get_file_problems` pass.
-- After editing a test file, run WebStorm `get_file_problems` on that file when possible before finishing.
