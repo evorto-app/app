@@ -55,7 +55,3 @@
   logs and trace exception causes. Keep command identity, exit codes, diagnostic
   labels, and output byte counts.
 - Do not use `consola` or direct `console.*` in server runtime code.
-- After every server file edit, run `bun run lint` and `bun run format:write`.
-- Before calling WebStorm `get_file_problems` on edited server files, run `bun run lint` first.
-- Markdown files do not need a WebStorm `get_file_problems` pass.
-- After editing a server file, run WebStorm `get_file_problems` on that file when possible before finishing.
