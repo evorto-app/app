@@ -1,8 +1,5 @@
 # App Guidelines
 
-The root `AGENTS.md` also applies, including verification and commit requirements.
-This file adds app-specific guidance.
-
 ## Angular Baseline
 
 - Use standalone components (no NgModules) and do not add `standalone: true`.
@@ -35,8 +32,9 @@ This file adds app-specific guidance.
 - Keep implementation details out of visible copy, badges, tooltips, accessible names, and errors. Explain what happened and what the user can do. Before adding explanatory UI, identify the decision it helps this viewer make; omit it if there is none. Configuration explanations belong beside the authorized management control, not on attendee cards.
 
 - Prefer available Material You / Material 3 Expressive components from `@angular/material`. Use native component structure and theming before custom markup or styling. If no suitable component exists and a custom component is needed, check with the user before building it.
-- Use `TwoColumnLayoutComponent` for list/detail and settings navigation layouts. Follow `src/app/shared/components/two-column-layout/README.md` for its usage, scrolling, spacing, and responsive behavior.
+- Desktop list/detail routes reserve space for the organization footer; other pages retain normal document scrolling. List/detail page hosts fill their parent (`lg:h-full`) so both panes scroll independently above it; do not give them another viewport height. Use `TwoColumnLayoutComponent` for shared list/detail and settings navigation layouts. Its left header stays visible above the scrolling navigation; initial detail padding scrolls with detail content. Ordinary pages keep their padding in document flow.
 - Apply `appMaterialTheme` at the active page boundary. It also themes Material overlays while that page is active and restores their previous colors on navigation; do not add per-dialog color plumbing.
+- Use viewport breakpoints (`sm:`, `md:`, `lg:`) for page layout and Tailwind v4 container queries (`@container` with `@sm:`/`@md:`/`@lg:`) for component-level responsiveness.
 - Iconography standard: use Font Awesome Duotone Regular icons via `<fa-duotone-icon>` from `@fortawesome/angular-fontawesome`.
 - Do not introduce new `<mat-icon>` usage. For Font Awesome icons in labeled Material buttons (including extended FABs), use `matButtonIcon class="mat-icon"` on the direct icon child. This opts into Material’s projection and native spacing/RTL rules; shared styles provide the base SVG box. Do not add per-button icon margins or size classes.
 - Floating actions: use extended FAB pattern (`<button|a mat-fab extended class="fab-fixed">`) with `<fa-duotone-icon>` followed by a text label.
@@ -53,3 +51,7 @@ This file adds app-specific guidance.
   source-user discounts must not appear as recipient entitlements.
 - Use `consola/browser` instead of `console.*`.
 - Create scoped loggers with `consola.withTag('app/<feature>')`.
+- After every app file edit, run `bun run lint` and `bun run format:write`.
+- Before calling WebStorm `get_file_problems` on edited app files, run `bun run lint` first.
+- Markdown files do not need a WebStorm `get_file_problems` pass.
+- After editing an app file, run WebStorm `get_file_problems` on that file when possible before finishing.

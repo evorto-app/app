@@ -1,6 +1,0 @@
-{
-  "prettier.mode": "Auto",
-  "prettier.applicableFilesGlob": "{**/*,*}.{*}",
-  "eslint.mode": "Auto",
-  "editor.formatOnSave": true
-}

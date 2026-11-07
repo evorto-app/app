@@ -26,6 +26,10 @@
 - Composite tenant foreign keys, `NO ACTION` relationships, and database
   constraints are integrity safeguards, not authorization mechanisms.
 - When changing schema or constraints, document required local reset/setup steps in track/handoff docs.
+- After every DB file edit, run `bun run lint` and `bun run format:write`.
+- Before calling WebStorm `get_file_problems` on edited DB files, run `bun run lint` first.
+- Markdown files do not need a WebStorm `get_file_problems` pass.
+- After editing a DB file, run WebStorm `get_file_problems` on that file when possible before finishing.
 
 ## Drizzle Relations v2 Schema Design Notes
 

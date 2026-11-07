@@ -7,7 +7,6 @@ command = "npx"
 args = ["-y", "@angular/cli@latest", "mcp", "-E", "modernize"]
 
 [features]
-hooks = true
 goals = true
 
 [features.multi_agent_v2]

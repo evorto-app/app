@@ -217,12 +217,15 @@ standalone inspection. Child commands preserve process environment values over
 
 ## Commit, PR, and Release Notes
 
-- Use Git Town commands for branch management and shipping.
-- For substantial work in a new worktree created from `main`, immediately run `git town hack <branch-name>` before making commits.
-- For large multi-phase work, keep an assembly branch plus one reviewable child branch per phase or slice.
-- Create stacked child branches with `git town append <branch-name>`.
-- Run `git town sync --stack` before starting work and before proposing review.
-- Open PRs with `git town propose`.
+- Use feature branches and GitHub PRs; do not push changes directly to `main`.
+- Fetch and inspect the current base before starting work and before proposing
+  review. Preserve uncommitted work and coordinate overlapping branches.
+- Use ordinary Git and the GitHub CLI or website for branch and PR management.
+- For multi-phase work, use [GitHub stacked PRs](https://docs.github.com/en/pull-requests/reference/stacked-pull-requests)
+  with one reviewable branch per phase. The optional `gh stack` extension can
+  manage local stacks; keep each PR based on its immediate predecessor.
+- Request Copilot review on every PR and address actionable comments before
+  treating the reviewed head as ready.
 - Commit messages should be imperative and concise.
 - PRs should include purpose, scope, schema/runtime impact, and UI evidence where relevant.
 - Every PR needs a new Knope change file in `.changeset/*.md`, including

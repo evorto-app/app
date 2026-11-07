@@ -38,33 +38,3 @@ always-enabled queries needed by the initial HTML. HTTP completion can happen
 before query results reach Angular's signals; the rendering hold must last until
 the result is available or the query fails. This data concern stays outside the
 layout component. Do not include intentionally disabled pending queries.
-
-## Page integration
-
-Keep outlet activation state in the owning page with `signal(false)`. For
-example, an event list/detail page projects its existing content as follows:
-
-```html
-<app-two-column-layout [detailActive]="outletActive()" [independentScroll]="true" sidebarWidth="400px" sidebarLabel="Event list" detailLabel="Selected event">
-  <div twoColumnHeader class="flex items-center gap-2">
-    <h1 class="title-large">Events</h1>
-    <!-- Page actions -->
-  </div>
-  <nav twoColumnSidebar class="flex flex-col gap-2">
-    <!-- Existing links with routerLinkActive styling -->
-  </nav>
-  <div twoColumnDetail>
-    <router-outlet (activate)="outletActive.set(true)" (deactivate)="outletActive.set(false)" />
-  </div>
-</app-two-column-layout>
-```
-
-Events and templates use independent scrolling; settings and profile pages use
-the default document scrolling and sticky sidebar. Preserve existing
-`routerLinkActive` semantic colors and permission directives in projected page
-content. Use `twoColumnFooter` for contextual links or actions; global
-organization and legal links stay in the app footer.
-
-Verify independent desktop scrolling, the fixed left header, footer placement,
-and mobile list/detail navigation through Browser and behavior-focused
-Playwright coverage. Follow the repository's `QUALITY.md` for verification.

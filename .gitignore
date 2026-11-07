@@ -20,12 +20,14 @@ bun.lockb
 .settings/
 *.sublime-workspace
 
-# Visual Studio Code
-.vscode/*
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
-!.vscode/extensions.json
+# Local editor configuration
+/.idea/
+/.vscode/
+
+# Retired project tools (keep local state out of source control)
+/.air/
+/.gemini/
+/.entire/
 .history/*
 
 # Miscellaneous
