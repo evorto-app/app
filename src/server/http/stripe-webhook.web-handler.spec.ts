@@ -82,9 +82,9 @@ const createWebhookReceiptFixture = (input: {
     Effect.sync(() => {
       if (statement.startsWith('insert into "stripe_webhook_events" ')) {
         expect(statement).toBe(
-          'insert into "stripe_webhook_events" ("event_type", "processed_at", "status", "stripe_event_id", "tenant_id") values ($1, default, default, $2, ' +
+          'insert into "stripe_webhook_events" ("claim_id", "event_type", "processed_at", "status", "stripe_event_id", "tenant_id") values (default, $1, default, default, $2, ' +
             (input.tenantId ? '$3' : 'default') +
-            ') on conflict do nothing returning "status", "stripe_event_id"',
+            ') on conflict do nothing returning "claim_id"',
         );
         expect(parameters).toEqual([
           input.eventType,
@@ -92,17 +92,21 @@ const createWebhookReceiptFixture = (input: {
           ...(input.tenantId ? [input.tenantId] : []),
         ]);
         writes.push('claim');
-        return [['processing', input.eventId]];
+        return [['00000000-0000-4000-8000-000000000001']];
       }
       if (statement.startsWith('update "stripe_webhook_events" ')) {
         expect(statement).toBe(
-          'update "stripe_webhook_events" set "processed_at" = $1, "status" = $2 where "stripe_webhook_events"."stripe_event_id" = $3',
+          'update "stripe_webhook_events" set "processed_at" = $1, "status" = $2 where (("stripe_webhook_events"."stripe_event_id" = $3) and ("stripe_webhook_events"."claim_id" = $4) and ("stripe_webhook_events"."status" = $5))',
         );
         const [processedAt, status, eventId] = parameters;
         if (typeof processedAt !== 'string' || status !== 'processed') {
           throw new Error('Expected a processed webhook receipt timestamp');
         }
-        expect(parameters).toHaveLength(3);
+        expect(parameters).toHaveLength(5);
+        expect(parameters.slice(3)).toEqual([
+          '00000000-0000-4000-8000-000000000001',
+          'processing',
+        ]);
         expect(eventId).toBe(input.eventId);
         const date = new Date(processedAt);
         expect(Number.isFinite(date.getTime())).toBe(true);
@@ -113,9 +117,13 @@ const createWebhookReceiptFixture = (input: {
       }
       if (statement.startsWith('delete from "stripe_webhook_events" ')) {
         expect(statement).toBe(
-          'delete from "stripe_webhook_events" where "stripe_webhook_events"."stripe_event_id" = $1',
+          'delete from "stripe_webhook_events" where (("stripe_webhook_events"."stripe_event_id" = $1) and ("stripe_webhook_events"."claim_id" = $2) and ("stripe_webhook_events"."status" = $3))',
         );
-        expect(parameters).toEqual([input.eventId]);
+        expect(parameters).toEqual([
+          input.eventId,
+          '00000000-0000-4000-8000-000000000001',
+          'processing',
+        ]);
         deletedTables.push(dbSchema.stripeWebhookEvents);
         writes.push('released');
         return [];
