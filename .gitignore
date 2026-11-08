@@ -24,7 +24,7 @@ bun.lockb
 /.idea/
 /.vscode/
 
-# Retired project tools (keep local state out of source control)
+# Local state from unused editors and session recording
 /.air/
 /.gemini/
 /.entire/

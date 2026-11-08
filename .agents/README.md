@@ -15,3 +15,8 @@ Codex and Claude are the supported development assistants.
 
 Keep shared formatting and linting in `.editorconfig`, Prettier, and ESLint
 configuration rather than checking in editor-specific settings.
+
+Entire session recording is not enabled by this repository. Its agent/Git hooks
+are separate from Entire Git hosting. The planned hosting and CI migration is
+tracked in [EVO-50](https://linear.app/evorto/issue/EVO-50/move-evorto-to-entire-and-rwx-with-smaller-workflows-and-reliable-test);
+current PR review and verification requirements remain in force until cutover.
