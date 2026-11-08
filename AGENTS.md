@@ -26,7 +26,8 @@ the linked PR/check provider during migration; do not recreate the repository.
   to complete migration. Keep required Copilot review until a verified
   replacement is adopted through a reviewed policy change.
 - Keep credentials, account settings and transcript/session caches local.
-  Using Trails does not require enabling session recording.
+  Entire session recording and repository-scoped Brain memory sync are enabled
+  by user decision; follow the setup and hook-trust requirements in the workflow.
 
 ## Linear Issue-First Workflow
 
@@ -261,3 +262,9 @@ standalone inspection. Child commands preserve process environment values over
 - Before starting full verification, check that the PR diff includes its change
   file. `knope --validate` checks configuration and file validity; it does not
   check whether the current PR adds a change file.
+
+<!-- entire-agent:begin -->
+
+Read .entire/agent-guide.md for this repository's workflow, source inspection, and verification guidance.
+@.entire/agent-guide.md
+<!-- entire-agent:end -->

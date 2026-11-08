@@ -65,11 +65,57 @@ Gemini CLI uses `GEMINI.md`; current Antigravity supports `AGENTS.md` and
 `GEMINI.md`. Tool settings should contain only required, portable configuration.
 Authentication, workspace trust and personal permissions remain local.
 
-Optional Entire session/checkpoint capture is independent of Trails. Do not
-restore old hooks merely to use hosting or code review. If recording is adopted
-later, verify supported agents against the installed CLI and review where
-checkpoint data is uploaded, especially for this public repository. Do not
-commit credentials or transcript caches.
+### Recording and shared memory
+
+Lukas explicitly enabled recording and memory synchronization on 8 November 2026. Use the generated Entire hooks for Codex, Claude Code and Antigravity.
+Entire CLI 0.13.1 rejects Gemini CLI capture as unsupported; do not restore the
+old no-op Gemini hooks. Gemini can use the shared instructions and Brain
+commands, and Antigravity is the supported Google recording integration.
+
+For a new clone, install Entire, authenticate with your own identity, then run:
+
+```sh
+entire enable --agent codex --project --telemetry=false --no-init-repo
+entire agent add claude-code
+entire agent add antigravity
+entire doctor
+entire plugin install brain
+entire brain setup --yes --backfill-budget 5
+entire brain connect
+entire brain memories sync --json
+entire brain status --json
+```
+
+Agent installation regenerates portable configuration; inspect the diff before
+committing updates. Git hooks and Brain services require per-machine setup;
+checking out tracked files alone does not install them. Keep telemetry off.
+Codex may discover `.codex/hooks.json` in the primary checkout instead of a
+linked worktree; follow `entire doctor`'s discovered path. Review the generated
+hooks through Codex `/hooks`, then restart/reload the agent. Do not synthesize
+trust records. Workspace trust and agent authentication stay per-user.
+
+The shared checkpoint backend is `git-refs`. Checkpoints upload with Git pushes
+to the configured sync remote, currently `origin`. Transcripts include prompts,
+responses and tool activity. This repository is public, so uploaded checkpoints
+are public; automatic redaction is best effort. Inspect sensitive sessions before
+publishing. Keep credentials, caches and `.entire/settings.local.json` untracked.
+Do not import unrelated project or machine-wide agent memory.
+
+Brain's generated `.entire/agent-guide.md` provides agent query/recall guidance.
+`setup` installs repository context and a background watcher; `connect` opts this
+repository into hosted team memory sync. The watcher uses a five-session cap per
+extraction pass and the default 24-hour extraction interval. Extraction calls an
+agent and consumes usage; deterministic indexes and memory transport are separate
+from that model work. Inspect `entire brain status` for real component readiness,
+backfill progress and daemon health. A successful connection with zero facts
+proves transport, not that useful memories have already been extracted.
+
+For deterministic symbol relationships and semantic context, use the official
+Graph plugin with Brain (`entire plugin install graph`, then inspect
+`entire graph setup --help` before setup). Preserve generated managed instruction
+blocks and review their diff. Installing a plugin alone does not activate its
+repository index. A new agent session must be observed and its checkpoint
+inspected before declaring end-to-end capture verified.
 
 ## Collaborator transition
 

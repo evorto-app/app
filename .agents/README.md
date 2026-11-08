@@ -20,8 +20,11 @@ Codex, Claude, Gemini CLI and Google Antigravity share the same Entire workflow.
 Keep shared formatting and linting in `.editorconfig`, Prettier, and ESLint
 configuration rather than checking in editor-specific settings.
 
-Entire Trails use the existing GitHub mirror. Session recording is not enabled
-by this repository; agent/Git capture hooks are separate from hosting and review.
+Entire Trails use the existing GitHub mirror. Entire recording is enabled for
+Codex, Claude Code and Antigravity through generated lifecycle hooks; current
+Entire no longer supports Gemini CLI capture. Gemini still follows the shared
+Trail instructions. Brain supplies repository memory and hosted synchronization;
+read the setup and validation requirements in the workflow guide.
 Keep authentication, personal settings and session caches local. The migration
 is tracked in [EVO-54](https://linear.app/evorto/issue/EVO-54/migrate-git-hosting-and-protected-review-to-entire)
 under EVO-50. Current Linear, PR review and verification requirements remain in

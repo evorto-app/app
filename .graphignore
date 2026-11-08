@@ -1,0 +1,5 @@
+# Upstream reference trees are read directly when needed, not application code.
+/repos/
+# Generated outputs and third-party asset bundles are not code relationships.
+/public/
+/.agents/skills/

@@ -24,10 +24,14 @@ bun.lockb
 /.idea/
 /.vscode/
 
-# Local state from unused editors and session recording
+# Local editor and agent state; share only portable Entire configuration
 /.air/
 /.gemini/
-/.entire/
+/.entire/*
+!/.entire/settings.json
+!/.entire/agent-guide.md
+/.claude/*
+!/.claude/settings.json
 .history/*
 
 # Miscellaneous
