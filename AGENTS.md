@@ -1,5 +1,33 @@
 # Repository Guidelines
 
+## Entire workflow for every development agent
+
+Codex, Claude, Gemini CLI and Google Antigravity use the same repository rules.
+Read [the Entire workflow](.agents/entire-workflow.md) before planning or
+publishing work. Use Entire Trails on the existing `gh/evorto-app/app` mirror
+for intent, progress and code review. Keep GitHub as the upstream remote and
+the linked PR/check provider during migration; do not recreate the repository.
+
+- Search existing Trails, Linear issues and branches before starting. Reuse
+  canonical work and preserve other collaborators' ownership and review history.
+- Keep Linear coordination below until the issue migration has been verified.
+  Link the Linear identifier, Trail and GitHub PR in the work record.
+- Discover supported commands with `entire agent-help` and its subcommand help.
+  Do not guess flags, Trail numbers or API endpoints. A Trail can hold several
+  changes; use the specific repository/change selector for review and merge.
+- Record scope, decisions, verification and handoffs in the canonical issue and
+  Trail intent. Use findings for agent questions/follow-ups as the CLI directs;
+  do not impersonate people in human-only Trail discussion threads.
+- Creating a Trail can publish code and cause a linked GitHub PR to run CI.
+  Apply the full local-first verification gate before any such action. For
+  planning without publishing, use an intent-only Trail.
+- Review both Entire gates and GitHub requirements. Disabled gates and a clean
+  merge dry run do not establish approval. Never force a merge or weaken checks
+  to complete migration. Keep required Copilot review until a verified
+  replacement is adopted through a reviewed policy change.
+- Keep credentials, account settings and transcript/session caches local.
+  Using Trails does not require enabling session recording.
+
 ## Linear Issue-First Workflow
 
 Linear is the shared source of truth for planned and active Evorto work. Use the

@@ -1,10 +1,14 @@
 # AI tooling
 
-Codex and Claude are the supported development assistants.
+Codex, Claude, Gemini CLI and Google Antigravity share the same Entire workflow.
 
 - `AGENTS.md` is the canonical repository guide. Read the nearest module
   `AGENTS.md` and README for local rules.
 - `CLAUDE.md` imports that same guide rather than maintaining a second manual.
+- `GEMINI.md` imports it for Gemini CLI. Antigravity supports `AGENTS.md` and
+  `GEMINI.md`; read nearest module guidance explicitly in every tool.
+- [Entire workflow](entire-workflow.md) documents Trail publication, collaborator
+  onboarding, issue/CI migration, billing and remaining cutover work.
 - `.codex/config.toml` configures Codex MCP servers and features.
 - `.codex/environments/environment.toml` configures Codex worktree setup.
 - `.agents/skills` contains reusable skills. Update third-party skills together
@@ -16,7 +20,9 @@ Codex and Claude are the supported development assistants.
 Keep shared formatting and linting in `.editorconfig`, Prettier, and ESLint
 configuration rather than checking in editor-specific settings.
 
-Entire session recording is not enabled by this repository. Its agent/Git hooks
-are separate from Entire Git hosting. The planned hosting and CI migration is
-tracked in [EVO-50](https://linear.app/evorto/issue/EVO-50/move-evorto-to-entire-and-rwx-with-smaller-workflows-and-reliable-test);
-current PR review and verification requirements remain in force until cutover.
+Entire Trails use the existing GitHub mirror. Session recording is not enabled
+by this repository; agent/Git capture hooks are separate from hosting and review.
+Keep authentication, personal settings and session caches local. The migration
+is tracked in [EVO-54](https://linear.app/evorto/issue/EVO-54/migrate-git-hosting-and-protected-review-to-entire)
+under EVO-50. Current Linear, PR review and verification requirements remain in
+force until their replacements are verified and the policy cutover lands.
