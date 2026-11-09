@@ -5,6 +5,7 @@ import {
   type PlatformTenantAuditAction,
 } from '@shared/platform-audit';
 import { MAX_REGISTRATION_ADDON_QUANTITY } from '@shared/registration-quantity-limits';
+import { registrationTimeBeforeStart } from '@shared/registration-window-offset';
 import {
   PlatformEventAddonRecord,
   type PlatformEventDetailRecord,
@@ -17,6 +18,7 @@ import {
 } from '@shared/rpc-contracts/app-rpcs/platform-events.rpcs';
 import { and, asc, count, desc, eq, exists, inArray } from 'drizzle-orm';
 import { DateTime, Effect, Schema } from 'effect';
+import { DateTime as LuxonDateTime } from 'luxon';
 
 import { Database, type DatabaseClient } from '../../../../../db';
 import {
@@ -1195,24 +1197,31 @@ export const platformEventHandlers = {
               const esnCardEnabled =
                 operation.targetTenant.discountProviders?.esnCard?.status ===
                 'enabled';
+              const startInTenantZone = LuxonDateTime.fromJSDate(start, {
+                zone: operation.targetTenant.timezone,
+              });
               const registrationOptions = template.registrationOptions.map(
                 (option) => ({
                   cancellationDeadlineHoursBeforeStart:
                     option.cancellationDeadlineHoursBeforeStart,
-                  closeRegistrationTime: new Date(
-                    start.getTime() -
-                      option.closeRegistrationOffset * 60 * 60 * 1000,
-                  ).toISOString(),
+                  closeRegistrationTime: registrationTimeBeforeStart(
+                    startInTenantZone,
+                    option.closeRegistrationOffset,
+                  )
+                    .toJSDate()
+                    .toISOString(),
                   description: option.description,
                   esnCardDiscountedPrice:
                     option.isPaid && esnCardEnabled
                       ? option.esnCardDiscountedPrice
                       : null,
                   isPaid: option.isPaid,
-                  openRegistrationTime: new Date(
-                    start.getTime() -
-                      option.openRegistrationOffset * 60 * 60 * 1000,
-                  ).toISOString(),
+                  openRegistrationTime: registrationTimeBeforeStart(
+                    startInTenantZone,
+                    option.openRegistrationOffset,
+                  )
+                    .toJSDate()
+                    .toISOString(),
                   organizingRegistration: option.organizingRegistration,
                   price: option.price,
                   refundFeesOnCancellation: option.refundFeesOnCancellation,

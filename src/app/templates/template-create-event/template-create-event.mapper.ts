@@ -1,5 +1,6 @@
 import type { TemplateFindOneRecord } from '@shared/rpc-contracts/app-rpcs/templates.rpcs';
 
+import { registrationTimeBeforeStart } from '@shared/registration-window-offset';
 import { DateTime } from 'luxon';
 
 import {
@@ -23,16 +24,18 @@ export const createEventFormModelFromTemplate = (
       createRegistrationOptionFormModel({
         cancellationDeadlineHoursBeforeStart:
           option.cancellationDeadlineHoursBeforeStart,
-        closeRegistrationTime: startDateTime.minus({
-          hours: option.closeRegistrationOffset,
-        }),
+        closeRegistrationTime: registrationTimeBeforeStart(
+          startDateTime,
+          option.closeRegistrationOffset,
+        ),
         description: option.description ?? '',
         esnCardDiscountedPrice: option.esnCardDiscountedPrice ?? '',
         id: option.id,
         isPaid: option.isPaid,
-        openRegistrationTime: startDateTime.minus({
-          hours: option.openRegistrationOffset,
-        }),
+        openRegistrationTime: registrationTimeBeforeStart(
+          startDateTime,
+          option.openRegistrationOffset,
+        ),
         organizingRegistration: option.organizingRegistration,
         price: option.price,
         refundFeesOnCancellation: option.refundFeesOnCancellation,

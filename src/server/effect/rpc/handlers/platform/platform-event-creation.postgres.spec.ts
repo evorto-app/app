@@ -227,6 +227,142 @@ layer(testLayer)(
         }),
     );
 
+    it.effect(
+      'keeps template registration windows on the tenant clock time across DST changes',
+      () =>
+        Effect.gen(function* () {
+          const database = yield* Database;
+          const tenantId = createId();
+          const creatorId = createId();
+          const categoryId = createId();
+          const templateId = createId();
+          yield* database
+            .transaction((transaction) =>
+              Effect.gen(function* () {
+                const [tenantRecord] = yield* transaction
+                  .insert(tenants)
+                  .values({
+                    domain: `${tenantId}.platform-windows.example`,
+                    id: tenantId,
+                    name: 'Platform registration windows',
+                    timezone: 'Europe/Berlin',
+                  })
+                  .returning();
+                if (!tenantRecord) throw new Error('Missing fixture tenant');
+                const tenant =
+                  yield* Schema.decodeUnknownEffect(Tenant)(tenantRecord);
+                yield* transaction.insert(users).values({
+                  auth0Id: `auth0|${creatorId}`,
+                  communicationEmail: `${creatorId}@example.org`,
+                  email: `${creatorId}@example.org`,
+                  firstName: 'Event',
+                  id: creatorId,
+                  lastName: 'Creator',
+                });
+                yield* transaction.insert(usersToTenants).values({
+                  tenantId,
+                  userId: creatorId,
+                });
+                yield* transaction.insert(eventTemplateCategories).values({
+                  icon: { iconColor: 0, iconName: 'calendar:fas' },
+                  id: categoryId,
+                  tenantId,
+                  title: 'Activities',
+                });
+                yield* transaction.insert(eventTemplates).values({
+                  categoryId,
+                  description: '<p>Template with a one-week sign-up</p>',
+                  icon: { iconColor: 0, iconName: 'calendar:fas' },
+                  id: templateId,
+                  simpleModeEnabled: false,
+                  tenantId,
+                  title: 'Weekly activity',
+                });
+                yield* transaction.insert(templateRegistrationOptions).values({
+                  closeRegistrationOffset: 24,
+                  isPaid: false,
+                  openRegistrationOffset: 168,
+                  organizingRegistration: false,
+                  price: 0,
+                  spots: 10,
+                  templateId,
+                  title: 'Participant',
+                });
+                const context = {
+                  authData: {},
+                  authenticated: true,
+                  permissions: [],
+                  platformAuthority: PlatformAdministratorAuthority.make({
+                    actorEmail: 'platform@example.org',
+                    actorId: 'auth0|platform-event-windows',
+                    kind: 'platformAdministrator',
+                  }),
+                  tenant,
+                  user: null,
+                  userAssigned: false,
+                } satisfies RpcRequestContextShape;
+
+                // Berlin summer time starts Sun 2099-03-29 and ends Sun 2099-10-25.
+                const cases = [
+                  {
+                    close: '2099-04-01T17:00:00.000Z', // Wed 19:00 CEST
+                    open: '2099-03-26T18:00:00.000Z', // Thu 19:00 CET
+                    start: '2099-04-02T17:00:00.000Z', // Thu 19:00 CEST
+                  },
+                  {
+                    close: '2099-10-28T18:00:00.000Z', // Wed 19:00 CET
+                    open: '2099-10-22T17:00:00.000Z', // Thu 19:00 CEST
+                    start: '2099-10-29T18:00:00.000Z', // Thu 19:00 CET
+                  },
+                ];
+                for (const expected of cases) {
+                  const created = yield* platformEventHandlers[
+                    'platform.events.create'
+                  ](
+                    {
+                      creatorUserId: creatorId,
+                      description: '<p>Created from a weekly template</p>',
+                      end: new Date(
+                        new Date(expected.start).getTime() + 2 * 3_600_000,
+                      ).toISOString(),
+                      reason: 'Check the registration window clock time',
+                      start: expected.start,
+                      targetTenantId: tenantId,
+                      templateId,
+                      title: 'Weekly activity',
+                    },
+                    undefined,
+                  ).pipe(
+                    Effect.provideService(RpcRequestContext, context),
+                    Effect.provideService(
+                      Database,
+                      Object.assign(transaction, { $client: database.$client }),
+                    ),
+                  );
+                  const options =
+                    yield* transaction.query.eventRegistrationOptions.findMany({
+                      where: { eventId: created.id },
+                    });
+                  expect(options).toHaveLength(1);
+                  expect(options[0]?.openRegistrationTime.toISOString()).toBe(
+                    expected.open,
+                  );
+                  expect(options[0]?.closeRegistrationTime.toISOString()).toBe(
+                    expected.close,
+                  );
+                }
+                return yield* Effect.fail(new FixtureRollback({}));
+              }),
+            )
+            .pipe(Effect.catchTag('FixtureRollback', () => Effect.void));
+          expect(
+            yield* database.query.tenants.findFirst({
+              where: { id: tenantId },
+            }),
+          ).toBeUndefined();
+        }),
+    );
+
     for (const providerStatus of ['disabled', 'enabled'] as const) {
       it.effect(
         `creates paid events atomically through tenant and platform handlers while the provider is ${providerStatus}`,
