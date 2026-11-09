@@ -1,5 +1,34 @@
 # Repository Guidelines
 
+## Entire workflow for every development agent
+
+Codex, Claude, Gemini CLI and Google Antigravity use the same repository rules.
+Read [the Entire workflow](.agents/entire-workflow.md) before planning or
+publishing work. Use Entire Trails on the existing `gh/evorto-app/app` mirror
+for intent, progress and code review. Keep GitHub as the upstream remote and
+the linked PR/check provider during migration; do not recreate the repository.
+
+- Search existing Trails, Linear issues and branches before starting. Reuse
+  canonical work and preserve other collaborators' ownership and review history.
+- Keep Linear coordination below until the issue migration has been verified.
+  Link the Linear identifier, Trail and GitHub PR in the work record.
+- Discover supported commands with `entire agent-help` and its subcommand help.
+  Do not guess flags, Trail numbers or API endpoints. A Trail can hold several
+  changes; use the specific repository/change selector for review and merge.
+- Record scope, decisions, verification and handoffs in the canonical issue and
+  Trail intent. Use findings for agent questions/follow-ups as the CLI directs;
+  do not impersonate people in human-only Trail discussion threads.
+- Creating a Trail can publish code and cause a linked GitHub PR to run CI.
+  Apply the full local-first verification gate before any such action. For
+  planning without publishing, use an intent-only Trail.
+- Review both Entire gates and GitHub requirements. Disabled gates and a clean
+  merge dry run do not establish approval. Never force a merge or weaken checks
+  to complete migration. Keep required Copilot review until a verified
+  replacement is adopted through a reviewed policy change.
+- Keep credentials, account settings and transcript/session caches local.
+  Entire session recording and repository-scoped Brain memory sync are enabled
+  by user decision; follow the setup and hook-trust requirements in the workflow.
+
 ## Linear Issue-First Workflow
 
 Linear is the shared source of truth for planned and active Evorto work. Use the
@@ -217,12 +246,15 @@ standalone inspection. Child commands preserve process environment values over
 
 ## Commit, PR, and Release Notes
 
-- Use Git Town commands for branch management and shipping.
-- For substantial work in a new worktree created from `main`, immediately run `git town hack <branch-name>` before making commits.
-- For large multi-phase work, keep an assembly branch plus one reviewable child branch per phase or slice.
-- Create stacked child branches with `git town append <branch-name>`.
-- Run `git town sync --stack` before starting work and before proposing review.
-- Open PRs with `git town propose`.
+- Use feature branches and GitHub PRs; do not push changes directly to `main`.
+- Fetch and inspect the current base before starting work and before proposing
+  review. Preserve uncommitted work and coordinate overlapping branches.
+- Use ordinary Git and the GitHub CLI or website for branch and PR management.
+- For multi-phase work, use [GitHub stacked PRs](https://docs.github.com/en/pull-requests/reference/stacked-pull-requests)
+  with one reviewable branch per phase. The optional `gh stack` extension can
+  manage local stacks; keep each PR based on its immediate predecessor.
+- Request Copilot review on every PR and address actionable comments before
+  treating the reviewed head as ready.
 - Commit messages should be imperative and concise.
 - PRs should include purpose, scope, schema/runtime impact, and UI evidence where relevant.
 - Every PR needs a new Knope change file in `.changeset/*.md`, including
@@ -230,3 +262,9 @@ standalone inspection. Child commands preserve process environment values over
 - Before starting full verification, check that the PR diff includes its change
   file. `knope --validate` checks configuration and file validity; it does not
   check whether the current PR adds a change file.
+
+<!-- entire-agent:begin -->
+
+Read .entire/agent-guide.md for this repository's workflow, source inspection, and verification guidance.
+@.entire/agent-guide.md
+<!-- entire-agent:end -->

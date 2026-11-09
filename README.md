@@ -49,9 +49,14 @@ it can show an empty project even while the isolated stack is running.
 
 ## Git workflow
 
-This repository uses Git Town to manage branching, syncing, and shipping. Prefer `git town` commands for daily workflow.
+Use feature branches and GitHub PRs with ordinary Git and the GitHub CLI or
+website. Follow `AGENTS.md` for the Linear issue-first workflow, verification,
+and review requirements.
 
-For large multi-phase changes, keep an assembly branch plus one child branch per reviewable phase. Create the next branch with `git town append`, keep the stack current with `git town sync --stack`, and open PRs with `git town propose`.
+For multi-phase changes, use [GitHub stacked PRs](https://docs.github.com/en/pull-requests/reference/stacked-pull-requests)
+with one reviewable branch per phase, based on its immediate predecessor. The
+optional `gh stack` extension provides local stack management; it is not a
+project dependency.
 
 ## Release documentation
 
