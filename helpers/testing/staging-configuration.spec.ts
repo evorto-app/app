@@ -56,7 +56,7 @@ afterEach(() => {
 });
 const run = (
   value: ReturnType<typeof configuration>,
-  digestOverride?: string,
+  options: { account?: string; digest?: string } = {},
 ) => {
   const directory = mkdtempSync(path.join(tmpdir(), 'evorto-staging-config-'));
   directories.push(directory);
@@ -70,7 +70,7 @@ const run = (
     [
       'ops/scaleway/read-staging-configuration.sh',
       input,
-      digestOverride ?? digest,
+      options.digest ?? digest,
       output,
     ],
     {
@@ -78,7 +78,7 @@ const run = (
       env: {
         ...process.env,
         SCW_DEFAULT_PROJECT_ID: project,
-        STRIPE_TEST_ACCOUNT_ID: 'acct_fixture',
+        STRIPE_TEST_ACCOUNT_ID: options.account ?? 'acct_fixture',
       },
       timeout: 5000,
     },
@@ -113,8 +113,17 @@ describe('accepted staging deployment configuration', () => {
   );
 
   it('rejects a snapshot whose content no longer matches its immutable key', () => {
-    const { output, result } = run(configuration(), '0'.repeat(64));
+    const { output, result } = run(configuration(), { digest: '0'.repeat(64) });
     expect(result.status).toBe(1);
+    expect(existsSync(output)).toBe(false);
+  });
+
+  it('rejects an invalid fixture account before writing deployment inputs', () => {
+    const { output, result } = run(configuration(), {
+      account: 'acct_invalid_suffix',
+    });
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('Invalid staging Stripe test account ID');
     expect(existsSync(output)).toBe(false);
   });
 

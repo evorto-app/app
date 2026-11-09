@@ -28,6 +28,8 @@ readonly excluded_paths=(
   infrastructure/scaleway/staging/local.auto.tfvars
   tests/fixture.ts .e2e-runtime.json .playwright-cli/session
   coverage/report playwright-report/report test-results/report repos/example/source
+  deployment/configuration.json deployment/platform.json deployment/database.json
+  deployment/protected-secret-values.json
 )
 readonly included_paths=(helpers/fixture.ts ops/fixture.ts public/fixture.txt src/fixture.ts)
 for relative_path in "${excluded_paths[@]}" "${included_paths[@]}"; do

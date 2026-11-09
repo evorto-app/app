@@ -16,6 +16,7 @@ playwright.config.ts
 .e2e-runtime.json
 .playwright-cli
 coverage
+deployment
 playwright-report
 test-results
 repos
