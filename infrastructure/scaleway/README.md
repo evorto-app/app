@@ -74,10 +74,12 @@ bash ops/scaleway/read-staging-configuration.sh \
   /private/path/configuration.json SHA256 /private/path/verified-output
 ```
 
-Set `SCW_DEFAULT_PROJECT_ID` and the approved `STRIPE_TEST_ACCOUNT_ID` for this
-command. The validator checks the digest, staging project, distinct role
-containers, Scaleway endpoints, role/environment identities and private database
-TLS configuration before writing deployment inputs. It supplies the non-secret
+Set `SCW_DEFAULT_PROJECT_ID`, `METADATA_BUCKET` and the approved
+`STRIPE_TEST_ACCOUNT_ID` for this command. Use an authenticated Scaleway CLI
+profile or environment credentials with container/namespace read access. The
+validator binds the metadata bucket, checks the digest and private database TLS
+configuration, and verifies each container's project, role name, privacy and
+endpoint against the Scaleway API before writing deployment inputs. It supplies the non-secret
 Stripe fixture account to ops through ordinary environment configuration.
 
 Upload the exact validated bytes to

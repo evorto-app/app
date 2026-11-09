@@ -56,7 +56,12 @@ afterEach(() => {
 });
 const run = (
   value: ReturnType<typeof configuration>,
-  options: { account?: string; digest?: string } = {},
+  options: {
+    account?: string;
+    actualPrivacy?: string;
+    actualProject?: string;
+    digest?: string;
+  } = {},
 ) => {
   const directory = mkdtempSync(path.join(tmpdir(), 'evorto-staging-config-'));
   directories.push(directory);
@@ -64,6 +69,36 @@ const run = (
   const output = path.join(directory, 'output');
   const body = JSON.stringify(value);
   writeFileSync(input, body);
+  const scw = path.join(directory, 'scw');
+  const apiFixture = path.join(directory, 'api.json');
+  writeFileSync(
+    apiFixture,
+    JSON.stringify({
+      configuration: configuration(),
+      privacy: options.actualPrivacy,
+      project: options.actualProject ?? project,
+    }),
+  );
+  writeFileSync(
+    scw,
+    `#!${process.execPath}
+const fs = require('node:fs');
+const fixture = JSON.parse(fs.readFileSync(process.env.SCW_FIXTURE_PATH, 'utf8'));
+const args = process.argv.slice(2);
+if (args[0] !== 'container' || args[2] !== 'get') process.exit(2);
+if (args[1] === 'container') {
+  const container = Object.values(fixture.configuration.platform.containers).find(c => c.id === 'fr-par/' + args[3]);
+  if (!container) process.exit(3);
+  const role = container.environment_variables.APP_ROLE;
+  console.log(JSON.stringify({id: args[3], name: 'evorto-staging-' + role,
+    namespace_id: '${uuid('6')}', public_endpoint: container.endpoint,
+    privacy: fixture.privacy || (role === 'web' ? 'public' : 'private')}));
+} else if (args[1] === 'namespace') {
+  console.log(JSON.stringify({id: args[3], name: 'evorto-staging', project_id: fixture.project}));
+} else process.exit(4);
+`,
+    { mode: 0o700 },
+  );
   const digest = createHash('sha256').update(body).digest('hex');
   const result = spawnSync(
     'bash',
@@ -77,7 +112,10 @@ const run = (
       encoding: 'utf8',
       env: {
         ...process.env,
+        METADATA_BUCKET: 'evorto-staging-deployment-fixture',
+        SCW_CLI: scw,
         SCW_DEFAULT_PROJECT_ID: project,
+        SCW_FIXTURE_PATH: apiFixture,
         STRIPE_TEST_ACCOUNT_ID: options.account ?? 'acct_fixture',
       },
       timeout: 5000,
@@ -127,7 +165,45 @@ describe('accepted staging deployment configuration', () => {
     expect(existsSync(output)).toBe(false);
   });
 
+  it.each([{ actualProject: uuid('5') }, { actualPrivacy: 'public' }])(
+    'rejects a container outside the expected private staging boundary: %j',
+    (options) => {
+      const { output, result } = run(configuration(), options);
+      expect(result.status).toBe(1);
+      expect(existsSync(output)).toBe(false);
+    },
+  );
+
+  it('rejects a different Scaleway endpoint even when the snapshot labels it as staging', () => {
+    const value = configuration();
+    value.platform.containers.ops.endpoint =
+      'https://another-project.functions.fnc.fr-par.scw.cloud';
+    const { output, result } = run(value);
+    expect(result.status).toBe(1);
+    expect(existsSync(output)).toBe(false);
+  });
+
+  it('rejects swapping the private ops and public web containers', () => {
+    const value = configuration();
+    const { id, endpoint } = value.platform.containers.ops;
+    value.platform.containers.ops.id = value.platform.containers.web.id;
+    value.platform.containers.ops.endpoint =
+      value.platform.containers.web.endpoint;
+    value.platform.containers.web.id = id;
+    value.platform.containers.web.endpoint = endpoint;
+    const { output, result } = run(value);
+    expect(result.status).toBe(1);
+    expect(existsSync(output)).toBe(false);
+  });
+
   it.each([
+    {
+      name: 'a different staging metadata bucket',
+      mutate: (c: ReturnType<typeof configuration>) => {
+        c.platform.deployment_metadata_bucket =
+          'evorto-staging-deployment-other';
+      },
+    },
     {
       name: 'production',
       mutate: (c: ReturnType<typeof configuration>) => {

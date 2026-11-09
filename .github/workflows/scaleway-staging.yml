@@ -144,6 +144,8 @@ jobs:
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.SCW_ACCESS_KEY }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.SCW_SECRET_KEY }}
+          SCW_ACCESS_KEY: ${{ secrets.SCW_ACCESS_KEY }}
+          SCW_SECRET_KEY: ${{ secrets.SCW_SECRET_KEY }}
           METADATA_BUCKET: evorto-staging-deployment-${{ vars.BUCKET_SUFFIX }}
           STAGING_CONFIGURATION_KEY: ${{ vars.STAGING_CONFIGURATION_KEY }}
           STRIPE_TEST_ACCOUNT_ID: ${{ vars.STRIPE_TEST_ACCOUNT_ID }}
