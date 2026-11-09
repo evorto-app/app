@@ -17,8 +17,8 @@ Codex, Claude, Gemini CLI and Google Antigravity share the same Entire workflow.
   review. It does not configure a separate development agent or require private
   packages and runtime credentials.
 
-Keep shared formatting and linting in `.editorconfig`, Prettier, and ESLint
-configuration rather than checking in editor-specific settings.
+Keep shared formatting and linting in `bunfig.toml`, `.editorconfig`, and
+ESLint configuration.
 
 Entire Trails use the existing GitHub mirror. Entire recording is enabled for
 Codex, Claude Code and Antigravity through generated lifecycle hooks; current

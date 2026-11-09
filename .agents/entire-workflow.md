@@ -45,17 +45,22 @@ Check both platforms' approvals, findings, required checks and base freshness.
 it neither approves the change nor proves GitHub will accept a real merge.
 Never use `--force` to get through migration.
 
-Initial consolidation on 8 November 2026:
+PR consolidation on 9 November 2026:
 
-| GitHub work                                                                 | Entire change                                                               | Observed state                         |
-| --------------------------------------------------------------------------- | --------------------------------------------------------------------------- | -------------------------------------- |
-| [PR208](https://github.com/evorto-app/app/pull/208), Stripe webhook fencing | [Trail 1, app/1](https://entire.com/gh/evorto-app/-/trails/1/changes/app/1) | CI/gate passed; one commit behind main |
-| [PR209](https://github.com/evorto-app/app/pull/209), EVO-8 tooling cleanup  | [Trail 2, app/2](https://entire.com/gh/evorto-app/-/trails/2/changes/app/2) | CI/gate passed; draft PR; up to date   |
+| GitHub work                                                                                          | Entire change                                                               | Observed state                                         |
+| ---------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- | ------------------------------------------------------ |
+| [PR213](https://github.com/evorto-app/app/pull/213), Bun and formatter                               | [Trail 5, app/4](https://entire.com/gh/evorto-app/-/trails/5/changes/app/4) | Merged at `c33d776e75c`                                |
+| [PR211](https://github.com/evorto-app/app/pull/211), tax-rate authentication                         | [Trail 4, app/3](https://entire.com/gh/evorto-app/-/trails/4/changes/app/3) | Merged at `698752e4fd3`                                |
+| [PR210](https://github.com/evorto-app/app/pull/210), Maps preflight and browser readiness            | [Trail 6, app/5](https://entire.com/gh/evorto-app/-/trails/6/changes/app/5) | Merged at `0c8731329ff`                                |
+| [PR208](https://github.com/evorto-app/app/pull/208), Stripe webhook fencing and lost-claim reporting | [Trail 1, app/1](https://entire.com/gh/evorto-app/-/trails/1/changes/app/1) | Merged at `c83cb059d49`                                |
+| [PR209](https://github.com/evorto-app/app/pull/209), shared agent tooling                            | [Trail 2, app/2](https://entire.com/gh/evorto-app/-/trails/2/changes/app/2) | Consolidates cleanup and restored Entire configuration |
 
-These are dated observations, not standing approval. All four inspected Entire
-gates (approvals, checks, findings, up_to_date) were disabled. Recheck current
-state before any publication or merge. This configuration change is based on
-PR209 so its removal of old tool folders cannot overwrite the new entrypoints.
+The four merged changes passed complete local gates, final-head Copilot review
+and required GitHub checks. These are dated observations, not standing approval.
+All four inspected Entire gates (approvals, checks, findings, up_to_date) remain
+disabled; recheck both platforms before publishing or merging. PR209 retains its
+original branch and reviews while incorporating EVO-54's prepared configuration.
+The broader migration intent remains in [Trail 3](https://entire.com/gh/evorto-app/-/trails/3).
 
 ## Agent entrypoints
 
@@ -101,6 +106,11 @@ are public; automatic redaction is best effort. Inspect sensitive sessions befor
 publishing. Keep credentials, caches and `.entire/settings.local.json` untracked.
 Do not import unrelated project or machine-wide agent memory.
 
+Docker builds exclude local agent/editor directories, including Entire session,
+Brain, Graph and redactor state. The context verification uses synthetic files
+to check those exclusions while retaining application, helper, ops and public
+inputs; credentials and session caches do not belong in build context.
+
 Brain's generated `.entire/agent-guide.md` provides agent query/recall guidance.
 `setup` installs repository context and a background watcher; `connect` opts this
 repository into hosted team memory sync. The watcher uses a five-session cap per
@@ -114,7 +124,9 @@ For deterministic symbol relationships and semantic context, use the official
 Graph plugin with Brain (`entire plugin install graph`, then inspect
 `entire graph setup --help` before setup). Preserve generated managed instruction
 blocks and review their diff. Installing a plugin alone does not activate its
-repository index. A new agent session must be observed and its checkpoint
+repository index. `.graphignore` excludes vendored references, third-party assets
+and skill packages from the application index; consult the vendored sources as
+required by the root guide. A new agent session must be observed and its checkpoint
 inspected before declaring end-to-end capture verified.
 
 ## Collaborator transition
