@@ -306,10 +306,9 @@ High-risk payment flows:
 Stripe webhook receipts carry a fresh `claim_id` UUID on insertion and each
 stale-claim takeover. Completion and release require that token and processing
 status, so a late former owner cannot acknowledge or delete a recovered claim.
-The schema adds this non-null column with a PostgreSQL UUID default; apply the
-fresh target schema to the isolated local database before testing. No provider
-credentials or payment records change. Claim fencing protects receipt ownership;
-payment transitions still require their own transactional idempotency guards.
+A fenced-out completion or release reports lost ownership without changing the
+HTTP response. Claim fencing protects receipt ownership; payment transitions
+still require their own transactional idempotency guards.
 
 Agents must not fake successful payment state locally without respecting Stripe lifecycle.
 Application approval, capacity reservation, and Checkout creation must have one

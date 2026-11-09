@@ -96,7 +96,7 @@ const createWebhookReceiptFixture = (input: {
       }
       if (statement.startsWith('update "stripe_webhook_events" ')) {
         expect(statement).toBe(
-          'update "stripe_webhook_events" set "processed_at" = $1, "status" = $2 where (("stripe_webhook_events"."stripe_event_id" = $3) and ("stripe_webhook_events"."claim_id" = $4) and ("stripe_webhook_events"."status" = $5))',
+          'update "stripe_webhook_events" set "processed_at" = $1, "status" = $2 where (("stripe_webhook_events"."stripe_event_id" = $3) and ("stripe_webhook_events"."claim_id" = $4) and ("stripe_webhook_events"."status" = $5)) returning "claim_id"',
         );
         const [processedAt, status, eventId] = parameters;
         if (typeof processedAt !== 'string' || status !== 'processed') {
@@ -113,11 +113,11 @@ const createWebhookReceiptFixture = (input: {
         updatedTables.push(dbSchema.stripeWebhookEvents);
         updateValues.push({ processedAt: date, status });
         writes.push('processed');
-        return [];
+        return [['00000000-0000-4000-8000-000000000001']];
       }
       if (statement.startsWith('delete from "stripe_webhook_events" ')) {
         expect(statement).toBe(
-          'delete from "stripe_webhook_events" where (("stripe_webhook_events"."stripe_event_id" = $1) and ("stripe_webhook_events"."claim_id" = $2) and ("stripe_webhook_events"."status" = $3))',
+          'delete from "stripe_webhook_events" where (("stripe_webhook_events"."stripe_event_id" = $1) and ("stripe_webhook_events"."claim_id" = $2) and ("stripe_webhook_events"."status" = $3)) returning "claim_id"',
         );
         expect(parameters).toEqual([
           input.eventId,
@@ -126,7 +126,7 @@ const createWebhookReceiptFixture = (input: {
         ]);
         deletedTables.push(dbSchema.stripeWebhookEvents);
         writes.push('released');
-        return [];
+        return [['00000000-0000-4000-8000-000000000001']];
       }
       throw new Error(`Unexpected webhook receipt SQL: ${statement}`);
     });

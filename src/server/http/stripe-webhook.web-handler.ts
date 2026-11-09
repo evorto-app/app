@@ -748,7 +748,8 @@ export const releaseWebhookEventClaim = (claim: StripeWebhookEventClaim) =>
           eq(schema.stripeWebhookEvents.claimId, claim.claimId),
           eq(schema.stripeWebhookEvents.status, 'processing'),
         ),
-      ),
+      )
+      .returning({ claimId: schema.stripeWebhookEvents.claimId }),
   ).pipe(
     Effect.tapError((error) =>
       Effect.logWarning('Failed to release webhook claim').pipe(
@@ -758,7 +759,19 @@ export const releaseWebhookEventClaim = (claim: StripeWebhookEventClaim) =>
         }),
       ),
     ),
-    Effect.asVoid,
+    Effect.map((released) => released.length > 0),
+    Effect.tap((released) =>
+      released
+        ? Effect.void
+        : Effect.logWarning(
+            'Webhook claim no longer owned during release',
+          ).pipe(
+            Effect.annotateLogs({
+              claimId: claim.claimId,
+              eventId: claim.eventId,
+            }),
+          ),
+    ),
   );
 
 export const markWebhookEventProcessed = (claim: StripeWebhookEventClaim) =>
@@ -772,8 +785,23 @@ export const markWebhookEventProcessed = (claim: StripeWebhookEventClaim) =>
           eq(schema.stripeWebhookEvents.claimId, claim.claimId),
           eq(schema.stripeWebhookEvents.status, 'processing'),
         ),
-      ),
-  ).pipe(Effect.asVoid);
+      )
+      .returning({ claimId: schema.stripeWebhookEvents.claimId }),
+  ).pipe(
+    Effect.map((processed) => processed.length > 0),
+    Effect.tap((processed) =>
+      processed
+        ? Effect.void
+        : Effect.logWarning(
+            'Webhook claim no longer owned during completion',
+          ).pipe(
+            Effect.annotateLogs({
+              claimId: claim.claimId,
+              eventId: claim.eventId,
+            }),
+          ),
+    ),
+  );
 
 export const handleStripeWebhookWebRequest = (request: Request) =>
   Effect.gen(function* () {

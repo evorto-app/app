@@ -70,9 +70,10 @@ describe('Stripe webhook claim ownership', () => {
             const recovered = yield* claimEvent(eventId);
             expect(recovered.claimId).not.toBe(original.claimId);
 
-            yield* lateOutcome === 'failure'
+            const mutationApplied = yield* lateOutcome === 'failure'
               ? releaseWebhookEventClaim(original)
               : markWebhookEventProcessed(original);
+            expect(mutationApplied).toBe(false);
             expect(
               yield* claimWebhookEvent({
                 eventId,
@@ -81,8 +82,8 @@ describe('Stripe webhook claim ownership', () => {
             ).toEqual({ type: 'duplicate-processing' });
 
             // Only the recovered owner may finish processing the event.
-            yield* markWebhookEventProcessed(recovered);
-            yield* releaseWebhookEventClaim(original);
+            expect(yield* markWebhookEventProcessed(recovered)).toBe(true);
+            expect(yield* releaseWebhookEventClaim(original)).toBe(false);
             expect(
               yield* claimWebhookEvent({
                 eventId,
@@ -113,7 +114,7 @@ describe('Stripe webhook claim ownership', () => {
           );
           if (!row)
             return yield* Effect.die(new Error('Expected stored claim'));
-          yield* releaseWebhookEventClaim(original);
+          expect(yield* releaseWebhookEventClaim(original)).toBe(true);
           const replacement = yield* claimEvent(eventId);
           yield* Effect.promise(() =>
             database
@@ -122,17 +123,17 @@ describe('Stripe webhook claim ownership', () => {
               .where(eq(stripeWebhookEvents.stripeEventId, eventId)),
           );
           expect(replacement.claimId).not.toBe(original.claimId);
-          yield* releaseWebhookEventClaim(original);
-          yield* markWebhookEventProcessed(original);
+          expect(yield* releaseWebhookEventClaim(original)).toBe(false);
+          expect(yield* markWebhookEventProcessed(original)).toBe(false);
           expect(
             yield* claimWebhookEvent({
               eventId,
               eventType: 'checkout.session.completed',
             }),
           ).toEqual({ type: 'duplicate-processing' });
-          yield* markWebhookEventProcessed(replacement);
+          expect(yield* markWebhookEventProcessed(replacement)).toBe(true);
           // A completed receipt must remain deduplicated, even for its own owner.
-          yield* releaseWebhookEventClaim(replacement);
+          expect(yield* releaseWebhookEventClaim(replacement)).toBe(false);
           expect(
             yield* claimWebhookEvent({
               eventId,
