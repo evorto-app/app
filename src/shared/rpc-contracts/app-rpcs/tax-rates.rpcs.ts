@@ -3,11 +3,11 @@ import { Schema } from 'effect';
 import * as Rpc from 'effect/rpc/Rpc';
 import * as RpcGroup from 'effect/rpc/RpcGroup';
 
-import { ForbiddenRpcError } from '../../errors/rpc-errors';
+import { ForbiddenOrUnauthorizedRpcError } from '../../errors/rpc-errors';
 
-export const TaxRatesRpcError = ForbiddenRpcError;
+export const TaxRatesRpcError = ForbiddenOrUnauthorizedRpcError;
 
-export type TaxRatesRpcError = ForbiddenRpcError;
+export type TaxRatesRpcError = ForbiddenOrUnauthorizedRpcError;
 
 export const TaxRatesListActiveRecord = Schema.Struct({
   country: Schema.NullOr(Schema.String),

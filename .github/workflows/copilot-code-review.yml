@@ -1,6 +1,6 @@
 name: "Copilot Code Review Setup"
 
-# Code review uses this setup instead of the cloud agent's copilot-setup-steps.yml.
+# This source-only setup supports the required Copilot PR review.
 # Keep source review independent of private packages and runtime credentials.
 # This setup does not certify the full CI suites in pr-quality.yml/e2e-baseline.yml.
 # https://docs.github.com/en/copilot/how-tos/use-copilot-agents/request-a-code-review/use-code-review#customizing-copilot-code-reviews-environment
@@ -28,7 +28,7 @@ jobs:
       - name: Set up Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
-          bun-version: "1.4.2"
+          bun-version: "1.4.4"
 
       - name: Set up Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0

@@ -170,6 +170,7 @@ describe('evaluateRuntimePreflight', () => {
           details: expect.arrayContaining([
             'CLIENT_SECRET: Auth0 application secret',
             'FONT_AWESOME_TOKEN: Font Awesome package registry access for the premium icons',
+            'PUBLIC_GOOGLE_MAPS_API_KEY: Google Maps browser key the web server requires at startup',
             'STRIPE_API_KEY: Stripe API access for paid registration flows',
             'STRIPE_TEST_ACCOUNT_ID: Stripe connected account id for seeded paid flows',
           ]),
