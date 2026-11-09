@@ -1,0 +1,6 @@
+I accepted all hooks, lets continue working on the pr merging, summarize all relevant prs, give me you take
+
+---
+
+Alright, close the ones we definitely dont need anymore
+Update our bun version and switch to its formatter

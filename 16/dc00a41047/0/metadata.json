@@ -1,0 +1,58 @@
+{
+  "cli_version": "0.13.1",
+  "checkpoint_id": "16dc00a41047",
+  "session_id": "01a1bae8-25de-7601-a07d-23dbbc35cbfb",
+  "strategy": "manual-commit",
+  "created_at": "2026-11-09T16:43:43.507376Z",
+  "branch": "codex/evo-58-bun-formatter",
+  "checkpoints_count": 1,
+  "files_touched": [
+    ".air/settings.json",
+    ".changeset/adopt-bun-formatter.md",
+    ".github/workflows/copilot-code-review.yml",
+    ".github/workflows/copilot-setup-steps.yml",
+    ".github/workflows/e2e-baseline.yml",
+    ".github/workflows/esncard-release-certification.yml",
+    ".github/workflows/pr-quality.yml",
+    ".idea/prettier.xml",
+    ".prettierignore",
+    ".prettierrc",
+    "AGENTS.md",
+    "Dockerfile",
+    "README.md",
+    "bunfig.toml",
+    "package.json",
+    "patches/README.md",
+    "src/server/http/request-body.spec.ts",
+    "src/server/http/request-body.ts"
+  ],
+  "agent": "Codex",
+  "model": "gpt-6.1-sol",
+  "turn_id": "e8cdd23b27ff",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 640252,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 39479424,
+    "output_tokens": 73284,
+    "api_call_count": 181,
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 89,
+    "layers": {
+      "betterleaks": 42,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 3,
+      "credentialed_uri": 2,
+      "entropy": 52,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  },
+  "session_metrics": {
+    "turn_count": 1
+  }
+}
