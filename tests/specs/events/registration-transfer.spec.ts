@@ -29,7 +29,7 @@ test('transfers a free registration through a private transfer code', async ({
   seeded,
   tenant,
   testClock,
-}) => {
+}, testInfo) => {
   const source = usersToAuthenticate.find((user) => user.roles === 'user');
   const recipient = usersToAuthenticate.find((user) => user.roles === 'admin');
   const template = seeded.templates[0];
@@ -200,6 +200,33 @@ test('transfers a free registration through a private transfer code', async ({
   await expect(
     transferDialog.getByRole('heading', { name: 'Private transfer ready' }),
   ).toBeVisible();
+  for (const colorScheme of ['light', 'dark'] as const) {
+    await page.emulateMedia({ colorScheme });
+    await expect(transferDialog).toBeInViewport({ ratio: 1 });
+    const eventTheme = await page
+      .locator('[appMaterialTheme]')
+      .evaluate((element) => {
+        const style = getComputedStyle(element);
+        return {
+          primary: style.getPropertyValue('--mat-sys-primary').trim(),
+          surface: style.getPropertyValue('--mat-sys-surface').trim(),
+        };
+      });
+    expect(eventTheme.primary).not.toBe('');
+    expect(
+      await transferDialog.evaluate((element) => {
+        const style = getComputedStyle(element);
+        return {
+          primary: style.getPropertyValue('--mat-sys-primary').trim(),
+          surface: style.getPropertyValue('--mat-sys-surface').trim(),
+        };
+      }),
+    ).toEqual(eventTheme);
+    await page.screenshot({
+      animations: 'disabled',
+      path: testInfo.outputPath(`transfer-dialog-${colorScheme}.png`),
+    });
+  }
   const claimCode = await transferDialog
     .getByLabel('Transfer code')
     .inputValue();
@@ -221,6 +248,53 @@ test('transfers a free registration through a private transfer code', async ({
   expect(persistedOffer).toMatchObject({ status: 'open' });
   expect(persistedOffer?.claimCodeHash).toHaveLength(64);
   expect(persistedOffer?.claimCodeHash).not.toBe(claimCode);
+
+  await transferDialog
+    .getByRole('button', { name: 'Done', exact: true })
+    .click();
+  await page.reload();
+  await waitForRegistrationPage(page);
+  const showTransferCode = page.getByRole('button', {
+    name: 'Show transfer code',
+    exact: true,
+  });
+  await expect(showTransferCode).not.toHaveAttribute('jsaction', /click/);
+  await showTransferCode.click();
+  const reopenedDialog = page.getByRole('dialog', {
+    name: 'Private transfer ready',
+    exact: true,
+  });
+  await expect(
+    reopenedDialog.getByRole('textbox', { name: 'Transfer code' }),
+  ).toHaveValue(claimCode);
+  await reopenedDialog
+    .getByRole('button', { name: 'Copy transfer page link', exact: true })
+    .click();
+  await expect(reopenedDialog.getByRole('status')).toContainText(
+    'Transfer page link copied to clipboard.',
+  );
+  expect(
+    await database.query.registrationTransfers.findMany({
+      where: { sourceRegistrationId, tenantId: tenant.id },
+    }),
+  ).toHaveLength(1);
+  await reopenedDialog
+    .getByRole('button', { name: 'Done', exact: true })
+    .click();
+
+  await page.getByRole('link', { name: 'Profile', exact: true }).click();
+  await expect(page).toHaveURL(/\/profile$/);
+  await expect
+    .poll(() =>
+      page
+        .locator('.cdk-overlay-container')
+        .evaluate((element) =>
+          element instanceof HTMLElement
+            ? element.style.getPropertyValue('--mat-sys-primary')
+            : null,
+        ),
+    )
+    .toBe('');
 
   const recipientPage = await openAuthenticatedTestPage({
     baseUrl: new URL(page.url()).origin,

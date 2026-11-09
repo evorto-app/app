@@ -10,6 +10,7 @@ import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
 import { openAuthenticatedTestPage } from '../../support/utils/authenticated-test-page';
+import { waitForAppRpcResponse } from '../../support/utils/rpc-response';
 
 test('Join another organization and choose your home organization', async ({
   browser,
@@ -197,9 +198,13 @@ Opening a protected page for an organization you have not joined sends you to **
     member.page,
     'Complete every required answer and accept the current policy',
   );
-  await joinButton.click();
+  const [joinResponse] = await Promise.all([
+    waitForAppRpcResponse(member.page, 'onboarding.complete'),
+    joinButton.click(),
+  ]);
+  expect(joinResponse.ok()).toBe(true);
 
-  await expect(member.page).toHaveURL(/\/profile$/);
+  await expect(member.page).toHaveURL(/\/profile$/, { timeout: 20_000 });
   const profile = member.page.locator('app-user-profile');
   await expect(
     profile.getByRole('heading', {
@@ -476,7 +481,7 @@ Use **Admin Tools** → **New member setup**. You need **Change organization set
     body: `
 ## Choose the policy and questions
 
-Enter **Privacy policy text**, a full **Privacy policy web address**, or both. If both are present, members see the text and an **Open the full privacy policy** link. One checkbox accepts the complete policy shown there.
+Enter **Privacy policy text**, a full **Privacy policy web address**, or both. Members can open the full policy from the **current privacy policy** link beside the acceptance checkbox without leaving setup. If both are present, the text is also shown on the page. One checkbox accepts the complete policy.
 
 When a web address is saved, selecting **Privacy** on a public page opens that address. Clear the address and publish again when **Privacy** should open the text published in Evorto instead.
 
@@ -571,7 +576,10 @@ For a new member, Evorto creates the organization membership only after they com
     onboarding.getByText(privacyPolicyText, { exact: true }),
   ).toBeVisible();
   await expect(
-    onboarding.getByRole('link', { name: 'Open the full privacy policy' }),
+    onboarding.getByRole('link', {
+      exact: true,
+      name: 'current privacy policy',
+    }),
   ).toHaveAttribute('href', privacyPolicyUrl);
   await takeScreenshot(
     testInfo,

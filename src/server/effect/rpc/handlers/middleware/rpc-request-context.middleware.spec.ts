@@ -5,8 +5,8 @@ import {
   DEFAULT_TENANT_RECEIPT_COUNTRIES,
 } from '@shared/tenant-config';
 import { Effect, Layer, Schema } from 'effect';
-import * as Headers from 'effect/unstable/http/Headers';
-import { Rpc, RpcMessage } from 'effect/unstable/rpc';
+import * as Headers from 'effect/http/Headers';
+import { Rpc, RpcMessage } from 'effect/rpc';
 
 import {
   RpcRequestContext,

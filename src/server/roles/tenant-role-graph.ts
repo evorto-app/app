@@ -104,7 +104,10 @@ export const ensureTenantRoleIsUnreferenced = Effect.fn(
     .where(
       and(
         eq(eventInstances.tenantId, tenantId),
-        arrayContains(eventInstances.announcementRoleIds, [roleId]),
+        arrayContains(
+          eventInstances.announcementRoleIds,
+          sql`${sql.param([roleId])}::varchar[]`,
+        ),
       ),
     )
     .limit(1);
@@ -126,7 +129,10 @@ export const ensureTenantRoleIsUnreferenced = Effect.fn(
     .where(
       and(
         eq(eventInstances.tenantId, tenantId),
-        arrayContains(eventRegistrationOptions.roleIds, [roleId]),
+        arrayContains(
+          eventRegistrationOptions.roleIds,
+          sql`${sql.param([roleId])}::varchar[]`,
+        ),
       ),
     )
     .limit(1);
@@ -148,7 +154,10 @@ export const ensureTenantRoleIsUnreferenced = Effect.fn(
     .where(
       and(
         eq(eventTemplates.tenantId, tenantId),
-        arrayContains(templateRegistrationOptions.roleIds, [roleId]),
+        arrayContains(
+          templateRegistrationOptions.roleIds,
+          sql`${sql.param([roleId])}::varchar[]`,
+        ),
       ),
     )
     .limit(1);

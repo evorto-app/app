@@ -60,4 +60,4 @@ export const toTenantDateTime = (
 export const tenantNow = (
   timezone: SupportedTenantTimezone,
   now: DateTime = DateTime.now(),
-): DateTime => now.setZone(timezone);
+): DateTime => now.setZone(timezone).startOf('minute');

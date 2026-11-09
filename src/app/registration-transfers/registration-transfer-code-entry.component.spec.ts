@@ -7,6 +7,7 @@ import {
 } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
+import { provideRouter } from '@angular/router';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { RegistrationTransferClaimComponent } from './registration-transfer-claim.component';
@@ -73,6 +74,7 @@ describe('RegistrationTransferCodeEntryComponent validation', () => {
     });
     await TestBed.configureTestingModule({
       imports: [RegistrationTransferCodeEntryComponent],
+      providers: [provideRouter([])],
     }).compileComponents();
   });
 
@@ -102,6 +104,9 @@ describe('RegistrationTransferCodeEntryComponent validation', () => {
     const review = fixture.debugElement.query(By.directive(TransferClaimStub));
     expect(review?.injector.get(TransferClaimStub).claimCode()).toBe(claimCode);
     expect(rootElement(fixture).querySelector('input')).toBeNull();
+    expect(
+      rootElement(fixture).querySelector(':scope a')?.getAttribute('href'),
+    ).toBe('/profile');
   });
 
   it.each([

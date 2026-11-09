@@ -34,7 +34,7 @@ const linkOrNothing = (
     return [{ external: true, href: trimmedHref, label }];
   }
 
-  return textOrNothing(text)
+  return textOrNothing(text) || page !== 'terms'
     ? [{ external: false, href: `/legal/${page}`, label }]
     : [];
 };

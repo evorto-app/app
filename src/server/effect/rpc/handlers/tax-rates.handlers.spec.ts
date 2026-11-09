@@ -1,7 +1,7 @@
 import { expect, layer } from '@effect/vitest';
 import { Effect, Layer } from 'effect';
-import * as Headers from 'effect/unstable/http/Headers';
-import { Rpc, RpcMessage } from 'effect/unstable/rpc';
+import * as Headers from 'effect/http/Headers';
+import { Rpc, RpcMessage } from 'effect/rpc';
 
 import { type Permission } from '../../../../shared/permissions/permissions';
 import {
@@ -171,6 +171,24 @@ layer(
         );
       }
       expect(error.permission).toBe('templates:view');
+      expect(fixture.readCount()).toBe(0);
+    }),
+  );
+  it.effect('rejects anonymous callers before reading tax rates', () =>
+    Effect.gen(function* () {
+      const fixture = databaseFixture(true, false);
+      const error = yield* taxRateHandlers['taxRates.listActive'](
+        undefined,
+        options(),
+      ).pipe(
+        Effect.provideService(RpcRequestContext, {
+          ...createRequestContext([]),
+          authenticated: false,
+        }),
+        Effect.provide(fixture.databaseLayer),
+        Effect.flip,
+      );
+      expect(error._tag).toBe('RpcUnauthorizedError');
       expect(fixture.readCount()).toBe(0);
     }),
   );

@@ -25,6 +25,7 @@ import {
   registrationCancellationKind,
 } from '@shared/registration-cancellation';
 import { RegistrationTransfersRpcError } from '@shared/rpc-contracts/app-rpcs/registration-transfers.errors';
+import { isWebUrl } from '@shared/web-url';
 import {
   injectMutation,
   QueryClient,
@@ -135,6 +136,10 @@ export class EventActiveRegistrationOperations {
     return this.rpc.registrationTransfers.createOffer.mutationOptions();
   }
 
+  eventListFilter() {
+    return this.rpc.queryFilter(['events', 'eventList']);
+  }
+
   eventDetailsQueryKey(eventId: string) {
     return this.rpc.events.findOne.queryKey({ id: eventId });
   }
@@ -172,7 +177,6 @@ export const registrationAudienceCopy = (
 ): {
   audienceLabel: string;
   confirmedStatus: string;
-  passHeading: string;
   paymentPendingStatus: string;
   pendingApprovalStatus: string;
   qrAlt: string;
@@ -181,7 +185,6 @@ export const registrationAudienceCopy = (
     ? {
         audienceLabel: 'Organizer/helper',
         confirmedStatus: 'Organizer/helper ticket confirmed',
-        passHeading: 'Your organizer/helper pass',
         paymentPendingStatus:
           'Complete payment to confirm your organizer/helper place. Organizer access starts only after payment succeeds.',
         pendingApprovalStatus:
@@ -191,7 +194,6 @@ export const registrationAudienceCopy = (
     : {
         audienceLabel: 'Participant',
         confirmedStatus: 'Your ticket is confirmed',
-        passHeading: 'Your event ticket',
         paymentPendingStatus: 'Complete payment to confirm your ticket.',
         pendingApprovalStatus: 'Your ticket is pending organizer approval.',
         qrAlt: 'QR code for your event ticket',
@@ -264,7 +266,7 @@ export const registrationCancellationCopy = (registration: {
         ? 'Cancel sign-up'
         : 'Withdraw application',
       helperText: registration.paymentPending
-        ? `This cancels the pending sign-up and releases ${pendingPlaceNoun}. It does not complete a payment.`
+        ? `This closes the unpaid payment page and cancels your sign-up, releasing ${pendingPlaceNoun}. If payment has already completed, your ticket will stay active.`
         : 'This withdraws your pending application before organizer approval.',
     };
   }
@@ -341,8 +343,7 @@ export const registrationTransferActionCopy = (registration: {
   if (registration.transferAvailable) {
     return {
       buttonLabel: 'Create transfer link',
-      helperText:
-        'Create a private link and code for one organization member who can use this sign-up choice. They review the current questions, add-ons, discount, and price before claiming it.',
+      helperText: 'Share your ticket privately with another eligible member.',
     };
   }
 
@@ -485,10 +486,20 @@ export const registrationTransferActionDisabled = (input: {
     PriceWithTaxComponent,
   ],
   selector: 'app-event-active-registration',
-  styles: ``,
+  styles: `
+    .ticket-pass {
+      mask-image:
+        radial-gradient(circle at 9.5rem 0, transparent 11px, #000 12px),
+        radial-gradient(circle at 9.5rem 100%, transparent 11px, #000 12px),
+        radial-gradient(circle at 0 50%, transparent 7px, #000 8px),
+        radial-gradient(circle at 100% 50%, transparent 7px, #000 8px);
+      mask-composite: intersect;
+    }
+  `,
   templateUrl: './event-active-registration.component.html',
 })
 export class EventActiveRegistrationComponent {
+  protected readonly isWebUrl = isWebUrl;
   public readonly eventId = input.required<string>();
   public readonly registrations =
     input.required<readonly EventsRegistrationStatusRecord[]>();
@@ -531,6 +542,44 @@ export class EventActiveRegistrationComponent {
   protected readonly transferRegistrationMutation = injectMutation(() =>
     this.operations.createTransfer(),
   );
+
+  protected readonly reopenTransferMutation = injectMutation(() =>
+    this.operations.createTransfer(),
+  );
+  protected readonly transferCodeError = () => {
+    const error = this.reopenTransferMutation.error();
+    return isRegistrationTransferRpcError(error) &&
+      error._tag !== 'RegistrationTransferInternalError'
+      ? error.message
+      : 'The transfer code could not be opened. Try again.';
+  };
+
+  protected reopenTransfer(registrationId: string): void {
+    if (
+      this.reopenTransferMutation.isPending() ||
+      this.cancelTransferMutation.isPending()
+    )
+      return;
+    this.reopenTransferMutation.mutate(
+      { registrationId },
+      {
+        onSuccess: (offer) => this.openTransferDialog(offer),
+      },
+    );
+  }
+
+  private openTransferDialog(offer: EventRegistrationTransferDialogData): void {
+    this.dialog.open<
+      EventRegistrationTransferDialogComponent,
+      EventRegistrationTransferDialogData
+    >(EventRegistrationTransferDialogComponent, {
+      autoFocus: 'first-heading',
+      data: offer,
+      maxHeight: 'calc(100dvh - 32px)',
+      maxWidth: 'calc(100vw - 32px)',
+      width: '560px',
+    });
+  }
 
   private readonly dialog = inject(MatDialog);
   private readonly document = inject(DOCUMENT);
@@ -676,13 +725,7 @@ export class EventActiveRegistrationComponent {
           await this.invalidateOwnerQueries(false);
         },
         onSuccess: async (offer) => {
-          this.dialog.open<
-            EventRegistrationTransferDialogComponent,
-            EventRegistrationTransferDialogData
-          >(EventRegistrationTransferDialogComponent, {
-            data: offer,
-            width: '560px',
-          });
+          this.openTransferDialog(offer);
           await this.invalidateOwnerQueries(false);
         },
       },
@@ -965,6 +1008,7 @@ export class EventActiveRegistrationComponent {
       eventOrganizerAccessResult,
       scannerAccessResult,
       userEventsResult,
+      eventListResult,
     ] = await Promise.allSettled([
       this.queryClient.invalidateQueries(
         { exact: true, queryKey: registrationStatusQueryKey },
@@ -986,6 +1030,9 @@ export class EventActiveRegistrationComponent {
         { exact: true, queryKey: userEventsQueryKey },
         { throwOnError: true },
       ),
+      this.queryClient.invalidateQueries(this.operations.eventListFilter(), {
+        throwOnError: true,
+      }),
     ]);
 
     if (registrationStatusResult.status === 'fulfilled' && reconcileAttempts) {
@@ -1009,7 +1056,8 @@ export class EventActiveRegistrationComponent {
       eventDetailsResult.status === 'fulfilled' &&
       eventOrganizerAccessResult.status === 'fulfilled' &&
       scannerAccessResult.status === 'fulfilled' &&
-      userEventsResult.status === 'fulfilled'
+      userEventsResult.status === 'fulfilled' &&
+      eventListResult.status === 'fulfilled'
     );
   }
 

@@ -88,11 +88,10 @@ export class TenantDatePipe implements PipeTransform {
       );
     }
 
-    return formatDate(
-      dateTime.toMillis(),
-      format,
-      locale,
-      dateTime.toFormat('ZZ'),
-    );
+    const render = (pattern: string) =>
+      formatDate(dateTime.toMillis(), pattern, locale, dateTime.toFormat('ZZ'));
+    return format === 'medium'
+      ? `${render('mediumDate')}, ${render('shortTime')}`
+      : render(format === 'mediumTime' ? 'shortTime' : format);
   }
 }

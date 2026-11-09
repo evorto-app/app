@@ -7,6 +7,7 @@ import {
   computed,
   input,
   numberAttribute,
+  output,
 } from '@angular/core';
 
 @Component({
@@ -19,6 +20,8 @@ import {
   templateUrl: './icon.component.html',
 })
 export class IconComponent {
+  public readonly loading = input<'eager' | 'lazy'>('lazy');
+  public readonly loaded = output<string>();
   public iconCommonName = input.required<IconValue>();
   public size = input(24, {
     transform: numberAttribute,

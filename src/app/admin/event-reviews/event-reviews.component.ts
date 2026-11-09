@@ -170,7 +170,11 @@ export const eventReviewQueueActionDisabled = ({
                 <!--                }-->
               </div>
               <a mat-button routerLink="/events/{{ event.id }}">
-                <fa-duotone-icon [icon]="faArrowUpRightFromSquare" />
+                <fa-duotone-icon
+                  matButtonIcon
+                  class="mat-icon"
+                  [icon]="faArrowUpRightFromSquare"
+                />
                 Open event
               </a>
             </div>

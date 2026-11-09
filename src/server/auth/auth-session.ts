@@ -8,9 +8,9 @@ import {
   StatelessStateStore,
 } from '@auth0/auth0-server-js';
 import { Duration, Effect, Option, Redacted, Schema } from 'effect';
-import * as Headers from 'effect/unstable/http/Headers';
-import * as HttpServerRequest from 'effect/unstable/http/HttpServerRequest';
-import * as HttpServerResponse from 'effect/unstable/http/HttpServerResponse';
+import * as Headers from 'effect/http/Headers';
+import * as HttpServerRequest from 'effect/http/HttpServerRequest';
+import * as HttpServerResponse from 'effect/http/HttpServerResponse';
 
 import { sanitizeRelativeRedirectPath } from '../../shared/auth-redirect';
 import { UsersAuthData } from '../../shared/rpc-contracts/app-rpcs/users.rpcs';

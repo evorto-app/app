@@ -1,4 +1,4 @@
-import * as HttpServerResponse from 'effect/unstable/http/HttpServerResponse';
+import * as HttpServerResponse from 'effect/http/HttpServerResponse';
 
 export const unknownTenantDocument = `<!doctype html>
 <html lang="en">

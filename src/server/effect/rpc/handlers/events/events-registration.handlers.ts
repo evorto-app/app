@@ -460,6 +460,7 @@ export const registrationCancellationAvailability = (input: {
   readonly deadlineHoursBeforeStart: number;
   readonly eventStart: Date;
   readonly now: Date;
+  readonly pendingPayment: boolean;
 }): {
   readonly cancellationAvailable: boolean;
   readonly cancellationBlockedReason:
@@ -469,6 +470,13 @@ export const registrationCancellationAvailability = (input: {
     return {
       cancellationAvailable: false,
       cancellationBlockedReason: 'checkedIn',
+    };
+  }
+
+  if (input.pendingPayment) {
+    return {
+      cancellationAvailable: true,
+      cancellationBlockedReason: 'none',
     };
   }
 
@@ -918,7 +926,17 @@ export const cancelRegistrationForTenant = Effect.fn(
     );
   }
 
-  if (!expiredCheckout && registration.event.start <= now) {
+  const preflightPendingStripeTransaction = registration.transactions.find(
+    (currentTransaction) =>
+      currentTransaction.status === 'pending' &&
+      currentTransaction.method === 'stripe' &&
+      currentTransaction.type === 'registration',
+  );
+  const pendingPayment =
+    registration.status === 'PENDING' &&
+    preflightPendingStripeTransaction !== undefined;
+
+  if (!expiredCheckout && !pendingPayment && registration.event.start <= now) {
     return yield* Effect.fail(
       new EventRegistrationConflictError({
         message: 'Registration can no longer be cancelled',
@@ -927,6 +945,7 @@ export const cancelRegistrationForTenant = Effect.fn(
   }
   if (
     !expiredCheckout &&
+    !pendingPayment &&
     enforceParticipantDeadline &&
     hasReachedRegistrationCancellationDeadline({
       deadlineHoursBeforeStart: resolveCancellationDeadlineHoursBeforeStart(
@@ -944,12 +963,6 @@ export const cancelRegistrationForTenant = Effect.fn(
       }),
     );
   }
-  const preflightPendingStripeTransaction = registration.transactions.find(
-    (currentTransaction) =>
-      currentTransaction.status === 'pending' &&
-      currentTransaction.method === 'stripe' &&
-      currentTransaction.type === 'registration',
-  );
   if (
     preflightPendingStripeTransaction &&
     !preflightPendingStripeTransaction.stripeCheckoutSessionId
@@ -2782,6 +2795,7 @@ export const eventRegistrationHandlers = {
             event: {
               columns: {
                 end: true,
+                location: true,
                 start: true,
                 status: true,
               },
@@ -3313,6 +3327,8 @@ export const eventRegistrationHandlers = {
                 ),
               eventStart: event.start,
               now,
+              pendingPayment:
+                registration.status === 'PENDING' && paymentPending,
             },
           );
 
@@ -3338,9 +3354,16 @@ export const eventRegistrationHandlers = {
             )?.stripeCheckoutUrl,
             guestCount: registration.guestCount,
             id: registration.id,
+            location:
+              registration.status === 'CONFIRMED'
+                ? (event.location ?? null)
+                : null,
             organizingRegistration: registrationOption.organizingRegistration,
             paymentPending,
-            registeredDescription: registrationOption.registeredDescription,
+            registeredDescription:
+              registration.status === 'CONFIRMED'
+                ? registrationOption.registeredDescription
+                : null,
             registrationAddOns,
             registrationOptionId: registration.registrationOptionId,
             registrationOptionTitle: registrationOption.title,

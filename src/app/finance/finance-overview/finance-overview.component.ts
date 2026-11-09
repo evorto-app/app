@@ -7,11 +7,13 @@ import {
   faRotateExclamation,
 } from '@fortawesome/duotone-regular-svg-icons';
 
+import { TwoColumnLayoutComponent } from '../../shared/components/two-column-layout/two-column-layout.component';
 import { IfPermissionDirective } from '../../shared/directives/if-permission.directive';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    TwoColumnLayoutComponent,
     FaDuotoneIconComponent,
     IfPermissionDirective,
     RouterLink,

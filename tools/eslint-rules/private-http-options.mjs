@@ -115,11 +115,11 @@ export const privateHttpOptionsRule = {
               definition.node.imported?.name ?? definition.node.imported?.value;
             const namespace =
               definition.node.type === "ImportNamespaceSpecifier";
-            if (module === "effect/unstable/http") {
+            if (module === "effect/http") {
               if (namespace) return "http";
               if (imported === "HttpRouter") return "router";
             }
-            if (module === "effect/unstable/http/HttpRouter") {
+            if (module === "effect/http/HttpRouter") {
               if (namespace) return "router";
               if (methods.has(imported)) return "boundary";
             }

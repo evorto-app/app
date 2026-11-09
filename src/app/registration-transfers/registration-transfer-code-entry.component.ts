@@ -10,6 +10,7 @@ import {
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+import { RouterLink } from '@angular/router';
 import { registrationTransferClaimCodePattern } from '@shared/registration-transfer';
 
 import { RegistrationTransferClaimComponent } from './registration-transfer-claim.component';
@@ -25,6 +26,7 @@ export const normalizeRegistrationTransferCode = (value: string): string =>
     MatFormFieldModule,
     MatInputModule,
     RegistrationTransferClaimComponent,
+    RouterLink,
   ],
   selector: 'app-registration-transfer-code-entry',
   templateUrl: './registration-transfer-code-entry.component.html',

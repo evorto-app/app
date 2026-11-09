@@ -1,4 +1,4 @@
-import type * as SqlConnection from 'effect/unstable/sql/SqlConnection';
+import type * as SqlConnection from 'effect/sql/SqlConnection';
 
 import { describe, expect, it } from '@effect/vitest';
 import { ConfigProvider, Effect, Layer } from 'effect';
@@ -82,9 +82,9 @@ const createWebhookReceiptFixture = (input: {
     Effect.sync(() => {
       if (statement.startsWith('insert into "stripe_webhook_events" ')) {
         expect(statement).toBe(
-          'insert into "stripe_webhook_events" ("event_type", "processed_at", "status", "stripe_event_id", "tenant_id") values ($1, default, default, $2, ' +
+          'insert into "stripe_webhook_events" ("claim_id", "event_type", "processed_at", "status", "stripe_event_id", "tenant_id") values (default, $1, default, default, $2, ' +
             (input.tenantId ? '$3' : 'default') +
-            ') on conflict do nothing returning "status", "stripe_event_id"',
+            ') on conflict do nothing returning "claim_id"',
         );
         expect(parameters).toEqual([
           input.eventType,
@@ -92,33 +92,41 @@ const createWebhookReceiptFixture = (input: {
           ...(input.tenantId ? [input.tenantId] : []),
         ]);
         writes.push('claim');
-        return [['processing', input.eventId]];
+        return [['00000000-0000-4000-8000-000000000001']];
       }
       if (statement.startsWith('update "stripe_webhook_events" ')) {
         expect(statement).toBe(
-          'update "stripe_webhook_events" set "processed_at" = $1, "status" = $2 where "stripe_webhook_events"."stripe_event_id" = $3',
+          'update "stripe_webhook_events" set "processed_at" = $1, "status" = $2 where (("stripe_webhook_events"."stripe_event_id" = $3) and ("stripe_webhook_events"."claim_id" = $4) and ("stripe_webhook_events"."status" = $5)) returning "claim_id"',
         );
         const [processedAt, status, eventId] = parameters;
         if (typeof processedAt !== 'string' || status !== 'processed') {
           throw new Error('Expected a processed webhook receipt timestamp');
         }
-        expect(parameters).toHaveLength(3);
+        expect(parameters).toHaveLength(5);
+        expect(parameters.slice(3)).toEqual([
+          '00000000-0000-4000-8000-000000000001',
+          'processing',
+        ]);
         expect(eventId).toBe(input.eventId);
         const date = new Date(processedAt);
         expect(Number.isFinite(date.getTime())).toBe(true);
         updatedTables.push(dbSchema.stripeWebhookEvents);
         updateValues.push({ processedAt: date, status });
         writes.push('processed');
-        return [];
+        return [['00000000-0000-4000-8000-000000000001']];
       }
       if (statement.startsWith('delete from "stripe_webhook_events" ')) {
         expect(statement).toBe(
-          'delete from "stripe_webhook_events" where "stripe_webhook_events"."stripe_event_id" = $1',
+          'delete from "stripe_webhook_events" where (("stripe_webhook_events"."stripe_event_id" = $1) and ("stripe_webhook_events"."claim_id" = $2) and ("stripe_webhook_events"."status" = $3)) returning "claim_id"',
         );
-        expect(parameters).toEqual([input.eventId]);
+        expect(parameters).toEqual([
+          input.eventId,
+          '00000000-0000-4000-8000-000000000001',
+          'processing',
+        ]);
         deletedTables.push(dbSchema.stripeWebhookEvents);
         writes.push('released');
-        return [];
+        return [['00000000-0000-4000-8000-000000000001']];
       }
       throw new Error(`Unexpected webhook receipt SQL: ${statement}`);
     });
@@ -193,14 +201,14 @@ const createProviderRefundFixture = (input: {
       expect(transactionOpen).toBe(true);
       if (
         statement.startsWith(
-          'select "amount", "currency", "eventRegistrationId",',
+          'select "amount", "currency"::text, "eventRegistrationId",',
         )
       ) {
         const predicate = input.metadataClaimId
           ? '((("transactions"."id" = $1) or ("transactions"."stripe_refund_id" = $2))) and ("transactions"."method" = $3) and ("transactions"."type" = $4)'
           : '("transactions"."stripe_refund_id" = $1) and ("transactions"."method" = $2) and ("transactions"."type" = $3)';
         expect(statement).toBe(
-          'select "amount", "currency", "eventRegistrationId", "id", "refund_operation_key", "source_transaction_id", "stripe_account_id", "stripe_refund_attempts", "stripe_refund_generation", "stripe_refund_history", "stripe_refund_id", "stripe_refund_max_attempts", "stripe_refund_status", "tenantId" from "transactions" where (' +
+          'select "amount", "currency"::text, "eventRegistrationId", "id", "refund_operation_key", "source_transaction_id", "stripe_account_id", "stripe_refund_attempts", "stripe_refund_generation", "stripe_refund_history", "stripe_refund_id", "stripe_refund_max_attempts", "stripe_refund_status"::text, "tenantId" from "transactions" where (' +
             predicate +
             ') for update',
         );
@@ -214,11 +222,11 @@ const createProviderRefundFixture = (input: {
       }
       if (
         statement.startsWith(
-          'select "amount", "currency", "eventId", "eventRegistrationId", "id", "status",',
+          'select "amount", "currency"::text, "eventId", "eventRegistrationId", "id", "status"::text,',
         )
       ) {
         expect(statement).toBe(
-          'select "amount", "currency", "eventId", "eventRegistrationId", "id", "status", "stripe_account_id", "stripeChargeId", "stripePaymentIntentId", "targetUserId", "tenantId" from "transactions" where (((("transactions"."stripeChargeId" = $1) or ("transactions"."stripePaymentIntentId" = $2))) and ("transactions"."method" = $3) and ("transactions"."type" in ($4, $5))) order by "transactions"."id" for update',
+          'select "amount", "currency"::text, "eventId", "eventRegistrationId", "id", "status"::text, "stripe_account_id", "stripeChargeId", "stripePaymentIntentId", "targetUserId", "tenantId" from "transactions" where (((("transactions"."stripeChargeId" = $1) or ("transactions"."stripePaymentIntentId" = $2))) and ("transactions"."method" = $3) and ("transactions"."type" in ($4, $5))) order by "transactions"."id" for update',
         );
         expect(parameters).toEqual([
           'ch_source',
@@ -245,12 +253,12 @@ const createProviderRefundFixture = (input: {
       }
       if (
         statement.startsWith(
-          'select "amount", "currency", "eventId", "eventRegistrationId", "id", "manuallyCreated",',
+          'select "amount", "currency"::text, "eventId", "eventRegistrationId", "id", "manuallyCreated",',
         )
       ) {
         expect(input.sourceStatus).toBe('successful');
         expect(statement).toContain(
-          '"refund_operation_key", "source_transaction_id", "status", "stripe_account_id", "stripe_refund_attempts"',
+          '"refund_operation_key", "source_transaction_id", "status"::text, "stripe_account_id", "stripe_refund_attempts"',
         );
         expect(statement).toContain(
           'from "transactions" where (("transactions"."source_transaction_id" = $1) and ("transactions"."tenantId" = $2) and ("transactions"."type" = $3)) order by "transactions"."id" for update',
@@ -960,7 +968,7 @@ describe('checkout expiry replay', () => {
         return Effect.sync(() => {
           if (statement.includes('from "transactions" as "d0"')) {
             expect(statement).toBe(
-              'select "d0"."eventRegistrationId" as "eventRegistrationId", "d0"."id" as "id", "d0"."method" as "method", "d0"."status" as "status", "d0"."stripe_account_id" as "stripeAccountId", "d0"."stripeCheckoutSessionId" as "stripeCheckoutSessionId", "d0"."stripePaymentIntentId" as "stripePaymentIntentId", "d0"."tenantId" as "tenantId", "d0"."type" as "type" from "transactions" as "d0" where "d0"."stripeCheckoutSessionId" = $1 limit $2',
+              'select "d0"."eventRegistrationId" as "eventRegistrationId", "d0"."id" as "id", "d0"."method"::text as "method", "d0"."status"::text as "status", "d0"."stripe_account_id" as "stripeAccountId", "d0"."stripeCheckoutSessionId" as "stripeCheckoutSessionId", "d0"."stripePaymentIntentId" as "stripePaymentIntentId", "d0"."tenantId" as "tenantId", "d0"."type"::text as "type" from "transactions" as "d0" where "d0"."stripeCheckoutSessionId" = $1 limit $2',
             );
             expect(parameters).toEqual(['checkout-1', 1]);
             reads.push('binding');
@@ -980,7 +988,7 @@ describe('checkout expiry replay', () => {
           }
           if (statement.includes('from "event_registrations" as "d0"')) {
             expect(statement).toBe(
-              'select "d0"."status" as "status" from "event_registrations" as "d0" where (("d0"."id" = $1) and ("d0"."tenantId" = $2)) limit $3',
+              'select "d0"."status"::text as "status" from "event_registrations" as "d0" where (("d0"."id" = $1) and ("d0"."tenantId" = $2)) limit $3',
             );
             expect(parameters).toEqual(['registration-1', 'tenant-1', 1]);
             reads.push('registration');

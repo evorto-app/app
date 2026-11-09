@@ -1,11 +1,11 @@
-import type * as SqlConnection from 'effect/unstable/sql/SqlConnection';
+import type * as SqlConnection from 'effect/sql/SqlConnection';
 
 import { emailOutbox } from '@db/schema';
 import { describe, expect, it, vi } from '@effect/vitest';
 import { createRegistrationDatabaseTestLayer } from '@server/testing/registration-database';
 import { getTableColumns } from 'drizzle-orm';
 import { ConfigProvider, Effect, Layer } from 'effect';
-import { HttpRouter as HttpLayerRouter } from 'effect/unstable/http';
+import { HttpRouter as HttpLayerRouter } from 'effect/http';
 
 import { DeploymentRuntimeConfig } from '../config/deployment-config';
 import { EmailDelivery } from '../integrations/email-delivery';
@@ -18,9 +18,9 @@ const outboxSql = {
   abandoned:
     'update "email_outbox" set "updatedAt" = $1, "claim_lease_expires_at" = $2, "claim_lease_id" = $3, "delivery_unknown_at" = $4, "last_error" = $5, "status" = $6 where "email_outbox"."status" = \'sending\' and ( "email_outbox"."claim_lease_id" is null or "email_outbox"."claim_lease_expires_at" is null or "email_outbox"."claim_lease_expires_at" <= now() ) returning "id"',
   claim:
-    'update "email_outbox" set "updatedAt" = $1, "attempts" = $2, "claim_lease_expires_at" = now() + ($3 * interval \'1 millisecond\') , "claim_lease_id" = $4, "last_attempt_at" = now(), "status" = $5 where "email_outbox"."id" = $6 and "email_outbox"."status" = \'queued\' and "email_outbox"."attempts" = 0 returning "createdAt"::text, "id", "updatedAt"::text, "tenantId", "attempts", "claim_lease_expires_at"::text, "claim_lease_id", "delivery_unknown_at"::text, "html", "idempotency_key", "kind", "last_attempt_at"::text, "last_error", "provider", "provider_message_id", "reply_to_email", "reply_to_name", "sent_at"::text, "status", "subject", "suppressed_at"::text, "text", "to_email"',
+    'update "email_outbox" set "updatedAt" = $1, "attempts" = $2, "claim_lease_expires_at" = now() + ($3 * interval \'1 millisecond\') , "claim_lease_id" = $4, "last_attempt_at" = now(), "status" = $5 where "email_outbox"."id" = $6 and "email_outbox"."status" = \'queued\' and "email_outbox"."attempts" = 0 returning "createdAt"::text, "id", "updatedAt"::text, "tenantId", "attempts", "claim_lease_expires_at"::text, "claim_lease_id", "delivery_unknown_at"::text, "html", "idempotency_key", "kind"::text, "last_attempt_at"::text, "last_error", "provider"::text, "provider_message_id", "reply_to_email", "reply_to_name", "sent_at"::text, "status"::text, "subject", "suppressed_at"::text, "text", "to_email"',
   select:
-    'select "createdAt"::text, "id", "updatedAt"::text, "tenantId", "attempts", "claim_lease_expires_at"::text, "claim_lease_id", "delivery_unknown_at"::text, "html", "idempotency_key", "kind", "last_attempt_at"::text, "last_error", "provider", "provider_message_id", "reply_to_email", "reply_to_name", "sent_at"::text, "status", "subject", "suppressed_at"::text, "text", "to_email" from "email_outbox" where "email_outbox"."status" = \'queued\' and "email_outbox"."attempts" = 0 order by "email_outbox"."createdAt" asc limit $1',
+    'select "createdAt"::text, "id", "updatedAt"::text, "tenantId", "attempts", "claim_lease_expires_at"::text, "claim_lease_id", "delivery_unknown_at"::text, "html", "idempotency_key", "kind"::text, "last_attempt_at"::text, "last_error", "provider"::text, "provider_message_id", "reply_to_email", "reply_to_name", "sent_at"::text, "status"::text, "subject", "suppressed_at"::text, "text", "to_email" from "email_outbox" where "email_outbox"."status" = \'queued\' and "email_outbox"."attempts" = 0 order by "email_outbox"."createdAt" asc limit $1',
   sent: 'update "email_outbox" set "updatedAt" = $1, "claim_lease_expires_at" = $2, "claim_lease_id" = $3, "last_error" = $4, "provider" = $5, "provider_message_id" = $6, "sent_at" = $7, "status" = $8 where "email_outbox"."id" = $9 and "email_outbox"."status" = \'sending\' and "email_outbox"."claim_lease_id" = $10 returning "id"',
 };
 type OutboxRow = typeof emailOutbox.$inferSelect;

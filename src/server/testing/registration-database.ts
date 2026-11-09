@@ -1,5 +1,5 @@
-import type * as SqlConnection from 'effect/unstable/sql/SqlConnection';
-import type { SqlError } from 'effect/unstable/sql/SqlError';
+import type * as SqlConnection from 'effect/sql/SqlConnection';
+import type { SqlError } from 'effect/sql/SqlError';
 
 import { Database } from '@db/index';
 import { relations } from '@db/relations';

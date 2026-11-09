@@ -1,13 +1,14 @@
 import { describe, expect, it } from '@effect/vitest';
 import { Effect, Layer } from 'effect';
-import * as Headers from 'effect/unstable/http/Headers';
-import { Rpc, RpcMessage } from 'effect/unstable/rpc';
+import * as Headers from 'effect/http/Headers';
+import { Rpc, RpcMessage } from 'effect/rpc';
 
 import { type Permission } from '../../../../shared/permissions/permissions';
 import {
   CategoryManagementIconUsage,
   EventCreateIconUsage,
   EventEditIconUsage,
+  HubResourceIconUsage,
   IconsAdd,
   IconsSearch,
 } from '../../../../shared/rpc-contracts/app-rpcs/icons.rpcs';
@@ -153,6 +154,41 @@ describe('icon authoring authorization', () => {
           }),
         ),
       ),
+  );
+
+  it.effect(
+    'allows resource managers to add hub icons without event or template permissions',
+    () =>
+      ensureIconUsageAuthorized(HubResourceIconUsage.make({})).pipe(
+        Effect.provide(
+          createContextLayer({
+            permissions: [
+              'internal:viewInternalPages',
+              'internal:manageResources',
+            ],
+            user: createUser([
+              'internal:viewInternalPages',
+              'internal:manageResources',
+            ]),
+          }),
+        ),
+      ),
+  );
+  it.effect('denies adding resource icons with read-only hub access', () =>
+    Effect.gen(function* () {
+      const error = yield* ensureIconUsageAuthorized(
+        HubResourceIconUsage.make({}),
+      ).pipe(
+        Effect.provide(
+          createContextLayer({
+            permissions: ['internal:viewInternalPages'],
+            user: createUser(['internal:viewInternalPages']),
+          }),
+        ),
+        Effect.flip,
+      );
+      expect(error._tag).toBe('RpcForbiddenError');
+    }),
   );
 
   it.effect('allows an event owner to add an icon for that event', () =>

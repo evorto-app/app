@@ -54,7 +54,7 @@ import {
       (click)="openImportDialog()"
       [disabled]="!importedQuery.isSuccess()"
     >
-      <fa-duotone-icon [icon]="faReceipt" />
+      <fa-duotone-icon matButtonIcon class="mat-icon" [icon]="faReceipt" />
       Add tax rates
     </button>
 

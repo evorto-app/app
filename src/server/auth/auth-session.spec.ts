@@ -8,8 +8,8 @@ import {
 } from '@auth0/auth0-server-js';
 import { afterEach, describe, expect, it, vi } from '@effect/vitest';
 import { Cause, ConfigProvider, Effect, Exit, Option } from 'effect';
-import * as HttpServerRequest from 'effect/unstable/http/HttpServerRequest';
-import * as HttpServerResponse from 'effect/unstable/http/HttpServerResponse';
+import * as HttpServerRequest from 'effect/http/HttpServerRequest';
+import * as HttpServerResponse from 'effect/http/HttpServerResponse';
 
 import { RuntimeConfig } from '../config/runtime-config';
 import { makeServerResponseMiddleware } from '../http/server-response.middleware';

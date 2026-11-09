@@ -1,9 +1,9 @@
-import type * as SqlConnection from 'effect/unstable/sql/SqlConnection';
+import type * as SqlConnection from 'effect/sql/SqlConnection';
 
 import { assert, describe, expect, it } from '@effect/vitest';
 import { Effect, Layer } from 'effect';
-import * as Headers from 'effect/unstable/http/Headers';
-import { Rpc, RpcMessage } from 'effect/unstable/rpc';
+import * as Headers from 'effect/http/Headers';
+import { Rpc, RpcMessage } from 'effect/rpc';
 
 import { type Permission } from '../../../../shared/permissions/permissions';
 import {

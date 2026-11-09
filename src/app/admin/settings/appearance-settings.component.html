@@ -69,6 +69,37 @@
     </section>
 
     <section class="grid grid-cols-1">
+      <h2 class="title-small mb-2">Home page</h2>
+      <mat-form-field>
+        <mat-label>Home page</mat-label>
+        <mat-select [formField]="settingsForm.homePageMode">
+          <mat-option value="none">No home page</mat-option>
+          <mat-option value="link">External link</mat-option>
+        </mat-select>
+      </mat-form-field>
+      @if (settingsForm.homePageMode().value() === "link") {
+        <mat-form-field>
+          <mat-label>Home page web address</mat-label>
+          <input
+            matInput
+            type="url"
+            [formField]="settingsForm.homePageUrl"
+            placeholder="https://section.example.org"
+          />
+          <mat-hint
+            >The Home navigation link opens this page in a new tab.</mat-hint
+          >
+          @for (
+            error of settingsForm.homePageUrl().errors();
+            track error.kind
+          ) {
+            <mat-error>{{ error.message }}</mat-error>
+          }
+        </mat-form-field>
+      }
+    </section>
+
+    <section class="grid grid-cols-1">
       <h2 class="title-small mb-2">Branding</h2>
       <p class="text-on-surface-variant mb-3 text-sm">
         Upload a logo or tab icon, or enter its web address.
@@ -96,7 +127,7 @@
         [disabled]="brandAssetUploadDisabled()"
         (click)="logoAssetInput.click()"
       >
-        <fa-duotone-icon [icon]="faUpload" class="mr-2" />
+        <fa-duotone-icon matButtonIcon [icon]="faUpload" class="mat-icon" />
         {{
           uploadingBrandAsset() === "logo" ? "Uploading logo" : "Upload logo"
         }}
@@ -125,13 +156,82 @@
         [disabled]="brandAssetUploadDisabled()"
         (click)="faviconAssetInput.click()"
       >
-        <fa-duotone-icon [icon]="faUpload" class="mr-2" />
+        <fa-duotone-icon matButtonIcon [icon]="faUpload" class="mat-icon" />
         {{
           uploadingBrandAsset() === "favicon"
             ? "Uploading tab icon"
             : "Upload tab icon"
         }}
       </button>
+    </section>
+
+    <section class="grid gap-3" aria-labelledby="footer-links-heading">
+      <h2 id="footer-links-heading" class="title-small">Footer links</h2>
+      <p class="text-on-surface-variant text-sm">
+        Add your organization's website, contact details, or social pages. Links
+        appear as icons at the bottom of every page.
+      </p>
+      @for (link of settingsForm.footerLinks; track link; let index = $index) {
+        <fieldset
+          class="grid min-w-0 gap-3 border-0 border-b border-solid border-outline-variant p-0 pb-3 md:grid-cols-[1fr_2fr_1fr_auto]"
+        >
+          <legend class="mb-2 text-sm">Link {{ index + 1 }}</legend>
+          <mat-form-field
+            ><mat-label>Label</mat-label
+            ><input matInput [formField]="link.label" />
+            @for (error of link.label().errors(); track error) {
+              <mat-error>{{ error.message }}</mat-error>
+            }
+          </mat-form-field>
+          <mat-form-field
+            ><mat-label>Web or email address</mat-label
+            ><input
+              matInput
+              [formField]="link.href"
+              placeholder="https://example.org"
+            />
+            @for (error of link.href().errors(); track error) {
+              <mat-error>{{ error.message }}</mat-error>
+            }
+          </mat-form-field>
+          <mat-form-field
+            ><mat-label>Icon</mat-label
+            ><mat-select [formField]="link.icon">
+              @for (option of footerIconOptions; track option.value) {
+                <mat-option [value]="option.value">{{
+                  option.label
+                }}</mat-option>
+              }
+            </mat-select></mat-form-field
+          >
+          <button
+            mat-button
+            type="button"
+            (click)="removeFooterLink(index)"
+            [attr.aria-label]="'Remove link ' + (index + 1)"
+          >
+            Remove
+          </button>
+        </fieldset>
+      }
+      <button
+        mat-stroked-button
+        type="button"
+        class="w-fit"
+        (click)="addFooterLink()"
+        [disabled]="settingsForm.footerLinks().value().length >= maxFooterLinks"
+      >
+        Add footer link
+      </button>
+      <p class="text-on-surface-variant text-sm">
+        Manage the imprint and terms in
+        <a routerLink="/admin/settings/legal" class="text-primary underline"
+          >Legal information</a
+        >, and the privacy policy in
+        <a routerLink="/admin/onboarding" class="text-primary underline"
+          >Onboarding</a
+        >.
+      </p>
     </section>
 
     <section class="grid grid-cols-1">

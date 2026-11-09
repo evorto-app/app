@@ -12,6 +12,7 @@ export interface EmailOutboxScenarioItem {
   id: string;
   recipient: string;
   subject: string;
+  tenantDomain: string;
 }
 
 export interface EmailOutboxScenario {
@@ -39,6 +40,7 @@ export const seedEmailOutboxScenario = async ({
     id: getId(),
     recipient: `alex.${recipientLabel}@example.org`,
     subject,
+    tenantDomain: tenant.domain,
   });
   const unknown = item('receipts', 'We could not confirm your receipt update');
   const sending = item('events', 'Your event update is being sent');

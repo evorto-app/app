@@ -59,7 +59,7 @@
       </h3>
       @if (!isSimpleMode()) {
         <button mat-button type="button" (click)="addRegistrationOption()">
-          <fa-duotone-icon [icon]="faPlus" />
+          <fa-duotone-icon matButtonIcon class="mat-icon" [icon]="faPlus" />
           Add sign-up choice
         </button>
       }
@@ -111,7 +111,7 @@
           [disabled]="form.addOns.length >= maxEventAddonTypes"
           (click)="addAddOn()"
         >
-          <fa-duotone-icon [icon]="faPlus" />
+          <fa-duotone-icon matButtonIcon class="mat-icon" [icon]="faPlus" />
           Add add-on
         </button>
       </div>
@@ -159,7 +159,7 @@
         "
         (click)="addQuestion()"
       >
-        <fa-duotone-icon [icon]="faPlus" />
+        <fa-duotone-icon matButtonIcon class="mat-icon" [icon]="faPlus" />
         Add question
       </button>
     </div>

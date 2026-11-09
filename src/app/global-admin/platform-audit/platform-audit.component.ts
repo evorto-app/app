@@ -79,7 +79,7 @@ const statusValue = mappedValue({
   needs_attention: 'Needs attention',
   PENDING: 'Pending',
   pending: 'Pending',
-  PENDING_REVIEW: 'Pending review',
+  PENDING_REVIEW: 'In review',
   processing: 'In progress',
   refunded: 'Reimbursed',
   rejected: 'Rejected',

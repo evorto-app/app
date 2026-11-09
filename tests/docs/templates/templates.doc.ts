@@ -7,6 +7,7 @@ import { adminStateFile } from '../../../helpers/user-data';
 import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
+import { waitForEventCreationFormReady } from '../../support/utils/event-creation-form';
 import { fillTemplateBasics } from '../../support/utils/template-form';
 
 const templateOptionEditorByTitle = async (
@@ -69,13 +70,24 @@ test('Manage templates', async ({
   const eventTitle = 'Volunteer welcome event';
 
   registerDatabaseCleanup(async (cleanupDatabase) => {
+    const createdTemplates = await cleanupDatabase
+      .select({ id: schema.eventTemplates.id })
+      .from(schema.eventTemplates)
+      .where(
+        and(
+          eq(schema.eventTemplates.tenantId, tenant.id),
+          eq(schema.eventTemplates.title, templateTitle),
+        ),
+      );
+    const templateIds = createdTemplates.map((template) => template.id);
+    if (templateIds.length === 0) return;
     const createdEvents = await cleanupDatabase
       .select({ id: schema.eventInstances.id })
       .from(schema.eventInstances)
       .where(
         and(
           eq(schema.eventInstances.tenantId, tenant.id),
-          eq(schema.eventInstances.title, eventTitle),
+          inArray(schema.eventInstances.templateId, templateIds),
         ),
       );
     const eventIds = createdEvents.map((event) => event.id);
@@ -119,19 +131,6 @@ test('Manage templates', async ({
         );
     }
 
-    const createdTemplates = await cleanupDatabase
-      .select({ id: schema.eventTemplates.id })
-      .from(schema.eventTemplates)
-      .where(
-        and(
-          eq(schema.eventTemplates.tenantId, tenant.id),
-          eq(schema.eventTemplates.title, templateTitle),
-        ),
-      );
-    const templateIds = createdTemplates.map((template) => template.id);
-    if (templateIds.length === 0) {
-      return;
-    }
     const templateOptions = await cleanupDatabase
       .select({ id: schema.templateRegistrationOptions.id })
       .from(schema.templateRegistrationOptions)
@@ -551,7 +550,7 @@ Evorto opens the template details page.
   await testInfo.attach('markdown', {
     body: `
 ## Creating an event from a template
-Open the template detail page and select **Create event**. The event form starts with the template title, description, and sign-up choices. When you select **Create event**, Evorto copies the sign-up setup, questions, and add-ons into the new event. Later template changes do not alter events already created from it.
+Open the template detail page and select **Create event**. The event form starts with the template title, description, sign-up choices, add-ons, and questions. In **Add-ons** and **Sign-up questions**, edit or remove items for this event; you can also add new ones. When you select **Create event**, Evorto saves your chosen setup into the new event without changing the template. Later template changes do not alter events already created from it.
 
 For paid choices, review the standard price and, when available, the **ESNcard price**. You can change that discounted price for this event or clear it to remove the discount. The event saves the prices shown in its form; the template stays unchanged.
 
@@ -566,6 +565,7 @@ If the reason says a sign-up choice no longer belongs to the selected template, 
   });
   await page.getByRole('link', { name: 'Create event' }).click();
   await expect(page).toHaveURL(`/templates/${createdTemplate.id}/create-event`);
+  await waitForEventCreationFormReady(page);
   await expect(page.getByLabel('Event title')).toHaveValue(templateTitle, {
     timeout: 20_000,
   });

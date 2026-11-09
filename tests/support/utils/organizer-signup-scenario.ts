@@ -301,7 +301,7 @@ export const seedOrganizerSignupScenario = async ({
           price: 0,
           registeredDescription: option.organizingRegistration
             ? null
-            : 'Your ticket is confirmed.',
+            : 'Confirmed.',
           registrationMode: option.registrationMode,
           roleIds: [...option.roleIds],
           spots: option.spots,

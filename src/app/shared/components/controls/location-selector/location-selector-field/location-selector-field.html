@@ -1,15 +1,18 @@
 @if (!hidden()) {
   <div
-    class="mb-5 flex items-center justify-between gap-4 rounded border px-4 py-2"
+    class="mb-5 flex flex-wrap items-center justify-between gap-4 rounded border px-4 py-2"
     [class.border-error]="showError()"
     [class.border-outline]="!showError()"
   >
-    @if (value()) {
-      {{ value()?.name }}
-    } @else {
-      <span class="text-on-surface-variant">No location selected</span>
-    }
+    <span class="min-w-0 flex-1 basis-48 break-words">
+      @if (value()) {
+        {{ value()?.name }}
+      } @else {
+        <span class="text-on-surface-variant">No location selected</span>
+      }
+    </span>
     <button
+      class="shrink-0 whitespace-nowrap"
       type="button"
       mat-button
       (click)="openDialog()"

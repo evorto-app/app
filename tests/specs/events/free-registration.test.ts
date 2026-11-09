@@ -173,6 +173,8 @@ test('register for a free event as regular user', async ({
     }
     const confirmedBefore = before.confirmedSpots;
 
+    await page.setViewportSize({ width: 1280, height: 800 });
+
     // Navigate to event and register
     await page.goto(`/events/${targetEventId}`);
     await expect(page).toHaveURL(`/events/${targetEventId}`);
@@ -194,8 +196,15 @@ test('register for a free event as regular user', async ({
       .first()
       .waitFor({ state: 'detached' });
 
-    // Confirm the attendee sees the event's success message.
-    await expect(page.getByText('Your place is confirmed')).toBeVisible();
+    // Confirm the attendee sees their current ticket status.
+    await expect(page.getByText('Confirmed', { exact: true })).toBeVisible();
+
+    await expect(
+      page
+        .getByRole('region', { name: 'Event list', exact: true })
+        .locator(`a[href="/events/${targetEventId}"]`)
+        .getByText('Place confirmed', { exact: true }),
+    ).toBeVisible();
 
     // Verify DB registration exists and counts updated
     const [registration] = await database

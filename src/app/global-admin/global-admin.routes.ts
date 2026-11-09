@@ -1,7 +1,6 @@
 import { Routes } from '@angular/router';
 
 import { platformAuthorityGuard } from '../core/guards/platform-authority.guard';
-import { PLATFORM_EVENT_OPERATION_ROUTES } from './platform-event-operations/platform-event-operations.routes';
 
 export const GLOBAL_ADMIN_ROUTES: Routes = [
   {
@@ -13,6 +12,7 @@ export const GLOBAL_ADMIN_ROUTES: Routes = [
             (m) => m.PlatformAuditComponent,
           ),
         path: 'audit',
+        title: 'Platform audit',
       },
       {
         loadComponent: () =>
@@ -20,6 +20,7 @@ export const GLOBAL_ADMIN_ROUTES: Routes = [
             (m) => m.TenantCreateComponent,
           ),
         path: 'tenants/create',
+        title: 'Create organization',
       },
       {
         loadComponent: () =>
@@ -27,35 +28,15 @@ export const GLOBAL_ADMIN_ROUTES: Routes = [
             (m) => m.TenantEditComponent,
           ),
         path: 'tenants/:tenantId/edit',
-      },
-      ...PLATFORM_EVENT_OPERATION_ROUTES,
-      {
-        loadComponent: () =>
-          import('./platform-tenant-admin/platform-tenant-users.component').then(
-            (m) => m.PlatformTenantUsersComponent,
-          ),
-        path: 'tenants/:tenantId/users',
-      },
-      {
-        loadComponent: () =>
-          import('./platform-tenant-admin/platform-roles.component').then(
-            (m) => m.PlatformRolesComponent,
-          ),
-        path: 'tenants/:tenantId/roles',
-      },
-      {
-        loadComponent: () =>
-          import('./platform-tenant-admin/platform-tax-rates.component').then(
-            (m) => m.PlatformTaxRatesComponent,
-          ),
-        path: 'tenants/:tenantId/tax-rates',
+        title: 'Edit organization',
       },
       {
         loadComponent: () =>
           import('./platform-tenant-admin/platform-finance.component').then(
             (m) => m.PlatformFinanceComponent,
           ),
-        path: 'tenants/:tenantId/finance',
+        path: 'tenants/:tenantId/payment-support',
+        title: 'Payment recovery',
       },
       {
         loadComponent: () =>
@@ -63,6 +44,7 @@ export const GLOBAL_ADMIN_ROUTES: Routes = [
             (m) => m.TenantDetailComponent,
           ),
         path: 'tenants/:tenantId',
+        title: 'Organization details',
       },
       {
         loadComponent: () =>
@@ -70,6 +52,7 @@ export const GLOBAL_ADMIN_ROUTES: Routes = [
             (m) => m.EmailOutboxComponent,
           ),
         path: 'email-outbox',
+        title: 'Email delivery',
       },
       {
         loadComponent: () =>
@@ -77,6 +60,7 @@ export const GLOBAL_ADMIN_ROUTES: Routes = [
             (m) => m.TenantListComponent,
           ),
         path: 'tenants',
+        title: 'Organizations',
       },
     ],
     loadComponent: () =>

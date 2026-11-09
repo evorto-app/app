@@ -1,4 +1,4 @@
-import { adminStateFile } from '../../../helpers/user-data';
+import { adminStateFile, organizerStateFile } from '../../../helpers/user-data';
 import { expect, test } from '../../support/fixtures/permissions-test';
 
 test.setTimeout(120_000);
@@ -72,4 +72,52 @@ test('template pages present a deliberate read-only experience without write cap
   await expect(details.getByRole('link', { name: 'Create event' })).toHaveCount(
     0,
   );
+});
+
+test.describe('section member defaults', () => {
+  test.use({ storageState: organizerStateFile });
+
+  test('can create events from templates but cannot create or edit templates by default @permissions', async ({
+    page,
+    templates,
+  }) => {
+    const template = templates[0];
+    if (!template) throw new Error('Expected a seeded template');
+    await page.goto('/templates');
+    await expect(
+      page.getByRole('link', { name: 'Create template', exact: true }),
+    ).toHaveCount(0);
+    await page.goto(`/templates/${template.id}`);
+    const details = page.locator('app-template-details');
+    await expect(
+      details.getByRole('heading', {
+        name: template.title,
+        exact: true,
+        level: 1,
+      }),
+    ).toBeVisible();
+    await expect(
+      details.getByRole('button', { name: 'Edit template', exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      details.getByRole('link', { name: 'Edit template', exact: true }),
+    ).toHaveCount(0);
+    const createEvent = details.getByRole('link', {
+      name: 'Create event',
+      exact: true,
+    });
+    await expect(createEvent).toBeVisible();
+    await expect(createEvent).not.toHaveAttribute('jsaction', /click/);
+    await createEvent.click();
+    await expect(
+      page.getByRole('heading', {
+        name: `Create ${template.title} event`,
+        exact: true,
+      }),
+    ).toBeVisible();
+    await page.goto('/templates/create');
+    await expect(page).toHaveURL(/\/403/);
+    await page.goto(`/templates/${template.id}/edit`);
+    await expect(page).toHaveURL(/\/403/);
+  });
 });

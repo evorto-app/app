@@ -28,7 +28,7 @@
         [disabled]="referenceCount() > 0"
         (click)="remove.emit()"
       >
-        <fa-duotone-icon [icon]="faTrashCan" />
+        <fa-duotone-icon matButtonIcon class="mat-icon" [icon]="faTrashCan" />
         Remove choice
       </button>
     }

@@ -7,6 +7,7 @@ import { getId } from '../../../helpers/get-id';
 import { adminStateFile } from '../../../helpers/user-data';
 import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
+import { waitForEventCreationFormReady } from '../../support/utils/event-creation-form';
 
 test.setTimeout(120_000);
 
@@ -699,6 +700,7 @@ test('event creation snapshots an advanced template before later page-backed tem
   await page.locator(`a[href="/templates/${template.id}"]`).click();
   await page.getByRole('link', { name: 'Create event' }).click();
   await expect(page).toHaveURL(`/templates/${template.id}/create-event`);
+  await waitForEventCreationFormReady(page);
 
   const eventTitle = `Independent snapshot ${getId().slice(0, 6)}`;
   await page.getByLabel('Event title').fill(eventTitle);

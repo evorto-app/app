@@ -1,6 +1,7 @@
 # Server Effect Runtime Guidelines
 
 - Keep runtime composition Effect Platform-first (HTTP, routing, layers, contexts).
+- Use stable Effect 4 module paths such as `effect/http`, `effect/rpc`, and `effect/sql`; the prerelease `effect/unstable/*` paths are no longer exported.
 - Keep `/rpc` on the same server runtime path as the rest of the HTTP app (shared `HttpRouter` runtime + layered `RpcServer.toHttpEffect(...)`), not a separate RPC-only web handler runtime.
 - Keep RPC handlers framework-agnostic and avoid adapter-specific leakage.
 - Centralize request context headers/constants and reuse shared helpers.

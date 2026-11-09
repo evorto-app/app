@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@effect/vitest';
 import { Cause, ConfigProvider, Effect, Exit, Layer } from 'effect';
-import { HttpRouter as HttpLayerRouter } from 'effect/unstable/http';
+import { HttpRouter as HttpLayerRouter } from 'effect/http';
 
 import { EmailDelivery } from '../integrations/email-delivery';
 import { APPLICATION_READINESS_PATH } from './application-readiness';

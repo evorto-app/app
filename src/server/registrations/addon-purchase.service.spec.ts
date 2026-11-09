@@ -1,4 +1,4 @@
-import type * as SqlConnection from 'effect/unstable/sql/SqlConnection';
+import type * as SqlConnection from 'effect/sql/SqlConnection';
 
 import { describe, expect, it, vi } from '@effect/vitest';
 import {
@@ -422,7 +422,7 @@ describe('registration add-on purchase policy', () => {
               expect(commands).toEqual(['BEGIN']);
               if (
                 statement ===
-                'select "eventId", "registrationOptionId", "status", "userId" from "event_registrations" where (("event_registrations"."id" = $1) and ("event_registrations"."tenantId" = $2)) for update'
+                'select "eventId", "registrationOptionId", "status"::text, "userId" from "event_registrations" where (("event_registrations"."id" = $1) and ("event_registrations"."tenantId" = $2)) for update'
               ) {
                 expect(parameters).toEqual(['registration-1', 'tenant-1']);
                 return [['event-1', 'option-1', 'CONFIRMED', 'user-1']];

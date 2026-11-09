@@ -20,8 +20,8 @@ import { EventsCreate } from '@shared/rpc-contracts/app-rpcs/events.rpcs';
 import { TaxRatesListActive } from '@shared/rpc-contracts/app-rpcs/tax-rates.rpcs';
 import { eq, sql } from 'drizzle-orm';
 import { Cause, ConfigProvider, Effect, Exit, Layer, Schema } from 'effect';
-import { Headers } from 'effect/unstable/http';
-import { Rpc, RpcMessage } from 'effect/unstable/rpc';
+import { Headers } from 'effect/http';
+import { Rpc, RpcMessage } from 'effect/rpc';
 
 import { PlatformAdministratorAuthority } from '../../../../../types/custom/platform-authority';
 import { Tenant } from '../../../../../types/custom/tenant';
@@ -187,8 +187,8 @@ layer(testLayer)(
                   ),
                   Effect.provideService(RpcRequestContext, {
                     authData: {},
-                    authenticated: false,
-                    permissions: [],
+                    authenticated: true,
+                    permissions: ['templates:view'],
                     tenant,
                     user: null,
                     userAssigned: false,

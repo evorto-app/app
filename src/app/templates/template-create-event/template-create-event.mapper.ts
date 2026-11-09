@@ -49,3 +49,25 @@ export const createEventFormModelFromTemplate = (
     start: startDateTime,
     title: template.title,
   });
+
+export const createEventExtrasFromTemplate = (
+  template: TemplateFindOneRecord,
+) => ({
+  addOns: template.addOns.map((addOn) => ({
+    ...addOn,
+    description: addOn.description ?? '',
+    key: addOn.id,
+    registrationOptions: addOn.registrationOptions.map((mapping) => ({
+      includedQuantity: mapping.includedQuantity,
+      optionalPurchaseQuantity: mapping.optionalPurchaseQuantity,
+      registrationOptionKey: mapping.registrationOptionId,
+    })),
+    stripeTaxRateId: addOn.stripeTaxRateId ?? '',
+  })),
+  questions: template.questions.map((question) => ({
+    ...question,
+    description: question.description ?? '',
+    key: question.id,
+    registrationOptionKey: question.registrationOptionId,
+  })),
+});

@@ -109,6 +109,11 @@ export const ensureIconUsageAuthorized = Effect.fn(
       }
       return;
     }
+    case 'hubResource': {
+      yield* RpcAccess.ensurePermission('internal:viewInternalPages');
+      yield* RpcAccess.ensurePermission('internal:manageResources');
+      return;
+    }
     case 'templateCreate': {
       yield* RpcAccess.ensurePermission('templates:create');
       return;

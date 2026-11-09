@@ -196,31 +196,20 @@ verification without blanket certificate-error overrides.
 
 ## Platform Operation Coverage
 
-- `specs/admin/platform-tenant-operations.spec.ts` follows the guarded tenant
-  operation links, opens the refund-recovery surface, and resolves a
-  deterministic scanner result from an attendee ticket URL. Its payment-setup
-  recovery journey restores one original Stripe test-mode Checkout through
-  platform finance, then verifies the same claim, held capacity, one approval
-  notification and privacy-safe audit. The fixture registers cleanup before
-  changing records and expires only its exact unpaid test session.
-- `docs/admin/platform-tenant-operations.doc.ts` documents explicit target
-  selection and executes representative event and template edits, existing-user
-  role assignment and removal, an unverifiable-receipt rejection, and attendee
-  plus guest check-in. Every page mutation supplies its own operational reason,
-  reads domain state back from PostgreSQL, and is then found by reason, action,
-  and target tenant in the visible platform audit log. The guide explicitly
-  separates participant-owned flows and names the adjacent finance, lifecycle,
-  tax-import, approval, and cancellation operations that it does not execute.
-- The organization guide also documents payment restoration through the same
-  real test-mode provider read and audited page action. PostgreSQL recovery
-  coverage proves concurrent changes, tenant boundaries, discovery pagination,
-  audit rollback, email preservation and canonical paid/expired reconciliation,
-  including add-on stock and a fee mismatch after open-session recovery.
-- Prefer the target-scoped registration-result route for repeatable platform
-  scanner checks. The organizer guide already exercises deterministic mocked
-  camera permission/readiness, while Browser review covers the fallback and a
-  real result page. This evidence does not claim physical-device focus or QR
-  recognition certification.
+- `specs/admin/platform-tenant-operations.spec.ts` checks the organization link
+  and payment-only support tabs. Its recovery journey restores an original
+  Stripe test-mode Checkout, then verifies the same claim, held capacity,
+  approval notification, and privacy-safe audit. Cleanup expires only the
+  fixture's exact unpaid test session.
+- `specs/permissions/global-admin-tenant-override.spec.ts` follows **Open
+  organization** into ordinary administration and proves real writes with no
+  tenant membership or a role granting no capabilities.
+- `docs/admin/platform-tenant-operations.doc.ts` documents the organization link,
+  audited payment recovery, and change history. Ordinary tenant guides cover
+  events, templates, roles, scanning, receipts, and routine finance.
+- PostgreSQL recovery coverage retains concurrent changes, tenant boundaries,
+  discovery pagination, audit rollback, email preservation, and canonical
+  paid/expired reconciliation, including add-on stock and fee mismatches.
 
 ## Paid Registration Checkout Coverage
 
@@ -460,11 +449,11 @@ credentials must not be printed or committed.
 - Local `dev:start`, `test:e2e`, `test:e2e:baseline`, `test:e2e:ui`, `test:e2e:integration`, `test:e2e:docs`, `db:*`, and `docker:*` package scripts use `env:run` to resolve an invocation-private environment. Concurrent commands cannot overwrite each other's selected project or database through `.env.dev`. Use `bun run docker:ps` rather than bare `docker compose ps` so the worktree project is selected explicitly.
 - `bun run docker:check` fails before Docker Compose mutates local containers
   when required local runtime variables are missing. The check covers Auth0,
-  Stripe, the application session secret, and Font Awesome package registry
-  access for the premium icon package. It also reports Bun, Docker
-  Compose, Compose config, Playwright CLI, `.env.dev`, and Playwright browser
-  cache status. It lists optional live-provider variables, including
-  `E2E_LIVE_ESN_CARD_IDENTIFIER` and
+  Stripe, the application session secret, Font Awesome package registry
+  access for the premium icon package, and the Google Maps browser key. It also
+  reports Bun, Docker Compose, Compose config, Playwright CLI, `.env.dev`, and
+  Playwright browser cache status. It lists optional live-provider variables,
+  including `E2E_LIVE_ESN_CARD_IDENTIFIER` and
   `E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER`, without printing values and without
   making Docker startup depend on them. Missing Playwright browsers are warnings
   because they affect Playwright runs, not Docker startup.
@@ -473,6 +462,12 @@ credentials must not be printed or committed.
 - `.env` is the untracked developer-secrets file.
 - `.env.example` is the tracked no-secret checklist for Docker-required
   developer secrets.
+- The web server requires a nonempty `PUBLIC_GOOGLE_MAPS_API_KEY` on every
+  start, including `docker:start`, `dev:start`, and the stack that Playwright
+  starts for functional and documentation runs. For a development key, create a
+  Google Cloud browser API key with billing enabled, enable Maps JavaScript API
+  and Places API (New), and restrict it to the local origins you use, such as
+  `http://localhost:4200`.
 - `.env.local`, `.env.runtime`, and `.env.ci` are unsupported in this repo.
 - Starting the Docker stack with `docker:start`, `docker:start:foreground`, or
   `docker:start:watch` is destructive for local database state by design because
@@ -656,6 +651,10 @@ Optional overrides:
 - `E2E_SEED_KEY`
 
 Keep `E2E_NOW_ISO` ahead of the real current date or deterministic checkout expiry behavior will break.
+The `testClock` fixture uses the full configured timestamp; `seedDate` remains
+the UTC start of that day. Do not reconstruct the current time as noon from
+`seedDate`, because supported overrides can pin any time of day.
+
 The generated `.env.dev` passes the same clock and seed key to Docker database
 setup and the app container; do not seed against one clock while evaluating
 registration or check-in windows against another.
@@ -678,9 +677,9 @@ Playwright separates external-service coverage with dedicated projects:
 - live-provider certification:
   - `docs-live-esncard`
 
-CI infers whether Google Maps credentials are required from the selected
-Playwright projects. Authenticated setup always requires the Auth0 Management
-test client so it can verify the dedicated administrator identity already has
+The web server needs the Google Maps key in every run, so `docker:check` and
+`test:e2e:check` require it before startup. Authenticated setup always requires
+the Auth0 Management test client so it can verify the dedicated administrator identity already has
 the real production claim before login. It never changes shared metadata. If you
 select `local-chrome-integration` or `docs-integration`, CI/runtime validation
 also demands the Google Maps credential. UI mode is intentionally baseline-only:
@@ -789,9 +788,12 @@ Required in CI baseline docs/functional jobs:
 - `S3_ACCESS_KEY_ID`
 - `S3_SECRET_ACCESS_KEY`
 
-Required only for integration-tagged Playwright projects:
+Required for every run that starts the web server, including local Docker
+startup and CI baseline jobs:
 
-- `PUBLIC_GOOGLE_MAPS_API_KEY`
+- `PUBLIC_GOOGLE_MAPS_API_KEY`. Integration-tagged (`@needs-google-maps`)
+  projects call the live Maps JavaScript API and Places API (New) with it, so
+  the key must allow the local test origin.
 
 Required for every live-provider run (but not for local Docker startup):
 

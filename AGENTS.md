@@ -1,5 +1,67 @@
 # Repository Guidelines
 
+## Entire workflow for every development agent
+
+Codex, Claude, Gemini CLI and Google Antigravity use the same repository rules.
+Read [the Entire workflow](.agents/entire-workflow.md) before planning or
+publishing work. Use Entire Trails on the existing `gh/evorto-app/app` mirror
+for intent, progress and code review. Keep GitHub as the upstream remote and
+the linked PR/check provider during migration; do not recreate the repository.
+
+- Search existing Trails, Linear issues and branches before starting. Reuse
+  canonical work and preserve other collaborators' ownership and review history.
+- Keep Linear coordination below until the issue migration has been verified.
+  Link the Linear identifier, Trail and GitHub PR in the work record.
+- Discover supported commands with `entire agent-help` and its subcommand help.
+  Do not guess flags, Trail numbers or API endpoints. A Trail can hold several
+  changes; use the specific repository/change selector for review and merge.
+- Record scope, decisions, verification and handoffs in the canonical issue and
+  Trail intent. Use findings for agent questions/follow-ups as the CLI directs;
+  do not impersonate people in human-only Trail discussion threads.
+- Creating a Trail can publish code and cause a linked GitHub PR to run CI.
+  Apply the full local-first verification gate before any such action. For
+  planning without publishing, use an intent-only Trail.
+- Review both Entire gates and GitHub requirements. Disabled gates and a clean
+  merge dry run do not establish approval. Never force a merge or weaken checks
+  to complete migration. Keep required Copilot review until a verified
+  replacement is adopted through a reviewed policy change.
+- Keep credentials, account settings and transcript/session caches local.
+  Entire session recording and repository-scoped Brain memory sync are enabled
+  by user decision; follow the setup and hook-trust requirements in the workflow.
+
+## Linear Issue-First Workflow
+
+Linear is the shared source of truth for planned and active Evorto work. Use the
+`evorto` team (`EVO`) in <https://linear.app/evorto> so collaborators can see plans,
+avoid duplicate work, and add missing context before implementation.
+
+- Before implementation or repository edits, search existing Linear issues and
+  related branches/PRs. Reuse the canonical issue when the work overlaps; do not
+  create a second competing plan or silently take over someone else's work.
+- Create or update the issue **before starting work**, including work requested
+  in chat. Record the goal, scope, proposed approach, acceptance criteria,
+  dependencies, and verification plan. Keep this proportional to the change.
+- Make ownership and status visible before implementation. Identify the person
+  or agent doing the work, coordinate overlapping efforts, and link related
+  issues. Split independent work into linked issues with clear boundaries.
+- Call out missing product/history context and open decisions explicitly so
+  Lukas can add what he knows. Ask a specific question and wait when its answer
+  could materially change scope or behavior; do not turn an assumption into a
+  decision. Routine work with sufficient context need not wait for approval.
+- Keep the issue current as the plan changes. Record blockers, decisions,
+  meaningful progress, and handoffs there instead of leaving them only in chat
+  or a local plan. Put newly discovered follow-up work in issues before starting
+  it, and distinguish required scope from optional follow-ups.
+- Include the `EVO-<number>` identifier in commits and PRs, and link the resulting
+  PR or direct commit back to the issue. Close it only after recording what
+  shipped, the verification performed, and any remaining follow-ups.
+- If Linear is unavailable, report the blocker and prepare a draft plan without
+  starting implementation. Do not silently bypass issue-first coordination.
+
+This workflow does not replace the verification, branching, release-note, or
+publication requirements below. Direct-to-main permission for one change is not
+standing permission for later changes.
+
 ## Context Discipline
 
 - Keep repository knowledge in small, relevant files.
@@ -56,7 +118,7 @@ More specific guidance may exist deeper in some subtrees.
 - `bun run test:e2e:install` - install the local Playwright browser binaries.
 - `bun run lint` - lint with autofix.
 - `bun run format:check` - verify formatting without changing files.
-- `bun run format:write` - format with Prettier.
+- `bun run format:write` - format with Bun's built-in formatter.
 - `bun run docker:start` / `bun run docker:stop` - start/stop local services;
   `docker:start` may reset local data and should leave enough seeded data to
   get going from zero.
@@ -125,7 +187,8 @@ standalone inspection. Child commands preserve process environment values over
 - Angular app guidance lives in `src/app/AGENTS.md`.
 - Server/runtime guidance lives in `src/server/AGENTS.md`.
 - Database guidance lives in `src/db/AGENTS.md`.
-- Use Angular Material components, Material 3 design direction, and Tailwind styling.
+- Use Angular Material components and Tailwind styling with the existing semantic theme tokens.
+- For UI design, refinement, and review, read `.agents/skills/design-taste-frontend/SKILL.md` and `.agents/skills/project-design/SKILL.md`. Taste replaces the former `uncodixfy` and `material-3` skills; project requirements govern stack, tokens, accessibility, and behavior.
 - Use Effect RPC and Effect Schema for API boundaries.
 - Use Drizzle as the source of truth for persisted shapes.
 - Use Stripe as the source of truth for payment state.
@@ -183,12 +246,15 @@ standalone inspection. Child commands preserve process environment values over
 
 ## Commit, PR, and Release Notes
 
-- Use Git Town commands for branch management and shipping.
-- For substantial work in a new worktree created from `main`, immediately run `git town hack <branch-name>` before making commits.
-- For large multi-phase work, keep an assembly branch plus one reviewable child branch per phase or slice.
-- Create stacked child branches with `git town append <branch-name>`.
-- Run `git town sync --stack` before starting work and before proposing review.
-- Open PRs with `git town propose`.
+- Use feature branches and GitHub PRs; do not push changes directly to `main`.
+- Fetch and inspect the current base before starting work and before proposing
+  review. Preserve uncommitted work and coordinate overlapping branches.
+- Use ordinary Git and the GitHub CLI or website for branch and PR management.
+- For multi-phase work, use [GitHub stacked PRs](https://docs.github.com/en/pull-requests/reference/stacked-pull-requests)
+  with one reviewable branch per phase. The optional `gh stack` extension can
+  manage local stacks; keep each PR based on its immediate predecessor.
+- Request Copilot review on every PR and address actionable comments before
+  treating the reviewed head as ready.
 - Commit messages should be imperative and concise.
 - PRs should include purpose, scope, schema/runtime impact, and UI evidence where relevant.
 - Every PR needs a new Knope change file in `.changeset/*.md`, including
@@ -196,3 +262,9 @@ standalone inspection. Child commands preserve process environment values over
 - Before starting full verification, check that the PR diff includes its change
   file. `knope --validate` checks configuration and file validity; it does not
   check whether the current PR adds a change file.
+
+<!-- entire-agent:begin -->
+
+Read .entire/agent-guide.md for this repository's workflow, source inspection, and verification guidance.
+@.entire/agent-guide.md
+<!-- entire-agent:end -->

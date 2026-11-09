@@ -16,12 +16,16 @@ import { injectQuery } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { PermissionsService } from '../../core/permissions.service';
+import { holdServerRenderWhile } from '../../core/server-render-pending';
 import { IconComponent } from '../../shared/components/icon/icon.component';
+import { TwoColumnLayoutComponent } from '../../shared/components/two-column-layout/two-column-layout.component';
 import { IfPermissionDirective } from '../../shared/directives/if-permission.directive';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { class: 'block lg:h-full lg:min-h-0' },
   imports: [
+    TwoColumnLayoutComponent,
     RouterLink,
     MatButtonModule,
     FontAwesomeModule,
@@ -46,4 +50,7 @@ export class TemplateListComponent {
   protected templateQuery = injectQuery(() =>
     this.appRpc.templates.groupedByCategory.queryOptions(),
   );
+  constructor() {
+    holdServerRenderWhile(() => this.templateQuery.isPending());
+  }
 }

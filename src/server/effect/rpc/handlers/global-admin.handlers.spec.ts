@@ -4,8 +4,8 @@ import {
   platformTenantSettingsSnapshot,
 } from '@shared/tenant-settings-snapshot';
 import { Effect, Exit, Layer, Schema } from 'effect';
-import * as Headers from 'effect/unstable/http/Headers';
-import { Rpc, RpcMessage } from 'effect/unstable/rpc';
+import * as Headers from 'effect/http/Headers';
+import { Rpc, RpcMessage } from 'effect/rpc';
 import Stripe from 'stripe';
 
 import { Database, type DatabaseClient } from '../../../../db';

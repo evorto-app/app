@@ -43,7 +43,7 @@ describe('tenant role announcement references', () => {
                 '"event_instances"."announcementRoleIds" @> $2',
               );
               expect(statement).toContain(' limit $3');
-              expect(parameters).toEqual(['tenant-1', '{"role-1"}', 1]);
+              expect(parameters).toEqual(['tenant-1', ['role-1'], 1]);
               reads.push('announcements');
               return [['announcement-1']];
             }),
@@ -77,7 +77,7 @@ describe('tenant role announcement references', () => {
                 reads.push('assignments');
                 return [];
               }
-              expect(parameters).toEqual(['tenant-1', '{"role-1"}', 1]);
+              expect(parameters).toEqual(['tenant-1', ['role-1'], 1]);
               expect(statement).toContain(' limit $3');
               if (statement.includes('from "event_instances"')) {
                 expect(statement).toContain(

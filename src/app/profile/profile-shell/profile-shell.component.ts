@@ -22,8 +22,11 @@ import {
   faTags,
   faUser,
 } from '@fortawesome/duotone-regular-svg-icons';
+import { injectQuery } from '@tanstack/angular-query-experimental';
 
 import { ConfigService } from '../../core/config.service';
+import { AppRpc } from '../../core/effect-rpc-angular-client';
+import { TwoColumnLayoutComponent } from '../../shared/components/two-column-layout/two-column-layout.component';
 
 export const profileChildPageActive = (
   childPath: string | undefined,
@@ -41,12 +44,28 @@ export const focusProfileDetailHeading = (content: HTMLElement): void => {
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FontAwesomeModule, RouterLink, RouterLinkActive, RouterOutlet],
+  imports: [
+    TwoColumnLayoutComponent,
+    FontAwesomeModule,
+    RouterLink,
+    RouterLinkActive,
+    RouterOutlet,
+  ],
   selector: 'app-profile-shell',
   templateUrl: './profile-shell.component.html',
 })
 export class ProfileShellComponent {
   protected readonly childPageActive = signal(false);
+  private readonly rpc = AppRpc.injectClient();
+  private readonly receiptsQuery = injectQuery(() =>
+    this.rpc.finance.receipts.my.queryOptions(),
+  );
+  protected readonly showReceipts = computed(() => {
+    if (this.receiptsQuery.isSuccess()) {
+      return this.receiptsQuery.data().length > 0;
+    }
+    return this.receiptsQuery.isError();
+  });
   private readonly config = inject(ConfigService);
   protected readonly esnEnabled = computed(
     () =>

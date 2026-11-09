@@ -3,6 +3,7 @@ import { organizerStateFile } from '../../../helpers/user-data';
 import type { Locator, Page } from '@playwright/test';
 import { DateTime } from 'luxon';
 import { expect, test } from '../../support/fixtures/axe-test';
+import { waitForEventCreationFormReady } from '../../support/utils/event-creation-form';
 
 test.setTimeout(120_000);
 
@@ -66,6 +67,12 @@ test.describe('Unavailable event links', () => {
         name: 'Event not found',
       }),
     ).toBeVisible();
+    await expect(
+      page.getByRole('heading', { exact: true, name: 'Event not found' }),
+    ).toHaveCount(1);
+    await expect(
+      page.getByRole('region', { name: 'Selected event' }).locator('app-shape'),
+    ).toHaveCount(0);
     await expect(errorPanel).toContainText(
       'This event could not be found or is not available to you.',
     );
@@ -96,7 +103,7 @@ test.describe('Unavailable event links', () => {
   });
 });
 
-test('event list icon actions are named and keyboard operable', async ({
+test('event creation has one named, keyboard-operable action', async ({
   makeAxeBuilder,
   page,
   permissionOverride,
@@ -113,28 +120,21 @@ test('event list icon actions are named and keyboard operable', async ({
   ).toBeVisible({ timeout: 20_000 });
   await expect(eventNavigation).not.toContainText('Error:');
 
-  const listActionsButton = page.getByRole('button', {
-    name: 'Open event list actions',
+  const createEvent = page.getByRole('link', {
+    name: 'Create Event',
+    exact: true,
   });
-  await expect(page.getByRole('button', { name: 'Filter events' })).toHaveCount(
-    0,
-  );
-  await expect(listActionsButton).toBeVisible();
-  await expect(listActionsButton).toBeEnabled();
-
+  await expect(createEvent).toHaveCount(1);
+  await expect(createEvent).toBeVisible();
+  await expect(createEvent).not.toHaveAttribute('jsaction', /click/);
   const accessibilityScan = await makeAxeBuilder()
-    .include('app-event-list > div > div > div:first-child')
+    .include('app-event-list [twoColumnHeader]')
     .analyze();
   expect(accessibilityScan.violations).toEqual([]);
-
-  await listActionsButton.focus();
-  await expect(listActionsButton).toBeFocused();
-  await listActionsButton.press('Enter');
-  const eventListMenu = page.getByRole('menu');
-  await expect(eventListMenu).toBeVisible();
-  await expect(
-    eventListMenu.getByRole('menuitem', { name: 'Create Event' }),
-  ).toBeVisible();
+  await createEvent.focus();
+  await expect(createEvent).toBeFocused();
+  await createEvent.press('Enter');
+  await expect(page).toHaveURL(/\/templates$/);
 });
 
 test('event authoring controls expose accessible names and keyboard interaction', async ({
@@ -162,7 +162,11 @@ test('event authoring controls expose accessible names and keyboard interaction'
 
   await page.goto(`/events/${draftEvent.id}/edit`);
   await expect(
-    page.getByRole('heading', { name: draftEvent.title }),
+    page.getByRole('heading', {
+      level: 1,
+      name: draftEvent.title,
+      exact: true,
+    }),
   ).toBeVisible({ timeout: 20_000 });
   await page.waitForLoadState('networkidle');
   await expect(page.getByRole('link', { name: 'Back to event' })).toBeVisible();
@@ -275,6 +279,7 @@ test('create event form template', async ({ database, page, templates }) => {
   await page.getByRole('link', { name: template.title }).click();
   await page.getByRole('link', { name: 'Create event' }).click();
   await expect(page).toHaveURL(`/templates/${template.id}/create-event`);
+  await waitForEventCreationFormReady(page);
   await expect(page.getByLabel('Event title')).toHaveValue(template.title, {
     timeout: 20_000,
   });

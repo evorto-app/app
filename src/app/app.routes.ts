@@ -17,41 +17,49 @@ export const routes: Routes = [
     canActivate: [userAccountGuard],
     children: EVENT_ROUTES,
     path: 'events',
+    title: 'Events',
   },
   {
     canActivate: [userAccountGuard, authGuard],
     children: TEMPLATE_ROUTES,
     path: 'templates',
+    title: 'Templates',
   },
   {
     canActivate: [userAccountGuard, authGuard],
     children: INTERNAL_ROUTES,
     path: 'internal',
+    title: 'Members hub',
   },
   {
     canActivate: [userAccountGuard, authGuard],
     children: PROFILE_ROUTES,
     path: 'profile',
+    title: 'Profile',
   },
   {
     canActivate: [userAccountGuard, authGuard],
     children: ADMIN_ROUTES,
     path: 'admin',
+    title: 'Organization settings',
   },
   {
     canActivate: [userAccountGuard, authGuard],
     children: FINANCE_ROUTES,
     path: 'finance',
+    title: 'Finance',
   },
   {
     canActivate: [userAccountGuard, authGuard],
     children: SCANNING_ROUTES,
     path: 'scan',
+    title: 'Check in',
   },
   {
     canActivate: [authGuard],
     children: GLOBAL_ADMIN_ROUTES,
     path: 'global-admin',
+    title: 'Platform administration',
   },
   {
     data: { legalPage: 'imprint' },
@@ -60,6 +68,7 @@ export const routes: Routes = [
         (m) => m.LegalPageComponent,
       ),
     path: 'legal/imprint',
+    title: 'Imprint',
   },
   {
     data: { legalPage: 'privacy' },
@@ -68,6 +77,7 @@ export const routes: Routes = [
         (m) => m.LegalPageComponent,
       ),
     path: 'legal/privacy',
+    title: 'Privacy',
   },
   {
     data: { legalPage: 'terms' },
@@ -76,6 +86,7 @@ export const routes: Routes = [
         (m) => m.LegalPageComponent,
       ),
     path: 'legal/terms',
+    title: 'Terms',
   },
   {
     loadComponent: () =>
@@ -83,6 +94,7 @@ export const routes: Routes = [
         (m) => m.NotAllowedComponent,
       ),
     path: '403',
+    title: 'Access unavailable',
   },
   {
     canActivate: [authGuard],
@@ -91,6 +103,7 @@ export const routes: Routes = [
         (m) => m.CreateAccountComponent,
       ),
     path: 'create-account',
+    title: 'Finish setup',
   },
   {
     canActivate: [userAccountGuard, authGuard],
@@ -99,11 +112,13 @@ export const routes: Routes = [
         (m) => m.RegistrationTransferCodeEntryComponent,
       ),
     path: 'registration-transfers',
+    title: 'Ticket transfer',
   },
   {
     loadComponent: () =>
       import('./core/error/error.component').then((m) => m.ErrorComponent),
     path: '500',
+    title: 'Something went wrong',
   },
   {
     loadComponent: () =>
@@ -111,6 +126,7 @@ export const routes: Routes = [
         (m) => m.NotFoundComponent,
       ),
     path: '404',
+    title: 'Page not found',
   },
   { path: '**', redirectTo: '404' },
 ];

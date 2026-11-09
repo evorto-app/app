@@ -12,6 +12,8 @@ The relaunch target is a full production replacement, not a prototype. Core work
 
 ## Product Principles
 
+- **No implementation details in the UI**: explain the user’s outcome and available action in their terms. Do not expose internal eligibility/discovery rules, model names, provider diagnostics, or infrastructure details. Explain a rule only where the user needs it to make a decision or manage that setting.
+
 - **Progressive disclosure over feature hiding**: common workflows should look simple even when the underlying model is more flexible.
   - Example: the default event setup UI can show "participant signup settings" and "organizer signup settings" while creating separate registration options internally.
 - **Tenant-first**: associations/sections own their events, templates, roles, registrations, settings, branding, and configuration.
@@ -102,22 +104,29 @@ information.
 
 Platform administrators are platform principals, not tenant roles. They may
 perform any platform operation for any tenant at any time without a tenant
-membership. Their access must remain explicit and auditable; it must not depend
-on silently pretending to be a tenant user.
+membership. The verified platform-administrator claim also grants every tenant
+permission in ordinary tenant pages and APIs, regardless of assigned roles.
+Use the administrator's real app identity without creating memberships or role
+assignments; management access is independent of tenant onboarding. Keep the
+platform authority explicit alongside the effective tenant permissions.
 
-Each platform operation names its target tenant explicitly. Every platform
-mutation requires an operational reason and records the Auth0 platform actor,
-target tenant, action, timestamp, and typed before/after state in the same
-transaction as the domain change. A platform-created event must name an active
-target-tenant member as its attributed owner; that attribution does not turn
-the platform actor into a tenant user.
+Global administration provides organization configuration, delivery outcomes,
+change history, and payment/refund recovery. To manage events, templates,
+members, roles, tax rates, scanning, or routine finance, open the organization's
+website and use its ordinary pages. Do not duplicate those screens in the
+platform workspace.
+
+Dedicated platform actions name the target tenant explicitly, require an
+operational reason, and record the platform actor, target tenant, action,
+timestamp, and typed before/after state in the same transaction as the change.
 
 Platform authority does not replace participant identity. Participant profile
 and home views, joining or leaving a tenant, submitting personal receipts, and
 self-service registration transfer or resale remain participant-owned flows.
-Platform tools may operate on target-tenant records only through dedicated
-target-scoped contracts; they must never merge tenant-role permissions into the
-platform principal.
+Dedicated platform tools use target-scoped contracts and retain their operational
+reason and audit requirements. Ordinary tenant operations remain scoped to the
+resolved request tenant. Platform authority grants capabilities independently of
+tenant-role grants; it does not invent participant records or confirmed tickets.
 
 ## Core Workflows
 
@@ -152,6 +161,8 @@ Events should support this core lifecycle:
 - `draft`
 - `pending review`
 - `published`
+
+Creators can find their own draft and pending-review events in the event list without needing permission to view other people's unpublished events. List visibility must agree with their access to the event details.
 
 When an event is submitted for review, material fields should be locked. Material fields include dates/times, prices, capacity, registration options, and other fields that affect what users can sign up for or pay for.
 

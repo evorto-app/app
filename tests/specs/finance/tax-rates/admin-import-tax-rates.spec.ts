@@ -19,7 +19,11 @@ test.describe('Admin Tax Rates Import', () => {
     await page.goto('.');
     await openAdminTools(page, isMobile);
 
-    await page.getByRole('link', { name: 'Tax rates' }).click();
+    const taxRatesLink = page.getByRole('link', { name: 'Tax rates' });
+    await expect(taxRatesLink).not.toHaveAttribute('jsaction', /click/, {
+      timeout: 20_000,
+    });
+    await taxRatesLink.click();
     await expect(page).toHaveURL(/\/admin\/tax-rates/);
     await expect(
       page

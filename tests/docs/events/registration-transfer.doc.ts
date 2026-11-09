@@ -219,7 +219,7 @@ Neither account needs organizer or administrator access for this attendee transf
 
 Only a confirmed ticket within the set transfer deadline can be offered. Existing attendee/guest check-in and add-on fulfillment history remain part of the fixed bundle and move unchanged.
 
-The private transfer code grants access to the offer. Share it privately with exactly one intended recipient. The separate transfer page link opens the code-entry page and does not contain the private code.
+The private transfer code grants access to the offer. Share it privately with exactly one intended recipient. The separate transfer page link opens the code-entry page and does not contain the private code. While the offer is open, select **Show transfer code** on your ticket to reopen the code and both copy actions, including after reloading the page.
 {% /callout %}
 
 
@@ -373,12 +373,6 @@ Review the event, sign-up choice, expiry, current price, current questions, fixe
     name: 'Review ticket transfer',
   });
   await expect(claimHeading).toBeVisible();
-  await takeScreenshot(
-    testInfo,
-    recipientPage.page.locator('main'),
-    recipientPage.page,
-    'Review current transfer terms before claiming',
-  );
   const claimRegistration = recipientPage.page.getByRole('button', {
     name: 'Accept ticket',
   });
@@ -391,9 +385,17 @@ Review the event, sign-up choice, expiry, current price, current questions, fixe
     { timeout: 20_000 },
   );
   await expect(claimRegistration).toBeDisabled();
-  await recipientPage.page
-    .getByLabel('What should the organizer know?')
-    .fill(recipientAnswer);
+  const recipientQuestion = recipientPage.page.getByLabel(
+    'What should the organizer know?',
+  );
+  await expect(recipientQuestion).toBeVisible({ timeout: 20_000 });
+  await takeScreenshot(
+    testInfo,
+    recipientPage.page.locator('main'),
+    recipientPage.page,
+    'Review current transfer terms before claiming',
+  );
+  await recipientQuestion.fill(recipientAnswer);
   await expect(claimRegistration).toBeEnabled();
   await claimRegistration.click();
   await expect(
@@ -1509,7 +1511,7 @@ The previous owner can reopen the event at any time. **Transferred tickets** sho
     body: `
 ## Operator recovery
 
-An Evorto administrator opens the affected organization, selects **Review finance**, and then opens **Refunds needing attention**. Find the failed refund by its event, amount, failed state, and related sign-up-transfer activity. Select **Review refund**, enter the required reason for the change, and choose **Try failed refund again**.
+An Evorto administrator opens the affected organization, selects **Payment support**, and then opens **Refunds needing attention**. Find the failed refund by its event, amount, failed state, and related sign-up-transfer activity. Select **Review refund**, enter the required reason for the change, and choose **Try failed refund again**.
 
 Evorto keeps the failed refund in payment history, starts a new refund attempt for the same amount, and returns the attendee page to **Transfer complete — refund in progress**. Recovery never creates a second transfer, sign-up, payment, or refund obligation.
 `,
@@ -1522,11 +1524,13 @@ Evorto keeps the failed refund in payment history, starts a new refund attempt f
     testClock,
   });
   registerDatabaseCleanup(() => operatorPage.close());
-  await operatorPage.page.goto(`/global-admin/tenants/${tenant.id}/finance`);
+  await operatorPage.page.goto(
+    `/global-admin/tenants/${tenant.id}/payment-support`,
+  );
   await expect(
     operatorPage.page.getByRole('heading', {
       level: 1,
-      name: 'Organization finance',
+      name: 'Payment support',
     }),
   ).toBeVisible();
   await operatorPage.page
@@ -1561,7 +1565,11 @@ Evorto keeps the failed refund in payment history, starts a new refund attempt f
     await expect(platformFinance).not.toContainText(hiddenIdentifier);
   }
   await expect(platformFinance).not.toContainText(rawProviderError);
-  await recoveryRow.getByRole('button', { name: 'Review refund' }).click();
+  const reviewRefund = recoveryRow.getByRole('button', {
+    name: 'Review refund',
+  });
+  await expect(reviewRefund).not.toHaveAttribute('jsaction', /click/);
+  await reviewRefund.click();
   const refundRecoveryHeading = operatorPage.page.getByRole('heading', {
     level: 2,
     name: 'Try failed refund again',

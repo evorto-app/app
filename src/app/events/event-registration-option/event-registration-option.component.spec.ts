@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { createRpcQueryFilter } from '@heddendorp/effect-angular-query';
 import { MAX_REGISTRATION_GUESTS } from '@shared/registration-quantity-limits';
 import { MAX_REGISTRATION_ANSWER_LENGTH } from '@shared/registration-question-limits';
 import {
@@ -17,7 +18,7 @@ import {
   registrationAddonPurchasePayload,
   registrationAddonSelectedTotalPrice,
   registrationAddonSoldOutLabel,
-  registrationOptionAudienceCopy,
+  registrationOptionActionCopy,
   registrationOptionAvailability,
   registrationOptionAvailableSpots,
   registrationOptionCanJoinWaitlist,
@@ -49,62 +50,22 @@ describe('registration write errors', () => {
   });
 });
 
-describe('registrationOptionAudienceCopy', () => {
-  it('uses sign-up wording for attendee choices', () => {
-    expect(
-      registrationOptionAudienceCopy({
-        organizingRegistration: false,
-        registrationMode: 'fcfs',
-      }),
-    ).toEqual({
+describe('registrationOptionActionCopy', () => {
+  it('offers direct sign-up without approval guidance', () => {
+    expect(registrationOptionActionCopy({ registrationMode: 'fcfs' })).toEqual({
       actionSuffix: 'sign up',
-      helperText: 'Use this choice when you are attending the event.',
-      label: 'Attendee choice',
+      helperText: null,
       primaryAction: 'Sign up',
     });
   });
 
-  it('uses distinct organizer/helper signup copy', () => {
+  it('explains approval and payment timing only for applications', () => {
     expect(
-      registrationOptionAudienceCopy({
-        organizingRegistration: true,
-        registrationMode: 'fcfs',
-      }),
-    ).toEqual({
-      actionSuffix: 'sign up as organizer/helper',
-      helperText: 'Use this choice when you are helping run the event.',
-      label: 'Organizer/helper choice',
-      primaryAction: 'Sign up as organizer/helper',
-    });
-  });
-
-  it('uses application copy for manual approval participant options', () => {
-    expect(
-      registrationOptionAudienceCopy({
-        organizingRegistration: false,
-        registrationMode: 'application',
-      }),
+      registrationOptionActionCopy({ registrationMode: 'application' }),
     ).toEqual({
       actionSuffix: 'apply',
-      helperText:
-        'Applying does not charge you or confirm a place. An organizer reviews the application first; if this choice has a fee, payment starts only after approval.',
-      label: 'Organizer approval required',
-      primaryAction: 'Apply for approval',
-    });
-  });
-
-  it('explains approval and deferred access for organizer/helper applications', () => {
-    expect(
-      registrationOptionAudienceCopy({
-        organizingRegistration: true,
-        registrationMode: 'application',
-      }),
-    ).toEqual({
-      actionSuffix: 'apply as organizer/helper',
-      helperText:
-        'Applying does not confirm organizer access. An organizer reviews your application first; if this choice has a fee, payment starts only after approval.',
-      label: 'Organizer/helper application',
-      primaryAction: 'Apply as organizer/helper',
+      helperText: 'Approval required. Any payment follows approval.',
+      primaryAction: 'Apply',
     });
   });
 });
@@ -629,6 +590,7 @@ describe('EventRegistrationOptionComponent input limits', () => {
               joinWaitlist: { mutationOptions: waitlistOptions },
               registerForEvent: { mutationOptions: registrationOptions },
             },
+            queryFilter: createRpcQueryFilter,
             users: {
               canUseScanner: { queryKey: () => ['scanner'] },
               events: { queryKey: () => ['user-events'] },
@@ -655,10 +617,74 @@ describe('EventRegistrationOptionComponent input limits', () => {
       throw new Error('Expected an HTML registration root');
     await vi.waitFor(() => {
       fixture.detectChanges();
-      expect(element.querySelector('button')).not.toBeNull();
+      expect(element.querySelector('button, time')).not.toBeNull();
     });
     return { element, fixture };
   };
+
+  it.each([true, false])(
+    'hides the entire form before opening (signed in: %s)',
+    async (authenticated) => {
+      checkAuthentication.mockResolvedValue(authenticated);
+      const opening = new Date(Date.now() + 2 * 86_400_000).toISOString();
+      const { element } = await render(
+        boundedRegistrationOption({ openRegistrationTime: opening }),
+      );
+      expect(element.textContent).toContain('Sign-up opens in 2 days');
+      expect(element.querySelector('time')?.getAttribute('title')).toBe(
+        'Europe/Berlin',
+      );
+      expect(element.querySelector('time')?.getAttribute('datetime')).toBe(
+        opening,
+      );
+      expect(element.querySelector('input, textarea, button, a')).toBeNull();
+    },
+  );
+
+  it('reveals the form automatically when sign-up opens', async () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] });
+    try {
+      const { element, fixture } = await render(
+        boundedRegistrationOption({
+          openRegistrationTime: new Date(Date.now() + 1000).toISOString(),
+        }),
+      );
+      expect(element.querySelector('textarea')).toBeNull();
+      await vi.advanceTimersByTimeAsync(1001);
+      fixture.detectChanges();
+      await fixture.whenStable();
+      expect(element.querySelector('textarea')).not.toBeNull();
+      expect(element.textContent).not.toContain('Sign-up opens');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('focuses failed submission feedback above the form and preserves answers', async () => {
+    submitRegistration.mockRejectedValueOnce({
+      _tag: 'EventRegistrationConflictError',
+      message: 'This sign-up choice is now full.',
+    });
+    const { element, fixture } = await render(boundedRegistrationOption());
+    const answer = element.querySelector('textarea');
+    if (!(answer instanceof HTMLTextAreaElement))
+      throw new Error('Expected answer');
+    answer.value = 'Keep my answer';
+    answer.dispatchEvent(new Event('input', { bubbles: true }));
+    fixture.detectChanges();
+    element.querySelector('button')?.click();
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(element.querySelector('[role="alert"]')?.textContent).toContain(
+        'This sign-up choice is now full.',
+      );
+    });
+    await fixture.whenStable();
+    expect(document.activeElement).toBe(
+      element.querySelector('[role="alert"]'),
+    );
+    expect(answer.value).toBe('Keep my answer');
+  });
 
   it('keeps answers and guests while checking sign-in again without submitting', async () => {
     const { element, fixture } = await render(boundedRegistrationOption());

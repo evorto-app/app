@@ -678,8 +678,7 @@ describe('PostgreSQL identifier diagnostics', () => {
 
 describe('Effect HTTP boundary diagnostics', () => {
   it('requires explicit private logging options while respecting bindings and spread order', async () => {
-    const router =
-      "import { HttpRouter as Router } from 'effect/unstable/http';";
+    const router = "import { HttpRouter as Router } from 'effect/http';";
     for (const [name, code, expected] of [
       [
         'inline options',
@@ -822,12 +821,12 @@ describe('Effect HTTP boundary diagnostics', () => {
       ],
       [
         'destructured namespace',
-        "import * as Http from 'effect/unstable/http'; const { HttpRouter: router } = Http; router.serve(app, {});",
+        "import * as Http from 'effect/http'; const { HttpRouter: router } = Http; router.serve(app, {});",
         1,
       ],
       [
         'nested destructured namespace',
-        "import * as Http from 'effect/unstable/http'; const { HttpRouter: { serve: listen } } = Http; listen(app, {});",
+        "import * as Http from 'effect/http'; const { HttpRouter: { serve: listen } } = Http; listen(app, {});",
         1,
       ],
       [
@@ -862,17 +861,17 @@ describe('Effect HTTP boundary diagnostics', () => {
       ],
       [
         'direct import',
-        "import { serve as listen } from 'effect/unstable/http/HttpRouter'; listen(app, {});",
+        "import { serve as listen } from 'effect/http/HttpRouter'; listen(app, {});",
         1,
       ],
       [
         'namespace import',
-        "import * as Router from 'effect/unstable/http/HttpRouter'; Router.toWebHandler(app, {});",
+        "import * as Router from 'effect/http/HttpRouter'; Router.toWebHandler(app, {});",
         1,
       ],
       [
         'barrel namespace',
-        "import * as Http from 'effect/unstable/http'; Http.HttpRouter.serve(app, {});",
+        "import * as Http from 'effect/http'; Http.HttpRouter.serve(app, {});",
         1,
       ],
       [

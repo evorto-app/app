@@ -3,12 +3,15 @@ import type { SupportedTenantCurrency } from '../src/types/custom/tenant';
 
 import { randEmail, randFirstName, randLastName } from '@ngneat/falso';
 import consola from 'consola';
+import { eq } from 'drizzle-orm';
 
 import type { SeedProfile, SeedScenarioEvents } from './add-events';
 import type { SeedTemplateKey } from './add-templates';
 
 import { relations } from '../src/db/relations';
 import * as schema from '../src/db/schema';
+import type { SeedReceiptEvidence } from './seed-receipt-evidence';
+import { addWalkthroughEvents } from './add-walkthrough-events';
 import { addEvents } from './add-events';
 import { addFinanceReceipts } from './add-finance-receipts';
 import { addIcons } from './add-icons';
@@ -46,6 +49,7 @@ export interface SeedTenantOptions {
   logSeedMap?: boolean;
   name: string;
   profile?: SeedProfile;
+  receiptEvidence?: SeedReceiptEvidence | undefined;
   runId?: string;
   seedDate?: Date;
   stripeAccountId?: string;
@@ -156,6 +160,7 @@ export async function seedTenant(
     logSeedMap = false,
     name,
     profile = 'demo',
+    receiptEvidence,
     runId,
     seedDate,
     stripeAccountId,
@@ -176,6 +181,30 @@ export async function seedTenant(
   };
 
   const tenant = await createTenant(database, tenantInput);
+  if (profile === 'demo') {
+    await database
+      .update(schema.tenants)
+      .set({
+        hubResources: [
+          {
+            label: 'Shared drive',
+            href: 'https://drive.google.com/',
+            icon: { iconName: 'user-manual', iconColor: 0 },
+          },
+          {
+            label: 'Section calendar',
+            href: 'https://calendar.google.com/',
+            icon: { iconName: 'calendar', iconColor: 0 },
+          },
+          {
+            label: 'Email the team',
+            href: 'mailto:team@example.org',
+            icon: { iconName: 'email', iconColor: 0 },
+          },
+        ],
+      })
+      .where(eq(schema.tenants.id, tenant.id));
+  }
 
   await addTaxRates(database, tenant);
   const icons = await addIcons(database, tenant);
@@ -247,7 +276,17 @@ export async function seedTenant(
       userId: registration.userId,
     };
   });
+  if (profile === 'demo') {
+    await addWalkthroughEvents(database, {
+      tenantId: tenant.id,
+      seedDate: resolvedSeedDate,
+      includeRegistrations: effectiveIncludeRegistrations,
+      currency: tenant.currency,
+    });
+  }
   await addFinanceReceipts(database, {
+    receiptEvidence,
+    seedDate: resolvedSeedDate,
     currency: tenant.currency,
     eventIds: seededEvents.events.map((event) => event.id),
     tenantId: tenant.id,

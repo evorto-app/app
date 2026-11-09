@@ -64,7 +64,7 @@
         [disabled]="profileDialogOpen() || updateProfileMutation.isPending()"
         id="edit-profile-btn"
       >
-        <fa-duotone-icon [icon]="faPencil" class="mr-2" />
+        <fa-duotone-icon matButtonIcon [icon]="faPencil" class="mat-icon" />
         Edit profile
       </button>
     </section>
@@ -81,7 +81,7 @@
         [routerLink]="profileTransferClaimPath"
         class="justify-self-start"
       >
-        <fa-duotone-icon [icon]="faTicket" class="mr-2" />
+        <fa-duotone-icon matButtonIcon [icon]="faTicket" class="mat-icon" />
         Use transfer code
       </a>
     </section>
@@ -89,7 +89,11 @@
     <section class="bg-surface text-on-surface grid gap-3 rounded-2xl p-6">
       <h2 class="title-medium">Sign out</h2>
       <a href="/logout" mat-stroked-button class="justify-self-start">
-        <fa-duotone-icon [icon]="faRightFromBracket" class="mr-2" />
+        <fa-duotone-icon
+          matButtonIcon
+          [icon]="faRightFromBracket"
+          class="mat-icon"
+        />
         Sign out
       </a>
     </section>

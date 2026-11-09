@@ -95,9 +95,6 @@
             <h2 id="profile-details-heading" class="title-medium">
               Your details
             </h2>
-            <p class="body-medium text-on-surface-variant mt-1">
-              We'll use this address for event and reimbursement updates.
-            </p>
           </div>
           <div class="grid gap-4 md:grid-cols-2">
             <mat-form-field>
@@ -225,19 +222,16 @@
                 {{ requirements.policy.privacyPolicyText }}
               </p>
             }
-            @if (requirements.policy.privacyPolicyUrl) {
-              <a
-                class="text-primary mt-2 inline-block underline"
-                [href]="requirements.policy.privacyPolicyUrl"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Open the full privacy policy
-              </a>
-            }
           </div>
           <mat-checkbox [formField]="accountForm.acceptedPrivacyPolicy">
-            I accept {{ requirements.tenantName }}'s current privacy policy.
+            I accept {{ requirements.tenantName }}'s
+            <a
+              class="text-primary underline"
+              [href]="requirements.policy.privacyPolicyUrl || '/legal/privacy'"
+              target="_blank"
+              rel="noopener noreferrer"
+              >current privacy policy</a
+            >.
           </mat-checkbox>
           <p class="body-small text-on-surface-variant">
             If the privacy policy changes, you'll be asked to read and accept it

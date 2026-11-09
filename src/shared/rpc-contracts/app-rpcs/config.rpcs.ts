@@ -1,7 +1,7 @@
 import { asRpcQuery } from '@heddendorp/effect-angular-query';
 import { Schema } from 'effect';
-import * as Rpc from 'effect/unstable/rpc/Rpc';
-import * as RpcGroup from 'effect/unstable/rpc/RpcGroup';
+import * as Rpc from 'effect/rpc/Rpc';
+import * as RpcGroup from 'effect/rpc/RpcGroup';
 
 import { PlatformAdministratorAuthority } from '../../../types/custom/platform-authority';
 import { Tenant } from '../../../types/custom/tenant';
@@ -20,6 +20,8 @@ export class ClientTenantConfig extends Schema.Class<ClientTenantConfig>(
   emailSenderEmail: Tenant.fields.emailSenderEmail,
   emailSenderName: Tenant.fields.emailSenderName,
   faviconUrl: Tenant.fields.faviconUrl,
+  footerLinks: Tenant.fields.footerLinks,
+  homePageUrl: Tenant.fields.homePageUrl,
   id: Tenant.fields.id,
   legalNoticeText: Tenant.fields.legalNoticeText,
   legalNoticeUrl: Tenant.fields.legalNoticeUrl,
@@ -52,6 +54,8 @@ export const toClientTenantConfig = (tenant: Tenant): ClientTenantConfig =>
     emailSenderEmail: tenant.emailSenderEmail,
     emailSenderName: tenant.emailSenderName,
     faviconUrl: tenant.faviconUrl,
+    footerLinks: tenant.footerLinks,
+    homePageUrl: tenant.homePageUrl,
     id: tenant.id,
     legalNoticeText: tenant.legalNoticeText,
     legalNoticeUrl: tenant.legalNoticeUrl,

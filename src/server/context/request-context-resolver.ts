@@ -4,6 +4,7 @@ import { uniq } from 'es-toolkit';
 import { Database, type DatabaseClient } from '../../db';
 import { getPreparedStatements } from '../../db/prepared-statements';
 import {
+  ALL_PERMISSIONS,
   type Permission,
   type TenantRolePermission,
   TenantRolePermissionSchema,
@@ -52,9 +53,8 @@ export const resolveRequestPermissions = (input: {
 
   return normalizePermissions([
     ...(input.platformAuthority
-      ? (['globalAdmin:manageTenants'] as const)
-      : []),
-    ...tenantPermissions,
+      ? (['globalAdmin:manageTenants', ...ALL_PERMISSIONS] as const)
+      : tenantPermissions),
   ]);
 };
 
@@ -261,33 +261,39 @@ const resolveUserContextEffect = (
       return;
     }
 
-    if (user.tenantAssignments.length === 0) {
-      return;
-    }
+    const platformAdministrator =
+      resolvePlatformAuthority(input.oidcUser) !== undefined;
+    if (!platformAdministrator) {
+      if (user.tenantAssignments.length === 0) {
+        return;
+      }
 
-    const onboardingComplete = yield* resolveOnboardingComplete({
-      tenantId: input.tenantId,
-      userId: user.id,
-    }).pipe(
-      Effect.tap((complete) =>
-        Effect.annotateCurrentSpan({
-          'evorto.onboarding_complete': complete,
-        }),
-      ),
-      Effect.withSpan('Server.resolveUserOnboarding'),
-    );
-    if (!onboardingComplete) {
-      return;
+      const onboardingComplete = yield* resolveOnboardingComplete({
+        tenantId: input.tenantId,
+        userId: user.id,
+      }).pipe(
+        Effect.tap((complete) =>
+          Effect.annotateCurrentSpan({
+            'evorto.onboarding_complete': complete,
+          }),
+        ),
+        Effect.withSpan('Server.resolveUserOnboarding'),
+      );
+      if (!onboardingComplete) {
+        return;
+      }
     }
 
     const assignedRoles = user.tenantAssignments.flatMap(
       (assignment) => assignment.roles,
     );
-    const permissions = assignedRoles.flatMap((role) =>
-      Schema.decodeUnknownSync(PersistedTenantRolePermissions)(
-        role.permissions,
-      ),
-    );
+    const permissions = platformAdministrator
+      ? ALL_PERMISSIONS
+      : assignedRoles.flatMap((role) =>
+          Schema.decodeUnknownSync(PersistedTenantRolePermissions)(
+            role.permissions,
+          ),
+        );
 
     const roleIds = assignedRoles.map((role) => role.id);
 

@@ -1,4 +1,8 @@
-import type { EventGraphEditRecord } from '@shared/rpc-contracts/app-rpcs/events.rpcs';
+import type {
+  EventGraphAddonInput,
+  EventGraphEditRecord,
+  EventGraphQuestionInput,
+} from '@shared/rpc-contracts/app-rpcs/events.rpcs';
 
 import { RpcBadRequestError } from '@shared/errors/rpc-errors';
 import {
@@ -73,6 +77,92 @@ const validateSubmittedIds = (
   if (ids.some((id) => !existingIds.has(id))) {
     return invalidGraph(eventChangedMessage, 'eventGraphIdMismatch');
   }
+  return null;
+};
+
+export const validateEventGraphExtras = ({
+  addOns,
+  optionKeys,
+  questions,
+}: {
+  addOns: readonly EventGraphAddonInput[];
+  optionKeys: readonly string[];
+  questions: readonly EventGraphQuestionInput[];
+}): null | RpcBadRequestError => {
+  if (
+    addOns.length > MAX_EVENT_ADDON_TYPES ||
+    questions.length > MAX_REGISTRATION_QUESTIONS
+  ) {
+    return invalidGraph(
+      'Too many add-ons or sign-up questions.',
+      'eventExtrasLimitExceeded',
+    );
+  }
+  if (
+    hasDuplicates(addOns.map((item) => item.key)) ||
+    hasDuplicates(questions.map((item) => item.key))
+  ) {
+    return invalidGraph(eventChangedMessage, 'duplicateEventGraphKey');
+  }
+  const optionKeySet = new Set(optionKeys);
+  for (const addOn of addOns) {
+    if (addOn.isPaid && addOn.price <= 0) {
+      return invalidGraph(
+        'Enter a price greater than zero for each paid add-on.',
+        'paidEventAddonRequiresPositivePrice',
+      );
+    }
+
+    const mappedKeys = addOn.registrationOptions.map(
+      (mapping) => mapping.registrationOptionKey,
+    );
+    if (
+      !addOn.title.trim() ||
+      (!addOn.allowPurchaseBeforeEvent &&
+        !addOn.allowPurchaseDuringEvent &&
+        !addOn.allowPurchaseDuringRegistration) ||
+      isInvalidInteger(addOn.maxQuantityPerUser) ||
+      addOn.maxQuantityPerUser > MAX_REGISTRATION_ADDON_QUANTITY ||
+      addOn.maxQuantityPerUser === 0 ||
+      isInvalidInteger(addOn.price) ||
+      isInvalidInteger(addOn.totalAvailableQuantity) ||
+      hasDuplicates(mappedKeys) ||
+      addOn.registrationOptions.some(
+        (mapping) =>
+          !optionKeySet.has(mapping.registrationOptionKey) ||
+          isInvalidInteger(mapping.includedQuantity) ||
+          isInvalidInteger(mapping.optionalPurchaseQuantity) ||
+          mapping.includedQuantity + mapping.optionalPurchaseQuantity === 0 ||
+          mapping.includedQuantity + mapping.optionalPurchaseQuantity >
+            MAX_REGISTRATION_ADDON_QUANTITY ||
+          mapping.includedQuantity + mapping.optionalPurchaseQuantity >
+            addOn.totalAvailableQuantity ||
+          mapping.optionalPurchaseQuantity > addOn.maxQuantityPerUser,
+      )
+    ) {
+      return invalidGraph(
+        "Review each add-on's name, availability, quantities, and sign-up choices.",
+        'invalidEventAddon',
+      );
+    }
+  }
+
+  for (const question of questions) {
+    if (
+      !question.title.trim() ||
+      question.title.length > MAX_REGISTRATION_QUESTION_TITLE_LENGTH ||
+      (question.description?.length ?? 0) >
+        MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH ||
+      !optionKeySet.has(question.registrationOptionKey) ||
+      isInvalidInteger(question.sortOrder)
+    ) {
+      return invalidGraph(
+        'Review each sign-up question and the sign-up choice it belongs to.',
+        'invalidEventQuestion',
+      );
+    }
+  }
+
   return null;
 };
 
@@ -169,66 +259,11 @@ export const validateEventGraphStructure = ({
     }
   }
 
-  const optionKeySet = new Set(optionKeys);
-  for (const addOn of input.addOns) {
-    if (addOn.isPaid && addOn.price <= 0) {
-      return invalidGraph(
-        'Enter a price greater than zero for each paid add-on.',
-        'paidEventAddonRequiresPositivePrice',
-      );
-    }
-
-    const mappedKeys = addOn.registrationOptions.map(
-      (mapping) => mapping.registrationOptionKey,
-    );
-    if (
-      !addOn.title.trim() ||
-      (!addOn.allowPurchaseBeforeEvent &&
-        !addOn.allowPurchaseDuringEvent &&
-        !addOn.allowPurchaseDuringRegistration) ||
-      isInvalidInteger(addOn.maxQuantityPerUser) ||
-      addOn.maxQuantityPerUser > MAX_REGISTRATION_ADDON_QUANTITY ||
-      addOn.maxQuantityPerUser === 0 ||
-      isInvalidInteger(addOn.price) ||
-      isInvalidInteger(addOn.totalAvailableQuantity) ||
-      hasDuplicates(mappedKeys) ||
-      addOn.registrationOptions.some(
-        (mapping) =>
-          !optionKeySet.has(mapping.registrationOptionKey) ||
-          isInvalidInteger(mapping.includedQuantity) ||
-          isInvalidInteger(mapping.optionalPurchaseQuantity) ||
-          mapping.includedQuantity + mapping.optionalPurchaseQuantity === 0 ||
-          mapping.includedQuantity + mapping.optionalPurchaseQuantity >
-            MAX_REGISTRATION_ADDON_QUANTITY ||
-          mapping.includedQuantity + mapping.optionalPurchaseQuantity >
-            addOn.totalAvailableQuantity ||
-          mapping.optionalPurchaseQuantity > addOn.maxQuantityPerUser,
-      )
-    ) {
-      return invalidGraph(
-        "Review each add-on's name, availability, quantities, and sign-up choices.",
-        'invalidEventAddon',
-      );
-    }
-  }
-
-  for (const question of input.questions) {
-    if (
-      !question.title.trim() ||
-      question.title.length > MAX_REGISTRATION_QUESTION_TITLE_LENGTH ||
-      (question.description?.length ?? 0) >
-        MAX_REGISTRATION_QUESTION_DESCRIPTION_LENGTH ||
-      !optionKeySet.has(question.registrationOptionKey) ||
-      isInvalidInteger(question.sortOrder)
-    ) {
-      return invalidGraph(
-        'Review each sign-up question and the sign-up choice it belongs to.',
-        'invalidEventQuestion',
-      );
-    }
-  }
-
-  return null;
+  return validateEventGraphExtras({
+    addOns: input.addOns,
+    optionKeys,
+    questions: input.questions,
+  });
 };
 
 const ensureNoRemovedOptionRegistrations = Effect.fn(

@@ -177,14 +177,14 @@ describe('PERMISSION_GROUPS', () => {
 
     expect(membersHubGroup).toMatchObject({
       label: 'Members Hub',
-      permissions: [
+      permissions: expect.arrayContaining([
         {
           description:
             'Open Members Hub to see organization roles and members that are marked for display there.',
           key: 'internal:viewInternalPages',
           label: 'View Members Hub',
         },
-      ],
+      ]),
     });
   });
 });

@@ -1,65 +1,58 @@
-<div
-  class="grid grid-cols-1 lg:relative lg:h-full lg:grid-cols-[400px_1fr] lg:gap-4"
+<app-two-column-layout
+  [detailActive]="outletActive()"
+  [independentScroll]="true"
+  sidebarWidth="400px"
+  sidebarLabel="Event list"
+  detailLabel="Selected event"
 >
-  <div class="lg:h-full lg:overflow-y-auto lg:rounded-t-lg lg:p-4">
-    <div
-      class="mb-4 {{
-        outletActive() ? 'hidden' : 'flex'
-      }} lg:flex w-full flex-row items-center gap-2 p-2 lg:p-0"
+  <div twoColumnHeader class="flex w-full flex-row items-center gap-2">
+    <h1 class="title-large">Events</h1>
+    <div class="grow"></div>
+    <a
+      mat-button
+      routerLink="/templates"
+      *appIfAnyPermission="['events:create']"
     >
-      <h1 class="title-large">Events</h1>
-      <div class="grow"></div>
-      <a
-        mat-button
-        routerLink="/templates"
-        *appIfAnyPermission="['events:create']"
-        class="hidden! lg:flex!"
+      Create Event
+    </a>
+  </div>
+  <nav twoColumnSidebar class="flex flex-col gap-2">
+    @if (eventQuery.isPending()) {
+      <div
+        role="status"
+        aria-live="polite"
+        class="bg-surface text-on-surface animate-pulse rounded-2xl px-4 py-2"
       >
-        Create Event
-      </a>
-      <button
-        type="button"
-        mat-icon-button
-        aria-label="Open event list actions"
-        [matMenuTriggerFor]="menu"
-        *appIfAnyPermission="['events:create']"
+        <p class="headline-small">Loading events…</p>
+      </div>
+    } @else if (eventQuery.isError() && !eventQuery.data()) {
+      <div
+        role="alert"
+        class="bg-error-container text-on-error-container flex flex-col items-start gap-3 rounded-xl p-4"
       >
-        <fa-icon [icon]="faEllipsisVertical" />
-      </button>
-      <mat-menu #menu="matMenu">
-        <a
-          routerLink="/templates"
-          mat-menu-item
-          *appIfAnyPermission="['events:create']"
-        >
-          Create Event
-        </a>
-      </mat-menu>
-    </div>
-    <nav
-      class="{{
-        outletActive() ? 'hidden' : 'flex'
-      }} lg:flex flex-col gap-2 px-2 lg:px-0"
-    >
-      @if (eventQuery.isPending()) {
-        <div
-          role="status"
-          aria-live="polite"
-          class="bg-surface text-on-surface animate-pulse rounded-2xl px-4 py-2"
-        >
-          <p class="headline-small">Loading events…</p>
+        <div>
+          <h2 class="title-medium">Events could not be loaded</h2>
+          <p class="body-medium mt-1">No events are shown. Select Try again.</p>
         </div>
-      } @else if (eventQuery.isError() && !eventQuery.data()) {
+        <button
+          mat-stroked-button
+          type="button"
+          [disabled]="eventQuery.isFetching()"
+          (click)="eventQuery.refetch()"
+        >
+          {{ eventQuery.isFetching() ? "Retrying…" : "Try again" }}
+        </button>
+      </div>
+    } @else if (eventQuery.data()) {
+      @if (eventQuery.isError() && !eventQuery.isFetchNextPageError()) {
         <div
           role="alert"
           class="bg-error-container text-on-error-container flex flex-col items-start gap-3 rounded-xl p-4"
         >
-          <div>
-            <h2 class="title-medium">Events could not be loaded</h2>
-            <p class="body-medium mt-1">
-              No events are shown. Select Try again.
-            </p>
-          </div>
+          <p>
+            Events could not be refreshed. The events below were loaded earlier
+            and may be out of date.
+          </p>
           <button
             mat-stroked-button
             type="button"
@@ -69,139 +62,183 @@
             {{ eventQuery.isFetching() ? "Retrying…" : "Try again" }}
           </button>
         </div>
-      } @else if (eventQuery.data()) {
-        @if (eventQuery.isError() && !eventQuery.isFetchNextPageError()) {
-          <div
-            role="alert"
-            class="bg-error-container text-on-error-container flex flex-col items-start gap-3 rounded-xl p-4"
+      }
+      @for (day of eventDays(); track day.day) {
+        <p
+          class="title-medium sticky top-0 z-10 bg-surface-container px-4 py-2"
+        >
+          {{ day.day | date }}
+        </p>
+        @for (event of day.events; track event.id) {
+          <a
+            routerLink="{{ event.id }}"
+            class="rounded-2xl bg-surface px-4 py-2 text-on-surface relative overflow-hidden {{
+              event.userSignUpState ? 'ring-2 ring-inset ring-primary' : ''
+            }}"
+            routerLinkActive="bg-secondary-container! text-on-secondary-container!"
           >
-            <p>
-              Events could not be refreshed. The events below were loaded
-              earlier and may be out of date.
-            </p>
-            <button
-              mat-stroked-button
-              type="button"
-              [disabled]="eventQuery.isFetching()"
-              (click)="eventQuery.refetch()"
-            >
-              {{ eventQuery.isFetching() ? "Retrying…" : "Try again" }}
-            </button>
-          </div>
-        }
-        @for (day of eventDays(); track day.day) {
-          <p
-            class="title-medium sticky top-0 lg:-top-4 z-10 bg-surface-container px-4 py-2"
-          >
-            {{ day.day | date }}
-          </p>
-          @for (event of day.events; track event.id) {
-            <a
-              routerLink="{{ event.id }}"
-              class="rounded-2xl bg-surface px-4 py-2 text-on-surface relative overflow-hidden {{
-                event.userSignUpState ? 'ring-2 ring-inset ring-primary' : ''
-              }}"
-              routerLinkActive="bg-secondary-container! text-on-secondary-container!"
-            >
-              @switch (event.status) {
-                @case ("DRAFT") {
-                  <div class="absolute right-0 top-0 h-16 w-16">
-                    <div
-                      class="body-small bg-warning text-on-warning absolute -right-9 top-3 w-28 rotate-45 transform py-1 text-center"
-                    >
-                      draft
-                    </div>
-                  </div>
-                }
-                @case ("PENDING_REVIEW") {
-                  <div class="absolute right-0 top-0 h-16 w-16">
-                    <div
-                      class="body-small bg-tertiary-container text-on-tertiary-container absolute -right-9 top-3 w-28 rotate-45 transform py-1 text-center"
-                    >
-                      pending review
-                    </div>
-                  </div>
-                }
-              }
-              <div class="flex flex-row items-start gap-4">
-                <app-icon [iconCommonName]="event.icon" size="32" />
-                <div class="flex flex-col gap-2">
-                  <h2 class="headline-small">{{ event.title }}</h2>
-                  <div class="flex flex-row flex-wrap items-center gap-4">
-                    <div class="flex flex-row items-center gap-2">
-                      <fa-icon [icon]="faClock" />
-                      <p>{{ event.start | date: "shortTime" }}</p>
-                    </div>
-                    <span
-                      class="label-medium bg-secondary-container text-on-secondary-container rounded-full px-2 py-1"
-                      [matTooltip]="
-                        eventDiscoveryDescription({
-                          announcementRoleCount: event.announcementRoleCount,
-                          hasRegistrationOptions: event.hasRegistrationOptions,
-                        })
-                      "
-                    >
-                      {{
-                        eventDiscoveryLabel({
-                          announcementRoleCount: event.announcementRoleCount,
-                          hasRegistrationOptions: event.hasRegistrationOptions,
-                        })
-                      }}
-                    </span>
-                    @if (
-                      eventListSignUpStateLabel(event.userSignUpState);
-                      as signUpStateLabel
-                    ) {
-                      <span
-                        class="label-medium bg-primary-container text-on-primary-container rounded-full px-2 py-1"
-                      >
-                        {{ signUpStateLabel }}
-                      </span>
-                    }
+            @switch (event.status) {
+              @case ("DRAFT") {
+                <div class="absolute right-0 top-0 h-16 w-16">
+                  <div
+                    class="body-small bg-warning text-on-warning absolute -right-9 top-3 w-28 rotate-45 transform py-1 text-center"
+                  >
+                    draft
                   </div>
                 </div>
+              }
+              @case ("PENDING_REVIEW") {
+                <div class="absolute right-0 top-0 h-16 w-16">
+                  <div
+                    class="body-small bg-tertiary-container text-on-tertiary-container absolute -right-9 top-3 w-28 rotate-45 transform py-1 text-center"
+                  >
+                    {{ eventStatusLabel(event.status) }}
+                  </div>
+                </div>
+              }
+            }
+            <div class="flex flex-row items-start gap-4">
+              <app-icon [iconCommonName]="event.icon" size="32" />
+              <div class="flex flex-col gap-2">
+                <h2 class="headline-small">{{ event.title }}</h2>
+                <div class="flex flex-row flex-wrap items-center gap-4">
+                  <div class="flex flex-row items-center gap-2">
+                    <fa-icon [icon]="faClock" />
+                    <p>{{ event.start | date: "shortTime" }}</p>
+                  </div>
+                  @if (
+                    eventListSignUpStateLabel(event.userSignUpState);
+                    as signUpStateLabel
+                  ) {
+                    <span
+                      class="label-medium bg-primary-container text-on-primary-container rounded-full px-2 py-1"
+                    >
+                      {{ signUpStateLabel }}
+                    </span>
+                  }
+                </div>
               </div>
-            </a>
-          }
-        } @empty {
-          <p>No events found</p>
+            </div>
+          </a>
         }
-        @if (
-          eventQuery.hasNextPage() ||
-          eventQuery.isFetchingNextPage() ||
-          eventQuery.isFetchNextPageError()
-        ) {
-          <div
-            class="border-outline-variant mt-2 flex flex-col items-start gap-2 border-t px-4 py-3"
-          >
-            @if (eventQuery.isFetchNextPageError()) {
-              <p class="body-medium text-error" role="alert">
-                More events could not be loaded. The events above are still
-                available.
-              </p>
-            }
-            <button
-              mat-button
-              type="button"
-              [disabled]="eventQuery.isFetchingNextPage()"
-              (click)="eventQuery.fetchNextPage()"
-            >
-              Load more
-            </button>
-            @if (eventQuery.isFetchingNextPage()) {
-              <p class="body-small text-on-surface-variant" role="status">
-                Loading more events…
-              </p>
-            }
-          </div>
-        }
+      } @empty {
+        <p>No events found</p>
       }
-    </nav>
-  </div>
-  <div class="lg:h-full lg:pr-4">
+      @if (
+        eventQuery.hasNextPage() ||
+        eventQuery.isFetchingNextPage() ||
+        eventQuery.isFetchNextPageError()
+      ) {
+        <div
+          class="border-outline-variant mt-2 flex flex-col items-start gap-2 border-t px-4 py-3"
+        >
+          @if (eventQuery.isFetchNextPageError()) {
+            <p class="body-medium text-error" role="alert">
+              More events could not be loaded. The events above are still
+              available.
+            </p>
+          }
+          <button
+            mat-button
+            type="button"
+            [disabled]="eventQuery.isFetchingNextPage()"
+            (click)="eventQuery.fetchNextPage()"
+          >
+            Load more
+          </button>
+          @if (eventQuery.isFetchingNextPage()) {
+            <p class="body-small text-on-surface-variant" role="status">
+              Loading more events…
+            </p>
+          }
+        </div>
+      }
+    }
+  </nav>
+  <div twoColumnDetail>
+    @if (!outletActive() && previewIcon(); as icon) {
+      <section
+        class="bg-surface text-on-surface @container hidden overflow-hidden rounded-lg lg:block"
+        aria-labelledby="event-selection-heading"
+        (mouseenter)="previewPaused.set(true)"
+        (mouseleave)="previewPaused.set(false)"
+        (focusin)="previewPaused.set(true)"
+        (focusout)="previewPaused.set(false)"
+      >
+        <header
+          class="bg-primary-container text-on-primary-container flex min-h-80 flex-col gap-6 p-6 @xl:p-8"
+        >
+          <h2 id="event-selection-heading" class="title-large">
+            What will you do next?
+          </h2>
+          <div class="grid flex-1 items-center gap-8 @xl:grid-cols-2">
+            <div class="flex min-w-0 flex-col items-start gap-4">
+              @if (previewEvent(); as event) {
+                <div class="grid gap-2">
+                  <h3 class="display-small break-words">{{ event.title }}</h3>
+                  <time
+                    class="body-large"
+                    [attr.datetime]="event.start"
+                    [title]="(event.start | date: 'medium') ?? ''"
+                    >{{ previewDate() }}</time
+                  >
+                </div>
+                @if (previewUpcoming()) {
+                  <a mat-stroked-button [routerLink]="['/events', event.id]"
+                    >View event</a
+                  >
+                }
+              }
+            </div>
+            <div class="flex justify-center" aria-hidden="true">
+              <app-shape
+                [changeSignal]="'preview-' + previewIndex()"
+                class="text-secondary w-52"
+              >
+                <div class="grid place-items-center">
+                  @for (event of previews.events(); track event.icon.iconName) {
+                    <app-icon
+                      class="col-start-1 row-start-1 transition-opacity duration-550 ease-[ease-in-out] motion-reduce:transition-none"
+                      [iconCommonName]="event.icon"
+                      size="120"
+                      loading="eager"
+                      [class.opacity-0]="event.id !== previewEvent()?.id"
+                      (loaded)="previewIconLoaded($event)"
+                    />
+                  } @empty {
+                    <app-icon [iconCommonName]="icon" size="120" />
+                  }
+                </div>
+              </app-shape>
+            </div>
+          </div>
+        </header>
+        <div class="flex flex-col items-start gap-2 p-6">
+          @if (previews.failed() && !previewEvent()) {
+            <p class="body-large" role="alert">
+              Recent events could not be loaded.
+            </p>
+            <button mat-button type="button" (click)="previews.retry()">
+              Try again
+            </button>
+          }
+          <p class="body-large">
+            @if (eventQuery.isError() && !eventQuery.data()) {
+              Try loading the event list again to see what’s coming up.
+            } @else if (eventQuery.isPending()) {
+              Finding upcoming events…
+            } @else if (eventDays().length === 0) {
+              Check back soon for upcoming events.
+            } @else {
+              Select an event to find out more and join in.
+            }
+          </p>
+        </div>
+      </section>
+    }
     <router-outlet
       (activate)="outletActive.set(true)"
       (deactivate)="outletActive.set(false)"
     />
   </div>
-</div>
+</app-two-column-layout>

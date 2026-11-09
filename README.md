@@ -4,8 +4,8 @@ This project was generated using [Angular CLI](https://github.com/angular/angula
 
 ## Prerequisites
 
-- Bun 1.4.2 is the package manager and app runtime baseline.
-- Node 24.21.0 is required for Angular CLI package scripts.
+- Bun 1.4.4 is the package manager, formatter and app runtime baseline.
+- Node 24.22.1 is required for Angular CLI package scripts.
 - Docker Compose 2.24.0 or later is required for the local Docker-backed runtime and E2E flows.
 
 Docker image builds compile Angular and ops with native builder tools, then
@@ -49,9 +49,14 @@ it can show an empty project even while the isolated stack is running.
 
 ## Git workflow
 
-This repository uses Git Town to manage branching, syncing, and shipping. Prefer `git town` commands for daily workflow.
+Use feature branches and GitHub PRs with ordinary Git and the GitHub CLI or
+website. Follow `AGENTS.md` for the Linear issue-first workflow, verification,
+and review requirements.
 
-For large multi-phase changes, keep an assembly branch plus one child branch per reviewable phase. Create the next branch with `git town append`, keep the stack current with `git town sync --stack`, and open PRs with `git town propose`.
+For multi-phase changes, use [GitHub stacked PRs](https://docs.github.com/en/pull-requests/reference/stacked-pull-requests)
+with one reviewable branch per phase, based on its immediate predecessor. The
+optional `gh stack` extension provides local stack management; it is not a
+project dependency.
 
 ## Release documentation
 
@@ -105,6 +110,12 @@ bun run build:app
 This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
 
 ## Mandatory local CI gate
+
+Formatting uses Bun's built-in `bun fmt` through `format:write` and
+`format:check`. Its Angular parser override and vendored-reference exclusions
+live in `bunfig.toml`; shared indentation and quote preferences remain in
+`.editorconfig`. Standalone Prettier and its Tailwind plugin are not required.
+`eslint-config-prettier` only disables conflicting ESLint formatting rules.
 
 Before any push, PR update, or other action that can trigger CI, the exact local
 equivalent of every triggered CI suite must pass completely. Run the canonical,

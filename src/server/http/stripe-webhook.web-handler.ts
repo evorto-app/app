@@ -658,14 +658,19 @@ const resolvePersistedAddonPurchaseOrder = (input: {
     }),
   );
 
-const claimWebhookEvent = (input: {
+interface StripeWebhookEventClaim {
+  readonly claimId: string;
+  readonly eventId: string;
+}
+
+export const claimWebhookEvent = (input: {
   eventId: string;
   eventType: string;
   tenantId?: string;
 }) =>
   databaseEffect((database) =>
     Effect.gen(function* () {
-      const inserted = yield* database
+      const [inserted] = yield* database
         .insert(schema.stripeWebhookEvents)
         .values({
           eventType: input.eventType,
@@ -674,11 +679,13 @@ const claimWebhookEvent = (input: {
         })
         .onConflictDoNothing()
         .returning({
-          status: schema.stripeWebhookEvents.status,
-          stripeEventId: schema.stripeWebhookEvents.stripeEventId,
+          claimId: schema.stripeWebhookEvents.claimId,
         });
-      if (inserted.length > 0) {
-        return { type: 'claimed' } as const;
+      if (inserted) {
+        return {
+          claim: { claimId: inserted.claimId, eventId: input.eventId },
+          type: 'claimed',
+        } as const;
       }
 
       const existingEvent = yield* database.query.stripeWebhookEvents.findFirst(
@@ -699,9 +706,10 @@ const claimWebhookEvent = (input: {
         existingEvent.status === 'processing' &&
         existingEvent.processedAt <= staleBefore
       ) {
-        const reclaimed = yield* database
+        const [reclaimed] = yield* database
           .update(schema.stripeWebhookEvents)
           .set({
+            claimId: sql`gen_random_uuid()`,
             eventType: input.eventType,
             processedAt: reclaimedAt,
             ...(input.tenantId && { tenantId: input.tenantId }),
@@ -714,10 +722,13 @@ const claimWebhookEvent = (input: {
             ),
           )
           .returning({
-            stripeEventId: schema.stripeWebhookEvents.stripeEventId,
+            claimId: schema.stripeWebhookEvents.claimId,
           });
-        if (reclaimed.length > 0) {
-          return { type: 'claimed' } as const;
+        if (reclaimed) {
+          return {
+            claim: { claimId: reclaimed.claimId, eventId: input.eventId },
+            type: 'claimed',
+          } as const;
         }
       }
 
@@ -727,30 +738,70 @@ const claimWebhookEvent = (input: {
     }),
   );
 
-const releaseWebhookEventClaim = (eventId: string) =>
+export const releaseWebhookEventClaim = (claim: StripeWebhookEventClaim) =>
   databaseEffect((database) =>
     database
       .delete(schema.stripeWebhookEvents)
-      .where(eq(schema.stripeWebhookEvents.stripeEventId, eventId)),
+      .where(
+        and(
+          eq(schema.stripeWebhookEvents.stripeEventId, claim.eventId),
+          eq(schema.stripeWebhookEvents.claimId, claim.claimId),
+          eq(schema.stripeWebhookEvents.status, 'processing'),
+        ),
+      )
+      .returning({ claimId: schema.stripeWebhookEvents.claimId }),
   ).pipe(
     Effect.tapError((error) =>
       Effect.logWarning('Failed to release webhook claim').pipe(
         Effect.annotateLogs({
           error: error instanceof Error ? error.message : String(error),
-          eventId,
+          eventId: claim.eventId,
         }),
       ),
     ),
-    Effect.asVoid,
+    Effect.map((released) => released.length > 0),
+    Effect.tap((released) =>
+      released
+        ? Effect.void
+        : Effect.logWarning(
+            'Webhook claim no longer owned during release',
+          ).pipe(
+            Effect.annotateLogs({
+              claimId: claim.claimId,
+              eventId: claim.eventId,
+            }),
+          ),
+    ),
   );
 
-const markWebhookEventProcessed = (eventId: string) =>
+export const markWebhookEventProcessed = (claim: StripeWebhookEventClaim) =>
   databaseEffect((database) =>
     database
       .update(schema.stripeWebhookEvents)
       .set({ processedAt: new Date(), status: 'processed' })
-      .where(eq(schema.stripeWebhookEvents.stripeEventId, eventId)),
-  ).pipe(Effect.asVoid);
+      .where(
+        and(
+          eq(schema.stripeWebhookEvents.stripeEventId, claim.eventId),
+          eq(schema.stripeWebhookEvents.claimId, claim.claimId),
+          eq(schema.stripeWebhookEvents.status, 'processing'),
+        ),
+      )
+      .returning({ claimId: schema.stripeWebhookEvents.claimId }),
+  ).pipe(
+    Effect.map((processed) => processed.length > 0),
+    Effect.tap((processed) =>
+      processed
+        ? Effect.void
+        : Effect.logWarning(
+            'Webhook claim no longer owned during completion',
+          ).pipe(
+            Effect.annotateLogs({
+              claimId: claim.claimId,
+              eventId: claim.eventId,
+            }),
+          ),
+    ),
+  );
 
 export const handleStripeWebhookWebRequest = (request: Request) =>
   Effect.gen(function* () {
@@ -818,7 +869,7 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
     }
 
     const tenantId = getTenantIdFromWebhookEvent(event);
-    let isOwnsClaim = false;
+    let ownedClaim: StripeWebhookEventClaim | undefined;
     const response = yield* Effect.gen(function* () {
       const claimedEvent = yield* claimWebhookEvent({
         eventId: event.id,
@@ -848,7 +899,7 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
       if (claimedEvent.type === 'missing') {
         return responseText('Webhook claim missing', 409);
       }
-      isOwnsClaim = true;
+      ownedClaim = claimedEvent.claim;
 
       switch (event.type) {
         case 'charge.updated': {
@@ -1548,16 +1599,16 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
       }
     }).pipe(
       Effect.catchCause((cause) =>
-        (isOwnsClaim ? releaseWebhookEventClaim(event.id) : Effect.void).pipe(
+        (ownedClaim ? releaseWebhookEventClaim(ownedClaim) : Effect.void).pipe(
           Effect.andThen(Effect.failCause(cause)),
         ),
       ),
     );
 
-    const finalizeClaim = isOwnsClaim
+    const finalizeClaim = ownedClaim
       ? response.status >= 400
-        ? releaseWebhookEventClaim(event.id)
-        : markWebhookEventProcessed(event.id)
+        ? releaseWebhookEventClaim(ownedClaim)
+        : markWebhookEventProcessed(ownedClaim)
       : Effect.void;
     yield* finalizeClaim;
 

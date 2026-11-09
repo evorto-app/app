@@ -7,9 +7,17 @@ import {
   faFolders,
 } from '@fortawesome/duotone-regular-svg-icons';
 
+import { TwoColumnLayoutComponent } from '../../shared/components/two-column-layout/two-column-layout.component';
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, FontAwesomeModule],
+  imports: [
+    TwoColumnLayoutComponent,
+    RouterOutlet,
+    RouterLink,
+    RouterLinkActive,
+    FontAwesomeModule,
+  ],
   selector: 'app-ga-overview',
   styles: ``,
   templateUrl: './ga-overview.component.html',

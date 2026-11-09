@@ -7,6 +7,8 @@ import { GoogleLocation } from '../types/location';
 // may save independently; optional values have one wire representation.
 export const AdminTenantAppearanceSettingsSnapshot = Schema.Struct({
   faviconUrl: Schema.NullOr(Schema.String),
+  footerLinks: Tenant.fields.footerLinks,
+  homePageUrl: Schema.NullOr(Schema.String),
   logoUrl: Schema.NullOr(Schema.String),
   seoDescription: Schema.NullOr(Schema.String),
   seoTitle: Schema.NullOr(Schema.String),
@@ -23,6 +25,8 @@ export const adminTenantAppearanceSettingsSnapshot = (
   >,
 ): AdminTenantAppearanceSettingsSnapshot => ({
   faviconUrl: tenant.faviconUrl ?? null,
+  ...(tenant.footerLinks !== undefined && { footerLinks: tenant.footerLinks }),
+  homePageUrl: tenant.homePageUrl ?? null,
   logoUrl: tenant.logoUrl ?? null,
   seoDescription: tenant.seoDescription ?? null,
   seoTitle: tenant.seoTitle ?? null,

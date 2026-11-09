@@ -115,6 +115,35 @@ describe('CreateAccountComponent load recovery', () => {
     TestBed.resetTestingModule();
   });
 
+  it.each([null, 'https://example.org/privacy'])(
+    'links the acceptance policy without leaving setup: %s',
+    async (privacyPolicyUrl) => {
+      const requirements = onboardingRequirements();
+      loadRequirements.mockResolvedValue({
+        ...requirements,
+        policy: { ...requirements.policy, privacyPolicyUrl },
+      });
+      loadAuthData.mockResolvedValue({
+        email: 'alex@example.org',
+        email_verified: true,
+        family_name: 'Morgan',
+        given_name: 'Alex',
+      });
+      const fixture = TestBed.createComponent(CreateAccountComponent);
+      fixture.detectChanges();
+      await vi.waitFor(() => {
+        fixture.detectChanges();
+        const link: HTMLAnchorElement | null =
+          fixture.nativeElement.querySelector(':scope mat-checkbox a');
+        expect(link?.getAttribute('href')).toBe(
+          privacyPolicyUrl || '/legal/privacy',
+        );
+        expect(link?.target).toBe('_blank');
+        expect(link?.rel).toBe('noopener noreferrer');
+      });
+    },
+  );
+
   it('announces a failed login-details load and retries before showing the form', async () => {
     loadRequirements.mockResolvedValue(onboardingRequirements());
     loadAuthData

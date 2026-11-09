@@ -1,4 +1,14 @@
-import { computed, Directive, HostBinding, input } from '@angular/core';
+import { OverlayContainer } from '@angular/cdk/overlay';
+import { isPlatformBrowser } from '@angular/common';
+import {
+  computed,
+  Directive,
+  effect,
+  HostBinding,
+  inject,
+  input,
+  PLATFORM_ID,
+} from '@angular/core';
 import {
   hexFromArgb,
   themeFromSourceColor,
@@ -6,10 +16,44 @@ import {
 
 @Directive({
   selector: '[appMaterialTheme]',
-  standalone: true,
 })
 export class MaterialThemeDirective {
   baseColor = input<number>();
+
+  private readonly overlayContainer = inject(OverlayContainer);
+  private readonly platformId = inject(PLATFORM_ID);
+
+  constructor() {
+    effect((onCleanup) => {
+      const styles = this.themeStyles();
+      if (
+        !isPlatformBrowser(this.platformId) ||
+        Object.keys(styles).length === 0
+      ) {
+        return;
+      }
+
+      // Material overlays live outside the themed page's DOM subtree.
+      const overlayStyle = this.overlayContainer.getContainerElement().style;
+      const previousStyles = Object.keys(styles).map((property) => ({
+        priority: overlayStyle.getPropertyPriority(property),
+        property,
+        value: overlayStyle.getPropertyValue(property),
+      }));
+      for (const [property, value] of Object.entries(styles)) {
+        overlayStyle.setProperty(property, value);
+      }
+      onCleanup(() => {
+        for (const { priority, property, value } of previousStyles) {
+          if (value) {
+            overlayStyle.setProperty(property, value, priority);
+          } else {
+            overlayStyle.removeProperty(property);
+          }
+        }
+      });
+    });
+  }
 
   @HostBinding('style')
   get styleBinding() {

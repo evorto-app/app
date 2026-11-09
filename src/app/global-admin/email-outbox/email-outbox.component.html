@@ -7,7 +7,11 @@
     [disabled]="outboxQuery.isRefetching()"
     (click)="outboxQuery.refetch()"
   >
-    <fa-duotone-icon [icon]="faArrowRotateRight" class="mr-2" />
+    <fa-duotone-icon
+      matButtonIcon
+      [icon]="faArrowRotateRight"
+      class="mat-icon"
+    />
     Check again
   </button>
 </div>

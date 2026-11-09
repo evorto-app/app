@@ -13,5 +13,6 @@ export const SCANNING_ROUTES: Routes = [
         (m) => m.HandleRegistrationComponent,
       ),
     path: 'registration/:registrationId',
+    title: 'Check-in pass',
   },
 ];

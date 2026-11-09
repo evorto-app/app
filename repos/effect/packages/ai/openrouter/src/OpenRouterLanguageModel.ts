@@ -6,15 +6,28 @@
  * requests, records GenAI telemetry around those calls, and converts normal or
  * streaming results back into Effect AI response content and metadata.
  *
+ * @stability unstable
  * @since 4.0.0
  */
 /** @effect-diagnostics preferSchemaOverJson:skip-file */
+import * as AiError from "effect/ai/AiError"
+import { toCodecAnthropic } from "effect/ai/AnthropicStructuredOutput"
+import * as IdGenerator from "effect/ai/IdGenerator"
+import * as LanguageModel from "effect/ai/LanguageModel"
+import * as AiModel from "effect/ai/Model"
+import { toCodecOpenAI } from "effect/ai/OpenAiStructuredOutput"
+import type * as Prompt from "effect/ai/Prompt"
+import type * as Response from "effect/ai/Response"
+import { addGenAIAnnotations } from "effect/ai/Telemetry"
+import * as Tool from "effect/ai/Tool"
 import * as Arr from "effect/Array"
 import * as Context from "effect/Context"
 import * as DateTime from "effect/DateTime"
 import * as Effect from "effect/Effect"
-import * as Encoding from "effect/Encoding"
+import * as Base64 from "effect/encoding/Base64"
 import { dual } from "effect/Function"
+import type * as HttpClientRequest from "effect/http/HttpClientRequest"
+import type * as HttpClientResponse from "effect/http/HttpClientResponse"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import * as Predicate from "effect/Predicate"
@@ -24,18 +37,6 @@ import * as SchemaAST from "effect/SchemaAST"
 import * as Stream from "effect/Stream"
 import type { Span } from "effect/Tracer"
 import type { DeepMutable, Mutable, Simplify } from "effect/Types"
-import * as AiError from "effect/unstable/ai/AiError"
-import { toCodecAnthropic } from "effect/unstable/ai/AnthropicStructuredOutput"
-import * as IdGenerator from "effect/unstable/ai/IdGenerator"
-import * as LanguageModel from "effect/unstable/ai/LanguageModel"
-import * as AiModel from "effect/unstable/ai/Model"
-import { toCodecOpenAI } from "effect/unstable/ai/OpenAiStructuredOutput"
-import type * as Prompt from "effect/unstable/ai/Prompt"
-import type * as Response from "effect/unstable/ai/Response"
-import { addGenAIAnnotations } from "effect/unstable/ai/Telemetry"
-import * as Tool from "effect/unstable/ai/Tool"
-import type * as HttpClientRequest from "effect/unstable/http/HttpClientRequest"
-import type * as HttpClientResponse from "effect/unstable/http/HttpClientResponse"
 import type * as Generated from "./Generated.ts"
 import { ReasoningDetailsDuplicateTracker, resolveFinishReason } from "./internal/utilities.ts"
 import { type ChatStreamingResponseChunkData, OpenRouterClient } from "./OpenRouterClient.ts"
@@ -54,6 +55,7 @@ import { type ChatStreamingResponseChunkData, OpenRouterClient } from "./OpenRou
  *
  * @see {@link withConfigOverride} for scoping language model request overrides
  *
+ * @stability unstable
  * @category services
  * @since 4.0.0
  */
@@ -62,7 +64,7 @@ export class Config extends Context.Service<
   Simplify<
     & Partial<
       Omit<
-        typeof Generated.ChatGenerationParams.Encoded,
+        typeof Generated.ChatRequest.Encoded,
         "messages" | "response_format" | "tools" | "tool_choice" | "stream" | "stream_options"
       >
     >
@@ -70,8 +72,20 @@ export class Config extends Context.Service<
       /**
        * Whether to use strict JSON schema validation for structured outputs.
        *
-       * Only applies to models that support structured outputs. Defaults to
-       * `true` when structured outputs are supported.
+       * For schema-backed response formats, defaults to `true` when the selected
+       * schema transformer is the OpenAI transformer (`openai/`, `gpt-`, `o1-`,
+       * `o3-`, and `o4-` model prefixes). Other models, including Anthropic models,
+       * send `strict: null` by default, leaving strictness unspecified. Explicit
+       * `true` or `false` overrides either default. This does not affect tool
+       * strictness.
+       *
+       * **Gotchas**
+       *
+       * Transformer selection is not an endpoint-capability check. Support and
+       * enforcement depend on the selected model and provider. For incompatible
+       * endpoints, set `false` to opt out of the strict default. Strict mode may
+       * restrict supported JSON Schema features; see OpenRouter
+       * [structured output guidance](https://openrouter.ai/docs/guides/features/structured-outputs).
        */
       readonly strictJsonSchema?: boolean | undefined
     }
@@ -86,24 +100,26 @@ export class Config extends Context.Service<
  * OpenRouter assistant reasoning detail blocks preserved for multi-turn
  * conversations.
  *
+ * @stability unstable
  * @category models
  * @since 4.0.0
  */
-export type ReasoningDetails = Exclude<typeof Generated.AssistantMessage.Encoded["reasoning_details"], undefined>
+export type ReasoningDetails = Exclude<typeof Generated.ChatAssistantMessage.Encoded["reasoning_details"], undefined>
 
 /**
  * File annotations emitted on OpenRouter assistant messages and exposed in
  * finish metadata.
  *
+ * @stability unstable
  * @category models
  * @since 4.0.0
  */
 export type FileAnnotation = Extract<
-  NonNullable<typeof Generated.AssistantMessage.fields.annotations.Type>[number],
+  NonNullable<typeof Generated.ChatAssistantMessage.fields.annotations.Type>[number],
   { type: "file" }
 >
 
-declare module "effect/unstable/ai/Prompt" {
+declare module "effect/ai/Prompt" {
   /**
    * OpenRouter-specific options for system messages.
    *
@@ -112,7 +128,8 @@ declare module "effect/unstable/ai/Prompt" {
    * These options are used when translating system instructions into
    * OpenRouter chat messages.
    *
-   * @category request
+   * @stability unstable
+   * @category models
    * @since 4.0.0
    */
   export interface SystemMessageOptions extends ProviderOptions {
@@ -123,7 +140,7 @@ declare module "effect/unstable/ai/Prompt" {
       /**
        * A breakpoint which marks the end of reusable content eligible for caching.
        */
-      readonly cacheControl?: typeof Generated.ChatMessageContentItemCacheControl.Encoded | null
+      readonly cacheControl?: typeof Generated.ChatContentCacheControl.Encoded | null
     } | null
   }
 
@@ -135,7 +152,8 @@ declare module "effect/unstable/ai/Prompt" {
    * These options are used when translating user content into OpenRouter chat
    * messages.
    *
-   * @category request
+   * @stability unstable
+   * @category models
    * @since 4.0.0
    */
   export interface UserMessageOptions extends ProviderOptions {
@@ -146,7 +164,7 @@ declare module "effect/unstable/ai/Prompt" {
       /**
        * A breakpoint which marks the end of reusable content eligible for caching.
        */
-      readonly cacheControl?: typeof Generated.ChatMessageContentItemCacheControl.Encoded | null
+      readonly cacheControl?: typeof Generated.ChatContentCacheControl.Encoded | null
     } | null
   }
 
@@ -158,7 +176,8 @@ declare module "effect/unstable/ai/Prompt" {
    * Preserves reasoning metadata when assistant messages are replayed in later
    * OpenRouter requests.
    *
-   * @category request
+   * @stability unstable
+   * @category models
    * @since 4.0.0
    */
   export interface AssistantMessageOptions extends ProviderOptions {
@@ -169,7 +188,7 @@ declare module "effect/unstable/ai/Prompt" {
       /**
        * A breakpoint which marks the end of reusable content eligible for caching.
        */
-      readonly cacheControl?: typeof Generated.ChatMessageContentItemCacheControl.Encoded | null
+      readonly cacheControl?: typeof Generated.ChatContentCacheControl.Encoded | null
       /**
        * Reasoning details associated with the assistant message.
        */
@@ -185,7 +204,8 @@ declare module "effect/unstable/ai/Prompt" {
    * These options are used when converting tool results into OpenRouter chat
    * messages.
    *
-   * @category request
+   * @stability unstable
+   * @category models
    * @since 4.0.0
    */
   export interface ToolMessageOptions extends ProviderOptions {
@@ -196,7 +216,7 @@ declare module "effect/unstable/ai/Prompt" {
       /**
        * A breakpoint which marks the end of reusable content eligible for caching.
        */
-      readonly cacheControl?: typeof Generated.ChatMessageContentItemCacheControl.Encoded | null
+      readonly cacheControl?: typeof Generated.ChatContentCacheControl.Encoded | null
     } | null
   }
 
@@ -207,7 +227,8 @@ declare module "effect/unstable/ai/Prompt" {
    *
    * Use when you use these options to control how text content is sent to OpenRouter.
    *
-   * @category request
+   * @stability unstable
+   * @category models
    * @since 4.0.0
    */
   export interface TextPartOptions extends ProviderOptions {
@@ -218,7 +239,7 @@ declare module "effect/unstable/ai/Prompt" {
       /**
        * A breakpoint which marks the end of reusable content eligible for caching.
        */
-      readonly cacheControl?: typeof Generated.ChatMessageContentItemCacheControl.Encoded | null
+      readonly cacheControl?: typeof Generated.ChatContentCacheControl.Encoded | null
     } | null
   }
 
@@ -230,7 +251,8 @@ declare module "effect/unstable/ai/Prompt" {
    * Preserves provider reasoning blocks so reasoning-aware conversations can
    * continue across OpenRouter requests.
    *
-   * @category request
+   * @stability unstable
+   * @category models
    * @since 4.0.0
    */
   export interface ReasoningPartOptions extends ProviderOptions {
@@ -241,7 +263,7 @@ declare module "effect/unstable/ai/Prompt" {
       /**
        * A breakpoint which marks the end of reusable content eligible for caching.
        */
-      readonly cacheControl?: typeof Generated.ChatMessageContentItemCacheControl.Encoded | null
+      readonly cacheControl?: typeof Generated.ChatContentCacheControl.Encoded | null
       /**
        * Reasoning details associated with the reasoning part.
        */
@@ -256,7 +278,8 @@ declare module "effect/unstable/ai/Prompt" {
    *
    * Controls file naming and prompt caching for files sent to OpenRouter.
    *
-   * @category request
+   * @stability unstable
+   * @category models
    * @since 4.0.0
    */
   export interface FilePartOptions extends ProviderOptions {
@@ -272,7 +295,7 @@ declare module "effect/unstable/ai/Prompt" {
       /**
        * A breakpoint which marks the end of reusable content eligible for caching.
        */
-      readonly cacheControl?: typeof Generated.ChatMessageContentItemCacheControl.Encoded | null
+      readonly cacheControl?: typeof Generated.ChatContentCacheControl.Encoded | null
     } | null
   }
 
@@ -284,7 +307,8 @@ declare module "effect/unstable/ai/Prompt" {
    * Preserves reasoning details associated with tool calls when a conversation
    * is sent back to OpenRouter.
    *
-   * @category request
+   * @stability unstable
+   * @category models
    * @since 4.0.0
    */
   export interface ToolCallPartOptions extends ProviderOptions {
@@ -306,7 +330,8 @@ declare module "effect/unstable/ai/Prompt" {
    *
    * Controls prompt caching for tool results sent to OpenRouter.
    *
-   * @category request
+   * @stability unstable
+   * @category models
    * @since 4.0.0
    */
   export interface ToolResultPartOptions extends ProviderOptions {
@@ -317,12 +342,12 @@ declare module "effect/unstable/ai/Prompt" {
       /**
        * A breakpoint which marks the end of reusable content eligible for caching.
        */
-      readonly cacheControl?: typeof Generated.ChatMessageContentItemCacheControl.Encoded | null
+      readonly cacheControl?: typeof Generated.ChatContentCacheControl.Encoded | null
     } | null
   }
 }
 
-declare module "effect/unstable/ai/Response" {
+declare module "effect/ai/Response" {
   /**
    * OpenRouter metadata attached to completed reasoning response parts.
    *
@@ -330,7 +355,8 @@ declare module "effect/unstable/ai/Response" {
    *
    * Preserves provider reasoning details that can be sent back in later turns.
    *
-   * @category response
+   * @stability unstable
+   * @category models
    * @since 4.0.0
    */
   export interface ReasoningPartMetadata extends ProviderMetadata {
@@ -352,7 +378,8 @@ declare module "effect/unstable/ai/Response" {
    *
    * Carries the first reasoning detail chunk when OpenRouter exposes one.
    *
-   * @category response
+   * @stability unstable
+   * @category models
    * @since 4.0.0
    */
   export interface ReasoningStartPartMetadata extends ProviderMetadata {
@@ -374,7 +401,8 @@ declare module "effect/unstable/ai/Response" {
    *
    * Carries provider reasoning detail chunks as they arrive from OpenRouter.
    *
-   * @category response
+   * @stability unstable
+   * @category models
    * @since 4.0.0
    */
   export interface ReasoningDeltaPartMetadata extends ProviderMetadata {
@@ -397,7 +425,8 @@ declare module "effect/unstable/ai/Response" {
    * Associates tool calls with provider reasoning details when the model emits
    * reasoning and tool calls together.
    *
-   * @category response
+   * @stability unstable
+   * @category models
    * @since 4.0.0
    */
   export interface ToolCallPartMetadata extends ProviderMetadata {
@@ -420,7 +449,8 @@ declare module "effect/unstable/ai/Response" {
    * Includes citation text and offsets returned by providers that support URL
    * annotations.
    *
-   * @category response
+   * @stability unstable
+   * @category models
    * @since 4.0.0
    */
   export interface UrlSourcePartMetadata extends ProviderMetadata {
@@ -451,7 +481,8 @@ declare module "effect/unstable/ai/Response" {
    * Exposes provider response details that are not represented by the common
    * Effect AI finish part fields.
    *
-   * @category response
+   * @stability unstable
+   * @category models
    * @since 4.0.0
    */
   export interface FinishPartMetadata extends ProviderMetadata {
@@ -466,7 +497,7 @@ declare module "effect/unstable/ai/Response" {
       /**
        * Raw token usage reported by OpenRouter.
        */
-      readonly usage?: typeof Generated.ChatGenerationTokenUsage.Encoded | null
+      readonly usage?: typeof Generated.ChatUsage.Encoded | null
       /**
        * File annotations returned by the provider.
        */
@@ -501,14 +532,15 @@ declare module "effect/unstable/ai/Response" {
  * @see {@link make} for constructing the language model service effectfully
  * @see {@link withConfigOverride} for scoping OpenRouter request overrides
  *
+ * @stability unstable
  * @category constructors
  * @since 4.0.0
  */
 export const model = (
   model: string,
   config?: Omit<typeof Config.Service, "model">
-): AiModel.Model<"openai", LanguageModel.LanguageModel, OpenRouterClient> =>
-  AiModel.make("openai", model, layer({ model, config }))
+): AiModel.Model<"openrouter", LanguageModel.LanguageModel, OpenRouterClient> =>
+  AiModel.make("openrouter", model, layer({ model, config }))
 
 /**
  * Creates an OpenRouter `LanguageModel` service from a model identifier and
@@ -516,7 +548,7 @@ export const model = (
  *
  * **When to use**
  *
- * Use when you need to construct a `LanguageModel.Service` value backed by
+ * Use when you need to construct a `LanguageModel` value backed by
  * `OpenRouterClient` inside an Effect.
  *
  * **Details**
@@ -535,31 +567,32 @@ export const model = (
  * @see {@link model} for creating a model descriptor for `Effect.provide`
  * @see {@link withConfigOverride} for scoping request defaults around operations
  *
+ * @stability unstable
  * @category constructors
  * @since 4.0.0
  */
 export const make = Effect.fnUntraced(function*({ model, config: providerConfig }: {
   readonly model: string
   readonly config?: Omit<typeof Config.Service, "model"> | undefined
-}): Effect.fn.Return<LanguageModel.Service, never, OpenRouterClient> {
+}): Effect.fn.Return<LanguageModel.LanguageModel, never, OpenRouterClient> {
   const client = yield* OpenRouterClient
   const codecTransformer = getCodecTransformer(model)
 
-  const makeConfig = Effect.gen(function*() {
-    const services = yield* Effect.context<never>()
-    return { model, ...providerConfig, ...services.mapUnsafe.get(Config.key) }
-  })
+  const makeConfig = Effect.contextWith((services: Context.Context<never>) =>
+    Effect.succeed({ model, ...providerConfig, ...Context.getOrUndefined(services, Config) })
+  )
 
   const makeRequest = Effect.fnUntraced(
     function*({ config, options }: {
       readonly config: typeof Config.Service
       readonly options: LanguageModel.ProviderOptions
-    }): Effect.fn.Return<typeof Generated.ChatGenerationParams.Encoded, AiError.AiError> {
+    }): Effect.fn.Return<typeof Generated.ChatRequest.Encoded, AiError.AiError> {
       const messages = yield* prepareMessages({ options })
       const { tools, toolChoice } = yield* prepareTools({ options, transformer: codecTransformer })
       const responseFormat = yield* getResponseFormat({ config, options, transformer: codecTransformer })
-      const request: typeof Generated.ChatGenerationParams.Encoded = {
-        ...config,
+      const { strictJsonSchema: _sjs, ...apiConfig } = config
+      const request: typeof Generated.ChatRequest.Encoded = {
+        ...apiConfig,
         messages,
         ...(Predicate.isNotUndefined(responseFormat) ? { response_format: responseFormat } : undefined),
         ...(Predicate.isNotUndefined(tools) ? { tools } : undefined),
@@ -613,6 +646,7 @@ export const make = Effect.fnUntraced(function*({ model, config: providerConfig 
  * @see {@link make} for constructing the language model service effectfully
  * @see {@link model} for creating a model descriptor for `Effect.provide`
  *
+ * @stability unstable
  * @category layers
  * @since 4.0.0
  */
@@ -639,6 +673,7 @@ export const layer = (options: {
  *
  * @see {@link Config} for available OpenRouter request configuration fields
  *
+ * @stability unstable
  * @category configuration
  * @since 4.0.0
  */
@@ -667,8 +702,8 @@ export const withConfigOverride: {
 const prepareMessages = Effect.fnUntraced(
   function*({ options }: {
     readonly options: LanguageModel.ProviderOptions
-  }): Effect.fn.Return<ReadonlyArray<typeof Generated.Message.Encoded>, AiError.AiError> {
-    const messages: Array<typeof Generated.Message.Encoded> = []
+  }): Effect.fn.Return<ReadonlyArray<typeof Generated.ChatMessages.Encoded>, AiError.AiError> {
+    const messages: Array<typeof Generated.ChatMessages.Encoded> = []
 
     const reasoningDetailsTracker = new ReasoningDetailsDuplicateTracker()
 
@@ -690,7 +725,7 @@ const prepareMessages = Effect.fnUntraced(
         }
 
         case "user": {
-          const content: Array<typeof Generated.ChatMessageContentItem.Encoded> = []
+          const content: Array<typeof Generated.ChatContentItems.Encoded> = []
 
           // Get the message-level cache control
           const messageCacheControl = getCacheControl(message)
@@ -747,7 +782,7 @@ const prepareMessages = Effect.fnUntraced(
                       url: part.data instanceof URL
                         ? part.data.toString()
                         : part.data instanceof Uint8Array
-                        ? `data:${mediaType};base64,${Encoding.encodeBase64(part.data)}`
+                        ? `data:${mediaType};base64,${Base64.encode(part.data)}`
                         : part.data
                     },
                     ...(Predicate.isNotNull(partCacheControl) ? { cache_control: partCacheControl } : undefined)
@@ -785,7 +820,7 @@ const prepareMessages = Effect.fnUntraced(
                     type: "input_audio",
                     input_audio: {
                       data: part.data instanceof Uint8Array
-                        ? Encoding.encodeBase64(part.data)
+                        ? Base64.encode(part.data)
                         : getBase64FromDataUrl(part.data),
                       format
                     },
@@ -805,7 +840,7 @@ const prepareMessages = Effect.fnUntraced(
                     file_data: part.data instanceof URL
                       ? part.data.toString()
                       : part.data instanceof Uint8Array
-                      ? `data:${part.mediaType};base64,${Encoding.encodeBase64(part.data)}`
+                      ? `data:${part.mediaType};base64,${Base64.encode(part.data)}`
                       : part.data
                   },
                   ...(Predicate.isNotNull(partCacheControl) ? { cache_control: partCacheControl } : undefined)
@@ -822,14 +857,16 @@ const prepareMessages = Effect.fnUntraced(
         }
 
         case "assistant": {
-          let text = ""
           let reasoning = ""
-          const toolCalls: Array<typeof Generated.ChatMessageToolCall.Encoded> = []
+          const textParts: Array<Prompt.TextPart> = []
+          const toolCalls: Array<typeof Generated.ChatToolCall.Encoded> = []
 
           for (const part of message.content) {
             switch (part.type) {
               case "text": {
-                text += part.text
+                if (part.text.length > 0) {
+                  textParts.push(part)
+                }
                 break
               }
 
@@ -879,9 +916,22 @@ const prepareMessages = Effect.fnUntraced(
             }
           }
 
+          // Tool calls cannot carry cache breakpoints; use the last text part.
+          const messageCacheControl = getCacheControl(message)
+          const content = textParts.map<typeof Generated.ChatContentText.Encoded>((part, i) => {
+            const cache_control = getCacheControl(part) ?? (i === textParts.length - 1 ? messageCacheControl : null)
+            return {
+              type: "text",
+              text: part.text,
+              ...(Predicate.isNotNull(cache_control) ? { cache_control } : undefined)
+            }
+          })
+
           messages.push({
             role: "assistant",
-            content: text,
+            content: content.some((part) => Predicate.isNotNullish(part.cache_control))
+              ? content
+              : content.map((part) => part.text).join(""),
             reasoning: reasoning.length > 0 ? reasoning : null,
             ...(Predicate.isNotNull(reasoningDetails) ? { reasoning_details: reasoningDetails } : undefined),
             ...(toolCalls.length > 0 ? { tool_calls: toolCalls } : undefined)
@@ -891,16 +941,20 @@ const prepareMessages = Effect.fnUntraced(
         }
 
         case "tool": {
-          for (const part of message.content) {
-            // Skip tool approval parts
-            if (part.type === "tool-approval-response") {
-              continue
-            }
+          const results = message.content.filter((part) => part.type === "tool-result")
+          const messageCacheControl = getCacheControl(message)
+
+          for (let i = 0; i < results.length; i++) {
+            const part = results[i]
+            const text = typeof part.result === "string" ? part.result : JSON.stringify(part.result)
+            const cache_control = getCacheControl(part) ?? (i === results.length - 1 ? messageCacheControl : null)
 
             messages.push({
               role: "tool",
               tool_call_id: part.id,
-              content: JSON.stringify(part.result)
+              content: Predicate.isNotNull(cache_control) && typeof text === "string" && text.length > 0
+                ? [{ type: "text", text, cache_control }]
+                : text
             })
           }
 
@@ -1047,7 +1101,6 @@ const makeResponse = Effect.fnUntraced(
               method: "makeResponse",
               reason: new AiError.ToolParameterValidationError({
                 toolName,
-                toolParams: {},
                 description: `Failed to securely JSON parse tool parameters: ${cause}`
               })
             })
@@ -1320,7 +1373,7 @@ const makeStreamResponse = Effect.fnUntraced(
                 // The signature typically arrives in the last reasoning delta,
                 // but reasoning-start only carries the first delta's metadata.
                 metadata: accumulatedReasoningDetails.length > 0
-                  ? { openRouter: { reasoningDetails: accumulatedReasoningDetails } }
+                  ? { openrouter: { reasoningDetails: accumulatedReasoningDetails } }
                   : undefined
               })
               reasoningStarted = false
@@ -1361,7 +1414,7 @@ const makeStreamResponse = Effect.fnUntraced(
                         ? { startIndex: annotation.url_citation.start_index }
                         : undefined),
                       ...(Predicate.isNotUndefined(annotation.url_citation.end_index)
-                        ? { startIndex: annotation.url_citation.end_index }
+                        ? { endIndex: annotation.url_citation.end_index }
                         : undefined)
                     }
                   }
@@ -1377,6 +1430,7 @@ const makeStreamResponse = Effect.fnUntraced(
             for (const toolCall of toolCalls) {
               const index = toolCall.index ?? toolCalls.length - 1
               let activeToolCall = activeToolCalls[index]
+              const argumentsDelta = toolCall.function?.arguments ?? ""
 
               // Tool call start - OpenRouter returns all information except the
               // tool call parameters in the first chunk
@@ -1415,7 +1469,7 @@ const makeStreamResponse = Effect.fnUntraced(
                   id: toolCall.id,
                   type: "function",
                   name: toolCall.function.name,
-                  params: toolCall.function.arguments ?? ""
+                  params: argumentsDelta
                 }
 
                 activeToolCalls[index] = activeToolCall
@@ -1425,23 +1479,16 @@ const makeStreamResponse = Effect.fnUntraced(
                   id: activeToolCall.id,
                   name: activeToolCall.name
                 })
-
-                // Emit a tool call delta part if parameters were also sent
-                if (activeToolCall.params.length > 0) {
-                  parts.push({
-                    type: "tool-params-delta",
-                    id: activeToolCall.id,
-                    delta: activeToolCall.params
-                  })
-                }
               } else {
-                // If an active tool call was found, update and emit the delta for
-                // the tool call's parameters
-                activeToolCall.params += toolCall.function?.arguments ?? ""
+                activeToolCall.params += argumentsDelta
+              }
+
+              // Emit a tool call delta part if parameters were also sent
+              if (argumentsDelta.length > 0) {
                 parts.push({
                   type: "tool-params-delta",
                   id: activeToolCall.id,
-                  delta: activeToolCall.params
+                  delta: argumentsDelta
                 })
               }
 
@@ -1502,7 +1549,7 @@ const makeStreamResponse = Effect.fnUntraced(
             (detail) => detail.type === "reasoning.encrypted" && detail.data.length > 0
           )
           if (totalToolCalls > 0 && hasEncryptedReasoning && finishReason === "stop") {
-            finishReason = resolveFinishReason("tool-calls")
+            finishReason = "tool-calls"
           }
 
           // Forward any unsent tool calls if finish reason is 'tool-calls'
@@ -1588,8 +1635,8 @@ const prepareTools = Effect.fnUntraced(
     readonly options: LanguageModel.ProviderOptions
     readonly transformer: LanguageModel.CodecTransformer
   }): Effect.fn.Return<{
-    readonly tools: ReadonlyArray<typeof Generated.ToolDefinitionJson.Encoded> | undefined
-    readonly toolChoice: typeof Generated.ToolChoiceOption.Encoded | undefined
+    readonly tools: ReadonlyArray<typeof Generated.ChatFunctionTool.Encoded> | undefined
+    readonly toolChoice: typeof Generated.ChatToolChoice.Encoded | undefined
   }, AiError.AiError> {
     if (options.tools.length === 0) {
       return { tools: undefined, toolChoice: undefined }
@@ -1607,8 +1654,8 @@ const prepareTools = Effect.fnUntraced(
       })
     }
 
-    let tools: Array<typeof Generated.ToolDefinitionJson.Encoded> = []
-    let toolChoice: typeof Generated.ToolChoiceOption.Encoded | undefined = undefined
+    let tools: Array<Extract<typeof Generated.ChatFunctionTool.Encoded, { readonly type: "function" }>> = []
+    let toolChoice: typeof Generated.ChatToolChoice.Encoded | undefined = undefined
 
     for (const tool of options.tools) {
       const description = Tool.getDescription(tool)
@@ -1650,10 +1697,10 @@ const prepareTools = Effect.fnUntraced(
 
 const annotateRequest = (
   span: Span,
-  request: typeof Generated.ChatGenerationParams.Encoded
+  request: typeof Generated.ChatRequest.Encoded
 ): void => {
   addGenAIAnnotations(span, {
-    system: "openrouter",
+    provider: { name: "openrouter" },
     operation: { name: "chat" },
     request: {
       model: request.model,
@@ -1717,7 +1764,7 @@ const getCacheControl = (
     | Prompt.ReasoningPart
     | Prompt.FilePart
     | Prompt.ToolResultPart
-): typeof Generated.ChatMessageContentItemCacheControl.Encoded | null => part.options.openrouter?.cacheControl ?? null
+): typeof Generated.ChatContentCacheControl.Encoded | null => part.options.openrouter?.cacheControl ?? null
 
 const findFirstReasoningDetails = (content: ReadonlyArray<Prompt.AssistantMessagePart>): ReasoningDetails | null => {
   for (const part of content) {
@@ -1786,7 +1833,7 @@ const getResponseFormat = Effect.fnUntraced(function*({ config, options, transfo
   readonly config: typeof Config.Service
   readonly options: LanguageModel.ProviderOptions
   readonly transformer: LanguageModel.CodecTransformer
-}): Effect.fn.Return<typeof Generated.ResponseFormatJSONSchema.Encoded | undefined, AiError.AiError> {
+}): Effect.fn.Return<typeof Generated.ChatFormatJsonSchemaConfig.Encoded | undefined, AiError.AiError> {
   if (options.responseFormat.type === "json") {
     const description = SchemaAST.resolveDescription(options.responseFormat.schema.ast)
     const jsonSchema = yield* tryJsonSchema(options.responseFormat.schema, "getResponseFormat", transformer)
@@ -1795,7 +1842,7 @@ const getResponseFormat = Effect.fnUntraced(function*({ config, options, transfo
       json_schema: {
         name: options.responseFormat.objectName,
         schema: jsonSchema,
-        strict: config.strictJsonSchema ?? null,
+        strict: config.strictJsonSchema ?? (transformer === toCodecOpenAI ? true : null),
         ...(Predicate.isNotUndefined(description) ? { description } : undefined)
       }
     }
@@ -1839,7 +1886,7 @@ const getBase64FromDataUrl = (dataUrl: string): string => {
   return match ? match[1]! : dataUrl
 }
 
-const getUsage = (usage: Generated.ChatGenerationTokenUsage | undefined): Response.Usage => {
+const getUsage = (usage: Generated.ChatUsage | undefined): Response.Usage => {
   if (Predicate.isUndefined(usage)) {
     return {
       inputTokens: { uncached: undefined, total: 0, cacheRead: undefined, cacheWrite: undefined },
@@ -1851,16 +1898,21 @@ const getUsage = (usage: Generated.ChatGenerationTokenUsage | undefined): Respon
   const cacheReadTokens = usage.prompt_tokens_details?.cached_tokens ?? 0
   const cacheWriteTokens = usage.prompt_tokens_details?.cache_write_tokens ?? 0
   const reasoningTokens = usage.completion_tokens_details?.reasoning_tokens ?? 0
+  // Some providers report cached or reasoning tokens separately from their parent counts.
+  // Treat details exceeding the parent as disjoint to avoid negative remainders.
+  // Otherwise, retain subset accounting.
+  const inputTotal = cacheReadTokens > promptTokens ? promptTokens + cacheReadTokens : promptTokens
+  const outputTotal = reasoningTokens > completionTokens ? completionTokens + reasoningTokens : completionTokens
   return {
     inputTokens: {
-      uncached: promptTokens - cacheReadTokens,
-      total: promptTokens,
+      uncached: inputTotal - cacheReadTokens,
+      total: inputTotal,
       cacheRead: cacheReadTokens,
       cacheWrite: cacheWriteTokens
     },
     outputTokens: {
-      total: completionTokens,
-      text: completionTokens - reasoningTokens,
+      total: outputTotal,
+      text: outputTotal - reasoningTokens,
       reasoning: reasoningTokens
     }
   }

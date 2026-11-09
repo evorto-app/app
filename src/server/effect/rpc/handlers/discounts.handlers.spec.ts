@@ -1,5 +1,5 @@
 import type { DiscountsCardMutationError } from '@shared/rpc-contracts/app-rpcs/discounts.errors';
-import type * as SqlConnection from 'effect/unstable/sql/SqlConnection';
+import type * as SqlConnection from 'effect/sql/SqlConnection';
 
 import * as PgClient from '@effect/sql-pg/PgClient';
 import { expect, layer, vi } from '@effect/vitest';
@@ -14,13 +14,13 @@ import {
 import { EffectDrizzleQueryError } from 'drizzle-orm/effect-core';
 import * as PgDrizzle from 'drizzle-orm/effect-postgres';
 import { Cause, Effect, Exit, Layer, Result, Schema, Stream } from 'effect';
-import * as Headers from 'effect/unstable/http/Headers';
-import { Rpc, RpcMessage } from 'effect/unstable/rpc';
+import * as Headers from 'effect/http/Headers';
+import { Rpc, RpcMessage } from 'effect/rpc';
 import {
   ConstraintError,
   SqlError,
   UniqueViolation,
-} from 'effect/unstable/sql/SqlError';
+} from 'effect/sql/SqlError';
 
 import { Database } from '../../../../db';
 import { relations } from '../../../../db/relations';
@@ -147,13 +147,13 @@ const tenantReadSql =
   'select "d0"."discount_providers" as "discountProviders" from "tenants" as "d0" where "d0"."id" = $1 limit $2';
 const ownerLockSql = 'select pg_advisory_xact_lock(hashtextextended($1, 0))';
 const cardProjectionSql =
-  'select "d0"."id" as "id", "d0"."identifier" as "identifier", "d0"."status" as "status", "d0"."type" as "type", "d0"."validTo"::text as "validTo" from "user_discount_cards" as "d0"';
+  'select "d0"."id" as "id", "d0"."identifier" as "identifier", "d0"."status"::text as "status", "d0"."type"::text as "type", "d0"."validTo"::text as "validTo" from "user_discount_cards" as "d0"';
 const cardListSql = `${cardProjectionSql} where "d0"."userId" = $1`;
 const currentCardSql = `${cardProjectionSql} where (("d0"."type" = $1) and ("d0"."userId" = $2)) limit $3`;
 const identifierOwnerSql =
   'select "d0"."userId" as "userId" from "user_discount_cards" as "d0" where (("d0"."identifier" = $1) and ("d0"."type" = $2)) limit $3';
 const cardReturningSql =
-  'returning "id", "identifier", "status", "type", "validTo"::text';
+  'returning "id", "identifier", "status"::text, "type"::text, "validTo"::text';
 const upsertUpdateSql = `update "user_discount_cards" set "updatedAt" = $1, "identifier" = $2, "lastCheckedAt" = $3, "metadata" = $4, "status" = $5, "validFrom" = $6, "validTo" = $7 where "user_discount_cards"."id" = $8 ${cardReturningSql}`;
 const guardedUpsertUpdateSql = `update "user_discount_cards" set "updatedAt" = $1, "identifier" = $2, "lastCheckedAt" = $3, "metadata" = $4, "status" = $5, "validFrom" = $6, "validTo" = $7 where (("user_discount_cards"."id" = $8) and ("user_discount_cards"."userId" = $9) and ("user_discount_cards"."type" = $10) and ("user_discount_cards"."identifier" = $11)) ${cardReturningSql}`;
 const partialUpsertUpdateSql = `update "user_discount_cards" set "updatedAt" = $1, "identifier" = $2, "lastCheckedAt" = $3, "status" = $4 where "user_discount_cards"."id" = $5 ${cardReturningSql}`;

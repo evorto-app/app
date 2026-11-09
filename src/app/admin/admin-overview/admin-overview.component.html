@@ -1,144 +1,136 @@
-<div class="grid grid-cols-1 lg:grid-cols-[300px_1fr] lg:gap-4 lg:p-4">
-  <div>
-    <div
-      class="mb-4 {{
-        outletActive() ? 'hidden' : 'flex'
-      }} lg:flex w-full flex-row items-center gap-2"
-    >
-      <h1 class="title-large">Admin settings</h1>
-      <div class="grow"></div>
-    </div>
-    <nav
-      class="{{ outletActive() ? 'hidden' : 'flex' }} lg:flex flex-col gap-4"
-    >
-      <a
-        *appIfPermission="'users:viewAll'"
-        routerLink="users"
-        class="bg-surface text-on-surface rounded-2xl p-4"
-        routerLinkActive="bg-secondary-container! text-on-secondary-container!"
-      >
-        <div class="flex flex-row items-center gap-4">
-          <fa-duotone-icon [icon]="faUsers" size="xl" />
-          <h2 class="title-medium">Members</h2>
-        </div>
-      </a>
-      <a
-        *appIfPermission="'admin:manageRoles'"
-        routerLink="roles"
-        class="bg-surface text-on-surface rounded-2xl p-4"
-        routerLinkActive="bg-secondary-container! text-on-secondary-container!"
-      >
-        <div class="flex flex-row items-center gap-4">
-          <fa-duotone-icon [icon]="faFolderUser" size="xl" />
-          <h2 class="title-medium">Member roles</h2>
-        </div>
-      </a>
-      <a
-        *appIfPermission="'admin:changeSettings'"
-        routerLink="settings"
-        class="bg-surface text-on-surface rounded-2xl p-4"
-        routerLinkActive="bg-secondary-container! text-on-secondary-container!"
-        [routerLinkActiveOptions]="{ exact: true }"
-      >
-        <div class="flex flex-row items-center gap-4">
-          <fa-duotone-icon [icon]="faGlobe" size="xl" />
-          <h2 class="title-medium">Organization settings</h2>
-        </div>
-      </a>
-      <a
-        *appIfPermission="'admin:changeSettings'"
-        routerLink="settings/registration"
-        class="bg-surface text-on-surface rounded-2xl p-4"
-        routerLinkActive="bg-secondary-container! text-on-secondary-container!"
-      >
-        <div class="flex flex-row items-center gap-4">
-          <fa-duotone-icon [icon]="faCalendarClock" size="xl" />
-          <h2 class="title-medium">Sign-up rules</h2>
-        </div>
-      </a>
-      <a
-        *appIfPermission="'admin:changeSettings'"
-        routerLink="settings/appearance"
-        class="bg-surface text-on-surface rounded-2xl p-4"
-        routerLinkActive="bg-secondary-container! text-on-secondary-container!"
-      >
-        <div class="flex flex-row items-center gap-4">
-          <fa-duotone-icon [icon]="faPalette" size="xl" />
-          <h2 class="title-medium">Appearance</h2>
-        </div>
-      </a>
-      <a
-        *appIfPermission="'admin:changeSettings'"
-        routerLink="settings/legal"
-        class="bg-surface text-on-surface rounded-2xl p-4"
-        routerLinkActive="bg-secondary-container! text-on-secondary-container!"
-      >
-        <div class="flex flex-row items-center gap-4">
-          <fa-duotone-icon [icon]="faScaleBalanced" size="xl" />
-          <h2 class="title-medium">Legal pages</h2>
-        </div>
-      </a>
-      <a
-        *appIfPermission="'admin:managePayments'"
-        routerLink="settings/payments"
-        class="bg-surface text-on-surface rounded-2xl p-4"
-        routerLinkActive="bg-secondary-container! text-on-secondary-container!"
-      >
-        <div class="flex flex-row items-center gap-4">
-          <fa-duotone-icon [icon]="faCreditCard" size="xl" />
-          <h2 class="title-medium">Payments</h2>
-        </div>
-      </a>
-      <a
-        *appIfPermission="'admin:changeSettings'"
-        routerLink="onboarding"
-        class="bg-surface text-on-surface rounded-2xl p-4"
-        routerLinkActive="bg-secondary-container! text-on-secondary-container!"
-      >
-        <div class="flex flex-row items-center gap-4">
-          <fa-duotone-icon [icon]="faClipboardQuestion" size="xl" />
-          <h2 class="title-medium">New member setup</h2>
-        </div>
-      </a>
-      <a
-        *appIfPermission="'admin:tax'"
-        routerLink="tax-rates"
-        class="bg-surface text-on-surface rounded-2xl p-4"
-        routerLinkActive="bg-secondary-container! text-on-secondary-container!"
-      >
-        <div class="flex flex-row items-center gap-4">
-          <fa-duotone-icon [icon]="faReceipt" size="xl" />
-          <h2 class="title-medium">Tax rates</h2>
-        </div>
-      </a>
-      <a
-        *appIfPermission="'events:review'"
-        routerLink="event-reviews"
-        class="bg-surface text-on-surface rounded-2xl p-4"
-        routerLinkActive="bg-secondary-container! text-on-secondary-container!"
-      >
-        <div class="flex flex-row items-center gap-4">
-          <fa-duotone-icon [icon]="faCalendarCheck" size="xl" />
-          <h2 class="title-medium">Event reviews</h2>
-          @if (pendingReviewsCount() > 0) {
-            <span
-              class="bg-warning text-on-warning ml-auto rounded-full px-2 py-1 text-xs"
-            >
-              {{ pendingReviewsCount() }}
-            </span>
-          } @else if (pendingReviewsQuery.isError()) {
-            <span class="text-error ml-auto text-xs" role="status">
-              Count unavailable
-            </span>
-          }
-        </div>
-      </a>
-    </nav>
+<app-two-column-layout [detailActive]="outletActive()">
+  <div twoColumnHeader class="flex w-full flex-row items-center gap-2">
+    <h1 class="title-large">Admin settings</h1>
+    <div class="grow"></div>
   </div>
-  <div>
+  <nav twoColumnSidebar class="flex flex-col gap-4">
+    <a
+      *appIfPermission="'users:viewAll'"
+      routerLink="users"
+      class="bg-surface text-on-surface rounded-2xl p-4"
+      routerLinkActive="bg-secondary-container! text-on-secondary-container!"
+    >
+      <div class="flex flex-row items-center gap-4">
+        <fa-duotone-icon [icon]="faUsers" size="xl" />
+        <h2 class="title-medium">Members</h2>
+      </div>
+    </a>
+    <a
+      *appIfPermission="'admin:manageRoles'"
+      routerLink="roles"
+      class="bg-surface text-on-surface rounded-2xl p-4"
+      routerLinkActive="bg-secondary-container! text-on-secondary-container!"
+    >
+      <div class="flex flex-row items-center gap-4">
+        <fa-duotone-icon [icon]="faFolderUser" size="xl" />
+        <h2 class="title-medium">Member roles</h2>
+      </div>
+    </a>
+    <a
+      *appIfPermission="'admin:changeSettings'"
+      routerLink="settings"
+      class="bg-surface text-on-surface rounded-2xl p-4"
+      routerLinkActive="bg-secondary-container! text-on-secondary-container!"
+      [routerLinkActiveOptions]="{ exact: true }"
+    >
+      <div class="flex flex-row items-center gap-4">
+        <fa-duotone-icon [icon]="faGlobe" size="xl" />
+        <h2 class="title-medium">Organization settings</h2>
+      </div>
+    </a>
+    <a
+      *appIfPermission="'admin:changeSettings'"
+      routerLink="settings/registration"
+      class="bg-surface text-on-surface rounded-2xl p-4"
+      routerLinkActive="bg-secondary-container! text-on-secondary-container!"
+    >
+      <div class="flex flex-row items-center gap-4">
+        <fa-duotone-icon [icon]="faCalendarClock" size="xl" />
+        <h2 class="title-medium">Sign-up rules</h2>
+      </div>
+    </a>
+    <a
+      *appIfPermission="'admin:changeSettings'"
+      routerLink="settings/appearance"
+      class="bg-surface text-on-surface rounded-2xl p-4"
+      routerLinkActive="bg-secondary-container! text-on-secondary-container!"
+    >
+      <div class="flex flex-row items-center gap-4">
+        <fa-duotone-icon [icon]="faPalette" size="xl" />
+        <h2 class="title-medium">Appearance</h2>
+      </div>
+    </a>
+    <a
+      *appIfPermission="'admin:changeSettings'"
+      routerLink="settings/legal"
+      class="bg-surface text-on-surface rounded-2xl p-4"
+      routerLinkActive="bg-secondary-container! text-on-secondary-container!"
+    >
+      <div class="flex flex-row items-center gap-4">
+        <fa-duotone-icon [icon]="faScaleBalanced" size="xl" />
+        <h2 class="title-medium">Legal pages</h2>
+      </div>
+    </a>
+    <a
+      *appIfPermission="'admin:managePayments'"
+      routerLink="settings/payments"
+      class="bg-surface text-on-surface rounded-2xl p-4"
+      routerLinkActive="bg-secondary-container! text-on-secondary-container!"
+    >
+      <div class="flex flex-row items-center gap-4">
+        <fa-duotone-icon [icon]="faCreditCard" size="xl" />
+        <h2 class="title-medium">Payments</h2>
+      </div>
+    </a>
+    <a
+      *appIfPermission="'admin:changeSettings'"
+      routerLink="onboarding"
+      class="bg-surface text-on-surface rounded-2xl p-4"
+      routerLinkActive="bg-secondary-container! text-on-secondary-container!"
+    >
+      <div class="flex flex-row items-center gap-4">
+        <fa-duotone-icon [icon]="faClipboardQuestion" size="xl" />
+        <h2 class="title-medium">New member setup</h2>
+      </div>
+    </a>
+    <a
+      *appIfPermission="'admin:tax'"
+      routerLink="tax-rates"
+      class="bg-surface text-on-surface rounded-2xl p-4"
+      routerLinkActive="bg-secondary-container! text-on-secondary-container!"
+    >
+      <div class="flex flex-row items-center gap-4">
+        <fa-duotone-icon [icon]="faReceipt" size="xl" />
+        <h2 class="title-medium">Tax rates</h2>
+      </div>
+    </a>
+    <a
+      *appIfPermission="'events:review'"
+      routerLink="event-reviews"
+      class="bg-surface text-on-surface rounded-2xl p-4"
+      routerLinkActive="bg-secondary-container! text-on-secondary-container!"
+    >
+      <div class="flex flex-row items-center gap-4">
+        <fa-duotone-icon [icon]="faCalendarCheck" size="xl" />
+        <h2 class="title-medium">Event reviews</h2>
+        @if (pendingReviewsCount() > 0) {
+          <span
+            class="bg-warning text-on-warning ml-auto rounded-full px-2 py-1 text-xs"
+          >
+            {{ pendingReviewsCount() }}
+          </span>
+        } @else if (pendingReviewsQuery.isError()) {
+          <span class="text-error ml-auto text-xs" role="status">
+            Count unavailable
+          </span>
+        }
+      </div>
+    </a>
+  </nav>
+  <div twoColumnDetail>
     <router-outlet
       (activate)="outletActive.set(true)"
       (deactivate)="outletActive.set(false)"
     />
   </div>
-</div>
+</app-two-column-layout>
