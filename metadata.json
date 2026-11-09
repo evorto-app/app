@@ -1,0 +1,43 @@
+{
+  "cli_version": "0.13.1",
+  "checkpoint_id": "01M71BPAXSW6DWTKKJVZ6MTMDS",
+  "strategy": "manual-commit",
+  "branch": "codex/evo-65-automatic-staging",
+  "checkpoints_count": 3,
+  "files_touched": [
+    ".github/workflows/scaleway-staging.yml",
+    "helpers/testing/staging-configuration.spec.ts",
+    "infrastructure/scaleway/README.md",
+    "ops/scaleway/read-staging-configuration.sh"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 16097,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 7704448,
+    "output_tokens": 34752,
+    "api_call_count": 26
+  },
+  "redaction": {
+    "replacements": 178,
+    "layers": {
+      "betterleaks": 142,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 22,
+      "credentialed_uri": 23,
+      "entropy": 35,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
