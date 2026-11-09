@@ -1,0 +1,44 @@
+{
+  "cli_version": "0.13.1",
+  "checkpoint_id": "beb158acd4eb",
+  "strategy": "manual-commit",
+  "branch": "codex/evo-59-pr-integration",
+  "checkpoints_count": 1,
+  "files_touched": [
+    ".changeset/webhook-claim-ownership.md",
+    "ARCHITECTURE.md",
+    "src/server/http/stripe-webhook-claim.postgres.spec.ts",
+    "src/server/http/stripe-webhook.web-handler.spec.ts",
+    "src/server/http/stripe-webhook.web-handler.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/be/b158acd4eb/0/metadata.json",
+      "transcript": "/be/b158acd4eb/0/full.jsonl",
+      "compact_transcript": "/be/b158acd4eb/0/transcript.jsonl",
+      "content_hash": "/be/b158acd4eb/0/content_hash.txt",
+      "prompt": ""
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 24613,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 9407744,
+    "output_tokens": 24432,
+    "api_call_count": 40
+  },
+  "redaction": {
+    "replacements": 318,
+    "layers": {
+      "betterleaks": 202,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 30,
+      "credentialed_uri": 24,
+      "entropy": 290,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
