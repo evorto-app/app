@@ -300,9 +300,9 @@ const wrappers = [
     ],
     projects: 'local-chrome-integration,docs-integration',
     trace: [
-      'run:test:e2e:check',
       'run:env:run',
       'provider-wrapper',
+      'run:test:e2e:check',
       'playwright',
     ],
   },

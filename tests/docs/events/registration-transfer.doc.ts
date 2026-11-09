@@ -373,12 +373,6 @@ Review the event, sign-up choice, expiry, current price, current questions, fixe
     name: 'Review ticket transfer',
   });
   await expect(claimHeading).toBeVisible();
-  await takeScreenshot(
-    testInfo,
-    recipientPage.page.locator('main'),
-    recipientPage.page,
-    'Review current transfer terms before claiming',
-  );
   const claimRegistration = recipientPage.page.getByRole('button', {
     name: 'Accept ticket',
   });
@@ -391,9 +385,17 @@ Review the event, sign-up choice, expiry, current price, current questions, fixe
     { timeout: 20_000 },
   );
   await expect(claimRegistration).toBeDisabled();
-  await recipientPage.page
-    .getByLabel('What should the organizer know?')
-    .fill(recipientAnswer);
+  const recipientQuestion = recipientPage.page.getByLabel(
+    'What should the organizer know?',
+  );
+  await expect(recipientQuestion).toBeVisible({ timeout: 20_000 });
+  await takeScreenshot(
+    testInfo,
+    recipientPage.page.locator('main'),
+    recipientPage.page,
+    'Review current transfer terms before claiming',
+  );
+  await recipientQuestion.fill(recipientAnswer);
   await expect(claimRegistration).toBeEnabled();
   await claimRegistration.click();
   await expect(
