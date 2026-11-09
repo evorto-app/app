@@ -1,176 +1,97 @@
 # Scaleway Hosting
 
-This directory defines the staging-first Scaleway platform in `fr-par`.
-`bootstrap`, `staging`, and `production` are independent Terraform roots with
-separate private state buckets, state identities, and fixed keys. Applying
-staging cannot read, plan, or change a production resource. A production dispatch
-waits for protected-environment approval, then its first validation step fails
-before external commands unless the `scaleway-production` environment variable
-`PRODUCTION_ENABLED` is exactly `true`.
+## Current staging-only operation
 
-The application remains the authorization boundary. The database has separate
-runtime and schema users, but no row-level security policies. The retired Fly
-deployment is not part of this fresh Scaleway environment.
+`main` runs PR Quality and E2E Baseline automatically. When both pass for the
+current commit, `Deploy Scaleway staging` builds or reuses one image and deploys
+ops, worker and web at that digest. Routine tests and staging releases require
+no approval click. Production is not provisioned.
 
-## Ownership split
+Application deployments do not run Terraform, edit DNS, or read Terraform state.
+They load an immutable, private configuration snapshot from the staging metadata
+bucket. Infrastructure changes remain a separate operator task: review the
+plan, apply it explicitly, verify it, then publish an updated configuration
+snapshot. App deployments therefore do not detect unrelated Terraform drift.
+Keep drift inspection in the infrastructure maintenance process.
 
-The manually applied `bootstrap` root owns organization and shared foundation
-resources:
+The live infrastructure still uses `evorto/platform.tfstate` in its existing
+state bucket. The checked-in `bootstrap`, `staging`, and `production` Terraform
+roots describe a proposed split that has **not** been applied. Do not point a
+new root at the existing state, apply the proposed bootstrap, or provision
+production to restore application delivery. State migration and any future
+production setup require their own reviewed plan.
 
-- three versioned state buckets and state identities, staging and production
-  projects, and both private registries;
-- project-scoped staging and production deployer identities;
-- web and worker identities with matching Object Storage IAM permissions, plus
-  bucket-policy narrowing in the environment roots;
-- organization billing budget and shared Transactional Email domain and DNS.
-
-The `staging` and `production` roots each own only one environment:
-
-- VPC, private network, PostgreSQL 17 instance, Secret Manager entries, custom
-  Cockpit trace source, alert contact point, buckets, containers, custom domain,
-  and worker CRON triggers;
-- secret names and role assignment, but never secret values;
-- initial container configuration, while ignoring the image and deployment
-  environment fields subsequently owned by the deploy workflow.
-
-Deployment workflows own dynamic release state:
-
-- the immutable image digest and revision;
-- current role-scoped secret values synchronized from protected environments;
-- schema explain/apply invocations;
-- private source maps, SBOMs, and append-only deployment manifests;
-- worker/web release ordering, smoke tests, and visible forward-deploy failures.
-
-This split is required because Serverless Container secret values are copied
-into container configuration rather than referenced directly from Secret
-Manager. Values are read, masked, reconciled, and injected only by the
-protected deployment environment.
-
-Deployment workflows never apply Terraform. Infrastructure changes are planned,
-reviewed, and applied explicitly against the matching root and state before a
-forward deployment. Each deployment runs a read-only detailed plan and stops
-visibly when configuration or remote drift would change infrastructure.
-
-Terraform creates each role with `APP_BOOTSTRAP=true` so the first apply can
-complete before any secret value exists in container configuration. Bootstrap
-mode initializes no database or provider service and exposes only `/healthz`
-and a no-store `/readyz`; every other route is absent. `deploy-role.sh` always
-sets `APP_BOOTSTRAP=false` together with a validated full revision, image
-digest, and the role's secrets. Normal runtime validation then fails closed if
-release identity, Cockpit, readiness-host, proxy, worker-mode, or schema
-configuration is incomplete. A deployment smoke test cannot accept a
-bootstrap container because it requires the exact `/version` response, SSR,
-and RPC behavior.
-
-## One-time bootstrap
-
-1. Create a small bootstrap Scaleway project manually. Use an organization
-   administrator only from the operator workstation; never store that identity
-   in GitHub.
-2. Copy `bootstrap/terraform.tfvars.example` to an ignored `.auto.tfvars` file,
-   choose three different globally unique state bucket names, export a
-   Cloudflare token limited to DNS edits for `evorto.app`, and select the
-   Essential plan in the shared Transactional Email project. Then apply
-   bootstrap with local state:
-
-   ```bash
-   terraform -chdir=infrastructure/scaleway/bootstrap init -backend=false
-   terraform -chdir=infrastructure/scaleway/bootstrap apply
-   ```
-
-3. Create one API key outside Terraform for each state application ID in the
-   `backend_configuration` output. Do not reuse a key between roots. Copy each
-   root's `backend.hcl.example` to its ignored `backend.hcl` and set only that
-   root's bucket name. Never put credentials in backend files or tfvars.
-   Migrate the local bootstrap state using only the bootstrap state key:
-
-   ```bash
-   AWS_ACCESS_KEY_ID="${BOOTSTRAP_TERRAFORM_STATE_ACCESS_KEY_ID}" \
-   AWS_SECRET_ACCESS_KEY="${BOOTSTRAP_TERRAFORM_STATE_SECRET_ACCESS_KEY}" \
-   terraform -chdir=infrastructure/scaleway/bootstrap init \
-     -backend-config=backend.hcl \
-     -migrate-state
-   ```
-
-4. Initialize each environment root with only its matching state key:
-
-   ```bash
-   AWS_ACCESS_KEY_ID="${STAGING_TERRAFORM_STATE_ACCESS_KEY_ID}" \
-   AWS_SECRET_ACCESS_KEY="${STAGING_TERRAFORM_STATE_SECRET_ACCESS_KEY}" \
-   terraform -chdir=infrastructure/scaleway/staging init \
-     -backend-config=backend.hcl \
-     -reconfigure
-
-   AWS_ACCESS_KEY_ID="${PRODUCTION_TERRAFORM_STATE_ACCESS_KEY_ID}" \
-   AWS_SECRET_ACCESS_KEY="${PRODUCTION_TERRAFORM_STATE_SECRET_ACCESS_KEY}" \
-   terraform -chdir=infrastructure/scaleway/production init \
-     -backend-config=backend.hcl \
-     -reconfigure
-   ```
-
-5. Copy the bootstrap `environments` output into the matching protected GitHub
-   environment variables. Create API keys outside Terraform for each emitted
-   deployer, web, and worker application. The staging deployer can modify only
-   staging. The production deployer can modify only production and has read-only
-   access to staging release artifacts needed for promotion.
-6. Put only the web and worker API key values in the matching protected
-   environment secret JSON. Rotate them on the schedule below.
-7. From the operator workstation, export only the selected environment's
-   deployer, state, and Terraform variables, review a saved plan for that root,
-   and apply it explicitly. Provision staging first. Do not apply production
-   until the separate production-enable decision. The subsequent deployment
-   must observe an empty detailed plan before it can release application roles.
-
-Each state backend uses its own private bucket and project-scoped application,
-plus bucket versioning, AES-256 server-side encryption, `prevent_destroy`, and
-the S3 conditional lockfile. A staging state credential has no production
-project permission and no production bucket-policy grant. Retain the bootstrap
-project and its recovery procedure independently from application projects.
-
-Scaleway requires both project IAM permission and a matching bucket-policy
-allow. Bootstrap grants web and worker identities only the bucket/object
-operations their roles need. Each bucket policy then narrows those permissions
-to that one bucket. Terraform creates the private ACL and AES-256 encryption
-configuration before installing the policy. There is no persistent human or
-console-reader grant to application data or private deployment artifacts.
+The application remains the authorization boundary. PostgreSQL is private and
+uses separate runtime and schema users. Stripe uses test mode; staging email
+is restricted to the configured allowlist.
 
 ## GitHub environments
 
-Create and protect these environments:
+- `e2e-baseline`: routine browser-test credentials, restricted to `main`, without
+  required reviewers or a wait timer. The workflow also checks protected-main
+  provenance before starting the credential-backed job.
+- `scaleway-staging`: staging deployment credentials and configuration, restricted
+  to protected branches and without a required reviewer.
+- `scaleway-staging-reset`: approval for destructive reset and reseed.
+- `esncard-release-certification`: the separate live-provider certification
+  workflow and its existing credential approval boundary.
 
-- `scaleway-staging`: deployment credentials and staging values;
-- `scaleway-staging-reset`: a stricter approval boundary for destructive reset
-  and reseed;
-- `scaleway-production`: production values plus required human approval;
-- the existing protected provider-certification environments.
+The baseline environment needs the credentials validated by
+`.github/workflows/e2e-baseline.yml`, plus `ISSUER_BASE_URL` and
+`STRIPE_TEST_ACCOUNT_ID`. Use the dedicated test accounts and test-mode Stripe
+credentials. It does not receive Scaleway credentials or live ESNcard identifiers.
 
-Each deployment environment needs `SCW_ORGANIZATION_ID`, `SCW_PROJECT_ID`,
-`SCW_DEPLOYER_APPLICATION_ID`, `SCW_WEB_APPLICATION_ID`,
-`SCW_WORKER_APPLICATION_ID`, `SCW_TEM_PROJECT_ID`, `BUCKET_SUFFIX`,
-`CLOUDFLARE_ZONE_ID`, and `ALERT_EMAIL`. Both staging environments need the
-`STAGING_TERRAFORM_STATE_BUCKET` variable and
-`STAGING_TERRAFORM_STATE_ACCESS_KEY_ID` and
-`STAGING_TERRAFORM_STATE_SECRET_ACCESS_KEY` secrets. Production needs the
-corresponding three `PRODUCTION_TERRAFORM_STATE_*` entries. Never configure a
-generic state credential or bucket variable.
+The staging environment needs these variables:
 
-Staging additionally needs the non-secret
-`SCW_PRODUCTION_DEPLOYER_APPLICATION_ID` so its metadata bucket can grant that
-one principal read-only promotion access. Staging uses
-`SCHEMA_DATABASE_PASSWORD_VERSION` and `RUNTIME_DATABASE_PASSWORD_VERSION`;
-production uses the corresponding `PRODUCTION_` names. Start every password
-version at `1`.
+- `SCW_ORGANIZATION_ID`, `SCW_PROJECT_ID`, and `BUCKET_SUFFIX` for existing staging;
+- `STAGING_CONFIGURATION_KEY`, matching
+  `configuration/staging/<sha256>.json` in the private deployment metadata bucket;
+- the approved `STRIPE_TEST_ACCOUNT_ID` (also available as a repository variable).
 
-Store the scoped `CLOUDFLARE_API_TOKEN`, matching project-scoped deployer key
-pair, schema/runtime database passwords, Font Awesome token, and
-`ROLE_SECRET_VALUES_JSON` as secrets. Production does not receive staging
-database passwords, state credentials, or staging Terraform variables. Its
-deployer has only the read permissions required to fetch the accepted staging
-manifest and registry digest.
+Its secrets are `SCW_ACCESS_KEY`, `SCW_SECRET_KEY`, `FONT_AWESOME_TOKEN`,
+`RUNTIME_DATABASE_PASSWORD`, `SCHEMA_DATABASE_PASSWORD`, and
+`ROLE_SECRET_VALUES_JSON`. Routine staging deployment does not use a Cloudflare
+API token, Terraform state credentials, or production identities. Keep credentials
+for separate infrastructure/reset workflows until their consumers are migrated.
 
-`ROLE_SECRET_VALUES_JSON` is a flat object. Keys are the role and variable name
-joined by `/`; values are protected non-empty strings. Do not commit an example
-containing values. The staging contract is:
+Never expose deployment credentials to PRs or use `pull_request_target`.
+The deployer remains scoped to the existing staging resources. Role-secret
+synchronization rejects incomplete or surplus keys and non-test Stripe keys.
+
+## Accepted deployment configuration
+
+Publish a version-1 JSON object containing `environment: "staging"`, `platform`
+(the existing Terraform `staging` output), and `database` (its `staging_database`
+output). These contain resource IDs, static role environment, secret IDs and the
+private database endpoint/CA certificate; they must not contain secret values or
+database passwords. Keep the snapshot private.
+
+Review those outputs against the actual staging resources. Before publication,
+validate the snapshot locally:
+
+```bash
+bash ops/scaleway/read-staging-configuration.sh \
+  /private/path/configuration.json SHA256 /private/path/verified-output
+```
+
+Set `SCW_DEFAULT_PROJECT_ID` and the approved `STRIPE_TEST_ACCOUNT_ID` for this
+command. The validator checks the digest, staging project, distinct role
+containers, Scaleway endpoints, role/environment identities and private database
+TLS configuration before writing deployment inputs. It supplies the non-secret
+Stripe fixture account to ops through ordinary environment configuration.
+
+Upload the exact validated bytes to
+`configuration/staging/<sha256>.json` in
+`evorto-staging-deployment-<suffix>` using an upload that fails if the key already
+exists. Set `STAGING_CONFIGURATION_KEY` to that immutable key only after review.
+The workflow downloads it once and verifies its digest before using it; it
+never uploads the configuration, database inputs or secret values as CI artifacts.
+After an infrastructure change, publish a new snapshot/key rather than replacing
+an accepted object. Do not use a stale snapshot when resource identities, the
+private database endpoint, CA certificate or role-secret IDs change.
+
+`ROLE_SECRET_VALUES_JSON` is a flat object with role/name keys and non-empty
+secret values. The current staging contract includes:
 
 ```text
 web/CLIENT_ID
@@ -190,26 +111,12 @@ worker/STAGING_EMAIL_ALLOWLIST
 worker/STRIPE_API_KEY
 worker/TEM_API_TOKEN
 ops/COCKPIT_TRACES_TOKEN
-ops/STRIPE_TEST_ACCOUNT_ID
 ```
 
-Production omits `worker/STAGING_EMAIL_ALLOWLIST` and
-`ops/STRIPE_TEST_ACCOUNT_ID`. Staging ops requires the approved Stripe test
-connected account for its deterministic paid fixtures. Initialization and
-protected reset validate seed configuration before opening a database
-connection or starting the reset commands. The deploy workflow derives
-the three `DATABASE_URL` values and `DATABASE_TLS_CA_CERTIFICATE` values from
-Terraform's sensitive database output. The private-network IP in each URL is
-also the certificate identity issued by Scaleway, so clients verify both the CA
-and private endpoint without a public endpoint or a separate server-name
-override. `DATABASE_TLS_SERVER_NAME` remains an optional application setting
-for providers whose connection address differs from the certificate identity.
-Secret synchronization rejects an incomplete or surplus key set. Staging
-additionally rejects non-test Stripe secret keys.
-
-Never use `pull_request_target` or expose Scaleway credentials to pull requests.
-The staging deploy accepts only the exact `main` revision that has passed both
-`CI/gate` and the protected provider baseline.
+The workflow derives the three role-specific database URLs from the accepted
+private endpoint and protected passwords, and supplies the verified CA. It
+requires an exact match with the snapshot's role-secret IDs. Keep credential
+values out of examples, configuration snapshots, state exports and logs.
 
 ## Cockpit and Grafana
 
@@ -242,8 +149,7 @@ external synthetic checks, trace dashboards, alert thresholds, and latency
 incident response. Application-side improvement work is ordered in
 [../../LATENCY_IMPROVEMENT.md](../../LATENCY_IMPROVEMENT.md).
 The temporary `Monitor staging latency` workflow has a manual trigger only.
-Scaleway operational work is deferred; resume these checks only when that work
-is explicitly resumed. Successful staging deployments retain a separate
+Successful staging deployments retain a separate
 10-sample report-only baseline in their deployment evidence.
 
 ## DNS and Transactional Email
@@ -284,14 +190,14 @@ before the limit is approached.
 
 ## Deployment and recovery
 
-`scaleway-staging.yml` runs after an eligible protected baseline or a manual
-dispatch. It never cancels an active deployment. It:
+`scaleway-staging.yml` runs after PR Quality or E2E Baseline completes, or a
+manual dispatch. It waits until both checks pass for the current main revision. It never cancels an active deployment. It:
 
 1. proves that the exact main SHA passed both release gates;
 2. builds Linux/amd64 once as `sha-<full-sha>` or reuses its immutable manifest;
 3. verifies the runtime image, schema hash, SBOM, vulnerabilities, and size;
-4. requires an empty read-only Terraform plan, then reconciles role-scoped
-   secrets;
+4. validates the accepted immutable staging configuration, then reconciles
+   role-scoped secrets;
 5. deploys private ops, rejects a destructive Drizzle plan, and applies the
    stable plan; initializes deterministic staging data only when every
    application table is empty, and otherwise preserves the existing data;
@@ -306,24 +212,8 @@ not update the successful manifest pointer. It never redeploys an older image
 after a schema release. Apply a reviewed infrastructure change explicitly or
 ship a corrected forward revision, then rerun the deployment.
 
-The production workflow is dispatch-only. Set `PRODUCTION_ENABLED` on the
-protected `scaleway-production` GitHub environment. After environment approval,
-the first validation step requires its value to be exactly `true`; a false,
-missing, or other value fails the job before external commands. Environment
-variables are available only after the job starts, so this check belongs in the
-protected step rather than the job condition. The workflow then accepts only an
-immutable, successful staging manifest for the current canonical `main` SHA.
-The workflow must itself be dispatched from that revision on `main`; queued
-older dispatches and reruns fail the fresh revision check. It copies the exact
-accepted digest into the production registry without rebuilding, requires an
-empty read-only production Terraform plan, then rechecks canonical `main`
-immediately before reconciling production secrets and deploying the ops role.
-It applies a safe schema plan, deploys worker/web, and smokes `alpha.evorto.app`.
-
-These revision checks prevent selecting an older accepted release through this
-workflow. They do not establish compatibility with an already-applied schema
-or protect against out-of-band changes or rewritten branch history. The schema
-explain/apply checks and coordinated compatibility review remain required.
+The production workflow and Terraform roots remain dormant future configuration.
+Do not dispatch production or enable it as part of staging delivery.
 
 Both the managed database instance and the application database declare
 `prevent_destroy`. This blocks Terraform destruction or replacement while their
@@ -357,12 +247,13 @@ root declares daily backups retained 30 days and a 24-hour RPO.
 
 1. Make one harmless, documented staging-only drift change such as a container
    description/tag through the console.
-2. Dispatch the staging workflow for the current accepted revision and confirm
-   its read-only Terraform plan reports the drift and stops before deployment.
-3. Review and apply the matching staging root explicitly from the operator
-   workstation.
-4. Rerun the deployment, store the plan and `/version` evidence, and confirm the
-   plan is empty apart from workflow-owned ignored fields.
+2. Run an operator-side read-only Terraform plan against configuration matching
+   the live state. Confirm it reports the drift; an app deployment is not a
+   substitute for this check.
+3. Review and apply the infrastructure correction explicitly. Do not apply the
+   proposed isolated roots to the current combined state.
+4. Regenerate the accepted deployment configuration if its values changed, then
+   rerun deployment and retain the plan and `/version` evidence.
 
 ### Forward recovery
 
@@ -382,8 +273,8 @@ root declares daily backups retained 30 days and a 24-hour RPO.
   Review and explicitly apply the password secret and matching incremented
   password-version variable in the environment infrastructure root, then run
   the protected forward deployment to reconcile runtime secrets and verify
-  connectivity. Deployment workflows reject infrastructure changes in their
-  read-only plans. Never reuse or decrement a version;
+  connectivity. Publish an updated configuration snapshot if its non-secret
+  values changed. Never reuse or decrement a password version;
 - Stripe webhook secret: whenever the endpoint is recreated or exposure is
   suspected;
 - Auth0 and other provider credentials: follow provider guidance, at least
