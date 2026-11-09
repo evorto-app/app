@@ -187,8 +187,8 @@ layer(testLayer)(
                   ),
                   Effect.provideService(RpcRequestContext, {
                     authData: {},
-                    authenticated: false,
-                    permissions: [],
+                    authenticated: true,
+                    permissions: ['templates:view'],
                     tenant,
                     user: null,
                     userAssigned: false,
