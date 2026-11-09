@@ -3,3 +3,10 @@ env = false
 
 [install.scopes]
 "@fortawesome" = { token = "$FONT_AWESOME_TOKEN", url = "https://npm.fontawesome.com/" }
+
+[fmt]
+ignorePatterns = ["repos/", ".agents/skills/"]
+
+[[fmt.overrides]]
+files = ["*.html"]
+options = { parser = "angular" }
