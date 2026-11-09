@@ -1,6 +1,7 @@
-import { pgTable, text, timestamp, varchar } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, uuid, varchar } from 'drizzle-orm/pg-core';
 
 export const stripeWebhookEvents = pgTable('stripe_webhook_events', {
+  claimId: uuid('claim_id').notNull().defaultRandom(),
   eventType: text('event_type').notNull(),
   processedAt: timestamp('processed_at').notNull().defaultNow(),
   status: text('status').notNull().default('processing'),
