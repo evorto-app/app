@@ -449,11 +449,11 @@ credentials must not be printed or committed.
 - Local `dev:start`, `test:e2e`, `test:e2e:baseline`, `test:e2e:ui`, `test:e2e:integration`, `test:e2e:docs`, `db:*`, and `docker:*` package scripts use `env:run` to resolve an invocation-private environment. Concurrent commands cannot overwrite each other's selected project or database through `.env.dev`. Use `bun run docker:ps` rather than bare `docker compose ps` so the worktree project is selected explicitly.
 - `bun run docker:check` fails before Docker Compose mutates local containers
   when required local runtime variables are missing. The check covers Auth0,
-  Stripe, the application session secret, and Font Awesome package registry
-  access for the premium icon package. It also reports Bun, Docker
-  Compose, Compose config, Playwright CLI, `.env.dev`, and Playwright browser
-  cache status. It lists optional live-provider variables, including
-  `E2E_LIVE_ESN_CARD_IDENTIFIER` and
+  Stripe, the application session secret, Font Awesome package registry
+  access for the premium icon package, and the Google Maps browser key. It also
+  reports Bun, Docker Compose, Compose config, Playwright CLI, `.env.dev`, and
+  Playwright browser cache status. It lists optional live-provider variables,
+  including `E2E_LIVE_ESN_CARD_IDENTIFIER` and
   `E2E_LIVE_ESN_CARD_EXPIRED_IDENTIFIER`, without printing values and without
   making Docker startup depend on them. Missing Playwright browsers are warnings
   because they affect Playwright runs, not Docker startup.
@@ -462,6 +462,12 @@ credentials must not be printed or committed.
 - `.env` is the untracked developer-secrets file.
 - `.env.example` is the tracked no-secret checklist for Docker-required
   developer secrets.
+- The web server requires a nonempty `PUBLIC_GOOGLE_MAPS_API_KEY` on every
+  start, including `docker:start`, `dev:start`, and the stack that Playwright
+  starts for functional and documentation runs. For a development key, create a
+  Google Cloud browser API key with billing enabled, enable Maps JavaScript API
+  and Places API (New), and restrict it to the local origins you use, such as
+  `http://localhost:4200`.
 - `.env.local`, `.env.runtime`, and `.env.ci` are unsupported in this repo.
 - Starting the Docker stack with `docker:start`, `docker:start:foreground`, or
   `docker:start:watch` is destructive for local database state by design because
@@ -671,9 +677,9 @@ Playwright separates external-service coverage with dedicated projects:
 - live-provider certification:
   - `docs-live-esncard`
 
-CI infers whether Google Maps credentials are required from the selected
-Playwright projects. Authenticated setup always requires the Auth0 Management
-test client so it can verify the dedicated administrator identity already has
+The web server needs the Google Maps key in every run, so `docker:check` and
+`test:e2e:check` require it before startup. Authenticated setup always requires
+the Auth0 Management test client so it can verify the dedicated administrator identity already has
 the real production claim before login. It never changes shared metadata. If you
 select `local-chrome-integration` or `docs-integration`, CI/runtime validation
 also demands the Google Maps credential. UI mode is intentionally baseline-only:
@@ -782,9 +788,12 @@ Required in CI baseline docs/functional jobs:
 - `S3_ACCESS_KEY_ID`
 - `S3_SECRET_ACCESS_KEY`
 
-Required only for integration-tagged Playwright projects:
+Required for every run that starts the web server, including local Docker
+startup and CI baseline jobs:
 
-- `PUBLIC_GOOGLE_MAPS_API_KEY`
+- `PUBLIC_GOOGLE_MAPS_API_KEY`. Integration-tagged (`@needs-google-maps`)
+  projects call the live Maps JavaScript API and Places API (New) with it, so
+  the key must allow the local test origin.
 
 Required for every live-provider run (but not for local Docker startup):
 

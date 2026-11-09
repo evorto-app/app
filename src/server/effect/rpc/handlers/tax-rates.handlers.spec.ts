@@ -174,4 +174,22 @@ layer(
       expect(fixture.readCount()).toBe(0);
     }),
   );
+  it.effect('rejects anonymous callers before reading tax rates', () =>
+    Effect.gen(function* () {
+      const fixture = databaseFixture(true, false);
+      const error = yield* taxRateHandlers['taxRates.listActive'](
+        undefined,
+        options(),
+      ).pipe(
+        Effect.provideService(RpcRequestContext, {
+          ...createRequestContext([]),
+          authenticated: false,
+        }),
+        Effect.provide(fixture.databaseLayer),
+        Effect.flip,
+      );
+      expect(error._tag).toBe('RpcUnauthorizedError');
+      expect(fixture.readCount()).toBe(0);
+    }),
+  );
 });

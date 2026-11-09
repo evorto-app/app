@@ -132,11 +132,19 @@ const failOnPrematureNodeBodyClose = (request: IncomingMessage) =>
 
 const rejectNodeBodySynchronously = (request: IncomingMessage): void => {
   const absorbDrainError = () => null;
+  const socket = request.socket;
+  const closeRequest = () => {
+    // Bun's Node bridge can leave the message open after its socket closes.
+    request.destroy();
+  };
   request.on('error', absorbDrainError);
   request.once('close', () => {
     request.off('error', absorbDrainError);
+    socket.off('close', closeRequest);
   });
+  socket.once('close', closeRequest);
   request.resume();
+  if (socket.destroyed) closeRequest();
 };
 
 const rejectNodeBody = (request: IncomingMessage) =>

@@ -4,7 +4,7 @@ This project was generated using [Angular CLI](https://github.com/angular/angula
 
 ## Prerequisites
 
-- Bun 1.4.2 is the package manager and app runtime baseline.
+- Bun 1.4.4 is the package manager, formatter and app runtime baseline.
 - Node 24.22.1 is required for Angular CLI package scripts.
 - Docker Compose 2.24.0 or later is required for the local Docker-backed runtime and E2E flows.
 
@@ -110,6 +110,12 @@ bun run build:app
 This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
 
 ## Mandatory local CI gate
+
+Formatting uses Bun's built-in `bun fmt` through `format:write` and
+`format:check`. Its Angular parser override and vendored-reference exclusions
+live in `bunfig.toml`; shared indentation and quote preferences remain in
+`.editorconfig`. Standalone Prettier and its Tailwind plugin are not required.
+`eslint-config-prettier` only disables conflicting ESLint formatting rules.
 
 Before any push, PR update, or other action that can trigger CI, the exact local
 equivalent of every triggered CI suite must pass completely. Run the canonical,

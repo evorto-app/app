@@ -1,9 +1,13 @@
 import { describe, expect, it } from '@effect/vitest';
 import { Effect } from 'effect';
 import { execFile } from 'node:child_process';
+import { once } from 'node:events';
+import { IncomingMessage } from 'node:http';
+import { Socket } from 'node:net';
 import { promisify } from 'node:util';
 
 import {
+  discardNodeRequestBody,
   readRequestBody,
   RequestBodyInvalidContentLengthError,
   RequestBodyReadError,
@@ -13,6 +17,52 @@ import {
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 const execFileAsync = promisify(execFile);
+
+describe('discardNodeRequestBody', () => {
+  it('closes the discarded message and releases its drain listener when its socket closes', async () => {
+    const socket = new Socket();
+    const request = new IncomingMessage(socket);
+    const initialErrorListeners = request.listenerCount('error');
+    const requestClosed = once(request, 'close');
+
+    discardNodeRequestBody(request);
+    socket.destroy();
+    await requestClosed;
+
+    expect(request.destroyed).toBe(true);
+    expect(request.listenerCount('error')).toBe(initialErrorListeners);
+    expect(socket.listenerCount('close')).toBe(0);
+  });
+
+  it('releases its socket observer when the message closes first', async () => {
+    const socket = new Socket();
+    const request = new IncomingMessage(socket);
+    const requestClosed = once(request, 'close');
+
+    discardNodeRequestBody(request);
+    request.destroy();
+    await requestClosed;
+
+    expect(socket.listenerCount('close')).toBe(0);
+    expect(request.listenerCount('error')).toBe(0);
+  });
+
+  it('closes a discarded message whose socket was already closed', async () => {
+    const socket = new Socket();
+    const request = new IncomingMessage(socket);
+    const socketClosed = once(socket, 'close');
+    socket.destroy();
+    await socketClosed;
+    const requestClosed = once(request, 'close');
+
+    discardNodeRequestBody(request);
+    await requestClosed;
+
+    expect(request.destroyed).toBe(true);
+    expect(request.listenerCount('error')).toBe(0);
+    expect(socket.listenerCount('close')).toBe(0);
+  });
+});
 
 const createStreamRequest = (
   chunks: readonly string[],
