@@ -1,0 +1,5 @@
+<environment_context>
+  <current_date>2026-11-10</current_date>
+  <timezone>Europe/Berlin</timezone>
+  <filesystem><workspace_roots><root>/Users/hedde/.codex/worktrees/74da/evorto</root><root>/Users/hedde/.codex/visualizations/2026/11/09/01a1c25c-a988-75d1-be3a-f1d4f82b4a48</root></workspace_roots><permission_profile type="disabled"><file_system type="unrestricted" /></permission_profile></filesystem>
+</environment_context>
