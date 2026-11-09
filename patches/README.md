@@ -41,9 +41,12 @@ predicates explicitly cast the bound arrays to `varchar[]` so PostgreSQL does no
 resolve them as `text[]`. Existing PostgreSQL tests verify role deletion,
 visibility, ownership, and tenant boundaries through this path.
 
-Bun 1.4.3 and 1.4.4 are held: the existing real-runtime request-body regression
-probe fails with `bodyless request drain cleanup timed out`, while 1.4.2 passes
-with the same application and dependencies. Keep the package manager, Docker,
-and CI on Bun 1.4.2 until that regression is resolved. Node is updated to
-24.22.1 independently. Do not extend the timeout or weaken the cleanup check to
-accept these Bun releases.
+Bun 1.4.4 is now the package-manager, formatter, Docker and CI baseline. Its
+Node HTTP bridge can close a socket without closing the associated rejected
+request stream. The application closes that stream when its socket closes and
+removes the temporary drain observers when request cleanup finishes. The
+unchanged real-runtime request-body probe passes on both Bun 1.4.2 and 1.4.4;
+deterministic unit coverage also checks socket-first and request-first cleanup
+and an already-closed socket. Keep these safeguards when updating Bun; do not
+extend the timeout or weaken cleanup assertions to accept a runtime release.
+Node remains pinned independently to 24.22.1.
