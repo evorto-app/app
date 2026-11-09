@@ -89,7 +89,7 @@ More specific guidance may exist deeper in some subtrees.
 - `bun run test:e2e:install` - install the local Playwright browser binaries.
 - `bun run lint` - lint with autofix.
 - `bun run format:check` - verify formatting without changing files.
-- `bun run format:write` - format with Prettier.
+- `bun run format:write` - format with Bun's built-in formatter.
 - `bun run docker:start` / `bun run docker:stop` - start/stop local services;
   `docker:start` may reset local data and should leave enough seeded data to
   get going from zero.
