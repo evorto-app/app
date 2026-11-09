@@ -9,11 +9,13 @@ const expectIconBesideLabel = async (
   size = 24,
 ) => {
   await expect(action).toBeVisible();
+  const icon = action.locator('fa-duotone-icon, fa-icon');
+  const label = action.getByText(labelText, { exact: true });
+  await expect(icon).toBeVisible();
+  await expect(label).toBeVisible();
   await action.evaluate(async () => {
     await document.fonts.ready;
   });
-  const icon = action.locator('fa-duotone-icon, fa-icon');
-  const label = action.getByText(labelText, { exact: true });
   const iconBox = await icon.boundingBox();
   const labelBox = await label.boundingBox();
   if (!iconBox || !labelBox)
@@ -94,11 +96,14 @@ test.describe('Regular Material button icons', () => {
     page,
   }) => {
     await page.goto('/profile');
-    await expectIconBesideLabel(
-      page.getByRole('button', { name: 'Edit profile', exact: true }),
-      'Edit profile',
-      18,
-    );
+    const editProfile = page.getByRole('button', {
+      name: 'Edit profile',
+      exact: true,
+    });
+    await expect(editProfile).not.toHaveAttribute('jsaction', /click/, {
+      timeout: 20_000,
+    });
+    await expectIconBesideLabel(editProfile, 'Edit profile', 18);
     await expectIconBesideLabel(
       page.getByRole('link', { name: 'Use transfer code', exact: true }),
       'Use transfer code',
