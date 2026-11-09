@@ -1,10 +1,8 @@
-import { RpcForbiddenError } from '@shared/errors/rpc-errors';
 import { Effect } from 'effect';
 
 import type { AppRpcHandlers } from './shared/handler-types';
 
 import { Database, type DatabaseClient } from '../../../../db';
-import { includesPermission } from '../../../../shared/permissions/permissions';
 import { RpcAccess } from './shared/rpc-access.service';
 
 const databaseEffect = <A>(
@@ -15,20 +13,9 @@ const databaseEffect = <A>(
 export const taxRateHandlers = {
   'taxRates.listActive': (_payload, _options) =>
     Effect.gen(function* () {
-      const context = yield* RpcAccess.current();
-      if (
-        context.authenticated &&
-        !includesPermission('templates:view', context.permissions)
-      ) {
-        return yield* Effect.fail(
-          new RpcForbiddenError({
-            message: 'You do not have permission to view tax rates.',
-            permission: 'templates:view',
-          }),
-        );
-      }
+      yield* RpcAccess.ensurePermission('templates:view');
 
-      const { tenant } = context;
+      const { tenant } = yield* RpcAccess.current();
       const stripeAccountId = tenant.stripeAccountId;
       if (!stripeAccountId) {
         return [];

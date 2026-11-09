@@ -1,5 +1,38 @@
 # Repository Guidelines
 
+## Linear Issue-First Workflow
+
+Linear is the shared source of truth for planned and active Evorto work. Use the
+`evorto` team (`EVO`) in <https://linear.app/evorto> so collaborators can see plans,
+avoid duplicate work, and add missing context before implementation.
+
+- Before implementation or repository edits, search existing Linear issues and
+  related branches/PRs. Reuse the canonical issue when the work overlaps; do not
+  create a second competing plan or silently take over someone else's work.
+- Create or update the issue **before starting work**, including work requested
+  in chat. Record the goal, scope, proposed approach, acceptance criteria,
+  dependencies, and verification plan. Keep this proportional to the change.
+- Make ownership and status visible before implementation. Identify the person
+  or agent doing the work, coordinate overlapping efforts, and link related
+  issues. Split independent work into linked issues with clear boundaries.
+- Call out missing product/history context and open decisions explicitly so
+  Lukas can add what he knows. Ask a specific question and wait when its answer
+  could materially change scope or behavior; do not turn an assumption into a
+  decision. Routine work with sufficient context need not wait for approval.
+- Keep the issue current as the plan changes. Record blockers, decisions,
+  meaningful progress, and handoffs there instead of leaving them only in chat
+  or a local plan. Put newly discovered follow-up work in issues before starting
+  it, and distinguish required scope from optional follow-ups.
+- Include the `EVO-<number>` identifier in commits and PRs, and link the resulting
+  PR or direct commit back to the issue. Close it only after recording what
+  shipped, the verification performed, and any remaining follow-ups.
+- If Linear is unavailable, report the blocker and prepare a draft plan without
+  starting implementation. Do not silently bypass issue-first coordination.
+
+This workflow does not replace the verification, branching, release-note, or
+publication requirements below. Direct-to-main permission for one change is not
+standing permission for later changes.
+
 ## Context Discipline
 
 - Keep repository knowledge in small, relevant files.
@@ -56,7 +89,7 @@ More specific guidance may exist deeper in some subtrees.
 - `bun run test:e2e:install` - install the local Playwright browser binaries.
 - `bun run lint` - lint with autofix.
 - `bun run format:check` - verify formatting without changing files.
-- `bun run format:write` - format with Prettier.
+- `bun run format:write` - format with Bun's built-in formatter.
 - `bun run docker:start` / `bun run docker:stop` - start/stop local services;
   `docker:start` may reset local data and should leave enough seeded data to
   get going from zero.
