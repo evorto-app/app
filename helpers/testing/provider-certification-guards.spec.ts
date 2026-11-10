@@ -49,6 +49,26 @@ const workflows = [
 ];
 
 describe('credential-backed workflow guards', () => {
+  it('forwards validated baseline settings to the browser runtime', () => {
+    const baseline = workflows.find((workflow) => workflow.name === 'baseline');
+    if (!baseline) throw new Error('Missing baseline workflow fixture');
+    const validation = readGuard(
+      baseline.path,
+      baseline.job,
+      baseline.configurationGuard,
+    );
+    const runner = readGuard(
+      baseline.path,
+      baseline.job,
+      'Run Playwright suites',
+    );
+    for (const name of Object.keys(validation.env)) {
+      const runtimeName =
+        name === 'STRIPE_TEST_API_KEY' ? 'STRIPE_API_KEY' : name;
+      expect(runner.env).toHaveProperty(runtimeName);
+    }
+  });
+
   it.each(workflows)('$name permits only protected main refs', (workflow) => {
     const guard = readGuard(
       workflow.path,
