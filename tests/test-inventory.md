@@ -115,6 +115,7 @@ component regressions retain retry recovery for temporary failures.
   - specs/templates/paid-option-requires-tax-rate.spec.ts [finance]
   - specs/templates/registration-configuration.spec.ts
   - specs/templates/template-actions-permissions.spec.ts [permissions]
+  - specs/templates/template-search.spec.ts
   - specs/templates/templates.test.ts
 
 ## Suite Ownership
