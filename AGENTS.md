@@ -122,6 +122,9 @@ More specific guidance may exist deeper in some subtrees.
 - `bun run docker:start` / `bun run docker:stop` - start/stop local services;
   `docker:start` may reset local data and should leave enough seeded data to
   get going from zero.
+- `bun run docker:start:walkthrough` - the same reset for manual walkthroughs:
+  seed dates from today and an unpinned web and worker clock instead of the
+  fixed test clock. Stop it before Playwright, which reuses a running stack.
 - `bun run docker:resume` - bring back the existing `db`, `minio`, `stripe`,
   and `evorto` containers without recreating them or rerunning the one-shot
   setup services; it refuses incomplete or unsuccessfully initialized stacks.

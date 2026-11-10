@@ -21,6 +21,7 @@
     "docker:resume": "bun run env:run -- bash helpers/testing/with-docker-project-lease.sh docker-resume -- sh -c 'bun helpers/testing/runtime-preflight.ts docker && exec bash helpers/testing/docker-resume.sh'",
     "docker:start": "bun run env:run -- bash helpers/testing/with-docker-project-lease.sh docker-start -- sh -c 'bun helpers/testing/runtime-preflight.ts docker && exec bash helpers/testing/docker-stack.sh start'",
     "docker:start:foreground": "bun run env:run -- bash helpers/testing/with-docker-project-lease.sh docker-start-foreground -- sh -c 'bun helpers/testing/runtime-preflight.ts docker && exec bash helpers/testing/docker-stack.sh start-foreground'",
+    "docker:start:walkthrough": "env -u E2E_RUNTIME_MODE E2E_NOW_ISO= bun run env:run -- bash helpers/testing/with-docker-project-lease.sh docker-start-walkthrough -- sh -c 'bun helpers/testing/runtime-preflight.ts docker && exec bash helpers/testing/docker-stack.sh start'",
     "docker:start:watch": "bun run env:run -- bash helpers/testing/with-docker-project-lease.sh docker-start-watch -- sh -c 'bun helpers/testing/runtime-preflight.ts docker && exec bash helpers/testing/docker-stack.sh start-watch'",
     "docker:stop": "bun run env:run -- bash helpers/testing/with-docker-project-lease.sh docker-stop -- bash helpers/testing/docker-stack.sh stop",
     "docker:webserver": "bun run env:run -- bash helpers/testing/with-docker-project-lease.sh docker-webserver -- sh -c 'bun helpers/testing/runtime-preflight.ts docker && exec bash helpers/testing/docker-webserver.sh'",

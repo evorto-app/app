@@ -397,6 +397,10 @@ credentials must not be printed or committed.
   `bun run docker:check`
 - Show the generated worktree Compose project status: `bun run docker:ps`
 - Start the local runtime stack: `bun run docker:start`
+- Start the same reset for a manual walkthrough, seeded from today with an
+  unpinned web and worker clock: `bun run docker:start:walkthrough`. Stop it
+  with `bun run docker:stop` before Playwright runs, because Playwright reuses
+  a running stack.
 - Resume an existing local runtime stack without recreating containers:
   `bun run docker:resume`. Resume requires the existing `db`, `minio`,
   `mailpit`, `stripe`, `worker`, and `evorto` containers plus successfully
@@ -469,9 +473,9 @@ credentials must not be printed or committed.
   and Places API (New), and restrict it to the local origins you use, such as
   `http://localhost:4200`.
 - `.env.local`, `.env.runtime`, and `.env.ci` are unsupported in this repo.
-- Starting the Docker stack with `docker:start`, `docker:start:foreground`, or
-  `docker:start:watch` is destructive for local database state by design because
-  those scripts run `docker compose down --timeout 60 --remove-orphans` and then
+- Starting the Docker stack with `docker:start`, `docker:start:foreground`,
+  `docker:start:walkthrough`, or `docker:start:watch` is destructive for local
+  database state by design because those scripts run `docker compose down --timeout 60 --remove-orphans` and then
   `db-setup` clears the
   `public` schema, pushes schema, and resets/seeds the Docker database.
   PostgreSQL data, Mailpit messages, and the Stripe signing secret use

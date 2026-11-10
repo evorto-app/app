@@ -76,7 +76,23 @@ start_detached_stack() {
   run_compose_command \
     startup \
     "${startup_timeout_seconds}" \
-    up --no-build --detach
+    up --no-build --detach || return "$?"
+  print_pinned_clock_hint
+}
+
+# Seeded events are dated around the pinned day, so after that day the browser's
+# upcoming list is empty. Point manual users at the walkthrough start.
+print_pinned_clock_hint() {
+  # The seed and server trim this value, so whitespace alone means unpinned.
+  local pinned_now="${E2E_NOW_ISO:-}"
+  pinned_now="${pinned_now//[[:space:]]/}"
+  if [[ -z "${pinned_now}" ]]; then
+    return 0
+  fi
+  printf 'Seed data and the app clock are pinned to E2E_NOW_ISO=%s.\n' \
+    "${pinned_now}"
+  printf '%s\n' \
+    'For a walkthrough with upcoming events from today, run: bun run docker:start:walkthrough'
 }
 
 show_stack_status() {
