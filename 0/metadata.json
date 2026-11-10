@@ -1,0 +1,44 @@
+{
+  "cli_version": "0.13.1",
+  "checkpoint_id": "01M71DYVPJ8VTRX6K4MKBVSJHW",
+  "session_id": "01a1c25c-a988-75d1-be3a-f1d4f82b4a48",
+  "strategy": "manual-commit",
+  "created_at": "2026-11-10T00:33:06.01897Z",
+  "branch": "codex/evo-65-baseline-maps-env",
+  "checkpoints_count": 3,
+  "files_touched": [
+    ".changeset/forward-baseline-maps-key.md",
+    ".github/workflows/e2e-baseline.yml",
+    "helpers/testing/provider-certification-guards.spec.ts"
+  ],
+  "agent": "Codex",
+  "model": "gpt-6.1-sol",
+  "turn_id": "4dafee9be082",
+  "checkpoint_transcript_start": 1327,
+  "transcript_lines_at_start": 1327,
+  "compact_transcript_start": 226,
+  "token_usage": {
+    "input_tokens": 399941,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 11719296,
+    "output_tokens": 46916,
+    "api_call_count": 34
+  },
+  "redaction": {
+    "replacements": 182,
+    "layers": {
+      "betterleaks": 142,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 22,
+      "credentialed_uri": 23,
+      "entropy": 39,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  },
+  "session_metrics": {
+    "turn_count": 3
+  }
+}
