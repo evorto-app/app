@@ -150,6 +150,7 @@
                         @let approvalInFlight =
                           approvalPending(user.registrationId);
                         <div
+                          data-testid="event-organize-registration"
                           class="border-outline-variant flex flex-wrap items-start justify-between gap-3 border-b py-3"
                           [attr.aria-busy]="approvalInFlight || null"
                         >
@@ -215,13 +216,34 @@
                               </p>
                             }
                           </div>
+                          @let checkInAvailable = canCheckIn(user);
                           @if (
                             (registrationOption.canApproveRegistrations &&
                               user.manualApprovalAvailable &&
                               !user.paymentSetupRequired) ||
-                            registrationOption.canCancelRegistrations
+                            registrationOption.canCancelRegistrations ||
+                            checkInAvailable
                           ) {
                             <div class="flex flex-wrap gap-2">
+                              @if (checkInAvailable) {
+                                <button
+                                  mat-flat-button
+                                  type="button"
+                                  [attr.aria-label]="
+                                    'Check in ' +
+                                    user.firstName +
+                                    ' ' +
+                                    user.lastName
+                                  "
+                                  (click)="checkInRegistration(user)"
+                                  [disabled]="
+                                    approveRegistrationMutation.isPending() ||
+                                    cancelRegistrationMutation.isPending()
+                                  "
+                                >
+                                  Check in
+                                </button>
+                              }
                               @if (
                                 registrationOption.canApproveRegistrations &&
                                 user.manualApprovalAvailable &&

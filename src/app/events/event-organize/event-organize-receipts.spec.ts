@@ -216,8 +216,18 @@ describe('EventOrganize actions', () => {
             },
             queryFilter: (queryKey: readonly string[]) => ({ queryKey }),
             users: {
-              canUseScanner: { queryKey: () => ['scanner-access'] },
+              canUseScanner: {
+                queryKey: () => ['scanner-access'],
+                queryOptions: () => ({
+                  enabled: false,
+                  queryKey: ['scanner-access'],
+                }),
+              },
               events: { queryKey: () => ['user-events'] },
+              maybeSelf: {
+                queryKey: () => ['self'],
+                queryOptions: () => ({ enabled: false, queryKey: ['self'] }),
+              },
             },
           },
         },

@@ -56,6 +56,7 @@ import {
   EventOrganize,
   groupEventOrganizeRegistrationOptions,
   invalidateEventOrganizeStateQueries,
+  organizerManualCheckInAvailable,
   organizerRegistrationActionDisabled,
   organizerRegistrationApprovalDisabled,
   organizerRegistrationApprovalLabel,
@@ -114,6 +115,15 @@ describe('event organizer error notifications', () => {
             manualApprovalAvailable: true, paymentSetupRequired: false,
             registrationId: 'registration-1'
           })">Approve application</button>
+          <button type="button" (click)="checkInRegistration({
+            firstName: 'Alex', lastName: 'Able', registrationId: 'registration-1'
+          })">Check in registration</button>
+          @if (canCheckIn({ checkedIn: false, status: 'CONFIRMED', userId: 'attendee-1' })) {
+            <span>Check-in available for attendee-1</span>
+          }
+          @if (canCheckIn({ checkedIn: false, status: 'CONFIRMED', userId: 'self-1' })) {
+            <span>Check-in available for self-1</span>
+          }
         `,
       },
     });
@@ -186,6 +196,7 @@ describe('event organizer error notifications', () => {
             users: {
               canUseScanner: inactiveQuery('scanner-access'),
               events: inactiveQuery('user-events'),
+              maybeSelf: inactiveQuery('self'),
             },
           },
         },
@@ -198,6 +209,98 @@ describe('event organizer error notifications', () => {
     queryClient.clear();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+  });
+
+  it('opens the manual check-in dialog and confirms a completed check-in', async () => {
+    dialogOpen.mockReturnValue({
+      afterClosed: () => of({ alreadyCheckedIn: false }),
+    });
+    clickAction('Check in registration');
+
+    await vi.waitFor(() => {
+      expect(showSuccess).toHaveBeenCalledExactlyOnceWith(
+        'Alex Able is checked in',
+      );
+    });
+    expect(dialogOpen).toHaveBeenCalledOnce();
+    expect(dialogOpen.mock.calls[0]?.[1]).toMatchObject({
+      data: { attendeeName: 'Alex Able', registrationId: 'registration-1' },
+    });
+    expect(queryClient.invalidateQueries).toHaveBeenCalledWith(
+      { exact: true, queryKey: ['organizer-overview'] },
+      { throwOnError: true },
+    );
+    expect(showError).not.toHaveBeenCalled();
+  });
+
+  it('reports a refresh failure after a completed manual check-in', async () => {
+    dialogOpen.mockReturnValue({
+      afterClosed: () => of({ alreadyCheckedIn: false }),
+    });
+    vi.mocked(queryClient.invalidateQueries).mockRejectedValue(
+      new Error('Private refresh detail'),
+    );
+    clickAction('Check in registration');
+
+    await vi.waitFor(() => {
+      expect(showError).toHaveBeenCalledExactlyOnceWith(
+        'The page could not be updated. Load the page again to check the current sign-up details.',
+      );
+    });
+    expect(showSuccess).toHaveBeenCalledExactlyOnceWith(
+      'Alex Able is checked in',
+    );
+  });
+
+  it('reports an already checked-in ticket', async () => {
+    dialogOpen.mockReturnValue({
+      afterClosed: () => of({ alreadyCheckedIn: true }),
+    });
+    clickAction('Check in registration');
+
+    await vi.waitFor(() => {
+      expect(showSuccess).toHaveBeenCalledExactlyOnceWith(
+        'Alex Able was already checked in',
+      );
+    });
+  });
+
+  it('shows nothing when the manual check-in dialog is cancelled', async () => {
+    dialogOpen.mockReturnValue({ afterClosed: () => of(undefined) });
+    clickAction('Check in registration');
+
+    await vi.waitFor(() => {
+      expect(dialogOpen).toHaveBeenCalledOnce();
+    });
+    expect(showSuccess).not.toHaveBeenCalled();
+    expect(showError).not.toHaveBeenCalled();
+    expect(queryClient.invalidateQueries).not.toHaveBeenCalled();
+  });
+
+  it('offers manual check-in from the scanner access and current user queries', async () => {
+    const rpc = TestBed.inject(APP_RPC_CLIENT);
+    const users = rpc.users;
+    const resolving = (name: string, data: unknown) => ({
+      queryKey: () => [name],
+      queryOptions: () => ({
+        queryFn: () => Promise.resolve(data),
+        queryKey: [name],
+      }),
+    });
+    Object.assign(users, {
+      canUseScanner: resolving('scanner-access', true),
+      maybeSelf: resolving('self', { id: 'self-1' }),
+    });
+    const fixture = TestBed.createComponent(EventOrganize);
+    fixture.componentRef.setInput('eventId', 'event-1');
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      const text = fixture.nativeElement.textContent ?? '';
+      expect(text).toContain('Check-in available for attendee-1');
+    });
+    expect(fixture.nativeElement.textContent).not.toContain(
+      'Check-in available for self-1',
+    );
   });
 
   const clickAction = (label: string) => {
@@ -285,6 +388,58 @@ describe('event organizer error notifications', () => {
       },
     );
   }
+});
+
+describe('organizerManualCheckInAvailable', () => {
+  const eligible = {
+    canUseScanner: true,
+    checkedIn: false,
+    selfUserId: 'organizer-1',
+    status: 'CONFIRMED',
+    userId: 'attendee-1',
+  } as const;
+
+  it.each([
+    {
+      expected: true,
+      name: 'confirmed attendee of another user',
+      overrides: {},
+    },
+    {
+      expected: false,
+      name: 'pending sign-up',
+      overrides: { status: 'PENDING' },
+    },
+    {
+      expected: false,
+      name: 'waitlist sign-up',
+      overrides: { status: 'WAITLIST' },
+    },
+    {
+      expected: false,
+      name: 'already checked in',
+      overrides: { checkedIn: true },
+    },
+    {
+      expected: false,
+      name: 'no scanner authority',
+      overrides: { canUseScanner: false },
+    },
+    {
+      expected: false,
+      name: 'own ticket',
+      overrides: { userId: 'organizer-1' },
+    },
+    {
+      expected: false,
+      name: 'unknown current user',
+      overrides: { selfUserId: null },
+    },
+  ] as const)('is $expected for $name', ({ expected, overrides }) => {
+    expect(organizerManualCheckInAvailable({ ...eligible, ...overrides })).toBe(
+      expected,
+    );
+  });
 });
 
 describe('computeEventOrganizeStats', () => {
@@ -623,8 +778,18 @@ describe('organizer cancellation outcome feedback', () => {
               },
             },
             users: {
-              canUseScanner: { queryKey: () => ['scanner-access'] },
+              canUseScanner: {
+                queryKey: () => ['scanner-access'],
+                queryOptions: () => ({
+                  enabled: false,
+                  queryKey: ['scanner-access'],
+                }),
+              },
               events: { queryKey: () => ['user-events'] },
+              maybeSelf: {
+                queryKey: () => ['self'],
+                queryOptions: () => ({ enabled: false, queryKey: ['self'] }),
+              },
             },
           },
         },
@@ -1156,6 +1321,20 @@ describe('EventOrganize receipt submission outcomes', () => {
               },
             },
             queryFilter,
+            users: {
+              canUseScanner: {
+                queryKey: () => ['scanner-access'],
+                queryOptions: () => ({
+                  enabled: false,
+                  queryKey: ['scanner-access'],
+                }),
+              },
+              events: { queryKey: () => ['user-events'] },
+              maybeSelf: {
+                queryKey: () => ['self'],
+                queryOptions: () => ({ enabled: false, queryKey: ['self'] }),
+              },
+            },
           },
         },
       ],
