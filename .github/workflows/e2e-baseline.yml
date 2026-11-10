@@ -202,6 +202,7 @@ jobs:
           E2E_REGULAR_USER_PASSWORD: ${{ secrets.E2E_REGULAR_USER_PASSWORD }}
           FONT_AWESOME_TOKEN: ${{ secrets.FONT_AWESOME_TOKEN }}
           SECRET: ${{ secrets.SECRET }}
+          PUBLIC_GOOGLE_MAPS_API_KEY: ${{ secrets.PUBLIC_GOOGLE_MAPS_API_KEY }}
           STRIPE_API_KEY: ${{ secrets.STRIPE_TEST_API_KEY }}
           STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
         run: |
