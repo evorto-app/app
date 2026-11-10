@@ -37,7 +37,7 @@ jobs:
     needs: validate-protected-ref
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    environment: esncard-release-certification
+    environment: e2e-baseline
     env:
       CI: true
       APP_HOST_PORT: 4200
