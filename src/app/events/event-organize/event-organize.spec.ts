@@ -1,4 +1,5 @@
 import '@angular/compiler';
+import { Clipboard } from '@angular/cdk/clipboard';
 import { OverlayContainer } from '@angular/cdk/overlay';
 import {
   ChangeDetectionStrategy,
@@ -52,6 +53,7 @@ import { NotificationService } from '../../core/notification.service';
 import { TENANT_DATE_PIPE_TIMEZONE } from '../../core/tenant-date.pipe';
 import { ReceiptFormFieldsComponent } from '../../finance/shared/receipt-form/receipt-form-fields.component';
 import {
+  buildEventOrganizeEmailLists,
   computeEventOrganizeStats,
   EventOrganize,
   groupEventOrganizeRegistrationOptions,
@@ -2328,5 +2330,310 @@ describe('EventOrganize receipt submission outcomes', () => {
       context.expectSingleWrite();
       expect(context.successNotice).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe('buildEventOrganizeEmailLists', () => {
+  const user = (
+    email: string,
+    overrides: { checkedIn?: boolean; status?: 'CONFIRMED' | 'PENDING' } = {},
+  ) => ({
+    checkedIn: overrides.checkedIn ?? false,
+    email,
+    status: overrides.status ?? ('CONFIRMED' as const),
+  });
+
+  it('returns empty lists without registration options', () => {
+    expect(buildEventOrganizeEmailLists([])).toEqual({
+      attendees: [],
+      checkedIn: [],
+      notCheckedIn: [],
+      organizers: [],
+    });
+  });
+
+  it('groups confirmed addresses by organizing registration and check-in state', () => {
+    expect(
+      buildEventOrganizeEmailLists([
+        {
+          organizingRegistration: true,
+          users: [user('helper@example.test', { checkedIn: true })],
+        },
+        {
+          organizingRegistration: false,
+          users: [
+            user('in@example.test', { checkedIn: true }),
+            user('out@example.test'),
+          ],
+        },
+      ]),
+    ).toEqual({
+      attendees: ['in@example.test', 'out@example.test'],
+      checkedIn: ['in@example.test'],
+      notCheckedIn: ['out@example.test'],
+      organizers: ['helper@example.test'],
+    });
+  });
+
+  it('excludes registrations that are not confirmed', () => {
+    const lists = buildEventOrganizeEmailLists([
+      {
+        organizingRegistration: false,
+        users: [
+          user('pending@example.test', { status: 'PENDING' }),
+          user('confirmed@example.test'),
+        ],
+      },
+      {
+        organizingRegistration: true,
+        users: [user('pending-helper@example.test', { status: 'PENDING' })],
+      },
+    ]);
+
+    expect(lists.attendees).toEqual(['confirmed@example.test']);
+    expect(lists.notCheckedIn).toEqual(['confirmed@example.test']);
+    expect(lists.organizers).toEqual([]);
+  });
+
+  it('trims, drops empty addresses and deduplicates case-insensitively across options', () => {
+    const lists = buildEventOrganizeEmailLists([
+      {
+        organizingRegistration: false,
+        users: [
+          user('  Anna@Example.test '),
+          user(' '.repeat(3)),
+          user('ben@example.test'),
+        ],
+      },
+      {
+        organizingRegistration: false,
+        users: [user('anna@example.TEST'), user('cleo@example.test')],
+      },
+    ]);
+
+    expect(lists.attendees).toEqual([
+      'Anna@Example.test',
+      'ben@example.test',
+      'cleo@example.test',
+    ]);
+  });
+});
+
+describe('EventOrganize email list copying', () => {
+  const copy = vi.fn<(text: string) => boolean>();
+  const showError = vi.fn<(message: string) => void>();
+  const showSuccess = vi.fn<(message: string) => void>();
+  type Client = ReturnType<typeof AppRpc.injectClient>;
+  type Overview = Awaited<
+    ReturnType<Client['events']['getOrganizeOverview']['call']>
+  >;
+  let queryClient: QueryClient;
+
+  const participant = (
+    email: string,
+    overrides: { checkedIn?: boolean } = {},
+  ): Overview['registrationOptions'][number]['users'][number] => ({
+    addonPurchases: [],
+    appliedDiscountedPrice: null,
+    appliedDiscountType: null,
+    basePriceAtRegistration: null,
+    checkedIn: overrides.checkedIn ?? false,
+    checkInTime: null,
+    discountAmount: null,
+    email,
+    firstName: 'Alex',
+    lastName: 'Attendee',
+    manualApprovalAvailable: false,
+    paymentPending: false,
+    paymentSetupRequired: false,
+    registrationId: `registration-${email}`,
+    status: 'CONFIRMED',
+    userId: `user-${email}`,
+  });
+  const option = (
+    id: string,
+    organizingRegistration: boolean,
+    users: Overview['registrationOptions'][number]['users'],
+  ): Overview['registrationOptions'][number] => ({
+    canApproveRegistrations: false,
+    canCancelRegistrations: false,
+    organizingRegistration,
+    registrationOptionId: id,
+    registrationOptionTitle: id,
+    users,
+  });
+
+  const render = async (
+    registrationOptions: Overview['registrationOptions'],
+  ) => {
+    const overview: Overview = {
+      registrationOptions,
+      stats: { capacity: 10, checkedIn: 0, registered: 0 },
+    };
+    await TestBed.configureTestingModule({
+      imports: [EventOrganize],
+      providers: [
+        provideRouter([]),
+        provideTanStackQuery(queryClient),
+        { provide: DEFAULT_CURRENCY_CODE, useValue: 'EUR' },
+        { provide: TENANT_DATE_PIPE_TIMEZONE, useValue: 'Europe/Berlin' },
+        { provide: Clipboard, useValue: { copy } },
+        { provide: ConfigService, useValue: { updateTitle: vi.fn() } },
+        { provide: NotificationService, useValue: { showError, showSuccess } },
+        {
+          provide: APP_RPC_CLIENT,
+          useValue: {
+            events: {
+              approveRegistration: {
+                mutationOptions: () => ({ mutationKey: ['approve'] }),
+              },
+              cancelEventRegistration: {
+                mutationOptions: () => ({ mutationKey: ['cancel'] }),
+              },
+              findOne: {
+                queryKey: () => ['event'],
+                queryOptions: () => ({
+                  enabled: false,
+                  initialData: {
+                    start: '2030-01-02T10:00:00.000Z',
+                    title: 'Synthetic event',
+                  },
+                  queryKey: ['event'],
+                }),
+              },
+              getOrganizeOverview: {
+                queryKey: () => ['organizer-overview'],
+                queryOptions: () => ({
+                  enabled: false,
+                  initialData: overview,
+                  queryKey: ['organizer-overview'],
+                }),
+              },
+            },
+            finance: {
+              receiptMedia: {
+                createUpload: {
+                  mutationOptions: () => ({ mutationKey: ['u'] }),
+                },
+                finalizeUpload: {
+                  mutationOptions: () => ({ mutationKey: ['f'] }),
+                },
+              },
+              receipts: {
+                byEvent: {
+                  queryKey: () => ['receipts'],
+                  queryOptions: () => ({
+                    enabled: false,
+                    initialData: [],
+                    queryKey: ['receipts'],
+                  }),
+                },
+                submit: { mutationOptions: () => ({ mutationKey: ['s'] }) },
+              },
+            },
+          },
+        },
+      ],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(EventOrganize);
+    fixture.componentRef.setInput('eventId', 'event-1');
+    fixture.detectChanges();
+    const root: HTMLElement = fixture.nativeElement;
+    return (label: string) => {
+      const result = [...root.querySelectorAll('button')].find(
+        (candidate) => candidate.textContent?.trim() === label,
+      );
+      if (!result) throw new Error(`Expected the ${label} button.`);
+      return result;
+    };
+  };
+
+  beforeEach(() => {
+    copy.mockReset().mockReturnValue(true);
+    showError.mockReset();
+    showSuccess.mockReset();
+    queryClient = new QueryClient({
+      defaultOptions: { queries: { gcTime: Infinity, retry: false } },
+    });
+  });
+
+  afterEach(() => {
+    queryClient.clear();
+    TestBed.resetTestingModule();
+  });
+
+  it('copies the attendee addresses as one comma-separated list and confirms the count', async () => {
+    const button = await render([
+      option('attendees', false, [
+        participant('anna@example.test'),
+        participant('ben@example.test', { checkedIn: true }),
+      ]),
+    ]);
+
+    button('Copy attendee emails').click();
+
+    expect(copy).toHaveBeenCalledExactlyOnceWith(
+      'anna@example.test, ben@example.test',
+    );
+    expect(showSuccess).toHaveBeenCalledExactlyOnceWith(
+      '2 email addresses copied',
+    );
+    expect(showError).not.toHaveBeenCalled();
+  });
+
+  it('uses the singular in the confirmation for a single address', async () => {
+    const button = await render([
+      option('helpers', true, [participant('helper@example.test')]),
+    ]);
+
+    button('Copy organizer emails').click();
+
+    expect(copy).toHaveBeenCalledExactlyOnceWith('helper@example.test');
+    expect(showSuccess).toHaveBeenCalledExactlyOnceWith(
+      '1 email address copied',
+    );
+  });
+
+  it('copies only the matching check-in group', async () => {
+    const button = await render([
+      option('attendees', false, [
+        participant('anna@example.test'),
+        participant('ben@example.test', { checkedIn: true }),
+      ]),
+    ]);
+
+    button('Copy checked-in attendee emails').click();
+    button('Copy emails of attendees not checked in').click();
+
+    expect(copy.mock.calls).toEqual([
+      ['ben@example.test'],
+      ['anna@example.test'],
+    ]);
+  });
+
+  it('reports a failed copy without claiming success', async () => {
+    copy.mockReturnValue(false);
+    const button = await render([
+      option('attendees', false, [participant('anna@example.test')]),
+    ]);
+
+    button('Copy attendee emails').click();
+
+    expect(showError).toHaveBeenCalledExactlyOnceWith(
+      'The email addresses could not be copied. Try again.',
+    );
+    expect(showSuccess).not.toHaveBeenCalled();
+  });
+
+  it('disables the button of a group without addresses', async () => {
+    const button = await render([
+      option('attendees', false, [participant('anna@example.test')]),
+    ]);
+
+    expect(button('Copy organizer emails').disabled).toBe(true);
+    expect(button('Copy checked-in attendee emails').disabled).toBe(true);
+    expect(button('Copy attendee emails').disabled).toBe(false);
+    button('Copy organizer emails').click();
+    expect(copy).not.toHaveBeenCalled();
   });
 });

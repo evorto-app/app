@@ -124,6 +124,32 @@
                 </dd>
               </div>
             </dl>
+            <div
+              role="group"
+              aria-labelledby="event-organize-copy-emails-title"
+              class="grid gap-2"
+            >
+              <h3 id="event-organize-copy-emails-title" class="title-small">
+                Copy email addresses
+              </h3>
+              <div class="flex flex-wrap gap-2">
+                @for (action of emailListActions; track action.group) {
+                  <button
+                    mat-stroked-button
+                    type="button"
+                    [disabled]="emailLists()[action.group].length === 0"
+                    (click)="copyEmailList(action.group)"
+                  >
+                    <fa-duotone-icon
+                      matButtonIcon
+                      class="mat-icon"
+                      [icon]="faCopy"
+                    />
+                    <span>{{ action.label }}</span>
+                  </button>
+                }
+              </div>
+            </div>
           </section>
 
           <div class="grid items-start gap-8 @5xl:grid-cols-2">
