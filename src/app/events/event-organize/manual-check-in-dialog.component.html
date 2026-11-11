@@ -70,9 +70,9 @@
           [value]="selectedGuestCheckInCount()"
           (input)="updateGuestCheckInCount($event)"
         />
-        <span matTextSuffix>
+        <mat-hint>
           {{ scanSpotCountLabel(selectedSpotCheckInCount()) }}
-        </span>
+        </mat-hint>
       </mat-form-field>
     }
   }
