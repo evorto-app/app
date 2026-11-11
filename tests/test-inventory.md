@@ -710,6 +710,14 @@ ESNcard provider credential path.
     success state is recorded for both buyer-plus-guest and later-guest-arrival
     flows, and both page-backed scanner paths now assert the organizer overview
     checked-in aggregate after scanner writes.
+  - Organize-list check-in (EVO-67): the scanner spec checks in a confirmed
+    attendee plus two guests from the organizer overview's row action and
+    asserts the persisted registration, option counter and checked-in
+    aggregate, and that the confirm dialog blocks check-in outside the window.
+    `docs/scanning/check-in.doc.ts` documents the same flow. App coverage pins
+    row-action visibility (scanner access, confirmed, not checked in, not the
+    viewer's own row) and the dialog's guest clamp, blocking states and error
+    copy.
 - Tenant/global admin:
   - Authenticated Browser review for the global-admin tenant list and
     tenant-create/edit flows. The global-admin tenant Playwright spec now
