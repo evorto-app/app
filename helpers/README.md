@@ -394,6 +394,8 @@ small admin, event-manager, treasurer, helper, and first-aid groups; broad membe
 receipts and approved reimbursements. Local CLI/Docker seeding writes actual
 sample PDF evidence into MinIO so receipt preview and approval work.
 
+Seeded CONFIRMED registrations carry an initial acquisition (owner plus a zero-value registration component) from `seed-registration-acquisitions.ts`, so they can be cancelled like real ones; `seedTenant` asserts this and fails the seed otherwise.
+
 Paid registrations and provider outcomes are created through Stripe test mode,
 not fabricated by the seed. Start a checkout from Sunday football to review
 payment, payment cancellation, and subsequent refund behavior. Start a transfer

@@ -10,6 +10,10 @@ import * as schema from '../src/db/schema';
 import { type SupportedTenantCurrency } from '../src/types/custom/tenant';
 import { getId } from './get-id';
 import { getSeedDate } from './seed-clock';
+import {
+  type FreeSeedRegistrationAcquisitionInput,
+  insertFreeSeedRegistrationAcquisitions,
+} from './seed-registration-acquisitions';
 import { usersToAuthenticate } from './user-data';
 
 /**
@@ -92,6 +96,8 @@ export const validateRegistrationSeedEventOwnership = (
  * - Some events are fully booked with waitlists
  * - Others have varying levels of popularity and availability
  * - Past events include realistic check-in patterns
+ * - Every CONFIRMED registration gets its initial acquisition history (owner,
+ *   zero-value registration component) so it can be cancelled like a real one
  * - Uses batch inserts for improved performance during database setup
  *
  * @param database - The database connection
@@ -100,7 +106,7 @@ export const validateRegistrationSeedEventOwnership = (
  */
 export async function addRegistrations(
   database: NodePgDatabase<typeof relations>,
-  { events, seedDate, tenantId }: AddRegistrationsInput,
+  { currency, events, seedDate, tenantId }: AddRegistrationsInput,
 ) {
   validateRegistrationSeedEventOwnership(events, tenantId);
 
@@ -177,6 +183,8 @@ export async function addRegistrations(
     return result;
   };
 
+  const seedNow = getSeedDate(seedDate ?? new Date());
+  const acquisitionInputs: FreeSeedRegistrationAcquisitionInput[] = [];
   const testerUserIds = new Set(usersToAuthenticate.map((user) => user.id));
   const seededCountByUser = new Map<string, number>();
 
@@ -190,8 +198,7 @@ export async function addRegistrations(
 
     // Determine event popularity and registration patterns
     const eventDate = new Date(event.start);
-    const now = getSeedDate(seedDate ?? new Date());
-    const isPastEvent = eventDate < now;
+    const isPastEvent = eventDate < seedNow;
 
     // Create varied registration patterns based on event type and timing
     let fillPercentage = 0.7; // Default 70%
@@ -321,6 +328,18 @@ export async function addRegistrations(
           checkedInCount++;
         }
 
+        if (status === 'CONFIRMED') {
+          acquisitionInputs.push({
+            acquiredAt: seedNow,
+            currency,
+            eventId: event.id,
+            guestCount: 0,
+            ownerUserId: user.id,
+            registrationId,
+            tenantId,
+          });
+        }
+
         // Add registration to batch
         registrations.push({
           appliedDiscountedPrice: null,
@@ -349,6 +368,7 @@ export async function addRegistrations(
   // Every write is awaited so a failed seed cannot report success.
   if (registrations.length > 0) {
     await database.insert(schema.eventRegistrations).values(registrations);
+    await insertFreeSeedRegistrationAcquisitions(database, acquisitionInputs);
   }
 
   if (optionUpdates.size > 0) {
