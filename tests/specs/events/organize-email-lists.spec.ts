@@ -80,14 +80,17 @@ test('organizer copies the confirmed attendee email list from the overview @even
     await expect(
       page.getByRole('button', {
         exact: true,
-        name: 'Copy organizer emails',
+        name: 'Copy email addresses of organizers',
       }),
     ).toBeDisabled();
   }
 
-  await page
-    .getByRole('button', { exact: true, name: 'Copy attendee emails' })
-    .click();
+  const attendeeButton = page.getByRole('button', {
+    exact: true,
+    name: 'Copy email addresses of attendees',
+  });
+  await expect(attendeeButton).toHaveText('Attendees');
+  await attendeeButton.click();
   await expect(
     page.getByText(
       expectedEmails.length === 1

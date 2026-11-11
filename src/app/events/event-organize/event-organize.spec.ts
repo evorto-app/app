@@ -2541,7 +2541,7 @@ describe('EventOrganize email list copying', () => {
     const root: HTMLElement = fixture.nativeElement;
     return (label: string) => {
       const result = [...root.querySelectorAll('button')].find(
-        (candidate) => candidate.textContent?.trim() === label,
+        (candidate) => candidate.getAttribute('aria-label') === label,
       );
       if (!result) throw new Error(`Expected the ${label} button.`);
       return result;
@@ -2570,7 +2570,7 @@ describe('EventOrganize email list copying', () => {
       ]),
     ]);
 
-    button('Copy attendee emails').click();
+    button('Copy email addresses of attendees').click();
 
     expect(copy).toHaveBeenCalledExactlyOnceWith(
       'anna@example.test, ben@example.test',
@@ -2586,7 +2586,7 @@ describe('EventOrganize email list copying', () => {
       option('helpers', true, [participant('helper@example.test')]),
     ]);
 
-    button('Copy organizer emails').click();
+    button('Copy email addresses of organizers').click();
 
     expect(copy).toHaveBeenCalledExactlyOnceWith('helper@example.test');
     expect(showSuccess).toHaveBeenCalledExactlyOnceWith(
@@ -2602,8 +2602,8 @@ describe('EventOrganize email list copying', () => {
       ]),
     ]);
 
-    button('Copy checked-in attendee emails').click();
-    button('Copy emails of attendees not checked in').click();
+    button('Copy email addresses of attendees checked in').click();
+    button('Copy email addresses of attendees not checked in').click();
 
     expect(copy.mock.calls).toEqual([
       ['ben@example.test'],
@@ -2617,7 +2617,7 @@ describe('EventOrganize email list copying', () => {
       option('attendees', false, [participant('anna@example.test')]),
     ]);
 
-    button('Copy attendee emails').click();
+    button('Copy email addresses of attendees').click();
 
     expect(showError).toHaveBeenCalledExactlyOnceWith(
       'The email addresses could not be copied. Try again.',
@@ -2630,10 +2630,27 @@ describe('EventOrganize email list copying', () => {
       option('attendees', false, [participant('anna@example.test')]),
     ]);
 
-    expect(button('Copy organizer emails').disabled).toBe(true);
-    expect(button('Copy checked-in attendee emails').disabled).toBe(true);
-    expect(button('Copy attendee emails').disabled).toBe(false);
-    button('Copy organizer emails').click();
+    expect(button('Copy email addresses of organizers').disabled).toBe(true);
+    expect(
+      button('Copy email addresses of attendees checked in').disabled,
+    ).toBe(true);
+    expect(button('Copy email addresses of attendees').disabled).toBe(false);
+    button('Copy email addresses of organizers').click();
     expect(copy).not.toHaveBeenCalled();
+  });
+
+  it('shows a short visible label on each button', async () => {
+    const button = await render([
+      option('attendees', false, [participant('anna@example.test')]),
+    ]);
+
+    expect(
+      [
+        'Copy email addresses of organizers',
+        'Copy email addresses of attendees',
+        'Copy email addresses of attendees checked in',
+        'Copy email addresses of attendees not checked in',
+      ].map((name) => button(name).textContent?.trim()),
+    ).toEqual(['Organizers', 'Attendees', 'Checked in', 'Not checked in']);
   });
 });

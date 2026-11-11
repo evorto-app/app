@@ -192,11 +192,28 @@ export const buildEventOrganizeEmailLists = (
 };
 
 const eventOrganizeEmailListActions = [
-  { group: 'organizers', label: 'Copy organizer emails' },
-  { group: 'attendees', label: 'Copy attendee emails' },
-  { group: 'checkedIn', label: 'Copy checked-in attendee emails' },
-  { group: 'notCheckedIn', label: 'Copy emails of attendees not checked in' },
+  {
+    accessibleName: 'Copy email addresses of organizers',
+    group: 'organizers',
+    label: 'Organizers',
+  },
+  {
+    accessibleName: 'Copy email addresses of attendees',
+    group: 'attendees',
+    label: 'Attendees',
+  },
+  {
+    accessibleName: 'Copy email addresses of attendees checked in',
+    group: 'checkedIn',
+    label: 'Checked in',
+  },
+  {
+    accessibleName: 'Copy email addresses of attendees not checked in',
+    group: 'notCheckedIn',
+    label: 'Not checked in',
+  },
 ] as const satisfies readonly {
+  accessibleName: string;
   group: EventOrganizeEmailListGroup;
   label: string;
 }[];
