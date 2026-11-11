@@ -137,6 +137,7 @@ layer(
     'templates:create',
     'templates:editAll',
     'templates:manageCategories',
+    'templates:*',
   ] as const satisfies readonly Permission[])(
     'returns the tenant categories for %s alone',
     (permission) =>

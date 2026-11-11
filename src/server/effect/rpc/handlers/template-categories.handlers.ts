@@ -1,11 +1,3 @@
-import {
-  RpcForbiddenError,
-  RpcUnauthorizedError,
-} from '@shared/errors/rpc-errors';
-import {
-  includesPermission,
-  type Permission,
-} from '@shared/permissions/permissions';
 import { TemplateCategoryNotFoundError } from '@shared/rpc-contracts/app-rpcs/template-categories.errors';
 import { and, eq } from 'drizzle-orm';
 import { Effect } from 'effect';
@@ -16,44 +8,10 @@ import { Database, type DatabaseClient } from '../../../../db';
 import { eventTemplateCategories } from '../../../../db/schema';
 import { RpcAccess } from './shared/rpc-access.service';
 
-const TEMPLATE_CATEGORY_READ_PERMISSIONS = [
-  'templates:view',
-  'templates:create',
-  'templates:editAll',
-  'templates:manageCategories',
-] as const satisfies readonly Permission[];
-
 const databaseEffect = <A>(
   operation: (database: DatabaseClient) => Effect.Effect<A, unknown, never>,
 ): Effect.Effect<A, never, Database> =>
   Database.use((database) => operation(database).pipe(Effect.orDie));
-
-const ensureTemplateCategoryReadPermission = (): Effect.Effect<
-  void,
-  RpcForbiddenError | RpcUnauthorizedError,
-  RpcAccess
-> =>
-  Effect.gen(function* () {
-    const context = yield* RpcAccess.current();
-    if (!context.authenticated) {
-      return yield* Effect.fail(
-        new RpcUnauthorizedError({
-          message: 'Sign in to view template categories.',
-        }),
-      );
-    }
-
-    const isAllowed = TEMPLATE_CATEGORY_READ_PERMISSIONS.some((permission) =>
-      includesPermission(permission, context.permissions),
-    );
-    if (!isAllowed) {
-      return yield* Effect.fail(
-        new RpcForbiddenError({
-          message: 'You do not have permission to view template categories.',
-        }),
-      );
-    }
-  });
 
 export const templateCategoryHandlers = {
   'templateCategories.create': ({ icon, title }, _options) =>
@@ -71,7 +29,7 @@ export const templateCategoryHandlers = {
     }),
   'templateCategories.findMany': (_payload, _options) =>
     Effect.gen(function* () {
-      yield* ensureTemplateCategoryReadPermission();
+      yield* RpcAccess.ensurePermission('templates:view');
       const { tenant } = yield* RpcAccess.current();
       const templateCategories = yield* databaseEffect((database) =>
         database.query.eventTemplateCategories.findMany({
