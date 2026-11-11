@@ -1,0 +1,42 @@
+{
+  "cli_version": "0.13.1",
+  "checkpoint_id": "01M765YMFFQYJCNW75ZHXK78AD",
+  "strategy": "manual-commit",
+  "branch": "codex/evo-46-review",
+  "checkpoints_count": 12,
+  "files_touched": [
+    "tests/specs/templates/template-permission-dependencies.spec.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 5991,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 6132992,
+    "output_tokens": 15909,
+    "api_call_count": 14
+  },
+  "redaction": {
+    "replacements": 1220,
+    "layers": {
+      "betterleaks": 414,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 54,
+      "credentialed_uri": 48,
+      "custom": 257,
+      "entropy": 1241,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    },
+    "custom_rules_active": 62
+  }
+}

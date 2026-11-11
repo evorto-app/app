@@ -1,0 +1,3 @@
+<send_user_message_question_reply>
+[{"questionItemId":"[\"request_user_input_async\",\"call_c13e969c71564474b95e9ce375471f28\",0]","question":"The corrected commit now has a fresh, audited recording with all mail payloads removed. May I delete only the two earlier unpublished local attempts (`01M76410DZKEN3ZPNT41AGJ8NE` and `01M764QJ4PHW39ZPJADW1HBYFZ`) so automatic checkpoint uploads can be restored? Both are backed up locally; code, the original chat, published sessions and other checkpoints will remain intact. Entire’s checkpoint-deletion command explicitly requires this approval.","answer":"Delete those two local attempts (Recommended)"}]
+</send_user_message_question_reply>
