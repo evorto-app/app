@@ -1,0 +1,44 @@
+{
+  "cli_version": "0.13.1",
+  "checkpoint_id": "01M765E3Y111YY6Z5ZBHVQPFWT",
+  "strategy": "manual-commit",
+  "branch": "codex/evo-46-review",
+  "checkpoints_count": 12,
+  "files_touched": [
+    "tests/docs/events/organizer-signup.doc.ts",
+    "tests/docs/roles/roles.doc.ts",
+    "tests/specs/admin/roles-management.spec.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 10930,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 7069184,
+    "output_tokens": 18857,
+    "api_call_count": 18
+  },
+  "redaction": {
+    "replacements": 1193,
+    "layers": {
+      "betterleaks": 390,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 51,
+      "credentialed_uri": 45,
+      "custom": 248,
+      "entropy": 1238,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    },
+    "custom_rules_active": 62
+  }
+}

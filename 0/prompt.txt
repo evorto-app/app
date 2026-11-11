@@ -1,0 +1,3 @@
+<send_user_message_question_reply>
+[{"questionItemId":"[\"request_user_input_async\",\"call_e641e4f537594fa383c4ef5bb0dd6fa2\",0]","question":"For the public session recording, should I remove all email payloads shown in the preview, or retain Franz’s technical access message while removing addresses, headers and unrelated mail? I can continue testing either way; no checkpoint deletion is needed.","answer":"Remove all mail payloads (Recommended)"}]
+</send_user_message_question_reply>
