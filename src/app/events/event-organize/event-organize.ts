@@ -3,6 +3,7 @@ import type {
   EventsRegistrationStatus,
 } from '@shared/rpc-contracts/app-rpcs/events.rpcs';
 
+import { Clipboard } from '@angular/cdk/clipboard';
 import { PercentPipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
@@ -17,7 +18,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
 import { RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
-import { faArrowLeft } from '@fortawesome/duotone-regular-svg-icons';
+import { faArrowLeft, faCopy } from '@fortawesome/duotone-regular-svg-icons';
 import {
   RpcForbiddenError,
   RpcUnauthorizedError,
@@ -141,6 +142,82 @@ export const groupEventOrganizeRegistrationOptions = <
     },
   ] as const;
 
+export type EventOrganizeEmailListGroup = keyof EventOrganizeEmailLists;
+
+export type EventOrganizeEmailLists = ReturnType<
+  typeof buildEventOrganizeEmailLists
+>;
+
+interface EventOrganizeEmailListOption {
+  organizingRegistration: boolean;
+  users: readonly {
+    checkedIn: boolean;
+    email: string;
+    status: EventsRegistrationStatus;
+  }[];
+}
+
+export const buildEventOrganizeEmailLists = (
+  registrationOptions: readonly EventOrganizeEmailListOption[],
+) => {
+  const lists = {
+    attendees: new Map<string, string>(),
+    checkedIn: new Map<string, string>(),
+    notCheckedIn: new Map<string, string>(),
+    organizers: new Map<string, string>(),
+  };
+  const add = (list: Map<string, string>, email: string) => {
+    const address = email.trim();
+    const key = address.toLowerCase();
+    if (address !== '' && !list.has(key)) list.set(key, address);
+  };
+  for (const option of registrationOptions) {
+    for (const user of option.users) {
+      if (user.status !== 'CONFIRMED') continue;
+      if (option.organizingRegistration) {
+        add(lists.organizers, user.email);
+        continue;
+      }
+      add(lists.attendees, user.email);
+      add(user.checkedIn ? lists.checkedIn : lists.notCheckedIn, user.email);
+    }
+  }
+
+  return {
+    attendees: [...lists.attendees.values()],
+    checkedIn: [...lists.checkedIn.values()],
+    notCheckedIn: [...lists.notCheckedIn.values()],
+    organizers: [...lists.organizers.values()],
+  };
+};
+
+const eventOrganizeEmailListActions = [
+  {
+    accessibleName: 'Copy email addresses of organizers',
+    group: 'organizers',
+    label: 'Organizers',
+  },
+  {
+    accessibleName: 'Copy email addresses of attendees',
+    group: 'attendees',
+    label: 'Attendees',
+  },
+  {
+    accessibleName: 'Copy email addresses of attendees checked in',
+    group: 'checkedIn',
+    label: 'Checked in',
+  },
+  {
+    accessibleName: 'Copy email addresses of attendees not checked in',
+    group: 'notCheckedIn',
+    label: 'Not checked in',
+  },
+] as const satisfies readonly {
+  accessibleName: string;
+  group: EventOrganizeEmailListGroup;
+  label: string;
+}[];
+
 export interface EventOrganizeParticipant {
   addonPurchases: readonly {
     quantity: number;
@@ -230,8 +307,15 @@ export class EventOrganize {
   protected readonly eventQuery = injectQuery(() =>
     this.rpc.events.findOne.queryOptions({ id: this.eventId() }),
   );
+  protected readonly emailListActions = eventOrganizeEmailListActions;
+  protected readonly emailLists = computed(() =>
+    buildEventOrganizeEmailLists(
+      this.organizerOverviewQuery.data()?.registrationOptions ?? [],
+    ),
+  );
   protected readonly event = computed(() => this.eventQuery.data());
   protected readonly faArrowLeft = faArrowLeft;
+  protected readonly faCopy = faCopy;
   protected readonly organizerOverviewQuery = injectQuery(() =>
     this.rpc.events.getOrganizeOverview.queryOptions({
       eventId: this.eventId(),
@@ -292,6 +376,7 @@ export class EventOrganize {
     eventId: string;
   }>(null);
   private readonly approvalPendingRegistrationId = signal<null | string>(null);
+  private readonly clipboard = inject(Clipboard);
   private readonly config = inject(ConfigService);
 
   private readonly dialog = inject(MatDialog);
@@ -473,6 +558,21 @@ export class EventOrganize {
           this.notifications.showSuccess(completedMessage);
         },
       },
+    );
+  }
+
+  protected copyEmailList(group: EventOrganizeEmailListGroup): void {
+    const addresses = this.emailLists()[group];
+    if (addresses.length === 0) return;
+
+    if (this.clipboard.copy(addresses.join(', '))) {
+      this.notifications.showSuccess(
+        `${addresses.length} email address${addresses.length === 1 ? '' : 'es'} copied`,
+      );
+      return;
+    }
+    this.notifications.showError(
+      'The email addresses could not be copied. Try again.',
     );
   }
 
