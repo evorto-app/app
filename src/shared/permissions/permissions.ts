@@ -409,7 +409,10 @@ export const PERMISSION_DEPENDENCIES: Partial<
   PERMISSION_GROUPS.flatMap((group) =>
     group.permissions.map((perm) => {
       switch (perm.key) {
-        case 'events:create': {
+        case 'events:create':
+        case 'templates:create':
+        case 'templates:editAll':
+        case 'templates:manageCategories': {
           return [perm.key, ['templates:view']];
         }
         case 'events:review': {

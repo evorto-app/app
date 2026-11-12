@@ -29,7 +29,7 @@ export const templateCategoryHandlers = {
     }),
   'templateCategories.findMany': (_payload, _options) =>
     Effect.gen(function* () {
-      yield* RpcAccess.ensureAuthenticated();
+      yield* RpcAccess.ensurePermission('templates:view');
       const { tenant } = yield* RpcAccess.current();
       const templateCategories = yield* databaseEffect((database) =>
         database.query.eventTemplateCategories.findMany({
