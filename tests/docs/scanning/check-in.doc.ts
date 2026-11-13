@@ -10,6 +10,8 @@ import {
   eventInstances,
   eventRegistrationOptions,
   eventRegistrations,
+  users,
+  usersToTenants,
 } from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { takeScreenshot } from '../../support/reporters/documentation-reporter';
@@ -417,5 +419,218 @@ The organizer overview increases by the attendee plus the guests actually checke
 Never bypass a warning by changing the link or using another organization. Ask an organization administrator to review your organizer access or the attendee's ticket when the displayed details are not correct.
 `,
     });
+  }
+});
+
+test('Check in from the attendee list', async ({
+  database,
+  page,
+  seeded,
+  testClock,
+
+  registerDatabaseCleanup,
+}, testInfo) => {
+  const eventId = seeded.scenario.events.past.eventId;
+  const event = seeded.events.find((seededEvent) => seededEvent.id === eventId);
+  const participantOption = event?.registrationOptions.find(
+    (option) => !option.organizingRegistration && !option.isPaid,
+  );
+  if (!participantOption) {
+    throw new Error(
+      'Expected seeded participant option for attendee list check-in documentation',
+    );
+  }
+
+  const [optionBefore] = await database
+    .select({
+      checkedInSpots: eventRegistrationOptions.checkedInSpots,
+      confirmedSpots: eventRegistrationOptions.confirmedSpots,
+      reservedSpots: eventRegistrationOptions.reservedSpots,
+      spots: eventRegistrationOptions.spots,
+    })
+    .from(eventRegistrationOptions)
+    .where(
+      and(
+        eq(eventRegistrationOptions.eventId, eventId),
+        eq(eventRegistrationOptions.id, participantOption.id),
+      ),
+    );
+  const [eventBefore] = await database
+    .select({
+      end: eventInstances.end,
+      start: eventInstances.start,
+    })
+    .from(eventInstances)
+    .where(eq(eventInstances.id, eventId));
+  if (!optionBefore || !eventBefore) {
+    throw new Error(
+      `Expected event "${eventId}" and its option for attendee list check-in documentation`,
+    );
+  }
+
+  const registrationId = getId();
+  const attendeeUserId = getId();
+  const attendeeTenantUserId = getId();
+  const attendeeEmail = `list-check-in-${attendeeUserId}@example.test`;
+  const attendeeName = 'Alex Example';
+  const registrationSpotCount = 2;
+  const confirmedSpots = optionBefore.confirmedSpots + registrationSpotCount;
+  if (
+    confirmedSpots + optionBefore.reservedSpots > optionBefore.spots ||
+    optionBefore.checkedInSpots > confirmedSpots
+  ) {
+    throw new Error(
+      `Registration option "${participantOption.id}" lacks coherent capacity for attendee list check-in documentation`,
+    );
+  }
+  const scannerNow = testClock.toJSDate();
+
+  registerDatabaseCleanup(async () => {
+    await database.delete(users).where(eq(users.id, attendeeUserId));
+  });
+  registerDatabaseCleanup(async () => {
+    await database
+      .delete(usersToTenants)
+      .where(eq(usersToTenants.id, attendeeTenantUserId));
+  });
+  registerDatabaseCleanup(async () => {
+    await database
+      .update(eventInstances)
+      .set({ end: eventBefore.end, start: eventBefore.start })
+      .where(eq(eventInstances.id, eventId));
+  });
+  registerDatabaseCleanup(async () => {
+    await database
+      .update(eventRegistrationOptions)
+      .set({
+        checkedInSpots: optionBefore.checkedInSpots,
+        confirmedSpots: optionBefore.confirmedSpots,
+      })
+      .where(eq(eventRegistrationOptions.id, participantOption.id));
+  });
+  registerDatabaseCleanup(async () => {
+    await database
+      .delete(eventRegistrations)
+      .where(eq(eventRegistrations.id, registrationId));
+  });
+  {
+    await database
+      .update(eventInstances)
+      .set({
+        end: new Date(scannerNow.getTime() + 30 * 60 * 1000),
+        start: new Date(scannerNow.getTime() - 30 * 60 * 1000),
+      })
+      .where(eq(eventInstances.id, eventId));
+    await database.transaction(async (transaction) => {
+      await transaction.insert(users).values({
+        auth0Id: `test|list-check-in-${attendeeUserId}`,
+        communicationEmail: attendeeEmail,
+        email: attendeeEmail,
+        firstName: 'Alex',
+        id: attendeeUserId,
+        lastName: 'Example',
+      });
+      await transaction.insert(usersToTenants).values({
+        id: attendeeTenantUserId,
+        tenantId: seeded.tenant.id,
+        userId: attendeeUserId,
+      });
+      const updatedOptions = await transaction
+        .update(eventRegistrationOptions)
+        .set({ confirmedSpots })
+        .where(
+          and(
+            eq(eventRegistrationOptions.eventId, eventId),
+            eq(eventRegistrationOptions.id, participantOption.id),
+            eq(
+              eventRegistrationOptions.checkedInSpots,
+              optionBefore.checkedInSpots,
+            ),
+            eq(
+              eventRegistrationOptions.confirmedSpots,
+              optionBefore.confirmedSpots,
+            ),
+          ),
+        )
+        .returning({ id: eventRegistrationOptions.id });
+      if (updatedOptions.length !== 1) {
+        throw new Error(
+          `Registration option "${participantOption.id}" counters changed before attendee list check-in documentation setup`,
+        );
+      }
+
+      await transaction.insert(eventRegistrations).values({
+        appliedDiscountedPrice: null,
+        appliedDiscountType: null,
+        basePriceAtRegistration: participantOption.price,
+        checkedInGuestCount: 0,
+        discountAmount: 0,
+        eventId,
+        guestCount: 1,
+        id: registrationId,
+        registrationOptionId: participantOption.id,
+        status: 'CONFIRMED',
+        tenantId: seeded.tenant.id,
+        userId: attendeeUserId,
+      });
+    });
+
+    await testInfo.attach('markdown', {
+      body: `
+{% callout type="note" title="Who can do this" %}
+You need a confirmed organizer/helper ticket for the event or **Organize all events** access. Check-in opens one hour before the event starts and closes two hours after it ends.
+{% /callout %}
+
+If an attendee cannot show their ticket, for example because their phone battery died, check them in from the organizer overview instead.
+`,
+    });
+
+    await page.goto(`/events/${eventId}/organize`);
+    const checkInButton = page.getByRole('button', {
+      name: `Check in ${attendeeName}`,
+    });
+    await expect(checkInButton).toBeVisible({ timeout: 15_000 });
+    await takeScreenshot(
+      testInfo,
+      checkInButton,
+      page,
+      'Select Check in next to the attendee in the registration list',
+    );
+    await checkInButton.click();
+
+    const dialog = page.getByRole('dialog', {
+      name: `Check in ${attendeeName}`,
+    });
+    await expect(dialog).toBeVisible();
+    const confirmCheckIn = await fillScannerGuestCheckInCount(dialog, {
+      guestCount: 1,
+      includeAttendee: true,
+    });
+    await takeScreenshot(
+      testInfo,
+      dialog,
+      page,
+      'Choose how many guests are arriving now and confirm the check-in',
+    );
+    await testInfo.attach('markdown', {
+      body: `
+Choose how many guests are arriving with the attendee, then confirm. Guests who arrive after the attendee is checked in are checked in by scanning the ticket.
+`,
+    });
+    await confirmCheckIn.click();
+
+    await expect(dialog).toBeHidden();
+    await expect(page.getByText(`${attendeeName} is checked in`)).toBeVisible();
+    await expect(checkInButton).toHaveCount(0);
+    const attendeeRow = page
+      .getByTestId('event-organize-registration')
+      .filter({ hasText: attendeeName });
+    await expect(attendeeRow).toContainText('Checked in');
+    await takeScreenshot(
+      testInfo,
+      attendeeRow,
+      page,
+      'The attendee is marked as checked in',
+    );
   }
 });

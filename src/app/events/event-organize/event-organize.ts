@@ -53,6 +53,11 @@ import {
   RegistrationCancellationConfirmationDialogComponent,
 } from '../registration-cancellation-confirmation-dialog.component';
 import {
+  ManualCheckInDialogComponent,
+  type ManualCheckInDialogData,
+  type ManualCheckInDialogResult,
+} from './manual-check-in-dialog.component';
+import {
   ReceiptSubmitDialogComponent,
   type ReceiptSubmitDialogData,
   ReceiptSubmitDialogResult,
@@ -166,6 +171,25 @@ export const organizerRegistrationActionDisabled = ({
   mutationPending: boolean;
 }): boolean => checkedIn || mutationPending;
 
+export const organizerManualCheckInAvailable = ({
+  canUseScanner,
+  checkedIn,
+  selfUserId,
+  status,
+  userId,
+}: {
+  canUseScanner: boolean;
+  checkedIn: boolean;
+  selfUserId: null | string;
+  status: EventsRegistrationStatus;
+  userId: string;
+}): boolean =>
+  canUseScanner &&
+  status === 'CONFIRMED' &&
+  !checkedIn &&
+  selfUserId !== null &&
+  selfUserId !== userId;
+
 export const organizerRegistrationApprovalDisabled = ({
   manualApprovalAvailable,
   mutationPending,
@@ -227,11 +251,17 @@ export class EventOrganize {
   protected readonly cancelRegistrationMutation = injectMutation(() =>
     this.rpc.events.cancelEventRegistration.mutationOptions(),
   );
+  protected readonly canUseScannerQuery = injectQuery(() =>
+    this.rpc.users.canUseScanner.queryOptions(),
+  );
   protected readonly eventQuery = injectQuery(() =>
     this.rpc.events.findOne.queryOptions({ id: this.eventId() }),
   );
   protected readonly event = computed(() => this.eventQuery.data());
   protected readonly faArrowLeft = faArrowLeft;
+  protected readonly maybeSelfQuery = injectQuery(() =>
+    this.rpc.users.maybeSelf.queryOptions(),
+  );
   protected readonly organizerOverviewQuery = injectQuery(() =>
     this.rpc.events.getOrganizeOverview.queryOptions({
       eventId: this.eventId(),
@@ -474,6 +504,63 @@ export class EventOrganize {
         },
       },
     );
+  }
+
+  protected async checkInRegistration(
+    registration: Pick<
+      EventOrganizeParticipant,
+      'firstName' | 'lastName' | 'registrationId'
+    >,
+  ): Promise<void> {
+    const attendeeName = `${registration.firstName} ${registration.lastName}`;
+    const result = await firstValueFrom(
+      this.dialog
+        .open<
+          ManualCheckInDialogComponent,
+          ManualCheckInDialogData,
+          ManualCheckInDialogResult
+        >(ManualCheckInDialogComponent, {
+          data: { attendeeName, registrationId: registration.registrationId },
+          width: 'min(32rem, calc(100vw - 2rem))',
+        })
+        .afterClosed(),
+    );
+    if (result === undefined) {
+      return;
+    }
+
+    this.notifications.showSuccess(
+      result.alreadyCheckedIn
+        ? `${attendeeName} was already checked in`
+        : `${attendeeName} is checked in`,
+    );
+    try {
+      await this.invalidateOrganizerState();
+    } catch (error) {
+      consola
+        .withTag('app/event-organize')
+        .error(
+          'Check-in succeeded but the organizer view could not refresh',
+          error,
+        );
+      this.notifications.showError(
+        'The page could not be updated. Load the page again to check the current sign-up details.',
+      );
+    }
+  }
+
+  protected canCheckIn(
+    user: Pick<EventOrganizeParticipant, 'checkedIn' | 'status'> & {
+      userId: string;
+    },
+  ): boolean {
+    return organizerManualCheckInAvailable({
+      canUseScanner: this.canUseScannerQuery.data() ?? false,
+      checkedIn: user.checkedIn,
+      selfUserId: this.maybeSelfQuery.data()?.id ?? null,
+      status: user.status,
+      userId: user.userId,
+    });
   }
 
   protected async openReceiptDialog(): Promise<void> {

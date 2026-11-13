@@ -1,0 +1,120 @@
+<h2 mat-dialog-title>Check in {{ data.attendeeName }}</h2>
+<mat-dialog-content>
+  @if (scanResultQuery.isPending()) {
+    <p role="status">Loading ticket…</p>
+  } @else if (scanResultQuery.isError()) {
+    <div
+      class="bg-error-container text-on-error-container rounded p-3"
+      role="alert"
+    >
+      <p>{{ queryErrorMessage() }}</p>
+    </div>
+  } @else if (scanResultQuery.isSuccess()) {
+    @let scanResult = scanResultQuery.data();
+    <p class="body-medium">{{ scanResult.registrationOption.title }}</p>
+    @if (scanResult.guestCount > 0) {
+      <p class="body-small text-on-surface-variant mt-1">
+        Includes {{ scanResult.guestCount }}
+        {{ scanResult.guestCount === 1 ? "guest" : "guests" }}.
+        {{ scanResult.checkedInGuestCount }} checked in,
+        {{ scanResult.remainingGuestCount }} remaining.
+      </p>
+    }
+    @let timingIssue =
+      scanCheckInTimingIssueCopy(scanResult.checkInTimingIssue);
+    @if (timingIssue) {
+      <div
+        class="bg-error-container text-on-error-container mt-3 rounded p-3"
+        role="alert"
+      >
+        <p class="title-small">{{ timingIssue.title }}</p>
+        <p>{{ timingIssue.body }}</p>
+      </div>
+    }
+    @let statusIssue =
+      scanRegistrationStatusIssueCopy(scanResult.registrationStatus);
+    @if (statusIssue) {
+      <div
+        class="bg-error-container text-on-error-container mt-3 rounded p-3"
+        role="alert"
+      >
+        <p class="title-small">{{ statusIssue.title }}</p>
+        <p>{{ statusIssue.body }}</p>
+      </div>
+    }
+    @if (scanResult.sameUserIssue) {
+      <div
+        class="bg-error-container text-on-error-container mt-3 rounded p-3"
+        role="alert"
+      >
+        <p class="title-small">This is your own ticket</p>
+        <p>Ask another organizer to check in this ticket.</p>
+      </div>
+    }
+    @if (scanResult.alreadyCheckedInIssue) {
+      <div
+        class="bg-tertiary-container text-on-tertiary-container mt-3 rounded p-3"
+      >
+        <p class="title-small">Already checked in</p>
+        <p>This ticket has already been checked in.</p>
+      </div>
+    }
+    @if (scanResult.allowCheckin && scanResult.remainingGuestCount > 0) {
+      <mat-form-field appearance="outline" class="mt-4 w-full">
+        <mat-label>Guests to check in now</mat-label>
+        <input
+          matInput
+          type="number"
+          min="0"
+          [max]="scanResult.remainingGuestCount"
+          [value]="selectedGuestCheckInCount()"
+          (input)="updateGuestCheckInCount($event)"
+        />
+        <mat-hint>
+          {{ scanSpotCountLabel(selectedSpotCheckInCount()) }}
+        </mat-hint>
+      </mat-form-field>
+    }
+  }
+  @if (checkInMutation.isError()) {
+    <div
+      class="bg-error-container text-on-error-container mt-3 rounded p-3"
+      role="alert"
+    >
+      <p>
+        {{ checkInErrorMessage() }}
+      </p>
+    </div>
+  }
+</mat-dialog-content>
+<mat-dialog-actions align="end">
+  <button
+    mat-button
+    mat-dialog-close
+    type="button"
+    [disabled]="checkInMutation.isPending()"
+  >
+    Cancel
+  </button>
+  <button
+    mat-flat-button
+    type="button"
+    (click)="checkIn()"
+    [disabled]="
+      scanCheckInActionDisabled({
+        allowCheckin: scanResultQuery.data()?.allowCheckin ?? false,
+        completed: false,
+        mutationPending: checkInMutation.isPending(),
+        spotCount: selectedSpotCheckInCount(),
+      })
+    "
+  >
+    {{
+      scanCheckInButtonLabel({
+        completed: false,
+        pending: checkInMutation.isPending(),
+        spotCount: selectedSpotCheckInCount(),
+      })
+    }}
+  </button>
+</mat-dialog-actions>
