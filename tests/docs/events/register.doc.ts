@@ -12,6 +12,7 @@ import {
   seedFreeRegistrationAddon,
   seedRequiredRegistrationQuestion,
 } from '../../support/utils/seed-registration-addons';
+import { deleteRegistrationsWithAcquisitionLedger } from '../../support/utils/registration-acquisition-cleanup';
 import { futureServerEventWindow } from '../../support/utils/server-test-clock';
 import { waitForAppRpcResponse } from '../../support/utils/rpc-response';
 import { waitForRegistrationPage as waitForRegistrationStatus } from '../../support/utils/event-registration-page';
@@ -91,15 +92,12 @@ test.describe('Sign up for events', () => {
     const addOnId = `addon-${getId().slice(0, 14)}`;
     const serverEventWindow = futureServerEventWindow();
 
-    await database
-      .delete(schema.eventRegistrations)
-      .where(
-        and(
-          eq(schema.eventRegistrations.eventId, freeEventId),
-          eq(schema.eventRegistrations.tenantId, tenant.id),
-          eq(schema.eventRegistrations.userId, regularUser.id),
-        ),
-      );
+    await deleteRegistrationsWithAcquisitionLedger({
+      database,
+      eventId: freeEventId,
+      tenantId: tenant.id,
+      userId: regularUser.id,
+    });
     await database
       .update(schema.eventRegistrationOptions)
       .set({
@@ -655,15 +653,12 @@ test.describe('Sign up for events', () => {
 `,
     });
 
-    await database
-      .delete(schema.eventRegistrations)
-      .where(
-        and(
-          eq(schema.eventRegistrations.eventId, closedEventId),
-          eq(schema.eventRegistrations.tenantId, tenant.id),
-          eq(schema.eventRegistrations.userId, regularUser.id),
-        ),
-      );
+    await deleteRegistrationsWithAcquisitionLedger({
+      database,
+      eventId: closedEventId,
+      tenantId: tenant.id,
+      userId: regularUser.id,
+    });
     await page.goto(`/events/${closedEventId}`);
     await waitForRegistrationStatus(page);
     await expect(page.getByText('Sign-up closed')).toBeVisible();
@@ -683,15 +678,12 @@ test.describe('Sign up for events', () => {
 `,
     });
 
-    await database
-      .delete(schema.eventRegistrations)
-      .where(
-        and(
-          eq(schema.eventRegistrations.eventId, fullEventId),
-          eq(schema.eventRegistrations.tenantId, tenant.id),
-          eq(schema.eventRegistrations.userId, regularUser.id),
-        ),
-      );
+    await deleteRegistrationsWithAcquisitionLedger({
+      database,
+      eventId: fullEventId,
+      tenantId: tenant.id,
+      userId: regularUser.id,
+    });
     await database
       .update(schema.eventRegistrationOptions)
       .set({
@@ -885,15 +877,12 @@ To give up the position before the event starts, select **Leave waitlist**. When
           .where(eq(schema.eventRegistrationOptions.id, optionId));
       });
       {
-        await database
-          .delete(schema.eventRegistrations)
-          .where(
-            and(
-              eq(schema.eventRegistrations.eventId, eventId),
-              eq(schema.eventRegistrations.tenantId, tenant.id),
-              eq(schema.eventRegistrations.userId, regularUser.id),
-            ),
-          );
+        await deleteRegistrationsWithAcquisitionLedger({
+          database,
+          eventId,
+          tenantId: tenant.id,
+          userId: regularUser.id,
+        });
         await database
           .update(schema.eventRegistrationOptions)
           .set({ roleIds: organizerRoleIds })
@@ -974,16 +963,13 @@ To give up the position before the event starts, select **Leave waitlist**. When
           eq(schema.transactions.type, 'registration'),
         ),
       );
-    await database
-      .delete(schema.eventRegistrations)
-      .where(
-        and(
-          eq(schema.eventRegistrations.eventId, paidEvent.id),
-          eq(schema.eventRegistrations.registrationOptionId, paidOptionId),
-          eq(schema.eventRegistrations.tenantId, tenant.id),
-          eq(schema.eventRegistrations.userId, regularUserId),
-        ),
-      );
+    await deleteRegistrationsWithAcquisitionLedger({
+      database,
+      eventId: paidEvent.id,
+      registrationOptionId: paidOptionId,
+      tenantId: tenant.id,
+      userId: regularUserId,
+    });
     await database
       .update(schema.eventRegistrationOptions)
       .set({
