@@ -5,26 +5,56 @@
   sidebarLabel="Template list"
   detailLabel="Selected template"
 >
-  <div twoColumnHeader class="flex w-full flex-row items-center gap-2">
-    <h1 class="title-large">Event templates</h1>
-    <div class="grow"></div>
-    <a mat-button routerLink="categories" class="hidden! lg:flex!">
-      {{ canManageCategories() ? "Manage categories" : "View categories" }}
-    </a>
-    <button
-      class="lg:hidden!"
-      aria-label="Open template list actions"
-      mat-icon-button
-      [matMenuTriggerFor]="menu"
-    >
-      <fa-duotone-icon [icon]="faEllipsisVertical" />
-    </button>
-    <mat-menu #menu="matMenu">
-      <a routerLink="categories" mat-menu-item>
+  <div twoColumnHeader class="flex w-full flex-col gap-2">
+    <div class="flex w-full flex-row items-center gap-2">
+      <h1 class="title-large">Event templates</h1>
+      <div class="grow"></div>
+      <a mat-button routerLink="categories" class="hidden! lg:flex!">
         {{ canManageCategories() ? "Manage categories" : "View categories" }}
       </a>
-      <!-- <a routerLink="../create" mat-menu-item>Create template</a> -->
-    </mat-menu>
+      <button
+        class="lg:hidden!"
+        aria-label="Open template list actions"
+        mat-icon-button
+        [matMenuTriggerFor]="menu"
+      >
+        <fa-duotone-icon [icon]="faEllipsisVertical" />
+      </button>
+      <mat-menu #menu="matMenu">
+        <a routerLink="categories" mat-menu-item>
+          {{ canManageCategories() ? "Manage categories" : "View categories" }}
+        </a>
+        <!-- <a routerLink="../create" mat-menu-item>Create template</a> -->
+      </mat-menu>
+    </div>
+    @if (templateQuery.isSuccess() && templateQuery.data().length > 0) {
+      <mat-form-field
+        appearance="outline"
+        subscriptSizing="dynamic"
+        class="w-full"
+      >
+        <mat-label>Search templates</mat-label>
+        <input
+          #templateSearchInput
+          matInput
+          type="search"
+          autocomplete="off"
+          [value]="templateSearch()"
+          (input)="updateTemplateSearch($event)"
+        />
+        @if (templateSearch()) {
+          <button
+            mat-icon-button
+            matSuffix
+            type="button"
+            aria-label="Clear search"
+            (click)="clearTemplateSearch(templateSearchInput)"
+          >
+            <fa-duotone-icon [icon]="faXmark" />
+          </button>
+        }
+      </mat-form-field>
+    }
   </div>
   <nav twoColumnSidebar class="flex flex-col gap-4">
     @if (templateQuery.isPending()) {
@@ -65,7 +95,7 @@
         Create template
       </a>
       @for (
-        templateCategory of templateQuery.data();
+        templateCategory of filteredCategories();
         track templateCategory.id
       ) {
         <div
@@ -96,7 +126,19 @@
           }
         </div>
       } @empty {
-        <p>No template categories found</p>
+        @if (isFilteringTemplates()) {
+          <div
+            role="status"
+            class="bg-surface text-on-surface flex flex-col gap-1 rounded-2xl p-4"
+          >
+            <h2 class="title-medium">No matching templates</h2>
+            <p class="body-medium text-on-surface-variant">
+              No template title contains “{{ trimmedTemplateSearch() }}”.
+            </p>
+          </div>
+        } @else {
+          <p>No template categories found</p>
+        }
       }
     }
   </nav>

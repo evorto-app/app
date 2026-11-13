@@ -189,7 +189,7 @@ Templates are reusable starting points for events. To create an event, choose th
 
 
 ## Creating templates
-Start by navigating to **Templates**. Here you can see an overview of the existing templates.
+Start by navigating to **Templates**. Here you can see the existing templates grouped by category. To find one quickly, type part of its title into **Search templates**.
 Select **Create template** to create a new template.`,
   });
   await page.getByRole('link', { name: 'Templates' }).click();
