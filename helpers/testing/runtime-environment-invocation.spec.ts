@@ -8,6 +8,7 @@ import { Client } from 'pg';
 
 import { resolveLocalDatabaseEnvironment } from '../local-database-preflight';
 
+import { DEFAULT_E2E_NOW_ISO } from './deterministic-test-defaults';
 import {
   resolveInvocationEnvironment,
   resolveRuntimePorts,
@@ -77,6 +78,8 @@ const addPackageScripts = (fixture: ReturnType<typeof createFixture>) => {
   for (const name of [
     'env:run',
     'db:reset',
+    'docker:start',
+    'docker:start:walkthrough',
     'docker:webserver',
     'test:e2e',
     'test:e2e:check',
@@ -544,6 +547,65 @@ mock.module(${JSON.stringify(path.join(process.cwd(), 'helpers/testing/reset-pub
         fs.existsSync(path.join(leaseRoot, `${fixture.projectName}.owner`)),
       ).toBe(false);
       expect(fs.existsSync(path.join(fixture.cwd, '.env.dev'))).toBe(false);
+    },
+  );
+
+  it.each([
+    {
+      script: 'docker:start',
+      caller: {},
+      clock: DEFAULT_E2E_NOW_ISO,
+    },
+    {
+      script: 'docker:start:walkthrough',
+      caller: {
+        E2E_NOW_ISO: '2030-01-02T03:04:05.000Z',
+        E2E_RUNTIME_MODE: 'playwright',
+      },
+      clock: '',
+    },
+  ])(
+    'starts the stack through $script with clock "$clock" and no Playwright runtime mode',
+    ({ script, caller, clock }) => {
+      const fixture = createFixture();
+      const testingDirectory = addPackageScripts(fixture);
+      fs.writeFileSync(
+        path.join(testingDirectory, 'runtime-preflight.ts'),
+        `if (process.argv.at(-1) !== 'docker' || process.env.EVORTO_RUNTIME_ENV_READY !== 'true') process.exit(62);\n`,
+      );
+      // Record what Compose would receive: a blank clock stays set, so the
+      // seed uses today and the web server and worker stay unpinned.
+      fs.writeFileSync(
+        path.join(testingDirectory, 'docker-stack.sh'),
+        String.raw`#!/usr/bin/env bash
+set -euo pipefail
+clock="$(printenv E2E_NOW_ISO || printf '<unset>')"
+runtime="$(printenv E2E_RUNTIME_MODE || printf '<unset>')"
+printf 'mode=%s\nclock=%s\nruntime=%s\n' "$1" "$clock" "$runtime" \
+  > "$TEST_DIRECTORY/stack"
+`,
+        { mode: 0o700 },
+      );
+
+      const result = spawnSync(
+        bunExecutable,
+        ['--no-env-file', 'run', script],
+        {
+          cwd: fixture.cwd,
+          encoding: 'utf8',
+          env: environmentFor(fixture, caller),
+          timeout: 10_000,
+        },
+      );
+
+      expect(result.error, result.stderr).toBeUndefined();
+      expect(result.status, result.stderr).toBe(0);
+      expect(
+        fs
+          .readFileSync(path.join(fixture.directory, 'stack'), 'utf8')
+          .trim()
+          .split('\n'),
+      ).toEqual(['mode=start', `clock=${clock}`, 'runtime=<unset>']);
     },
   );
 

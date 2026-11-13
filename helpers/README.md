@@ -78,8 +78,8 @@ This will:
 
 Docker Compose runs a pinned PostgreSQL 17 container plus one-shot `db-setup`
 before `evorto` and the polling worker start. `bun run docker:start`,
-`bun run docker:start:foreground`, and `bun run docker:start:watch` run
-`docker compose down --timeout 60 --remove-orphans` first, then run the
+`bun run docker:start:foreground`, `bun run docker:start:watch`, and
+`bun run docker:start:walkthrough` run `docker compose down --timeout 60 --remove-orphans` first, then run the
 equivalent of `bun run db:reset` against the Docker database during stack
 startup. The one-shot setup ensures the fixed disposable integration database
 exists directly through PostgreSQL, then drops and recreates the application's
@@ -355,16 +355,24 @@ existing Dependabot entries propose image updates.
 
 ## Manual walkthrough clock
 
-Automated test runs use a fixed `E2E_NOW_ISO`. For a manual walkthrough against
-existing data, clear that pin after runtime environment generation so the browser,
-web server, and worker use the current time. Rebuild only the running app services;
-this preserves the database and skips setup services:
+Automated test runs use a fixed `E2E_NOW_ISO`. `bun run docker:start` keeps it
+and prints the pinned value; after that day the browser's upcoming list is empty.
+For a fresh walkthrough, `APP_HOST_PORT=4200 bun run docker:start:walkthrough`
+runs the same reset with a blank `E2E_NOW_ISO` and without `E2E_RUNTIME_MODE`:
+the seed uses today's date, and the web server and worker use the current time.
+
+For a manual walkthrough against existing data, clear that pin after runtime
+environment generation so the browser, web server, and worker use the current
+time. Rebuild only the running app services; this preserves the database and
+skips setup services:
 
 ```sh
 APP_HOST_PORT=4200 bun run env:run -- env -u E2E_RUNTIME_MODE E2E_NOW_ISO= docker compose up --detach --build --no-deps evorto worker
 ```
 
-Keep the fixed clock when running deterministic Playwright suites.
+Keep the fixed clock when running deterministic Playwright suites. Stop a
+walkthrough stack with `bun run docker:stop` first, because Playwright reuses a
+running stack.
 
 ## Local walkthrough dataset
 
@@ -399,11 +407,9 @@ not fabricated by the seed. Start a checkout from Sunday football to review
 payment, payment cancellation, and subsequent refund behavior. Start a transfer
 from Lakeside picnic to review its code, claim, and cancellation flows.
 
-For a fresh walkthrough, use the supported `bun run db:reset` against the local
-stack with `E2E_NOW_ISO` set to today's date, then restart the app and worker
-with the manual clock unpinned (`E2E_NOW_ISO=` and `E2E_RUNTIME_MODE` unset).
-This intentionally replaces local walkthrough data. Ordinary `docker:resume`
-continues to preserve it.
+For a fresh walkthrough, use `bun run docker:start:walkthrough` (see "Manual
+walkthrough clock"). This intentionally replaces local walkthrough data.
+Ordinary `docker:resume` continues to preserve it.
 
 Members Hub also seeds a small resource list (shared drive, calendar, and a sample
 team email). Admins and explicitly assigned event managers can manage it; ordinary
