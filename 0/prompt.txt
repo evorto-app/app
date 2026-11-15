@@ -1,0 +1,17 @@
+Consider keeping as a general instruction that we should rather comment than just changing the descriptions, especially they were created by other people
+
+---
+
+What is the state of tail 21 then?
+
+---
+
+Seems fine, merge this then if you don't see bigger issues
+
+---
+
+Add to our agents md file and get that on main.
+
+This codebase is yours, how it is built is your call and you are the one that keeps building on it.
+
+This is also the truth and what i believe, so it should be in our main files
