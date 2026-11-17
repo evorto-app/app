@@ -175,7 +175,7 @@ exec "$@"
 const fakePlaywright = String.raw`#!/bin/sh
 set -eu
 printf '%s\0' "$@" > "$PLAYWRIGHT_ARGUMENTS"
-printf '%s\0' "$E2E_SELECTED_PROJECTS" "$PLAYWRIGHT_SELECTED_PROJECTS" "$DOCS_OUT_DIR" "$DOCS_IMG_OUT_DIR" > "$PLAYWRIGHT_ENVIRONMENT"
+printf '%s\0' "$E2E_SELECTED_PROJECTS" "$DOCS_OUT_DIR" "$DOCS_IMG_OUT_DIR" > "$PLAYWRIGHT_ENVIRONMENT"
 printf '%s\n' playwright >> "$WRAPPER_TRACE"
 `;
 const fakeCredentialWrapper = String.raw`
@@ -356,7 +356,6 @@ describe('Playwright package wrapper arguments', () => {
           ...invocation.arguments,
         ]);
         expect(captured.environment).toEqual([
-          wrapper.projects,
           wrapper.projects,
           'test-results/docs',
           'test-results/docs/images',
