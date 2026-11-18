@@ -5,7 +5,7 @@ import * as RpcGroup from 'effect/rpc/RpcGroup';
 
 import { PlatformAdministratorAuthority } from '../../../types/custom/platform-authority';
 import { Tenant } from '../../../types/custom/tenant';
-import { BadRequestRpcError } from '../../errors/rpc-errors';
+import { RpcBadRequestError } from '../../errors/rpc-errors';
 import { PermissionSchema } from '../../permissions/permissions';
 
 export class ClientTenantConfig extends Schema.Class<ClientTenantConfig>(
@@ -86,9 +86,9 @@ export const ConfigPermissions = Schema.Array(PermissionSchema);
 
 export type ConfigPermissions = Schema.Schema.Type<typeof ConfigPermissions>;
 
-export const ConfigHeaderRpcError = BadRequestRpcError;
+export const ConfigHeaderRpcError = RpcBadRequestError;
 
-export type ConfigHeaderRpcError = BadRequestRpcError;
+export type ConfigHeaderRpcError = RpcBadRequestError;
 
 export const ConfigPublic = asRpcQuery(
   Rpc.make('config.public', {

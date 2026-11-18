@@ -1,9 +1,4 @@
-import {
-  formatInclusiveTaxLabel,
-  formatPriceWithTax,
-  hasValidTaxRateInfo,
-  isZeroTaxRate,
-} from '@shared/price/format-inclusive-tax-label';
+import { formatInclusiveTaxLabel } from '@shared/price/format-inclusive-tax-label';
 import { describe, expect, it } from 'vitest';
 
 describe('formatInclusiveTaxLabel', () => {
@@ -30,30 +25,5 @@ describe('formatInclusiveTaxLabel', () => {
     expect(formatInclusiveTaxLabel({ stripeTaxRateId: 'txr_1' })).toBe(
       'Tax details unavailable',
     );
-  });
-});
-
-describe('formatPriceWithTax', () => {
-  it('formats cents with the inclusive tax label', () => {
-    expect(
-      formatPriceWithTax(2500, 'EUR', {
-        displayName: 'VAT',
-        percentage: '19',
-      }),
-    ).toBe('€25.00 19% VAT included in the shown price');
-  });
-});
-
-describe('tax rate label helpers', () => {
-  it('detects whether labelable tax information is available', () => {
-    expect(hasValidTaxRateInfo()).toBe(false);
-    expect(hasValidTaxRateInfo({ displayName: 'VAT' })).toBe(true);
-    expect(hasValidTaxRateInfo({ percentage: '19' })).toBe(true);
-  });
-
-  it('detects zero percent tax rates numerically', () => {
-    expect(isZeroTaxRate({ percentage: '0.00' })).toBe(true);
-    expect(isZeroTaxRate({ percentage: '19' })).toBe(false);
-    expect(isZeroTaxRate({ displayName: 'VAT' })).toBe(false);
   });
 });

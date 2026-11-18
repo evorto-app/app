@@ -25,6 +25,7 @@ import {
   registrationCancellationKind,
 } from '@shared/registration-cancellation';
 import { RegistrationTransfersRpcError } from '@shared/rpc-contracts/app-rpcs/registration-transfers.errors';
+import { normalizeStripeCheckoutUrl } from '@shared/stripe-checkout-url';
 import { isWebUrl } from '@shared/web-url';
 import {
   injectMutation,
@@ -35,7 +36,6 @@ import { firstValueFrom } from 'rxjs';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
-import { normalizeStripeCheckoutUrl } from '../../core/stripe-checkout-url';
 import { TenantDatePipe } from '../../core/tenant-date.pipe';
 import { PriceWithTaxComponent } from '../../shared/components/inclusive-price-label/price-with-tax.component';
 import {
