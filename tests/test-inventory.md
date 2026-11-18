@@ -84,6 +84,7 @@ component regressions retain retry recovery for temporary failures.
   - specs/auth/storage-state-refresh.test.ts
   - specs/discounts/esn-discounts.test.ts [finance]
   - specs/events/event-discovery-eligibility.test.ts
+  - specs/events/event-list-card-details.spec.ts
   - specs/events/events.test.ts
   - specs/events/free-registration.test.ts
   - specs/events/manual-approval.spec.ts [stripe]
@@ -303,6 +304,11 @@ component regressions retain retry recovery for temporary failures.
   setup retry, and pending-payment cancellation with capacity release. The
   shared scenario helper restores registrations, event timing, option mode and
   counters, transactions, and approval outbox rows.
+- `specs/events/event-list-card-details.spec.ts` proves the event list card
+  shows a full event, a not-yet-open event with its opening time, the price of
+  a paid event, how full an open event is to members (many, some, few; no exact
+  counts), and the exact count to the organizer account, using disposable
+  cloned events removed by cleanup.
 - `specs/events/organizer-signup.spec.ts` creates disposable simple and
   advanced events with separate participant and organizer/helper categories.
   It proves role-filtered choices, no organizer guests or waitlist, capacity,

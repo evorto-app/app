@@ -12,6 +12,8 @@ const event = (id: string, iconName = id): EventsEventListRecord => ({
   hasRegistrationOptions: true,
   icon: { iconColor: 0, iconName },
   id,
+  organizerSlots: null,
+  participantSignUp: null,
   start: '2030-01-08T12:00:00.000Z',
   status: 'APPROVED',
   title: id,
