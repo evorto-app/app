@@ -569,10 +569,12 @@ const runCancellation = ({
 };
 
 const runCheckIn = ({
+  expectedCheckedInGuestCount = 0,
   fixture,
   guestCheckInCount,
   serviceLayer,
 }: {
+  expectedCheckedInGuestCount?: number;
   fixture: Fixture;
   guestCheckInCount: number;
   serviceLayer: ReturnType<typeof makeServiceLayer>;
@@ -637,6 +639,7 @@ const runCheckIn = ({
   return Effect.runPromise(
     eventRegistrationHandlers['events.checkInRegistration'](
       {
+        expectedCheckedInGuestCount,
         guestCheckInCount,
         registrationId: fixture.registrationId,
       },
@@ -919,6 +922,8 @@ const prepareCheckInFixture = (
       .set({
         checkedInSpots: 0,
         confirmedSpots: guestCount + 1,
+        // Room for the attendee and every guest (the base fixture has 2).
+        spots: Math.max(2, guestCount + 1),
       })
       .where(eq(eventRegistrationOptions.id, fixture.optionId));
     return fixture;
@@ -1399,38 +1404,133 @@ describe('database registration concurrency invariants', () => {
       registrationTransactionOpen = false;
 
       const outcomes = await Promise.all([first, second]);
-      const successfulOutcomes = outcomes.filter(
-        (outcome) => outcome.status === 'success',
-      );
-      expect(successfulOutcomes).toHaveLength(1);
-      expect(
-        outcomes.filter((outcome) => outcome.status === 'failure'),
-      ).toEqual([
-        expect.objectContaining({
-          error: expect.objectContaining({
-            _tag: 'EventRegistrationConflictError',
-            message: 'Enter no more than 0 additional guests.',
-          }),
-        }),
+      // Both requests carry the same snapshot (expected 0), so the later one
+      // is a replay of an intent that already committed: it succeeds without a
+      // second write.
+      expect(outcomes.map((outcome) => outcome.status)).toEqual([
+        'success',
+        'success',
       ]);
+      const values = outcomes.flatMap((outcome) =>
+        outcome.status === 'success' ? [outcome.value] : [],
+      );
+      expect(
+        values.filter((value) => value.alreadyCheckedIn === false),
+      ).toHaveLength(1);
+      expect(
+        values.filter((value) => value.alreadyCheckedIn === true),
+      ).toHaveLength(1);
 
-      const successfulOutcome = successfulOutcomes[0];
-      if (!successfulOutcome || successfulOutcome.status !== 'success') {
-        throw new Error('Expected one successful guest check-in');
-      }
       const state = await readFixtureState(database, fixture);
       expect(state.registration?.checkedInGuestCount).toBe(1);
       expect(state.registration?.checkInTime).toBeInstanceOf(Date);
       expect(state.option?.checkedInSpots).toBe(2);
-      expect(successfulOutcome.value).toEqual({
-        alreadyCheckedIn: false,
-        checkInTime: state.registration?.checkInTime?.toISOString(),
-      });
+      for (const value of values) {
+        expect(value).toEqual(
+          expect.objectContaining({
+            checkInTime: state.registration?.checkInTime?.toISOString(),
+            registration: expect.objectContaining({
+              checkedInGuestCount: 1,
+              remainingGuestCount: 0,
+            }),
+          }),
+        );
+      }
       expect(fakeHttpClient.createRequests).toHaveLength(0);
     }, [
       () => releaseRowLock(registrationLock, registrationTransactionOpen),
       operations.drain,
     ]);
+  }, 30_000);
+
+  it('records a retried guest check-in once', async () => {
+    const fixture = await prepareCheckInFixture(database, { guestCount: 2 });
+    fixtures.push(fixture);
+    const fakeHttpClient = new IdempotentStripeHttpClient();
+    const stripe = new StripeClientLibrary('sk_test_concurrency', {
+      httpClient: fakeHttpClient,
+      maxNetworkRetries: 0,
+    });
+    const serviceLayer = makeServiceLayer(databaseUrl, stripe);
+
+    const first = await runCheckIn({
+      expectedCheckedInGuestCount: 0,
+      fixture,
+      guestCheckInCount: 2,
+      serviceLayer,
+    });
+    // The client never saw the first response and sends the same intent again.
+    const retry = await runCheckIn({
+      expectedCheckedInGuestCount: 0,
+      fixture,
+      guestCheckInCount: 2,
+      serviceLayer,
+    });
+
+    expect(first).toEqual(
+      expect.objectContaining({
+        status: 'success',
+        value: expect.objectContaining({ alreadyCheckedIn: false }),
+      }),
+    );
+    expect(retry).toEqual(
+      expect.objectContaining({
+        status: 'success',
+        value: expect.objectContaining({
+          alreadyCheckedIn: true,
+          registration: expect.objectContaining({
+            checkedInGuestCount: 2,
+            remainingGuestCount: 0,
+          }),
+        }),
+      }),
+    );
+    const state = await readFixtureState(database, fixture);
+    expect(state.registration?.checkedInGuestCount).toBe(2);
+    expect(state.option?.checkedInSpots).toBe(3);
+    expect(fakeHttpClient.createRequests).toHaveLength(0);
+  }, 30_000);
+
+  it('rejects a check-in from a stale ticket view', async () => {
+    const fixture = await prepareCheckInFixture(database, { guestCount: 3 });
+    fixtures.push(fixture);
+    const fakeHttpClient = new IdempotentStripeHttpClient();
+    const stripe = new StripeClientLibrary('sk_test_concurrency', {
+      httpClient: fakeHttpClient,
+      maxNetworkRetries: 0,
+    });
+    const serviceLayer = makeServiceLayer(databaseUrl, stripe);
+
+    const first = await runCheckIn({
+      expectedCheckedInGuestCount: 0,
+      fixture,
+      guestCheckInCount: 1,
+      serviceLayer,
+    });
+    expect(first.status).toBe('success');
+
+    // Another device checked in one guest after this helper loaded the ticket.
+    const stale = await runCheckIn({
+      expectedCheckedInGuestCount: 0,
+      fixture,
+      guestCheckInCount: 2,
+      serviceLayer,
+    });
+
+    expect(stale).toEqual(
+      expect.objectContaining({
+        error: expect.objectContaining({
+          _tag: 'EventRegistrationConflictError',
+          message:
+            'This ticket changed on another device. Review the current check-in count, then confirm again.',
+        }),
+        status: 'failure',
+      }),
+    );
+    const state = await readFixtureState(database, fixture);
+    expect(state.registration?.checkedInGuestCount).toBe(1);
+    expect(state.option?.checkedInSpots).toBe(2);
+    expect(fakeHttpClient.createRequests).toHaveLength(0);
   }, 30_000);
 
   it('keeps transfer notification reads out of inverse shared-user lock cycles', async () => {

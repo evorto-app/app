@@ -1,6 +1,6 @@
 import type * as SqlConnection from 'effect/sql/SqlConnection';
 
-import { describe, expect, it, vi } from '@effect/vitest';
+import { describe, expect, it } from '@effect/vitest';
 import { getTableName } from 'drizzle-orm';
 import {
   Cause,
@@ -18,9 +18,11 @@ import {
 import * as Headers from 'effect/http/Headers';
 import { Rpc, RpcGroup, RpcMessage } from 'effect/rpc';
 import Stripe from 'stripe';
+import { vi } from 'vitest';
 
 import type { Tenant } from '../../../../../types/custom/tenant';
 import type { User } from '../../../../../types/custom/user';
+import type * as AddonFulfillmentService from '../../../../registrations/addon-fulfillment.service';
 
 import { Database } from '../../../../../db';
 import {
@@ -57,6 +59,7 @@ import {
   type RpcRequestContextShape,
 } from '../../../../../shared/rpc-contracts/app-rpcs';
 import { formatConfigError } from '../../../../config/config-error';
+import { getRegistrationAddonFulfillment } from '../../../../registrations/addon-fulfillment.service';
 import { RegistrationAcquisitionWriteError } from '../../../../registrations/registration-acquisition-write';
 import { RegistrationTransferMutationConflict } from '../../../../registrations/registration-transfer-mutation-guard';
 import { StripeClient } from '../../../../stripe-client';
@@ -83,6 +86,21 @@ import {
   EventRegistrationConflictError,
   EventRegistrationInternalError,
 } from './events.errors';
+
+// Only `events.scanTicket` tests script this read; every other test runs the
+// real implementation.
+vi.mock(
+  '../../../../registrations/addon-fulfillment.service',
+  async (importOriginal) => {
+    const actual = await importOriginal<typeof AddonFulfillmentService>();
+    return {
+      ...actual,
+      getRegistrationAddonFulfillment: vi.fn(
+        actual.getRegistrationAddonFulfillment,
+      ),
+    };
+  },
+);
 
 const checkoutSessionResponse = ({
   id,
@@ -364,6 +382,27 @@ type ScannedRegistrationRead = Pick<
   readonly user: Pick<typeof users.$inferSelect, 'firstName' | 'lastName'>;
 };
 
+const scannedRegistrationValues = (registration: ScannedRegistrationRead) => [
+  registration.appliedDiscountedPrice,
+  registration.appliedDiscountType,
+  registration.basePriceAtRegistration,
+  registration.checkedInGuestCount,
+  registration.checkInTime?.toISOString().replace('Z', '') ?? null,
+  registration.discountAmount,
+  registration.eventId,
+  registration.guestCount,
+  registration.status,
+  registration.userId,
+  {
+    ...registration.event,
+    end: registration.event.end?.toISOString().replace('Z', '') ?? null,
+    start: registration.event.start.toISOString().replace('Z', ''),
+  },
+  { ...registration.registrationOption },
+  registration.transactions.map((transaction) => ({ ...transaction })),
+  { ...registration.user },
+];
+
 const createScanReadDatabaseLayer = ({
   registration,
 }: {
@@ -387,32 +426,7 @@ const createScanReadDatabaseLayer = ({
             1,
           ]);
           if (registration === null) return [];
-          return [
-            [
-              registration.appliedDiscountedPrice,
-              registration.appliedDiscountType,
-              registration.basePriceAtRegistration,
-              registration.checkedInGuestCount,
-              registration.checkInTime?.toISOString().replace('Z', '') ?? null,
-              registration.discountAmount,
-              registration.eventId,
-              registration.guestCount,
-              registration.status,
-              registration.userId,
-              {
-                ...registration.event,
-                end:
-                  registration.event.end?.toISOString().replace('Z', '') ??
-                  null,
-                start: registration.event.start.toISOString().replace('Z', ''),
-              },
-              { ...registration.registrationOption },
-              registration.transactions.map((transaction) => ({
-                ...transaction,
-              })),
-              { ...registration.user },
-            ],
-          ];
+          return [scannedRegistrationValues(registration)];
         }
         if (statement.includes('"organizingRegistration"')) {
           expect(parameters).toEqual([
@@ -457,7 +471,11 @@ type CheckInDatabaseStep =
       readonly operation: 'lockRegistration' | 'readRegistration';
       readonly row: CheckInRegistrationRow;
     }
-  | { readonly operation: 'readOrganizerRegistration' };
+  | { readonly operation: 'readOrganizerRegistration' }
+  | {
+      readonly operation: 'readRegistrationScan';
+      readonly row: ScannedRegistrationRead;
+    };
 
 type CheckInEventRow = Pick<
   typeof eventInstances.$inferSelect,
@@ -642,6 +660,23 @@ const createCheckInDatabaseFixture = (
               completed.push(step.operation);
               return [checkInRegistrationValues(step.row)];
             }
+            case 'readRegistrationScan': {
+              expect(statement).toContain(
+                `from "${getTableName(eventRegistrations)}"`,
+              );
+              expect(statement).not.toContain(' for update');
+              expect(parameters).toEqual([
+                1,
+                1,
+                'registration',
+                1,
+                'registration-1',
+                'tenant-1',
+                1,
+              ]);
+              completed.push(step.operation);
+              return [scannedRegistrationValues(step.row)];
+            }
             case 'writeRegistrationCheckIn': {
               expect(statement).toBe(
                 checkInStatements.writeRegistrationCheckIn,
@@ -719,6 +754,15 @@ const scannedRegistration: ScannedRegistrationRead = {
   },
   userId: 'attendee-1',
 };
+
+/** The ticket as the post-commit scan read sees it for the check-in fixture. */
+const checkInScanRow = (
+  overrides: Partial<ScannedRegistrationRead> = {},
+): ScannedRegistrationRead => ({
+  ...scannedRegistration,
+  event: { ...checkInEvent, title: 'City tour' },
+  ...overrides,
+});
 
 const nonConfirmedRegistrationStatuses = [
   'CANCELLED',
@@ -6010,6 +6054,111 @@ describe('event registration scan handlers', () => {
       }),
   );
 
+  it.effect('scanTicket returns the ticket together with its add-ons', () =>
+    Effect.gen(function* () {
+      const addOn = {
+        addOnId: 'addon-1',
+        cancellablePurchasedQuantity: 0,
+        cancellableQuantity: 0,
+        cancellationAvailable: false,
+        cancellationBlockedReason: 'permission',
+        cancelledQuantity: 0,
+        includedQuantity: 1,
+        latestFulfillmentEventId: null,
+        latestRedemptionEventId: null,
+        purchasedQuantity: 0,
+        redeemedQuantity: 0,
+        redemptionAvailable: true,
+        refundAvailability: 'none',
+        refundStatus: 'notApplicable',
+        registrationAddonId: 'purchase-1',
+        remainingQuantity: 1,
+        title: 'Lunch',
+        totalQuantity: 1,
+        undoAvailable: false,
+      } as const;
+      vi.mocked(getRegistrationAddonFulfillment).mockReturnValueOnce(
+        Effect.succeed({
+          addOns: [addOn],
+          registrationId: 'registration-1',
+        }),
+      );
+      const databaseLayer = createScanReadDatabaseLayer({
+        registration: scannedRegistration,
+      });
+
+      const result = yield* eventRegistrationHandlers['events.scanTicket'](
+        { registrationId: 'registration-1' },
+        handlerOptions('events.scanTicket'),
+      ).pipe(
+        Effect.provide(
+          createSqlContextLayer({
+            databaseLayer,
+            user: createUser({ permissions: ['events:organizeAll'] }),
+          }),
+        ),
+      );
+
+      expect(result.addOns).toEqual([addOn]);
+      expect(result.registration).toMatchObject({
+        allowCheckin: true,
+        registrationOption: { title: 'Participant' },
+        user: { firstName: 'Alice', lastName: 'Doe' },
+      });
+      expect(getRegistrationAddonFulfillment).toHaveBeenLastCalledWith({
+        canCancel: false,
+        registrationId: 'registration-1',
+        tenantId: 'tenant-1',
+      });
+    }),
+  );
+
+  it.effect('scanTicket reports a missing ticket without loading add-ons', () =>
+    Effect.gen(function* () {
+      vi.mocked(getRegistrationAddonFulfillment).mockClear();
+      const databaseLayer = createScanReadDatabaseLayer({ registration: null });
+
+      const error = yield* eventRegistrationHandlers['events.scanTicket'](
+        { registrationId: 'registration-1' },
+        handlerOptions('events.scanTicket'),
+      ).pipe(
+        Effect.flip,
+        Effect.provide(
+          createSqlContextLayer({
+            databaseLayer,
+            user: createUser({ permissions: ['events:organizeAll'] }),
+          }),
+        ),
+      );
+
+      expect(error['_tag']).toBe('EventRegistrationNotFoundError');
+      expect(error.message).toBe(
+        'Ticket not found. Check the QR code or ask an organizer for help.',
+      );
+      expect(getRegistrationAddonFulfillment).not.toHaveBeenCalled();
+    }),
+  );
+
+  it.effect('scanTicket rejects users who cannot check in this event', () =>
+    Effect.gen(function* () {
+      vi.mocked(getRegistrationAddonFulfillment).mockClear();
+      const databaseLayer = createScanReadDatabaseLayer({
+        registration: scannedRegistration,
+      });
+
+      const error = yield* eventRegistrationHandlers['events.scanTicket'](
+        { registrationId: 'registration-1' },
+        handlerOptions('events.scanTicket'),
+      ).pipe(
+        Effect.flip,
+        Effect.provide(createSqlContextLayer({ databaseLayer })),
+      );
+
+      expect(error['_tag']).toBe('RpcForbiddenError');
+      expect(getRegistrationAddonFulfillment).not.toHaveBeenCalled();
+    }),
+  );
+
   it.effect(
     'records check-in and increments the option counter for an organizer',
     () =>
@@ -6039,12 +6188,23 @@ describe('event registration scan handlers', () => {
               },
               { operation: 'incrementOptionCheckIns', spotIncrement: 1 },
               { operation: 'COMMIT' },
+              {
+                operation: 'readRegistrationScan',
+                row: checkInScanRow({
+                  checkInTime: new Date(checkInNowIso),
+                }),
+              },
+              { operation: 'readOrganizerRegistration' },
             ]);
 
             const result = yield* eventRegistrationHandlers[
               'events.checkInRegistration'
             ](
-              { guestCheckInCount: 0, registrationId: 'registration-1' },
+              {
+                expectedCheckedInGuestCount: 0,
+                guestCheckInCount: 0,
+                registrationId: 'registration-1',
+              },
               handlerOptions('events.checkInRegistration'),
             ).pipe(
               Effect.provide(
@@ -6057,6 +6217,12 @@ describe('event registration scan handlers', () => {
 
             expect(result.alreadyCheckedIn).toBe(false);
             expect(result.checkInTime).toBe(checkInNowIso);
+            expect(result.registration).toMatchObject({
+              alreadyCheckedInIssue: true,
+              attendeeCheckedIn: true,
+              checkedInGuestCount: 0,
+              remainingGuestCount: 0,
+            });
             expect(fixture.writes).toEqual([
               'writeRegistrationCheckIn',
               'incrementOptionCheckIns',
@@ -6078,7 +6244,11 @@ describe('event registration scan handlers', () => {
       const error = yield* eventRegistrationHandlers[
         'events.checkInRegistration'
       ](
-        { guestCheckInCount: 0, registrationId: 'registration-1' },
+        {
+          expectedCheckedInGuestCount: 0,
+          guestCheckInCount: 0,
+          registrationId: 'registration-1',
+        },
         handlerOptions('events.checkInRegistration'),
       ).pipe(
         Effect.flip,
@@ -6121,7 +6291,11 @@ describe('event registration scan handlers', () => {
         const error = yield* eventRegistrationHandlers[
           'events.checkInRegistration'
         ](
-          { guestCheckInCount: 0, registrationId: 'registration-1' },
+          {
+            expectedCheckedInGuestCount: 0,
+            guestCheckInCount: 0,
+            registrationId: 'registration-1',
+          },
           handlerOptions('events.checkInRegistration'),
         ).pipe(
           Effect.flip,
@@ -6160,7 +6334,11 @@ describe('event registration scan handlers', () => {
         const error = yield* eventRegistrationHandlers[
           'events.checkInRegistration'
         ](
-          { guestCheckInCount: 0, registrationId: 'registration-1' },
+          {
+            expectedCheckedInGuestCount: 0,
+            guestCheckInCount: 0,
+            registrationId: 'registration-1',
+          },
           handlerOptions('events.checkInRegistration'),
         ).pipe(
           Effect.flip,
@@ -6181,10 +6359,131 @@ describe('event registration scan handlers', () => {
       }),
   );
 
-  it.effect('rejects a guest increment consumed by a concurrent check-in', () =>
+  it.effect('records a retried guest check-in once', () =>
     Effect.gen(function* () {
       const persistedCheckInTime = new Date('2026-09-18T09:45:00.000Z');
       const registration = { ...checkInRegistration, guestCount: 1 };
+      const committed = {
+        ...registration,
+        checkedInGuestCount: 1,
+        checkInTime: persistedCheckInTime,
+      };
+      const fixture = createCheckInDatabaseFixture([
+        { operation: 'readRegistration', row: registration },
+        { operation: 'readBlockingTransfer' },
+        { operation: 'BEGIN' },
+        { operation: 'lockRegistration', row: committed },
+        { operation: 'lockBlockingTransfer' },
+        { operation: 'lockEvent', row: checkInEvent },
+        { operation: 'COMMIT' },
+        {
+          operation: 'readRegistrationScan',
+          row: checkInScanRow({
+            checkedInGuestCount: 1,
+            checkInTime: persistedCheckInTime,
+            guestCount: 1,
+          }),
+        },
+      ]);
+
+      const result = yield* eventRegistrationHandlers[
+        'events.checkInRegistration'
+      ](
+        {
+          expectedCheckedInGuestCount: 0,
+          guestCheckInCount: 1,
+          registrationId: 'registration-1',
+        },
+        handlerOptions('events.checkInRegistration'),
+      ).pipe(
+        Effect.provide(
+          createSqlContextLayer({
+            databaseLayer: fixture.databaseLayer,
+            nowIso: checkInNowIso,
+            user: createUser({ permissions: ['events:organizeAll'] }),
+          }),
+        ),
+      );
+
+      expect(result).toEqual({
+        alreadyCheckedIn: true,
+        checkInTime: '2026-09-18T09:45:00.000Z',
+        registration: expect.objectContaining({
+          checkedInGuestCount: 1,
+          remainingGuestCount: 0,
+        }),
+      });
+      expect(fixture.writes).toEqual([]);
+      expect(fixture.commands).toEqual(['BEGIN', 'COMMIT']);
+      fixture.expectComplete();
+    }),
+  );
+
+  it.effect(
+    'reports a committed check-in when its retry arrives after check-in closed',
+    () =>
+      Effect.gen(function* () {
+        const persistedCheckInTime = new Date('2026-09-15T13:45:00.000Z');
+        const registration = { ...checkInRegistration, guestCount: 1 };
+        const committed = {
+          ...registration,
+          checkedInGuestCount: 1,
+          checkInTime: persistedCheckInTime,
+        };
+        const fixture = createCheckInDatabaseFixture([
+          { operation: 'readRegistration', row: registration },
+          { operation: 'readBlockingTransfer' },
+          { operation: 'BEGIN' },
+          { operation: 'lockRegistration', row: committed },
+          { operation: 'lockBlockingTransfer' },
+          { operation: 'lockEvent', row: checkInEvent },
+          { operation: 'COMMIT' },
+          {
+            operation: 'readRegistrationScan',
+            row: checkInScanRow({
+              checkedInGuestCount: 1,
+              checkInTime: persistedCheckInTime,
+              guestCount: 1,
+            }),
+          },
+        ]);
+
+        const result = yield* eventRegistrationHandlers[
+          'events.checkInRegistration'
+        ](
+          {
+            expectedCheckedInGuestCount: 0,
+            guestCheckInCount: 1,
+            registrationId: 'registration-1',
+          },
+          handlerOptions('events.checkInRegistration'),
+        ).pipe(
+          Effect.provide(
+            createSqlContextLayer({
+              databaseLayer: fixture.databaseLayer,
+              // More than two hours after the event ended: check-in is closed.
+              nowIso: '2026-09-15T17:00:00.000Z',
+              user: createUser({ permissions: ['events:organizeAll'] }),
+            }),
+          ),
+        );
+
+        expect(result).toEqual({
+          alreadyCheckedIn: true,
+          checkInTime: '2026-09-15T13:45:00.000Z',
+          registration: expect.objectContaining({
+            checkedInGuestCount: 1,
+            checkInTimingIssue: 'ended',
+          }),
+        });
+        expect(fixture.writes).toEqual([]);
+        fixture.expectComplete();
+      }),
+  );
+
+  it.effect('rejects a check-in from a stale ticket view', () =>
+    Effect.gen(function* () {
+      const registration = { ...checkInRegistration, guestCount: 3 };
       const fixture = createCheckInDatabaseFixture([
         { operation: 'readRegistration', row: registration },
         { operation: 'readBlockingTransfer' },
@@ -6194,7 +6493,7 @@ describe('event registration scan handlers', () => {
           row: {
             ...registration,
             checkedInGuestCount: 1,
-            checkInTime: persistedCheckInTime,
+            checkInTime: new Date('2026-09-18T09:45:00.000Z'),
           },
         },
         { operation: 'lockBlockingTransfer' },
@@ -6205,7 +6504,11 @@ describe('event registration scan handlers', () => {
       const error = yield* eventRegistrationHandlers[
         'events.checkInRegistration'
       ](
-        { guestCheckInCount: 1, registrationId: 'registration-1' },
+        {
+          expectedCheckedInGuestCount: 0,
+          guestCheckInCount: 2,
+          registrationId: 'registration-1',
+        },
         handlerOptions('events.checkInRegistration'),
       ).pipe(
         Effect.flip,
@@ -6219,9 +6522,42 @@ describe('event registration scan handlers', () => {
       );
 
       expect(error['_tag']).toBe('EventRegistrationConflictError');
-      expect(error.message).toBe('Enter no more than 0 additional guests.');
+      expect(error.message).toBe(
+        'This ticket changed on another device. Review the current check-in count, then confirm again.',
+      );
       expect(fixture.writes).toEqual([]);
       expect(fixture.commands).toEqual(['BEGIN', 'ROLLBACK']);
+      fixture.expectComplete();
+    }),
+  );
+
+  it.effect('rejects a negative expected check-in count before reading', () =>
+    Effect.gen(function* () {
+      const fixture = createCheckInDatabaseFixture([]);
+
+      const error = yield* eventRegistrationHandlers[
+        'events.checkInRegistration'
+      ](
+        {
+          expectedCheckedInGuestCount: -1,
+          guestCheckInCount: 0,
+          registrationId: 'registration-1',
+        },
+        handlerOptions('events.checkInRegistration'),
+      ).pipe(
+        Effect.flip,
+        Effect.provide(
+          createSqlContextLayer({
+            databaseLayer: fixture.databaseLayer,
+            nowIso: checkInNowIso,
+            user: createUser({ permissions: ['events:organizeAll'] }),
+          }),
+        ),
+      );
+
+      expect(error['_tag']).toBe('EventRegistrationConflictError');
+      expect(error.message).toBe('Reload the ticket and try again.');
+      expect(fixture.commands).toEqual([]);
       fixture.expectComplete();
     }),
   );
@@ -6248,12 +6584,25 @@ describe('event registration scan handlers', () => {
         },
         { operation: 'incrementOptionCheckIns', spotIncrement: 3 },
         { operation: 'COMMIT' },
+        {
+          operation: 'readRegistrationScan',
+          row: checkInScanRow({
+            checkedInGuestCount: 2,
+            checkInTime: new Date(checkInNowIso),
+            guestCount: 2,
+          }),
+        },
+        { operation: 'readOrganizerRegistration' },
       ]);
 
       const result = yield* eventRegistrationHandlers[
         'events.checkInRegistration'
       ](
-        { guestCheckInCount: 2, registrationId: 'registration-1' },
+        {
+          expectedCheckedInGuestCount: 0,
+          guestCheckInCount: 2,
+          registrationId: 'registration-1',
+        },
         handlerOptions('events.checkInRegistration'),
       ).pipe(
         Effect.provide(
@@ -6266,6 +6615,11 @@ describe('event registration scan handlers', () => {
 
       expect(result.alreadyCheckedIn).toBe(false);
       expect(result.checkInTime).toBe(checkInNowIso);
+      expect(result.registration).toMatchObject({
+        checkedInGuestCount: 2,
+        guestCount: 2,
+        remainingGuestCount: 0,
+      });
       expect(fixture.writes).toEqual([
         'writeRegistrationCheckIn',
         'incrementOptionCheckIns',
@@ -6284,7 +6638,11 @@ describe('event registration scan handlers', () => {
         const error = yield* eventRegistrationHandlers[
           'events.checkInRegistration'
         ](
-          { guestCheckInCount: -1, registrationId: 'registration-1' },
+          {
+            expectedCheckedInGuestCount: 0,
+            guestCheckInCount: -1,
+            registrationId: 'registration-1',
+          },
           handlerOptions('events.checkInRegistration'),
         ).pipe(
           Effect.flip,
@@ -6325,7 +6683,11 @@ describe('event registration scan handlers', () => {
         const error = yield* eventRegistrationHandlers[
           'events.checkInRegistration'
         ](
-          { guestCheckInCount: 2, registrationId: 'registration-1' },
+          {
+            expectedCheckedInGuestCount: 1,
+            guestCheckInCount: 2,
+            registrationId: 'registration-1',
+          },
           handlerOptions('events.checkInRegistration'),
         ).pipe(
           Effect.flip,
@@ -6366,7 +6728,11 @@ describe('event registration scan handlers', () => {
       const error = yield* eventRegistrationHandlers[
         'events.checkInRegistration'
       ](
-        { guestCheckInCount: 0, registrationId: 'registration-1' },
+        {
+          expectedCheckedInGuestCount: 0,
+          guestCheckInCount: 0,
+          registrationId: 'registration-1',
+        },
         handlerOptions('events.checkInRegistration'),
       ).pipe(
         Effect.flip,
@@ -6411,7 +6777,11 @@ describe('event registration scan handlers', () => {
       const error = yield* eventRegistrationHandlers[
         'events.checkInRegistration'
       ](
-        { guestCheckInCount: 0, registrationId: 'registration-1' },
+        {
+          expectedCheckedInGuestCount: 0,
+          guestCheckInCount: 0,
+          registrationId: 'registration-1',
+        },
         handlerOptions('events.checkInRegistration'),
       ).pipe(
         Effect.flip,
@@ -6463,7 +6833,11 @@ describe('event registration scan handlers', () => {
       const checkIn = yield* eventRegistrationHandlers[
         'events.checkInRegistration'
       ](
-        { guestCheckInCount: 0, registrationId: 'registration-1' },
+        {
+          expectedCheckedInGuestCount: 0,
+          guestCheckInCount: 0,
+          registrationId: 'registration-1',
+        },
         handlerOptions('events.checkInRegistration'),
       ).pipe(
         Effect.exit,
@@ -6522,12 +6896,21 @@ describe('event registration scan handlers', () => {
         { operation: 'lockBlockingTransfer' },
         { operation: 'lockEvent', row: checkInEvent },
         { operation: 'COMMIT' },
+        {
+          operation: 'readRegistrationScan',
+          row: checkInScanRow({ checkInTime }),
+        },
+        { operation: 'readOrganizerRegistration' },
       ]);
 
       const result = yield* eventRegistrationHandlers[
         'events.checkInRegistration'
       ](
-        { guestCheckInCount: 0, registrationId: 'registration-1' },
+        {
+          expectedCheckedInGuestCount: 0,
+          guestCheckInCount: 0,
+          registrationId: 'registration-1',
+        },
         handlerOptions('events.checkInRegistration'),
       ).pipe(
         Effect.provide(
@@ -6541,6 +6924,10 @@ describe('event registration scan handlers', () => {
       expect(result).toEqual({
         alreadyCheckedIn: true,
         checkInTime: '2026-09-18T09:45:00.000Z',
+        registration: expect.objectContaining({
+          attendeeCheckedIn: true,
+          checkedInGuestCount: 0,
+        }),
       });
       expect(fixture.commands).toEqual(['BEGIN', 'COMMIT']);
       expect(fixture.writes).toEqual([]);
@@ -6561,7 +6948,11 @@ describe('event registration scan handlers', () => {
       const error = yield* eventRegistrationHandlers[
         'events.checkInRegistration'
       ](
-        { guestCheckInCount: 0, registrationId: 'registration-1' },
+        {
+          expectedCheckedInGuestCount: 0,
+          guestCheckInCount: 0,
+          registrationId: 'registration-1',
+        },
         handlerOptions('events.checkInRegistration'),
       ).pipe(
         Effect.flip,
@@ -6595,7 +6986,11 @@ describe('event registration scan handlers', () => {
         const error = yield* eventRegistrationHandlers[
           'events.checkInRegistration'
         ](
-          { guestCheckInCount: 0, registrationId: 'registration-1' },
+          {
+            expectedCheckedInGuestCount: 0,
+            guestCheckInCount: 0,
+            registrationId: 'registration-1',
+          },
           handlerOptions('events.checkInRegistration'),
         ).pipe(
           Effect.flip,

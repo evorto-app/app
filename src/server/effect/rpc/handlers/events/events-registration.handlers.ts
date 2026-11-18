@@ -684,6 +684,142 @@ const ensureRegistrationAddonFulfillmentAccess = Effect.fn(
   });
 });
 
+const loadRegistrationScan = Effect.fn('loadRegistrationScan')(function* ({
+  registrationId,
+  tenantId,
+  user,
+}: {
+  readonly registrationId: string;
+  readonly tenantId: string;
+  readonly user: {
+    readonly id: string;
+    readonly permissions: readonly Permission[];
+  };
+}) {
+  const registration = yield* databaseEffect((database) =>
+    database.query.eventRegistrations.findFirst({
+      columns: {
+        appliedDiscountedPrice: true,
+        appliedDiscountType: true,
+        basePriceAtRegistration: true,
+        checkedInGuestCount: true,
+        checkInTime: true,
+        discountAmount: true,
+        eventId: true,
+        guestCount: true,
+        status: true,
+        userId: true,
+      },
+      where: { id: registrationId, tenantId },
+      with: {
+        event: {
+          columns: {
+            end: true,
+            start: true,
+            title: true,
+          },
+        },
+        registrationOption: {
+          columns: {
+            title: true,
+          },
+        },
+        transactions: {
+          columns: {
+            status: true,
+            type: true,
+          },
+          where: {
+            type: 'registration',
+          },
+        },
+        user: {
+          columns: {
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
+    }),
+  );
+  if (
+    !registration ||
+    !registration.user ||
+    !registration.event ||
+    !registration.registrationOption
+  ) {
+    return yield* Effect.fail(
+      new EventRegistrationNotFoundError({
+        message:
+          'Ticket not found. Check the QR code or ask an organizer for help.',
+      }),
+    );
+  }
+
+  yield* ensureCanScanEventRegistration({
+    eventId: registration.eventId,
+    tenantId,
+    user,
+  });
+
+  const isSameUserIssue = registration.userId === user.id;
+  const isRegistrationStatusIssue = registration.status !== 'CONFIRMED';
+  const remainingGuestCount = Math.max(
+    0,
+    registration.guestCount - registration.checkedInGuestCount,
+  );
+  const isAlreadyCheckedInIssue =
+    registration.checkInTime !== null && remainingGuestCount === 0;
+  const now = yield* registrationHandlerNow;
+  const timingIssue = eventCheckInTimingIssue({
+    end: registration.event.end,
+    now,
+    start: registration.event.start,
+  });
+  const isAllowCheckin =
+    !isRegistrationStatusIssue &&
+    !isSameUserIssue &&
+    timingIssue === null &&
+    !isAlreadyCheckedInIssue;
+  const priceSnapshot = readRegistrationPriceSnapshot({
+    appliedDiscountedPrice: registration.appliedDiscountedPrice,
+    appliedDiscountType: registration.appliedDiscountType,
+    basePriceAtRegistration: registration.basePriceAtRegistration,
+    discountAmount: registration.discountAmount,
+    paymentPending: registration.transactions.some(
+      (transaction) =>
+        transaction.status === 'pending' && transaction.type === 'registration',
+    ),
+    registrationId,
+    status: registration.status,
+  });
+
+  return {
+    allowCheckin: isAllowCheckin,
+    alreadyCheckedInIssue: isAlreadyCheckedInIssue,
+    appliedDiscountType: priceSnapshot.appliedDiscountType,
+    attendeeCheckedIn: registration.checkInTime !== null,
+    checkedInGuestCount: registration.checkedInGuestCount,
+    checkInTimingIssue: timingIssue,
+    event: {
+      start: registration.event.start.toISOString(),
+      title: registration.event.title,
+    },
+    guestCount: registration.guestCount,
+    registrationOption: {
+      title: registration.registrationOption.title,
+    },
+    registrationStatus: registration.status,
+    registrationStatusIssue: isRegistrationStatusIssue,
+    remainingGuestCount,
+    sameUserIssue: isSameUserIssue,
+    user: {
+      firstName: registration.user.firstName,
+      lastName: registration.user.lastName,
+    },
+  };
+});
+
 export interface CancelRegistrationForTenantArguments {
   readonly cancelledBy: RegistrationCancellationActor;
   readonly enforceParticipantDeadline: boolean;
@@ -2374,7 +2510,7 @@ export const eventRegistrationHandlers = {
       });
     }).pipe(Effect.catch(mapRegistrationScanInternalError)),
   'events.checkInRegistration': (
-    { guestCheckInCount, registrationId },
+    { expectedCheckedInGuestCount, guestCheckInCount, registrationId },
     _options,
   ) =>
     Effect.gen(function* () {
@@ -2385,6 +2521,16 @@ export const eventRegistrationHandlers = {
         return yield* Effect.fail(
           new EventRegistrationConflictError({
             message: 'Enter a whole number of guests, starting at zero.',
+          }),
+        );
+      }
+      if (
+        !Number.isInteger(expectedCheckedInGuestCount) ||
+        expectedCheckedInGuestCount < 0
+      ) {
+        return yield* Effect.fail(
+          new EventRegistrationConflictError({
+            message: 'Reload the ticket and try again.',
           }),
         );
       }
@@ -2453,7 +2599,12 @@ export const eventRegistrationHandlers = {
         0,
         registration.guestCount - registration.checkedInGuestCount,
       );
-      if (guestCheckInCount > remainingGuestCount) {
+      // A retry of an intent that already committed sees no remaining guests;
+      // only the locked check below can tell a replay from a real overshoot.
+      if (
+        registration.checkedInGuestCount === expectedCheckedInGuestCount &&
+        guestCheckInCount > remainingGuestCount
+      ) {
         return yield* Effect.fail(
           new EventRegistrationConflictError({
             message: guestCheckInLimitMessage(remainingGuestCount),
@@ -2566,15 +2717,43 @@ export const eventRegistrationHandlers = {
                 }),
               );
             }
+            const isReplay =
+              lockedRegistration.checkedInGuestCount !==
+                expectedCheckedInGuestCount &&
+              guestCheckInCount > 0 &&
+              lockedRegistration.checkInTime !== null &&
+              lockedRegistration.checkedInGuestCount ===
+                expectedCheckedInGuestCount + guestCheckInCount;
+            if (
+              lockedRegistration.checkedInGuestCount !==
+                expectedCheckedInGuestCount &&
+              !isReplay
+            ) {
+              return yield* Effect.fail(
+                new EventRegistrationConflictError({
+                  message:
+                    'This ticket changed on another device. Review the current check-in count, then confirm again.',
+                }),
+              );
+            }
             const lockedRemainingGuestCount =
               lockedRegistration.guestCount -
               lockedRegistration.checkedInGuestCount;
-            if (guestCheckInCount > lockedRemainingGuestCount) {
+            if (!isReplay && guestCheckInCount > lockedRemainingGuestCount) {
               return yield* Effect.fail(
                 new EventRegistrationConflictError({
                   message: guestCheckInLimitMessage(lockedRemainingGuestCount),
                 }),
               );
+            }
+            // A replay reports the check-in that already committed, even when
+            // the retry arrives after the check-in window closed.
+            if (isReplay && lockedRegistration.checkInTime) {
+              return {
+                _tag: 'CheckedIn' as const,
+                alreadyCheckedIn: true,
+                checkInTime: lockedRegistration.checkInTime,
+              };
             }
             const now = yield* registrationHandlerNow;
             const timingIssue = eventCheckInTimingIssue({
@@ -2690,30 +2869,17 @@ export const eventRegistrationHandlers = {
           checkInUnavailableError(checkedInRegistration.reason),
         );
       }
-      return {
-        alreadyCheckedIn: checkedInRegistration.alreadyCheckedIn,
-        checkInTime: checkedInRegistration.checkInTime.toISOString(),
-      };
-    }).pipe(Effect.catch(mapCheckInMutationInternalError)),
-  'events.getRegistrationAddonFulfillment': ({ registrationId }, _options) =>
-    Effect.gen(function* () {
-      yield* RpcAccess.ensureAuthenticated();
-      const { tenant } = yield* RpcAccess.current();
-      const user = yield* RpcAccess.requireUser();
-      yield* ensureRegistrationAddonFulfillmentAccess({
+      const scannedRegistration = yield* loadRegistrationScan({
         registrationId,
         tenantId: tenant.id,
         user,
       });
-      return yield* getRegistrationAddonFulfillment({
-        canCancel: includesPermission(
-          'events:cancelRegistrations',
-          user.permissions,
-        ),
-        registrationId,
-        tenantId: tenant.id,
-      });
-    }).pipe(Effect.catch(mapRegistrationScanInternalError)),
+      return {
+        alreadyCheckedIn: checkedInRegistration.alreadyCheckedIn,
+        checkInTime: checkedInRegistration.checkInTime.toISOString(),
+        registration: scannedRegistration,
+      };
+    }).pipe(Effect.catch(mapCheckInMutationInternalError)),
   'events.getRegistrationStatus': ({ eventId }, _options) =>
     Effect.gen(function* () {
       const { tenant } = yield* RpcAccess.current();
@@ -3498,130 +3664,31 @@ export const eventRegistrationHandlers = {
       yield* RpcAccess.ensureAuthenticated();
       const { tenant } = yield* RpcAccess.current();
       const user = yield* RpcAccess.requireUser();
-
-      const registration = yield* databaseEffect((database) =>
-        database.query.eventRegistrations.findFirst({
-          columns: {
-            appliedDiscountedPrice: true,
-            appliedDiscountType: true,
-            basePriceAtRegistration: true,
-            checkedInGuestCount: true,
-            checkInTime: true,
-            discountAmount: true,
-            eventId: true,
-            guestCount: true,
-            status: true,
-            userId: true,
-          },
-          where: { id: registrationId, tenantId: tenant.id },
-          with: {
-            event: {
-              columns: {
-                end: true,
-                start: true,
-                title: true,
-              },
-            },
-            registrationOption: {
-              columns: {
-                title: true,
-              },
-            },
-            transactions: {
-              columns: {
-                status: true,
-                type: true,
-              },
-              where: {
-                type: 'registration',
-              },
-            },
-            user: {
-              columns: {
-                firstName: true,
-                lastName: true,
-              },
-            },
-          },
-        }),
-      );
-      if (
-        !registration ||
-        !registration.user ||
-        !registration.event ||
-        !registration.registrationOption
-      ) {
-        return yield* Effect.fail(
-          new EventRegistrationNotFoundError({
-            message:
-              'Ticket not found. Check the QR code or ask an organizer for help.',
-          }),
-        );
-      }
-
-      yield* ensureCanScanEventRegistration({
-        eventId: registration.eventId,
+      return yield* loadRegistrationScan({
+        registrationId,
         tenantId: tenant.id,
         user,
       });
-
-      const isSameUserIssue = registration.userId === user.id;
-      const isRegistrationStatusIssue = registration.status !== 'CONFIRMED';
-      const remainingGuestCount = Math.max(
-        0,
-        registration.guestCount - registration.checkedInGuestCount,
-      );
-      const isAlreadyCheckedInIssue =
-        registration.checkInTime !== null && remainingGuestCount === 0;
-      const now = yield* registrationHandlerNow;
-      const timingIssue = eventCheckInTimingIssue({
-        end: registration.event.end,
-        now,
-        start: registration.event.start,
+    }).pipe(Effect.catch(mapRegistrationScanInternalError)),
+  'events.scanTicket': ({ registrationId }, _options) =>
+    Effect.gen(function* () {
+      yield* RpcAccess.ensureAuthenticated();
+      const { tenant } = yield* RpcAccess.current();
+      const user = yield* RpcAccess.requireUser();
+      const registration = yield* loadRegistrationScan({
+        registrationId,
+        tenantId: tenant.id,
+        user,
       });
-      const isAllowCheckin =
-        !isRegistrationStatusIssue &&
-        !isSameUserIssue &&
-        timingIssue === null &&
-        !isAlreadyCheckedInIssue;
-      const priceSnapshot = readRegistrationPriceSnapshot({
-        appliedDiscountedPrice: registration.appliedDiscountedPrice,
-        appliedDiscountType: registration.appliedDiscountType,
-        basePriceAtRegistration: registration.basePriceAtRegistration,
-        discountAmount: registration.discountAmount,
-        paymentPending: registration.transactions.some(
-          (transaction) =>
-            transaction.status === 'pending' &&
-            transaction.type === 'registration',
+      const fulfillment = yield* getRegistrationAddonFulfillment({
+        canCancel: includesPermission(
+          'events:cancelRegistrations',
+          user.permissions,
         ),
         registrationId,
-        status: registration.status,
+        tenantId: tenant.id,
       });
-
-      return {
-        allowCheckin: isAllowCheckin,
-        alreadyCheckedInIssue: isAlreadyCheckedInIssue,
-        appliedDiscountType: priceSnapshot.appliedDiscountType,
-        attendeeCheckedIn: registration.checkInTime !== null,
-        checkedInGuestCount: registration.checkedInGuestCount,
-        checkInTimingIssue: timingIssue,
-        event: {
-          start: registration.event.start.toISOString(),
-          title: registration.event.title,
-        },
-        guestCount: registration.guestCount,
-        registrationOption: {
-          title: registration.registrationOption.title,
-        },
-        registrationStatus: registration.status,
-        registrationStatusIssue: isRegistrationStatusIssue,
-        remainingGuestCount,
-        sameUserIssue: isSameUserIssue,
-        user: {
-          firstName: registration.user.firstName,
-          lastName: registration.user.lastName,
-        },
-      };
+      return { addOns: fulfillment.addOns, registration };
     }).pipe(Effect.catch(mapRegistrationScanInternalError)),
   'events.undoRegistrationAddonRedemption': (
     { operationKey, redemptionEventId, registrationAddonId, registrationId },

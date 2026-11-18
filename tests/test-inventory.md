@@ -699,6 +699,11 @@ ESNcard provider credential path.
     the current participant creates the private offer and the recipient reviews
     and accepts it. The retired organizer dialog and direct-transfer handlers
     have no remaining callers.
+  - Flaky-network check-in coverage in the scanner spec aborts the first
+    check-in request (retry succeeds, counted once) and drops the response of a
+    check-in the server already committed (retry is recognized as the same
+    intent, so spots are counted once, not twice); the generated guide explains
+    the retry and "Check-in not confirmed" behavior.
   - Keep scanned-registration action guards aligned with the write/refetch
     lifecycle. Local app coverage now pins that the check-in action is disabled
     when scan state disallows it, no spots are selected, the write is pending,
