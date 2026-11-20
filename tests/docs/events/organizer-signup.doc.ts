@@ -39,7 +39,7 @@ const openEventFromNavigation = async (
   const eventsNavigation = page
     .getByRole('link', { exact: true, name: 'Events' })
     .first();
-  await expect(eventsNavigation).toBeVisible();
+  await waitForHydratedAction(eventsNavigation);
   await eventsNavigation.click();
   await expect(
     page
@@ -50,7 +50,7 @@ const openEventFromNavigation = async (
   const eventLink = page
     .locator(`a[href="/events/${scenario.event.id}"]`)
     .first();
-  await expect(eventLink).toBeVisible({ timeout: 20_000 });
+  await waitForHydratedAction(eventLink);
   await eventLink.click();
   await expect(page).toHaveURL(new RegExp(`/events/${scenario.event.id}$`));
   await expect(
