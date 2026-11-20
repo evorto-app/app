@@ -16,9 +16,15 @@ import {
 } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
+import { MatMenuModule } from '@angular/material/menu';
 import { RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
-import { faArrowLeft, faCopy } from '@fortawesome/duotone-regular-svg-icons';
+import {
+  faArrowLeft,
+  faCopy,
+  faEllipsisVertical,
+  faFileCsv,
+} from '@fortawesome/duotone-regular-svg-icons';
 import {
   RpcForbiddenError,
   RpcUnauthorizedError,
@@ -287,6 +293,7 @@ export const receiptSubmissionActionDisabled = ({
     TenantDatePipe,
     FontAwesomeModule,
     MatButtonModule,
+    MatMenuModule,
     PercentPipe,
     ReceiptAmountPipe,
     RouterLink,
@@ -318,6 +325,8 @@ export class EventOrganize {
   protected readonly event = computed(() => this.eventQuery.data());
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly faCopy = faCopy;
+  protected readonly faEllipsisVertical = faEllipsisVertical;
+  protected readonly faFileCsv = faFileCsv;
   protected readonly organizerOverviewQuery = injectQuery(() =>
     this.rpc.events.getOrganizeOverview.queryOptions({
       eventId: this.eventId(),
@@ -362,6 +371,10 @@ export class EventOrganize {
     return null;
   });
   protected readonly receiptUploadPending = signal(false);
+  protected readonly registrationsExportUrl = computed(
+    () =>
+      `/exports/events/${encodeURIComponent(this.eventId())}/registrations.csv`,
+  );
   protected readonly registrationGroups = computed(() =>
     groupEventOrganizeRegistrationOptions(
       this.organizerOverviewQuery.data()?.registrationOptions ?? [],

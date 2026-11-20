@@ -58,6 +58,7 @@ import {
   MAX_BROWSER_ERROR_TELEMETRY_BODY_SIZE_BYTES,
 } from './server/http/browser-error-telemetry.web-handler';
 import { applyDynamicSsrCacheControl } from './server/http/dynamic-ssr-cache-control';
+import { handleEventRegistrationsExportWebRequest } from './server/http/event-registrations-export.web-handler';
 import { handleHealthzWebRequest } from './server/http/healthz.web-handler';
 import { MAX_INTERNAL_TRIGGER_BODY_SIZE_BYTES } from './server/http/internal-trigger.web-handler';
 import { toNodeWebRequest } from './server/http/node-request-adapter';
@@ -256,6 +257,13 @@ const decodePathSegment = (value: string): string | undefined => {
   } catch {
     return;
   }
+};
+
+const extractExportEventId = (request: HttpServerRequest.HttpServerRequest) => {
+  const match = /^\/exports\/events\/([^/]+)\/registrations\.csv$/.exec(
+    toAbsoluteRequestUrl(request).pathname,
+  );
+  return match?.[1] ? decodePathSegment(match[1]) : undefined;
 };
 
 const extractTenantBrandAsset = (
@@ -580,6 +588,39 @@ const qrCodeRouteLayer = HttpLayerRouter.add(
     }),
 );
 
+const eventRegistrationsExportRouteLayer = HttpLayerRouter.add(
+  'GET',
+  '/exports/events/:eventId/registrations.csv',
+  (request) =>
+    Effect.gen(function* () {
+      const authSession = yield* loadAuthSession(request);
+      const requestContextOption = yield* resolveHttpRequestContext(
+        request,
+        authSession,
+      ).pipe(
+        Effect.map((context) => Option.fromNullishOr(context)),
+        Effect.catchTag('HttpRequestTenantNotFoundError', () =>
+          Effect.succeed(Option.none()),
+        ),
+      );
+      if (Option.isNone(requestContextOption)) {
+        return notFoundServerResponse;
+      }
+
+      const eventId = extractExportEventId(request);
+      if (!eventId) {
+        return HttpServerResponse.text('Event id missing', { status: 400 });
+      }
+
+      const webResponse = yield* handleEventRegistrationsExportWebRequest(
+        eventId,
+        requestContextOption.value,
+      );
+
+      return HttpServerResponse.fromWeb(webResponse);
+    }),
+);
+
 const tenantBrandAssetRouteLayer = HttpLayerRouter.add(
   'GET',
   '/tenant-assets/:tenantId/:kind/:fileName',
@@ -714,6 +755,7 @@ const webApplicationRoutesLayer = Layer.mergeAll(
   logoutRouteLayer,
   forwardLoginRouteLayer,
   qrCodeRouteLayer,
+  eventRegistrationsExportRouteLayer,
   tenantBrandAssetRouteLayer,
   stripeWebhookRouteLayer,
   rpcRouteLayer,
