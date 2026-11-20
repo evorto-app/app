@@ -1,0 +1,19 @@
+Use Astra to investigate Evorto’s Playwright cancellation during global setup.\
+\
+Read applicable repository instructions and ASTRA-001 in /Users/hedde/Documents/Codex/2026-11-04/my/outputs/astra-backlog.md. Original evidence is in /Users/hedde/.codex/artifacts/evorto-wrap-up-2026-11-06/interrupted-e2e-global-setup.log and interrupted-e2e-explicit-cleanup.log.\
+\
+Observed behavior: sending SIGTERM to the owned Playwright process during global database setup left its disposable Compose stack and webserver launcher running. Terminating the launcher still required container cleanup. Restarting the preserved walkthrough app then collided on port 4200. Normal suite shutdown cleaned up successfully.\
+\
+Check current main for subsequent fixes. Trace signal propagation and resource ownership across Playwright, Bun wrappers, shell traps, process supervisors, cancellation channels, and Docker. Distinguish a lifecycle defect from unsupported interruption mechanics.\
+\
+Reproduce only with fresh disposable projects, unique ports, and isolated test state. Preserve existing developer stacks, browser sessions, databases, and walkthrough data. Coordinate shared runtime resources with any other active work.\
+\
+If confirmed, implement a focused repair in a suitable isolated worktree. Add behavior tests proving bounded cleanup, lease release, successful port reuse, and preservation of a separate persistent stack. Preserve fail-closed teardown guarantees and deployment behavior. Run relevant checks and clean up your disposable resources. Prepare the result for review without merging or deploying.\
+\
+Coordinate everything through this main chat. Check current usage before starting; if Astra is unavailable, report that rather than silently substituting another model.\
+\
+Update ASTRA-001 in the shared backlog with status and final evidence, validation, and references. Preserve other entries.
+
+---
+
+Can we trigger the copilot review?
