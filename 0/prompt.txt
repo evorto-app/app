@@ -1,0 +1,13 @@
+Use Astra to investigate Evorto’s add-on webhook replay concern tracked in https\://linear.app/evorto/issue/EVO-61, originally raised on https\://github.com/evorto-app/app/pull/208.\
+\
+First read the issue, relevant review, current code, and applicable repository instructions. Establish whether subsequent changes have already resolved the concern.\
+\
+Investigate the crash window where the business transaction commits but the webhook receipt is not finalized. Trace recovered delivery through payment binding, receipt ownership/fencing, and already_applied handling. Include asynchronous payment failure and add-on expiry paths. Determine whether valid replays can incorrectly return state-conflict/409, or cause duplicate effects.\
+\
+Start with read-only diagnosis against current main. Use disposable database/provider fixtures for reproduction. Preserve tenant/account binding, payment authority, and receipt fencing. Keep live data untouched.\
+\
+If confirmed, implement a focused fix in a suitable isolated worktree and add behavior tests covering the crash window, successful idempotent replay, and absence of duplicated financial/add-on effects. If ruled out, provide evidence and regression coverage where useful. Run the relevant checks; prepare the result for review without merging or deploying.\
+\
+Coordinate everything through this main chat. Check current usage before starting; if Astra is unavailable, report that rather than silently substituting another model.\
+\
+Update ASTRA-002 in /Users/hedde/Documents/Codex/2026-11-04/my/outputs/astra-backlog.md with status and, when finished, findings, validation, and references. Preserve other entries.
