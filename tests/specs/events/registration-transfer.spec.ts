@@ -1657,3 +1657,245 @@ test('refunds an inherited add-on from the recipient Checkout through its persis
     paidLotBefore.updatedAt.getTime(),
   );
 });
+
+for (const previousOwnerRefund of [
+  'refund_pending',
+  'refund_failed',
+] as const) {
+  test(`lets the new owner cancel a transferred ticket while the previous owner refund is ${previousOwnerRefund}`, async ({
+    browser,
+    database,
+    registerDatabaseCleanup,
+    page,
+    seeded,
+    tenant,
+    testClock,
+  }) => {
+    test.slow();
+
+    const source = usersToAuthenticate.find((user) => user.roles === 'user');
+    const recipient = usersToAuthenticate.find(
+      (user) => user.roles === 'admin',
+    );
+    const template = seeded.templates[0];
+    if (!source || !recipient || !template) {
+      throw new Error('Expected seeded paid-transfer users and template');
+    }
+
+    const scenario = await seedPaidRegistrationTransferScenario({
+      database,
+      recipient,
+      source,
+      sourceCheckedIn: false,
+      templateId: template.id,
+      tenant,
+      title: `Transferred ticket cancellation (${previousOwnerRefund})`,
+    });
+    registerDatabaseCleanup(() => scenario.cleanup());
+
+    expect(await scenario.completeCheckout()).toBe('finalized');
+    if (previousOwnerRefund === 'refund_failed') {
+      await scenario.failSourceRefund();
+    }
+    expect(
+      await database.query.registrationTransfers.findFirst({
+        columns: { recipientUserId: true, status: true },
+        where: { id: scenario.transferId, tenantId: tenant.id },
+      }),
+    ).toEqual({ recipientUserId: recipient.id, status: previousOwnerRefund });
+
+    const readPreviousOwnerRefundPlan = () =>
+      database
+        .select()
+        .from(schema.registrationTransferRefundPlanItems)
+        .where(
+          and(
+            eq(
+              schema.registrationTransferRefundPlanItems.transferId,
+              scenario.transferId,
+            ),
+            eq(schema.registrationTransferRefundPlanItems.tenantId, tenant.id),
+          ),
+        )
+        .orderBy(schema.registrationTransferRefundPlanItems.id);
+    const readPreviousOwnerRefundClaims = (refundTransactionIds: string[]) =>
+      database
+        .select({
+          amount: schema.transactions.amount,
+          eventRegistrationId: schema.transactions.eventRegistrationId,
+          id: schema.transactions.id,
+          method: schema.transactions.method,
+          sourceTransactionId: schema.transactions.sourceTransactionId,
+          stripeAccountId: schema.transactions.stripeAccountId,
+          stripeRefundApplicationFee:
+            schema.transactions.stripeRefundApplicationFee,
+          stripeRefundGeneration: schema.transactions.stripeRefundGeneration,
+          targetUserId: schema.transactions.targetUserId,
+          type: schema.transactions.type,
+        })
+        .from(schema.transactions)
+        .where(
+          and(
+            inArray(schema.transactions.id, refundTransactionIds),
+            eq(schema.transactions.tenantId, tenant.id),
+          ),
+        )
+        .orderBy(schema.transactions.id);
+    const refundPlanBefore = await readPreviousOwnerRefundPlan();
+    expect(refundPlanBefore).toHaveLength(scenario.sourceTransactionIds.length);
+    const previousOwnerRefundIds = refundPlanBefore.flatMap(
+      ({ refundTransactionId }) =>
+        refundTransactionId ? [refundTransactionId] : [],
+    );
+    expect(previousOwnerRefundIds).toHaveLength(refundPlanBefore.length);
+    const previousOwnerRefundsBefore = await readPreviousOwnerRefundClaims(
+      previousOwnerRefundIds,
+    );
+    expect(previousOwnerRefundsBefore).toHaveLength(
+      previousOwnerRefundIds.length,
+    );
+    for (const refund of previousOwnerRefundsBefore) {
+      expect(refund).toMatchObject({
+        eventRegistrationId: scenario.sourceRegistrationId,
+        targetUserId: source.id,
+        type: 'refund',
+      });
+    }
+    const failedRefundBefore =
+      previousOwnerRefund === 'refund_failed'
+        ? await database.query.transactions.findFirst({
+            columns: {
+              status: true,
+              stripeRefundId: true,
+              stripeRefundStatus: true,
+            },
+            where: {
+              sourceTransactionId: scenario.sourceTransactionId,
+              tenantId: tenant.id,
+              type: 'refund',
+            },
+          })
+        : undefined;
+    if (previousOwnerRefund === 'refund_failed') {
+      expect(failedRefundBefore).toMatchObject({
+        status: 'pending',
+        stripeRefundStatus: 'failed',
+      });
+    }
+
+    const readRegistrationRefunds = () =>
+      database
+        .select({
+          eventRegistrationId: schema.transactions.eventRegistrationId,
+          id: schema.transactions.id,
+          sourceTransactionId: schema.transactions.sourceTransactionId,
+          targetUserId: schema.transactions.targetUserId,
+        })
+        .from(schema.transactions)
+        .where(
+          and(
+            eq(
+              schema.transactions.eventRegistrationId,
+              scenario.sourceRegistrationId,
+            ),
+            eq(schema.transactions.tenantId, tenant.id),
+            eq(schema.transactions.type, 'refund'),
+          ),
+        );
+    const refundIdsBefore = new Set(
+      (await readRegistrationRefunds()).map(({ id }) => id),
+    );
+
+    await page.goto(`/events/${scenario.eventId}`);
+    const recipientPage = await openAuthenticatedTestPage({
+      baseUrl: new URL(page.url()).origin,
+      browser,
+      storageState: adminStateFile,
+      tenantDomain: tenant.domain,
+      testClock,
+    });
+    registerDatabaseCleanup(() => recipientPage.close());
+    await recipientPage.page.goto(`/events/${scenario.eventId}`);
+    await waitForRegistrationPage(recipientPage.page);
+    await expect(
+      recipientPage.page.getByText(
+        previousOwnerRefund === 'refund_failed'
+          ? 'Transfer refund needs attention'
+          : /^Transfer refund (is in progress|needs attention)$/,
+      ),
+    ).toBeVisible();
+
+    const cancelTicket = recipientPage.page.getByRole('button', {
+      exact: true,
+      name: 'Cancel ticket',
+    });
+    await expect(cancelTicket).toBeEnabled();
+    await cancelTicket.click();
+    const cancellationDialog = recipientPage.page.getByRole('dialog');
+    await expect(
+      cancellationDialog.getByRole('heading', {
+        exact: true,
+        name: 'Cancel your ticket?',
+      }),
+    ).toBeVisible();
+    await cancellationDialog
+      .getByRole('button', { exact: true, name: 'Cancel ticket' })
+      .click();
+    await expect(
+      recipientPage.page.locator('app-event-active-registration'),
+    ).toHaveCount(0, { timeout: 20_000 });
+
+    await expect
+      .poll(
+        async () =>
+          (
+            await database.query.eventRegistrations.findFirst({
+              columns: { status: true, userId: true },
+              where: { id: scenario.sourceRegistrationId, tenantId: tenant.id },
+            })
+          )?.status,
+      )
+      .toBe('CANCELLED');
+
+    // The new owner's refund comes only from the new owner's own payment.
+    const newRefunds = (await readRegistrationRefunds()).filter(
+      ({ id }) => !refundIdsBefore.has(id),
+    );
+    expect(newRefunds.length).toBeGreaterThan(0);
+    for (const refund of newRefunds) {
+      expect(refund).toMatchObject({
+        eventRegistrationId: scenario.sourceRegistrationId,
+        sourceTransactionId: scenario.recipientTransactionId,
+        targetUserId: recipient.id,
+      });
+    }
+
+    // The previous owner's refund stays a separate, unchanged obligation.
+    expect(await readPreviousOwnerRefundPlan()).toEqual(refundPlanBefore);
+    expect(await readPreviousOwnerRefundClaims(previousOwnerRefundIds)).toEqual(
+      previousOwnerRefundsBefore,
+    );
+    if (previousOwnerRefund === 'refund_failed') {
+      expect(
+        await database.query.transactions.findFirst({
+          columns: {
+            status: true,
+            stripeRefundId: true,
+            stripeRefundStatus: true,
+          },
+          where: {
+            sourceTransactionId: scenario.sourceTransactionId,
+            tenantId: tenant.id,
+            type: 'refund',
+          },
+        }),
+      ).toEqual(failedRefundBefore);
+    }
+    expect(
+      await database.query.registrationTransfers.findFirst({
+        columns: { status: true },
+        where: { id: scenario.transferId, tenantId: tenant.id },
+      }),
+    ).toEqual({ status: previousOwnerRefund });
+  });
+}

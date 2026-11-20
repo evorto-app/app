@@ -244,6 +244,66 @@ describe('registrationCancellationCopy', () => {
     expect(registrationCancellationCopy(registration)).toBeNull();
   });
 
+  it('keeps cancellation locked during the open or Checkout ownership handoff', () => {
+    for (const activeTransfer of [
+      {
+        expiresAt: '2030-05-01T12:00:00.000Z',
+        refundLifecycle: null,
+        registrationSide: 'source' as const,
+        status: 'open' as const,
+        transferId: 'transfer-1',
+      },
+      {
+        expiresAt: '2030-05-01T12:00:00.000Z',
+        refundLifecycle: null,
+        registrationSide: 'source' as const,
+        status: 'checkout_pending' as const,
+        transferId: 'transfer-1',
+      },
+    ]) {
+      expect(
+        registrationCancellationCopy({
+          activeTransfer,
+          cancellationAvailable: true,
+          cancellationBlockedReason: 'none',
+          guestCount: 0,
+          paymentPending: false,
+          status: 'CONFIRMED',
+        }),
+      ).toBeNull();
+    }
+  });
+
+  it('lets the new owner cancel while the previous owner refund is pending or failed', () => {
+    for (const activeTransfer of [
+      {
+        expiresAt: '2030-05-01T12:00:00.000Z',
+        refundLifecycle: { state: 'processing' as const },
+        registrationSide: 'recipient' as const,
+        status: 'refund_pending' as const,
+        transferId: 'transfer-1',
+      },
+      {
+        expiresAt: '2030-05-01T12:00:00.000Z',
+        refundLifecycle: { state: 'needsAttention' as const },
+        registrationSide: 'recipient' as const,
+        status: 'refund_failed' as const,
+        transferId: 'transfer-1',
+      },
+    ]) {
+      expect(
+        registrationCancellationCopy({
+          activeTransfer,
+          cancellationAvailable: true,
+          cancellationBlockedReason: 'none',
+          guestCount: 0,
+          paymentPending: false,
+          status: 'CONFIRMED',
+        }),
+      ).toMatchObject({ buttonLabel: 'Cancel ticket' });
+    }
+  });
+
   it('explains a passed cancellation deadline without presenting an action', () => {
     expect(
       registrationCancellationCopy({

@@ -5,7 +5,6 @@ import {
 } from '@shared/event-check-in';
 import { type PlatformAuditSnapshot } from '@shared/platform-audit';
 import { registrationSpotCount } from '@shared/registration-spots';
-import { activeRegistrationTransferStatuses } from '@shared/registration-transfer';
 import {
   EventCheckInUnavailableError,
   EventRegistrationConflictError,
@@ -41,9 +40,9 @@ import { getServerNow } from '../../../../clock';
 import { serverClockConfig } from '../../../../config/server-config';
 import { allocateAcquisitionComponentQuantity } from '../../../../registrations/registration-acquisition-refund';
 import {
+  activeRegistrationTransferMutationPredicate,
   ensureRegistrationMutationHasNoActiveTransfer,
   RegistrationTransferMutationConflict,
-  registrationTransferOpenDeadlinePredicate,
 } from '../../../../registrations/registration-transfer-mutation-guard';
 import {
   EventRegistrationService,
@@ -371,19 +370,6 @@ const normalizeRegistrationListRecord = (
   registrationOptionTitle: registration.registrationOptionTitle,
   status: registration.status,
 });
-
-export const platformRegistrationActiveTransferPredicate = (input: {
-  readonly registrationId: string;
-  readonly tenantId: string;
-}) =>
-  and(
-    eq(registrationTransfers.tenantId, input.tenantId),
-    eq(registrationTransfers.sourceRegistrationId, input.registrationId),
-    inArray(registrationTransfers.status, [
-      ...activeRegistrationTransferStatuses,
-    ]),
-    registrationTransferOpenDeadlinePredicate(registrationTransfers),
-  );
 
 export const platformRegistrationCancellationBlockedReason = (input: {
   readonly activeTransfer: boolean;
@@ -922,7 +908,7 @@ export const loadPlatformRegistrationDetail = Effect.fn(
     .select({ id: registrationTransfers.id })
     .from(registrationTransfers)
     .where(
-      platformRegistrationActiveTransferPredicate({
+      activeRegistrationTransferMutationPredicate({
         registrationId,
         tenantId: targetTenantId,
       }),

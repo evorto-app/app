@@ -573,21 +573,13 @@ const registrationCancellationStateChanged = ({
     (expectedPaymentPending !== undefined &&
       paymentPending !== expectedPaymentPending));
 
-const findActiveRegistrationTransfer = (
-  database: DatabaseClient,
-  input: { readonly registrationId: string; readonly tenantId: string },
-) =>
-  database.query.registrationTransfers.findFirst({
-    columns: { id: true },
-    where: {
-      RAW: registrationTransferOpenDeadlinePredicate,
-      sourceRegistrationId: input.registrationId,
-      status: { in: [...activeRegistrationTransferStatuses] },
-      tenantId: input.tenantId,
-    },
-  });
-
-const findCheckInBlockingRegistrationTransfer = (
+/**
+ * Non-authoritative preflight for ordinary ticket mutations (cancellation,
+ * check-in). It reads the same open/Checkout handoff statuses as the row-locked
+ * guard: a completed transfer whose source refund is still pending or failed
+ * belongs to the previous owner and does not block the current owner.
+ */
+const findMutationBlockingRegistrationTransfer = (
   database: DatabaseClient,
   input: { readonly registrationId: string; readonly tenantId: string },
 ) =>
@@ -888,7 +880,7 @@ export const cancelRegistrationForTenant = Effect.fn(
   }
 
   const activeTransfer = yield* databaseEffect((database) =>
-    findActiveRegistrationTransfer(database, {
+    findMutationBlockingRegistrationTransfer(database, {
       registrationId: registration.id,
       tenantId: tenant.id,
     }),
@@ -2426,7 +2418,7 @@ export const eventRegistrationHandlers = {
       }
 
       const activeTransfer = yield* databaseEffect((database) =>
-        findCheckInBlockingRegistrationTransfer(database, {
+        findMutationBlockingRegistrationTransfer(database, {
           registrationId: registration.id,
           tenantId: tenant.id,
         }),

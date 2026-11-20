@@ -194,6 +194,8 @@ interface PaidRegistrationTransferScenarioInput {
   readonly source: {
     readonly id: string;
   };
+  /** Seed the source registration as already checked in (default true). */
+  readonly sourceCheckedIn?: boolean;
   readonly templateId: string;
   readonly tenant: {
     readonly domain: string;
@@ -295,6 +297,7 @@ export const seedPaidRegistrationTransferScenario = async (
   const sourceAddonPaymentIntentId = `pi_transfer_addon_${sourceAddonTransactionId}`;
   const priorAddonRefundId = `re_transfer_prior_${sourceAddonTransactionId}`;
   const terminalRefundId = `re_transfer_${sourceTransactionId}`;
+  const sourceCheckedIn = input.sourceCheckedIn ?? true;
   const eventWindow = futureServerEventWindow();
   const startsAt = eventWindow.start;
   const checkoutExpiresAt = new Date(
@@ -388,8 +391,8 @@ export const seedPaidRegistrationTransferScenario = async (
       appliedDiscountedPrice: sourceDiscountedUnitPrice,
       appliedDiscountType: 'esnCard',
       basePriceAtRegistration: sourceUnitPrice,
-      checkedInGuestCount: 1,
-      checkInTime,
+      checkedInGuestCount: sourceCheckedIn ? 1 : 0,
+      checkInTime: sourceCheckedIn ? checkInTime : null,
       discountAmount: sourceUnitPrice - sourceDiscountedUnitPrice,
       eventId,
       guestCount: 1,
