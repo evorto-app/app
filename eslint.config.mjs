@@ -10,7 +10,6 @@ import { effectBoundaryPlugin } from "./tools/eslint-rules/effect-boundaries.mjs
 import { financialLedgerPlugin } from "./tools/eslint-rules/financial-ledger.mjs";
 import { postgresIdentifiersPlugin } from "./tools/eslint-rules/postgres-identifiers.mjs";
 import * as yamlParser from "yaml-eslint-parser";
-// import * as pluginQuery from "@tanstack/eslint-plugin-query";
 
 const baseConfig = [
   eslint.configs.recommended,
@@ -18,7 +17,6 @@ const baseConfig = [
   ...tseslint.configs.stylistic,
   eslintPluginUnicorn.configs["flat/recommended"],
   perfectionist.configs["recommended-natural"],
-  // ...pluginQuery.configs["flat/recommended"],
   eslintConfigPrettier,
 ];
 
