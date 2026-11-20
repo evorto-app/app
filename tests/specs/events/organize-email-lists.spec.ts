@@ -10,7 +10,7 @@ import { expect, test } from '../../support/fixtures/axe-test';
 
 test.use({ storageState: adminStateFile });
 
-test('organizer copies the confirmed attendee email list from the overview @events', async ({
+test('organizer copies confirmed attendees’ contact emails from the overview @events', async ({
   context,
   database,
   makeAxeBuilder,
@@ -20,9 +20,10 @@ test('organizer copies the confirmed attendee email list from the overview @even
 }) => {
   const confirmedRows = await database
     .select({
-      email: users.email,
+      contactEmail: users.communicationEmail,
       eventId: eventRegistrations.eventId,
       organizingRegistration: eventRegistrationOptions.organizingRegistration,
+      signInEmail: users.email,
     })
     .from(eventRegistrations)
     .innerJoin(
@@ -50,11 +51,14 @@ test('organizer copies the confirmed attendee email list from the overview @even
     );
   }
 
+  const eventAttendees = attendeeRows.filter((row) => row.eventId === eventId);
+  expect(
+    eventAttendees.some((row) => row.contactEmail !== row.signInEmail),
+  ).toBe(true);
   const expectedEmails = [
     ...new Map(
-      attendeeRows
-        .filter((row) => row.eventId === eventId)
-        .map((row) => row.email.trim())
+      eventAttendees
+        .map((row) => row.contactEmail.trim())
         .map((email) => [email.toLowerCase(), email] as const),
     ).values(),
   ].toSorted();
