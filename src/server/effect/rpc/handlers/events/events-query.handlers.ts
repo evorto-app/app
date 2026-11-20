@@ -31,7 +31,7 @@ import {
   sql,
 } from 'drizzle-orm';
 import { Effect, Option } from 'effect';
-import { groupBy } from 'es-toolkit';
+import { groupBy } from 'effect/Array';
 import { DateTime } from 'luxon';
 
 import type { AppRpcHandlers } from '../shared/handler-types';
@@ -1546,7 +1546,7 @@ export const eventQueryHandlers = {
             },
             user: {
               columns: {
-                email: true,
+                communicationEmail: true,
                 firstName: true,
                 id: true,
                 lastName: true,
@@ -1574,28 +1574,27 @@ export const eventQueryHandlers = {
         permissions: user.permissions,
       });
 
-      type Registration = (typeof registrationsWithRelations)[number];
       const groupedRegistrations = groupBy(
         registrationsWithRelations,
         (registration) => registration.registrationOptionId,
-      ) as Record<string, Registration[]>;
+      );
 
-      const sortedOptions = (
-        Object.entries(groupedRegistrations) as [string, Registration[]][]
-      ).toSorted(([, registrationsA], [, registrationsB]) => {
-        if (
-          registrationsA[0].registrationOption.organizingRegistration !==
-          registrationsB[0].registrationOption.organizingRegistration
-        ) {
-          return registrationsB[0].registrationOption.organizingRegistration
-            ? 1
-            : -1;
-        }
+      const sortedOptions = Object.entries(groupedRegistrations).toSorted(
+        ([, registrationsA], [, registrationsB]) => {
+          if (
+            registrationsA[0].registrationOption.organizingRegistration !==
+            registrationsB[0].registrationOption.organizingRegistration
+          ) {
+            return registrationsB[0].registrationOption.organizingRegistration
+              ? 1
+              : -1;
+          }
 
-        return registrationsA[0].registrationOption.title.localeCompare(
-          registrationsB[0].registrationOption.title,
-        );
-      });
+          return registrationsA[0].registrationOption.title.localeCompare(
+            registrationsB[0].registrationOption.title,
+          );
+        },
+      );
 
       const registrationOptions = sortedOptions.map(
         ([registrationOptionId, registrationRows]) => {
@@ -1653,7 +1652,7 @@ export const eventQueryHandlers = {
                 ...priceSnapshot,
                 checkedIn: registration.checkInTime !== null,
                 checkInTime: registration.checkInTime?.toISOString() ?? null,
-                email: registration.user.email,
+                email: registration.user.communicationEmail,
                 firstName: registration.user.firstName,
                 lastName: registration.user.lastName,
                 ...approvalState,

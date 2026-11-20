@@ -117,8 +117,8 @@ resource "scaleway_container" "worker" {
   privacy                = "private"
   https_connections_only = true
   sandbox                = "v2"
-  cpu_limit              = 560
-  memory_limit_bytes     = local.container_memory_limit_bytes
+  cpu_limit              = var.worker_resources.cpu_limit
+  memory_limit_bytes     = var.worker_resources.memory_limit_bytes
   min_scale              = 0
   max_scale              = 1
   timeout                = 300
