@@ -1,0 +1,9 @@
+I would like you to run an weekly dependency review and prepare a PR right away if updates can be made without changes and raise more difficult issues to me
+
+---
+
+Can you run the first dependency review now?
+
+---
+
+Please resume the Evorto dependency review now, open a PR for updates that need no code changes, and flag anything more involved for me.
