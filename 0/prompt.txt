@@ -1,0 +1,5 @@
+Why do we even have happy dom, we should also review if we can remove any dependencies
+
+---
+
+Alright, get that done
