@@ -43,6 +43,7 @@ const persistedBinding = {
 } satisfies PersistedCheckoutSessionBinding;
 
 const validBindingInput = {
+  action: 'complete' as const,
   eventAccount: 'acct_tenant',
   metadata: {
     registrationId: 'registration-1',
@@ -51,7 +52,6 @@ const validBindingInput = {
   },
   paymentIntentId: 'pi_1',
   persisted: persistedBinding,
-  requirePaymentIntent: true,
   sessionId: 'checkout-1',
   stripeAccountId: 'acct_tenant',
 };
@@ -670,13 +670,47 @@ describe('validateCheckoutSessionBinding', () => {
     ).toEqual({ type: 'state-conflict' });
   });
 
+  it('routes only compatible terminal add-on states to their finalizers', () => {
+    const persisted = {
+      ...persistedBinding,
+      stripePaymentIntentId: 'pi_1',
+      type: 'addon' as const,
+    };
+    for (const action of [
+      'complete',
+      'cancel',
+      'expire',
+      'keepOpen',
+    ] as const) {
+      for (const status of ['successful', 'cancelled'] as const) {
+        const binding = validateCheckoutSessionBinding({
+          ...validBindingInput,
+          action,
+          persisted: { ...persisted, status },
+          registrationStatus: 'CANCELLED',
+        });
+        const compatible =
+          status === 'successful'
+            ? action === 'complete'
+            : action === 'cancel' || action === 'expire';
+        expect(binding.type).toBe(compatible ? 'resolved' : 'state-conflict');
+      }
+    }
+    expect(
+      validateCheckoutSessionBinding({
+        ...validBindingInput,
+        paymentIntentId: 'pi_other',
+        persisted: { ...persisted, status: 'successful' },
+      }).type,
+    ).toBe('invalid-binding');
+  });
+
   it('accepts an exact cancelled registration as an idempotent expiry replay only', () => {
     const cancelledBinding = {
       ...validBindingInput,
-      allowFinalizedExpiry: true,
+      action: 'expire' as const,
       persisted: { ...persistedBinding, status: 'cancelled' as const },
       registrationStatus: 'CANCELLED' as const,
-      requirePaymentIntent: false,
     };
 
     expect(validateCheckoutSessionBinding(cancelledBinding)).toEqual({
@@ -697,7 +731,7 @@ describe('validateCheckoutSessionBinding', () => {
     expect(
       validateCheckoutSessionBinding({
         ...cancelledBinding,
-        allowFinalizedExpiry: false,
+        action: 'complete',
       }),
     ).toEqual({ type: 'state-conflict' });
   });

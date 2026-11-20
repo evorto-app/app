@@ -63,6 +63,7 @@ import {
   registrationTransfers,
   roles,
   rolesToTenantUsers,
+  stripeWebhookEvents,
   tenants,
   tenantStripeTaxRates,
   transactions,
@@ -79,6 +80,7 @@ import {
 } from '../effect/rpc/handlers/events/events-registration.handlers';
 import { platformTenantAdminHandlers } from '../effect/rpc/handlers/platform/platform-tenant-admin.handlers';
 import { RpcAccess } from '../effect/rpc/handlers/shared/rpc-access.service';
+import { handleStripeWebhookWebRequest } from '../http/stripe-webhook.web-handler';
 import { buildCheckoutSessionExpiresAt } from '../integrations/stripe-checkout';
 import { StripeClient } from '../stripe-client';
 import {
@@ -194,6 +196,7 @@ const makeLayer = (url: string, stripe: Stripe = fakeStripe) => {
         DATABASE_URL: url,
         NODE_ENV: 'test',
         SECRET: 'addon-transfer-test-secret-32-bytes',
+        STRIPE_WEBHOOK_SECRET: 'whsec_addon_fixture',
       },
     }),
   );
@@ -2338,6 +2341,173 @@ describe('post-registration add-on purchase concurrency', () => {
     },
   );
 
+  it.each([
+    { paid: true, type: 'checkout.session.completed' },
+    { paid: true, type: 'checkout.session.async_payment_succeeded' },
+    { paid: false, type: 'checkout.session.async_payment_failed' },
+    { paid: true, type: 'checkout.session.async_payment_failed' },
+    { paid: false, type: 'checkout.session.expired' },
+  ] as const)(
+    'recovers $type after its add-on transaction committed (paid=$paid)',
+    async ({ paid, type }) => {
+      const fixture = await seedFixture(database, {
+        paid: true,
+        reservationExpiresAt: new Date(Date.now() - 60_000),
+        stock: 0,
+      });
+      fixtures.push(fixture);
+      const session = completedSession(fixture);
+      const identity = {
+        ...paidFixtureIdentity(fixture),
+        stripeAccountId: 'acct_addon_purchase_test',
+        stripeCheckoutSessionId: session.id,
+        tenantId: fixture.tenantId,
+      };
+      if (!paid) {
+        session.payment_status = 'unpaid';
+        session.status =
+          type === 'checkout.session.expired' ? 'expired' : 'complete';
+      }
+      const eventId = `evt_${createId()}`;
+      const [original] = await database
+        .insert(stripeWebhookEvents)
+        .values({
+          eventType: type,
+          processedAt: new Date(Date.now() - 6 * 60_000),
+          stripeEventId: eventId,
+          tenantId: fixture.tenantId,
+        })
+        .returning();
+      const retrieve = vi.spyOn(fakeStripe.checkout.sessions, 'retrieve');
+      try {
+        // The worker committed this transaction and stopped before finalizing its receipt.
+        if (paid) {
+          await Effect.runPromise(
+            completePaidAddonPurchaseCheckout(identity, session).pipe(
+              Effect.provide(layer),
+            ),
+          );
+        } else {
+          await Effect.runPromise(
+            expirePaidAddonPurchaseCheckout(identity).pipe(
+              Effect.provide(layer),
+            ),
+          );
+        }
+        const providerSession = {
+          ...session,
+          lastResponse: {
+            headers: {},
+            requestId: 'req_fixture',
+            statusCode: 200,
+          },
+        };
+        retrieve.mockResolvedValue(providerSession);
+        const eventSession =
+          type === 'checkout.session.async_payment_failed'
+            ? {
+                ...session,
+                payment_status: 'unpaid' as const,
+                status: 'complete' as const,
+              }
+            : session;
+        const deliver = (id = eventId, object = eventSession) => {
+          const payload = JSON.stringify({
+            account: identity.stripeAccountId,
+            data: { object },
+            id,
+            type,
+          });
+          const signature = Stripe.webhooks.generateTestHeaderString({
+            payload,
+            secret: 'whsec_addon_fixture',
+          });
+          return Effect.runPromise(
+            handleStripeWebhookWebRequest(
+              new Request('https://example.test/webhook', {
+                body: payload,
+                headers: { 'stripe-signature': signature },
+                method: 'POST',
+              }),
+            ).pipe(Effect.provide(layer)),
+          );
+        };
+
+        const conflictingEventId = `evt_${createId()}`;
+        const wrongOrder = await deliver(conflictingEventId, {
+          ...eventSession,
+          metadata: {
+            ...eventSession.metadata,
+            addonPurchaseOrderId: 'different-order',
+          },
+        });
+        expect(wrongOrder.status).toBe(400);
+        if (type === 'checkout.session.async_payment_failed') {
+          retrieve.mockResolvedValueOnce({
+            ...providerSession,
+            payment_status: 'unpaid',
+            status: 'open',
+          });
+          const retryable = await deliver(conflictingEventId);
+          expect(retryable.status).toBe(409);
+        }
+        expect(
+          await database.query.stripeWebhookEvents.findFirst({
+            where: { stripeEventId: conflictingEventId },
+          }),
+        ).toBeUndefined();
+        const replay = await deliver();
+        expect(replay.status, await replay.text()).toBe(200);
+        const receipt = await database.query.stripeWebhookEvents.findFirst({
+          where: { stripeEventId: eventId },
+        });
+        expect(receipt?.status).toBe('processed');
+        expect(receipt?.claimId).not.toBe(original?.claimId);
+        const duplicate = await deliver();
+        expect(await duplicate.text()).toBe('Duplicate event ignored');
+
+        const where = { registrationId: identity.registrationId };
+        expect(
+          await database.query.eventRegistrationAddonPurchases.findMany({
+            columns: { quantity: true },
+            where,
+          }),
+        ).toEqual(paid ? [{ quantity: 1 }] : []);
+        expect(
+          await database.query.eventRegistrationAddonPurchaseLots.findMany({
+            where,
+          }),
+        ).toHaveLength(paid ? 1 : 0);
+        expect(
+          await database.query.registrationAcquisitionPayments.findMany({
+            where,
+          }),
+        ).toHaveLength(paid ? 1 : 0);
+        expect(
+          await database.query.transactions.findMany({
+            columns: { id: true, status: true, type: true },
+            where: { eventRegistrationId: identity.registrationId },
+          }),
+        ).toEqual([
+          {
+            id: identity.transactionId,
+            status: paid ? 'successful' : 'cancelled',
+            type: 'addon',
+          },
+        ]);
+        const addon = await database.query.eventAddons.findFirst({
+          where: { id: fixture.addOnId },
+        });
+        expect(addon?.totalAvailableQuantity).toBe(paid ? 0 : 1);
+      } finally {
+        retrieve.mockRestore();
+        await database
+          .delete(stripeWebhookEvents)
+          .where(eq(stripeWebhookEvents.stripeEventId, eventId));
+      }
+    },
+  );
+
   it('keeps a paid reservation invisible and finalizes payment received after the event ends', async () => {
     const fixture = await seedFixture(database, { paid: true, stock: 0 });
     fixtures.push(fixture);
@@ -2899,10 +3069,10 @@ describe('post-registration add-on purchase concurrency', () => {
 
     const [order, transaction, purchases, lots, addOn] = await Promise.all([
       database.query.eventRegistrationAddonPurchaseOrders.findFirst({
-        where: { id: fixture.orderId },
+        where: { id: paidIdentity.orderId },
       }),
       database.query.transactions.findFirst({
-        where: { id: fixture.transactionId },
+        where: { id: paidIdentity.transactionId },
       }),
       database.query.eventRegistrationAddonPurchases.findMany({
         where: { registrationId: fixture.registrationIds[0] },
