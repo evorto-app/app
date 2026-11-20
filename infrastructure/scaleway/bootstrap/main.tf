@@ -9,6 +9,8 @@ resource "scaleway_account_project" "staging" {
 }
 
 resource "scaleway_account_project" "production" {
+  count = var.enable_production ? 1 : 0
+
   organization_id = var.organization_id
   name            = "evorto-production"
   description     = "Production application resources"
@@ -19,23 +21,27 @@ resource "scaleway_account_project" "production" {
 }
 
 locals {
-  terraform_state_backends = {
-    bootstrap = {
-      application_id = scaleway_iam_application.bootstrap_terraform_state.id
-      bucket_name    = var.state_bucket_names.bootstrap
-      project_id     = var.bootstrap_project_id
-    }
-    production = {
-      application_id = scaleway_iam_application.production_terraform_state.id
-      bucket_name    = var.state_bucket_names.production
-      project_id     = scaleway_account_project.production.id
-    }
-    staging = {
-      application_id = scaleway_iam_application.staging_terraform_state.id
-      bucket_name    = var.state_bucket_names.staging
-      project_id     = scaleway_account_project.staging.id
-    }
-  }
+  terraform_state_backends = merge(
+    {
+      bootstrap = {
+        application_id = scaleway_iam_application.bootstrap_terraform_state.id
+        bucket_name    = var.state_bucket_names.bootstrap
+        project_id     = var.bootstrap_project_id
+      }
+      staging = {
+        application_id = scaleway_iam_application.staging_terraform_state.id
+        bucket_name    = var.state_bucket_names.staging
+        project_id     = scaleway_account_project.staging.id
+      }
+    },
+    var.enable_production ? {
+      production = {
+        application_id = scaleway_iam_application.production_terraform_state[0].id
+        bucket_name    = var.state_bucket_names.production
+        project_id     = scaleway_account_project.production[0].id
+      }
+    } : {},
+  )
 }
 
 resource "scaleway_object_bucket" "terraform_state" {
@@ -94,6 +100,20 @@ resource "scaleway_object_bucket_policy" "terraform_state" {
     Version = "2023-04-17"
     Statement = [
       {
+        Sid    = "TerraformStateAdministration"
+        Effect = "Allow"
+        Principal = {
+          SCW = [
+            for user_id in var.state_operator_user_ids : "user_id:${user_id}"
+          ]
+        }
+        Action = "s3:*"
+        Resource = [
+          scaleway_object_bucket.terraform_state[each.key].name,
+          "${scaleway_object_bucket.terraform_state[each.key].name}/*",
+        ]
+      },
+      {
         Sid    = "TerraformStateAccess"
         Effect = "Allow"
         Principal = {
@@ -124,7 +144,9 @@ resource "scaleway_registry_namespace" "staging" {
 }
 
 resource "scaleway_registry_namespace" "production" {
-  project_id  = scaleway_account_project.production.id
+  count = var.enable_production ? 1 : 0
+
+  project_id  = scaleway_account_project.production[0].id
   region      = var.region
   name        = "evorto-production"
   description = "Immutable Evorto production application images"

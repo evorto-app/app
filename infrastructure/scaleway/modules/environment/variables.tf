@@ -149,3 +149,9 @@ variable "preconfigured_alert_ids" {
   type        = set(string)
   default     = null
 }
+
+variable "application_bucket_console_user_ids" {
+  description = "Existing Scaleway users authorized for read-only console access to the application bucket."
+  type        = set(string)
+  default     = []
+}
