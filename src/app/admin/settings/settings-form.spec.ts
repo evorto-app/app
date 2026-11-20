@@ -294,6 +294,7 @@ const settingsCases: readonly {
     name: 'payment',
     payload: {
       allowOther: false,
+      allowReceiptSelfApproval: false,
       buyEsnCardUrl: 'https://cards.example.test/buy',
       currency: 'EUR',
       esnCardEnabled: true,
@@ -1551,6 +1552,7 @@ describe('focused settings named optional payloads', () => {
                 .value.set(['DE', 'NL']);
               expectedPayload = {
                 allowOther: true,
+                allowReceiptSelfApproval: false,
                 buyEsnCardUrl: blank ? undefined : 'https://esncard.org/',
                 currency: 'CZK',
                 esnCardEnabled: true,

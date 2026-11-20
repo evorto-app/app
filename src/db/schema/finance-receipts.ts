@@ -101,6 +101,7 @@ export const financeReceipts = pgTable(
     submittedByUserId: varchar({ length: 20 })
       .notNull()
       .references(() => users.id),
+    submittedTotalAmount: integer(),
     taxAmount: integer().notNull(),
     totalAmount: integer().notNull(),
   },

@@ -16,8 +16,10 @@ import {
   inArray,
   isNotNull,
   isNull,
+  sql,
   TransactionRollbackError,
 } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 import { Effect } from 'effect';
 
 import type { AppRpcHandlers } from '../shared/handler-types';
@@ -41,6 +43,7 @@ import {
   ensureValidFinanceReceiptCalendarDate,
   financeReceiptView,
   isAllowedReceiptMimeType,
+  isReceiptSelfApprovalAllowed,
   normalizeFinanceReceiptBaseRecord,
   validateReceiptCountryForTenant,
 } from './finance.shared';
@@ -382,6 +385,7 @@ export const financeReceiptsHandlers = {
     Effect.gen(function* () {
       yield* RpcAccess.ensurePermission('finance:approveReceipts');
       const { tenant } = yield* RpcAccess.current();
+      const user = yield* RpcAccess.requireUser();
       const receipts = yield* databaseEffect((database) =>
         database
           .select({
@@ -426,6 +430,9 @@ export const financeReceiptsHandlers = {
         eventStart: signedReceipt.eventStart.toISOString(),
         eventTitle: signedReceipt.eventTitle,
         receiptEvidenceAvailable: signedReceipt.receiptEvidenceAvailable,
+        selfApprovalBlocked:
+          signedReceipt.submittedByUserId === user.id &&
+          !isReceiptSelfApprovalAllowed(tenant),
         submittedByEmail: financeReceiptSubmitterEmail(signedReceipt),
         submittedByFirstName: signedReceipt.submittedByFirstName,
         submittedByLastName: signedReceipt.submittedByLastName,
@@ -436,12 +443,15 @@ export const financeReceiptsHandlers = {
       yield* RpcAccess.ensureAuthenticated();
       const { tenant } = yield* RpcAccess.current();
       const user = yield* RpcAccess.requireUser();
+      const reviewer = alias(users, 'reviewer');
       const receipts = yield* databaseEffect((database) =>
         database
           .select({
             ...financeReceiptView,
             eventStart: eventInstances.start,
             eventTitle: eventInstances.title,
+            reviewedByFirstName: reviewer.firstName,
+            reviewedByLastName: reviewer.lastName,
           })
           .from(financeReceipts)
           .innerJoin(financeReceiptUploads, financeReceiptUploadJoin)
@@ -449,6 +459,7 @@ export const financeReceiptsHandlers = {
             eventInstances,
             eq(financeReceipts.eventId, eventInstances.id),
           )
+          .leftJoin(reviewer, eq(financeReceipts.reviewedByUserId, reviewer.id))
           .where(
             and(
               eq(financeReceipts.tenantId, tenant.id),
@@ -464,6 +475,8 @@ export const financeReceiptsHandlers = {
           ...normalizeFinanceReceiptBaseRecord(receiptWithoutPreview),
           eventStart: receiptWithoutPreview.eventStart.toISOString(),
           eventTitle: receiptWithoutPreview.eventTitle,
+          reviewedByFirstName: receiptWithoutPreview.reviewedByFirstName,
+          reviewedByLastName: receiptWithoutPreview.reviewedByLastName,
         };
       });
     }),
@@ -612,6 +625,7 @@ export const financeReceiptsHandlers = {
             submittedByFirstName: string;
             submittedByLastName: string;
             submittedByUserId: string;
+            submittedTotalAmount: null | number;
             taxAmount: number;
             totalAmount: number;
             updatedAt: string;
@@ -694,6 +708,7 @@ export const financeReceiptsHandlers = {
                 status: financeReceipts.status,
                 submittedByCommunicationEmail: users.communicationEmail,
                 submittedByEmail: users.email,
+                submittedByUserId: financeReceipts.submittedByUserId,
               })
               .from(financeReceipts)
               .innerJoin(users, eq(financeReceipts.submittedByUserId, users.id))
@@ -728,6 +743,17 @@ export const financeReceiptsHandlers = {
                   receiptRecord.status === 'refunded'
                     ? 'refundedReceipt'
                     : 'receiptAlreadyReviewed',
+              });
+            }
+            if (
+              input.status === 'approved' &&
+              receiptRecord.submittedByUserId === user.id &&
+              !isReceiptSelfApprovalAllowed(tenant)
+            ) {
+              return yield* new RpcBadRequestError({
+                message:
+                  'Another approver must review your own receipt. An admin can allow self-approval in the receipt settings.',
+                reason: 'selfApprovalNotAllowed',
               });
             }
             const purchaseCountry =
@@ -802,6 +828,7 @@ export const financeReceiptsHandlers = {
                 reviewedAt: new Date(),
                 reviewedByUserId: user.id,
                 status: input.status,
+                submittedTotalAmount: sql`coalesce(${financeReceipts.submittedTotalAmount}, ${financeReceipts.totalAmount})`,
                 taxAmount: input.taxAmount,
                 totalAmount: input.totalAmount,
               })

@@ -1055,6 +1055,7 @@ export const adminHandlers = {
                   discountProviders,
                   receiptSettings: resolveReceiptCountrySettings({
                     allowOther: input.allowOther,
+                    allowSelfApproval: input.allowReceiptSelfApproval,
                     receiptCountries: input.receiptCountries,
                   }),
                   refundFeesOnCancellation: input.refundFeesOnCancellation,

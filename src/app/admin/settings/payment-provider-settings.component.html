@@ -110,6 +110,16 @@
       <p class="text-on-surface-variant text-xs">
         Adds an “Other” option for receipts outside the selected countries.
       </p>
+      <mat-slide-toggle
+        class="mt-2"
+        [formField]="settingsForm.allowReceiptSelfApproval"
+      >
+        Allow approvers to approve their own receipts
+      </mat-slide-toggle>
+      <p class="text-on-surface-variant text-xs">
+        Useful for sections with a single treasurer. Off: another approver must
+        review each receipt.
+      </p>
     </section>
 
     <section class="grid grid-cols-1">

@@ -20,6 +20,7 @@ export interface TenantDiscountProviders {
 
 export interface TenantReceiptSettings {
   allowOther: boolean;
+  allowSelfApproval?: boolean;
   receiptCountries: string[];
 }
 
@@ -61,6 +62,7 @@ export const TenantDiscountProvidersSchema = Schema.Struct({
 
 export const TenantReceiptSettingsSchema = Schema.Struct({
   allowOther: Schema.Boolean,
+  allowSelfApproval: Schema.optionalKey(Schema.Boolean),
   receiptCountries: Schema.mutable(Schema.Array(ReceiptCountryCode)).check(
     Schema.makeFilter((countries) => countries.length > 0, {
       expected: 'at least one receipt country',

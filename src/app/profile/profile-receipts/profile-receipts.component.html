@@ -35,9 +35,18 @@
             <article class="bg-surface-container rounded-xl p-4">
               <div class="flex flex-wrap items-center justify-between gap-2">
                 <h2 class="font-medium">{{ receipt.attachmentFileName }}</h2>
-                <span class="rounded bg-surface px-2 py-1 text-xs uppercase">
-                  {{ receiptStatusLabel(receipt.status) }}
-                </span>
+                <div class="flex flex-wrap items-center gap-2">
+                  @if (receiptAmountChanged(receipt)) {
+                    <span
+                      class="bg-tertiary-container text-on-tertiary-container rounded px-2 py-1 text-xs"
+                    >
+                      Amount changed
+                    </span>
+                  }
+                  <span class="rounded bg-surface px-2 py-1 text-xs uppercase">
+                    {{ receiptStatusLabel(receipt.status) }}
+                  </span>
+                </div>
               </div>
               <p class="text-on-surface-variant text-sm">
                 {{ receipt.eventTitle }} ·
@@ -46,6 +55,55 @@
               <p class="text-sm">
                 {{ receipt.totalAmount | receiptAmount: receipt.currency }}
               </p>
+              @if (
+                receipt.reviewedAt !== null ||
+                receipt.submittedTotalAmount !== null
+              ) {
+                <details class="mt-2 text-sm" data-testid="receipt-details">
+                  <summary class="cursor-pointer py-1 underline">
+                    Details<span class="sr-only">
+                      for {{ receipt.attachmentFileName }}</span
+                    >
+                  </summary>
+                  <dl class="mt-1 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
+                    @if (receipt.submittedTotalAmount !== null) {
+                      <dt class="text-on-surface-variant">Submitted amount</dt>
+                      <dd>
+                        {{
+                          receipt.submittedTotalAmount
+                            | receiptAmount: receipt.currency
+                        }}
+                      </dd>
+                    }
+                    @if (
+                      receipt.status === "approved" ||
+                      receipt.status === "refunded"
+                    ) {
+                      <dt class="text-on-surface-variant">Approved amount</dt>
+                      <dd>
+                        {{
+                          receipt.totalAmount | receiptAmount: receipt.currency
+                        }}
+                      </dd>
+                    }
+                    @if (receiptReviewerName(receipt); as reviewer) {
+                      <dt class="text-on-surface-variant">
+                        {{
+                          receipt.status === "rejected"
+                            ? "Reviewed by"
+                            : "Approved by"
+                        }}
+                      </dt>
+                      <dd>
+                        {{ reviewer }}
+                        @if (receipt.reviewedAt) {
+                          · {{ receipt.reviewedAt | date: "mediumDate" }}
+                        }
+                      </dd>
+                    }
+                  </dl>
+                </details>
+              }
               @if (receipt.status === "rejected" && receipt.rejectionReason) {
                 <p class="mt-2 whitespace-pre-line text-sm">
                   Reason for rejection: {{ receipt.rejectionReason }}

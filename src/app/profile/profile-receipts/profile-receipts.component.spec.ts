@@ -39,8 +39,11 @@ describe('ProfileReceiptsComponent load recovery', () => {
     refundTransactionId: null,
     rejectionReason: null,
     reviewedAt: null,
+    reviewedByFirstName: null,
+    reviewedByLastName: null,
     status: 'submitted',
     submittedByUserId: 'user-1',
+    submittedTotalAmount: null,
     taxAmount: 200,
     totalAmount: 1250,
     updatedAt: '2030-01-02T12:00:00.000Z',
@@ -222,5 +225,91 @@ describe('ProfileReceiptsComponent load recovery', () => {
       'You have not submitted receipts yet.',
     );
     expect(queryClient.getMutationCache().getAll()).toHaveLength(0);
+  });
+
+  const renderReceipts = async (result: Receipts) => {
+    readReceipts.mockReset().mockResolvedValue(result);
+    fixture = TestBed.createComponent(ProfileReceiptsComponent);
+    await vi.waitFor(() => {
+      detectChanges();
+      expect(rootElement().querySelector('article')).not.toBeNull();
+    });
+  };
+
+  it('flags a changed amount and shows both amounts with the approver name', async () => {
+    await renderReceipts([
+      {
+        ...receipt,
+        reviewedAt: '2030-01-03T12:00:00.000Z',
+        reviewedByFirstName: 'Grace',
+        reviewedByLastName: 'Hopper',
+        status: 'approved',
+        submittedTotalAmount: 2000,
+        totalAmount: 1250,
+      },
+    ]);
+    const text = rootElement().textContent ?? '';
+    expect(text).toContain('Amount changed');
+    const details = rootElement().querySelector('details');
+    expect(details?.textContent).toContain('Submitted amount');
+    expect(details?.textContent).toContain('20.00');
+    expect(details?.textContent).toContain('Approved amount');
+    expect(details?.textContent).toContain('12.50');
+    expect(details?.textContent).toContain('Approved by');
+    expect(details?.textContent).toContain('Grace Hopper');
+  });
+
+  it.each([
+    { label: 'equal', submittedTotalAmount: 1250 },
+    { label: 'null', submittedTotalAmount: null },
+  ])(
+    'does not flag the amount when the submitted amount is $label',
+    async ({ submittedTotalAmount }) => {
+      await renderReceipts([{ ...receipt, submittedTotalAmount }]);
+      expect(rootElement().textContent).not.toContain('Amount changed');
+    },
+  );
+
+  it('does not flag a changed amount on a rejected receipt', async () => {
+    await renderReceipts([
+      {
+        ...receipt,
+        rejectionReason: 'Wrong event',
+        reviewedAt: '2030-01-03T12:00:00.000Z',
+        reviewedByFirstName: 'Grace',
+        reviewedByLastName: 'Hopper',
+        status: 'rejected',
+        submittedTotalAmount: 2000,
+        totalAmount: 1250,
+      },
+    ]);
+    expect(rootElement().textContent).not.toContain('Amount changed');
+    const details = rootElement().querySelector('details');
+    expect(details?.textContent).toContain('Reviewed by');
+    expect(details?.textContent).not.toContain('Approved amount');
+  });
+
+  it('shows the approver for a receipt reviewed before submitted amounts were kept', async () => {
+    await renderReceipts([
+      {
+        ...receipt,
+        reviewedAt: '2030-01-03T12:00:00.000Z',
+        reviewedByFirstName: 'Grace',
+        reviewedByLastName: 'Hopper',
+        status: 'approved',
+        submittedTotalAmount: null,
+      },
+    ]);
+    expect(rootElement().textContent).not.toContain('Amount changed');
+    const details = rootElement().querySelector('details');
+    expect(details?.textContent).not.toContain('Submitted amount');
+    expect(details?.textContent).toContain('Approved amount');
+    expect(details?.textContent).toContain('Grace Hopper');
+  });
+
+  it('shows only the single amount without details when there is no submitted amount', async () => {
+    await renderReceipts([receipt]);
+    expect(rootElement().querySelector('details')).toBeNull();
+    expect(rootElement().textContent).toContain('12.50');
   });
 });

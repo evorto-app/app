@@ -83,6 +83,7 @@ const createOrganizationSettingsInput =
 const createPaymentSettingsInput =
   (): AdminRpcs.AdminTenantUpdatePaymentProviderSettingsInput => ({
     allowOther: true,
+    allowReceiptSelfApproval: false,
     currency: 'EUR',
     esnCardEnabled: false,
     expectedSettings: adminTenantPaymentProviderSettingsSnapshot(
@@ -1193,6 +1194,7 @@ describe('adminHandlers tenant settings', () => {
         ](
           {
             allowOther: true,
+            allowReceiptSelfApproval: true,
             currency: 'AUD',
             esnCardEnabled: false,
             expectedSettings: adminTenantPaymentProviderSettingsSnapshot(
@@ -1278,7 +1280,11 @@ describe('adminHandlers tenant settings', () => {
           {
             currency: 'AUD',
             discountProviders: { esnCard: { config: {}, status: 'disabled' } },
-            receiptSettings: { allowOther: true, receiptCountries: ['NL'] },
+            receiptSettings: {
+              allowOther: true,
+              allowSelfApproval: true,
+              receiptCountries: ['NL'],
+            },
             refundFeesOnCancellation: false,
           },
           {

@@ -304,6 +304,7 @@ export type AdminTenantUpdateOrganizationSettingsInput = Schema.Schema.Type<
 
 const AdminTenantUpdatePaymentProviderSettingsPayload = Schema.Struct({
   allowOther: Schema.Boolean,
+  allowReceiptSelfApproval: Schema.Boolean,
   buyEsnCardUrl: Schema.optional(UrlString),
   currency: Tenant.fields.currency,
   esnCardEnabled: Schema.Boolean,
@@ -325,6 +326,7 @@ export const AdminTenantUpdatePaymentProviderSettingsInput = Schema.Json.pipe(
       encode: (value) =>
         Effect.succeed({
           allowOther: value.allowOther,
+          allowReceiptSelfApproval: value.allowReceiptSelfApproval,
           ...(value.buyEsnCardUrl !== undefined && {
             buyEsnCardUrl: value.buyEsnCardUrl,
           }),

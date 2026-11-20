@@ -445,3 +445,132 @@ test('receipt dialog shows Other option when tenant allows it', async ({
   });
   await expect(otherCountryOption).toBeVisible();
 });
+
+test('blocks self-approval until the section allows it and shows the changed amount to the submitter', async ({
+  database,
+  page,
+  registerDatabaseCleanup,
+  seedDate,
+  seeded,
+  tenant,
+}) => {
+  const submitter = usersToAuthenticate.find((user) => user.roles === 'admin');
+  if (!submitter) {
+    throw new Error('Expected seeded administrator for self-approval');
+  }
+  const submitterRecord = await database.query.users.findFirst({
+    where: { id: submitter.id },
+  });
+  const existingTenant = await database.query.tenants.findFirst({
+    where: { id: tenant.id },
+  });
+  if (!submitterRecord || !existingTenant) {
+    throw new Error('Expected administrator and tenant before self-approval');
+  }
+  const currency = existingTenant.currency;
+  registerDatabaseCleanup(async (cleanupDatabase) => {
+    await cleanupDatabase
+      .update(schema.tenants)
+      .set({ receiptSettings: existingTenant.receiptSettings })
+      .where(eq(schema.tenants.id, tenant.id));
+  });
+  const receiptId = getId();
+  const receiptUploadId = getId();
+  const receiptFileName = `self-approval-${seedDate.getTime()}.pdf`;
+  registerDatabaseCleanup(async (cleanupDatabase) => {
+    await cleanupDatabase
+      .delete(schema.financeReceiptUploads)
+      .where(eq(schema.financeReceiptUploads.id, receiptUploadId));
+  });
+  registerDatabaseCleanup(async (cleanupDatabase) => {
+    await cleanupDatabase
+      .delete(schema.financeReceipts)
+      .where(
+        and(
+          eq(schema.financeReceipts.id, receiptId),
+          eq(schema.financeReceipts.tenantId, tenant.id),
+        ),
+      );
+  });
+
+  await database
+    .update(schema.tenants)
+    .set({
+      receiptSettings: {
+        ...existingTenant.receiptSettings,
+        allowSelfApproval: false,
+      },
+    })
+    .where(eq(schema.tenants.id, tenant.id));
+  await seedPendingReceiptForApproval({
+    currency,
+    database,
+    eventId: seeded.scenario.events.past.eventId,
+    receiptFileName,
+    receiptId,
+    seedDate,
+    submittedByUserId: submitter.id,
+    tenantId: tenant.id,
+    uploadId: receiptUploadId,
+  });
+
+  await page.goto(`/finance/receipts-approval/${receiptId}`);
+  await expectReceiptPdfPreviewAvailable({ page });
+  await expect(
+    page.getByText(
+      'You submitted this receipt. Another approver must approve it.',
+      { exact: false },
+    ),
+  ).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Approve' })).toBeDisabled();
+
+  await database
+    .update(schema.tenants)
+    .set({
+      receiptSettings: {
+        ...existingTenant.receiptSettings,
+        allowSelfApproval: true,
+      },
+    })
+    .where(eq(schema.tenants.id, tenant.id));
+  await page.reload();
+  await expectReceiptPdfPreviewAvailable({ page });
+  await expect(page.getByTestId('self-approval-note')).toHaveCount(0);
+  await page.getByLabel(`Total amount (${currency})`).fill('12');
+  const approveButton = page.getByRole('button', { name: 'Approve' });
+  await expect(approveButton).toBeEnabled();
+  await approveButton.click();
+  await expect(page).toHaveURL(/\/finance\/receipts-approval$/);
+
+  await expect
+    .poll(() =>
+      database.query.financeReceipts.findFirst({
+        where: { id: receiptId, tenantId: tenant.id },
+      }),
+    )
+    .toMatchObject({
+      reviewedByUserId: submitter.id,
+      status: 'approved',
+      submittedTotalAmount: 1450,
+      totalAmount: 1200,
+    });
+
+  await page.goto('/profile/receipts');
+  const receiptCard = page.locator('article', { hasText: receiptFileName });
+  await expect(receiptCard.getByText('Amount changed')).toBeVisible();
+  await receiptCard.getByText('Details').click();
+  const details = receiptCard.getByTestId('receipt-details');
+  await expect(
+    details.getByText(formatTenantCurrency(1450, currency)),
+  ).toBeVisible();
+  await expect(
+    details.getByText(formatTenantCurrency(1200, currency)),
+  ).toBeVisible();
+  await expect(details.getByText('Approved by')).toBeVisible();
+  await expect(
+    details.getByText(
+      `${submitterRecord.firstName} ${submitterRecord.lastName}`,
+      { exact: false },
+    ),
+  ).toBeVisible();
+});
