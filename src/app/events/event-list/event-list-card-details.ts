@@ -94,7 +94,9 @@ export const eventListCardDetails = (
     ? availability(record.participantSignUp)
     : null,
   organizers: record.organizerSlots
-    ? `${record.organizerSlots.filled} of ${record.organizerSlots.capacity} organizers`
+    ? `${record.organizerSlots.filled} of ${record.organizerSlots.capacity} ${
+        record.organizerSlots.capacity === 1 ? 'organizer' : 'organizers'
+      }`
     : null,
   price: record.participantSignUp ? price(record.participantSignUp) : null,
 });

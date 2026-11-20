@@ -127,6 +127,9 @@ describe('eventListCardDetails', () => {
     expect(
       eventListCardDetails(record(null, { capacity: 4, filled: 1 })).organizers,
     ).toBe('1 of 4 organizers');
+    expect(
+      eventListCardDetails(record(null, { capacity: 1, filled: 1 })).organizers,
+    ).toBe('1 of 1 organizer');
     expect(eventListCardDetails(record(signUp)).organizers).toBeNull();
   });
 });
