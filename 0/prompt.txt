@@ -1,0 +1,5 @@
+Do we have a regression test for this now?
+
+---
+
+Get a pr and copilot review ready
