@@ -3,7 +3,6 @@ import type {
   EventsRegistrationAddonCancellationBlockedReason,
   EventsRegistrationAddonFulfillmentRecord,
   EventsRegistrationAddonRefundStatus,
-  EventsRegistrationScanResult,
   EventsRegistrationStatus,
 } from '@shared/rpc-contracts/app-rpcs/events.rpcs';
 
@@ -68,11 +67,6 @@ type RegistrationAddonOperationKeyInput =
       action: 'undo';
       redemptionEventId: string;
     };
-
-interface ScanTicketData {
-  addOns: readonly EventsRegistrationAddonFulfillmentRecord[];
-  registration: EventsRegistrationScanResult;
-}
 
 export const registrationAddonOperationKey = (
   input: RegistrationAddonOperationKeyInput,

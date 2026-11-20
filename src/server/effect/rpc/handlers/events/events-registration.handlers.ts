@@ -2867,15 +2867,21 @@ export const eventRegistrationHandlers = {
         tenantId: tenant.id,
         user,
       }).pipe(
+        // An interrupted request stays interrupted; only a failed read is
+        // reported as a check-in without fresh ticket details.
         Effect.catchCause((cause) =>
-          Effect.logError('Ticket read failed after a committed check-in').pipe(
-            Effect.annotateLogs({
-              cause: Cause.pretty(cause),
-              registrationId,
-              tenantId: tenant.id,
-            }),
-            Effect.as(null),
-          ),
+          Cause.hasInterruptsOnly(cause)
+            ? Effect.failCause(cause)
+            : Effect.logError(
+                'Ticket read failed after a committed check-in',
+              ).pipe(
+                Effect.annotateLogs({
+                  cause: Cause.pretty(cause),
+                  registrationId,
+                  tenantId: tenant.id,
+                }),
+                Effect.as(null),
+              ),
         ),
       );
       return {

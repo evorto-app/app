@@ -1561,14 +1561,16 @@ test.describe('ticket QR deep links (camera app and in-app scanner)', () => {
         `/forward-login?redirectUrl=${encodeURIComponent(ticketPath)}`,
       );
 
-      await page.goto(ticketPath);
-      await expect
-        .poll(() => new URL(page.url()).pathname)
-        .not.toBe(ticketPath);
-      expect(page.url()).toContain(encodeURIComponent(ticketPath));
-      await expect(
-        page.getByRole('heading', { name: 'Ticket scanned' }),
-      ).toHaveCount(0);
+      // The sign-in entry hands the ticket path on to the login route, which
+      // keeps it as the post-sign-in return target.
+      const forward = await page.request.get(
+        response.headers()['location'] ?? '',
+        { maxRedirects: 0 },
+      );
+      expect(forward.status()).toBe(302);
+      expect(forward.headers()['location']).toBe(
+        `/login?redirectUrl=${encodeURIComponent(ticketPath)}`,
+      );
       expect(await fixture.readCheckIn()).toEqual(fixture.unchanged);
     });
   });
@@ -1577,7 +1579,9 @@ test.describe('ticket QR deep links (camera app and in-app scanner)', () => {
     test.use({
       hasTouch: true,
       isMobile: true,
-      storageState: organizerStateFile,
+      // The admin can scan every event; the organizer account needs an
+      // event-scoped grant for the fixture event.
+      storageState: adminStateFile,
       viewport: { height: 844, width: 390 },
     });
 
@@ -1597,7 +1601,7 @@ test.describe('ticket QR deep links (camera app and in-app scanner)', () => {
 
       await page.goto(`/scan/registration/${fixture.registrationId}`);
       await expect(
-        page.getByRole('heading', { name: 'Ticket scanned' }),
+        page.getByRole('heading', { name: 'Scan result' }),
       ).toBeVisible();
       const confirm = page.getByRole('button', {
         exact: true,
@@ -1642,7 +1646,7 @@ test.describe('ticket QR deep links (camera app and in-app scanner)', () => {
         page.getByRole('heading', { name: 'Ticket could not be loaded' }),
       ).toBeVisible();
       await expect(
-        page.getByRole('heading', { name: 'Ticket scanned' }),
+        page.getByRole('heading', { name: 'Scan result' }),
       ).toHaveCount(0);
       await expect(
         page.getByRole('button', { name: /^Confirm .*check-in/u }),
