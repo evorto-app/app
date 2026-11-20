@@ -6,7 +6,6 @@ test.setTimeout(120_000);
 test.use({ storageState: adminStateFile });
 
 test('template pages present a deliberate read-only experience without write capabilities @permissions', async ({
-  isMobile,
   page,
   permissionOverride,
   templates,
@@ -34,16 +33,20 @@ test('template pages present a deliberate read-only experience without write cap
   await expect(page.getByRole('link', { name: 'Create template' })).toHaveCount(
     0,
   );
+  const listActions = page.getByRole('button', {
+    name: 'Open template list actions',
+  });
+  // The menu needs the hydrated click listener (event replay marker gone).
+  await expect(listActions).not.toHaveAttribute('jsaction', /click/);
+  await listActions.click();
+  const viewCategories = page.getByRole('menuitem', {
+    name: 'View categories',
+  });
+  await expect(viewCategories).toBeVisible();
   await expect(
-    page.getByRole('link', { name: 'Manage categories' }),
+    page.getByRole('menuitem', { name: 'Manage categories' }),
   ).toHaveCount(0);
-
-  if (isMobile) {
-    await page.getByRole('button', { name: /menu/i }).click();
-    await page.getByRole('menuitem', { name: 'View categories' }).click();
-  } else {
-    await page.getByRole('link', { name: 'View categories' }).click();
-  }
+  await viewCategories.click();
 
   await expect(page).toHaveURL(/\/templates\/categories/);
   await expect(

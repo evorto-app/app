@@ -59,11 +59,7 @@
           </button>
         }
         <div class="grow"></div>
-        <a mat-button routerLink="categories" class="hidden! lg:flex!">
-          {{ canManageCategories() ? "Manage categories" : "View categories" }}
-        </a>
         <button
-          class="lg:hidden!"
           aria-label="Open template list actions"
           mat-icon-button
           [matMenuTriggerFor]="menu"

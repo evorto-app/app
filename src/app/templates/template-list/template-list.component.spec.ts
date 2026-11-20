@@ -202,14 +202,12 @@ const liveRegionText = (root: HTMLElement) =>
 
 const pageTitle = (root: HTMLElement) => root.querySelector('h1');
 
-const categoriesLink = (root: HTMLElement) =>
-  [...root.querySelectorAll('a')].find((link) =>
-    link.textContent.includes('View categories'),
-  );
+const listActionsButton = (root: HTMLElement) =>
+  root.querySelector('button[aria-label="Open template list actions"]');
 
 const expectBrowsing = (root: HTMLElement) => {
   expect(pageTitle(root)?.textContent).toContain('Event templates');
-  expect(categoriesLink(root)).toBeDefined();
+  expect(listActionsButton(root)).not.toBeNull();
   expect(searchInput(root)).toBeNull();
   expect(headings(root)).toEqual(['Trips', 'Parties', 'Workshops']);
   expect(liveRegionText(root)).toBe('');
@@ -233,7 +231,7 @@ describe('TemplateListComponent search', () => {
     expect(document.activeElement).toBe(input);
     expect(root.textContent).toContain('Search templates');
     expect(pageTitle(root)).toBeNull();
-    expect(categoriesLink(root)).toBeUndefined();
+    expect(listActionsButton(root)).toBeNull();
     expect(headings(root)).toEqual(['Trips', 'Parties', 'Workshops']);
   });
 

@@ -47,11 +47,16 @@ Template categories keep related templates together and make them easier for mem
 
 Members who can view templates without **Manage template categories** access can still open the category overview through **View categories**. They can browse categories but cannot create or edit them, and the page tells them to ask an administrator for access.
 
-Start by navigating to the **Manage categories** page under **Templates**. Here you can see an overview of the existing template categories.
+Start on **Templates**, open the list actions menu next to the search button and select **Manage categories**. Here you can see an overview of the existing template categories.
 Select **Create category** to create a new category.`,
     });
     await page.getByRole('link', { name: 'Templates' }).click();
-    await page.getByRole('link', { name: 'Manage categories' }).click();
+    const listActions = page.getByRole('button', {
+      name: 'Open template list actions',
+    });
+    await expect(listActions).not.toHaveAttribute('jsaction', /click/);
+    await listActions.click();
+    await page.getByRole('menuitem', { name: 'Manage categories' }).click();
     const categoriesTable = page.getByRole('table');
     await expect(categoriesTable).toBeVisible();
     const createCategoryButton = page.getByRole('button', {
