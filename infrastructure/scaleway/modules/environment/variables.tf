@@ -122,6 +122,18 @@ variable "web_min_scale" {
   type = number
 }
 
+variable "worker_resources" {
+  description = "Worker CPU limit in millicores and memory limit in bytes."
+  type = object({
+    cpu_limit          = number
+    memory_limit_bytes = number
+  })
+  default = {
+    cpu_limit          = 560
+    memory_limit_bytes = 1073000000
+  }
+}
+
 variable "cockpit_trace_retention_days" {
   type    = number
   default = 7
@@ -130,4 +142,10 @@ variable "cockpit_trace_retention_days" {
 variable "alert_email" {
   description = "Operational destination for Cockpit alerts."
   type        = string
+}
+
+variable "preconfigured_alert_ids" {
+  description = "Cockpit alert template IDs to enable. Null enables every available template."
+  type        = set(string)
+  default     = null
 }
