@@ -392,6 +392,7 @@ describe('events RPC registration status schema', () => {
         paymentPending: false,
         paymentSetupRequired: false,
         registrationId: 'registration-1',
+        remainingGuestCount: 0,
         status: 'CONFIRMED',
         userId: 'user-1',
       }),
