@@ -1,0 +1,45 @@
+{
+  "cli_version": "0.13.1",
+  "checkpoint_id": "01M7WSWT62WH2BS8F2Q1EJB444",
+  "strategy": "manual-commit",
+  "branch": "codex/evo-110-sync-staging-terraform",
+  "checkpoints_count": 5,
+  "files_touched": [
+    ".changeset/sync-staging-terraform.md",
+    "infrastructure/scaleway/modules/environment/containers.tf",
+    "infrastructure/scaleway/modules/environment/observability.tf",
+    "infrastructure/scaleway/modules/environment/variables.tf",
+    "infrastructure/scaleway/staging/main.tf"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 604478,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 47867264,
+    "output_tokens": 38114,
+    "api_call_count": 144,
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 242,
+    "layers": {
+      "betterleaks": 93,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 68,
+      "credentialed_uri": 34,
+      "entropy": 117,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}

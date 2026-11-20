@@ -1,0 +1,17 @@
+So what is our state now?
+
+---
+
+So in the future all main updates make it to staging right away?
+
+---
+
+Can you investigate if there are opportunities to save money in scaleway?
+
+---
+
+We are fine with almost no alerts since it is just staging anyways. Do reduce the worker size for sure
+
+---
+
+Make sure terraform is in sync and on main

@@ -1,0 +1,47 @@
+{
+  "cli_version": "0.13.1",
+  "checkpoint_id": "01M7WSWT62WH2BS8F2Q1EJB444",
+  "session_id": "01a1f910-755b-7d01-8d93-f0b2e4c850b8",
+  "strategy": "manual-commit",
+  "created_at": "2026-11-20T15:41:11.642577Z",
+  "branch": "codex/evo-110-sync-staging-terraform",
+  "checkpoints_count": 5,
+  "files_touched": [
+    ".changeset/sync-staging-terraform.md",
+    "infrastructure/scaleway/modules/environment/containers.tf",
+    "infrastructure/scaleway/modules/environment/observability.tf",
+    "infrastructure/scaleway/modules/environment/variables.tf",
+    "infrastructure/scaleway/staging/main.tf"
+  ],
+  "agent": "Codex",
+  "model": "gpt-6.2-sol",
+  "turn_id": "0de39b273322",
+  "checkpoint_transcript_start": 2551,
+  "transcript_lines_at_start": 2551,
+  "compact_transcript_start": 547,
+  "token_usage": {
+    "input_tokens": 604478,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 47867264,
+    "output_tokens": 38114,
+    "api_call_count": 144,
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 242,
+    "layers": {
+      "betterleaks": 93,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 68,
+      "credentialed_uri": 34,
+      "entropy": 117,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  },
+  "session_metrics": {
+    "turn_count": 7
+  }
+}
