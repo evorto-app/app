@@ -476,9 +476,6 @@ const seedFixture = async (
 
 const cleanFixture = async (database: TestDatabase, fixture: Fixture) => {
   await database
-    .delete(registrationTransfers)
-    .where(eq(registrationTransfers.tenantId, fixture.tenantId));
-  await database
     .delete(emailOutbox)
     .where(eq(emailOutbox.tenantId, fixture.tenantId));
   await database
@@ -500,6 +497,9 @@ const cleanFixture = async (database: TestDatabase, fixture: Fixture) => {
   await database
     .delete(registrationAcquisitions)
     .where(eq(registrationAcquisitions.eventId, fixture.eventId));
+  await database
+    .delete(registrationTransfers)
+    .where(eq(registrationTransfers.tenantId, fixture.tenantId));
   await database
     .delete(eventRegistrationAddonPurchaseLots)
     .where(eq(eventRegistrationAddonPurchaseLots.eventId, fixture.eventId));
@@ -2342,20 +2342,55 @@ describe('post-registration add-on purchase concurrency', () => {
   );
 
   it.each([
-    { paid: true, type: 'checkout.session.completed' },
-    { paid: true, type: 'checkout.session.async_payment_succeeded' },
-    { paid: false, type: 'checkout.session.async_payment_failed' },
-    { paid: true, type: 'checkout.session.async_payment_failed' },
-    { paid: false, type: 'checkout.session.expired' },
+    {
+      paid: true,
+      registrationChange: 'none',
+      type: 'checkout.session.completed',
+    },
+    {
+      paid: true,
+      registrationChange: 'none',
+      type: 'checkout.session.async_payment_succeeded',
+    },
+    {
+      paid: false,
+      registrationChange: 'none',
+      type: 'checkout.session.async_payment_failed',
+    },
+    {
+      paid: true,
+      registrationChange: 'none',
+      type: 'checkout.session.async_payment_failed',
+    },
+    {
+      paid: false,
+      registrationChange: 'none',
+      type: 'checkout.session.expired',
+    },
+    {
+      paid: true,
+      registrationChange: 'cancelled',
+      type: 'checkout.session.completed',
+    },
+    {
+      paid: true,
+      registrationChange: 'transferred',
+      type: 'checkout.session.completed',
+    },
   ] as const)(
-    'recovers $type after its add-on transaction committed (paid=$paid)',
-    async ({ paid, type }) => {
+    'recovers $type after its add-on transaction committed (paid=$paid, registration=$registrationChange)',
+    async ({ paid, registrationChange, type }) => {
       const fixture = await seedFixture(database, {
         paid: true,
         reservationExpiresAt: new Date(Date.now() - 60_000),
         stock: 0,
       });
-      fixtures.push(fixture);
+      const recipientId = createId();
+      fixtures.push(
+        registrationChange === 'transferred'
+          ? { ...fixture, userIds: [...fixture.userIds, recipientId] }
+          : fixture,
+      );
       const session = completedSession(fixture);
       const identity = {
         ...paidFixtureIdentity(fixture),
@@ -2394,6 +2429,84 @@ describe('post-registration add-on purchase concurrency', () => {
             ),
           );
         }
+        if (registrationChange === 'cancelled') {
+          await database
+            .update(eventRegistrations)
+            .set({ status: 'CANCELLED' })
+            .where(eq(eventRegistrations.id, identity.registrationId));
+        } else if (registrationChange === 'transferred') {
+          const originalAcquisition = requireValue(
+            await database.query.registrationAcquisitions.findFirst({
+              where: { registrationId: identity.registrationId },
+            }),
+            'original acquisition',
+          );
+          const transferId = createId();
+          const transferredAt = new Date();
+          await database.transaction(async (tx) => {
+            await tx.insert(users).values({
+              auth0Id: `auth0|${recipientId}`,
+              communicationEmail: `${recipientId}@example.com`,
+              email: `${recipientId}@example.com`,
+              firstName: 'Transfer',
+              id: recipientId,
+              lastName: 'Recipient',
+            });
+            await tx.insert(registrationTransfers).values({
+              claimCodeHash: `code-${transferId}`,
+              completedAt: transferredAt,
+              eventId: fixture.eventId,
+              expiresAt: fixture.expiresAt,
+              id: transferId,
+              ownershipTransferredAt: transferredAt,
+              recipientConfirmedAt: transferredAt,
+              recipientUserId: recipientId,
+              registrationOptionId: fixture.optionId,
+              sourceRegistrationId: identity.registrationId,
+              sourceSpotCount: 1,
+              sourceUserId: originalAcquisition.ownerUserId,
+              status: 'completed',
+              tenantId: fixture.tenantId,
+            });
+            await tx
+              .update(eventRegistrations)
+              .set({ userId: recipientId })
+              .where(eq(eventRegistrations.id, identity.registrationId));
+            await tx.insert(registrationAcquisitions).values({
+              acquiredAt: transferredAt,
+              eventId: fixture.eventId,
+              kind: 'claim_transfer',
+              operationKey: `registration-transfer:${transferId}`,
+              ordinal: 1,
+              ownerUserId: recipientId,
+              previousAcquisitionId: originalAcquisition.id,
+              registrationId: identity.registrationId,
+              spotCount: 1,
+              tenantId: fixture.tenantId,
+              transferId,
+            });
+          });
+        }
+        const settledRows = () =>
+          Promise.all([
+            database.query.transactions.findFirst({
+              where: { id: identity.transactionId },
+            }),
+            database.query.eventRegistrations.findFirst({
+              where: { id: identity.registrationId },
+            }),
+            database.query.eventRegistrationAddonPurchaseLots.findMany({
+              where: { registrationId: identity.registrationId },
+            }),
+            database.query.registrationAcquisitionComponents.findMany({
+              orderBy: { id: 'asc' },
+              where: { registrationId: identity.registrationId },
+            }),
+            database.query.registrationAcquisitionPayments.findMany({
+              where: { registrationId: identity.registrationId },
+            }),
+          ]);
+        const beforeReplay = await settledRows();
         const providerSession = {
           ...session,
           lastResponse: {
@@ -2456,6 +2569,27 @@ describe('post-registration add-on purchase concurrency', () => {
             where: { stripeEventId: conflictingEventId },
           }),
         ).toBeUndefined();
+        if (registrationChange !== 'none') {
+          const originalKey = `addon-order:${identity.orderId}`;
+          const component = and(
+            eq(
+              registrationAcquisitionComponents.registrationId,
+              identity.registrationId,
+            ),
+            eq(registrationAcquisitionComponents.kind, 'addon_lot'),
+          );
+          await database
+            .update(registrationAcquisitionComponents)
+            .set({ allocationKey: 'different-order' })
+            .where(component);
+          await expect(deliver(conflictingEventId)).rejects.toMatchObject({
+            _tag: 'AddonPurchaseCheckoutError',
+          });
+          await database
+            .update(registrationAcquisitionComponents)
+            .set({ allocationKey: originalKey })
+            .where(component);
+        }
         const replay = await deliver();
         expect(replay.status, await replay.text()).toBe(200);
         const receipt = await database.query.stripeWebhookEvents.findFirst({
@@ -2466,6 +2600,7 @@ describe('post-registration add-on purchase concurrency', () => {
         const duplicate = await deliver();
         expect(await duplicate.text()).toBe('Duplicate event ignored');
 
+        expect(await settledRows()).toEqual(beforeReplay);
         const where = { registrationId: identity.registrationId };
         expect(
           await database.query.eventRegistrationAddonPurchases.findMany({
