@@ -12,9 +12,13 @@ data "scaleway_cockpit_preconfigured_alert" "available" {
 }
 
 resource "scaleway_cockpit_alert_manager" "application" {
-  project_id              = var.project_id
-  region                  = var.region
-  preconfigured_alert_ids = toset(data.scaleway_cockpit_preconfigured_alert.available.alerts[*].preconfigured_rule_id)
+  project_id = var.project_id
+  region     = var.region
+  preconfigured_alert_ids = (
+    var.preconfigured_alert_ids == null
+    ? toset(data.scaleway_cockpit_preconfigured_alert.available.alerts[*].preconfigured_rule_id)
+    : var.preconfigured_alert_ids
+  )
 
   contact_points {
     email = var.alert_email
