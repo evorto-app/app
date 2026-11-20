@@ -13,13 +13,7 @@ import {
 import { MatButtonModule } from '@angular/material/button';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
-import {
-  faCalendarClock,
-  faClock,
-  faTags,
-  faTicket,
-  faUsersGear,
-} from '@fortawesome/duotone-regular-svg-icons';
+import { faClock, faUsersGear } from '@fortawesome/duotone-regular-svg-icons';
 
 import {
   TENANT_DATE_PIPE_TIMEZONE,
@@ -93,10 +87,7 @@ export class EventListComponent {
   protected readonly eventListSignUpStateLabel = eventListSignUpStateLabel;
   protected readonly eventQuery = this.eventListService.eventQuery;
   protected readonly eventListCardDetails = eventListCardDetails;
-  protected readonly faCalendarClock = faCalendarClock;
   protected readonly faClock = faClock;
-  protected readonly faTags = faTags;
-  protected readonly faTicket = faTicket;
   protected readonly faUsersGear = faUsersGear;
   protected readonly outletActive = signal(false);
   private readonly previewReady = signal(false);

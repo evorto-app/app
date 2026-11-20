@@ -290,8 +290,7 @@ describe('EventListComponent load recovery', () => {
         ...fixture.nativeElement.querySelectorAll(
           `a[href="/${CSS.escape(id)}"] p`,
         ),
-      ].find((paragraph) => paragraph.textContent?.trim() === text)
-        ?.parentElement;
+      ].find((paragraph) => paragraph.textContent?.trim() === text);
     expect(availability('many-event', 'Many free spots')?.className).toContain(
       'text-success',
     );
@@ -303,6 +302,18 @@ describe('EventListComponent load recovery', () => {
     );
     expect(availability('full-event', 'Event is full')?.className).toContain(
       'text-error',
+    );
+    const paidCard: HTMLElement | null = fixture.nativeElement.querySelector(
+      'a[href="/paid-event"]',
+    );
+    const priceRow = [...(paidCard?.querySelectorAll('p') ?? [])].find(
+      (paragraph) => paragraph.textContent?.trim() === '€12.50',
+    )?.parentElement;
+    expect(priceRow?.textContent).toContain('20 of 20 spots left');
+    expect(priceRow?.textContent).not.toContain('organizers');
+    const titleRow = paidCard?.querySelector('h2')?.parentElement;
+    expect(titleRow?.lastElementChild?.textContent?.trim()).toMatch(
+      /^\d{1,2}:\d{2}/u,
     );
   });
 
