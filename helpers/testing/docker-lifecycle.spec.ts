@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from '@effect/vitest';
 import { type ChildProcess, spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -244,6 +245,9 @@ if [[ "$1" == 'start' && "$2" == "$FAKE_START_FAILURE_SERVICE-container" ]]; the
 fi
 if [[ "$*" == 'compose build' ]]; then
   exit 0
+fi
+if [[ "$*" == 'compose up --no-build --abort-on-container-failure' && -n "$FAKE_READINESS_SCRIPT" ]]; then
+  exec node "$FAKE_READINESS_SCRIPT"
 fi
 ${waitBlock}if [[ "$*" == 'compose up --no-build --abort-on-container-failure' ]]; then
   exit "$FAKE_UP_STATUS"
@@ -1148,6 +1152,171 @@ if (errors.length) throw new AggregateError(errors, 'Private IPC fixture failed'
       'volume ls --quiet --filter label=com.docker.compose.project=evorto-test-project',
     ]);
   });
+
+  it.each(['SIGTERM', 'SIGINT'] as const)(
+    'waits for leased webserver teardown after %s during Playwright global setup',
+    async (signal) => {
+      const { environment, logPath } = createFakeDocker({ holdDown: true });
+      const directory = path.dirname(logPath);
+      const project = path.basename(directory).toLowerCase();
+      const leaseScript = path.resolve(
+        'helpers/testing/with-docker-project-lease.sh',
+      );
+      const readinessScript = path.join(directory, 'readiness.cjs');
+      fs.writeFileSync(
+        readinessScript,
+        `
+const fs = require('node:fs');
+const server = require('node:net').createServer();
+server.listen(0, '127.0.0.1', () => {
+  fs.writeFileSync(process.env.DOCKER_LOG + '.port', String(server.address().port));
+  console.log('fixture listening');
+});
+// Let the test reclaim this fixture even if a regression orphans its launcher.
+const recovery = setInterval(() => {
+  if (fs.existsSync(process.env.DOCKER_LOG + '.recover')) {
+    clearInterval(recovery);
+    server.close();
+  }
+}, 50);
+`,
+      );
+      const config = path.join(directory, 'playwright.config.cjs');
+      fs.writeFileSync(
+        config,
+        `
+const {webServer} = require(${JSON.stringify(path.resolve('playwright.config.ts'))}).default;
+module.exports = {
+  testDir: __dirname,
+  outputDir: require('node:path').join(__dirname, 'results'),
+  testMatch: 'fixture.spec.cjs',
+  reporter: 'dot',
+  globalSetup: require.resolve('./setup.cjs'),
+  webServer: {
+    ...webServer,
+    command: 'exec bash "$LEASE_SCRIPT" docker-webserver -- bash "$WEBSERVER_SCRIPT"',
+    url: undefined,
+    wait: { stdout: /fixture listening/ },
+  },
+};
+`,
+      );
+      fs.writeFileSync(
+        path.join(directory, 'setup.cjs'),
+        `
+module.exports = async () => {
+  require('node:fs').writeFileSync(process.env.DOCKER_LOG + '.setup', 'started');
+  await new Promise(() => {});
+};
+`,
+      );
+      fs.writeFileSync(
+        path.join(directory, 'fixture.spec.cjs'),
+        `require(${JSON.stringify(require.resolve('@playwright/test'))}).test('after setup', () => {});`,
+      );
+      const env = {
+        ...environment,
+        AUTH0_MANAGEMENT_CLIENT_ID: 'fixture',
+        AUTH0_MANAGEMENT_CLIENT_SECRET: 'fixture',
+        BASE_URL: 'http://127.0.0.1',
+        CI: 'false',
+        CLIENT_ID: 'fixture',
+        CLIENT_SECRET: 'fixture',
+        COMPOSE_PROJECT_NAME: project,
+        DATABASE_URL: 'postgres://fixture@localhost/fixture',
+        E2E_SELECTED_PROJECTS: 'local-chrome-baseline',
+        E2E_USE_DOCKER_STACK: 'true',
+        FAKE_MISSING_SERVICE: 'db',
+        FAKE_READINESS_SCRIPT: readinessScript,
+        ISSUER_BASE_URL: 'https://fixture.invalid',
+        LEASE_SCRIPT: leaseScript,
+        NO_WEBSERVER: 'false',
+        SECRET: 'fixture',
+        STRIPE_API_KEY: 'fixture',
+        STRIPE_TEST_ACCOUNT_ID: 'fixture',
+        WEBSERVER_SCRIPT: webserverScript,
+      };
+      const acquireLease = () =>
+        spawnSync('bash', [leaseScript, 'probe', '--', 'true'], { env }).status;
+      const child = spawn(
+        'node',
+        [require.resolve('@playwright/test/cli'), 'test', '-c', config],
+        { env },
+      );
+      const closed = trackChild(child);
+      let diagnostics = '';
+      child.stderr?.on('data', (chunk: Buffer) => {
+        diagnostics += chunk.toString();
+      });
+      try {
+        await expect
+          .poll(
+            () => fs.existsSync(`${logPath}.setup`) || child.exitCode !== null,
+            {
+              timeout: 12_000,
+              message: 'Playwright must reach global setup',
+            },
+          )
+          .toBe(true);
+        expect(child.exitCode, diagnostics).toBeNull();
+        expect(child.kill(signal)).toBe(true);
+        await waitForFileContents(`${logPath}.down-ready`);
+        expect(acquireLease()).toBe(75);
+        // Playwright debounces interrupts for one second. A later SIGTERM must
+        // still leave the first cancellation's teardown in control.
+        await new Promise((resolve) => setTimeout(resolve, 1100));
+        expect(child.kill('SIGTERM')).toBe(true);
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        expect(child.exitCode).toBeNull();
+        expect(child.signalCode).toBeNull();
+        expect(acquireLease()).toBe(75);
+        fs.writeFileSync(`${logPath}.down-release`, 'release');
+        await expect.poll(() => child.exitCode, { timeout: 6000 }).toBe(130);
+        await closed;
+        expect(acquireLease()).toBe(0);
+        expect(fs.readFileSync(logPath, 'utf8')).toContain(
+          `volume ls --quiet --filter label=com.docker.compose.project=${project}`,
+        );
+        const next = net.createServer();
+        await new Promise<void>((resolve, reject) => {
+          next.once('error', reject);
+          next.listen(
+            Number(fs.readFileSync(`${logPath}.port`, 'utf8')),
+            '127.0.0.1',
+            resolve,
+          );
+        });
+        await new Promise<void>((resolve, reject) =>
+          next.close((error) => (error ? reject(error) : resolve())),
+        );
+      } catch (error) {
+        throw new Error(
+          `Playwright cancellation fixture failed. ${diagnostics}`,
+          { cause: error },
+        );
+      } finally {
+        fs.writeFileSync(`${logPath}.recover`, 'reclaim');
+        fs.writeFileSync(`${logPath}.down-release`, 'release');
+        if (child.exitCode === null && child.signalCode === null)
+          child.kill('SIGINT');
+        await closed;
+        if (fs.existsSync(`${logPath}.port`)) {
+          await expect.poll(acquireLease, { timeout: 6000 }).toBe(0);
+        }
+        // No other invocation uses this fixture's freshly generated project.
+        const leaseRoot = path.join(
+          '/tmp',
+          `evorto-docker-project-leases-${process.getuid?.()}`,
+        );
+        for (const suffix of ['lock', 'owner']) {
+          fs.rmSync(path.join(leaseRoot, `${project}.${suffix}`), {
+            force: true,
+          });
+        }
+      }
+    },
+    25_000,
+  );
 
   it('finishes verified teardown and holds its lease when SIGTERM arrives during SIGINT cleanup', async () => {
     const { environment, logPath } = createFakeDocker({
