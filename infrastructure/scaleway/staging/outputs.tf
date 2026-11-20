@@ -14,11 +14,11 @@ output "database" {
   sensitive = true
 }
 
-output "managed_dns_record" {
-  description = "Staging record reconciled in the existing authoritative Cloudflare zone."
+output "web_dns_record" {
+  description = "Unproxied staging CNAME to maintain in the authoritative DNS zone."
   value = {
-    name  = cloudflare_dns_record.web.name
-    type  = cloudflare_dns_record.web.type
-    value = cloudflare_dns_record.web.content
+    name  = "staging.evorto.app"
+    type  = "CNAME"
+    value = module.environment.containers.web.generated_hostname
   }
 }
