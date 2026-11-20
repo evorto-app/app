@@ -25,6 +25,7 @@ it('rebuilds app-owned objects with a non-owner role in managed public', async (
       CREATE ROLE evorto_staging_reset_fixture NOSUPERUSER;
       GRANT USAGE, CREATE ON SCHEMA public TO evorto_staging_reset_fixture;
       CREATE TABLE public.reset_provider_fixture (id bigint);
+      CREATE EXTENSION IF NOT EXISTS unaccent;
       SET LOCAL ROLE evorto_staging_reset_fixture;
       CREATE TYPE public."reset-fixture-state" AS ENUM ('original');
       CREATE TABLE public.reset_parent_fixture (
@@ -35,9 +36,16 @@ it('rebuilds app-owned objects with a non-owner role in managed public', async (
         id bigint REFERENCES public.reset_parent_fixture (id)
       );
       CREATE VIEW public.reset_app_fixture AS SELECT id FROM public.reset_parent_fixture;
+      CREATE MATERIALIZED VIEW public.reset_materialized_fixture AS SELECT id FROM public.reset_app_fixture;
+      CREATE VIEW public.reset_dependent_fixture AS SELECT id FROM public.reset_materialized_fixture;
+      CREATE TYPE public.reset_extension_enum AS ENUM ('retained');
+      CREATE TABLE public.reset_extension_fixture (state public.reset_extension_enum);
+      INSERT INTO public.reset_extension_fixture VALUES ('retained');
       INSERT INTO public.reset_parent_fixture (state) VALUES ('original');
       INSERT INTO public.reset_child_fixture (id) VALUES (1);
       RESET ROLE;
+      ALTER EXTENSION unaccent ADD TABLE public.reset_extension_fixture;
+      ALTER EXTENSION unaccent ADD TYPE public.reset_extension_enum;
       CREATE VIEW public.reset_provider_dependency AS SELECT id FROM public.reset_parent_fixture;
       SET LOCAL ROLE evorto_staging_reset_fixture;
       SAVEPOINT before_reset;
@@ -64,6 +72,8 @@ it('rebuilds app-owned objects with a non-owner role in managed public', async (
         pg_get_userbyid(nspowner) <> CURRENT_USER AS managed_schema,
         to_regclass('public.reset_provider_fixture') IS NOT NULL AS provider_table,
         to_regclass('public.reset_app_fixture') IS NULL AS app_view_removed,
+        to_regclass('public.reset_materialized_fixture') IS NULL AS materialized_removed,
+        to_regclass('public.reset_dependent_fixture') IS NULL AS dependent_view_removed,
         to_regclass('public.reset_parent_fixture') IS NULL AS parent_removed,
         to_regclass('public.reset_child_fixture') IS NULL AS child_removed,
         to_regclass('public.reset_parent_fixture_id_seq') IS NULL AS sequence_removed,
@@ -74,13 +84,19 @@ it('rebuilds app-owned objects with a non-owner role in managed public', async (
       {
         app_view_removed: true,
         child_removed: true,
+        dependent_view_removed: true,
         enum_removed: true,
         managed_schema: true,
+        materialized_removed: true,
         parent_removed: true,
         provider_table: true,
         sequence_removed: true,
       },
     ]);
+    const extensionRows = await client.query(
+      'SELECT state FROM public.reset_extension_fixture',
+    );
+    expect(extensionRows.rows).toEqual([{ state: 'retained' }]);
   } finally {
     try {
       await client.query('ROLLBACK');
