@@ -1,0 +1,6 @@
+[https://linear.app/evorto/review/feat-copy-email-address-lists-on-the-organize-page-evo-22-2b44ad48f4b8#comment-88f0e5b4](https://linear.app/evorto/review/feat-copy-email-address-lists-on-the-organize-page-evo-22-2b44ad48f4b8#comment-88f0e5b4)
+If i'm fine with this design, do we have anything else outstanding?
+
+---
+
+We should definitely use the contact email for this, then we can merge
