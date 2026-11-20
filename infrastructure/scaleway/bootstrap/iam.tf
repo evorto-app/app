@@ -38,6 +38,8 @@ resource "scaleway_iam_application" "staging_terraform_state" {
 }
 
 resource "scaleway_iam_application" "production_terraform_state" {
+  count = var.enable_production ? 1 : 0
+
   organization_id = var.organization_id
   name            = "evorto-production-terraform-state"
   description     = "S3 identity for only the production Terraform state bucket; API keys are created outside Terraform state"
@@ -68,13 +70,14 @@ resource "scaleway_iam_policy" "staging_terraform_state" {
 }
 
 resource "scaleway_iam_policy" "production_terraform_state" {
+  count           = var.enable_production ? 1 : 0
   name            = "evorto-production-terraform-state"
   description     = "Read and update only bucket-policy-authorized state in the production project"
-  application_id  = scaleway_iam_application.production_terraform_state.id
+  application_id  = scaleway_iam_application.production_terraform_state[0].id
   organization_id = var.organization_id
 
   rule {
-    project_ids          = [scaleway_account_project.production.id]
+    project_ids          = [scaleway_account_project.production[0].id]
     permission_set_names = local.terraform_state_permission_sets
   }
 }
@@ -86,6 +89,8 @@ resource "scaleway_iam_application" "staging_deployer" {
 }
 
 resource "scaleway_iam_application" "production_deployer" {
+  count = var.enable_production ? 1 : 0
+
   organization_id = var.organization_id
   name            = "evorto-production-github-deployer"
   description     = "Protected production deployment identity; API keys are created outside Terraform state"
@@ -104,12 +109,16 @@ resource "scaleway_iam_application" "staging_worker" {
 }
 
 resource "scaleway_iam_application" "production_web" {
+  count = var.enable_production ? 1 : 0
+
   organization_id = var.organization_id
   name            = "evorto-production-web"
   description     = "S3 identity used only by the production web role"
 }
 
 resource "scaleway_iam_application" "production_worker" {
+  count = var.enable_production ? 1 : 0
+
   organization_id = var.organization_id
   name            = "evorto-production-worker"
   description     = "S3 and Transactional Email identity used only by the production worker role"
@@ -128,13 +137,14 @@ resource "scaleway_iam_policy" "staging_deployer" {
 }
 
 resource "scaleway_iam_policy" "production_deployer" {
+  count           = var.enable_production ? 1 : 0
   name            = "evorto-production-deployer"
   description     = "Reconcile production and read only accepted staging release artifacts"
-  application_id  = scaleway_iam_application.production_deployer.id
+  application_id  = scaleway_iam_application.production_deployer[0].id
   organization_id = var.organization_id
 
   rule {
-    project_ids          = [scaleway_account_project.production.id]
+    project_ids          = [scaleway_account_project.production[0].id]
     permission_set_names = local.environment_deployer_permission_sets
   }
 
@@ -173,25 +183,27 @@ resource "scaleway_iam_policy" "staging_worker_storage" {
 }
 
 resource "scaleway_iam_policy" "production_web_storage" {
+  count           = var.enable_production ? 1 : 0
   name            = "evorto-production-web-storage"
   description     = "Authorize the production web role for bucket-policy-narrowed object access"
-  application_id  = scaleway_iam_application.production_web.id
+  application_id  = scaleway_iam_application.production_web[0].id
   organization_id = var.organization_id
 
   rule {
-    project_ids          = [scaleway_account_project.production.id]
+    project_ids          = [scaleway_account_project.production[0].id]
     permission_set_names = local.runtime_object_storage_permission_sets
   }
 }
 
 resource "scaleway_iam_policy" "production_worker_storage" {
+  count           = var.enable_production ? 1 : 0
   name            = "evorto-production-worker-storage"
   description     = "Authorize the production worker role for bucket-policy-narrowed object access"
-  application_id  = scaleway_iam_application.production_worker.id
+  application_id  = scaleway_iam_application.production_worker[0].id
   organization_id = var.organization_id
 
   rule {
-    project_ids          = [scaleway_account_project.production.id]
+    project_ids          = [scaleway_account_project.production[0].id]
     permission_set_names = local.runtime_object_storage_permission_sets
   }
 }
@@ -209,9 +221,10 @@ resource "scaleway_iam_policy" "staging_worker_tem" {
 }
 
 resource "scaleway_iam_policy" "production_worker_tem" {
+  count           = var.enable_production ? 1 : 0
   name            = "evorto-production-worker-tem"
   description     = "Allow the production worker to send through Transactional Email only"
-  application_id  = scaleway_iam_application.production_worker.id
+  application_id  = scaleway_iam_application.production_worker[0].id
   organization_id = var.organization_id
 
   rule {

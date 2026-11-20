@@ -405,9 +405,10 @@ jobs:
             --endpoint-url https://s3.fr-par.scw.cloud \
             --only-show-errors
 
-      - name: Deploy ops and apply only a stable safe schema plan
+      - name: Deploy ops and reset staging to the release seed
         env:
           DIGEST: ${{ steps.image.outputs.digest }}
+          GH_TOKEN: ${{ github.token }}
           IMAGE_REFERENCE: ${{ steps.image.outputs.reference }}
           REVISION: ${{ needs.resolve-revision.outputs.revision }}
           SCHEMA_HASH: ${{ steps.image.outputs.schema_hash }}
@@ -418,41 +419,22 @@ jobs:
             deployment/platform.json ops \
             "${IMAGE_REFERENCE}" "${REVISION}" "${DIGEST}" "${SCHEMA_HASH}"
 
-          explain_response="$(
-            ops/scaleway/invoke-private-container.sh \
-              deployment/platform.json \
-              ops \
-              /internal/ops/schema-explain \
-              <<<'{}'
-          )"
-          jq --exit-status \
-            --arg schema_hash "${SCHEMA_HASH}" \
-            '.safe == true and .schemaHash == $schema_hash' \
-            <<<"${explain_response}" >/dev/null
-          plan_digest="$(jq --raw-output .digest <<<"${explain_response}")"
+          current_revision="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
+          if [ "${REVISION}" != "${current_revision}" ]; then
+            echo "::error::Main changed before the staging reset. Deploy the current revision."
+            exit 1
+          fi
 
-          apply_response="$(
-            ops/scaleway/invoke-private-container.sh \
-              deployment/platform.json \
-              ops \
-              /internal/ops/schema-apply \
-              <<<"$(jq --null-input --compact-output --arg plan_digest "${plan_digest}" '{ planDigest: $plan_digest }')"
-          )"
-          jq --exit-status \
-            --arg plan_digest "${plan_digest}" \
-            '.applied == true and .digest == $plan_digest' \
-            <<<"${apply_response}" >/dev/null
-
-          initialization_response="$(
+          reset_response="$(
             ops/scaleway/invoke-private-container.sh \
               deployment/platform.json \
               ops \
               /internal/ops/seed-staging \
-              <<<'{"mode":"initialize-empty"}'
+              <<<'{"confirmation":"reset-and-seed-staging"}'
           )"
           jq --exit-status \
-            '.initialized == true' \
-            <<<"${initialization_response}" >/dev/null
+            '.reset == true and .seeded == true' \
+            <<<"${reset_response}" >/dev/null
 
       - name: Deploy worker and web at the same digest
         env:

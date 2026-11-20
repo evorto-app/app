@@ -6,11 +6,11 @@ output "backend_configuration" {
       key                  = "evorto/bootstrap.tfstate"
       state_application_id = scaleway_iam_application.bootstrap_terraform_state.id
     }
-    production = {
+    production = var.enable_production ? {
       bucket               = scaleway_object_bucket.terraform_state["production"].name
       key                  = "evorto/production.tfstate"
-      state_application_id = scaleway_iam_application.production_terraform_state.id
-    }
+      state_application_id = scaleway_iam_application.production_terraform_state[0].id
+    } : null
     staging = {
       bucket               = scaleway_object_bucket.terraform_state["staging"].name
       key                  = "evorto/staging.tfstate"
@@ -33,18 +33,18 @@ output "environments" {
       web_application_id      = scaleway_iam_application.staging_web.id
       worker_application_id   = scaleway_iam_application.staging_worker.id
     }
-    production = {
-      deployer_application_id = scaleway_iam_application.production_deployer.id
-      project_id              = scaleway_account_project.production.id
-      registry_endpoint       = scaleway_registry_namespace.production.endpoint
-      web_application_id      = scaleway_iam_application.production_web.id
-      worker_application_id   = scaleway_iam_application.production_worker.id
-    }
+    production = var.enable_production ? {
+      deployer_application_id = scaleway_iam_application.production_deployer[0].id
+      project_id              = scaleway_account_project.production[0].id
+      registry_endpoint       = scaleway_registry_namespace.production[0].endpoint
+      web_application_id      = scaleway_iam_application.production_web[0].id
+      worker_application_id   = scaleway_iam_application.production_worker[0].id
+    } : null
   }
 }
 
-output "managed_transactional_email_dns_records" {
-  description = "Transactional Email records reconciled in the existing authoritative Cloudflare zone."
+output "transactional_email_dns_records" {
+  description = "Transactional Email records to maintain in the authoritative DNS zone."
   value = {
     dkim = {
       name  = scaleway_tem_domain.notifications.dkim_name
