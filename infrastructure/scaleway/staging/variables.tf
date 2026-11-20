@@ -21,6 +21,7 @@ variable "worker_application_id" {
 variable "production_deployer_application_id" {
   description = "Bootstrap-owned production deployer application allowed to read accepted staging release metadata."
   type        = string
+  default     = null
 }
 
 variable "tem_project_id" {
@@ -53,16 +54,6 @@ variable "alert_email" {
   type        = string
 }
 
-variable "cloudflare_zone_id" {
-  description = "Cloudflare zone ID for evorto.app. Authentication comes only from CLOUDFLARE_API_TOKEN."
-  type        = string
-
-  validation {
-    condition     = can(regex("^[0-9a-f]{32}$", var.cloudflare_zone_id))
-    error_message = "cloudflare_zone_id must be a 32-character lowercase hexadecimal Cloudflare zone ID."
-  }
-}
-
 variable "container_image" {
   description = "Immutable staging image."
   type        = string
@@ -92,4 +83,10 @@ variable "runtime_database_password_version" {
   type        = number
   description = "Monotonic staging runtime-user password version."
   default     = 1
+}
+
+variable "application_bucket_console_user_ids" {
+  description = "Existing Scaleway users authorized for read-only console access to the application bucket."
+  type        = set(string)
+  default     = []
 }

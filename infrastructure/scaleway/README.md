@@ -14,12 +14,23 @@ plan, apply it explicitly, verify it, then publish an updated configuration
 snapshot. App deployments therefore do not detect unrelated Terraform drift.
 Keep drift inspection in the infrastructure maintenance process.
 
-The live infrastructure still uses `evorto/platform.tfstate` in its existing
-state bucket. The checked-in `bootstrap`, `staging`, and `production` Terraform
-roots describe a proposed split that has **not** been applied. Do not point a
-new root at the existing state, apply the proposed bootstrap, or provision
-production to restore application delivery. State migration and any future
-production setup require their own reviewed plan.
+Bootstrap and staging use separate private state buckets and credentials.
+Use each root's `backend.hcl.example` for its backend key and credentials.
+Keep the old `evorto/platform.tfstate` snapshot for recovery only. Each root
+must use its own state when planning and applying changes.
+
+Set `state_operator_user_ids` in bootstrap to the existing Scaleway users
+responsible for administering the state buckets. Use the staging deployer
+identity for the Scaleway provider in staging and the staging state identity
+for the S3 backend. The manual staging reset reads the staging state using
+its protected environment's `STAGING_TERRAFORM_STATE_BUCKET` and matching
+`STAGING_TERRAFORM_STATE_ACCESS_KEY_ID` and
+`STAGING_TERRAFORM_STATE_SECRET_ACCESS_KEY`.
+
+The bootstrap root defaults `enable_production` to `false`. Production
+requires a separate reviewed bootstrap and production plan. After enabling
+it, use the bootstrap output to set staging's
+`production_deployer_application_id` before configuring artifact promotion.
 
 The application remains the authorization boundary. PostgreSQL is private and
 uses separate runtime and schema users. Stripe uses test mode; staging email
@@ -156,16 +167,16 @@ Successful staging deployments retain a separate
 
 ## DNS and Transactional Email
 
-Keep Cloudflare as the authoritative DNS provider. Terraform manages only the
-unproxied `staging.evorto.app` CNAME, the SPF, DKIM, MX, and DMARC records for
-`notifications.evorto.app`, and the unproxied `alpha.evorto.app` CNAME after the
-production root is explicitly applied. It does not transfer or otherwise manage
-the zone itself. Each environment exposes `managed_dns_record`; bootstrap
-exposes `managed_transactional_email_dns_records`.
+Cloudflare remains authoritative. Operators maintain the unproxied
+`staging.evorto.app` CNAME and the SPF, DKIM, MX, and DMARC records for
+`notifications.evorto.app` in Cloudflare. The staging and bootstrap roots
+provide the desired records through `web_dns_record` and
+`transactional_email_dns_records`.
 
-The Scaleway custom-domain resources explicitly depend on their Cloudflare
-CNAME records. This ordering lets the public CNAME propagate before Scaleway
-starts its HTTP-01 challenge and certificate issuance during a fresh apply.
+When creating a staging container from scratch, provision the web container
+first so the generated hostname is available. Set the unproxied CNAME to
+that hostname and verify public DNS before creating the Scaleway custom-domain
+binding. Scaleway uses the CNAME to validate the hostname and issue TLS.
 
 All other existing zone records remain intentionally outside this Terraform
 state and must be preserved. This includes the apex, `www`, and `docs` website
@@ -180,7 +191,7 @@ production root is explicitly reviewed and applied by the operator. That apply
 creates only the Scaleway CNAME; export and inspect the live zone again before
 cutover, and never use a bulk zone replacement.
 
-After the managed records have propagated and Scaleway reports the email domain
+After the email records have propagated and Scaleway reports the email domain
 healthy, set `validate_tem_dns = true`. The application always sends as
 `Evorto <no-reply@notifications.evorto.app>` and retains tenant-specific
 Reply-To headers.
@@ -254,11 +265,9 @@ root declares daily backups retained 30 days and a 24-hour RPO.
 
 1. Make one harmless, documented staging-only drift change such as a container
    description/tag through the console.
-2. Run an operator-side read-only Terraform plan against configuration matching
-   the live state. Confirm it reports the drift; an app deployment is not a
-   substitute for this check.
-3. Review and apply the infrastructure correction explicitly. Do not apply the
-   proposed isolated roots to the current combined state.
+2. Run an operator-side read-only Terraform plan using the staging backend
+   and confirm it reports the drift.
+3. Review and apply the infrastructure correction explicitly.
 4. Regenerate the accepted deployment configuration if its values changed, then
    rerun deployment and retain the plan and `/version` evidence.
 

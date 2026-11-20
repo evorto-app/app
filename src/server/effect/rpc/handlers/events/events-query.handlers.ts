@@ -1309,7 +1309,7 @@ export const eventQueryHandlers = {
             },
             user: {
               columns: {
-                email: true,
+                communicationEmail: true,
                 firstName: true,
                 id: true,
                 lastName: true,
@@ -1416,7 +1416,7 @@ export const eventQueryHandlers = {
                 ...priceSnapshot,
                 checkedIn: registration.checkInTime !== null,
                 checkInTime: registration.checkInTime?.toISOString() ?? null,
-                email: registration.user.email,
+                email: registration.user.communicationEmail,
                 firstName: registration.user.firstName,
                 lastName: registration.user.lastName,
                 ...approvalState,
