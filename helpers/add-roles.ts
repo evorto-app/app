@@ -35,6 +35,7 @@ export const addRoles = (
           'events:editAll',
           'events:review',
           'events:organizeAll',
+          'events:checkInManually',
           'internal:manageResources',
           'events:seeDrafts',
           'templates:view',
@@ -60,6 +61,7 @@ export const addRoles = (
         name: 'Section member',
         permissions: [
           'events:create',
+          'events:checkInManually',
           'templates:view',
           'internal:viewInternalPages',
         ],

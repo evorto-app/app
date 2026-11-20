@@ -24,6 +24,7 @@ import {
   EventRegistrationNotFoundError,
 } from '@shared/rpc-contracts/app-rpcs/events.errors';
 import {
+  type EventCheckInMethod,
   type EventsCancellableRegistrationStatus,
   type EventsOutgoingRegistrationTransferRecord,
   type EventsRegistrationStatusRecord,
@@ -654,6 +655,41 @@ const ensureCanScanEventRegistration = ({
         permission: 'events:organizeAll',
       }),
     );
+  });
+
+/**
+ * Check-in access for the lookup and confirmation RPCs. A scan keeps the
+ * event check-in rules; a manual check-in additionally needs
+ * `events:checkInManually`, after the event access guard so tenant and event
+ * errors stay the same.
+ */
+const ensureCanCheckInRegistration = ({
+  checkInMethod,
+  eventId,
+  tenantId,
+  user,
+}: {
+  checkInMethod: EventCheckInMethod;
+  eventId: string;
+  tenantId: string;
+  user: {
+    id: string;
+    permissions: readonly Permission[];
+  };
+}) =>
+  Effect.gen(function* () {
+    yield* ensureCanScanEventRegistration({ eventId, tenantId, user });
+    if (
+      checkInMethod === 'manual' &&
+      !includesPermission('events:checkInManually', user.permissions)
+    ) {
+      return yield* Effect.fail(
+        new RpcForbiddenError({
+          message: 'Missing required manual check-in access',
+          permission: 'events:checkInManually',
+        }),
+      );
+    }
   });
 
 const ensureRegistrationAddonFulfillmentAccess = Effect.fn(
@@ -2374,7 +2410,7 @@ export const eventRegistrationHandlers = {
       });
     }).pipe(Effect.catch(mapRegistrationScanInternalError)),
   'events.checkInRegistration': (
-    { guestCheckInCount, registrationId },
+    { checkInMethod, guestCheckInCount, registrationId },
     _options,
   ) =>
     Effect.gen(function* () {
@@ -2417,7 +2453,8 @@ export const eventRegistrationHandlers = {
         );
       }
 
-      yield* ensureCanScanEventRegistration({
+      yield* ensureCanCheckInRegistration({
+        checkInMethod,
         eventId: registration.eventId,
         tenantId: tenant.id,
         user,
@@ -3493,7 +3530,7 @@ export const eventRegistrationHandlers = {
         },
       });
     }).pipe(Effect.catch(mapRegistrationMutationInternalError)),
-  'events.registrationScanned': ({ registrationId }, _options) =>
+  'events.registrationScanned': ({ checkInMethod, registrationId }, _options) =>
     Effect.gen(function* () {
       yield* RpcAccess.ensureAuthenticated();
       const { tenant } = yield* RpcAccess.current();
@@ -3559,7 +3596,8 @@ export const eventRegistrationHandlers = {
         );
       }
 
-      yield* ensureCanScanEventRegistration({
+      yield* ensureCanCheckInRegistration({
+        checkInMethod,
         eventId: registration.eventId,
         tenantId: tenant.id,
         user,

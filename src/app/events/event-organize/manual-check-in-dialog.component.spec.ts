@@ -20,6 +20,12 @@ import {
   type ManualCheckInDialogResult,
 } from './manual-check-in-dialog.component';
 
+const attendeeData: ManualCheckInDialogData = {
+  attendeeName: 'Alex Able',
+  mode: 'attendee',
+  registrationId: 'registration-1',
+};
+
 const baseScanResult = {
   allowCheckin: true,
   alreadyCheckedInIssue: false,
@@ -70,8 +76,11 @@ describe('ManualCheckInDialogComponent', () => {
                 mutationOptions: () => ({ mutationFn: checkIn }),
               },
               registrationScanned: {
-                queryOptions: (input: { registrationId: string }) => ({
-                  queryFn: loadScan,
+                queryOptions: (input: {
+                  checkInMethod: string;
+                  registrationId: string;
+                }) => ({
+                  queryFn: () => loadScan(input),
                   queryKey: ['registration-scanned', input.registrationId],
                 }),
               },
@@ -92,7 +101,10 @@ describe('ManualCheckInDialogComponent', () => {
     vi.restoreAllMocks();
   });
 
-  const openDialog = async () => {
+  const openDialog = async (
+    data: ManualCheckInDialogData = attendeeData,
+    expectedTitle = 'Check in Alex Able',
+  ) => {
     const dialog = TestBed.inject(MatDialog);
     const overlay = TestBed.inject(OverlayContainer).getContainerElement();
     const closedResults: (ManualCheckInDialogResult | undefined)[] = [];
@@ -101,7 +113,7 @@ describe('ManualCheckInDialogComponent', () => {
       ManualCheckInDialogData,
       ManualCheckInDialogResult
     >(ManualCheckInDialogComponent, {
-      data: { attendeeName: 'Alex Able', registrationId: 'registration-1' },
+      data,
     });
     dialogRef.afterClosed().subscribe((result) => {
       closedResults.push(result);
@@ -113,7 +125,7 @@ describe('ManualCheckInDialogComponent', () => {
       });
     };
     await settle(() => {
-      expect(overlay.textContent).toContain('Check in Alex Able');
+      expect(overlay.textContent).toContain(expectedTitle);
     });
     const text = () => overlay.textContent ?? '';
     const button = (label: string): HTMLButtonElement => {
@@ -208,11 +220,88 @@ describe('ManualCheckInDialogComponent', () => {
     button('Confirm 2 check-ins').click();
 
     await settle(() => {
-      expect(closedResults).toEqual([{ alreadyCheckedIn: false }]);
+      expect(closedResults).toEqual([
+        { alreadyCheckedIn: false, checkedInGuestCount: 1 },
+      ]);
     });
     expect(checkIn.mock.calls[0]?.[0]).toEqual({
+      checkInMethod: 'manual',
       guestCheckInCount: 1,
       registrationId: 'registration-1',
+    });
+  });
+
+  it('looks the ticket up as a manual check-in', async () => {
+    const { settle } = await openDialog();
+
+    await settle(() => {
+      expect(loadScan).toHaveBeenCalledWith({
+        checkInMethod: 'manual',
+        registrationId: 'registration-1',
+      });
+    });
+  });
+
+  it('starts the guest check-in at one guest for a checked-in attendee', async () => {
+    loadScan.mockResolvedValue({
+      ...baseScanResult,
+      alreadyCheckedInIssue: true,
+      attendeeCheckedIn: true,
+      checkedInGuestCount: 1,
+      remainingGuestCount: 1,
+    });
+    checkIn.mockResolvedValue({
+      alreadyCheckedIn: true,
+      checkInTime: '2026-11-10T10:00:00.000Z',
+    });
+    const { button, closedResults, guestInput, settle } = await openDialog(
+      { ...attendeeData, mode: 'guests' },
+      'Check in guests of Alex Able',
+    );
+
+    await settle(() => {
+      expect(guestInput()?.value).toBe('1');
+    });
+    await settle(() => {
+      expect(button('Confirm check-in').disabled).toBe(false);
+    });
+    button('Confirm check-in').click();
+
+    await settle(() => {
+      expect(closedResults).toEqual([
+        { alreadyCheckedIn: true, checkedInGuestCount: 1 },
+      ]);
+    });
+    expect(checkIn.mock.calls[0]?.[0]).toEqual({
+      checkInMethod: 'manual',
+      guestCheckInCount: 1,
+      registrationId: 'registration-1',
+    });
+  });
+
+  it('keeps confirmation disabled while the ticket reloads', async () => {
+    const { button, settle } = await openDialog();
+
+    await settle(() => {
+      expect(button('Confirm check-in').disabled).toBe(false);
+    });
+    let releaseReload: (() => void) | undefined;
+    // Angular's browser target does not expose Promise.withResolvers.
+
+    const pendingReload = new Promise<typeof baseScanResult>((resolve) => {
+      releaseReload = () => {
+        resolve(baseScanResult);
+      };
+    });
+    loadScan.mockReturnValueOnce(pendingReload);
+    void queryClient.refetchQueries({ queryKey: ['registration-scanned'] });
+
+    await settle(() => {
+      expect(button('Confirm check-in').disabled).toBe(true);
+    });
+    releaseReload?.();
+    await settle(() => {
+      expect(button('Confirm check-in').disabled).toBe(false);
     });
   });
 
@@ -282,7 +371,9 @@ describe('ManualCheckInDialogComponent', () => {
     button('Confirm check-in').click();
 
     await settle(() => {
-      expect(closedResults).toEqual([{ alreadyCheckedIn: false }]);
+      expect(closedResults).toEqual([
+        { alreadyCheckedIn: false, checkedInGuestCount: 0 },
+      ]);
     });
     expect(queryClient.invalidateQueries).toHaveBeenCalledOnce();
     releaseRefresh?.();

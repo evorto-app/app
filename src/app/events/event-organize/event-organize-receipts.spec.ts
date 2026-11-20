@@ -216,13 +216,7 @@ describe('EventOrganize actions', () => {
             },
             queryFilter: (queryKey: readonly string[]) => ({ queryKey }),
             users: {
-              canUseScanner: {
-                queryKey: () => ['scanner-access'],
-                queryOptions: () => ({
-                  enabled: false,
-                  queryKey: ['scanner-access'],
-                }),
-              },
+              canUseScanner: { queryKey: () => ['scanner-access'] },
               events: { queryKey: () => ['user-events'] },
               maybeSelf: {
                 queryKey: () => ['self'],
@@ -294,6 +288,7 @@ describe('EventOrganize actions', () => {
         {
           canApproveRegistrations: true,
           canCancelRegistrations: true,
+          canCheckInManually: false,
           organizingRegistration: false,
           registrationOptionId: 'option-1',
           registrationOptionTitle: 'Participant',
@@ -308,6 +303,7 @@ describe('EventOrganize actions', () => {
               paymentPending: paymentSetupRequired,
               paymentSetupRequired,
               registrationId: 'registration-1',
+              remainingGuestCount: 0,
               status: 'PENDING',
             },
           ],

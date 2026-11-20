@@ -473,7 +473,7 @@ test('Check in from the attendee list', async ({
   const attendeeTenantUserId = getId();
   const attendeeEmail = `list-check-in-${attendeeUserId}@example.test`;
   const attendeeName = 'Alex Example';
-  const registrationSpotCount = 2;
+  const registrationSpotCount = 3;
   const confirmedSpots = optionBefore.confirmedSpots + registrationSpotCount;
   if (
     confirmedSpots + optionBefore.reservedSpots > optionBefore.spots ||
@@ -566,7 +566,7 @@ test('Check in from the attendee list', async ({
         checkedInGuestCount: 0,
         discountAmount: 0,
         eventId,
-        guestCount: 1,
+        guestCount: 2,
         id: registrationId,
         registrationOptionId: participantOption.id,
         status: 'CONFIRMED',
@@ -578,7 +578,7 @@ test('Check in from the attendee list', async ({
     await testInfo.attach('markdown', {
       body: `
 {% callout type="note" title="Who can do this" %}
-You need a confirmed organizer/helper ticket for the event or **Organize all events** access. Check-in opens one hour before the event starts and closes two hours after it ends.
+You need the **Manual check-in** permission, and you must organize the event: either with a confirmed organizer/helper ticket for it or with **Organize all events** access. Without **Manual check-in** you can still scan tickets, but the **Check in** action is not shown. Check-in opens one hour before the event starts and closes two hours after it ends.
 {% /callout %}
 
 If an attendee cannot show their ticket, for example because their phone battery died, check them in from the organizer overview instead.
@@ -614,7 +614,7 @@ If an attendee cannot show their ticket, for example because their phone battery
     );
     await testInfo.attach('markdown', {
       body: `
-Choose how many guests are arriving with the attendee, then confirm. Guests who arrive after the attendee is checked in are checked in by scanning the ticket.
+Choose how many guests are arriving with the attendee, then confirm. Guests who arrive later are checked in from the same list.
 `,
     });
     await confirmCheckIn.click();
@@ -632,5 +632,49 @@ Choose how many guests are arriving with the attendee, then confirm. Guests who 
       page,
       'The attendee is marked as checked in',
     );
+
+    await testInfo.attach('markdown', {
+      body: `
+## Check in guests who arrive later
+
+While a ticket still has guest places left, its row shows **Check in guests**. Select it when another guest arrives, choose how many are arriving now and confirm. The attendee's original check-in time stays as it was. The action disappears after the last guest is checked in.
+`,
+    });
+
+    const checkInGuestsButton = page.getByRole('button', {
+      exact: true,
+      name: `Check in guests of ${attendeeName}`,
+    });
+    await expect(checkInGuestsButton).toBeVisible();
+    await takeScreenshot(
+      testInfo,
+      checkInGuestsButton,
+      page,
+      'Select Check in guests next to an attendee with guests still to arrive',
+    );
+    await checkInGuestsButton.click();
+
+    const guestsDialog = page.getByRole('dialog', {
+      exact: true,
+      name: `Check in guests of ${attendeeName}`,
+    });
+    await expect(guestsDialog).toBeVisible();
+    await expect(guestsDialog.getByLabel('Guests to check in now')).toHaveValue(
+      '1',
+    );
+    const confirmLastGuest = await fillScannerGuestCheckInCount(guestsDialog, {
+      guestCount: 1,
+      includeAttendee: false,
+    });
+    await takeScreenshot(
+      testInfo,
+      guestsDialog,
+      page,
+      'Choose how many more guests are arriving now',
+    );
+    await confirmLastGuest.click();
+
+    await expect(guestsDialog).toBeHidden();
+    await expect(checkInGuestsButton).toHaveCount(0);
   }
 });

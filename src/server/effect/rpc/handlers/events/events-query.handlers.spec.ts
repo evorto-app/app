@@ -1,3 +1,4 @@
+import { type Permission } from '@shared/permissions/permissions';
 import { PgDialect } from 'drizzle-orm/pg-core';
 import { describe, expect, it } from 'vitest';
 
@@ -121,6 +122,7 @@ describe('organizeOverviewAccessAllowed', () => {
     ).toEqual({
       canApproveRegistrations: false,
       canCancelRegistrations: false,
+      canCheckInManually: false,
       canViewOverview: true,
     });
   });
@@ -134,6 +136,7 @@ describe('organizeOverviewAccessAllowed', () => {
     ).toEqual({
       canApproveRegistrations: true,
       canCancelRegistrations: false,
+      canCheckInManually: false,
       canViewOverview: true,
     });
     expect(
@@ -142,6 +145,26 @@ describe('organizeOverviewAccessAllowed', () => {
         permissions: ['events:cancelRegistrations'],
       }).canCancelRegistrations,
     ).toBe(true);
+  });
+
+  it('requires both event organizer access and the manual check-in permission', () => {
+    const canCheckInManually = (
+      confirmedOrganizerRegistration: boolean,
+      permissions: readonly Permission[],
+    ) =>
+      eventOrganizeCapabilities({ confirmedOrganizerRegistration, permissions })
+        .canCheckInManually;
+
+    expect(canCheckInManually(true, ['events:checkInManually'])).toBe(true);
+    expect(canCheckInManually(true, [])).toBe(false);
+    expect(
+      canCheckInManually(false, [
+        'events:organizeAll',
+        'events:checkInManually',
+      ]),
+    ).toBe(true);
+    expect(canCheckInManually(false, ['events:organizeAll'])).toBe(false);
+    expect(canCheckInManually(false, ['events:checkInManually'])).toBe(false);
   });
 });
 

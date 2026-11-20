@@ -160,6 +160,7 @@ export interface EventOrganizeParticipant {
   paymentPending: boolean;
   paymentSetupRequired: boolean;
   registrationId: string;
+  remainingGuestCount: number;
   status: EventsRegistrationStatus;
 }
 
@@ -171,24 +172,55 @@ export const organizerRegistrationActionDisabled = ({
   mutationPending: boolean;
 }): boolean => checkedIn || mutationPending;
 
-export const organizerManualCheckInAvailable = ({
-  canUseScanner,
+export const manualCheckInSuccessMessage = ({
+  attendeeName,
+  mode,
+  result,
+}: {
+  attendeeName: string;
+  mode: ManualCheckInDialogData['mode'];
+  result: ManualCheckInDialogResult;
+}): string => {
+  if (mode === 'attendee' || result.checkedInGuestCount === 0) {
+    return result.alreadyCheckedIn
+      ? `${attendeeName} was already checked in`
+      : `${attendeeName} is checked in`;
+  }
+  return result.checkedInGuestCount === 1
+    ? `1 guest of ${attendeeName} is checked in`
+    : `${result.checkedInGuestCount} guests of ${attendeeName} are checked in`;
+};
+
+export type OrganizerManualCheckInAction = 'checkIn' | 'checkInGuests';
+
+export const organizerManualCheckInAction = ({
+  canCheckInManually,
   checkedIn,
+  remainingGuestCount,
   selfUserId,
   status,
   userId,
 }: {
-  canUseScanner: boolean;
+  canCheckInManually: boolean;
   checkedIn: boolean;
+  remainingGuestCount: number;
   selfUserId: null | string;
   status: EventsRegistrationStatus;
   userId: string;
-}): boolean =>
-  canUseScanner &&
-  status === 'CONFIRMED' &&
-  !checkedIn &&
-  selfUserId !== null &&
-  selfUserId !== userId;
+}): null | OrganizerManualCheckInAction => {
+  if (
+    !canCheckInManually ||
+    status !== 'CONFIRMED' ||
+    selfUserId === null ||
+    selfUserId === userId
+  ) {
+    return null;
+  }
+  if (!checkedIn) {
+    return 'checkIn';
+  }
+  return remainingGuestCount > 0 ? 'checkInGuests' : null;
+};
 
 export const organizerRegistrationApprovalDisabled = ({
   manualApprovalAvailable,
@@ -250,9 +282,6 @@ export class EventOrganize {
   );
   protected readonly cancelRegistrationMutation = injectMutation(() =>
     this.rpc.events.cancelEventRegistration.mutationOptions(),
-  );
-  protected readonly canUseScannerQuery = injectQuery(() =>
-    this.rpc.users.canUseScanner.queryOptions(),
   );
   protected readonly eventQuery = injectQuery(() =>
     this.rpc.events.findOne.queryOptions({ id: this.eventId() }),
@@ -511,6 +540,7 @@ export class EventOrganize {
       EventOrganizeParticipant,
       'firstName' | 'lastName' | 'registrationId'
     >,
+    mode: ManualCheckInDialogData['mode'],
   ): Promise<void> {
     const attendeeName = `${registration.firstName} ${registration.lastName}`;
     const result = await firstValueFrom(
@@ -520,7 +550,11 @@ export class EventOrganize {
           ManualCheckInDialogData,
           ManualCheckInDialogResult
         >(ManualCheckInDialogComponent, {
-          data: { attendeeName, registrationId: registration.registrationId },
+          data: {
+            attendeeName,
+            mode,
+            registrationId: registration.registrationId,
+          },
           width: 'min(32rem, calc(100vw - 2rem))',
         })
         .afterClosed(),
@@ -530,9 +564,7 @@ export class EventOrganize {
     }
 
     this.notifications.showSuccess(
-      result.alreadyCheckedIn
-        ? `${attendeeName} was already checked in`
-        : `${attendeeName} is checked in`,
+      manualCheckInSuccessMessage({ attendeeName, mode, result }),
     );
     try {
       await this.invalidateOrganizerState();
@@ -549,14 +581,19 @@ export class EventOrganize {
     }
   }
 
-  protected canCheckIn(
-    user: Pick<EventOrganizeParticipant, 'checkedIn' | 'status'> & {
+  protected manualCheckInAction(
+    user: Pick<
+      EventOrganizeParticipant,
+      'checkedIn' | 'remainingGuestCount' | 'status'
+    > & {
       userId: string;
     },
-  ): boolean {
-    return organizerManualCheckInAvailable({
-      canUseScanner: this.canUseScannerQuery.data() ?? false,
+    registrationOption: { readonly canCheckInManually: boolean },
+  ): null | OrganizerManualCheckInAction {
+    return organizerManualCheckInAction({
+      canCheckInManually: registrationOption.canCheckInManually,
       checkedIn: user.checkedIn,
+      remainingGuestCount: user.remainingGuestCount,
       selfUserId: this.maybeSelfQuery.data()?.id ?? null,
       status: user.status,
       userId: user.userId,

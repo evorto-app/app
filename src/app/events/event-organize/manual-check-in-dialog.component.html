@@ -1,4 +1,4 @@
-<h2 mat-dialog-title>Check in {{ data.attendeeName }}</h2>
+<h2 mat-dialog-title>{{ title() }}</h2>
 <mat-dialog-content>
   @if (scanResultQuery.isPending()) {
     <p role="status">Loading ticket…</p>
@@ -100,14 +100,7 @@
     mat-flat-button
     type="button"
     (click)="checkIn()"
-    [disabled]="
-      scanCheckInActionDisabled({
-        allowCheckin: scanResultQuery.data()?.allowCheckin ?? false,
-        completed: false,
-        mutationPending: checkInMutation.isPending(),
-        spotCount: selectedSpotCheckInCount(),
-      })
-    "
+    [disabled]="confirmDisabled()"
   >
     {{
       scanCheckInButtonLabel({

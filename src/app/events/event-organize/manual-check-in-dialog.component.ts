@@ -36,11 +36,13 @@ import {
 
 export interface ManualCheckInDialogData {
   readonly attendeeName: string;
+  readonly mode: 'attendee' | 'guests';
   readonly registrationId: string;
 }
 
 export interface ManualCheckInDialogResult {
   readonly alreadyCheckedIn: boolean;
+  readonly checkedInGuestCount: number;
 }
 
 export const manualCheckInErrorMessage = (
@@ -75,6 +77,7 @@ export class ManualCheckInDialogComponent {
   private readonly rpc = AppRpc.injectClient();
   protected readonly scanResultQuery = injectQuery(() =>
     this.rpc.events.registrationScanned.queryOptions({
+      checkInMethod: 'manual',
       registrationId: this.data.registrationId,
     }),
   );
@@ -87,7 +90,12 @@ export class ManualCheckInDialogComponent {
   protected readonly checkInMutation = injectMutation(() =>
     this.rpc.events.checkInRegistration.mutationOptions(),
   );
-  protected readonly guestCheckInCount = signal(0);
+  protected readonly guestCheckInCount = signal<null | number>(null);
+  protected readonly title = computed(() =>
+    this.data.mode === 'guests'
+      ? `Check in guests of ${this.data.attendeeName}`
+      : `Check in ${this.data.attendeeName}`,
+  );
   protected readonly queryErrorMessage = computed(() => {
     const error = this.scanResultQuery.error();
     if (error === null) {
@@ -98,7 +106,6 @@ export class ManualCheckInDialogComponent {
       'The ticket could not be loaded. Close this dialog and try again.',
     );
   });
-  protected readonly scanCheckInActionDisabled = scanCheckInActionDisabled;
   protected readonly scanCheckInButtonLabel = scanCheckInButtonLabel;
   protected readonly scanCheckInTimingIssueCopy = scanCheckInTimingIssueCopy;
   protected readonly scanRegistrationStatusIssueCopy =
@@ -109,7 +116,10 @@ export class ManualCheckInDialogComponent {
     if (!scanResult) {
       return 0;
     }
-    return Math.min(this.guestCheckInCount(), scanResult.remainingGuestCount);
+    const requested =
+      this.guestCheckInCount() ??
+      (this.data.mode === 'guests' && scanResult.attendeeCheckedIn ? 1 : 0);
+    return Math.min(requested, scanResult.remainingGuestCount);
   });
   protected readonly selectedSpotCheckInCount = computed(() => {
     const scanResult = this.scanResultQuery.data();
@@ -121,23 +131,31 @@ export class ManualCheckInDialogComponent {
     );
   });
 
+  /**
+   * Confirm waits for the ticket to finish loading, so a reopened dialog
+   * never confirms against cached details from before the last check-in.
+   */
+  protected readonly confirmDisabled = computed(() =>
+    scanCheckInActionDisabled({
+      allowCheckin: this.scanResultQuery.data()?.allowCheckin ?? false,
+      completed: false,
+      mutationPending:
+        this.checkInMutation.isPending() || this.scanResultQuery.isFetching(),
+      spotCount: this.selectedSpotCheckInCount(),
+    }),
+  );
+
   protected checkIn(): void {
-    const scanResult = this.scanResultQuery.data();
-    if (
-      scanCheckInActionDisabled({
-        allowCheckin: scanResult?.allowCheckin ?? false,
-        completed: false,
-        mutationPending: this.checkInMutation.isPending(),
-        spotCount: this.selectedSpotCheckInCount(),
-      })
-    ) {
+    if (this.confirmDisabled()) {
       return;
     }
 
+    const checkedInGuestCount = this.selectedGuestCheckInCount();
     this.dialogRef.disableClose = true;
     this.checkInMutation.mutate(
       {
-        guestCheckInCount: this.selectedGuestCheckInCount(),
+        checkInMethod: 'manual',
+        guestCheckInCount: checkedInGuestCount,
         registrationId: this.data.registrationId,
       },
       {
@@ -146,7 +164,10 @@ export class ManualCheckInDialogComponent {
         },
         onSuccess: (result) => {
           this.dialogRef.disableClose = false;
-          this.dialogRef.close({ alreadyCheckedIn: result.alreadyCheckedIn });
+          this.dialogRef.close({
+            alreadyCheckedIn: result.alreadyCheckedIn,
+            checkedInGuestCount,
+          });
           void this.queryClient.invalidateQueries(
             this.rpc.queryFilter(['events', 'registrationScanned']),
           );
@@ -160,14 +181,13 @@ export class ManualCheckInDialogComponent {
     if (!(input instanceof HTMLInputElement)) {
       return;
     }
-    this.guestCheckInCount.set(
-      scanGuestCheckInCountFromInput({
-        inputValue: input.value,
-        remainingGuestCount:
-          this.scanResultQuery.data()?.remainingGuestCount ?? 0,
-      }),
-    );
-    const clampedValue = String(this.guestCheckInCount());
+    const clamped = scanGuestCheckInCountFromInput({
+      inputValue: input.value,
+      remainingGuestCount:
+        this.scanResultQuery.data()?.remainingGuestCount ?? 0,
+    });
+    this.guestCheckInCount.set(clamped);
+    const clampedValue = String(clamped);
     if (input.value !== clampedValue) {
       input.value = clampedValue;
     }

@@ -85,12 +85,14 @@ const organizerAccessSql =
 const optionAggregateSql =
   'select "event_registration_options"."checkedInSpots", "event_registration_options"."confirmedSpots", "event_registration_options"."spots" from "event_registration_options" inner join "event_instances" on (("event_instances"."id" = "event_registration_options"."eventId") and ("event_instances"."tenantId" = $1)) where "event_registration_options"."eventId" = $2';
 const attendeeProjectionSql =
-  'select "d0"."applied_discounted_price" as "appliedDiscountedPrice", "d0"."applied_discount_type"::text as "appliedDiscountType", "d0"."base_price_at_registration" as "basePriceAtRegistration", "d0"."checkInTime"::text as "checkInTime", "d0"."discount_amount" as "discountAmount", "d0"."id" as "id", "d0"."registrationOptionId" as "registrationOptionId", "d0"."status"::text as "status", "addonPurchases"."r" as "addonPurchases", "registrationOption"."r" as "registrationOption", "transactions"."r" as "transactions", "user"."r" as "user" from "event_registrations" as "d0" ';
+  'select "d0"."applied_discounted_price" as "appliedDiscountedPrice", "d0"."applied_discount_type"::text as "appliedDiscountType", "d0"."base_price_at_registration" as "basePriceAtRegistration", "d0"."checked_in_guest_count" as "checkedInGuestCount", "d0"."checkInTime"::text as "checkInTime", "d0"."discount_amount" as "discountAmount", "d0"."guest_count" as "guestCount", "d0"."id" as "id", "d0"."registrationOptionId" as "registrationOptionId", "d0"."status"::text as "status", "addonPurchases"."r" as "addonPurchases", "registrationOption"."r" as "registrationOption", "transactions"."r" as "transactions", "user"."r" as "user" from "event_registrations" as "d0" ';
 
 const createEventQueryDatabase = ({
+  attendeeRows = [],
   organizerRegistration = false,
   registrationOptionAggregates = [],
 }: {
+  attendeeRows?: readonly (readonly unknown[])[];
   organizerRegistration?: boolean;
   registrationOptionAggregates?: readonly RegistrationOptionAggregate[];
 } = {}) => {
@@ -140,7 +142,7 @@ const createEventQueryDatabase = ({
             tenant.id,
           ]);
           attendeeQuery({ parameters, statement });
-          return [];
+          return attendeeRows.map((row) => [...row]);
         }
         throw new Error(`Unexpected organizer overview SQL: ${statement}`);
       }),
@@ -936,6 +938,73 @@ describe('organizer overview authorization', () => {
           statement: optionAggregateSql,
         });
         expect(aggregateQuery).toHaveBeenCalledOnce();
+      }),
+  );
+
+  it.effect.each([
+    {
+      expected: true,
+      permissions: ['events:organizeAll', 'events:checkInManually'] as const,
+    },
+    { expected: false, permissions: ['events:organizeAll'] as const },
+  ])(
+    'returns per-option manual check-in access and remaining guests ($permissions)',
+    ({ expected, permissions }) =>
+      Effect.gen(function* () {
+        const { databaseLayer } = createEventQueryDatabase({
+          attendeeRows: [
+            [
+              null,
+              null,
+              0,
+              1,
+              '2026-09-15T12:00:00',
+              0,
+              3,
+              'registration-1',
+              'option-1',
+              'CONFIRMED',
+              [],
+              {
+                id: 'option-1',
+                organizingRegistration: false,
+                price: 0,
+                registrationMode: 'fcfs',
+                title: 'Participant',
+              },
+              [],
+              {
+                email: 'alice@example.com',
+                firstName: 'Alice',
+                id: 'attendee-1',
+                lastName: 'Doe',
+              },
+            ],
+          ],
+        });
+
+        const overview = yield* eventQueryHandlers[
+          'events.getOrganizeOverview'
+        ](
+          { eventId: 'event-1' },
+          createRpcOptions(
+            EventsRpcs.EventsGetOrganizeOverview.middleware(
+              RpcRequestContextMiddleware,
+            ),
+          ),
+        ).pipe(
+          Effect.provide(
+            createContextLayer({
+              databaseLayer,
+              user: createUser(permissions),
+            }),
+          ),
+        );
+
+        const [option] = overview.registrationOptions;
+        expect(option?.canCheckInManually).toBe(expected);
+        expect(option?.users).toHaveLength(1);
+        expect(option?.users[0]?.remainingGuestCount).toBe(2);
       }),
   );
 });

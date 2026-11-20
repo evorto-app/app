@@ -216,32 +216,46 @@
                               </p>
                             }
                           </div>
-                          @let checkInAvailable = canCheckIn(user);
+                          @let checkInAction =
+                            manualCheckInAction(user, registrationOption);
                           @if (
                             (registrationOption.canApproveRegistrations &&
                               user.manualApprovalAvailable &&
                               !user.paymentSetupRequired) ||
                             registrationOption.canCancelRegistrations ||
-                            checkInAvailable
+                            checkInAction !== null
                           ) {
                             <div class="flex flex-wrap gap-2">
-                              @if (checkInAvailable) {
+                              @if (checkInAction !== null) {
                                 <button
                                   mat-flat-button
                                   type="button"
                                   [attr.aria-label]="
-                                    'Check in ' +
+                                    (checkInAction === 'checkInGuests'
+                                      ? 'Check in guests of '
+                                      : 'Check in ') +
                                     user.firstName +
                                     ' ' +
                                     user.lastName
                                   "
-                                  (click)="checkInRegistration(user)"
+                                  (click)="
+                                    checkInRegistration(
+                                      user,
+                                      checkInAction === 'checkInGuests'
+                                        ? 'guests'
+                                        : 'attendee'
+                                    )
+                                  "
                                   [disabled]="
                                     approveRegistrationMutation.isPending() ||
                                     cancelRegistrationMutation.isPending()
                                   "
                                 >
-                                  Check in
+                                  {{
+                                    checkInAction === "checkInGuests"
+                                      ? "Check in guests"
+                                      : "Check in"
+                                  }}
                                 </button>
                               }
                               @if (
