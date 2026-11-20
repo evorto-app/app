@@ -327,6 +327,7 @@ const createSqlContextLayer = <E>({
     ConfigProvider.layer(
       ConfigProvider.fromEnv({
         env: {
+          APP_ENVIRONMENT: 'local',
           BASE_URL: 'https://app.example',
           NODE_ENV: 'production',
           ...(nowIso && { E2E_NOW_ISO: nowIso }),

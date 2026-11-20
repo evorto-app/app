@@ -48,7 +48,9 @@ describe('server-config', () => {
       Effect.gen(function* () {
         const provider = providerFromEntries([
           ...requiredServerEntries,
+          ['APP_ENVIRONMENT', 'local'],
           ['E2E_NOW_ISO', '2026-03-01T12:00:00.000Z'],
+          ['TENANT_DOMAIN', ' localhost '],
           ['npm_package_version', '1.2.3'],
           ['SERVER_LOG_LEVEL', ' warning '],
           ['SSR_RPC_ORIGIN', ' http://127.0.0.1:4000 '],
@@ -59,6 +61,7 @@ describe('server-config', () => {
         expect(config.E2E_NOW_ISO).toEqual(
           Option.some('2026-03-01T12:00:00.000Z'),
         );
+        expect(config.TENANT_DOMAIN).toEqual(Option.some('localhost'));
         expect(config.PACKAGE_VERSION).toEqual(Option.some('1.2.3'));
         expect(config.SERVER_LOG_LEVEL).toEqual(Option.some('Warn'));
         expect(config.SSR_RPC_ORIGIN).toEqual(
@@ -79,6 +82,25 @@ describe('server-config', () => {
         const error = yield* Effect.flip(readServerConfig(provider));
         expect(error.message).toMatch(/Expected SERVER_LOG_LEVEL to be one of/);
       }),
+  );
+
+  it.effect('ignores the pinned test clock outside the local environment', () =>
+    Effect.gen(function* () {
+      for (const environment of [
+        ['APP_ENVIRONMENT', 'staging'],
+        ['APP_ENVIRONMENT', 'production'],
+        undefined,
+      ] as const) {
+        const config = yield* readServerConfig(
+          providerFromEntries([
+            ...requiredServerEntries,
+            ...(environment ? [environment] : []),
+            ['E2E_NOW_ISO', '2026-03-01T12:00:00.000Z'],
+          ]),
+        );
+        expect(config.E2E_NOW_ISO).toEqual(Option.none());
+      }
+    }),
   );
 
   it.effect('requires the Maps key for web configuration', () =>

@@ -250,6 +250,7 @@ const tenantPublicOrigin = {
 const configProviderLayer = ConfigProvider.layer(
   ConfigProvider.fromEnv({
     env: Object.fromEntries([
+      ['APP_ENVIRONMENT', 'local'],
       ['BASE_URL', 'https://app.example'],
       ['CLIENT_ID', 'client-id'],
       ['CLIENT_SECRET', 'client-secret'],
