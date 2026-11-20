@@ -43,7 +43,7 @@ if [ "$*" != 'api repos/evorto-app/app/commits/main --jq .sha' ]; then
   exit 90
 fi
 printf 'main:read\n' >> "$CALL_LOG"
-printf '%s\n' "$REVISION"
+printf '%s\n' "$MAIN_REVISION"
 `,
     { mode: 0o700 },
   );
@@ -72,12 +72,13 @@ case "$3" in
     ;;
   /internal/ops/schema-apply)
     jq --exit-status '.planDigest == "reviewed-plan"' >/dev/null
-    jq --null-input --argjson fail "$FAIL_SCHEMA_APPLY" \
+    jq --null-input --argjson fail "$FAIL_DATABASE_PREPARATION" \
       '{applied: ($fail | not), digest: "reviewed-plan"}'
     ;;
   /internal/ops/seed-staging)
-    jq --exit-status '.mode == "initialize-empty"' >/dev/null
-    printf '%s\n' '{"initialized":true}'
+    jq --exit-status '.confirmation == "reset-and-seed-staging"' >/dev/null
+    jq --null-input --argjson fail "$FAIL_DATABASE_PREPARATION" \
+      '{reset: true, seeded: ($fail | not)}'
     ;;
   *) exit 90 ;;
 esac
@@ -90,7 +91,7 @@ esac
   );
   const schemaStep =
     environment === 'staging'
-      ? 'Deploy ops and apply only a stable safe schema plan'
+      ? 'Deploy ops and reset staging to the release seed'
       : 'Deploy production ops and apply only a stable safe schema plan';
   const runtimeStep =
     environment === 'staging'
@@ -102,7 +103,7 @@ esac
 
   return {
     calls: () => fs.readFileSync(callLog, 'utf8').trim().split('\n'),
-    run: (failSchemaApply: boolean) =>
+    run: (failDatabasePreparation: boolean, mainRevision = 'b'.repeat(40)) =>
       spawnSync(
         'bash',
         ['--noprofile', '--norc', '-e', '-o', 'pipefail', '-c', script],
@@ -112,11 +113,12 @@ esac
           env: {
             CALL_LOG: callLog,
             DIGEST: `sha256:${'a'.repeat(64)}`,
-            FAIL_SCHEMA_APPLY: String(failSchemaApply),
+            FAIL_DATABASE_PREPARATION: String(failDatabasePreparation),
             IMAGE_REFERENCE: `example.invalid/evorto@sha256:${'a'.repeat(64)}`,
             PATH: `${directory}:${process.env.PATH ?? ''}`,
             GITHUB_REPOSITORY: 'evorto-app/app',
             GITHUB_SHA: 'b'.repeat(40),
+            MAIN_REVISION: mainRevision,
             REVISION: 'b'.repeat(40),
             RUNNER_TEMP: directory,
             SCHEMA_HASH: 'c'.repeat(64),
@@ -128,28 +130,55 @@ esac
 };
 
 describe('Scaleway schema reconciliation retries', () => {
-  for (const environment of ['staging', 'production'] as const) {
-    it(`reconciles ${environment} again after an unchanged ops deployment`, () => {
-      const fixture = makeRetryFixture(environment);
-      const failed = fixture.run(true);
-      expect(failed.status, failed.stderr).not.toBe(0);
-      const reconciliationCalls = [
-        ...(environment === 'production' ? ['main:read'] : []),
-        'deploy:ops',
-        '/internal/ops/schema-explain',
-        '/internal/ops/schema-apply',
-      ];
-      expect(fixture.calls()).toEqual(reconciliationCalls);
+  it('reconciles production again after an unchanged ops deployment', () => {
+    const fixture = makeRetryFixture('production');
+    const failed = fixture.run(true);
+    expect(failed.status, failed.stderr).not.toBe(0);
+    const reconciliationCalls = [
+      'main:read',
+      'deploy:ops',
+      '/internal/ops/schema-explain',
+      '/internal/ops/schema-apply',
+    ];
+    expect(fixture.calls()).toEqual(reconciliationCalls);
 
-      const retried = fixture.run(false);
-      expect(retried.status, retried.stderr).toBe(0);
-      expect(fixture.calls()).toEqual([
-        ...reconciliationCalls,
-        ...reconciliationCalls,
-        ...(environment === 'staging' ? ['/internal/ops/seed-staging'] : []),
-        'deploy:worker',
-        'deploy:web',
-      ]);
-    });
-  }
+    const retried = fixture.run(false);
+    expect(retried.status, retried.stderr).toBe(0);
+    expect(fixture.calls()).toEqual([
+      ...reconciliationCalls,
+      ...reconciliationCalls,
+      'deploy:worker',
+      'deploy:web',
+    ]);
+  });
+
+  it('reseeds staging on retry before deploying worker and web', () => {
+    const fixture = makeRetryFixture('staging');
+    const resetCalls = [
+      'deploy:ops',
+      'main:read',
+      '/internal/ops/seed-staging',
+    ];
+
+    const failed = fixture.run(true);
+    expect(failed.status, failed.stderr).not.toBe(0);
+    expect(fixture.calls()).toEqual(resetCalls);
+
+    const retried = fixture.run(false);
+    expect(retried.status, retried.stderr).toBe(0);
+    expect(fixture.calls()).toEqual([
+      ...resetCalls,
+      ...resetCalls,
+      'deploy:worker',
+      'deploy:web',
+    ]);
+  });
+
+  it('preserves staging data when main advances before the reset', () => {
+    const fixture = makeRetryFixture('staging');
+    const result = fixture.run(false, 'd'.repeat(40));
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain('Main changed before the staging reset');
+    expect(fixture.calls()).toEqual(['deploy:ops', 'main:read']);
+  });
 });
