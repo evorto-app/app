@@ -68,7 +68,7 @@
           prices.
         </p>
       }
-      <mat-form-field>
+      <mat-form-field subscriptSizing="dynamic">
         <mat-label>Currency</mat-label>
         <mat-select [formField]="settingsForm.currency">
           @for (currency of currencyOptions; track currency) {
@@ -128,7 +128,7 @@
         ESNcard discounts
       </mat-slide-toggle>
       @if (settingsForm.esnCardEnabled().value()) {
-        <mat-form-field class="mt-4">
+        <mat-form-field class="mt-4" subscriptSizing="dynamic">
           <mat-label>ESNcard purchase web address</mat-label>
           <input
             matInput
