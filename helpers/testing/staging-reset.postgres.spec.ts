@@ -24,6 +24,7 @@ it('rebuilds app-owned objects with a non-owner role in managed public', async (
     await client.query(`
       CREATE ROLE evorto_staging_reset_fixture NOSUPERUSER;
       GRANT USAGE, CREATE ON SCHEMA public TO evorto_staging_reset_fixture;
+      CREATE SCHEMA reset_other_schema AUTHORIZATION evorto_staging_reset_fixture;
       CREATE TABLE public.reset_provider_fixture (id bigint);
       CREATE EXTENSION IF NOT EXISTS unaccent;
       SET LOCAL ROLE evorto_staging_reset_fixture;
@@ -35,6 +36,10 @@ it('rebuilds app-owned objects with a non-owner role in managed public', async (
       CREATE TABLE public.reset_child_fixture (
         id bigint REFERENCES public.reset_parent_fixture (id)
       );
+      CREATE TABLE public.reset_partitioned_fixture (id bigint) PARTITION BY LIST (id);
+      CREATE TABLE reset_other_schema.reset_excluded_partition
+        PARTITION OF public.reset_partitioned_fixture FOR VALUES IN (1);
+      INSERT INTO public.reset_partitioned_fixture VALUES (1);
       CREATE VIEW public.reset_app_fixture AS SELECT id FROM public.reset_parent_fixture;
       CREATE MATERIALIZED VIEW public.reset_materialized_fixture AS SELECT id FROM public.reset_app_fixture;
       CREATE VIEW public.reset_dependent_fixture AS SELECT id FROM public.reset_materialized_fixture;
@@ -53,8 +58,24 @@ it('rebuilds app-owned objects with a non-owner role in managed public', async (
 
     await expect(client.query(stagingResetSql)).rejects.toMatchObject({
       code: '2BP01',
+      message:
+        'The staging reset would remove excluded partition reset_other_schema.reset_excluded_partition',
     });
     await client.query('ROLLBACK TO SAVEPOINT before_reset');
+    const retainedPartition = await client.query(
+      'SELECT id FROM reset_other_schema.reset_excluded_partition',
+    );
+    expect(retainedPartition.rows).toEqual([{ id: '1' }]);
+    await client.query(`
+      DROP TABLE reset_other_schema.reset_excluded_partition;
+      CREATE TABLE public.reset_partition_fixture
+        PARTITION OF public.reset_partitioned_fixture FOR VALUES IN (1);
+      SAVEPOINT before_dependency_check;
+    `);
+    await expect(client.query(stagingResetSql)).rejects.toMatchObject({
+      code: '2BP01',
+    });
+    await client.query('ROLLBACK TO SAVEPOINT before_dependency_check');
     const retainedView = await client.query(
       'SELECT id FROM public.reset_app_fixture',
     );
@@ -76,6 +97,8 @@ it('rebuilds app-owned objects with a non-owner role in managed public', async (
         to_regclass('public.reset_dependent_fixture') IS NULL AS dependent_view_removed,
         to_regclass('public.reset_parent_fixture') IS NULL AS parent_removed,
         to_regclass('public.reset_child_fixture') IS NULL AS child_removed,
+        to_regclass('public.reset_partitioned_fixture') IS NULL AS partitioned_table_removed,
+        to_regclass('public.reset_partition_fixture') IS NULL AS partition_removed,
         to_regclass('public.reset_parent_fixture_id_seq') IS NULL AS sequence_removed,
         to_regtype('public."reset-fixture-state"') IS NULL AS enum_removed
       FROM pg_namespace WHERE nspname = 'public'
@@ -89,6 +112,8 @@ it('rebuilds app-owned objects with a non-owner role in managed public', async (
         managed_schema: true,
         materialized_removed: true,
         parent_removed: true,
+        partition_removed: true,
+        partitioned_table_removed: true,
         provider_table: true,
         sequence_removed: true,
       },

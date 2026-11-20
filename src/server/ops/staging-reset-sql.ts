@@ -26,6 +26,17 @@ export const stagingResetSql = `
               AND dependency.deptype = 'e'
           )
       ),
+      excluded_partition AS (
+        SELECT format('%I.%I', child_schema.nspname, child.relname) AS name
+        FROM pg_catalog.pg_inherits AS inheritance
+        JOIN application_relations AS parent ON parent.oid = inheritance.inhparent
+        JOIN pg_catalog.pg_class AS child ON child.oid = inheritance.inhrelid
+        JOIN pg_catalog.pg_namespace AS child_schema ON child_schema.oid = child.relnamespace
+        WHERE child.relispartition
+          AND NOT EXISTS (SELECT FROM application_relations WHERE oid = child.oid)
+        ORDER BY child_schema.nspname, child.relname
+        LIMIT 1
+      ),
       view_dependencies AS (
         SELECT DISTINCT dependent.oid AS dependent_id, referenced.oid AS referenced_id
         FROM application_relations AS dependent
@@ -69,11 +80,16 @@ export const stagingResetSql = `
               AND dependency.deptype = 'e'
           )
       )
-      SELECT object_kind, string_agg(format('%I.%I', 'public', name), ', ' ORDER BY name) AS names
+      SELECT object_kind, string_agg(format('%I.%I', 'public', name), ', ' ORDER BY name) AS names,
+        (SELECT name FROM excluded_partition) AS excluded_partition
       FROM application_objects
       GROUP BY drop_order, depth, object_kind
       ORDER BY drop_order, depth
     LOOP
+      IF objects.excluded_partition IS NOT NULL THEN
+        RAISE EXCEPTION 'The staging reset would remove excluded partition %', objects.excluded_partition
+          USING ERRCODE = 'dependent_objects_still_exist';
+      END IF;
       -- Drop tables together for their mutual foreign keys. RESTRICT prevents
       -- a dependent object outside the reset set from being removed.
       EXECUTE format('DROP %s IF EXISTS %s RESTRICT', objects.object_kind, objects.names);
