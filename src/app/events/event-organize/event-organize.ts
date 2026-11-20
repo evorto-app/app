@@ -310,7 +310,9 @@ export class EventOrganize {
   protected readonly emailListActions = eventOrganizeEmailListActions;
   protected readonly emailLists = computed(() =>
     buildEventOrganizeEmailLists(
-      this.organizerOverviewQuery.data()?.registrationOptions ?? [],
+      this.organizerOverviewQuery.isSuccess()
+        ? this.organizerOverviewQuery.data().registrationOptions
+        : [],
     ),
   );
   protected readonly event = computed(() => this.eventQuery.data());
@@ -564,6 +566,14 @@ export class EventOrganize {
   protected copyEmailList(group: EventOrganizeEmailListGroup): void {
     const addresses = this.emailLists()[group];
     if (addresses.length === 0) return;
+
+    // Mail clients can parse these characters as recipient list syntax.
+    if (addresses.some((address) => /[,;<>:"()\\]/.test(address))) {
+      this.notifications.showError(
+        'The list contains a contact email address that can’t be copied. Ask the person to check their contact email.',
+      );
+      return;
+    }
 
     if (this.clipboard.copy(addresses.join(', '))) {
       this.notifications.showSuccess(

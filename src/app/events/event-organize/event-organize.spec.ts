@@ -2611,6 +2611,26 @@ describe('EventOrganize email list copying', () => {
     ]);
   });
 
+  it.each(['anna,other@example.test', 'anna;other@example.test'])(
+    'leaves the clipboard alone when a contact email contains a recipient delimiter (%s)',
+    async (invalidAddress) => {
+      const button = await render([
+        option('attendees', false, [
+          participant('ben@example.test'),
+          participant(invalidAddress),
+        ]),
+      ]);
+
+      button('Copy email addresses of attendees').click();
+
+      expect(copy).not.toHaveBeenCalled();
+      expect(showError).toHaveBeenCalledExactlyOnceWith(
+        'The list contains a contact email address that can’t be copied. Ask the person to check their contact email.',
+      );
+      expect(showSuccess).not.toHaveBeenCalled();
+    },
+  );
+
   it('reports a failed copy without claiming success', async () => {
     copy.mockReturnValue(false);
     const button = await render([
