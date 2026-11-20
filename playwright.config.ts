@@ -3,6 +3,7 @@ import { formatConfigError } from '@server/config/config-error';
 import { APPLICATION_READINESS_PATH } from '@server/http/application-readiness';
 import { ConfigError, ConfigProvider, Effect } from 'effect';
 import { randomBytes } from 'node:crypto';
+import path from 'node:path';
 
 import { playwrightEnvironmentConfig } from './tests/support/config/environment';
 import { resolvePlaywrightProjectPolicy } from './tests/support/config/playwright-project-policy';
@@ -108,6 +109,33 @@ const webServer = (() => {
 })();
 
 const listOnly = process.argv.includes('--list');
+// The test CLI loads this configuration in workers and discovery processes too.
+// Only the runner can unwind the webServer plugin and await its leased teardown.
+if (
+  webServer &&
+  environment.E2E_USE_DOCKER_STACK &&
+  !listOnly &&
+  process.argv[2] === 'test' &&
+  (require.main?.filename === require.resolve('@playwright/test/cli') ||
+    require.main?.filename ===
+      path.join(
+        path.dirname(require.resolve('playwright/package.json')),
+        'cli.js',
+      ))
+) {
+  let interruptRequested = false;
+  process.prependOnceListener('SIGINT', () => {
+    interruptRequested = true;
+    // Before Playwright installs its watcher, preserve the default interrupt.
+    if (process.listenerCount('SIGINT') === 0)
+      process.kill(process.pid, 'SIGINT');
+  });
+  process.on('SIGTERM', () => {
+    if (interruptRequested) return;
+    interruptRequested = true;
+    process.kill(process.pid, 'SIGINT');
+  });
+}
 
 // Playwright API step titles can contain entered values. Keep the default
 // reporter set non-persistent so Auth0 passwords and protected provider
