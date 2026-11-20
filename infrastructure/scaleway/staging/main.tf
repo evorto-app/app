@@ -25,4 +25,11 @@ module "environment" {
   database_volume_size_gb           = 10
   web_min_scale                     = 0
   alert_email                       = var.alert_email
+  worker_resources = {
+    cpu_limit          = 280
+    memory_limit_bytes = 536000000
+  }
+  preconfigured_alert_ids = [
+    "c8991f90-facb-436c-b4ab-6aa13822a451", # PostgreSQL high storage usage
+  ]
 }
