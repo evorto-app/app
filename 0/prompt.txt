@@ -1,0 +1,25 @@
+Check if we need updates in our effect usage based on [https://effect.website/docs/v4/getting-started#coding-with-llms](https://effect.website/docs/v4/getting-started#coding-with-llms)
+
+---
+
+Also, where would the font awsome token be needed now?
+
+---
+
+Okay, the lets get rid of those effect skills globally
+
+---
+
+Is the local skill good or should we prefer only having the source?
+
+---
+
+Alright, tell me if there is any specific guidance
+
+---
+
+Do that
+
+---
+
+Also review the local guidance we do have for correctnes and if it is needed
