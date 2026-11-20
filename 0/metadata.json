@@ -1,0 +1,43 @@
+{
+  "cli_version": "0.13.1",
+  "checkpoint_id": "01M7WPF8FY0PAK18MR08FXB225",
+  "session_id": "01a1f910-755b-7d01-8d93-f0b2e4c850b8",
+  "strategy": "manual-commit",
+  "created_at": "2026-11-20T14:41:22.793845Z",
+  "branch": "codex/evo-65-managed-staging-reset",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "helpers/testing/staging-reset.postgres.spec.ts",
+    "src/server/ops/staging-reset-sql.ts"
+  ],
+  "agent": "Codex",
+  "model": "gpt-6.2-sol",
+  "turn_id": "0f8f698bff54",
+  "checkpoint_transcript_start": 1859,
+  "transcript_lines_at_start": 1859,
+  "compact_transcript_start": 411,
+  "token_usage": {
+    "input_tokens": 21677,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 10675968,
+    "output_tokens": 8699,
+    "api_call_count": 34
+  },
+  "redaction": {
+    "replacements": 180,
+    "layers": {
+      "betterleaks": 72,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 48,
+      "credentialed_uri": 30,
+      "entropy": 83,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  },
+  "session_metrics": {
+    "turn_count": 2
+  }
+}
