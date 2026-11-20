@@ -233,6 +233,35 @@ describe('includesPermission', () => {
     expect(includesPermission('templates:view', ['events:create'])).toBe(true);
   });
 
+  it.each([
+    'templates:create',
+    'templates:editAll',
+    'templates:manageCategories',
+  ] as const)('%s grants viewing without other template actions', (grant) => {
+    expect(includesPermission('templates:view', [grant])).toBe(true);
+    for (const permission of [
+      'templates:create',
+      'templates:delete',
+      'templates:editAll',
+      'templates:manageCategories',
+    ] as const) {
+      expect(includesPermission(permission, [grant])).toBe(
+        permission === grant,
+      );
+    }
+  });
+
+  it('keeps viewing from granting template management', () => {
+    for (const permission of [
+      'templates:create',
+      'templates:delete',
+      'templates:editAll',
+      'templates:manageCategories',
+    ] as const) {
+      expect(includesPermission(permission, ['templates:view'])).toBe(false);
+    }
+  });
+
   it('keeps the current tax grant limited to tax authority', () => {
     expect(includesPermission('admin:tax', ['admin:tax'])).toBe(true);
     expect(includesPermission('admin:*', ['admin:tax'])).toBe(true);

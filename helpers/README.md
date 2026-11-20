@@ -125,7 +125,10 @@ or volume verification call has a 10-second watchdog.
 Playwright allows five minutes for teardown, watchdog termination grace,
 verification, removal, and an additional shutdown buffer. When it reuses
 a stack that was already serving the app, it never starts that wrapper and the
-user-owned stack remains running. Resume an initialized stopped project with
+user-owned stack remains running. Send SIGINT or SIGTERM to the running
+Playwright test CLI to interrupt a Docker-backed suite. The CLI handles the
+first termination request as an interrupt and waits for webserver teardown.
+Resume an initialized stopped project with
 `bun run docker:resume`, or use `bun run docker:start` for an intentional reset.
 
 `run-with-wall-clock-timeout.ts` keeps `TIMEOUT GRACE COMMAND [ARGS...]`,

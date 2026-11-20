@@ -176,33 +176,40 @@ describe('stored role authority in the form', () => {
     expect(host.submitted()?.permissions).toEqual([]);
   });
 
-  it('shows implied access and permits its removal after its parent grant is unchecked', async () => {
-    const fixture = createRoleFormFixture();
-    const host = fixture.componentInstance;
-    host.model.set(
-      createRoleFormModel({
-        name: 'Author',
-        permissions: ['events:create', 'users:viewAll'],
-      }),
-    );
-    fixture.detectChanges();
-    await fixture.whenStable();
-    expect(host.roleForm.permissions['templates:view']().value()).toBe(true);
-    expect(host.roleForm.permissions['templates:view']().readonly()).toBe(true);
-    await submitVisibleRoleForm(fixture);
-    expect(host.submitted()?.permissions).toEqual([
-      'events:create',
-      'users:viewAll',
-    ]);
-    host.roleForm.permissions['events:create']().value.set(false);
-    fixture.detectChanges();
-    await fixture.whenStable();
-    expect(host.roleForm.permissions['templates:view']().readonly()).toBe(
-      false,
-    );
-    host.roleForm.permissions['templates:view']().value.set(false);
-    fixture.detectChanges();
-    await submitVisibleRoleForm(fixture);
-    expect(host.submitted()?.permissions).toEqual(['users:viewAll']);
-  });
+  it.each([
+    'events:create',
+    'templates:create',
+    'templates:editAll',
+    'templates:manageCategories',
+  ] as const)(
+    'shows viewing implied by %s and permits its removal after revoking that grant',
+    async (grant) => {
+      const fixture = createRoleFormFixture();
+      const host = fixture.componentInstance;
+      host.model.set(
+        createRoleFormModel({
+          name: 'Author',
+          permissions: [grant, 'users:viewAll'],
+        }),
+      );
+      fixture.detectChanges();
+      await fixture.whenStable();
+      expect(host.roleForm.permissions['templates:view']().value()).toBe(true);
+      expect(host.roleForm.permissions['templates:view']().readonly()).toBe(
+        true,
+      );
+      await submitVisibleRoleForm(fixture);
+      expect(host.submitted()?.permissions).toEqual([grant, 'users:viewAll']);
+      host.roleForm.permissions[grant]().value.set(false);
+      fixture.detectChanges();
+      await fixture.whenStable();
+      expect(host.roleForm.permissions['templates:view']().readonly()).toBe(
+        false,
+      );
+      host.roleForm.permissions['templates:view']().value.set(false);
+      fixture.detectChanges();
+      await submitVisibleRoleForm(fixture);
+      expect(host.submitted()?.permissions).toEqual(['users:viewAll']);
+    },
+  );
 });

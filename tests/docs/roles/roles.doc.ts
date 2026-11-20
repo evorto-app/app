@@ -317,7 +317,15 @@ Selecting **Assign all member roles (organization admin)** displays a clear warn
       roleName,
     );
     await expect(roleFormCheckbox(/^Create events$/)).toBeChecked();
-    await expect(roleForm.getByText('Includes: View templates')).toBeVisible();
+    await expect(
+      roleForm
+        .locator('mat-checkbox')
+        .filter({
+          has: page.getByRole('checkbox', { name: /^Create events$/ }),
+        })
+        .locator('..')
+        .getByText('Includes: View templates', { exact: true }),
+    ).toBeVisible();
     await expect(roleFormCheckbox(/^View templates$/)).toBeChecked();
     const fullOrganizationAdminPermission = roleFormCheckbox(
       /^Assign all member roles \(organization admin\)$/,
