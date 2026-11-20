@@ -93,7 +93,9 @@ describe('filterTemplateCategories', () => {
   });
 });
 
-const renderTemplateList = async () => {
+type TemplateQueryFn = () => Promise<readonly TemplatesByCategoryRecord[]>;
+
+const createTemplateList = async (queryFn: TemplateQueryFn) => {
   await TestBed.configureTestingModule({
     imports: [TemplateListComponent],
     providers: [
@@ -116,7 +118,7 @@ const renderTemplateList = async () => {
           templates: {
             groupedByCategory: {
               queryOptions: () => ({
-                queryFn: () => Promise.resolve(categories),
+                queryFn,
                 queryKey: createRpcQueryKey(
                   ['templates', 'groupedByCategory'],
                   { keyPrefix: 'rpc', type: 'query' },
@@ -133,20 +135,50 @@ const renderTemplateList = async () => {
   if (!(root instanceof HTMLElement)) {
     throw new TypeError('Expected template list element');
   }
+  return { fixture, root };
+};
+
+const renderTemplateList = async () => {
+  const { fixture, root } = await createTemplateList(() =>
+    Promise.resolve(categories),
+  );
   await vi.waitFor(async () => {
     fixture.detectChanges();
     await fixture.whenStable();
-    expect(root.querySelector('input[type="search"]')).not.toBeNull();
+    expect(root.textContent).toContain('Trips');
   });
   return { fixture, root };
 };
 
-const searchInput = (root: HTMLElement): HTMLInputElement => {
+const settle = async (fixture: ComponentFixture<TemplateListComponent>) => {
+  fixture.detectChanges();
+  await fixture.whenStable();
+  fixture.detectChanges();
+};
+
+const searchButton = (root: HTMLElement): HTMLButtonElement | null => {
+  const button = root.querySelector('button[aria-label="Search templates"]');
+  return button instanceof HTMLButtonElement ? button : null;
+};
+
+const searchInput = (root: HTMLElement): HTMLInputElement | null => {
   const input = root.querySelector('input[type="search"]');
-  if (!(input instanceof HTMLInputElement)) {
-    throw new TypeError('Expected search input');
+  return input instanceof HTMLInputElement ? input : null;
+};
+
+const requireElement = <T extends HTMLElement>(element: null | T): T => {
+  if (!element) {
+    throw new TypeError('Expected element');
   }
-  return input;
+  return element;
+};
+
+const openSearch = async (
+  fixture: ComponentFixture<TemplateListComponent>,
+  root: HTMLElement,
+) => {
+  requireElement(searchButton(root)).click();
+  await settle(fixture);
 };
 
 const type = async (
@@ -154,11 +186,10 @@ const type = async (
   root: HTMLElement,
   value: string,
 ) => {
-  const input = searchInput(root);
+  const input = requireElement(searchInput(root));
   input.value = value;
   input.dispatchEvent(new Event('input'));
-  fixture.detectChanges();
-  await fixture.whenStable();
+  await settle(fixture);
 };
 
 const headings = (root: HTMLElement) =>
@@ -166,54 +197,155 @@ const headings = (root: HTMLElement) =>
     heading.textContent.trim(),
   );
 
+const liveRegionText = (root: HTMLElement) =>
+  root.querySelector('[role="status"]')?.textContent.trim();
+
+const pageTitle = (root: HTMLElement) => root.querySelector('h1');
+
+const categoriesLink = (root: HTMLElement) =>
+  [...root.querySelectorAll('a')].find((link) =>
+    link.textContent.includes('View categories'),
+  );
+
+const expectBrowsing = (root: HTMLElement) => {
+  expect(pageTitle(root)?.textContent).toContain('Event templates');
+  expect(categoriesLink(root)).toBeDefined();
+  expect(searchInput(root)).toBeNull();
+  expect(headings(root)).toEqual(['Trips', 'Parties', 'Workshops']);
+  expect(liveRegionText(root)).toBe('');
+};
+
 describe('TemplateListComponent search', () => {
-  it('labels the field and lists every category before searching', async () => {
+  it('shows a search button instead of a field while browsing', async () => {
     const { root } = await renderTemplateList();
 
-    expect(root.textContent).toContain('Search templates');
-    expect(headings(root)).toEqual(['Trips', 'Parties', 'Workshops']);
-    expect(root.querySelector('button[aria-label="Clear search"]')).toBeNull();
+    expect(searchButton(root)).not.toBeNull();
+    expectBrowsing(root);
+    expect(root.querySelector('[role="status"]')).not.toBeNull();
   });
 
-  it('shows only matching templates and hides categories without matches', async () => {
+  it('opens a focused field in place of the title and actions', async () => {
     const { fixture, root } = await renderTemplateList();
 
-    await type(fixture, root, 'augsburg');
+    await openSearch(fixture, root);
 
+    const input = requireElement(searchInput(root));
+    expect(document.activeElement).toBe(input);
+    expect(root.textContent).toContain('Search templates');
+    expect(pageTitle(root)).toBeNull();
+    expect(categoriesLink(root)).toBeUndefined();
+    expect(headings(root)).toEqual(['Trips', 'Parties', 'Workshops']);
+  });
+
+  it('shows only matching templates and announces the count', async () => {
+    const { fixture, root } = await renderTemplateList();
+    await openSearch(fixture, root);
+
+    await type(fixture, root, 'augsburg');
     expect(headings(root)).toEqual(['Trips']);
     expect(root.textContent).toContain('Augsburg Trip');
     expect(root.textContent).not.toContain('Mountain Hike');
     expect(root.textContent).not.toContain('Pub Crawl');
+    expect(liveRegionText(root)).toBe('1 matching template');
+
+    await type(fixture, root, 'p');
+    expect(liveRegionText(root)).toBe('2 matching templates');
+
+    await type(fixture, root, 'zzz');
+    expect(liveRegionText(root)).toBe('No matching templates');
+
+    await type(fixture, root, '');
+    expect(liveRegionText(root)).toBe('');
   });
 
   it('explains when no template matches', async () => {
     const { fixture, root } = await renderTemplateList();
+    await openSearch(fixture, root);
 
     await type(fixture, root, '  zzz ');
 
-    const status = root.querySelector('[role="status"]');
-    expect(status?.textContent).toContain('No matching templates');
-    expect(status?.textContent).toContain('“zzz”');
+    const emptyState = [...root.querySelectorAll(':scope nav div')].find(
+      (element) => element.textContent.includes('No matching templates'),
+    );
+    expect(emptyState?.getAttribute('role')).toBeNull();
+    expect(emptyState?.textContent).toContain('“zzz”');
     expect(headings(root)).toEqual(['No matching templates']);
   });
 
-  it('clears the search, restores the list and refocuses the field', async () => {
+  it('clears the query and keeps the field open and focused', async () => {
     const { fixture, root } = await renderTemplateList();
-
+    await openSearch(fixture, root);
     await type(fixture, root, 'pub');
     expect(headings(root)).toEqual(['Parties']);
+
     const clear = root.querySelector('button[aria-label="Clear search"]');
-    if (!(clear instanceof HTMLButtonElement)) {
-      throw new TypeError('Expected clear button');
-    }
+    requireElement(clear instanceof HTMLButtonElement ? clear : null).click();
+    await settle(fixture);
 
-    clear.click();
-    fixture.detectChanges();
-    await fixture.whenStable();
-
+    const input = requireElement(searchInput(root));
+    expect(input.value).toBe('');
+    expect(document.activeElement).toBe(input);
     expect(headings(root)).toEqual(['Trips', 'Parties', 'Workshops']);
-    expect(searchInput(root).value).toBe('');
-    expect(document.activeElement).toBe(searchInput(root));
     expect(root.querySelector('button[aria-label="Clear search"]')).toBeNull();
+    expect(pageTitle(root)).toBeNull();
+  });
+
+  it('closes with the back button and restores the header and focus', async () => {
+    const { fixture, root } = await renderTemplateList();
+    await openSearch(fixture, root);
+    await type(fixture, root, 'pub');
+
+    const close = root.querySelector('button[aria-label="Close search"]');
+    requireElement(close instanceof HTMLButtonElement ? close : null).click();
+    await settle(fixture);
+
+    expectBrowsing(root);
+    expect(document.activeElement).toBe(searchButton(root));
+  });
+
+  it('closes with Escape and restores the header and focus', async () => {
+    const { fixture, root } = await renderTemplateList();
+    await openSearch(fixture, root);
+    await type(fixture, root, 'pub');
+
+    requireElement(searchInput(root)).dispatchEvent(
+      new KeyboardEvent('keydown', { bubbles: true, key: 'Escape' }),
+    );
+    await settle(fixture);
+
+    expectBrowsing(root);
+    expect(document.activeElement).toBe(searchButton(root));
+  });
+
+  it('ignores Escape during IME composition', async () => {
+    const { fixture, root } = await renderTemplateList();
+    await openSearch(fixture, root);
+
+    requireElement(searchInput(root)).dispatchEvent(
+      new KeyboardEvent('keydown', {
+        bubbles: true,
+        isComposing: true,
+        key: 'Escape',
+      }),
+    );
+    await settle(fixture);
+
+    expect(searchInput(root)).not.toBeNull();
+    expect(pageTitle(root)).toBeNull();
+  });
+
+  it('renders the search button with an empty live region while loading', async () => {
+    const { fixture, root } = await createTemplateList(
+      () =>
+        new Promise<never>(() => {
+          // Keep the query pending for the duration of this test.
+        }),
+    );
+    fixture.detectChanges();
+    await Promise.resolve();
+    fixture.detectChanges();
+
+    expect(searchButton(root)).not.toBeNull();
+    expect(liveRegionText(root)).toBe('');
   });
 });
