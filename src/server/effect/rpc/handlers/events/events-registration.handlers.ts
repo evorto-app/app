@@ -39,7 +39,7 @@ import {
   or,
   sql,
 } from 'drizzle-orm';
-import { Effect, Option, Result } from 'effect';
+import { Cause, Effect, Option, Result } from 'effect';
 
 import type { AppRpcHandlers } from '../shared/handler-types';
 
@@ -52,6 +52,7 @@ import {
   eventRegistrationAddonPurchaseLots,
   eventRegistrationAddonPurchaseOrders,
   eventRegistrationAddonPurchases,
+  eventRegistrationCheckIns,
   eventRegistrationOptions,
   eventRegistrations,
   registrationAcquisitionRefundAllocations,
@@ -91,7 +92,6 @@ import {
 import { readRegistrationPriceSnapshot } from '../../../../registrations/registration-price-snapshot';
 import {
   ensureRegistrationMutationHasNoActiveTransfer,
-  registrationTransferMutationBlockingStatuses,
   RegistrationTransferMutationConflict,
   registrationTransferOpenDeadlinePredicate,
 } from '../../../../registrations/registration-transfer-mutation-guard';
@@ -583,20 +583,6 @@ const findActiveRegistrationTransfer = (
       RAW: registrationTransferOpenDeadlinePredicate,
       sourceRegistrationId: input.registrationId,
       status: { in: [...activeRegistrationTransferStatuses] },
-      tenantId: input.tenantId,
-    },
-  });
-
-const findCheckInBlockingRegistrationTransfer = (
-  database: DatabaseClient,
-  input: { readonly registrationId: string; readonly tenantId: string },
-) =>
-  database.query.registrationTransfers.findFirst({
-    columns: { id: true },
-    where: {
-      RAW: registrationTransferOpenDeadlinePredicate,
-      sourceRegistrationId: input.registrationId,
-      status: { in: [...registrationTransferMutationBlockingStatuses] },
       tenantId: input.tenantId,
     },
   });
@@ -2510,7 +2496,12 @@ export const eventRegistrationHandlers = {
       });
     }).pipe(Effect.catch(mapRegistrationScanInternalError)),
   'events.checkInRegistration': (
-    { expectedCheckedInGuestCount, guestCheckInCount, registrationId },
+    {
+      expectedCheckedInGuestCount,
+      guestCheckInCount,
+      operationKey,
+      registrationId,
+    },
     _options,
   ) =>
     Effect.gen(function* () {
@@ -2577,41 +2568,6 @@ export const eventRegistrationHandlers = {
         );
       }
 
-      const activeTransfer = yield* databaseEffect((database) =>
-        findCheckInBlockingRegistrationTransfer(database, {
-          registrationId: registration.id,
-          tenantId: tenant.id,
-        }),
-      );
-      if (activeTransfer) {
-        return yield* Effect.fail(activeRegistrationTransferConflict());
-      }
-
-      if (registration.status !== 'CONFIRMED') {
-        return yield* Effect.fail(
-          new EventRegistrationConflictError({
-            message: 'This ticket is not ready for check-in.',
-          }),
-        );
-      }
-
-      const remainingGuestCount = Math.max(
-        0,
-        registration.guestCount - registration.checkedInGuestCount,
-      );
-      // A retry of an intent that already committed sees no remaining guests;
-      // only the locked check below can tell a replay from a real overshoot.
-      if (
-        registration.checkedInGuestCount === expectedCheckedInGuestCount &&
-        guestCheckInCount > remainingGuestCount
-      ) {
-        return yield* Effect.fail(
-          new EventRegistrationConflictError({
-            message: guestCheckInLimitMessage(remainingGuestCount),
-          }),
-        );
-      }
-
       const checkedInRegistration = yield* Database.use((database) =>
         database.transaction((tx) =>
           Effect.gen(function* () {
@@ -2650,6 +2606,47 @@ export const eventRegistrationHandlers = {
                 }),
               );
             }
+            // A recorded operation is replayed before any state check: the
+            // retry must succeed after the window closed or after another
+            // operation changed the counts.
+            const recordedCheckIns = yield* tx
+              .select({
+                actorUserId: eventRegistrationCheckIns.actorUserId,
+                checkInTime: eventRegistrationCheckIns.checkInTime,
+                expectedCheckedInGuestCount:
+                  eventRegistrationCheckIns.expectedCheckedInGuestCount,
+                guestCheckInCount: eventRegistrationCheckIns.guestCheckInCount,
+              })
+              .from(eventRegistrationCheckIns)
+              .where(
+                and(
+                  eq(eventRegistrationCheckIns.registrationId, registration.id),
+                  eq(eventRegistrationCheckIns.operationKey, operationKey),
+                  eq(eventRegistrationCheckIns.tenantId, tenant.id),
+                ),
+              );
+            const recordedCheckIn = recordedCheckIns[0];
+            if (recordedCheckIn) {
+              if (
+                recordedCheckIn.guestCheckInCount !== guestCheckInCount ||
+                recordedCheckIn.expectedCheckedInGuestCount !==
+                  expectedCheckedInGuestCount ||
+                recordedCheckIn.actorUserId !== user.id
+              ) {
+                return yield* Effect.fail(
+                  new EventRegistrationConflictError({
+                    message:
+                      'This check-in request does not match the one already recorded. Reload the ticket and confirm again.',
+                  }),
+                );
+              }
+              return {
+                _tag: 'CheckedIn' as const,
+                alreadyCheckedIn: false,
+                checkInTime: recordedCheckIn.checkInTime,
+              };
+            }
+
             if (lockedRegistration.status !== 'CONFIRMED') {
               return yield* Effect.fail(
                 new EventRegistrationConflictError({
@@ -2717,17 +2714,9 @@ export const eventRegistrationHandlers = {
                 }),
               );
             }
-            const isReplay =
-              lockedRegistration.checkedInGuestCount !==
-                expectedCheckedInGuestCount &&
-              guestCheckInCount > 0 &&
-              lockedRegistration.checkInTime !== null &&
-              lockedRegistration.checkedInGuestCount ===
-                expectedCheckedInGuestCount + guestCheckInCount;
             if (
               lockedRegistration.checkedInGuestCount !==
-                expectedCheckedInGuestCount &&
-              !isReplay
+              expectedCheckedInGuestCount
             ) {
               return yield* Effect.fail(
                 new EventRegistrationConflictError({
@@ -2739,21 +2728,12 @@ export const eventRegistrationHandlers = {
             const lockedRemainingGuestCount =
               lockedRegistration.guestCount -
               lockedRegistration.checkedInGuestCount;
-            if (!isReplay && guestCheckInCount > lockedRemainingGuestCount) {
+            if (guestCheckInCount > lockedRemainingGuestCount) {
               return yield* Effect.fail(
                 new EventRegistrationConflictError({
                   message: guestCheckInLimitMessage(lockedRemainingGuestCount),
                 }),
               );
-            }
-            // A replay reports the check-in that already committed, even when
-            // the retry arrives after the check-in window closed.
-            if (isReplay && lockedRegistration.checkInTime) {
-              return {
-                _tag: 'CheckedIn' as const,
-                alreadyCheckedIn: true,
-                checkInTime: lockedRegistration.checkInTime,
-              };
             }
             const now = yield* registrationHandlerNow;
             const timingIssue = eventCheckInTimingIssue({
@@ -2855,6 +2835,17 @@ export const eventRegistrationHandlers = {
               );
             }
 
+            yield* tx.insert(eventRegistrationCheckIns).values({
+              actorUserId: user.id,
+              attendeeCheckedIn: !lockedRegistration.checkInTime,
+              checkInTime: updatedRegistration.checkInTime,
+              expectedCheckedInGuestCount,
+              guestCheckInCount,
+              operationKey,
+              registrationId: lockedRegistration.id,
+              tenantId: tenant.id,
+            });
+
             return {
               _tag: 'CheckedIn' as const,
               alreadyCheckedIn: false,
@@ -2869,11 +2860,24 @@ export const eventRegistrationHandlers = {
           checkInUnavailableError(checkedInRegistration.reason),
         );
       }
+      // The check-in is committed. A failed ticket read must not turn it into
+      // an error: the helper would retry and could not tell what happened.
       const scannedRegistration = yield* loadRegistrationScan({
         registrationId,
         tenantId: tenant.id,
         user,
-      });
+      }).pipe(
+        Effect.catchCause((cause) =>
+          Effect.logError('Ticket read failed after a committed check-in').pipe(
+            Effect.annotateLogs({
+              cause: Cause.pretty(cause),
+              registrationId,
+              tenantId: tenant.id,
+            }),
+            Effect.as(null),
+          ),
+        ),
+      );
       return {
         alreadyCheckedIn: checkedInRegistration.alreadyCheckedIn,
         checkInTime: checkedInRegistration.checkInTime.toISOString(),

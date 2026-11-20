@@ -715,6 +715,11 @@ ESNcard provider credential path.
     success state is recorded for both buyer-plus-guest and later-guest-arrival
     flows, and both page-backed scanner paths now assert the organizer overview
     checked-in aggregate after scanner writes.
+  - Ticket QR deep links (EVO-26): `specs/scanning/scanner.test.ts` proves a
+    signed-out visitor is redirected to sign-in with the ticket path as the
+    return target and no check-in, a phone-sized signed-in helper sees the
+    ticket preview with no write until Confirm is pressed, and a user without
+    scanner access gets the load error and no write.
 - Tenant/global admin:
   - Authenticated Browser review for the global-admin tenant list and
     tenant-create/edit flows. The global-admin tenant Playwright spec now

@@ -1,6 +1,8 @@
+import { QueryClient } from '@tanstack/angular-query-experimental';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  applyScanCheckInResult,
   registrationAddonCancellationBlockedMessage,
   registrationAddonCancellationSuccessMessage,
   registrationAddonOperationKey,
@@ -9,6 +11,7 @@ import {
   registrationAddonRefundStatusLabel,
   scanCheckInActionDisabled,
   scanCheckInButtonLabel,
+  scanCheckInPayload,
   scanCheckInRetryPayload,
   scanCheckInState,
   scanCheckInTimingIssueCopy,
@@ -537,6 +540,7 @@ describe('scanCheckInRetryPayload', () => {
   const previous = {
     expectedCheckedInGuestCount: 0,
     guestCheckInCount: 1,
+    operationKey: 'key-1',
     registrationId: 'registration-1',
   };
 
@@ -598,5 +602,71 @@ describe('scanCheckInActionDisabled when resending', () => {
         spotCount: 1,
       }),
     ).toBe(true);
+  });
+});
+
+describe('scanCheckInPayload', () => {
+  it('gives every fresh confirmation a new operation key', () => {
+    let counter = 0;
+    const input = {
+      createOperationKey: () => `key-${++counter}`,
+      expectedCheckedInGuestCount: 0,
+      guestCheckInCount: 1,
+      registrationId: 'registration-1',
+    };
+    const first = scanCheckInPayload(input);
+    const second = scanCheckInPayload(input);
+    expect(first.operationKey).toBe('key-1');
+    expect(second.operationKey).toBe('key-2');
+  });
+
+  it('keeps the key when the unconfirmed request is resent', () => {
+    const first = scanCheckInPayload({
+      createOperationKey: () => 'key-1',
+      expectedCheckedInGuestCount: 0,
+      guestCheckInCount: 0,
+      registrationId: 'registration-1',
+    });
+    const resend = scanCheckInRetryPayload('notConfirmed', first);
+    expect(resend).toBe(first);
+    expect(resend?.operationKey).toBe('key-1');
+  });
+});
+
+describe('applyScanCheckInResult', () => {
+  const ticket = (id: string, checkedInGuestCount: number) => ({
+    addOns: [],
+    registration: { checkedInGuestCount, id },
+  });
+  const keyA = ['scanTicket', { registrationId: 'a' }];
+  const keyB = ['scanTicket', { registrationId: 'b' }];
+  const setup = () => {
+    const client = new QueryClient();
+    client.setQueryData(keyA, ticket('a', 0));
+    client.setQueryData(keyB, ticket('b', 0));
+    return client;
+  };
+
+  it('updates only the confirmed ticket and leaves another cached ticket untouched', async () => {
+    const client = setup();
+    const result = { registration: { checkedInGuestCount: 2, id: 'a' } };
+    await applyScanCheckInResult(client, keyA, result);
+    expect(client.getQueryData(keyA)).toEqual({
+      addOns: [],
+      registration: { checkedInGuestCount: 2, id: 'a' },
+    });
+    expect(client.getQueryData(keyB)).toEqual(ticket('b', 0));
+  });
+
+  it('invalidates only that ticket when the post-commit read is missing', async () => {
+    const client = setup();
+    const invalidate = vi.spyOn(client, 'invalidateQueries');
+    const setData = vi.spyOn(client, 'setQueryData');
+    await applyScanCheckInResult(client, keyA, { registration: null });
+    expect(invalidate).toHaveBeenCalledTimes(1);
+    expect(invalidate).toHaveBeenCalledWith({ exact: true, queryKey: keyA });
+    expect(setData).not.toHaveBeenCalled();
+    expect(client.getQueryState(keyB)?.isInvalidated).toBe(false);
+    expect(client.getQueryState(keyA)?.isInvalidated).toBe(true);
   });
 });

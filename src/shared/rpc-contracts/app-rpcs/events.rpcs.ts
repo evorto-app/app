@@ -78,6 +78,11 @@ const RegistrationAddonOperationKey = Schema.String.check(
   Schema.isMinLength(1),
   Schema.isMaxLength(100),
 );
+const CheckInOperationKey = Schema.String.check(
+  Schema.isTrimmed(),
+  Schema.isMinLength(1),
+  Schema.isMaxLength(100),
+);
 const RegistrationAddonCancellationReason = Schema.String.check(
   Schema.isTrimmed(),
   Schema.isMinLength(1),
@@ -210,19 +215,27 @@ export const EventsCheckInRegistration = asRpcMutation(
     error: EventsCheckInRegistrationMutationError,
     payload: Schema.Struct({
       /**
-       * The checked-in guest count the helper saw. A retry of the same intent
-       * is recognized by it and recorded once; a different count means another
-       * device changed the ticket.
+       * The checked-in guest count the helper saw. A new check-in is applied
+       * only while the ticket still shows this count; otherwise another device
+       * changed the ticket and the helper reviews it again.
        */
       expectedCheckedInGuestCount: nonNegativeNumber,
       guestCheckInCount: nonNegativeNumber,
+      /**
+       * Unique per confirmed check-in intent. A retry sends the same key and
+       * gets the stored outcome instead of counting anyone twice.
+       */
+      operationKey: CheckInOperationKey,
       registrationId: Schema.NonEmptyString,
     }),
     success: Schema.Struct({
       alreadyCheckedIn: Schema.Boolean,
       checkInTime: Schema.NonEmptyString,
-      /** The ticket state after the check-in committed. */
-      registration: EventsRegistrationScanResult,
+      /**
+       * The ticket state after the check-in committed, or null when that read
+       * failed after the commit. The check-in itself is recorded either way.
+       */
+      registration: Schema.NullOr(EventsRegistrationScanResult),
     }),
   }),
 );

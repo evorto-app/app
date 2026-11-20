@@ -1469,3 +1469,185 @@ test('scan check-in waits while offline and sends once the connection returns', 
     checkedInSpots: scannerFixture.optionBefore.checkedInSpots + 3,
   });
 });
+
+const seedUncheckedScannerRegistration = async ({
+  database,
+  registerDatabaseCleanup,
+  seeded,
+  testClock,
+}: {
+  database: TestDatabase;
+  registerDatabaseCleanup: RegisterDatabaseCleanup;
+  seeded: SeedTenantResult;
+  testClock: { toJSDate: () => Date };
+}) => {
+  const scannerFixture = await requireScannerFixture({
+    database,
+    registerDatabaseCleanup,
+    seeded,
+  });
+  const registrationId = getId();
+  await openScannerEventCheckInWindow({
+    database,
+    eventId: scannerFixture.eventId,
+    now: testClock.toJSDate(),
+    registerDatabaseCleanup,
+  });
+  registerDatabaseCleanup(async () => {
+    await scannerFixture.restoreOptionCounters();
+  });
+  registerDatabaseCleanup(async () => {
+    await database
+      .delete(eventRegistrations)
+      .where(eq(eventRegistrations.id, registrationId));
+  });
+  await scannerFixture.insertConfirmedRegistration({
+    guestCount: 0,
+    registrationId,
+  });
+  const readCheckIn = async () => {
+    const [registration] = await database
+      .select({
+        checkedInGuestCount: eventRegistrations.checkedInGuestCount,
+        checkInTime: eventRegistrations.checkInTime,
+      })
+      .from(eventRegistrations)
+      .where(eq(eventRegistrations.id, registrationId));
+    const [option] = await database
+      .select({ checkedInSpots: eventRegistrationOptions.checkedInSpots })
+      .from(eventRegistrationOptions)
+      .where(
+        eq(eventRegistrationOptions.id, scannerFixture.registrationOptionId),
+      );
+    return {
+      checkedIn: registration?.checkInTime !== null,
+      checkedInGuestCount: registration?.checkedInGuestCount,
+      checkedInSpots: option?.checkedInSpots,
+    };
+  };
+  return {
+    readCheckIn,
+    registrationId,
+    unchanged: {
+      checkedIn: false,
+      checkedInGuestCount: 0,
+      checkedInSpots: scannerFixture.optionBefore.checkedInSpots,
+    },
+  };
+};
+
+test.describe('ticket QR deep links (camera app and in-app scanner)', () => {
+  test.describe('signed out', () => {
+    test.use({ storageState: { cookies: [], origins: [] } });
+
+    test('keeps the ticket link as the sign-in return target without checking in', async ({
+      database,
+      page,
+      registerDatabaseCleanup,
+      seeded,
+      testClock,
+    }) => {
+      const fixture = await seedUncheckedScannerRegistration({
+        database,
+        registerDatabaseCleanup,
+        seeded,
+        testClock,
+      });
+      const ticketPath = `/scan/registration/${fixture.registrationId}`;
+
+      const response = await page.request.get(ticketPath, { maxRedirects: 0 });
+      expect(response.status()).toBe(303);
+      expect(response.headers()['location']).toBe(
+        `/forward-login?redirectUrl=${encodeURIComponent(ticketPath)}`,
+      );
+
+      await page.goto(ticketPath);
+      await expect
+        .poll(() => new URL(page.url()).pathname)
+        .not.toBe(ticketPath);
+      expect(page.url()).toContain(encodeURIComponent(ticketPath));
+      await expect(
+        page.getByRole('heading', { name: 'Ticket scanned' }),
+      ).toHaveCount(0);
+      expect(await fixture.readCheckIn()).toEqual(fixture.unchanged);
+    });
+  });
+
+  test.describe('signed-in helper on a phone', () => {
+    test.use({
+      hasTouch: true,
+      isMobile: true,
+      storageState: organizerStateFile,
+      viewport: { height: 844, width: 390 },
+    });
+
+    test('opens the ticket preview and writes only after the confirm button', async ({
+      database,
+      page,
+      registerDatabaseCleanup,
+      seeded,
+      testClock,
+    }) => {
+      const fixture = await seedUncheckedScannerRegistration({
+        database,
+        registerDatabaseCleanup,
+        seeded,
+        testClock,
+      });
+
+      await page.goto(`/scan/registration/${fixture.registrationId}`);
+      await expect(
+        page.getByRole('heading', { name: 'Ticket scanned' }),
+      ).toBeVisible();
+      const confirm = page.getByRole('button', {
+        exact: true,
+        name: 'Confirm check-in',
+      });
+      await expect(confirm).toBeVisible();
+      await expect(confirm).toBeEnabled();
+
+      // The preview itself must not write anything.
+      await page.waitForTimeout(1500);
+      expect(await fixture.readCheckIn()).toEqual(fixture.unchanged);
+
+      await confirm.tap();
+      await expect(page.getByText('Check-in complete')).toBeVisible();
+      await expect.poll(fixture.readCheckIn).toEqual({
+        checkedIn: true,
+        checkedInGuestCount: 0,
+        checkedInSpots: fixture.unchanged.checkedInSpots + 1,
+      });
+    });
+  });
+
+  test.describe('signed-in user without scanner access', () => {
+    test.use({ storageState: emptyStateFile });
+
+    test('is refused the ticket and nothing is written', async ({
+      database,
+      page,
+      registerDatabaseCleanup,
+      seeded,
+      testClock,
+    }) => {
+      const fixture = await seedUncheckedScannerRegistration({
+        database,
+        registerDatabaseCleanup,
+        seeded,
+        testClock,
+      });
+
+      await page.goto(`/scan/registration/${fixture.registrationId}`);
+      await expect(
+        page.getByRole('heading', { name: 'Ticket could not be loaded' }),
+      ).toBeVisible();
+      await expect(
+        page.getByRole('heading', { name: 'Ticket scanned' }),
+      ).toHaveCount(0);
+      await expect(
+        page.getByRole('button', { name: /^Confirm .*check-in/u }),
+      ).toHaveCount(0);
+      expect(await fixture.readCheckIn()).toEqual(fixture.unchanged);
+    });
+  });
+});

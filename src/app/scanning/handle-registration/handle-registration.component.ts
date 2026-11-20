@@ -26,6 +26,7 @@ import {
   injectMutation,
   injectQuery,
   QueryClient,
+  type QueryKey,
 } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
@@ -40,6 +41,14 @@ import {
   RegistrationAddonCancellationDialogComponent,
   RegistrationAddonCancellationDialogResult,
 } from './registration-addon-cancellation-dialog.component';
+
+export interface ScanCheckInPayload {
+  expectedCheckedInGuestCount: number;
+  guestCheckInCount: number;
+  /** Unique per confirmed check-in; a resend keeps it so nobody counts twice. */
+  operationKey: string;
+  registrationId: string;
+}
 
 type RegistrationAddonOperationKeyInput =
   | {
@@ -59,12 +68,6 @@ type RegistrationAddonOperationKeyInput =
       action: 'undo';
       redemptionEventId: string;
     };
-
-interface ScanCheckInPayload {
-  expectedCheckedInGuestCount: number;
-  guestCheckInCount: number;
-  registrationId: string;
-}
 
 interface ScanTicketData {
   addOns: readonly EventsRegistrationAddonFulfillmentRecord[];
@@ -391,6 +394,53 @@ export const scanCheckInRetryPayload = <Payload>(
     ? lastVariables
     : null;
 
+export const createScanCheckInOperationKey = (): string =>
+  globalThis.crypto.randomUUID();
+
+/** A fresh confirmation always gets its own operation key. */
+export const scanCheckInPayload = ({
+  createOperationKey = createScanCheckInOperationKey,
+  expectedCheckedInGuestCount,
+  guestCheckInCount,
+  registrationId,
+}: {
+  createOperationKey?: () => string;
+  expectedCheckedInGuestCount: number;
+  guestCheckInCount: number;
+  registrationId: string;
+}): ScanCheckInPayload => ({
+  expectedCheckedInGuestCount,
+  guestCheckInCount,
+  operationKey: createOperationKey(),
+  registrationId,
+});
+
+/**
+ * Records a committed check-in for exactly one ticket. A missing ticket read
+ * (null) still counts as confirmed; that ticket alone is refetched.
+ */
+export const applyScanCheckInResult = async <Registration>(
+  queryClient: Pick<
+    QueryClient,
+    'cancelQueries' | 'invalidateQueries' | 'setQueryData'
+  >,
+  queryKey: QueryKey,
+  result: { registration: null | Registration },
+): Promise<void> => {
+  const { registration } = result;
+  if (registration === null) {
+    await queryClient.invalidateQueries({ exact: true, queryKey });
+    return;
+  }
+  // A ticket refetch that started before the commit must not overwrite the
+  // confirmed state.
+  await queryClient.cancelQueries({ exact: true, queryKey });
+  queryClient.setQueryData<{ registration: Registration }>(
+    queryKey,
+    (previous) => previous && { ...previous, registration },
+  );
+};
+
 /** The guest input is locked while a request is in flight or being resent. */
 export const scanGuestInputLocked = (state: ScanCheckInState): boolean =>
   state === 'notConfirmed' ||
@@ -577,11 +627,13 @@ export class HandleRegistrationComponent {
       return;
 
     // The expected count stays the one the helper saw.
-    this.sendCheckIn({
-      expectedCheckedInGuestCount: scanResult.checkedInGuestCount,
-      guestCheckInCount: this.selectedGuestCheckInCount(),
-      registrationId: this.registrationId(),
-    });
+    this.sendCheckIn(
+      scanCheckInPayload({
+        expectedCheckedInGuestCount: scanResult.checkedInGuestCount,
+        guestCheckInCount: this.selectedGuestCheckInCount(),
+        registrationId: this.registrationId(),
+      }),
+    );
   }
 
   updateGuestCheckInCount(event: Event) {
@@ -731,6 +783,7 @@ export class HandleRegistrationComponent {
   }
 
   private sendCheckIn(payload: ScanCheckInPayload): void {
+    const queryKey = this.scanTicketKey(payload.registrationId);
     this.checkInMutation.mutate(payload, {
       onError: async (error) => {
         if (
@@ -739,25 +792,18 @@ export class HandleRegistrationComponent {
           '_tag' in error &&
           error._tag === 'EventRegistrationConflictError'
         ) {
-          await this.queryClient.invalidateQueries(
-            this.rpc.queryFilter(['events', 'scanTicket']),
-          );
+          await this.queryClient.invalidateQueries({ exact: true, queryKey });
         }
       },
       onSuccess: async (result) => {
         this.localCheckInCompleted.set(true);
-        // A ticket refetch that started before the commit must not overwrite
-        // the confirmed state.
-        await this.queryClient.cancelQueries(
-          this.rpc.queryFilter(['events', 'scanTicket']),
-        );
-        this.queryClient.setQueriesData<ScanTicketData>(
-          this.rpc.queryFilter(['events', 'scanTicket']),
-          (previous) =>
-            previous && { ...previous, registration: result.registration },
-        );
+        await applyScanCheckInResult(this.queryClient, queryKey, result);
       },
     });
+  }
+
+  private scanTicketKey(registrationId: string): QueryKey {
+    return this.rpc.events.scanTicket.queryKey({ registrationId });
   }
 
   private addonActionFailed(error: unknown): void {
@@ -767,9 +813,10 @@ export class HandleRegistrationComponent {
   }
 
   private async addonActionSucceeded(message: string): Promise<void> {
-    await this.queryClient.invalidateQueries(
-      this.rpc.queryFilter(['events', 'scanTicket']),
-    );
+    await this.queryClient.invalidateQueries({
+      exact: true,
+      queryKey: this.scanTicketKey(this.registrationId()),
+    });
     this.addonActionError.set(undefined);
     this.addonActionMessage.set(message);
     this.pendingAddonId.set(undefined);
