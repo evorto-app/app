@@ -69,8 +69,7 @@ RUN --mount=type=cache,id=bun-install-cache-${TARGETPLATFORM},target=/home/bun/.
     bun install --frozen-lockfile --production --offline --cache-dir /home/bun/.bun/install/cache
 
 FROM production-dependencies AS runtime-dependencies
-RUN rm -rf node_modules/@neondatabase \
-    && find node_modules -type f -name '*.map' -delete \
+RUN find node_modules -type f -name '*.map' -delete \
     && test -z "$(find node_modules -type f -name '*.map' -print -quit)"
 
 FROM distroless-runtime AS production

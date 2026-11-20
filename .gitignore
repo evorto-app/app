@@ -52,14 +52,12 @@ Thumbs.db
 !.env.dev.local
 !.env.example
 !.env.template
-.neon_local/
 .sentryclirc
 
 # Playwright
 /test-results/
 /playwright-report/
 /playwright/.cache/
-/e2e/.auth
 /tests/.auth
 .e2e-runtime.json
 .playwright-cli
