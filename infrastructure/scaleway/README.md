@@ -200,9 +200,9 @@ manual dispatch. It waits until both checks pass for the current main revision. 
 3. verifies the runtime image, schema hash, SBOM, vulnerabilities, and size;
 4. validates the accepted immutable staging configuration, then reconciles
    role-scoped secrets;
-5. deploys private ops, rejects a destructive Drizzle plan, and applies the
-   stable plan; initializes deterministic staging data only when every
-   application table is empty, and otherwise preserves the existing data;
+5. deploys private ops, rechecks the current main SHA, and uses the private
+   staging reset operation to replace the database schema and load the release's
+   seed, discarding any records created since the previous rollout;
 6. deploys worker and web at the same digest;
 7. verifies health, readiness, version identity, tenant resolution, Auth0/RPC,
    and staging `noindex` behavior;
@@ -213,6 +213,10 @@ If any forward-deploy check fails, the workflow remains visibly failed and does
 not update the successful manifest pointer. It never redeploys an older image
 after a schema release. Apply a reviewed infrastructure change explicitly or
 ship a corrected forward revision, then rerun the deployment.
+
+The staging application can be temporarily unavailable while its database is
+rebuilt and the matching worker and web revisions are deployed. A retry
+rebuilds and seeds the database again.
 
 The production workflow and Terraform roots remain dormant future configuration.
 Do not dispatch production or enable it as part of staging delivery.
