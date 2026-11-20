@@ -1,1 +1,0 @@
-Are we using existing helpers in angular for the clipboard interaction?
