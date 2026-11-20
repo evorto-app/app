@@ -1,0 +1,44 @@
+{
+  "cli_version": "0.13.1",
+  "checkpoint_id": "01M7WHTJYM2E2T6ZE5T0YRVPEJ",
+  "session_id": "01a1f910-755b-7d01-8d93-f0b2e4c850b8",
+  "strategy": "manual-commit",
+  "created_at": "2026-11-20T13:20:10.605723Z",
+  "branch": "codex/evo-65-reseed-staging",
+  "checkpoints_count": 2,
+  "files_touched": [
+    ".changeset/reseed-staging-on-rollout.md",
+    ".github/workflows/scaleway-staging.yml",
+    "helpers/testing/scaleway-schema-retry.spec.ts",
+    "infrastructure/scaleway/README.md"
+  ],
+  "agent": "Codex",
+  "model": "gpt-6.2-sol",
+  "turn_id": "0f8f698bff54",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 170124,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 6473984,
+    "output_tokens": 17955,
+    "api_call_count": 58,
+    "subagent_tokens_complete": true
+  },
+  "redaction": {
+    "replacements": 87,
+    "layers": {
+      "betterleaks": 35,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 12,
+      "credentialed_uri": 13,
+      "entropy": 53,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  },
+  "session_metrics": {
+    "turn_count": 2
+  }
+}

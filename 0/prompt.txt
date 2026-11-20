@@ -1,0 +1,9 @@
+Bring me up to speed with [Staging data decision · EVO-65](https://entire.com/gh/evorto-app/-/trails/10) please
+
+---
+
+I think we can reset staging to a fresh seed every time it rolls out
+
+---
+
+Yes
