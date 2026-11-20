@@ -201,8 +201,9 @@ manual dispatch. It waits until both checks pass for the current main revision. 
 4. validates the accepted immutable staging configuration, then reconciles
    role-scoped secrets;
 5. deploys private ops, rechecks the current main SHA, and uses the private
-   staging reset operation to replace the database schema and load the release's
-   seed, discarding any records created since the previous rollout;
+   staging reset operation to rebuild the application objects in the managed
+   `public` schema and load the release's seed, discarding records created since
+   the previous rollout;
 6. deploys worker and web at the same digest;
 7. verifies health, readiness, version identity, tenant resolution, Auth0/RPC,
    and staging `noindex` behavior;
