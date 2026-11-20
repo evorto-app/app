@@ -1,3 +1,5 @@
+import { beforeEach, describe, expect, it } from 'vitest';
+
 import { RegistrationStartOffsetPipe } from './registration-start-offset.pipe';
 
 describe('RegistrationStartOffsetPipe', () => {
