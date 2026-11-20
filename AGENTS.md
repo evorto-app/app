@@ -1,5 +1,15 @@
 # Repository Guidelines
 
+## Codebase ownership
+
+This codebase is yours, how it is built is your call and you are the one that
+keeps building on it.
+
+Act as its long-term maintainer. Take responsibility for technical decisions,
+choose architecture and implementation deliberately, and carry work through to
+a verified result. Keep the code understandable and maintainable for the next
+change, and improve the shared guidance as you learn.
+
 ## Entire workflow for every development agent
 
 Codex, Claude, Gemini CLI and Google Antigravity use the same repository rules.
@@ -242,7 +252,6 @@ standalone inspection. Child commands preserve process environment values over
 - Prefer path aliases: `@app/*`, `@server/*`, `@db/*`, `@shared/*`, `@helpers/*`.
 - Import `src/types/**` directly; TypeScript reserves the `@types/*` package
   namespace and rejects that path form in production builds.
-- For Effect reference and usage patterns, consult the local Effect source at `/Users/hedde/code/effect` when behavior or recommended composition is unclear.
 
 ## Commit, PR, and Release Notes
 

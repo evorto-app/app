@@ -1,6 +1,8 @@
 import { createNodePgPoolConfig } from '@db/pg-connection-config';
 import { Pool } from 'pg';
 
+import { stagingResetSql } from './staging-reset-sql';
+
 if (process.env['APP_ENVIRONMENT'] !== 'staging') {
   throw new Error('The bounded database reset may run only in staging');
 }
@@ -43,22 +45,7 @@ const pool = new Pool(
 );
 
 try {
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    await client.query('DROP SCHEMA IF EXISTS public CASCADE');
-    await client.query('CREATE SCHEMA public AUTHORIZATION CURRENT_USER');
-    await client.query('COMMIT');
-  } catch (error) {
-    try {
-      await client.query('ROLLBACK');
-    } catch (rollbackError) {
-      void rollbackError;
-    }
-    throw error;
-  } finally {
-    client.release();
-  }
+  await pool.query(stagingResetSql);
 } finally {
   await pool.end();
 }

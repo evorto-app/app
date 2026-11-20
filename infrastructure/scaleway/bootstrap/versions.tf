@@ -2,11 +2,6 @@ terraform {
   required_version = "= 1.15.8"
 
   required_providers {
-    cloudflare = {
-      source  = "cloudflare/cloudflare"
-      version = "= 5.22.0"
-    }
-
     scaleway = {
       source  = "scaleway/scaleway"
       version = "= 2.77.1"
@@ -27,8 +22,6 @@ terraform {
     }
   }
 }
-
-provider "cloudflare" {}
 
 provider "scaleway" {
   organization_id = var.organization_id

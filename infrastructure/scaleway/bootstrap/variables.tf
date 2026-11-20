@@ -41,18 +41,25 @@ variable "state_bucket_names" {
   }
 }
 
-variable "cloudflare_zone_id" {
-  description = "Cloudflare zone ID for evorto.app. Authentication comes only from CLOUDFLARE_API_TOKEN."
-  type        = string
+variable "enable_production" {
+  description = "Provision production bootstrap resources only when production is explicitly enabled."
+  type        = bool
+  default     = false
+  nullable    = false
+}
+
+variable "state_operator_user_ids" {
+  description = "Existing Scaleway operators allowed to administer the state buckets."
+  type        = set(string)
 
   validation {
-    condition     = can(regex("^[0-9a-f]{32}$", var.cloudflare_zone_id))
-    error_message = "cloudflare_zone_id must be a 32-character lowercase hexadecimal Cloudflare zone ID."
+    condition     = length(var.state_operator_user_ids) > 0
+    error_message = "At least one Scaleway operator must be able to administer the state buckets."
   }
 }
 
 variable "validate_tem_dns" {
-  description = "Set only after the managed SPF, DKIM, MX, and DMARC records exist."
+  description = "Set only after the SPF, DKIM, MX, and DMARC records exist in public DNS."
   type        = bool
   default     = false
 }
