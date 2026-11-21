@@ -16,6 +16,7 @@ import { Effect, Schema } from 'effect';
 import { StripeClient } from '../stripe-client';
 import {
   appendAddonLotAcquisitionComponent,
+  hasSettledAddonAcquisition,
   resolveStripeAcquisitionPaymentSettlement,
   settleAcquisitionComponentTerms,
 } from './registration-acquisition-write';
@@ -390,23 +391,18 @@ export const completePaidAddonPurchaseCheckout = Effect.fn(
               }),
             )
             .for('update');
-          if (activeTransfers.length > 0) {
-            return yield* checkoutError(
-              input,
-              'An active transfer blocks add-on Checkout completion',
-            );
-          }
-
           const transactionRows = yield* tx
             .select({
               amount: transactions.amount,
               appFee: transactions.appFee,
               currency: transactions.currency,
+              eventId: transactions.eventId,
               paymentIntentId: transactions.stripePaymentIntentId,
               status: transactions.status,
               stripeChargeId: transactions.stripeChargeId,
               stripeFee: transactions.stripeFee,
               stripeNetAmount: transactions.stripeNetAmount,
+              targetUserId: transactions.targetUserId,
             })
             .from(transactions)
             .where(
@@ -470,10 +466,97 @@ export const completePaidAddonPurchaseCheckout = Effect.fn(
               transaction.stripeNetAmount !==
                 paymentSettlement.stripeNetAmount) ||
             order.expiresAt?.getTime() !== claimExpiresAt.getTime() ||
-            order.requestedByUserId !== registration.userId ||
             order.eventId !== registration.eventId ||
             order.registrationOptionId !== registration.registrationOptionId
           ) {
+            return yield* checkoutError(
+              input,
+              'Locked add-on Checkout commercial ownership changed',
+            );
+          }
+          const purchases = yield* tx
+            .select()
+            .from(eventRegistrationAddonPurchases)
+            .where(
+              and(
+                eq(
+                  eventRegistrationAddonPurchases.registrationId,
+                  input.registrationId,
+                ),
+                eq(eventRegistrationAddonPurchases.addonId, order.addonId),
+                eq(eventRegistrationAddonPurchases.tenantId, input.tenantId),
+              ),
+            )
+            .for('update');
+          const purchase = purchases[0];
+          const lots = yield* tx
+            .select()
+            .from(eventRegistrationAddonPurchaseLots)
+            .where(
+              and(
+                eq(eventRegistrationAddonPurchaseLots.id, order.purchaseLotId),
+                eq(eventRegistrationAddonPurchaseLots.tenantId, input.tenantId),
+              ),
+            )
+            .for('update');
+          const lot = lots[0];
+
+          // A later transfer or cancellation changes current eligibility, not the
+          // original paid acquisition. A fully recorded replay needs no writes.
+          const recordedPayment =
+            transaction.status === 'successful' &&
+            transaction.eventId === order.eventId &&
+            transaction.targetUserId === order.requestedByUserId &&
+            transaction.paymentIntentId === paymentIntentId &&
+            transaction.stripeChargeId === stripeChargeId &&
+            transaction.stripeFee === paymentSettlement.stripeFeeAmount &&
+            transaction.stripeNetAmount === paymentSettlement.stripeNetAmount;
+          const lotOwnsOrder =
+            lot &&
+            lot.purchaseId === order.purchaseId &&
+            lot.sourceTransactionId === input.transactionId &&
+            lot.sourceLineKey === settledComponent.allocationKey &&
+            lot.quantity === settledComponent.quantity &&
+            lot.currency === order.currency &&
+            lot.unitPrice === order.unitPrice &&
+            lot.baseAmount === settledComponent.baseAmount &&
+            lot.taxRateDisplayName === settledComponent.taxRateDisplayName &&
+            lot.taxRateInclusive === settledComponent.taxRateInclusive &&
+            lot.taxRatePercentage === settledComponent.taxRatePercentage;
+          const recordedLot =
+            lotOwnsOrder &&
+            lot.paymentAllocationFinalizedAt &&
+            lot.applicationFeeAmount ===
+              settledComponent.applicationFeeAmount &&
+            lot.grossAmount === settledComponent.grossAmount &&
+            lot.netAmount === settledComponent.netAmount &&
+            lot.stripeFeeAmount === settledComponent.stripeFeeAmount &&
+            lot.taxAmount === settledComponent.taxAmount;
+          if (
+            order.status === 'completed' &&
+            purchase?.id === order.purchaseId &&
+            recordedPayment &&
+            recordedLot &&
+            (yield* hasSettledAddonAcquisition(tx, {
+              component: settledComponent,
+              currency: transaction.currency,
+              eventId: order.eventId,
+              ownerUserId: order.requestedByUserId,
+              registrationId: input.registrationId,
+              tenantId: input.tenantId,
+              transactionId: input.transactionId,
+            }))
+          )
+            return 'alreadyCompleted' as const;
+
+          if (activeTransfers.length > 0) {
+            return yield* checkoutError(
+              input,
+              'An active transfer blocks add-on Checkout completion',
+            );
+          }
+
+          if (order.requestedByUserId !== registration.userId) {
             return yield* checkoutError(
               input,
               'Locked add-on Checkout commercial ownership changed',
@@ -498,54 +581,11 @@ export const completePaidAddonPurchaseCheckout = Effect.fn(
             );
           }
 
-          const purchases = yield* tx
-            .select()
-            .from(eventRegistrationAddonPurchases)
-            .where(
-              and(
-                eq(
-                  eventRegistrationAddonPurchases.registrationId,
-                  input.registrationId,
-                ),
-                eq(eventRegistrationAddonPurchases.addonId, order.addonId),
-                eq(eventRegistrationAddonPurchases.tenantId, input.tenantId),
-              ),
-            )
-            .for('update');
-          const purchase = purchases[0];
-          const lots = yield* tx
-            .select({
-              applicationFeeAmount:
-                eventRegistrationAddonPurchaseLots.applicationFeeAmount,
-              grossAmount: eventRegistrationAddonPurchaseLots.grossAmount,
-              id: eventRegistrationAddonPurchaseLots.id,
-              netAmount: eventRegistrationAddonPurchaseLots.netAmount,
-              paymentAllocationFinalizedAt:
-                eventRegistrationAddonPurchaseLots.paymentAllocationFinalizedAt,
-              purchaseId: eventRegistrationAddonPurchaseLots.purchaseId,
-              sourceTransactionId:
-                eventRegistrationAddonPurchaseLots.sourceTransactionId,
-              stripeFeeAmount:
-                eventRegistrationAddonPurchaseLots.stripeFeeAmount,
-              taxAmount: eventRegistrationAddonPurchaseLots.taxAmount,
-            })
-            .from(eventRegistrationAddonPurchaseLots)
-            .where(
-              and(
-                eq(eventRegistrationAddonPurchaseLots.id, order.purchaseLotId),
-                eq(eventRegistrationAddonPurchaseLots.tenantId, input.tenantId),
-              ),
-            )
-            .for('update');
-          const lot = lots[0];
-
           if (transition === 'already_applied') {
             if (
               !purchase ||
               purchase.id !== order.purchaseId ||
-              !lot ||
-              lot.purchaseId !== order.purchaseId ||
-              lot.sourceTransactionId !== input.transactionId
+              !lotOwnsOrder
             ) {
               return yield* checkoutError(
                 input,
