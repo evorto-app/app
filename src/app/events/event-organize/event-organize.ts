@@ -54,6 +54,11 @@ import {
   RegistrationCancellationConfirmationDialogComponent,
 } from '../registration-cancellation-confirmation-dialog.component';
 import {
+  ManualCheckInDialogComponent,
+  type ManualCheckInDialogData,
+  type ManualCheckInDialogResult,
+} from './manual-check-in-dialog.component';
+import {
   ReceiptSubmitDialogComponent,
   type ReceiptSubmitDialogData,
   ReceiptSubmitDialogResult,
@@ -232,6 +237,7 @@ export interface EventOrganizeParticipant {
   paymentPending: boolean;
   paymentSetupRequired: boolean;
   registrationId: string;
+  remainingGuestCount: number;
   status: EventsRegistrationStatus;
 }
 
@@ -242,6 +248,56 @@ export const organizerRegistrationActionDisabled = ({
   checkedIn: boolean;
   mutationPending: boolean;
 }): boolean => checkedIn || mutationPending;
+
+export const manualCheckInSuccessMessage = ({
+  attendeeName,
+  mode,
+  result,
+}: {
+  attendeeName: string;
+  mode: ManualCheckInDialogData['mode'];
+  result: ManualCheckInDialogResult;
+}): string => {
+  if (mode === 'attendee' || result.checkedInGuestCount === 0) {
+    return result.alreadyCheckedIn
+      ? `${attendeeName} was already checked in`
+      : `${attendeeName} is checked in`;
+  }
+  return result.checkedInGuestCount === 1
+    ? `1 guest of ${attendeeName} is checked in`
+    : `${result.checkedInGuestCount} guests of ${attendeeName} are checked in`;
+};
+
+export type OrganizerManualCheckInAction = 'checkIn' | 'checkInGuests';
+
+export const organizerManualCheckInAction = ({
+  canCheckInManually,
+  checkedIn,
+  remainingGuestCount,
+  selfUserId,
+  status,
+  userId,
+}: {
+  canCheckInManually: boolean;
+  checkedIn: boolean;
+  remainingGuestCount: number;
+  selfUserId: null | string;
+  status: EventsRegistrationStatus;
+  userId: string;
+}): null | OrganizerManualCheckInAction => {
+  if (
+    !canCheckInManually ||
+    status !== 'CONFIRMED' ||
+    selfUserId === null ||
+    selfUserId === userId
+  ) {
+    return null;
+  }
+  if (!checkedIn) {
+    return 'checkIn';
+  }
+  return remainingGuestCount > 0 ? 'checkInGuests' : null;
+};
 
 export const organizerRegistrationApprovalDisabled = ({
   manualApprovalAvailable,
@@ -317,6 +373,9 @@ export class EventOrganize {
   );
   protected readonly event = computed(() => this.eventQuery.data());
   protected readonly faArrowLeft = faArrowLeft;
+  protected readonly maybeSelfQuery = injectQuery(() =>
+    this.rpc.users.maybeSelf.queryOptions(),
+  );
   protected readonly faCopy = faCopy;
   protected readonly organizerOverviewQuery = injectQuery(() =>
     this.rpc.events.getOrganizeOverview.queryOptions({
@@ -561,6 +620,71 @@ export class EventOrganize {
         },
       },
     );
+  }
+
+  protected async checkInRegistration(
+    registration: Pick<
+      EventOrganizeParticipant,
+      'firstName' | 'lastName' | 'registrationId'
+    >,
+    mode: ManualCheckInDialogData['mode'],
+  ): Promise<void> {
+    const attendeeName = `${registration.firstName} ${registration.lastName}`;
+    const result = await firstValueFrom(
+      this.dialog
+        .open<
+          ManualCheckInDialogComponent,
+          ManualCheckInDialogData,
+          ManualCheckInDialogResult
+        >(ManualCheckInDialogComponent, {
+          data: {
+            attendeeName,
+            mode,
+            registrationId: registration.registrationId,
+          },
+          width: 'min(32rem, calc(100vw - 2rem))',
+        })
+        .afterClosed(),
+    );
+    if (result === undefined) {
+      return;
+    }
+
+    this.notifications.showSuccess(
+      manualCheckInSuccessMessage({ attendeeName, mode, result }),
+    );
+    try {
+      await this.invalidateOrganizerState();
+    } catch (error) {
+      consola
+        .withTag('app/event-organize')
+        .error(
+          'Check-in succeeded but the organizer view could not refresh',
+          error,
+        );
+      this.notifications.showError(
+        'The page could not be updated. Load the page again to check the current sign-up details.',
+      );
+    }
+  }
+
+  protected manualCheckInAction(
+    user: Pick<
+      EventOrganizeParticipant,
+      'checkedIn' | 'remainingGuestCount' | 'status'
+    > & {
+      userId: string;
+    },
+    registrationOption: { readonly canCheckInManually: boolean },
+  ): null | OrganizerManualCheckInAction {
+    return organizerManualCheckInAction({
+      canCheckInManually: registrationOption.canCheckInManually,
+      checkedIn: user.checkedIn,
+      remainingGuestCount: user.remainingGuestCount,
+      selfUserId: this.maybeSelfQuery.data()?.id ?? null,
+      status: user.status,
+      userId: user.userId,
+    });
   }
 
   protected copyEmailList(group: EventOrganizeEmailListGroup): void {

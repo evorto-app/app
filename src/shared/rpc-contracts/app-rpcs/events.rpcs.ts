@@ -175,10 +175,20 @@ export const EventsApproveRegistration = asRpcMutation(
   }),
 );
 
+/**
+ * How a helper reached the ticket: by scanning its QR code, or from the
+ * event's attendee list. A manual check-in also requires
+ * `events:checkInManually`.
+ */
+export const EventCheckInMethod = Schema.Literals(['manual', 'scan']);
+
+export type EventCheckInMethod = Schema.Schema.Type<typeof EventCheckInMethod>;
+
 export const EventsCheckInRegistration = asRpcMutation(
   Rpc.make('events.checkInRegistration', {
     error: EventsCheckInRegistrationMutationError,
     payload: Schema.Struct({
+      checkInMethod: EventCheckInMethod,
       guestCheckInCount: nonNegativeNumber,
       registrationId: Schema.NonEmptyString,
     }),
@@ -492,6 +502,8 @@ export const EventsGetOrganizeOverviewUser = Schema.Struct({
   paymentPending: Schema.Boolean,
   paymentSetupRequired: Schema.Boolean,
   registrationId: Schema.NonEmptyString,
+  /** Guest places on this ticket that are not checked in yet. */
+  remainingGuestCount: NonNegativeInteger,
   status: EventsRegistrationStatus,
   userId: Schema.NonEmptyString,
 });
@@ -499,6 +511,8 @@ export const EventsGetOrganizeOverviewUser = Schema.Struct({
 export const EventsGetOrganizeOverviewOption = Schema.Struct({
   canApproveRegistrations: Schema.Boolean,
   canCancelRegistrations: Schema.Boolean,
+  /** The viewer may check in this event's attendees from the list. */
+  canCheckInManually: Schema.Boolean,
   organizingRegistration: Schema.Boolean,
   registrationOptionId: Schema.NonEmptyString,
   registrationOptionTitle: Schema.NonEmptyString,
@@ -797,6 +811,7 @@ export const EventsRegistrationScanned = asRpcQuery(
   Rpc.make('events.registrationScanned', {
     error: EventsRegistrationScannedError,
     payload: Schema.Struct({
+      checkInMethod: EventCheckInMethod,
       registrationId: Schema.NonEmptyString,
     }),
     success: Schema.Struct({

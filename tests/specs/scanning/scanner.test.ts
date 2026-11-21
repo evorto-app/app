@@ -7,6 +7,7 @@ import {
   adminStateFile,
   emptyStateFile,
   organizerStateFile,
+  usersToAuthenticate,
 } from '../../../helpers/user-data';
 import type { relations } from '../../../src/db/relations';
 import {
@@ -1078,6 +1079,352 @@ test('scan confirmed ticket checks in the attendee', async ({
       String(scannerFixture.optionBefore.checkedInSpots + 3),
       { timeout: 15_000 },
     );
+  }
+});
+
+test('organizer checks in an attendee, then the guests who arrive later, from the organize list', async ({
+  database,
+  page,
+  seeded,
+  testClock,
+
+  registerDatabaseCleanup,
+}) => {
+  const scannerFixture = await requireScannerFixture({
+    database,
+    registerDatabaseCleanup,
+    seeded,
+  });
+  const registrationId = getId();
+  const attendeeName = 'Scanner Fixture';
+  await openScannerEventCheckInWindow({
+    database,
+    eventId: scannerFixture.eventId,
+    now: testClock.toJSDate(),
+    registerDatabaseCleanup,
+  });
+
+  registerDatabaseCleanup(async () => {
+    await scannerFixture.restoreOptionCounters();
+  });
+  registerDatabaseCleanup(async () => {
+    await database
+      .delete(eventRegistrations)
+      .where(eq(eventRegistrations.id, registrationId));
+  });
+  {
+    await scannerFixture.insertConfirmedRegistration({
+      guestCount: 2,
+      registrationId,
+    });
+
+    const readCheckInState = async () => {
+      const [registration] = await database
+        .select({
+          checkedInGuestCount: eventRegistrations.checkedInGuestCount,
+          checkInTime: eventRegistrations.checkInTime,
+        })
+        .from(eventRegistrations)
+        .where(eq(eventRegistrations.id, registrationId));
+      const [option] = await database
+        .select({ checkedInSpots: eventRegistrationOptions.checkedInSpots })
+        .from(eventRegistrationOptions)
+        .where(
+          eq(eventRegistrationOptions.id, scannerFixture.registrationOptionId),
+        );
+
+      return {
+        checkedInGuestCount: registration?.checkedInGuestCount,
+        checkedInSpots: option?.checkedInSpots,
+        checkInTime: registration?.checkInTime ?? null,
+      };
+    };
+
+    // Step 1: check in the attendee only.
+    await page.goto(`/events/${scannerFixture.eventId}/organize`);
+    const checkInButton = page.getByRole('button', {
+      exact: true,
+      name: `Check in ${attendeeName}`,
+    });
+    await expect(checkInButton).toBeVisible({ timeout: 15_000 });
+    await checkInButton.click();
+
+    const attendeeDialog = page.getByRole('dialog', {
+      exact: true,
+      name: `Check in ${attendeeName}`,
+    });
+    await expect(attendeeDialog).toBeVisible();
+    await expect(attendeeDialog.getByText('Check-in closed')).toHaveCount(0);
+    await expect(attendeeDialog.getByText('Check-in not open')).toHaveCount(0);
+    const confirmAttendee = await fillScannerGuestCheckInCount(attendeeDialog, {
+      guestCount: 0,
+      includeAttendee: true,
+    });
+    await confirmAttendee.click();
+
+    await expect(attendeeDialog).toBeHidden();
+    await expect(page.getByText(`${attendeeName} is checked in`)).toBeVisible();
+    await expect(checkInButton).toHaveCount(0);
+    const attendeeRow = page
+      .getByTestId('event-organize-registration')
+      .filter({ hasText: attendeeName });
+    await expect(attendeeRow).toContainText('Checked in');
+
+    await expect
+      .poll(async () => {
+        const state = await readCheckInState();
+        return {
+          checkedIn: state.checkInTime !== null,
+          checkedInGuestCount: state.checkedInGuestCount,
+          checkedInSpots: state.checkedInSpots,
+        };
+      })
+      .toEqual({
+        checkedIn: true,
+        checkedInGuestCount: 0,
+        checkedInSpots: scannerFixture.optionBefore.checkedInSpots + 1,
+      });
+    const attendeeCheckInTime = (await readCheckInState()).checkInTime;
+    if (!attendeeCheckInTime) {
+      throw new Error('Expected the attendee check-in time to be recorded');
+    }
+
+    // Step 2: one of two guests arrives later; the action stays.
+    const checkInGuestsButton = page.getByRole('button', {
+      exact: true,
+      name: `Check in guests of ${attendeeName}`,
+    });
+    await expect(checkInGuestsButton).toBeVisible();
+    await expect(checkInButton).toHaveCount(0);
+    await checkInGuestsButton.click();
+
+    const guestsDialog = page.getByRole('dialog', {
+      exact: true,
+      name: `Check in guests of ${attendeeName}`,
+    });
+    await expect(guestsDialog).toBeVisible();
+    await expect(guestsDialog.getByLabel('Guests to check in now')).toHaveValue(
+      '1',
+    );
+    const confirmFirstGuest = await fillScannerGuestCheckInCount(guestsDialog, {
+      guestCount: 1,
+      includeAttendee: false,
+    });
+    await confirmFirstGuest.click();
+
+    await expect(guestsDialog).toBeHidden();
+    await expect(
+      page.getByText(`1 guest of ${attendeeName} is checked in`),
+    ).toBeVisible();
+    await expect
+      .poll(async () => {
+        const state = await readCheckInState();
+        return {
+          checkedInGuestCount: state.checkedInGuestCount,
+          checkedInSpots: state.checkedInSpots,
+          checkInTime: state.checkInTime?.getTime(),
+        };
+      })
+      .toEqual({
+        checkedInGuestCount: 1,
+        checkedInSpots: scannerFixture.optionBefore.checkedInSpots + 2,
+        checkInTime: attendeeCheckInTime.getTime(),
+      });
+    await expect(checkInGuestsButton).toBeVisible();
+
+    // Step 3: the last guest arrives; the action disappears.
+    await checkInGuestsButton.click();
+    await expect(guestsDialog).toBeVisible();
+    await expect(guestsDialog.getByLabel('Guests to check in now')).toHaveValue(
+      '1',
+    );
+    const confirmLastGuest = await fillScannerGuestCheckInCount(guestsDialog, {
+      guestCount: 1,
+      includeAttendee: false,
+    });
+    await confirmLastGuest.click();
+
+    await expect(guestsDialog).toBeHidden();
+    await expect(checkInGuestsButton).toHaveCount(0);
+    await expect(checkInButton).toHaveCount(0);
+    await expect
+      .poll(async () => {
+        const state = await readCheckInState();
+        return {
+          checkedInGuestCount: state.checkedInGuestCount,
+          checkedInSpots: state.checkedInSpots,
+          checkInTime: state.checkInTime?.getTime(),
+        };
+      })
+      .toEqual({
+        checkedInGuestCount: 2,
+        checkedInSpots: scannerFixture.optionBefore.checkedInSpots + 3,
+        checkInTime: attendeeCheckInTime.getTime(),
+      });
+
+    await expect(page.getByTestId('event-organize-checked-in-stat')).toHaveText(
+      String(scannerFixture.optionBefore.checkedInSpots + 3),
+      { timeout: 15_000 },
+    );
+  }
+});
+
+test.describe('organizer without the manual check-in permission', () => {
+  test.use({ storageState: organizerStateFile });
+
+  test('scanner-only organizer sees no check-in action on the organize page', async ({
+    database,
+    page,
+    permissionOverride,
+    seeded,
+    testClock,
+
+    registerDatabaseCleanup,
+  }) => {
+    const scannerFixture = await requireScannerFixture({
+      database,
+      registerDatabaseCleanup,
+      seeded,
+    });
+    const organizer = usersToAuthenticate.find(
+      (user) => user.stateFile === organizerStateFile,
+    );
+    if (!organizer) {
+      throw new Error('Expected the organizer test user');
+    }
+    const event = seeded.events.find(
+      (seededEvent) => seededEvent.id === scannerFixture.eventId,
+    );
+    const organizingOption = event?.registrationOptions.find(
+      (option) => option.organizingRegistration,
+    );
+    if (!organizingOption) {
+      throw new Error('Expected an organizing option on the scanner event');
+    }
+    const attendeeRegistrationId = getId();
+    const organizerRegistrationId = getId();
+    const attendeeName = 'Scanner Fixture';
+    await openScannerEventCheckInWindow({
+      database,
+      eventId: scannerFixture.eventId,
+      now: testClock.toJSDate(),
+      registerDatabaseCleanup,
+    });
+
+    registerDatabaseCleanup(async () => {
+      await scannerFixture.restoreOptionCounters();
+    });
+    registerDatabaseCleanup(async () => {
+      await database
+        .delete(eventRegistrations)
+        .where(
+          inArray(eventRegistrations.id, [
+            attendeeRegistrationId,
+            organizerRegistrationId,
+          ]),
+        );
+    });
+    {
+      // The organizer reaches the event only through an organizing ticket.
+      // Remove every grant that could give broader organize or manual access.
+      await permissionOverride({
+        remove: ['events:checkInManually', 'events:organizeAll'],
+        roleName: ['Admin', 'Event manager', 'Helper', 'Section member'],
+      });
+      await scannerFixture.insertConfirmedRegistration({
+        guestCount: 1,
+        registrationId: attendeeRegistrationId,
+      });
+      await database.insert(eventRegistrations).values({
+        basePriceAtRegistration: organizingOption.price,
+        discountAmount: 0,
+        eventId: scannerFixture.eventId,
+        id: organizerRegistrationId,
+        registrationOptionId: organizingOption.id,
+        status: 'CONFIRMED',
+        tenantId: seeded.tenant.id,
+        userId: organizer.id,
+      });
+
+      await page.goto(`/events/${scannerFixture.eventId}/organize`);
+      const attendeeRow = page
+        .getByTestId('event-organize-registration')
+        .filter({ hasText: attendeeName });
+      await expect(attendeeRow).toBeVisible({ timeout: 15_000 });
+      await expect(
+        page.getByRole('button', { name: /^Check in / }),
+      ).toHaveCount(0);
+
+      // Positive control: with the permission the same row offers the action.
+      await permissionOverride({
+        add: ['events:checkInManually'],
+        roleName: 'Section member',
+      });
+      await page.reload();
+      await expect(
+        page.getByRole('button', {
+          exact: true,
+          name: `Check in ${attendeeName}`,
+        }),
+      ).toBeVisible({ timeout: 15_000 });
+    }
+  });
+});
+
+test('organize list check-in dialog blocks check-in outside the check-in window', async ({
+  database,
+  page,
+  seeded,
+  testClock,
+
+  registerDatabaseCleanup,
+}) => {
+  const scannerFixture = await requireScannerFixture({
+    database,
+    registerDatabaseCleanup,
+    seeded,
+  });
+  const registrationId = getId();
+  const attendeeName = 'Scanner Fixture';
+  // Move the event end more than two hours before the test clock, so the
+  // check-in window is closed regardless of the seeded schedule.
+  await openScannerEventCheckInWindow({
+    database,
+    eventId: scannerFixture.eventId,
+    now: new Date(testClock.toJSDate().getTime() - 5 * 60 * 60 * 1000),
+    registerDatabaseCleanup,
+  });
+
+  registerDatabaseCleanup(async () => {
+    await scannerFixture.restoreOptionCounters();
+  });
+  registerDatabaseCleanup(async () => {
+    await database
+      .delete(eventRegistrations)
+      .where(eq(eventRegistrations.id, registrationId));
+  });
+  {
+    await scannerFixture.insertConfirmedRegistration({
+      guestCount: 0,
+      registrationId,
+    });
+
+    await page.goto(`/events/${scannerFixture.eventId}/organize`);
+    const checkInButton = page.getByRole('button', {
+      name: `Check in ${attendeeName}`,
+    });
+    await expect(checkInButton).toBeVisible({ timeout: 15_000 });
+    await checkInButton.click();
+
+    const dialog = page.getByRole('dialog', {
+      name: `Check in ${attendeeName}`,
+    });
+    await expect(dialog.getByText('Check-in closed')).toBeVisible();
+    await expect(
+      dialog.getByRole('button', { exact: true, name: 'Confirm check-in' }),
+    ).toBeDisabled();
+    await dialog.getByRole('button', { name: 'Cancel' }).click();
+    await expect(dialog).toBeHidden();
   }
 });
 

@@ -388,6 +388,7 @@ export class HandleRegistrationComponent {
   );
   protected readonly scanResultQuery = injectQuery(() =>
     this.rpc.events.registrationScanned.queryOptions({
+      checkInMethod: 'scan',
       registrationId: this.registrationId(),
     }),
   );
@@ -447,6 +448,7 @@ export class HandleRegistrationComponent {
 
     this.checkInMutation.mutate(
       {
+        checkInMethod: 'scan',
         guestCheckInCount: this.selectedGuestCheckInCount(),
         registrationId: this.registrationId(),
       },
