@@ -1,0 +1,5 @@
+I think that while you are at this, you may also update the dependabot to have a min age of one week for updates and bundle them a bit more, I'm sure you will find good rules
+
+---
+
+We also have updates for the effect angular packages, that could come in handy here
