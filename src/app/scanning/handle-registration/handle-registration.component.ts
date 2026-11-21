@@ -25,15 +25,29 @@ import {
   injectMutation,
   injectQuery,
   QueryClient,
+  type QueryKey,
 } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
 import { getErrorMessage } from '../../core/error-message';
+import {
+  isRpcTransportError,
+  rpcTransportRetry,
+  rpcTransportRetryDelay,
+} from '../../core/rpc-transport-retry';
 import { TenantDatePipe } from '../../core/tenant-date.pipe';
 import {
   RegistrationAddonCancellationDialogComponent,
   RegistrationAddonCancellationDialogResult,
 } from './registration-addon-cancellation-dialog.component';
+
+export interface ScanCheckInPayload {
+  expectedCheckedInGuestCount: number;
+  guestCheckInCount: number;
+  /** Unique per confirmed check-in; a resend keeps it so nobody counts twice. */
+  operationKey: string;
+  registrationId: string;
+}
 
 type RegistrationAddonOperationKeyInput =
   | {
@@ -282,25 +296,151 @@ export const registrationAddonQuantitySummary = ({
   return quantities.length > 0 ? quantities.join(' · ') : 'No items';
 };
 
+export type ScanCheckInState =
+  | 'confirmed'
+  | 'failed'
+  | 'idle'
+  | 'notConfirmed'
+  | 'retrying'
+  | 'sending'
+  | 'waitingForConnection';
+
+/**
+ * Describes the check-in request from the helper's point of view. A transport
+ * error means every retry was used up without an answer, so it is unknown
+ * whether the server saved the check-in.
+ */
+export const scanCheckInState = ({
+  error,
+  failureCount,
+  isError,
+  isPaused,
+  isPending,
+  isSuccess,
+}: {
+  error: unknown;
+  failureCount: number;
+  isError: boolean;
+  isPaused: boolean;
+  isPending: boolean;
+  isSuccess: boolean;
+}): ScanCheckInState => {
+  if (isPending) {
+    if (isPaused) {
+      return 'waitingForConnection';
+    }
+    return failureCount > 0 ? 'retrying' : 'sending';
+  }
+  if (isSuccess) {
+    return 'confirmed';
+  }
+  if (isError) {
+    return isRpcTransportError(error) ? 'notConfirmed' : 'failed';
+  }
+  return 'idle';
+};
+
 export const scanCheckInButtonLabel = ({
   completed,
-  pending,
   spotCount,
+  state,
 }: {
   completed: boolean;
-  pending: boolean;
   spotCount: number;
+  state: ScanCheckInState;
 }): string => {
-  if (pending) {
-    return 'Checking in…';
+  switch (state) {
+    case 'retrying': {
+      return 'Retrying…';
+    }
+    case 'sending': {
+      return 'Checking in…';
+    }
+    case 'waitingForConnection': {
+      return 'Waiting for connection…';
+    }
+    default: {
+      break;
+    }
   }
 
-  if (completed) {
+  if (completed || state === 'confirmed') {
     return 'Checked in';
+  }
+
+  if (state === 'notConfirmed') {
+    return 'Try again';
   }
 
   return spotCount > 1 ? `Confirm ${spotCount} check-ins` : 'Confirm check-in';
 };
+
+/**
+ * After an unconfirmed check-in the exact previous request is sent again, so
+ * the server recognizes it and never counts it twice. Returns null when a fresh
+ * request should be built from the current ticket.
+ */
+export const scanCheckInRetryPayload = <Payload>(
+  state: ScanCheckInState,
+  lastVariables: Payload | undefined,
+): null | Payload =>
+  state === 'notConfirmed' && lastVariables !== undefined
+    ? lastVariables
+    : null;
+
+export const createScanCheckInOperationKey = (): string =>
+  globalThis.crypto.randomUUID();
+
+/** A fresh confirmation always gets its own operation key. */
+export const scanCheckInPayload = ({
+  createOperationKey = createScanCheckInOperationKey,
+  expectedCheckedInGuestCount,
+  guestCheckInCount,
+  registrationId,
+}: {
+  createOperationKey?: () => string;
+  expectedCheckedInGuestCount: number;
+  guestCheckInCount: number;
+  registrationId: string;
+}): ScanCheckInPayload => ({
+  expectedCheckedInGuestCount,
+  guestCheckInCount,
+  operationKey: createOperationKey(),
+  registrationId,
+});
+
+/**
+ * Records a committed check-in for exactly one ticket. A missing ticket read
+ * (null) still counts as confirmed; that ticket alone is refetched.
+ */
+export const applyScanCheckInResult = async <Registration>(
+  queryClient: Pick<
+    QueryClient,
+    'cancelQueries' | 'invalidateQueries' | 'setQueryData'
+  >,
+  queryKey: QueryKey,
+  result: { registration: null | Registration },
+): Promise<void> => {
+  const { registration } = result;
+  if (registration === null) {
+    await queryClient.invalidateQueries({ exact: true, queryKey });
+    return;
+  }
+  // A ticket refetch that started before the commit must not overwrite the
+  // confirmed state.
+  await queryClient.cancelQueries({ exact: true, queryKey });
+  queryClient.setQueryData<{ registration: Registration }>(
+    queryKey,
+    (previous) => previous && { ...previous, registration },
+  );
+};
+
+/** The guest input is locked while a request is in flight or being resent. */
+export const scanGuestInputLocked = (state: ScanCheckInState): boolean =>
+  state === 'notConfirmed' ||
+  state === 'retrying' ||
+  state === 'sending' ||
+  state === 'waitingForConnection';
 
 export const scanSpotCountLabel = (spotCount: number): string =>
   spotCount === 1 ? '1 place now' : `${spotCount} places now`;
@@ -309,13 +449,19 @@ export const scanCheckInActionDisabled = ({
   allowCheckin,
   completed,
   mutationPending,
+  resend = false,
   spotCount,
 }: {
   allowCheckin: boolean;
   completed: boolean;
   mutationPending: boolean;
+  /** Resending the original unconfirmed request: only a pending request blocks it. */
+  resend?: boolean;
   spotCount: number;
-}): boolean => !allowCheckin || completed || mutationPending || spotCount < 1;
+}): boolean =>
+  resend
+    ? mutationPending
+    : !allowCheckin || completed || mutationPending || spotCount < 1;
 
 export const scanGuestCheckInCountFromInput = ({
   inputValue,
@@ -363,11 +509,6 @@ export class HandleRegistrationComponent {
   protected readonly addonActionError = signal<undefined | unknown>(undefined);
   protected readonly addonActionMessage = signal('');
   private readonly rpc = AppRpc.injectClient();
-  protected readonly addonFulfillmentQuery = injectQuery(() =>
-    this.rpc.events.getRegistrationAddonFulfillment.queryOptions({
-      registrationId: this.registrationId(),
-    }),
-  );
   protected readonly cancelAddonMutation = injectMutation(() =>
     this.rpc.events.cancelRegistrationAddon.mutationOptions(),
   );
@@ -383,24 +524,40 @@ export class HandleRegistrationComponent {
       this.redeemAddonMutation.isPending() ||
       this.undoAddonMutation.isPending(),
   );
-  protected readonly checkInMutation = injectMutation(() =>
-    this.rpc.events.checkInRegistration.mutationOptions(),
-  );
-  protected readonly scanResultQuery = injectQuery(() =>
-    this.rpc.events.registrationScanned.queryOptions({
-      registrationId: this.registrationId(),
+  // TanStack's default networkMode ('online') pauses the mutation while the
+  // browser is offline and continues it when the connection returns.
+  protected readonly checkInMutation = injectMutation(() => ({
+    ...this.rpc.events.checkInRegistration.mutationOptions(),
+    retry: rpcTransportRetry,
+    retryDelay: rpcTransportRetryDelay,
+  }));
+  protected readonly checkInState = computed(() =>
+    scanCheckInState({
+      error: this.checkInMutation.error(),
+      failureCount: this.checkInMutation.failureCount(),
+      isError: this.checkInMutation.isError(),
+      isPaused: this.checkInMutation.isPaused(),
+      isPending: this.checkInMutation.isPending(),
+      isSuccess: this.checkInMutation.isSuccess(),
     }),
   );
+  protected readonly scanTicketQuery = injectQuery(() => ({
+    ...this.rpc.events.scanTicket.queryOptions({
+      registrationId: this.registrationId(),
+    }),
+    retry: rpcTransportRetry,
+    retryDelay: rpcTransportRetryDelay,
+  }));
   protected readonly guestCheckInCount = signal(0);
   protected readonly selectedGuestCheckInCount = computed(() => {
-    const scanResult = this.scanResultQuery.data();
+    const scanResult = this.scanTicketQuery.data()?.registration;
     if (!scanResult) {
       return 0;
     }
     return Math.min(this.guestCheckInCount(), scanResult.remainingGuestCount);
   });
   protected readonly selectedSpotCheckInCount = computed(() => {
-    const scanResult = this.scanResultQuery.data();
+    const scanResult = this.scanTicketQuery.data()?.registration;
     if (!scanResult) {
       return 0;
     }
@@ -425,6 +582,9 @@ export class HandleRegistrationComponent {
     registrationAddonRefundStatusLabel;
   protected readonly scanCheckInActionDisabled = scanCheckInActionDisabled;
   protected readonly scanCheckInButtonLabel = scanCheckInButtonLabel;
+  protected readonly guestInputLocked = computed(() =>
+    scanGuestInputLocked(this.checkInState()),
+  );
   protected readonly scanCheckInTimingIssueCopy = scanCheckInTimingIssueCopy;
   protected readonly scanRegistrationStatusIssueCopy =
     scanRegistrationStatusIssueCopy;
@@ -434,10 +594,25 @@ export class HandleRegistrationComponent {
   private readonly redeemIntentStore = new RegistrationAddonRedeemIntentStore();
 
   checkIn() {
-    const scanResult = this.scanResultQuery.data();
+    const state = this.checkInState();
+    const resendPayload = scanCheckInRetryPayload(
+      state,
+      this.checkInMutation.variables(),
+    );
+    if (resendPayload) {
+      // Resend the original request unchanged. The ticket may already show the
+      // committed count after a reconnect refetch.
+      if (!this.checkInMutation.isPending()) {
+        this.sendCheckIn(resendPayload);
+      }
+      return;
+    }
+
+    const scanResult = this.scanTicketQuery.data()?.registration;
     if (
+      !scanResult ||
       scanCheckInActionDisabled({
-        allowCheckin: scanResult?.allowCheckin ?? false,
+        allowCheckin: scanResult.allowCheckin,
         completed: this.checkInCompleted(),
         mutationPending: this.checkInMutation.isPending(),
         spotCount: this.selectedSpotCheckInCount(),
@@ -445,19 +620,13 @@ export class HandleRegistrationComponent {
     )
       return;
 
-    this.checkInMutation.mutate(
-      {
+    // The expected count stays the one the helper saw.
+    this.sendCheckIn(
+      scanCheckInPayload({
+        expectedCheckedInGuestCount: scanResult.checkedInGuestCount,
         guestCheckInCount: this.selectedGuestCheckInCount(),
         registrationId: this.registrationId(),
-      },
-      {
-        onSuccess: async () => {
-          this.localCheckInCompleted.set(true);
-          await this.queryClient.invalidateQueries(
-            this.rpc.queryFilter(['events', 'registrationScanned']),
-          );
-        },
-      },
+      }),
     );
   }
 
@@ -467,7 +636,7 @@ export class HandleRegistrationComponent {
       return;
     }
     const remainingGuestCount =
-      this.scanResultQuery.data()?.remainingGuestCount ?? 0;
+      this.scanTicketQuery.data()?.registration.remainingGuestCount ?? 0;
     this.guestCheckInCount.set(
       scanGuestCheckInCountFromInput({
         inputValue: input.value,
@@ -569,12 +738,8 @@ export class HandleRegistrationComponent {
     );
   }
 
-  protected retryAddonFulfillment(): void {
-    void this.addonFulfillmentQuery.refetch();
-  }
-
   protected retryRegistration(): void {
-    void this.scanResultQuery.refetch();
+    void this.scanTicketQuery.refetch();
   }
 
   protected undoAddonRedemption(
@@ -611,6 +776,30 @@ export class HandleRegistrationComponent {
     );
   }
 
+  private sendCheckIn(payload: ScanCheckInPayload): void {
+    const queryKey = this.scanTicketKey(payload.registrationId);
+    this.checkInMutation.mutate(payload, {
+      onError: async (error) => {
+        if (
+          typeof error === 'object' &&
+          error !== null &&
+          '_tag' in error &&
+          error._tag === 'EventRegistrationConflictError'
+        ) {
+          await this.queryClient.invalidateQueries({ exact: true, queryKey });
+        }
+      },
+      onSuccess: async (result) => {
+        this.localCheckInCompleted.set(true);
+        await applyScanCheckInResult(this.queryClient, queryKey, result);
+      },
+    });
+  }
+
+  private scanTicketKey(registrationId: string): QueryKey {
+    return this.rpc.events.scanTicket.queryKey({ registrationId });
+  }
+
   private addonActionFailed(error: unknown): void {
     this.addonActionMessage.set('');
     this.addonActionError.set(error);
@@ -618,9 +807,10 @@ export class HandleRegistrationComponent {
   }
 
   private async addonActionSucceeded(message: string): Promise<void> {
-    await this.queryClient.invalidateQueries(
-      this.rpc.queryFilter(['events', 'getRegistrationAddonFulfillment']),
-    );
+    await this.queryClient.invalidateQueries({
+      exact: true,
+      queryKey: this.scanTicketKey(this.registrationId()),
+    });
     this.addonActionError.set(undefined);
     this.addonActionMessage.set(message);
     this.pendingAddonId.set(undefined);

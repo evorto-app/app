@@ -1,6 +1,8 @@
+import { QueryClient } from '@tanstack/angular-query-experimental';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  applyScanCheckInResult,
   registrationAddonCancellationBlockedMessage,
   registrationAddonCancellationSuccessMessage,
   registrationAddonOperationKey,
@@ -9,8 +11,12 @@ import {
   registrationAddonRefundStatusLabel,
   scanCheckInActionDisabled,
   scanCheckInButtonLabel,
+  scanCheckInPayload,
+  scanCheckInRetryPayload,
+  scanCheckInState,
   scanCheckInTimingIssueCopy,
   scanGuestCheckInCountFromInput,
+  scanGuestInputLocked,
   scannerRegistrationErrorMessage,
   scanRegistrationStatusIssueCopy,
   scanSpotCountLabel,
@@ -332,6 +338,92 @@ describe('scanCheckInActionDisabled', () => {
       }),
     ).toBe(true);
   });
+
+  it('keeps the action available to try again after a failed check-in', () => {
+    // Not pending after an error: notConfirmed and failed both leave it enabled.
+    expect(
+      scanCheckInActionDisabled({
+        allowCheckin: true,
+        completed: false,
+        mutationPending: false,
+        spotCount: 1,
+      }),
+    ).toBe(false);
+  });
+
+  it('blocks a second request while a request is sending, retrying or waiting', () => {
+    // The mutation stays pending through retries and while offline.
+    expect(
+      scanCheckInActionDisabled({
+        allowCheckin: true,
+        completed: false,
+        mutationPending: true,
+        spotCount: 1,
+      }),
+    ).toBe(true);
+  });
+});
+
+describe('scanCheckInState', () => {
+  const base = {
+    error: null,
+    failureCount: 0,
+    isError: false,
+    isPaused: false,
+    isPending: false,
+    isSuccess: false,
+  };
+
+  it('is idle before the first attempt', () => {
+    expect(scanCheckInState(base)).toBe('idle');
+  });
+
+  it('reports sending, retrying and waiting while pending', () => {
+    expect(scanCheckInState({ ...base, isPending: true })).toBe('sending');
+    expect(
+      scanCheckInState({ ...base, failureCount: 2, isPending: true }),
+    ).toBe('retrying');
+    expect(scanCheckInState({ ...base, isPaused: true, isPending: true })).toBe(
+      'waitingForConnection',
+    );
+    expect(
+      scanCheckInState({
+        ...base,
+        failureCount: 1,
+        isPaused: true,
+        isPending: true,
+      }),
+    ).toBe('waitingForConnection');
+  });
+
+  it('confirms a successful check-in', () => {
+    expect(scanCheckInState({ ...base, isSuccess: true })).toBe('confirmed');
+  });
+
+  it('treats an exhausted transport error as not confirmed', () => {
+    expect(
+      scanCheckInState({
+        ...base,
+        error: { _tag: 'RpcClientError' },
+        failureCount: 4,
+        isError: true,
+      }),
+    ).toBe('notConfirmed');
+  });
+
+  it('treats a typed domain error as failed', () => {
+    expect(
+      scanCheckInState({
+        ...base,
+        error: { _tag: 'EventRegistrationConflictError' },
+        failureCount: 1,
+        isError: true,
+      }),
+    ).toBe('failed');
+    expect(
+      scanCheckInState({ ...base, error: new Error('boom'), isError: true }),
+    ).toBe('failed');
+  });
 });
 
 describe('scan check-in copy', () => {
@@ -339,35 +431,73 @@ describe('scan check-in copy', () => {
     expect(
       scanCheckInButtonLabel({
         completed: false,
-        pending: false,
         spotCount: 1,
+        state: 'idle',
       }),
     ).toBe('Confirm check-in');
     expect(
       scanCheckInButtonLabel({
         completed: false,
-        pending: false,
         spotCount: 3,
+        state: 'idle',
+      }),
+    ).toBe('Confirm 3 check-ins');
+    expect(
+      scanCheckInButtonLabel({
+        completed: false,
+        spotCount: 3,
+        state: 'failed',
       }),
     ).toBe('Confirm 3 check-ins');
   });
 
-  it('keeps the pending action state short and active', () => {
+  it('keeps the pending action states short and active', () => {
     expect(
       scanCheckInButtonLabel({
         completed: false,
-        pending: true,
         spotCount: 3,
+        state: 'sending',
       }),
     ).toBe('Checking in…');
+    expect(
+      scanCheckInButtonLabel({
+        completed: false,
+        spotCount: 3,
+        state: 'retrying',
+      }),
+    ).toBe('Retrying…');
+    expect(
+      scanCheckInButtonLabel({
+        completed: false,
+        spotCount: 3,
+        state: 'waitingForConnection',
+      }),
+    ).toBe('Waiting for connection…');
+  });
+
+  it('offers Try again when the outcome is unknown', () => {
+    expect(
+      scanCheckInButtonLabel({
+        completed: false,
+        spotCount: 1,
+        state: 'notConfirmed',
+      }),
+    ).toBe('Try again');
   });
 
   it('shows completed check-ins as final', () => {
     expect(
       scanCheckInButtonLabel({
         completed: true,
-        pending: false,
         spotCount: 1,
+        state: 'idle',
+      }),
+    ).toBe('Checked in');
+    expect(
+      scanCheckInButtonLabel({
+        completed: false,
+        spotCount: 1,
+        state: 'confirmed',
       }),
     ).toBe('Checked in');
   });
@@ -403,5 +533,140 @@ describe('scanGuestCheckInCountFromInput', () => {
         }),
       ).toBe(0);
     }
+  });
+});
+
+describe('scanCheckInRetryPayload', () => {
+  const previous = {
+    expectedCheckedInGuestCount: 0,
+    guestCheckInCount: 1,
+    operationKey: 'key-1',
+    registrationId: 'registration-1',
+  };
+
+  it('resends the exact previous request when the outcome is unknown', () => {
+    expect(scanCheckInRetryPayload('notConfirmed', previous)).toEqual(previous);
+  });
+
+  it('builds a fresh request in every other state', () => {
+    for (const state of [
+      'idle',
+      'failed',
+      'confirmed',
+      'sending',
+      'retrying',
+      'waitingForConnection',
+    ] as const) {
+      expect(scanCheckInRetryPayload(state, previous)).toBeNull();
+    }
+    expect(scanCheckInRetryPayload('notConfirmed', undefined)).toBeNull();
+  });
+});
+
+describe('scanGuestInputLocked', () => {
+  it('locks the guest input while a request is in flight or being resent', () => {
+    for (const state of [
+      'sending',
+      'retrying',
+      'waitingForConnection',
+      'notConfirmed',
+    ] as const) {
+      expect(scanGuestInputLocked(state)).toBe(true);
+    }
+    for (const state of ['idle', 'failed', 'confirmed'] as const) {
+      expect(scanGuestInputLocked(state)).toBe(false);
+    }
+  });
+});
+
+describe('scanCheckInActionDisabled when resending', () => {
+  it('stays enabled even if the refreshed ticket has no places left', () => {
+    expect(
+      scanCheckInActionDisabled({
+        allowCheckin: false,
+        completed: false,
+        mutationPending: false,
+        resend: true,
+        spotCount: 0,
+      }),
+    ).toBe(false);
+  });
+
+  it('is still blocked while a request is pending', () => {
+    expect(
+      scanCheckInActionDisabled({
+        allowCheckin: true,
+        completed: false,
+        mutationPending: true,
+        resend: true,
+        spotCount: 1,
+      }),
+    ).toBe(true);
+  });
+});
+
+describe('scanCheckInPayload', () => {
+  it('gives every fresh confirmation a new operation key', () => {
+    let counter = 0;
+    const input = {
+      createOperationKey: () => `key-${++counter}`,
+      expectedCheckedInGuestCount: 0,
+      guestCheckInCount: 1,
+      registrationId: 'registration-1',
+    };
+    const first = scanCheckInPayload(input);
+    const second = scanCheckInPayload(input);
+    expect(first.operationKey).toBe('key-1');
+    expect(second.operationKey).toBe('key-2');
+  });
+
+  it('keeps the key when the unconfirmed request is resent', () => {
+    const first = scanCheckInPayload({
+      createOperationKey: () => 'key-1',
+      expectedCheckedInGuestCount: 0,
+      guestCheckInCount: 0,
+      registrationId: 'registration-1',
+    });
+    const resend = scanCheckInRetryPayload('notConfirmed', first);
+    expect(resend).toBe(first);
+    expect(resend?.operationKey).toBe('key-1');
+  });
+});
+
+describe('applyScanCheckInResult', () => {
+  const ticket = (id: string, checkedInGuestCount: number) => ({
+    addOns: [],
+    registration: { checkedInGuestCount, id },
+  });
+  const keyA = ['scanTicket', { registrationId: 'a' }];
+  const keyB = ['scanTicket', { registrationId: 'b' }];
+  const setup = () => {
+    const client = new QueryClient();
+    client.setQueryData(keyA, ticket('a', 0));
+    client.setQueryData(keyB, ticket('b', 0));
+    return client;
+  };
+
+  it('updates only the confirmed ticket and leaves another cached ticket untouched', async () => {
+    const client = setup();
+    const result = { registration: { checkedInGuestCount: 2, id: 'a' } };
+    await applyScanCheckInResult(client, keyA, result);
+    expect(client.getQueryData(keyA)).toEqual({
+      addOns: [],
+      registration: { checkedInGuestCount: 2, id: 'a' },
+    });
+    expect(client.getQueryData(keyB)).toEqual(ticket('b', 0));
+  });
+
+  it('invalidates only that ticket when the post-commit read is missing', async () => {
+    const client = setup();
+    const invalidate = vi.spyOn(client, 'invalidateQueries');
+    const setData = vi.spyOn(client, 'setQueryData');
+    await applyScanCheckInResult(client, keyA, { registration: null });
+    expect(invalidate).toHaveBeenCalledTimes(1);
+    expect(invalidate).toHaveBeenCalledWith({ exact: true, queryKey: keyA });
+    expect(setData).not.toHaveBeenCalled();
+    expect(client.getQueryState(keyB)?.isInvalidated).toBe(false);
+    expect(client.getQueryState(keyA)?.isInvalidated).toBe(true);
   });
 });

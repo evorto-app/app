@@ -38,6 +38,7 @@ import {
   eventInstances,
   eventRegistrationAddonPurchaseLots,
   eventRegistrationAddonPurchases,
+  eventRegistrationCheckIns,
   eventRegistrationOptions,
   eventRegistrations,
   eventTemplateCategories,
@@ -568,17 +569,24 @@ const runCancellation = ({
   );
 };
 
+const scannerUserIdFor = (fixture: Fixture) =>
+  makeId('scanner', fixture.tenantId);
+
 const runCheckIn = ({
+  expectedCheckedInGuestCount = 0,
   fixture,
   guestCheckInCount,
+  operationKey,
   serviceLayer,
 }: {
+  expectedCheckedInGuestCount?: number;
   fixture: Fixture;
   guestCheckInCount: number;
+  operationKey: string;
   serviceLayer: ReturnType<typeof makeServiceLayer>;
 }) => {
   const permissions = ['events:organizeAll'] as const;
-  const scannerUserId = makeId('scanner', fixture.tenantId);
+  const scannerUserId = scannerUserIdFor(fixture);
   const requestContext = {
     authData: {},
     authenticated: true,
@@ -637,7 +645,9 @@ const runCheckIn = ({
   return Effect.runPromise(
     eventRegistrationHandlers['events.checkInRegistration'](
       {
+        expectedCheckedInGuestCount,
         guestCheckInCount,
+        operationKey,
         registrationId: fixture.registrationId,
       },
       checkInOptions,
@@ -898,6 +908,16 @@ const prepareCheckInFixture = (
   database.transaction(async (transaction) => {
     const fixture = await insertFixture(transaction);
     const now = Date.now();
+    // The check-in operation row references its actor.
+    const scannerUserId = scannerUserIdFor(fixture);
+    await transaction.insert(users).values({
+      auth0Id: `auth0|${scannerUserId}`,
+      communicationEmail: communicationEmailForUser(scannerUserId),
+      email: loginEmailForUser(scannerUserId),
+      firstName: 'Scanner',
+      id: scannerUserId,
+      lastName: 'Tester',
+    });
     await transaction
       .update(eventInstances)
       .set({
@@ -919,6 +939,8 @@ const prepareCheckInFixture = (
       .set({
         checkedInSpots: 0,
         confirmedSpots: guestCount + 1,
+        // Room for the attendee and every guest (the base fixture has 2).
+        spots: Math.max(2, guestCount + 1),
       })
       .where(eq(eventRegistrationOptions.id, fixture.optionId));
     return fixture;
@@ -970,12 +992,26 @@ const cleanFixture = async (database: TestDatabase, fixture: Fixture) => {
         eq(usersToTenants.userId, fixture.userId),
       ),
     );
-  await database.delete(users).where(eq(users.id, fixture.userId));
+  await database
+    .delete(users)
+    .where(inArray(users.id, [fixture.userId, scannerUserIdFor(fixture)]));
   await database
     .delete(tenantStripeTaxRates)
     .where(eq(tenantStripeTaxRates.tenantId, fixture.tenantId));
   await database.delete(tenants).where(eq(tenants.id, fixture.tenantId));
 };
+
+const readCheckInOperations = (database: TestDatabase, fixture: Fixture) =>
+  database
+    .select({
+      attendeeCheckedIn: eventRegistrationCheckIns.attendeeCheckedIn,
+      guestCheckInCount: eventRegistrationCheckIns.guestCheckInCount,
+      operationKey: eventRegistrationCheckIns.operationKey,
+    })
+    .from(eventRegistrationCheckIns)
+    .where(
+      eq(eventRegistrationCheckIns.registrationId, fixture.registrationId),
+    );
 
 const readFixtureState = async (database: TestDatabase, fixture: Fixture) => {
   const operations = createPendingOperationTracker();
@@ -1313,6 +1349,7 @@ describe('database registration concurrency invariants', () => {
         runCheckIn({
           fixture,
           guestCheckInCount: 0,
+          operationKey: 'operation-cancelled',
           serviceLayer,
         }),
       );
@@ -1354,7 +1391,7 @@ describe('database registration concurrency invariants', () => {
     ]);
   }, 30_000);
 
-  it('serializes competing guest check-ins without overcounting', async () => {
+  it('counts identical concurrent check-in intents once', async () => {
     const fixture = await prepareCheckInFixture(database, { guestCount: 1 });
     fixtures.push(fixture);
     const fakeHttpClient = new IdempotentStripeHttpClient();
@@ -1383,6 +1420,7 @@ describe('database registration concurrency invariants', () => {
         runCheckIn({
           fixture,
           guestCheckInCount: 1,
+          operationKey: 'operation-same',
           serviceLayer,
         }),
       );
@@ -1390,6 +1428,7 @@ describe('database registration concurrency invariants', () => {
         runCheckIn({
           fixture,
           guestCheckInCount: 1,
+          operationKey: 'operation-same',
           serviceLayer,
         }),
       );
@@ -1399,38 +1438,346 @@ describe('database registration concurrency invariants', () => {
       registrationTransactionOpen = false;
 
       const outcomes = await Promise.all([first, second]);
-      const successfulOutcomes = outcomes.filter(
-        (outcome) => outcome.status === 'success',
+      // The same operation key is one intent: the loser of the lock replays
+      // the stored outcome instead of counting the guest again.
+      expect(outcomes.map((outcome) => outcome.status)).toEqual([
+        'success',
+        'success',
+      ]);
+      const values = outcomes.flatMap((outcome) =>
+        outcome.status === 'success' ? [outcome.value] : [],
       );
-      expect(successfulOutcomes).toHaveLength(1);
-      expect(
-        outcomes.filter((outcome) => outcome.status === 'failure'),
-      ).toEqual([
-        expect.objectContaining({
-          error: expect.objectContaining({
-            _tag: 'EventRegistrationConflictError',
-            message: 'Enter no more than 0 additional guests.',
-          }),
-        }),
+      expect(values.map((value) => value.alreadyCheckedIn)).toEqual([
+        false,
+        false,
       ]);
 
-      const successfulOutcome = successfulOutcomes[0];
-      if (!successfulOutcome || successfulOutcome.status !== 'success') {
-        throw new Error('Expected one successful guest check-in');
-      }
       const state = await readFixtureState(database, fixture);
       expect(state.registration?.checkedInGuestCount).toBe(1);
       expect(state.registration?.checkInTime).toBeInstanceOf(Date);
       expect(state.option?.checkedInSpots).toBe(2);
-      expect(successfulOutcome.value).toEqual({
-        alreadyCheckedIn: false,
-        checkInTime: state.registration?.checkInTime?.toISOString(),
-      });
+      for (const value of values) {
+        expect(value).toEqual(
+          expect.objectContaining({
+            checkInTime: state.registration?.checkInTime?.toISOString(),
+            registration: expect.objectContaining({
+              checkedInGuestCount: 1,
+              remainingGuestCount: 0,
+            }),
+          }),
+        );
+      }
+      expect(await readCheckInOperations(database, fixture)).toEqual([
+        {
+          attendeeCheckedIn: true,
+          guestCheckInCount: 1,
+          operationKey: 'operation-same',
+        },
+      ]);
       expect(fakeHttpClient.createRequests).toHaveLength(0);
     }, [
       () => releaseRowLock(registrationLock, registrationTransactionOpen),
       operations.drain,
     ]);
+  }, 30_000);
+
+  it('admits only one of two different concurrent intents from the same snapshot', async () => {
+    const fixture = await prepareCheckInFixture(database, { guestCount: 1 });
+    fixtures.push(fixture);
+    const fakeHttpClient = new IdempotentStripeHttpClient();
+    const stripe = new StripeClientLibrary('sk_test_concurrency', {
+      httpClient: fakeHttpClient,
+      maxNetworkRetries: 0,
+    });
+    const serviceLayer = makeServiceLayer(databaseUrl, stripe);
+    const registrationLock = await withRowLock(pool, async (client) => {
+      await client.query(
+        `
+          SELECT id
+          FROM event_registrations
+          WHERE id = $1
+          FOR UPDATE
+        `,
+        [fixture.registrationId],
+      );
+    });
+    let registrationTransactionOpen = true;
+
+    const operations = createPendingOperationTracker();
+
+    await runWithCleanup(async () => {
+      const first = operations.track(
+        runCheckIn({
+          fixture,
+          guestCheckInCount: 1,
+          operationKey: 'operation-helper-a',
+          serviceLayer,
+        }),
+      );
+      const second = operations.track(
+        runCheckIn({
+          fixture,
+          guestCheckInCount: 1,
+          operationKey: 'operation-helper-b',
+          serviceLayer,
+        }),
+      );
+
+      await waitForBlockedQueries(pool, 'event_registrations', 2);
+      await registrationLock.query('COMMIT');
+      registrationTransactionOpen = false;
+
+      const outcomes = await Promise.all([first, second]);
+      expect(
+        outcomes.filter((outcome) => outcome.status === 'success'),
+      ).toHaveLength(1);
+      const failures = outcomes.flatMap((outcome) =>
+        outcome.status === 'failure' ? [outcome.error] : [],
+      );
+      expect(failures).toHaveLength(1);
+      expect(failures[0]).toEqual(
+        expect.objectContaining({
+          _tag: 'EventRegistrationConflictError',
+          message:
+            'This ticket changed on another device. Review the current check-in count, then confirm again.',
+        }),
+      );
+
+      const state = await readFixtureState(database, fixture);
+      expect(state.registration?.checkedInGuestCount).toBe(1);
+      expect(state.option?.checkedInSpots).toBe(2);
+      const operationRows = await readCheckInOperations(database, fixture);
+      expect(operationRows).toHaveLength(1);
+      expect(operationRows[0]?.guestCheckInCount).toBe(1);
+      expect(fakeHttpClient.createRequests).toHaveLength(0);
+    }, [
+      () => releaseRowLock(registrationLock, registrationTransactionOpen),
+      operations.drain,
+    ]);
+  }, 30_000);
+
+  it('replays a lost check-in response after another check-in without counting twice', async () => {
+    const fixture = await prepareCheckInFixture(database, { guestCount: 3 });
+    fixtures.push(fixture);
+    const fakeHttpClient = new IdempotentStripeHttpClient();
+    const stripe = new StripeClientLibrary('sk_test_concurrency', {
+      httpClient: fakeHttpClient,
+      maxNetworkRetries: 0,
+    });
+    const serviceLayer = makeServiceLayer(databaseUrl, stripe);
+    const first = await runCheckIn({
+      expectedCheckedInGuestCount: 0,
+      fixture,
+      guestCheckInCount: 1,
+      operationKey: 'operation-first',
+      serviceLayer,
+    });
+    expect(first).toEqual(
+      expect.objectContaining({
+        status: 'success',
+        value: expect.objectContaining({ alreadyCheckedIn: false }),
+      }),
+    );
+    // Another helper admits a guest before the first client retries.
+    const other = await runCheckIn({
+      expectedCheckedInGuestCount: 1,
+      fixture,
+      guestCheckInCount: 1,
+      operationKey: 'operation-other',
+      serviceLayer,
+    });
+    expect(other.status).toBe('success');
+
+    // The first client never saw its response and retries with the same key.
+    const retry = await runCheckIn({
+      expectedCheckedInGuestCount: 0,
+      fixture,
+      guestCheckInCount: 1,
+      operationKey: 'operation-first',
+      serviceLayer,
+    });
+
+    expect(retry).toEqual(
+      expect.objectContaining({
+        status: 'success',
+        value: expect.objectContaining({
+          alreadyCheckedIn: false,
+          checkInTime:
+            first.status === 'success' ? first.value.checkInTime : undefined,
+          registration: expect.objectContaining({
+            checkedInGuestCount: 2,
+            remainingGuestCount: 1,
+          }),
+        }),
+      }),
+    );
+    const state = await readFixtureState(database, fixture);
+    expect(state.registration?.checkedInGuestCount).toBe(2);
+    expect(state.option?.checkedInSpots).toBe(3);
+    const operationRows = await readCheckInOperations(database, fixture);
+    expect(operationRows.map((row) => row.operationKey).toSorted()).toEqual([
+      'operation-first',
+      'operation-other',
+    ]);
+    expect(fakeHttpClient.createRequests).toHaveLength(0);
+  }, 30_000);
+
+  it('replays an attendee check-in after the window closed but not a new one', async () => {
+    const fixture = await prepareCheckInFixture(database, { guestCount: 0 });
+    fixtures.push(fixture);
+    const fakeHttpClient = new IdempotentStripeHttpClient();
+    const stripe = new StripeClientLibrary('sk_test_concurrency', {
+      httpClient: fakeHttpClient,
+      maxNetworkRetries: 0,
+    });
+    const serviceLayer = makeServiceLayer(databaseUrl, stripe);
+    const first = await runCheckIn({
+      fixture,
+      guestCheckInCount: 0,
+      operationKey: 'operation-attendee',
+      serviceLayer,
+    });
+    expect(first.status).toBe('success');
+
+    // A different intent for an already checked-in attendee records nothing.
+    const duplicate = await runCheckIn({
+      fixture,
+      guestCheckInCount: 0,
+      operationKey: 'operation-attendee-again',
+      serviceLayer,
+    });
+    expect(duplicate).toEqual(
+      expect.objectContaining({
+        status: 'success',
+        value: expect.objectContaining({ alreadyCheckedIn: true }),
+      }),
+    );
+    expect(await readCheckInOperations(database, fixture)).toHaveLength(1);
+
+    const closedAt = Date.now() - 3 * 60 * 60 * 1000;
+    await database
+      .update(eventInstances)
+      .set({
+        end: new Date(closedAt),
+        start: new Date(closedAt - 60 * 60 * 1000),
+      })
+      .where(eq(eventInstances.id, fixture.eventId));
+
+    const replay = await runCheckIn({
+      fixture,
+      guestCheckInCount: 0,
+      operationKey: 'operation-attendee',
+      serviceLayer,
+    });
+    expect(replay).toEqual(
+      expect.objectContaining({
+        status: 'success',
+        value: expect.objectContaining({
+          alreadyCheckedIn: false,
+          checkInTime:
+            first.status === 'success' ? first.value.checkInTime : undefined,
+        }),
+      }),
+    );
+    const late = await runCheckIn({
+      fixture,
+      guestCheckInCount: 0,
+      operationKey: 'operation-attendee-late',
+      serviceLayer,
+    });
+    expect(late).toEqual(
+      expect.objectContaining({
+        error: expect.objectContaining({
+          _tag: 'EventCheckInUnavailableError',
+        }),
+        status: 'failure',
+      }),
+    );
+    expect(await readCheckInOperations(database, fixture)).toHaveLength(1);
+    expect(fakeHttpClient.createRequests).toHaveLength(0);
+  }, 30_000);
+
+  it('rejects a reused operation key with a different intent', async () => {
+    const fixture = await prepareCheckInFixture(database, { guestCount: 3 });
+    fixtures.push(fixture);
+    const fakeHttpClient = new IdempotentStripeHttpClient();
+    const stripe = new StripeClientLibrary('sk_test_concurrency', {
+      httpClient: fakeHttpClient,
+      maxNetworkRetries: 0,
+    });
+    const serviceLayer = makeServiceLayer(databaseUrl, stripe);
+    const first = await runCheckIn({
+      fixture,
+      guestCheckInCount: 1,
+      operationKey: 'operation-reused',
+      serviceLayer,
+    });
+    expect(first.status).toBe('success');
+
+    const reused = await runCheckIn({
+      fixture,
+      guestCheckInCount: 2,
+      operationKey: 'operation-reused',
+      serviceLayer,
+    });
+    expect(reused).toEqual(
+      expect.objectContaining({
+        error: expect.objectContaining({
+          _tag: 'EventRegistrationConflictError',
+          message:
+            'This check-in request does not match the one already recorded. Reload the ticket and confirm again.',
+        }),
+        status: 'failure',
+      }),
+    );
+    const state = await readFixtureState(database, fixture);
+    expect(state.registration?.checkedInGuestCount).toBe(1);
+    expect(await readCheckInOperations(database, fixture)).toHaveLength(1);
+    expect(fakeHttpClient.createRequests).toHaveLength(0);
+  }, 30_000);
+
+  it('rejects a check-in from a stale ticket view', async () => {
+    const fixture = await prepareCheckInFixture(database, { guestCount: 3 });
+    fixtures.push(fixture);
+    const fakeHttpClient = new IdempotentStripeHttpClient();
+    const stripe = new StripeClientLibrary('sk_test_concurrency', {
+      httpClient: fakeHttpClient,
+      maxNetworkRetries: 0,
+    });
+    const serviceLayer = makeServiceLayer(databaseUrl, stripe);
+    const first = await runCheckIn({
+      expectedCheckedInGuestCount: 0,
+      fixture,
+      guestCheckInCount: 1,
+      operationKey: 'operation-first',
+      serviceLayer,
+    });
+    expect(first.status).toBe('success');
+
+    // Another device checked in one guest after this helper loaded the ticket.
+    const stale = await runCheckIn({
+      expectedCheckedInGuestCount: 0,
+      fixture,
+      guestCheckInCount: 2,
+      operationKey: 'operation-stale',
+      serviceLayer,
+    });
+
+    expect(stale).toEqual(
+      expect.objectContaining({
+        error: expect.objectContaining({
+          _tag: 'EventRegistrationConflictError',
+          message:
+            'This ticket changed on another device. Review the current check-in count, then confirm again.',
+        }),
+        status: 'failure',
+      }),
+    );
+    const state = await readFixtureState(database, fixture);
+    expect(state.registration?.checkedInGuestCount).toBe(1);
+    expect(state.option?.checkedInSpots).toBe(2);
+    expect(await readCheckInOperations(database, fixture)).toHaveLength(1);
+    expect(fakeHttpClient.createRequests).toHaveLength(0);
   }, 30_000);
 
   it('keeps transfer notification reads out of inverse shared-user lock cycles', async () => {

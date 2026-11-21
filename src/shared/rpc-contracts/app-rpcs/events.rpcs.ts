@@ -78,6 +78,11 @@ const RegistrationAddonOperationKey = Schema.String.check(
   Schema.isMinLength(1),
   Schema.isMaxLength(100),
 );
+const CheckInOperationKey = Schema.String.check(
+  Schema.isTrimmed(),
+  Schema.isMinLength(1),
+  Schema.isMaxLength(100),
+);
 const RegistrationAddonCancellationReason = Schema.String.check(
   Schema.isTrimmed(),
   Schema.isMinLength(1),
@@ -175,16 +180,62 @@ export const EventsApproveRegistration = asRpcMutation(
   }),
 );
 
+/** The ticket state a scanner sees: eligibility, counts and attendee details. */
+export const EventsRegistrationScanResult = Schema.Struct({
+  allowCheckin: Schema.Boolean,
+  alreadyCheckedInIssue: Schema.Boolean,
+  appliedDiscountType: Schema.NullOr(Schema.Literal('esnCard')),
+  attendeeCheckedIn: Schema.Boolean,
+  checkedInGuestCount: Schema.Number,
+  checkInTimingIssue: Schema.NullOr(EventCheckInTimingIssue),
+  event: Schema.Struct({
+    start: Schema.NonEmptyString,
+    title: Schema.NonEmptyString,
+  }),
+  guestCount: Schema.Number,
+  registrationOption: Schema.Struct({
+    title: Schema.NonEmptyString,
+  }),
+  registrationStatus: EventsRegistrationStatus,
+  registrationStatusIssue: Schema.Boolean,
+  remainingGuestCount: Schema.Number,
+  sameUserIssue: Schema.Boolean,
+  user: Schema.Struct({
+    firstName: Schema.NonEmptyString,
+    lastName: Schema.NonEmptyString,
+  }),
+});
+
+export type EventsRegistrationScanResult = Schema.Schema.Type<
+  typeof EventsRegistrationScanResult
+>;
+
 export const EventsCheckInRegistration = asRpcMutation(
   Rpc.make('events.checkInRegistration', {
     error: EventsCheckInRegistrationMutationError,
     payload: Schema.Struct({
+      /**
+       * The checked-in guest count the helper saw. A new check-in is applied
+       * only while the ticket still shows this count; otherwise another device
+       * changed the ticket and the helper reviews it again.
+       */
+      expectedCheckedInGuestCount: nonNegativeNumber,
       guestCheckInCount: nonNegativeNumber,
+      /**
+       * Unique per confirmed check-in intent. A retry sends the same key and
+       * gets the stored outcome instead of counting anyone twice.
+       */
+      operationKey: CheckInOperationKey,
       registrationId: Schema.NonEmptyString,
     }),
     success: Schema.Struct({
       alreadyCheckedIn: Schema.Boolean,
       checkInTime: Schema.NonEmptyString,
+      /**
+       * The ticket state after the check-in committed, or null when that read
+       * failed after the commit. The check-in itself is recorded either way.
+       */
+      registration: Schema.NullOr(EventsRegistrationScanResult),
     }),
   }),
 );
@@ -799,30 +850,7 @@ export const EventsRegistrationScanned = asRpcQuery(
     payload: Schema.Struct({
       registrationId: Schema.NonEmptyString,
     }),
-    success: Schema.Struct({
-      allowCheckin: Schema.Boolean,
-      alreadyCheckedInIssue: Schema.Boolean,
-      appliedDiscountType: Schema.NullOr(Schema.Literal('esnCard')),
-      attendeeCheckedIn: Schema.Boolean,
-      checkedInGuestCount: Schema.Number,
-      checkInTimingIssue: Schema.NullOr(EventCheckInTimingIssue),
-      event: Schema.Struct({
-        start: Schema.NonEmptyString,
-        title: Schema.NonEmptyString,
-      }),
-      guestCount: Schema.Number,
-      registrationOption: Schema.Struct({
-        title: Schema.NonEmptyString,
-      }),
-      registrationStatus: EventsRegistrationStatus,
-      registrationStatusIssue: Schema.Boolean,
-      remainingGuestCount: Schema.Number,
-      sameUserIssue: Schema.Boolean,
-      user: Schema.Struct({
-        firstName: Schema.NonEmptyString,
-        lastName: Schema.NonEmptyString,
-      }),
-    }),
+    success: EventsRegistrationScanResult,
   }),
 );
 
@@ -888,15 +916,16 @@ export type EventsRegistrationAddonFulfillmentRecord = Schema.Schema.Type<
   typeof EventsRegistrationAddonFulfillmentRecord
 >;
 
-export const EventsGetRegistrationAddonFulfillment = asRpcQuery(
-  Rpc.make('events.getRegistrationAddonFulfillment', {
-    error: EventsRegistrationAddonFulfillmentError,
+/** One scanner lookup: the ticket, its check-in eligibility and its add-ons. */
+export const EventsScanTicket = asRpcQuery(
+  Rpc.make('events.scanTicket', {
+    error: EventsRegistrationScannedError,
     payload: Schema.Struct({
       registrationId: Schema.NonEmptyString,
     }),
     success: Schema.Struct({
       addOns: Schema.Array(EventsRegistrationAddonFulfillmentRecord),
-      registrationId: Schema.NonEmptyString,
+      registration: EventsRegistrationScanResult,
     }),
   }),
 );
@@ -1087,7 +1116,6 @@ export class EventsRpcs extends RpcGroup.make(
   EventsFindOne,
   EventsFindOneForEdit,
   EventsFindGraphForEdit,
-  EventsGetRegistrationAddonFulfillment,
   EventsGetOrganizeOverview,
   EventsGetPendingReviews,
   EventsGetRegistrationStatus,
@@ -1097,6 +1125,7 @@ export class EventsRpcs extends RpcGroup.make(
   EventsRedeemRegistrationAddon,
   EventsRegistrationScanned,
   EventsReviewEvent,
+  EventsScanTicket,
   EventsSubmitForReview,
   EventsUpdateGraph,
   EventsUpdateAnnouncementDiscovery,
