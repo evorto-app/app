@@ -73,7 +73,7 @@ it.layer(PgContainer.layerClient, { timeout: "30 seconds" })("PgClient", (it) =>
         )
       }`.compile()
       expect(query).toEqual(
-        `UPDATE people SET name = data.name FROM (values ($1),($2)) AS data("name")`
+        `UPDATE people SET name = data.name FROM (values ($1),($2)) AS "data"("name")`
       )
       expect(params).toEqual(["Tim", "John"])
     }))
@@ -88,7 +88,7 @@ it.layer(PgContainer.layerClient, { timeout: "30 seconds" })("PgClient", (it) =>
         ).returning("*")
       }`.compile()
       expect(query).toEqual(
-        `UPDATE people SET name = data.name FROM (values ($1),($2)) AS data("name") RETURNING *`
+        `UPDATE people SET name = data.name FROM (values ($1),($2)) AS "data"("name") RETURNING *`
       )
       expect(params).toEqual(["Tim", "John"])
     }))
@@ -245,7 +245,7 @@ it.layer(PgContainer.layerClient, { timeout: "30 seconds" })("PgClient", (it) =>
       } WHERE created_at > ${now}`.compile()
       assert.strictEqual(
         query,
-        `UPDATE people SET json = data.json FROM (values ($1),($2)) AS data("json") WHERE created_at > $3`
+        `UPDATE people SET json = data.json FROM (values ($1),($2)) AS "data"("json") WHERE created_at > $3`
       )
       assert.lengthOf(params, 3)
     }))
@@ -302,6 +302,16 @@ it.layer(PgContainer.layerClient, { timeout: "30 seconds" })("PgClient", (it) =>
         yield* sql`DROP TYPE capability_scalar`
         assert.deepStrictEqual(rows, [{ capability: "use_key", bound: "gérer", nullable: null }])
       }))
+    }))
+
+  it.effect("reads anonymous records and record arrays", () =>
+    Effect.gen(function*() {
+      const sql = yield* PgClient.PgClient
+      const rows = yield* sql`
+        SELECT ROW(1, 'a', NULL::int4, ROW(true, ARRAY[1, 2])) AS record,
+               ARRAY[ROW(1, 'a'), ROW(2, 'b')] AS records
+      `
+      assert.deepStrictEqual(rows, [{ record: [1, "a", null, [true, [1, 2]]], records: [[1, "a"], [2, "b"]] }])
     }))
 
   it.effect("reads bytea as Uint8Array", () =>
@@ -393,6 +403,17 @@ it.layer(PgContainer.layerClient, { timeout: "30 seconds" })("PgClient", (it) =>
       assert.instanceOf(error, SqlError.SqlError)
       assert.strictEqual(error.reason._tag, "UnknownError")
       assert.strictEqual(error.reason.operation, "commit")
+    }))
+
+  it.effect("keeps the typed error when the server ends the session in a nested transaction", () =>
+    Effect.gen(function*() {
+      const sql = yield* PgClient.PgClient
+      const cause = yield* sql.withTransaction(
+        sql.withTransaction(sql`SELECT pg_terminate_backend(pg_backend_pid())`)
+      ).pipe(Effect.sandbox, Effect.flip)
+
+      assert.isFalse(Cause.hasDies(cause))
+      assert.instanceOf(Cause.squash(cause), SqlError.SqlError)
     }))
 
   it.effect("afterCommit runs once other connections see the transaction's rows", () =>
@@ -500,6 +521,28 @@ it.layer(PgContainer.layerMakeClient, { timeout: "30 seconds" })("PgClient.makeC
       assert.isTrue(Option.isNone(rows))
     }).pipe(TestClock.withLive))
 
+  it.effect("times out a queued stream before the transaction connection is released", () =>
+    Effect.gen(function*() {
+      const sql = yield* PgClient.PgClient
+      yield* sql.withTransaction(Effect.gen(function*() {
+        const started = yield* Deferred.make<void>()
+        const release = yield* Deferred.make<void>()
+        const holder = yield* sql`SELECT 1`.stream.pipe(
+          Stream.runForEach(() => Effect.andThen(Deferred.succeed(started, undefined), Deferred.await(release))),
+          Effect.forkChild
+        )
+        yield* Deferred.await(started)
+        const queued = yield* sql`SELECT 2`.stream.pipe(Stream.runDrain, Effect.timeoutOption(10), Effect.forkChild)
+        yield* TestClock.adjust(10)
+        const completedWhileQueued = queued.pollUnsafe() !== undefined
+        yield* Deferred.succeed(release, undefined)
+        yield* Fiber.join(holder)
+        assert.isTrue(Option.isNone(yield* Fiber.join(queued)))
+        assert.isTrue(completedWhileQueued, "stream timeout waited for the connection")
+        assert.deepStrictEqual(yield* sql`SELECT 3 AS value`, [{ value: 3 }])
+      }))
+    }))
+
   it.effect("serializes transactions on its single connection", () =>
     Effect.gen(function*() {
       const sql = yield* PgClient.PgClient
@@ -526,6 +569,34 @@ it.layer(PgContainer.layerMakeClient, { timeout: "30 seconds" })("PgClient.makeC
 
       assert.isTrue(Option.isNone(overlap))
     }))
+
+  // A transaction pooler moves the session to another server between
+  // transactions, where the statements prepared on the last one do not exist.
+  it.effect("ends transactions whose prepared statements went missing", () =>
+    Effect.gen(function*() {
+      // Its own session, so `DEALLOCATE ALL` cannot affect concurrent tests.
+      const sql = yield* PgClient.makeClient((yield* PgClient.PgClient).config)
+      const select = sql<{ value: number }>`SELECT ${1}::int4 AS value`
+      const assertSqlFailure = (cause: Cause.Cause<unknown>) => {
+        assert.isFalse(Cause.hasDies(cause))
+        const error = Cause.squash(cause)
+        assert.instanceOf(error, SqlError.SqlError)
+        assert.propertyVal(error.reason.cause, "code", "26000")
+      }
+      // Prepares BEGIN, the body, ROLLBACK and COMMIT.
+      yield* sql.withTransaction(Effect.andThen(select, Effect.fail("rollback"))).pipe(Effect.flip)
+      yield* sql.withTransaction(select)
+      yield* sql`DEALLOCATE ALL`.unprepared
+
+      // The body fails on its lost statement, and ROLLBACK still has to run.
+      assertSqlFailure(yield* sql.withTransaction(select).pipe(Effect.sandbox, Effect.flip))
+      // The body succeeds, but the lost COMMIT never runs.
+      assertSqlFailure(
+        yield* sql.withTransaction(sql`SELECT ${2}::int4 AS fresh`).pipe(Effect.sandbox, Effect.flip)
+      )
+
+      assert.deepStrictEqual(yield* sql.withTransaction(select), [{ value: 1 }])
+    }).pipe(Effect.scoped, Effect.provide(Reactivity.layer)))
 })
 
 it.layer(PgContainer.layerMakeClientAcquireForStream, { timeout: "30 seconds" })(
