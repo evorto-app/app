@@ -80,4 +80,9 @@ resource "scaleway_rdb_privilege" "runtime" {
   database_name = scaleway_rdb_database.application.name
   user_name     = scaleway_rdb_user.runtime.name
   permission    = "readwrite"
+
+  lifecycle {
+    # The ops role manages the runtime user's finer-grained SQL grants.
+    ignore_changes = [permission]
+  }
 }
