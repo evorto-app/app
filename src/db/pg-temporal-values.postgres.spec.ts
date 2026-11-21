@@ -24,14 +24,17 @@ const values = pgTable('evorto_native_temporal_fixture', {
   day: date('day', { mode: 'string' }),
   days: date('days', { mode: 'string' }).array(),
   duration: interval('duration'),
-  durations: interval('durations').array(),
-  instant: timestamp('instant', { mode: 'string', withTimezone: true }),
+  instant: timestamp('instant', { withTimezone: true }),
   missing: timestamp('missing', { mode: 'string' }),
   wallClock: timestamp('wall_clock', { mode: 'string' }),
   wallClocks: timestamp('wall_clocks', { mode: 'string' }).array(),
 });
-// Literal provider-boundary values: six fractional digits must survive the
-// application string codec, including array elements and null entries.
+const unsupportedTimestamptzString = pgTable('evorto_native_temporal_fixture', {
+  instant: timestamp('instant', { mode: 'string', withTimezone: true }),
+});
+// Literal provider-boundary values: Node PostgreSQL tooling preserves raw text
+// including six fractional digits and arrays; @effect/sql-pg decodes timestamps
+// to JS Dates (millisecond precision) and rejects string-mode timestamptz.
 const temporalSelect = `SELECT
   DATE '2026-03-29' AS day,
   ARRAY[DATE '2026-03-29', NULL] AS days,
@@ -44,34 +47,44 @@ const temporalSelect = `SELECT
 
 describe('PostgreSQL temporal value boundaries', () => {
   it.effect(
-    'preserves temporal strings, microseconds and arrays through native Drizzle',
+    'preserves supported temporal values and rejects string-mode timestamptz through native Drizzle',
     () =>
       Effect.gen(function* () {
         const database = yield* Database;
-        const rows = yield* database.transaction((transaction) =>
-          Effect.gen(function* () {
-            yield* transaction.execute(sql`SET LOCAL TIME ZONE 'UTC'`);
-            yield* transaction.execute(
-              sql`SET LOCAL IntervalStyle = 'postgres'`,
-            );
-            yield* transaction.execute(
-              sql`CREATE TEMP TABLE evorto_native_temporal_fixture ON COMMIT DROP AS ${sql.raw(temporalSelect)}`,
-            );
-            return yield* transaction.select().from(values);
-          }),
+        const { rows, unsupportedError } = yield* database.transaction(
+          (transaction) =>
+            Effect.gen(function* () {
+              yield* transaction.execute(sql`SET LOCAL TIME ZONE 'UTC'`);
+              yield* transaction.execute(
+                sql`SET LOCAL IntervalStyle = 'postgres'`,
+              );
+              yield* transaction.execute(
+                sql`CREATE TEMP TABLE evorto_native_temporal_fixture ON COMMIT DROP AS ${sql.raw(temporalSelect)}`,
+              );
+              const rows = yield* transaction.select().from(values);
+              const unsupportedError = yield* transaction
+                .select()
+                .from(unsupportedTimestamptzString)
+                .pipe(Effect.exit);
+              return { rows, unsupportedError };
+            }),
         );
         expect(rows).toEqual([
           {
             day: '2026-03-29',
             days: ['2026-03-29', null],
-            duration: '1 mon 2 days 03:04:05.123456',
-            durations: ['1 mon 2 days 03:04:05.123456', null],
-            instant: '2026-03-29 01:59:59.123456+00',
+            duration: {
+              days: 2,
+              microseconds: 11_045_123_456n,
+              months: 1,
+            },
+            instant: new Date('2026-03-29T01:59:59.123Z'),
             missing: null,
-            wallClock: '2026-03-29 01:59:59.123456',
-            wallClocks: ['2026-03-29 01:59:59.123456', null],
+            wallClock: '2026-03-29 01:59:59.123',
+            wallClocks: ['2026-03-29 01:59:59.123', null],
           },
         ]);
+        expect(unsupportedError._tag).toBe('Failure');
       }).pipe(Effect.provide(testDatabaseLayer)),
   );
 

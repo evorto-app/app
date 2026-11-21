@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 
 const maximumCommandOutputBytes = 4 * 1024 * 1024;
 const commandTimeoutMs = 2 * 60 * 1000;
-const drizzleExecutable = 'ops/drizzle-kit.cjs';
+const drizzleExecutable = 'ops/drizzle-kit/bin.js';
 const drizzleConfig = 'ops/drizzle.config.mjs';
 const databasePrerequisitesExecutable =
   'dist/evorto/ops/database-prerequisites.mjs';

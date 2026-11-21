@@ -13,6 +13,7 @@ import {
   createRpcPathKey,
   createRpcQueryFilter,
   createRpcQueryKey,
+  createRpcQueryOptions,
 } from '@heddendorp/effect-angular-query';
 import {
   RpcBadRequestError,
@@ -254,18 +255,27 @@ describe('UserProfileComponent save outcomes', () => {
   let releaseGates: (() => void)[] = [];
   let unsubscribeObservers: (() => void)[] = [];
 
-  const selfOptions = (): SelfOptions => ({
-    queryFn: findSelf,
-    queryKey: selfKey,
-  });
-  const maybeSelfOptions = (): MaybeSelfOptions => ({
-    queryFn: findMaybeSelf,
-    queryKey: maybeSelfKey,
-  });
-  const receiptOptions = (): ReceiptOptions => ({
-    queryFn: findReceipts,
-    queryKey: receiptKey,
-  });
+  const selfOptions = (): SelfOptions =>
+    createRpcQueryOptions({
+      keyPrefix: 'rpc',
+      pathSegments: ['users', 'self'],
+      queryFn: findSelf,
+      type: 'query',
+    });
+  const maybeSelfOptions = (): MaybeSelfOptions =>
+    createRpcQueryOptions({
+      keyPrefix: 'rpc',
+      pathSegments: ['users', 'maybeSelf'],
+      queryFn: findMaybeSelf,
+      type: 'query',
+    });
+  const receiptOptions = (): ReceiptOptions =>
+    createRpcQueryOptions({
+      keyPrefix: 'rpc',
+      pathSegments: receiptPath,
+      queryFn: findReceipts,
+      type: 'query',
+    });
   const observe = (operation: Promise<void>) => {
     operations.push(
       operation.then<PromiseSettledResult<void>, PromiseSettledResult<void>>(

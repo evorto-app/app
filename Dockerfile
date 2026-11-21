@@ -81,7 +81,7 @@ COPY --from=base /usr/local/bin/bun /usr/local/bin/bun
 COPY --from=runtime-dependencies /app/node_modules ./node_modules
 COPY --from=runtime-artifacts /app/dist ./dist
 COPY --from=runtime-artifacts /app/ops/drizzle.config.mjs ./ops/drizzle.config.mjs
-COPY --from=runtime-artifacts /app/node_modules/drizzle-kit/bin.cjs ./ops/drizzle-kit.cjs
+COPY --from=runtime-artifacts /app/node_modules/drizzle-kit ./ops/drizzle-kit
 
 USER 65532:65532
 ENTRYPOINT ["/usr/local/bin/bun"]

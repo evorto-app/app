@@ -426,7 +426,7 @@ describe('ops schema operations', () => {
       expect(commands).toHaveLength(3);
       expect(commands[2]).toEqual([
         'bun',
-        'ops/drizzle-kit.cjs',
+        'ops/drizzle-kit/bin.js',
         'push',
         '--config',
         'ops/drizzle.config.mjs',
@@ -480,7 +480,9 @@ describe('ops schema operations', () => {
           run: (command, options) => {
             commands.push({ command, environment: options?.environment });
             return Effect.succeed(
-              command.some((argument) => argument.endsWith('/drizzle-kit.cjs'))
+              command.some((argument) =>
+                argument.endsWith('/drizzle-kit/bin.js'),
+              )
                 ? result({ dialect: 'postgresql', status: 'ok' })
                 : { exitCode: 0, stderr: '', stdout: '' },
             );
@@ -508,7 +510,7 @@ describe('ops schema operations', () => {
           {
             command: [
               'bun',
-              'ops/drizzle-kit.cjs',
+              'ops/drizzle-kit/bin.js',
               'push',
               '--config',
               'ops/drizzle.config.mjs',

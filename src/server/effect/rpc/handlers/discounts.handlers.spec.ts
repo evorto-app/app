@@ -147,13 +147,13 @@ const tenantReadSql =
   'select "d0"."discount_providers" as "discountProviders" from "tenants" as "d0" where "d0"."id" = $1 limit $2';
 const ownerLockSql = 'select pg_advisory_xact_lock(hashtextextended($1, 0))';
 const cardProjectionSql =
-  'select "d0"."id" as "id", "d0"."identifier" as "identifier", "d0"."status"::text as "status", "d0"."type"::text as "type", "d0"."validTo"::text as "validTo" from "user_discount_cards" as "d0"';
+  'select "d0"."id" as "id", "d0"."identifier" as "identifier", "d0"."status" as "status", "d0"."type" as "type", "d0"."validTo" as "validTo" from "user_discount_cards" as "d0"';
 const cardListSql = `${cardProjectionSql} where "d0"."userId" = $1`;
 const currentCardSql = `${cardProjectionSql} where (("d0"."type" = $1) and ("d0"."userId" = $2)) limit $3`;
 const identifierOwnerSql =
   'select "d0"."userId" as "userId" from "user_discount_cards" as "d0" where (("d0"."identifier" = $1) and ("d0"."type" = $2)) limit $3';
 const cardReturningSql =
-  'returning "id", "identifier", "status"::text, "type"::text, "validTo"::text';
+  'returning "id", "identifier", "status", "type", "validTo"';
 const upsertUpdateSql = `update "user_discount_cards" set "updatedAt" = $1, "identifier" = $2, "lastCheckedAt" = $3, "metadata" = $4, "status" = $5, "validFrom" = $6, "validTo" = $7 where "user_discount_cards"."id" = $8 ${cardReturningSql}`;
 const guardedUpsertUpdateSql = `update "user_discount_cards" set "updatedAt" = $1, "identifier" = $2, "lastCheckedAt" = $3, "metadata" = $4, "status" = $5, "validFrom" = $6, "validTo" = $7 where (("user_discount_cards"."id" = $8) and ("user_discount_cards"."userId" = $9) and ("user_discount_cards"."type" = $10) and ("user_discount_cards"."identifier" = $11)) ${cardReturningSql}`;
 const partialUpsertUpdateSql = `update "user_discount_cards" set "updatedAt" = $1, "identifier" = $2, "lastCheckedAt" = $3, "status" = $4 where "user_discount_cards"."id" = $5 ${cardReturningSql}`;
@@ -184,7 +184,7 @@ const cardRow = (card: StoredCard) => [
   card.identifier,
   card.status,
   card.type,
-  card.validTo?.toISOString().replace('Z', '') ?? null,
+  card.validTo ?? null,
 ];
 
 const createDiscountDatabase = ({

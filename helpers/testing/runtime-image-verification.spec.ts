@@ -17,7 +17,7 @@ const requiredArtifacts = [
   'app/dist/evorto/ops/reset-staging-database.mjs',
   'app/dist/evorto/ops/seed-staging.mjs',
   'app/ops/drizzle.config.mjs',
-  'app/ops/drizzle-kit.cjs',
+  'app/ops/drizzle-kit/bin.js',
 ];
 
 afterEach(() => {

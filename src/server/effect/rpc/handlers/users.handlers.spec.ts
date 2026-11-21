@@ -296,7 +296,7 @@ const profileTimestamp = (value: Date | null) =>
   value?.toISOString().replace('Z', '') ?? null;
 
 const profileRegistrationRow = (registration: ProfileRegistrationFixture) => [
-  profileTimestamp(registration.checkInTime),
+  registration.checkInTime,
   registration.eventId,
   registration.guestCount,
   registration.id,
