@@ -67,6 +67,7 @@ import type { Tenant } from '../../types/custom/tenant';
 import type { User } from '../../types/custom/user';
 
 import { getServerNow } from '../clock';
+import { stripeApplicationFeeRateConfig } from '../config/stripe-config';
 import { EventRegistrationConflictError } from '../effect/rpc/handlers/events/events.errors';
 import {
   buildCheckoutSessionExpiresAt,
@@ -77,6 +78,7 @@ import {
   stripeCheckoutMinimumRemainingMinutes,
 } from '../integrations/stripe-checkout';
 import { enqueueRegistrationTransferredEmail } from '../notifications/email-delivery';
+import { applicationFeeAmount } from '../payments/application-fee';
 import { lockTenantStripeAccount } from '../payments/pending-stripe-obligations';
 import {
   createRegistrationRefundClaim,
@@ -3184,8 +3186,15 @@ const claim = Effect.fn('RegistrationTransferService.claim')(function* ({
                   'There is not enough time left to complete payment before this ticket transfer expires. No payment or refund was started. Ask the sender for a new offer.',
               });
             }
+            const applicationFeeRate =
+              yield* stripeApplicationFeeRateConfig.pipe(
+                mapRegistrationTransferInternalError(
+                  'registrationTransfer.claim.applicationFeeRate',
+                  'The transfer payment settings could not be checked. No payment or refund was started. Try again.',
+                ),
+              );
             const paymentClaim: RegistrationTransferPaymentClaim = {
-              appFee: Math.round(totalPrice * 0.035),
+              appFee: applicationFeeAmount(totalPrice, applicationFeeRate),
               currency: lockedTenant.currency,
               id: paymentTransactionId,
               request: {

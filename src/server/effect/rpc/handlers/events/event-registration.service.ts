@@ -50,6 +50,7 @@ import { type Tenant } from '../../../../../types/custom/tenant';
 import { type User } from '../../../../../types/custom/user';
 import { getServerNow } from '../../../../clock';
 import { serverClockConfig } from '../../../../config/server-config';
+import { stripeApplicationFeeRateConfig } from '../../../../config/stripe-config';
 import { verifiedDiscountCardCoversEvent } from '../../../../discounts/verified-discount-card';
 import {
   buildCheckoutSessionExpiresAt,
@@ -61,6 +62,7 @@ import {
   enqueueManualApprovalEmail,
   enqueueRegistrationConfirmedEmail,
 } from '../../../../notifications/email-delivery';
+import { applicationFeeAmount } from '../../../../payments/application-fee';
 import {
   isPersistableNonNegativeInteger,
   maximumPersistedPaymentAmount,
@@ -2009,6 +2011,14 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
               'Sign-ups are unavailable because Evorto could not check the service settings. Nothing was changed. Contact Evorto support if the problem continues.',
             ),
           );
+        const applicationFeeRate = yield* stripeApplicationFeeRateConfig
+          .parse(configProvider)
+          .pipe(
+            mapEventRegistrationInternalError(
+              'eventRegistration.approval.applicationFeeRate',
+              'Sign-ups are unavailable because Evorto could not check the service settings. Nothing was changed. Contact Evorto support if the problem continues.',
+            ),
+          );
         const pinnedNowIso = Option.getOrUndefined(
           serverEnvironment.E2E_NOW_ISO,
         );
@@ -2288,7 +2298,10 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
           });
         const effectiveTotalPrice = checkoutPriceBreakdown.totalPrice;
         const requiresCheckout = effectiveTotalPrice > 0;
-        const appFee = Math.round(effectiveTotalPrice * 0.035);
+        const appFee = applicationFeeAmount(
+          effectiveTotalPrice,
+          applicationFeeRate,
+        );
         const eventUrl = yield* tenantOutboundUrl(
           tenant,
           `/events/${encodeURIComponent(eventId)}`,
@@ -3111,6 +3124,14 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
               'Sign-ups are unavailable because Evorto could not check the service settings. Nothing was changed. Contact Evorto support if the problem continues.',
             ),
           );
+        const applicationFeeRate = yield* stripeApplicationFeeRateConfig
+          .parse(configProvider)
+          .pipe(
+            mapEventRegistrationInternalError(
+              'eventRegistration.create.applicationFeeRate',
+              'Sign-ups are unavailable because Evorto could not check the service settings. Nothing was changed. Contact Evorto support if the problem continues.',
+            ),
+          );
         const pinnedNowIso = Option.getOrUndefined(
           serverEnvironment.E2E_NOW_ISO,
         );
@@ -3577,7 +3598,10 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
             );
           }
           directCheckout = {
-            appFee: Math.round(effectiveTotalPrice * 0.035),
+            appFee: applicationFeeAmount(
+              effectiveTotalPrice,
+              applicationFeeRate,
+            ),
             request: {
               customerEmail: user.email,
               eventTitle: registrationOption.event.title,

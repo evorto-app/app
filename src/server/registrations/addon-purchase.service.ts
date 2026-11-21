@@ -27,12 +27,14 @@ import { and, eq, isNull, sql } from 'drizzle-orm';
 import { Cause, Effect, Exit } from 'effect';
 
 import { getServerNow } from '../clock';
+import { stripeApplicationFeeRateConfig } from '../config/stripe-config';
 import {
   buildCheckoutSessionExpiresAt,
   createHostedCheckoutSession,
   expireHostedCheckoutSession,
 } from '../integrations/stripe-checkout';
 import { resolveAddonTaxAmounts } from '../payments/addon-payment-allocation';
+import { applicationFeeAmount } from '../payments/application-fee';
 import { tenantOutboundUrl } from '../tenant-outbound-url';
 import { safeServerErrorSummary } from '../utils/safe-server-error-summary';
 import { recordCheckoutSessionIncident } from './checkout-session-incident';
@@ -235,6 +237,7 @@ export const registrationAddonPurchaseCapacity = (input: {
 };
 
 export const resolveRegistrationAddonPurchaseAmounts = (input: {
+  readonly applicationFeeRate: number;
   readonly quantity: number;
   readonly taxRateInclusive: boolean | null;
   readonly taxRatePercentage: null | string;
@@ -263,9 +266,12 @@ export const resolveRegistrationAddonPurchaseAmounts = (input: {
     taxRatePercentage: input.taxRatePercentage,
   });
   if (!tax) return;
-  const applicationFeeAmount = Math.round(tax.expectedGrossAmount * 0.035);
-  if (!Number.isSafeInteger(applicationFeeAmount)) return;
-  return { applicationFeeAmount, baseAmount, ...tax };
+  const applicationFee = applicationFeeAmount(
+    tax.expectedGrossAmount,
+    input.applicationFeeRate,
+  );
+  if (!Number.isSafeInteger(applicationFee)) return;
+  return { applicationFeeAmount: applicationFee, baseAmount, ...tax };
 };
 
 const capacityConflictMessage = (
@@ -645,7 +651,13 @@ const reserveRegistrationAddonPurchase = Effect.fn(
   if (capacity !== 'available') {
     return yield* conflict(capacityConflictMessage(capacity));
   }
+  const applicationFeeRate = yield* mapStorageError(
+    stripeApplicationFeeRateConfig,
+    'registrationAddon.purchase.applicationFeeRate',
+    'Add-on payment settings could not be checked. No add-on purchase or payment was started. Try again.',
+  );
   const amounts = resolveRegistrationAddonPurchaseAmounts({
+    applicationFeeRate,
     quantity: input.quantity,
     taxRateInclusive,
     taxRatePercentage,
