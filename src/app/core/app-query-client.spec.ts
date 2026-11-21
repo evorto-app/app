@@ -1,6 +1,7 @@
 import { createEnvironmentInjector, EnvironmentInjector } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { QueryClient } from '@tanstack/angular-query-experimental';
+import { describe, expect, it } from 'vitest';
 
 import { appQueryProviders } from './app-query-client';
 
