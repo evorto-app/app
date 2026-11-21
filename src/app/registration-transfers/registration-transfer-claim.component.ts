@@ -32,6 +32,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { RouterLink } from '@angular/router';
 import { MAX_REGISTRATION_ANSWER_LENGTH } from '@shared/registration-question-limits';
 import { RegistrationTransfersRpcError } from '@shared/rpc-contracts/app-rpcs/registration-transfers.errors';
+import { normalizeStripeCheckoutUrl } from '@shared/stripe-checkout-url';
 import {
   injectMutation,
   injectQuery,
@@ -40,7 +41,6 @@ import {
 import { Schema } from 'effect';
 
 import { AppRpc } from '../core/effect-rpc-angular-client';
-import { normalizeStripeCheckoutUrl } from '../core/stripe-checkout-url';
 import { TenantDatePipe } from '../core/tenant-date.pipe';
 
 interface TransferClaimAnswerModel {
