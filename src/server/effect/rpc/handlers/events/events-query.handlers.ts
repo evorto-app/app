@@ -1,4 +1,9 @@
-import type { EventsEventListUserSignUpState } from '@shared/rpc-contracts/app-rpcs/events.rpcs';
+import type {
+  EventsEventListFillLevel,
+  EventsEventListOrganizerSlots,
+  EventsEventListParticipantSignUp,
+  EventsEventListUserSignUpState,
+} from '@shared/rpc-contracts/app-rpcs/events.rpcs';
 
 import { RpcForbiddenError } from '@shared/errors/rpc-errors';
 import {
@@ -25,7 +30,7 @@ import {
   or,
   sql,
 } from 'drizzle-orm';
-import { Effect } from 'effect';
+import { Effect, Option } from 'effect';
 import { groupBy } from 'effect/Array';
 import { DateTime } from 'luxon';
 
@@ -42,6 +47,8 @@ import {
   tenantStripeTaxRates,
   transactions,
 } from '../../../../../db/schema';
+import { getServerNow } from '../../../../clock';
+import { serverClockConfig } from '../../../../config/server-config';
 import { verifiedDiscountCardCoversEvent } from '../../../../discounts/verified-discount-card';
 import { readRegistrationPriceSnapshot } from '../../../../registrations/registration-price-snapshot';
 import { RpcAccess } from '../shared/rpc-access.service';
@@ -268,6 +275,157 @@ export const eventRegistrationOptionsBypassEligibility = ({
   canInspectAllTenantEvents ||
   (status !== 'APPROVED' && (canEdit || canReview || canSeeDrafts));
 
+export type EventListSignUpOption = Pick<
+  typeof eventRegistrationOptions.$inferSelect,
+  | 'closeRegistrationTime'
+  | 'confirmedSpots'
+  | 'openRegistrationTime'
+  | 'organizingRegistration'
+  | 'price'
+  | 'reservedSpots'
+  | 'roleIds'
+  | 'spots'
+>;
+
+/**
+ * Whether the viewer may see one registration option; mirrors the
+ * `events.findOne` rule (bypass for inspectors/editors, else role eligibility).
+ */
+export const eventListOptionVisible = ({
+  allowUnrestricted,
+  bypass,
+  roleIds,
+  viewerRoleIds,
+}: {
+  allowUnrestricted: boolean;
+  bypass: boolean;
+  roleIds: readonly string[];
+  viewerRoleIds: ReadonlySet<string>;
+}): boolean =>
+  bypass ||
+  (allowUnrestricted && roleIds.length === 0) ||
+  roleIds.some((roleId) => viewerRoleIds.has(roleId));
+
+/**
+ * Picks the participant options whose sign-up window the card describes:
+ * the options open at `now`; else the not-yet-open ones; else all (closed).
+ * Separate windows are never merged into one that looks open.
+ */
+const eventListCardWindow = (
+  participantOptions: readonly EventListSignUpOption[],
+  now: Date,
+): {
+  options: readonly EventListSignUpOption[];
+  state: 'closed' | 'open' | 'opens';
+} => {
+  const openNow = participantOptions.filter(
+    (option) =>
+      option.openRegistrationTime <= now && now <= option.closeRegistrationTime,
+  );
+  if (openNow.length > 0) return { options: openNow, state: 'open' };
+  const upcoming = participantOptions.filter(
+    (option) => option.openRegistrationTime > now,
+  );
+  return upcoming.length > 0
+    ? { options: upcoming, state: 'opens' }
+    : { options: participantOptions, state: 'closed' };
+};
+
+/**
+ * Aggregates the already-visible options of ONE event into the list card
+ * summaries. Availability, spots and the window cover the options the card
+ * describes at `now`; prices cover every visible participant option.
+ * Members only get a coarse `fillLevel` (taken / capacity below 0.5 `many`,
+ * below 0.8 `some`, else `few`), and only while sign-up is open and not full.
+ * Exact spot counts (`exactSpots`) are sent only when the viewer sees an
+ * organizer option, i.e. may organize the event (same condition as
+ * `organizerSlots`), so they never reach members over the network.
+ * Reusable for the EVO-69 "hide full" filter via `availability`.
+ */
+export const eventListSignUpSummary = (
+  now: Date,
+  options: readonly EventListSignUpOption[],
+): {
+  organizerSlots: EventsEventListOrganizerSlots | null;
+  participantSignUp: EventsEventListParticipantSignUp | null;
+} => {
+  const organizerOptions = options.filter(
+    (option) => option.organizingRegistration,
+  );
+  const participantOptions = options.filter(
+    (option) => !option.organizingRegistration,
+  );
+  const sum = (values: readonly number[]) =>
+    values.reduce((total, value) => total + value, 0);
+  const taken = (option: EventListSignUpOption) =>
+    option.confirmedSpots + option.reservedSpots;
+  const cardWindow = eventListCardWindow(participantOptions, now);
+  const windowOptions = cardWindow.options;
+  const capacity = sum(windowOptions.map((option) => option.spots));
+  const spotsLeft = sum(
+    windowOptions.map((option) => Math.max(0, option.spots - taken(option))),
+  );
+  const availability =
+    cardWindow.state === 'open' && spotsLeft === 0 ? 'full' : cardWindow.state;
+  const fillLevel = (): EventsEventListFillLevel | null => {
+    if (availability !== 'open') return null;
+    const quota = capacity === 0 ? 1 : (capacity - spotsLeft) / capacity;
+    if (quota < 0.5) return 'many';
+    return quota < 0.8 ? 'some' : 'few';
+  };
+
+  return {
+    organizerSlots:
+      organizerOptions.length === 0
+        ? null
+        : {
+            capacity: sum(organizerOptions.map((option) => option.spots)),
+            filled: sum(
+              organizerOptions.map((option) =>
+                Math.min(option.spots, taken(option)),
+              ),
+            ),
+          },
+    participantSignUp:
+      participantOptions.length === 0
+        ? null
+        : {
+            availability,
+            closesAt: new Date(
+              Math.max(
+                ...windowOptions.map((option) =>
+                  option.closeRegistrationTime.getTime(),
+                ),
+              ),
+            ).toISOString(),
+            exactSpots:
+              organizerOptions.length === 0 ? null : { capacity, spotsLeft },
+            fillLevel: fillLevel(),
+            highestPrice: Math.max(
+              ...participantOptions.map((option) => option.price),
+            ),
+            lowestPrice: Math.min(
+              ...participantOptions.map((option) => option.price),
+            ),
+            opensAt: new Date(
+              Math.min(
+                ...windowOptions.map((option) =>
+                  option.openRegistrationTime.getTime(),
+                ),
+              ),
+            ).toISOString(),
+          },
+  };
+};
+
+// A broken clock configuration is a deployment defect: fail loudly.
+const eventListNow = serverClockConfig.pipe(
+  Effect.map(({ E2E_NOW_ISO }) =>
+    getServerNow(Option.getOrUndefined(E2E_NOW_ISO)).toJSDate(),
+  ),
+  Effect.orDie,
+);
+
 const eventListPageSizeBucket = (limit: number): string => {
   if (limit === 0) return 'zero';
   if (limit <= 10) return '1-10';
@@ -385,6 +543,7 @@ export const eventQueryHandlers = {
           database
             .select({
               announcementRoleIds: eventInstances.announcementRoleIds,
+              creatorId: eventInstances.creatorId,
               hasRegistrationOptions: exists(
                 database
                   .select()
@@ -525,16 +684,99 @@ export const eventQueryHandlers = {
         ]),
       );
 
-      const eventRecords = selectedEvents.map((event) => ({
-        announcementRoleCount: event.announcementRoleIds.length,
-        hasRegistrationOptions: Boolean(event.hasRegistrationOptions),
-        icon: event.icon,
-        id: event.id,
-        start: event.start.toISOString(),
-        status: event.status,
-        title: event.title,
-        userSignUpState: userSignUpStateByEventId.get(event.id) ?? null,
-      }));
+      // Tenant isolation: option rows are only read for event ids that the
+      // tenant-filtered query above selected. One batched query, no per-event reads.
+      const signUpOptionRows =
+        selectedEvents.length === 0
+          ? []
+          : yield* databaseEffect((database) =>
+              database
+                .select({
+                  closeRegistrationTime:
+                    eventRegistrationOptions.closeRegistrationTime,
+                  confirmedSpots: eventRegistrationOptions.confirmedSpots,
+                  eventId: eventRegistrationOptions.eventId,
+                  openRegistrationTime:
+                    eventRegistrationOptions.openRegistrationTime,
+                  organizingRegistration:
+                    eventRegistrationOptions.organizingRegistration,
+                  price: eventRegistrationOptions.price,
+                  reservedSpots: eventRegistrationOptions.reservedSpots,
+                  roleIds: eventRegistrationOptions.roleIds,
+                  spots: eventRegistrationOptions.spots,
+                })
+                .from(eventRegistrationOptions)
+                .where(
+                  inArray(
+                    eventRegistrationOptions.eventId,
+                    selectedEvents.map((event) => event.id),
+                  ),
+                ),
+            );
+      const signUpOptionsByEventId = new Map<
+        string,
+        (typeof signUpOptionRows)[number][]
+      >();
+      for (const row of signUpOptionRows) {
+        const rows = signUpOptionsByEventId.get(row.eventId);
+        if (rows) {
+          rows.push(row);
+        } else {
+          signUpOptionsByEventId.set(row.eventId, [row]);
+        }
+      }
+      // The registration clock (pinned by E2E_NOW_ISO in tests), so the card
+      // agrees with what sign-up would accept and SSR matches hydration.
+      const listNow = yield* eventListNow;
+      const viewerRoleIds = new Set(rolesToFilterBy);
+      const allowUnrestrictedOptions =
+        user !== null || rolesToFilterBy.length > 0;
+      const canReviewEvents = includesPermission(
+        'events:review',
+        userPermissions,
+      );
+      const canSeeDrafts =
+        canInspectAllTenantEvents ||
+        includesPermission('events:seeDrafts', userPermissions);
+
+      const eventRecords = selectedEvents.map((event) => {
+        const bypass = eventRegistrationOptionsBypassEligibility({
+          canEdit: user
+            ? canEditEvent({
+                creatorId: event.creatorId,
+                permissions: user.permissions,
+                userId: user.id,
+              })
+            : false,
+          canInspectAllTenantEvents,
+          canReview: canReviewEvents,
+          canSeeDrafts,
+          status: event.status,
+        });
+        const summary = eventListSignUpSummary(
+          listNow,
+          (signUpOptionsByEventId.get(event.id) ?? []).filter((option) =>
+            eventListOptionVisible({
+              allowUnrestricted: allowUnrestrictedOptions,
+              bypass,
+              roleIds: option.roleIds,
+              viewerRoleIds,
+            }),
+          ),
+        );
+        return {
+          announcementRoleCount: event.announcementRoleIds.length,
+          hasRegistrationOptions: Boolean(event.hasRegistrationOptions),
+          icon: event.icon,
+          id: event.id,
+          organizerSlots: summary.organizerSlots,
+          participantSignUp: summary.participantSignUp,
+          start: event.start.toISOString(),
+          status: event.status,
+          title: event.title,
+          userSignUpState: userSignUpStateByEventId.get(event.id) ?? null,
+        };
+      });
 
       return groupEventsByTenantDay(eventRecords, tenant.timezone);
     }),

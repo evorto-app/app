@@ -88,6 +88,8 @@ describe('events RPC list record schema', () => {
     hasRegistrationOptions: true,
     icon: { iconColor: 0, iconName: 'circle' },
     id: 'event-1',
+    organizerSlots: null,
+    participantSignUp: null,
     start: '2026-07-15T14:30:00.000Z',
     status: 'APPROVED',
     title: 'Example event',
@@ -108,6 +110,91 @@ describe('events RPC list record schema', () => {
           userSignUpState,
         }),
       ).not.toThrow();
+    }
+  });
+
+  it('accepts populated sign-up summaries and rejects malformed ones', () => {
+    const participantSignUp = {
+      availability: 'open',
+      closesAt: '2026-07-14T10:00:00.000Z',
+      exactSpots: { capacity: 20, spotsLeft: 3 },
+      fillLevel: 'few',
+      highestPrice: 1500,
+      lowestPrice: 0,
+      opensAt: '2026-07-01T10:00:00.000Z',
+    };
+    expect(() =>
+      Schema.decodeUnknownSync(EventsEventListRecord)({
+        ...record,
+        organizerSlots: { capacity: 4, filled: 1 },
+        participantSignUp,
+        userSignUpState: null,
+      }),
+    ).not.toThrow();
+    expect(() =>
+      Schema.decodeUnknownSync(EventsEventListRecord)({
+        ...record,
+        participantSignUp: {
+          ...participantSignUp,
+          exactSpots: null,
+          fillLevel: null,
+        },
+        userSignUpState: null,
+      }),
+    ).not.toThrow();
+    for (const bad of [
+      {
+        participantSignUp: {
+          ...participantSignUp,
+          exactSpots: { capacity: 20, spotsLeft: -1 },
+        },
+      },
+      {
+        participantSignUp: {
+          ...participantSignUp,
+          exactSpots: { capacity: 20 },
+        },
+      },
+      { participantSignUp: { ...participantSignUp, fillLevel: 'none' } },
+      { participantSignUp: { ...participantSignUp, fillLevel: undefined } },
+      { participantSignUp: { ...participantSignUp, exactSpots: undefined } },
+      {
+        participantSignUp: {
+          availability: 'open',
+          capacity: 20,
+          closesAt: '2026-07-14T10:00:00.000Z',
+          highestPrice: 1500,
+          lowestPrice: 0,
+          opensAt: '2026-07-01T10:00:00.000Z',
+          spotsLeft: 3,
+        },
+      },
+      { participantSignUp: { ...participantSignUp, opensAt: '' } },
+      { participantSignUp: { ...participantSignUp, availability: 'soon' } },
+      { participantSignUp: { capacity: 1 } },
+      { organizerSlots: { capacity: 4 } },
+      { organizerSlots: { capacity: 4, filled: -1 } },
+    ]) {
+      expect(() =>
+        Schema.decodeUnknownSync(EventsEventListRecord)({
+          ...record,
+          ...bad,
+          userSignUpState: null,
+        }),
+      ).toThrow();
+    }
+  });
+
+  it('requires both sign-up summary fields', () => {
+    const { organizerSlots: _organizer, ...withoutOrganizer } = record;
+    const { participantSignUp: _participant, ...withoutParticipant } = record;
+    for (const incomplete of [withoutOrganizer, withoutParticipant]) {
+      expect(() =>
+        Schema.decodeUnknownSync(EventsEventListRecord)({
+          ...incomplete,
+          userSignUpState: null,
+        }),
+      ).toThrow();
     }
   });
 

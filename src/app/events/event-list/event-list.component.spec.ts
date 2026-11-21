@@ -4,6 +4,7 @@ import type { EventsEventListDayRecord } from '@shared/rpc-contracts/app-rpcs/ev
 import {
   ApplicationRef,
   createEnvironmentInjector,
+  DEFAULT_CURRENCY_CODE,
   EnvironmentInjector,
   PLATFORM_ID,
   signal,
@@ -44,6 +45,8 @@ const listedEvents: readonly EventsEventListDayRecord[] = [
         hasRegistrationOptions: true,
         icon: { iconColor: 0xff_67_50_a4, iconName: 'calendar:fas' },
         id: 'event-1',
+        organizerSlots: null,
+        participantSignUp: null,
         start: '2030-01-02T10:00:00.000Z',
         status: 'APPROVED' as const,
         title: 'Recovery workshop',
@@ -54,6 +57,8 @@ const listedEvents: readonly EventsEventListDayRecord[] = [
         hasRegistrationOptions: true,
         icon: { iconColor: 0xff_67_50_a4, iconName: 'calendar:fas' },
         id: 'event-confirmed',
+        organizerSlots: null,
+        participantSignUp: null,
         start: '2030-01-02T10:30:00.000Z',
         status: 'APPROVED' as const,
         title: 'Confirmed event',
@@ -64,6 +69,8 @@ const listedEvents: readonly EventsEventListDayRecord[] = [
         hasRegistrationOptions: true,
         icon: { iconColor: 0xff_67_50_a4, iconName: 'calendar:fas' },
         id: 'event-approval',
+        organizerSlots: null,
+        participantSignUp: null,
         start: '2030-01-02T11:00:00.000Z',
         status: 'APPROVED' as const,
         title: 'Application event',
@@ -74,6 +81,8 @@ const listedEvents: readonly EventsEventListDayRecord[] = [
         hasRegistrationOptions: true,
         icon: { iconColor: 0xff_67_50_a4, iconName: 'calendar:fas' },
         id: 'event-payment',
+        organizerSlots: null,
+        participantSignUp: null,
         start: '2030-01-02T11:30:00.000Z',
         status: 'APPROVED' as const,
         title: 'Paid event',
@@ -84,6 +93,8 @@ const listedEvents: readonly EventsEventListDayRecord[] = [
         hasRegistrationOptions: true,
         icon: { iconColor: 0xff_67_50_a4, iconName: 'calendar:fas' },
         id: 'event-waitlist',
+        organizerSlots: null,
+        participantSignUp: null,
         start: '2030-01-02T12:00:00.000Z',
         status: 'APPROVED' as const,
         title: 'Waitlist event',
@@ -182,6 +193,128 @@ describe('EventListComponent load recovery', () => {
     fixture.detectChanges();
     expect(preview?.querySelector('h3')?.textContent).toContain('Last hike');
     expect(preview?.querySelector('a')).toBeNull();
+  });
+
+  it('shows full, not-yet-open and paid labels on the cards', () => {
+    const base = listedEvents[0]?.events[0];
+    if (!base) throw new Error('Expected a listed event');
+    const card = (
+      id: string,
+      participantSignUp: NonNullable<typeof base.participantSignUp>,
+      organizerSlots: typeof base.organizerSlots = null,
+    ) => ({
+      ...base,
+      id,
+      organizerSlots,
+      participantSignUp,
+      title: id,
+      userSignUpState: null,
+    });
+    const signUp = {
+      availability: 'open' as const,
+      closesAt: '2099-02-01T00:00:00.000Z',
+      exactSpots: null,
+      fillLevel: 'many' as const,
+      highestPrice: 0,
+      lowestPrice: 0,
+      opensAt: '2020-01-01T00:00:00.000Z',
+    };
+    const days: readonly EventsEventListDayRecord[] = [
+      {
+        day: '2099-01-02T00:00:00.000Z',
+        events: [
+          card('full-event', {
+            ...signUp,
+            availability: 'full',
+            fillLevel: null,
+          }),
+          card('later-event', {
+            ...signUp,
+            availability: 'opens',
+            opensAt: '2098-12-01T09:00:00.000Z',
+          }),
+          card('many-event', signUp),
+          card('some-event', { ...signUp, fillLevel: 'some' }),
+          card('few-event', { ...signUp, fillLevel: 'few' }),
+          card(
+            'paid-event',
+            {
+              ...signUp,
+              exactSpots: { capacity: 20, spotsLeft: 20 },
+              highestPrice: 1250,
+              lowestPrice: 1250,
+            },
+            { capacity: 4, filled: 1 },
+          ),
+        ],
+      },
+    ];
+    TestBed.overrideProvider(DEFAULT_CURRENCY_CODE, { useValue: 'EUR' });
+    TestBed.overrideProvider(EventListService, {
+      useValue: {
+        eventDays: () => days,
+        eventQuery: {
+          data: () => ({ pageParams: [0], pages: [days] }),
+          hasNextPage: () => false,
+          isError: () => false,
+          isFetchingNextPage: () => false,
+          isFetchNextPageError: () => false,
+          isPending: () => false,
+        },
+      },
+    });
+    const fixture = TestBed.createComponent(EventListComponent);
+    fixture.detectChanges();
+    const cardText = (id: string) =>
+      fixture.nativeElement
+        .querySelector(`a[href="/${CSS.escape(id)}"]`)
+        ?.textContent?.replaceAll(/\s+/g, ' ');
+
+    expect(cardText('full-event')).toContain('Event is full');
+    expect(cardText('later-event')).toContain('Opens Dec 1, 10:00');
+    expect(
+      fixture.nativeElement
+        .querySelector(':scope a[href="/later-event"] time')
+        ?.getAttribute('datetime'),
+    ).toBe('2098-12-01T09:00:00.000Z');
+    expect(cardText('paid-event')).toContain('€12.50');
+    expect(cardText('paid-event')).toContain('1 of 4 organizers');
+    expect(cardText('paid-event')).toContain('20 of 20 spots left');
+    expect(cardText('some-event')).toContain('Some spots left');
+    expect(cardText('few-event')).toContain('Few spots left');
+    expect(cardText('few-event')).not.toMatch(/\d+ of \d+/u);
+    expect(cardText('many-event')).toContain('Many free spots');
+    expect(cardText('many-event')).not.toMatch(/\d+ of \d+/u);
+    const availability = (id: string, text: string) =>
+      [
+        ...fixture.nativeElement.querySelectorAll(
+          `a[href="/${CSS.escape(id)}"] p`,
+        ),
+      ].find((paragraph) => paragraph.textContent?.trim() === text);
+    expect(availability('many-event', 'Many free spots')?.className).toContain(
+      'text-success',
+    );
+    expect(availability('some-event', 'Some spots left')?.className).toContain(
+      'text-warning',
+    );
+    expect(availability('few-event', 'Few spots left')?.className).toContain(
+      'text-warning',
+    );
+    expect(availability('full-event', 'Event is full')?.className).toContain(
+      'text-error',
+    );
+    const paidCard: HTMLElement | null = fixture.nativeElement.querySelector(
+      'a[href="/paid-event"]',
+    );
+    const priceRow = [...(paidCard?.querySelectorAll('p') ?? [])].find(
+      (paragraph) => paragraph.textContent?.trim() === '€12.50',
+    )?.parentElement;
+    expect(priceRow?.textContent).toContain('20 of 20 spots left');
+    expect(priceRow?.textContent).not.toContain('organizers');
+    const titleRow = paidCard?.querySelector('h2')?.parentElement;
+    expect(titleRow?.lastElementChild?.textContent?.trim()).toMatch(
+      /^\d{1,2}:\d{2}/u,
+    );
   });
 
   it('explains the discovery failure and recovers after retry', async () => {
@@ -806,6 +939,8 @@ describe('event list paging', () => {
     hasRegistrationOptions: true,
     icon: { iconColor: 0xff_67_50_a4, iconName: 'calendar:fas' },
     id,
+    organizerSlots: null,
+    participantSignUp: null,
     start,
     status: 'APPROVED' as const,
     title: id,

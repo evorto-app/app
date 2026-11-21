@@ -240,14 +240,14 @@ test('Find an event you can join', async ({
 Open the correct organization's Evorto address to see its events. After signing in, a sign-up event appears when it has at least one choice available to you, whether you want to attend, help organize, or join in another way defined by the organization. Here, available means the choice allows one of your roles; it may still be full or outside its sign-up window.
 
 {% callout type="note" title="Before you start" %}
-Check the organization name and address before choosing an event. Each organization has its own list. Events that are not yet published, have ended, or have no sign-up choice for your roles do not appear. Sign-up windows and remaining places are checked separately when you open the event. A shared link still opens a published event and explains when you cannot sign up. Announcements follow a different rule: they appear to members with roles selected on the announcement. Without a selected role, an announcement can be opened only through a shared link. This choice does not change anyone's role or send a message.
+Check the organization name and address before choosing an event. Each organization has its own list. Events that are not yet published, have ended, or have no sign-up choice for your roles do not appear. Cards summarize how full an event is, the price and when sign-up opens, but the exact sign-up window and your eligibility are checked when you open the event. A shared link still opens a published event and explains when you cannot sign up. Announcements follow a different rule: they appear to members with roles selected on the announcement. Without a selected role, an announcement can be opened only through a shared link. This choice does not change anyone's role or send a message.
 {% /callout %}
 
 ## Open Events
 
 1. Use the main navigation and select **Events**.
-2. Read the date headings from top to bottom. Evorto groups upcoming cards by the event date in the organization's time zone and shows each start time on its card.
-3. Read the title and sign-up status before selecting a card. **Place confirmed**, **Waiting for approval**, **Finish payment**, and **On waitlist** show exactly where you stand. Open the event when you need details or an action.
+2. Read the date headings from top to bottom. Evorto groups upcoming cards by the event date in the organization's time zone and shows each start time in the top-right corner of its card.
+3. Read the title and sign-up status before selecting a card. Below the title, a card shows whether the event is full (**Event is full**), when sign-up opens, or how full the event is (**Many free spots**, **Some spots left**, or **Few spots left**), with what it costs (**Free**, a price, or **From** the lowest price) beside it. If you can help organize, the card shows the exact number of places left (for example **8 of 20 spots left**) and, on its own line, the organizer places. **Place confirmed**, **Waiting for approval**, **Finish payment**, and **On waitlist** show exactly where you stand. Open the event when you need details or an action.
 
 On desktop, **What will you do next?** fills the detail area until you select an event. It previews distinct icons from upcoming events, filling gaps from recent events, with each event's title and relative date. Upcoming previews offer **View event**; past previews have no link. You can also select a list card to open an upcoming event. The preview stays still when reduced motion is enabled; recent events are not added to the upcoming list.
 `,

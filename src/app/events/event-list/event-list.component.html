@@ -97,27 +97,87 @@
                 </div>
               }
             }
-            <div class="flex flex-row items-start gap-4">
-              <app-icon [iconCommonName]="event.icon" size="32" />
-              <div class="flex flex-col gap-2">
-                <h2 class="headline-small">{{ event.title }}</h2>
-                <div class="flex flex-row flex-wrap items-center gap-4">
-                  <div class="flex flex-row items-center gap-2">
-                    <fa-icon [icon]="faClock" />
-                    <p>{{ event.start | date: "shortTime" }}</p>
-                  </div>
-                  @if (
-                    eventListSignUpStateLabel(event.userSignUpState);
-                    as signUpStateLabel
-                  ) {
-                    <span
-                      class="label-medium bg-primary-container text-on-primary-container rounded-full px-2 py-1"
-                    >
-                      {{ signUpStateLabel }}
-                    </span>
-                  }
+            @let details = eventListCardDetails(event);
+            <div class="flex flex-col gap-2">
+              <div
+                class="flex flex-row items-start gap-4"
+                [class.pr-10]="
+                  event.status === 'DRAFT' || event.status === 'PENDING_REVIEW'
+                "
+              >
+                <app-icon [iconCommonName]="event.icon" size="32" />
+                <h2 class="headline-small min-w-0 grow break-words">
+                  {{ event.title }}
+                </h2>
+                <div
+                  class="text-on-surface-variant flex shrink-0 flex-row items-center gap-2 pt-1 whitespace-nowrap tabular-nums"
+                >
+                  <fa-icon [icon]="faClock" aria-hidden="true" />
+                  <p>{{ event.start | date: "shortTime" }}</p>
                 </div>
               </div>
+              @if (details.availability || details.price) {
+                <div
+                  class="flex flex-row flex-wrap items-baseline justify-between gap-x-4 gap-y-1"
+                >
+                  @if (details.availability; as availability) {
+                    @if (availability.kind === "opens") {
+                      <p>
+                        {{ availability.text }}
+                        <time [attr.datetime]="availability.opensAt">{{
+                          availability.opensAt | date: "MMM d, HH:mm"
+                        }}</time>
+                      </p>
+                    } @else {
+                      <p
+                        [class.text-error]="availability.kind === 'full'"
+                        [class.text-success]="
+                          availability.kind === 'open' &&
+                          availability.fillLevel === 'many'
+                        "
+                        [class.text-warning]="
+                          availability.kind === 'open' &&
+                          (availability.fillLevel === 'some' ||
+                            availability.fillLevel === 'few')
+                        "
+                        [class.text-on-surface-variant]="
+                          availability.kind === 'closed'
+                        "
+                      >
+                        {{ availability.text }}
+                      </p>
+                    }
+                  }
+                  @if (details.price; as price) {
+                    <p class="ml-auto tabular-nums">
+                      @if (price.kind === "free") {
+                        Free
+                      } @else {
+                        {{ price.prefix
+                        }}{{ price.amountCents / 100 | currency }}
+                      }
+                    </p>
+                  }
+                </div>
+              }
+              @if (details.organizers; as organizers) {
+                <div
+                  class="text-on-surface-variant flex flex-row items-center gap-2"
+                >
+                  <fa-icon [icon]="faUsersGear" aria-hidden="true" />
+                  <p>{{ organizers }}</p>
+                </div>
+              }
+              @if (
+                eventListSignUpStateLabel(event.userSignUpState);
+                as signUpStateLabel
+              ) {
+                <span
+                  class="label-medium bg-primary-container text-on-primary-container self-start rounded-full px-2 py-1"
+                >
+                  {{ signUpStateLabel }}
+                </span>
+              }
             </div>
           </a>
         }
