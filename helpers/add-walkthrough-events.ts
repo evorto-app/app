@@ -6,6 +6,7 @@ import { eq } from 'drizzle-orm';
 import { relations } from '../src/db/relations';
 import * as schema from '../src/db/schema';
 import { getId } from './get-id';
+import { insertFreeSeedRegistrationAcquisitions } from './seed-registration-acquisitions';
 import { requireSeedUserId } from './seed-requirements';
 import { usersToAuthenticate } from './user-data';
 import { walkthroughEventCopy } from './walkthrough-event-copy';
@@ -208,36 +209,17 @@ export const addWalkthroughEvents = async (
         discountAmount: 0,
       });
       if (status === 'CONFIRMED') {
-        const acquisitionId = getId();
-        await database.insert(schema.registrationAcquisitions).values({
-          id: acquisitionId,
-          acquiredAt: now.toJSDate(),
-          eventId,
-          kind: 'initial',
-          operationKey: `seed:${registrationId}`,
-          ordinal: 0,
-          ownerUserId: ownerId,
-          registrationId,
-          spotCount: guestCount + 1,
-          tenantId: input.tenantId,
-        });
-        await database.insert(schema.registrationAcquisitionComponents).values({
-          acquisitionId,
-          acquiredAt: now.toJSDate(),
-          allocationKey: 'registration',
-          applicationFeeAmount: 0,
-          baseAmount: 0,
-          currency: input.currency,
-          eventId,
-          grossAmount: 0,
-          kind: 'registration',
-          netAmount: 0,
-          quantity: guestCount + 1,
-          registrationId,
-          stripeFeeAmount: 0,
-          taxAmount: 0,
-          tenantId: input.tenantId,
-        });
+        await insertFreeSeedRegistrationAcquisitions(database, [
+          {
+            acquiredAt: now.toJSDate(),
+            currency: input.currency,
+            eventId,
+            guestCount,
+            ownerUserId: ownerId,
+            registrationId,
+            tenantId: input.tenantId,
+          },
+        ]);
         const option = await database.query.eventRegistrationOptions.findFirst({
           where: { id: registrationOptionId },
         });

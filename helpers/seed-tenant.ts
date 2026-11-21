@@ -22,6 +22,7 @@ import { addTemplateCategories } from './add-template-categories';
 import { addTemplates } from './add-templates';
 import { createTenant, type CreateSeedTenantInput } from './create-tenant';
 import { getSeedDate } from './seed-clock';
+import { assertSeededRegistrationAcquisitions } from './seed-registration-acquisitions';
 import { requireSeedRoles } from './seed-requirements';
 import { usersToAuthenticate } from './user-data';
 
@@ -283,6 +284,9 @@ export async function seedTenant(
       includeRegistrations: effectiveIncludeRegistrations,
       currency: tenant.currency,
     });
+  }
+  if (effectiveIncludeRegistrations) {
+    await assertSeededRegistrationAcquisitions(database, tenant.id);
   }
   await addFinanceReceipts(database, {
     receiptEvidence,

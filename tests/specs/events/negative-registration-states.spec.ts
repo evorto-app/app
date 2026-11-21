@@ -5,6 +5,7 @@ import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { waitForRegistrationPage as waitForRegistrationStatus } from '../../support/utils/event-registration-page';
 import { seedRequiredRegistrationQuestion } from '../../support/utils/seed-registration-addons';
+import { deleteRegistrationsWithAcquisitionLedger } from '../../support/utils/registration-acquisition-cleanup';
 import { futureServerEventWindow } from '../../support/utils/server-test-clock';
 
 const regularUser = usersToAuthenticate.find((user) => user.roles === 'user');
@@ -45,26 +46,20 @@ test.describe('Negative registration states', () => {
         }
       });
       registerDatabaseCleanup(async () => {
-        await database
-          .delete(schema.eventRegistrations)
-          .where(
-            and(
-              eq(schema.eventRegistrations.eventId, targetEventId),
-              eq(schema.eventRegistrations.tenantId, tenant.id),
-              eq(schema.eventRegistrations.userId, regularUser.id),
-            ),
-          );
+        await deleteRegistrationsWithAcquisitionLedger({
+          database,
+          eventId: targetEventId,
+          tenantId: tenant.id,
+          userId: regularUser.id,
+        });
       });
       {
-        await database
-          .delete(schema.eventRegistrations)
-          .where(
-            and(
-              eq(schema.eventRegistrations.eventId, targetEventId),
-              eq(schema.eventRegistrations.tenantId, tenant.id),
-              eq(schema.eventRegistrations.userId, regularUser.id),
-            ),
-          );
+        await deleteRegistrationsWithAcquisitionLedger({
+          database,
+          eventId: targetEventId,
+          tenantId: tenant.id,
+          userId: regularUser.id,
+        });
 
         await page.goto(`/events/${targetEventId}`);
         await expect(page).toHaveURL(`/events/${targetEventId}`);
@@ -169,26 +164,20 @@ test.describe('Negative registration states', () => {
         }
       });
       registerDatabaseCleanup(async () => {
-        await database
-          .delete(schema.eventRegistrations)
-          .where(
-            and(
-              eq(schema.eventRegistrations.eventId, targetEventId),
-              eq(schema.eventRegistrations.tenantId, tenant.id),
-              eq(schema.eventRegistrations.userId, regularUser.id),
-            ),
-          );
+        await deleteRegistrationsWithAcquisitionLedger({
+          database,
+          eventId: targetEventId,
+          tenantId: tenant.id,
+          userId: regularUser.id,
+        });
       });
       {
-        await database
-          .delete(schema.eventRegistrations)
-          .where(
-            and(
-              eq(schema.eventRegistrations.eventId, targetEventId),
-              eq(schema.eventRegistrations.tenantId, tenant.id),
-              eq(schema.eventRegistrations.userId, regularUser.id),
-            ),
-          );
+        await deleteRegistrationsWithAcquisitionLedger({
+          database,
+          eventId: targetEventId,
+          tenantId: tenant.id,
+          userId: regularUser.id,
+        });
         await database
           .update(schema.eventRegistrationOptions)
           .set({
@@ -383,26 +372,20 @@ test.describe('Negative registration states', () => {
         }
       });
       registerDatabaseCleanup(async () => {
-        await database
-          .delete(schema.eventRegistrations)
-          .where(
-            and(
-              eq(schema.eventRegistrations.eventId, targetEventId),
-              eq(schema.eventRegistrations.tenantId, tenant.id),
-              eq(schema.eventRegistrations.userId, regularUser.id),
-            ),
-          );
+        await deleteRegistrationsWithAcquisitionLedger({
+          database,
+          eventId: targetEventId,
+          tenantId: tenant.id,
+          userId: regularUser.id,
+        });
       });
       {
-        await database
-          .delete(schema.eventRegistrations)
-          .where(
-            and(
-              eq(schema.eventRegistrations.eventId, targetEventId),
-              eq(schema.eventRegistrations.tenantId, tenant.id),
-              eq(schema.eventRegistrations.userId, regularUser.id),
-            ),
-          );
+        await deleteRegistrationsWithAcquisitionLedger({
+          database,
+          eventId: targetEventId,
+          tenantId: tenant.id,
+          userId: regularUser.id,
+        });
         await database
           .update(schema.eventRegistrationOptions)
           .set({ roleIds: [organizerOnlyRole.id] })
