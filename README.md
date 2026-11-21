@@ -41,6 +41,13 @@ When a Docker stack has already been initialized and you only need to bring
 stopped containers back, use `bun run docker:resume` to avoid container
 recreation.
 
+`docker:start` seeds and runs the app with the fixed test clock
+(`E2E_NOW_ISO`, 2026-09-15 by default), so the browser's upcoming event list
+can be empty. For a manual walkthrough, `bun run docker:start:walkthrough`
+performs the same reset with seed dates from today and an unpinned web and
+worker clock. Stop that stack with `bun run docker:stop` before running
+Playwright, which would otherwise reuse it.
+
 Use `bun run docker:ps` to inspect the generated worktree Compose project.
 Bare `docker compose ps` does not resolve the worktree runtime environment, so
 it can show an empty project even while the isolated stack is running.
