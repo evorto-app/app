@@ -1,35 +1,7 @@
-import { MAX_REGISTRATION_ADDON_QUANTITY } from '@shared/registration-quantity-limits';
-import { Effect, Schema } from 'effect';
-
 import {
   isPersistableNonNegativeInteger,
   maximumPersistedPaymentAmount,
 } from './payment-amount';
-
-export interface AddonPaymentLotTerms {
-  readonly baseAmount: number;
-  readonly id: string;
-  readonly quantity: number;
-  readonly taxRateInclusive: boolean | null;
-  readonly taxRatePercentage: null | string;
-}
-
-export interface FinalizedAddonPaymentAllocation {
-  readonly applicationFeeAmount: number;
-  readonly grossAmount: number;
-  readonly id: string;
-  readonly netAmount: number;
-  readonly stripeFeeAmount: number;
-  readonly taxAmount: number;
-}
-
-export class AddonPaymentAllocationError extends Schema.TaggedError<AddonPaymentAllocationError>()(
-  'AddonPaymentAllocationError',
-  { message: Schema.String },
-) {}
-
-const allocationError = (message: string) =>
-  new AddonPaymentAllocationError({ message });
 
 const roundFraction = (numerator: bigint, denominator: bigint): number =>
   Number((numerator + denominator / 2n) / denominator);
@@ -47,12 +19,11 @@ const percentageRatio = (
   return { denominator, numerator };
 };
 
-export const resolveAddonTaxAmounts = (
-  input: Pick<
-    AddonPaymentLotTerms,
-    'baseAmount' | 'taxRateInclusive' | 'taxRatePercentage'
-  >,
-): undefined | { expectedGrossAmount: number; taxAmount: number } => {
+export const resolveAddonTaxAmounts = (input: {
+  readonly baseAmount: number;
+  readonly taxRateInclusive: boolean | null;
+  readonly taxRatePercentage: null | string;
+}): undefined | { expectedGrossAmount: number; taxAmount: number } => {
   if (!isPersistableNonNegativeInteger(input.baseAmount)) return;
   const ratio = percentageRatio(input.taxRatePercentage);
   if (!ratio) {
@@ -174,134 +145,3 @@ export const allocateCumulativeQuantityAmount = (input: {
   );
   return after - before;
 };
-
-export const finalizeAddonPaymentAllocations = Effect.fn(
-  'finalizeAddonPaymentAllocations',
-)(function* (input: {
-  readonly applicationFee: number;
-  readonly grossAmount: number;
-  readonly includesRegistrationCharge: boolean;
-  readonly lots: readonly AddonPaymentLotTerms[];
-  readonly stripeFee: number;
-}) {
-  if (
-    !isPersistableNonNegativeInteger(input.grossAmount) ||
-    input.grossAmount === 0 ||
-    !isPersistableNonNegativeInteger(input.applicationFee) ||
-    !isPersistableNonNegativeInteger(input.stripeFee) ||
-    input.applicationFee + input.stripeFee > input.grossAmount
-  ) {
-    return yield* allocationError('Source payment amounts are inconsistent');
-  }
-  if (new Set(input.lots.map(({ id }) => id)).size !== input.lots.length) {
-    return yield* allocationError('Purchase lot identifiers must be unique');
-  }
-
-  const expectedLots: {
-    expectedGrossAmount: number;
-    id: string;
-    taxAmount: number;
-  }[] = [];
-  for (const lot of input.lots) {
-    if (
-      !lot.id.trim() ||
-      !isPersistableNonNegativeInteger(lot.baseAmount) ||
-      lot.baseAmount === 0 ||
-      !isPersistableNonNegativeInteger(lot.quantity) ||
-      lot.quantity === 0 ||
-      lot.quantity > MAX_REGISTRATION_ADDON_QUANTITY
-    ) {
-      return yield* allocationError('Purchase lot terms are invalid');
-    }
-    const tax = resolveAddonTaxAmounts(lot);
-    if (!tax) {
-      return yield* allocationError('Purchase lot tax terms are invalid');
-    }
-    expectedLots.push({ id: lot.id, ...tax });
-  }
-
-  let expectedAddonGross = 0;
-  for (const lot of expectedLots) {
-    if (
-      lot.expectedGrossAmount >
-      maximumPersistedPaymentAmount - expectedAddonGross
-    ) {
-      return yield* allocationError(
-        'Add-on line amounts exceed the payment limit',
-      );
-    }
-    expectedAddonGross += lot.expectedGrossAmount;
-  }
-  if (expectedAddonGross > input.grossAmount) {
-    return yield* allocationError(
-      'Add-on line amounts exceed the successful source payment',
-    );
-  }
-
-  const registrationKey = '__registration__';
-  let grossByKey: ReadonlyMap<string, number>;
-  if (input.includesRegistrationCharge) {
-    grossByKey = new Map([
-      ...expectedLots.map((lot) => [lot.id, lot.expectedGrossAmount] as const),
-      [registrationKey, input.grossAmount - expectedAddonGross],
-    ]);
-  } else {
-    if (expectedLots.length === 0) {
-      return yield* allocationError('Add-on payment has no purchase lots');
-    }
-    try {
-      grossByKey = allocateIntegerByWeight(
-        input.grossAmount,
-        expectedLots.map((lot) => ({
-          key: lot.id,
-          weight: lot.expectedGrossAmount,
-        })),
-      );
-    } catch {
-      return yield* allocationError('Add-on gross allocation failed');
-    }
-  }
-
-  const grossWeights = [...grossByKey].map(([key, weight]) => ({
-    key,
-    weight,
-  }));
-  let applicationFeeByKey: ReadonlyMap<string, number>;
-  let stripeFeeByKey: ReadonlyMap<string, number>;
-  try {
-    applicationFeeByKey = allocateIntegerByWeight(
-      input.applicationFee,
-      grossWeights,
-    );
-    stripeFeeByKey = allocateIntegerByWeight(input.stripeFee, grossWeights);
-  } catch {
-    return yield* allocationError('Source fee allocation failed');
-  }
-
-  const finalized = expectedLots.map((lot) => {
-    const grossAmount = grossByKey.get(lot.id) ?? 0;
-    const applicationFeeAmount = applicationFeeByKey.get(lot.id) ?? 0;
-    const stripeFeeAmount = stripeFeeByKey.get(lot.id) ?? 0;
-    return {
-      applicationFeeAmount,
-      grossAmount,
-      id: lot.id,
-      netAmount: grossAmount - applicationFeeAmount - stripeFeeAmount,
-      stripeFeeAmount,
-      taxAmount:
-        input.includesRegistrationCharge ||
-        grossAmount === lot.expectedGrossAmount
-          ? lot.taxAmount
-          : Math.max(
-              0,
-              grossAmount - (lot.expectedGrossAmount - lot.taxAmount),
-            ),
-    } satisfies FinalizedAddonPaymentAllocation;
-  });
-  if (finalized.some(({ netAmount }) => netAmount < 0)) {
-    return yield* allocationError(
-      'Allocated source fees exceed an add-on line',
-    );
-  }
-  return finalized;
-});

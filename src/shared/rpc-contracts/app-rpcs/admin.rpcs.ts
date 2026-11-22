@@ -160,16 +160,6 @@ export const AdminRolesDelete = asRpcMutation(
   }),
 );
 
-export const AdminRolesSearch = asRpcQuery(
-  Rpc.make('admin.roles.search', {
-    error: AdminRoleRpcError,
-    payload: Schema.Struct({
-      search: Schema.String,
-    }),
-    success: Schema.Array(AdminRoleRecord),
-  }),
-);
-
 export const AdminRolesUpdateInput = Schema.Struct({
   ...AdminRolesCreateInput.fields,
   id: Schema.NonEmptyString,
@@ -444,7 +434,6 @@ export class AdminRpcs extends RpcGroup.make(
   AdminRolesFindHubRoles,
   AdminRolesFindMany,
   AdminRolesFindOne,
-  AdminRolesSearch,
   AdminRolesUpdate,
   AdminTenantImportStripeTaxRates,
   AdminTenantListImportedTaxRates,

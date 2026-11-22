@@ -93,9 +93,6 @@ export class RoleEditComponent {
             this.rpc.queryFilter(['admin', 'roles.findHubRoles']),
           );
           await this.queryClient.invalidateQueries(
-            this.rpc.queryFilter(['admin', 'roles.search']),
-          );
-          await this.queryClient.invalidateQueries(
             this.rpc.queryFilter(['roles', 'findMany']),
           );
           const id = this.roleId();
