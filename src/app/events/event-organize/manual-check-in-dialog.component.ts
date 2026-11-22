@@ -2,10 +2,18 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  effect,
   inject,
   linkedSignal,
 } from '@angular/core';
-import { form, FormField, max, min, validate } from '@angular/forms/signals';
+import {
+  disabled,
+  form,
+  FormField,
+  max,
+  min,
+  validate,
+} from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
 import {
   MAT_DIALOG_DATA,
@@ -38,6 +46,8 @@ export interface ManualCheckInDialogData {
   readonly attendeeName: string;
   readonly mode: 'attendee' | 'guests';
   readonly registrationId: string;
+  /** The attendee picked from the list; a transfer can change the owner. */
+  readonly userId: string;
 }
 
 export interface ManualCheckInDialogResult {
@@ -107,9 +117,15 @@ export class ManualCheckInDialogComponent {
       'Check-in could not be completed. Try again.',
     ),
   );
-  protected readonly checkInMutation = injectMutation(() =>
-    this.rpc.events.checkInRegistration.mutationOptions(),
-  );
+  /**
+   * Offline, Query would pause the write and keep it pending, and the dialog
+   * can't close while a write is pending. Send it anyway so it fails and
+   * the organizer can close or retry.
+   */
+  protected readonly checkInMutation = injectMutation(() => ({
+    ...this.rpc.events.checkInRegistration.mutationOptions(),
+    networkMode: 'always' as const,
+  }));
   /**
    * The ticket from the last successful lookup only. After a failed refresh
    * Query keeps the previous data, which must not enable confirmation.
@@ -117,6 +133,18 @@ export class ManualCheckInDialogComponent {
   private readonly ticket = computed(() =>
     this.scanResultQuery.isSuccess() ? this.scanResultQuery.data() : undefined,
   );
+  /** The fresh ticket belongs to someone other than the picked attendee. */
+  protected readonly ownerChanged = computed(() => {
+    const ticket = this.ticket();
+    return ticket !== undefined && ticket.user.id !== this.data.userId;
+  });
+  private readonly refreshListAfterOwnerChange = effect(() => {
+    if (this.ownerChanged()) {
+      void this.queryClient.invalidateQueries(
+        this.rpc.queryFilter(['events', 'getOrganizeOverview']),
+      );
+    }
+  });
   private readonly defaultGuestCount = computed(() => {
     const ticket = this.ticket();
     return ticket
@@ -134,6 +162,8 @@ export class ManualCheckInDialogComponent {
     () => this.ticket()?.remainingGuestCount ?? 0,
   );
   protected readonly guestForm = form(this.guestModel, (schema) => {
+    // The request already holds the count; editing it would mislead.
+    disabled(schema.guestCount, () => this.checkInMutation.isPending());
     min(schema.guestCount, 0);
     max(schema.guestCount, () => this.remainingGuestCount());
     validate(schema.guestCount, ({ value }) =>
@@ -179,20 +209,23 @@ export class ManualCheckInDialogComponent {
   });
 
   /**
-   * Confirm needs a successful lookup that has finished loading, so a
-   * reopened dialog never confirms against cached details from before the
-   * last check-in, and a failed refresh never confirms against stale ones.
+   * Confirm needs a successful lookup with no fetch running or paused
+   * offline, so a reopened dialog never confirms against cached details from
+   * before the last check-in, and a failed or paused refresh never confirms
+   * against stale ones.
    */
   protected readonly confirmDisabled = computed(() => {
     const ticket = this.ticket();
     return (
       !ticket ||
+      this.ownerChanged() ||
       this.guestForm().invalid() ||
       scanCheckInActionDisabled({
         allowCheckin: ticket.allowCheckin,
         completed: false,
         mutationPending:
-          this.checkInMutation.isPending() || this.scanResultQuery.isFetching(),
+          this.checkInMutation.isPending() ||
+          this.scanResultQuery.fetchStatus() !== 'idle',
         spotCount: this.selectedSpotCheckInCount(),
       })
     );
@@ -208,6 +241,7 @@ export class ManualCheckInDialogComponent {
     this.checkInMutation.mutate(
       {
         checkInMethod: 'manual',
+        expectedUserId: this.data.userId,
         guestCheckInCount: checkedInGuestCount,
         registrationId: this.data.registrationId,
       },

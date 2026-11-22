@@ -42,6 +42,21 @@
         <p>{{ statusIssue.body }}</p>
       </div>
     }
+    @if (ownerChanged()) {
+      <div
+        class="bg-error-container text-on-error-container mt-3 rounded p-3"
+        role="alert"
+      >
+        <p class="title-small">
+          This ticket now belongs to {{ scanResult.user.firstName }}
+          {{ scanResult.user.lastName }}
+        </p>
+        <p>
+          It was transferred after the list loaded. Close this dialog and check
+          the updated list.
+        </p>
+      </div>
+    }
     @if (scanResult.sameUserIssue) {
       <div
         class="bg-error-container text-on-error-container mt-3 rounded p-3"
@@ -59,7 +74,11 @@
         <p>This ticket has already been checked in.</p>
       </div>
     }
-    @if (scanResult.allowCheckin && scanResult.remainingGuestCount > 0) {
+    @if (
+      scanResult.allowCheckin &&
+      !ownerChanged() &&
+      scanResult.remainingGuestCount > 0
+    ) {
       <mat-form-field appearance="outline" class="mt-4 w-full">
         <mat-label>Guests to check in now</mat-label>
         <input

@@ -119,10 +119,10 @@ describe('event organizer error notifications', () => {
             registrationId: 'registration-1'
           })">Approve application</button>
           <button type="button" (click)="checkInRegistration({
-            firstName: 'Alex', lastName: 'Able', registrationId: 'registration-1'
+            firstName: 'Alex', lastName: 'Able', registrationId: 'registration-1', userId: 'attendee-1'
           }, 'attendee')">Check in registration</button>
           <button type="button" (click)="checkInRegistration({
-            firstName: 'Alex', lastName: 'Able', registrationId: 'registration-1'
+            firstName: 'Alex', lastName: 'Able', registrationId: 'registration-1', userId: 'attendee-1'
           }, 'guests')">Check in guests registration</button>
           @if (manualCheckInAction({ checkedIn: false, remainingGuestCount: 0, status: 'CONFIRMED', userId: 'attendee-1' }, { canCheckInManually: true }) === 'checkIn') {
             <span>Check-in available for attendee-1</span>
@@ -238,6 +238,7 @@ describe('event organizer error notifications', () => {
         attendeeName: 'Alex Able',
         mode: 'attendee',
         registrationId: 'registration-1',
+        userId: 'attendee-1',
       },
     });
     expect(queryClient.invalidateQueries).toHaveBeenCalledWith(
@@ -267,6 +268,7 @@ describe('event organizer error notifications', () => {
           attendeeName: 'Alex Able',
           mode: 'guests',
           registrationId: 'registration-1',
+          userId: 'attendee-1',
         },
       });
       expect(queryClient.invalidateQueries).toHaveBeenCalledWith(
@@ -527,6 +529,16 @@ describe('manualCheckInSuccessMessage', () => {
       expected: 'Alex Able was already checked in',
       mode: 'attendee',
       result: { alreadyCheckedIn: true, checkedInGuestCount: 0 },
+    },
+    {
+      expected: 'Alex Able and 1 guest are checked in',
+      mode: 'attendee',
+      result: { alreadyCheckedIn: false, checkedInGuestCount: 1 },
+    },
+    {
+      expected: 'Alex Able and 2 guests are checked in',
+      mode: 'attendee',
+      result: { alreadyCheckedIn: false, checkedInGuestCount: 2 },
     },
     {
       expected: '1 guest of Alex Able is checked in',

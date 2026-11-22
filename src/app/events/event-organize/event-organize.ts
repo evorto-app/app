@@ -239,6 +239,7 @@ export interface EventOrganizeParticipant {
   registrationId: string;
   remainingGuestCount: number;
   status: EventsRegistrationStatus;
+  userId: string;
 }
 
 export const organizerRegistrationActionDisabled = ({
@@ -258,10 +259,15 @@ export const manualCheckInSuccessMessage = ({
   mode: ManualCheckInDialogData['mode'];
   result: ManualCheckInDialogResult;
 }): string => {
-  if (mode === 'attendee' || result.checkedInGuestCount === 0) {
+  if (result.checkedInGuestCount === 0) {
     return result.alreadyCheckedIn
       ? `${attendeeName} was already checked in`
       : `${attendeeName} is checked in`;
+  }
+  if (mode === 'attendee' && !result.alreadyCheckedIn) {
+    return result.checkedInGuestCount === 1
+      ? `${attendeeName} and 1 guest are checked in`
+      : `${attendeeName} and ${result.checkedInGuestCount} guests are checked in`;
   }
   return result.checkedInGuestCount === 1
     ? `1 guest of ${attendeeName} is checked in`
@@ -625,7 +631,7 @@ export class EventOrganize {
   protected async checkInRegistration(
     registration: Pick<
       EventOrganizeParticipant,
-      'firstName' | 'lastName' | 'registrationId'
+      'firstName' | 'lastName' | 'registrationId' | 'userId'
     >,
     mode: ManualCheckInDialogData['mode'],
   ): Promise<void> {
@@ -641,6 +647,7 @@ export class EventOrganize {
             attendeeName,
             mode,
             registrationId: registration.registrationId,
+            userId: registration.userId,
           },
           width: 'min(32rem, calc(100vw - 2rem))',
         })

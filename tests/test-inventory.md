@@ -724,8 +724,12 @@ ESNcard provider credential path.
     check-in" permission and the later-guest step. App and server coverage
     pins row-action visibility (`canCheckInManually`, confirmed, not
     checked in or guests left, not the viewer's own row), the dialog's guest
-    bounds (Signal Forms field), blocking states (including a failed ticket
-    reload) and error copy.
+    bounds (Signal Forms field, locked while the write is pending), blocking
+    states (a failed or offline-paused ticket reload, a ticket transferred
+    to someone else) and error copy. Server coverage refuses a manual
+    check-in whose expected attendee no longer owns the ticket, before and
+    under the registration lock, and decodes a payload without a method as
+    a scan.
 - Tenant/global admin:
   - Authenticated Browser review for the global-admin tenant list and
     tenant-create/edit flows. The global-admin tenant Playwright spec now

@@ -174,11 +174,26 @@ export const EventCheckInMethod = Schema.Literals(['manual', 'scan']);
 
 export type EventCheckInMethod = Schema.Schema.Type<typeof EventCheckInMethod>;
 
+/**
+ * Scanner tabs opened before the method existed omit it; they scan.
+ */
+const EventCheckInMethodInput = EventCheckInMethod.pipe(
+  Schema.withDecodingDefaultTypeKey(Effect.succeed('scan' as const)),
+);
+
+/**
+ * The attendee the organizer picked from the attendee list. A ticket
+ * transfer keeps the registration but changes its owner, so a manual
+ * check-in names the person it expects; the scanner has no such person.
+ */
+const ExpectedCheckInUserIdInput = Schema.optionalKey(Schema.NonEmptyString);
+
 export const EventsCheckInRegistration = asRpcMutation(
   Rpc.make('events.checkInRegistration', {
     error: EventsCheckInRegistrationMutationError,
     payload: Schema.Struct({
-      checkInMethod: EventCheckInMethod,
+      checkInMethod: EventCheckInMethodInput,
+      expectedUserId: ExpectedCheckInUserIdInput,
       guestCheckInCount: nonNegativeNumber,
       registrationId: Schema.NonEmptyString,
     }),
@@ -782,7 +797,7 @@ export const EventsRegistrationScanned = asRpcQuery(
   Rpc.make('events.registrationScanned', {
     error: EventsRegistrationScannedError,
     payload: Schema.Struct({
-      checkInMethod: EventCheckInMethod,
+      checkInMethod: EventCheckInMethodInput,
       registrationId: Schema.NonEmptyString,
     }),
     success: Schema.Struct({
@@ -806,6 +821,7 @@ export const EventsRegistrationScanned = asRpcQuery(
       sameUserIssue: Schema.Boolean,
       user: Schema.Struct({
         firstName: Schema.NonEmptyString,
+        id: Schema.NonEmptyString,
         lastName: Schema.NonEmptyString,
       }),
     }),

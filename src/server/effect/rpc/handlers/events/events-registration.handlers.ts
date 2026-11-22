@@ -663,6 +663,17 @@ const ensureCanScanEventRegistration = ({
  * `events:checkInManually`, after the event access guard so tenant and event
  * errors stay the same.
  */
+/**
+ * A ticket transfer keeps the registration but changes its owner. A manual
+ * check-in names the attendee picked from the list, so it must not check in
+ * the new owner under the old name.
+ */
+const checkInOwnerChangedConflict = () =>
+  new EventRegistrationConflictError({
+    message:
+      'This ticket now belongs to someone else. No change was made. Check the sign-up list again.',
+  });
+
 const ensureCanCheckInRegistration = ({
   checkInMethod,
   eventId,
@@ -2404,7 +2415,7 @@ export const eventRegistrationHandlers = {
       });
     }).pipe(Effect.catch(mapRegistrationScanInternalError)),
   'events.checkInRegistration': (
-    { checkInMethod, guestCheckInCount, registrationId },
+    { checkInMethod, expectedUserId, guestCheckInCount, registrationId },
     _options,
   ) =>
     Effect.gen(function* () {
@@ -2453,6 +2464,13 @@ export const eventRegistrationHandlers = {
         tenantId: tenant.id,
         user,
       });
+
+      if (
+        expectedUserId !== undefined &&
+        registration.userId !== expectedUserId
+      ) {
+        return yield* Effect.fail(checkInOwnerChangedConflict());
+      }
 
       if (registration.userId === user.id) {
         return yield* Effect.fail(
@@ -2522,6 +2540,12 @@ export const eventRegistrationHandlers = {
                     'This ticket is no longer available. No change was made. Reopen the event and review its current sign-ups.',
                 }),
               );
+            }
+            if (
+              expectedUserId !== undefined &&
+              lockedRegistration.userId !== expectedUserId
+            ) {
+              return yield* Effect.fail(checkInOwnerChangedConflict());
             }
             if (lockedRegistration.userId === user.id) {
               return yield* Effect.fail(
@@ -3651,6 +3675,7 @@ export const eventRegistrationHandlers = {
         sameUserIssue: isSameUserIssue,
         user: {
           firstName: registration.user.firstName,
+          id: registration.userId,
           lastName: registration.user.lastName,
         },
       };

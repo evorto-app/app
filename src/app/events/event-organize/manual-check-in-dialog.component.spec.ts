@@ -8,6 +8,7 @@ import {
 import { RpcForbiddenError } from '@shared/errors/rpc-errors';
 import { EventCheckInUnavailableError } from '@shared/rpc-contracts/app-rpcs/events.errors';
 import {
+  onlineManager,
   provideTanStackQuery,
   QueryClient,
 } from '@tanstack/angular-query-experimental';
@@ -24,6 +25,7 @@ const attendeeData: ManualCheckInDialogData = {
   attendeeName: 'Alex Able',
   mode: 'attendee',
   registrationId: 'registration-1',
+  userId: 'attendee-1',
 };
 
 const baseScanResult = {
@@ -38,6 +40,7 @@ const baseScanResult = {
   registrationStatusIssue: false,
   remainingGuestCount: 2,
   sameUserIssue: false,
+  user: { firstName: 'Alex', id: 'attendee-1', lastName: 'Able' },
 };
 
 describe('ManualCheckInDialogComponent', () => {
@@ -95,6 +98,7 @@ describe('ManualCheckInDialogComponent', () => {
   });
 
   afterEach(() => {
+    onlineManager.setOnline(true);
     TestBed.inject(MatDialog).closeAll();
     TestBed.resetTestingModule();
     queryClient.clear();
@@ -236,6 +240,7 @@ describe('ManualCheckInDialogComponent', () => {
     });
     expect(checkIn.mock.calls[0]?.[0]).toEqual({
       checkInMethod: 'manual',
+      expectedUserId: 'attendee-1',
       guestCheckInCount: 1,
       registrationId: 'registration-1',
     });
@@ -284,6 +289,7 @@ describe('ManualCheckInDialogComponent', () => {
     });
     expect(checkIn.mock.calls[0]?.[0]).toEqual({
       checkInMethod: 'manual',
+      expectedUserId: 'attendee-1',
       guestCheckInCount: 1,
       registrationId: 'registration-1',
     });
@@ -334,6 +340,105 @@ describe('ManualCheckInDialogComponent', () => {
       queryClient.getQueryData(['registration-scanned', 'registration-1']),
     ).toEqual(baseScanResult);
     expect(button('Confirm check-in').disabled).toBe(true);
+  });
+
+  it('keeps confirmation disabled while a reload waits for the network', async () => {
+    const { button, settle } = await openDialog();
+
+    await settle(() => {
+      expect(button('Confirm check-in').disabled).toBe(false);
+    });
+    onlineManager.setOnline(false);
+    void queryClient.refetchQueries({ queryKey: ['registration-scanned'] });
+
+    await settle(() => {
+      expect(
+        queryClient.getQueryState(['registration-scanned', 'registration-1'])
+          ?.fetchStatus,
+      ).toBe('paused');
+      expect(button('Confirm check-in').disabled).toBe(true);
+    });
+  });
+
+  it('blocks confirmation when the ticket now belongs to someone else', async () => {
+    loadScan.mockResolvedValue({
+      ...baseScanResult,
+      user: { firstName: 'Bo', id: 'attendee-2', lastName: 'Other' },
+    });
+    const { button, guestInput, settle, text } = await openDialog();
+
+    await settle(() => {
+      expect(text()).toContain('This ticket now belongs to Bo Other');
+    });
+    expect(text()).toContain(
+      'It was transferred after the list loaded. Close this dialog and check the updated list.',
+    );
+    expect(button('Confirm check-in').disabled).toBe(true);
+    expect(guestInput()).toBeNull();
+    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
+      queryKey: ['events', 'getOrganizeOverview'],
+    });
+  });
+
+  it('locks the guest count while the check-in is pending', async () => {
+    let finishCheckIn: (() => void) | undefined;
+    checkIn.mockReturnValue(
+      // Angular's browser target does not expose Promise.withResolvers.
+
+      new Promise((resolve) => {
+        finishCheckIn = () => {
+          resolve({
+            alreadyCheckedIn: false,
+            checkInTime: '2026-11-10T10:00:00.000Z',
+          });
+        };
+      }),
+    );
+    const { button, closedResults, guestInput, settle } = await openDialog();
+
+    await settle(() => {
+      expect(guestInput()).not.toBeNull();
+    });
+    const input = guestInput();
+    if (!input) {
+      throw new Error('Expected the guest input.');
+    }
+    input.value = '1';
+    input.dispatchEvent(new Event('input'));
+    await settle(() => {
+      expect(button('Confirm 2 check-ins').disabled).toBe(false);
+    });
+    button('Confirm 2 check-ins').click();
+
+    await settle(() => {
+      expect(input.disabled).toBe(true);
+    });
+    finishCheckIn?.();
+    await settle(() => {
+      expect(closedResults).toEqual([
+        { alreadyCheckedIn: false, checkedInGuestCount: 1 },
+      ]);
+    });
+  });
+
+  it('sends the check-in while offline so a failure frees the dialog', async () => {
+    checkIn.mockRejectedValue(new TypeError('Failed to fetch'));
+    const { button, closedResults, settle, text } = await openDialog();
+
+    await settle(() => {
+      expect(button('Confirm check-in').disabled).toBe(false);
+    });
+    onlineManager.setOnline(false);
+    button('Confirm check-in').click();
+
+    await settle(() => {
+      expect(checkIn).toHaveBeenCalledOnce();
+    });
+    await settle(() => {
+      expect(button('Cancel').disabled).toBe(false);
+    });
+    expect(text()).toContain('Check-in could not be completed. Try again.');
+    expect(closedResults).toEqual([]);
   });
 
   it('keeps the dialog open and explains a failed check-in', async () => {

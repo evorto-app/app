@@ -23,6 +23,7 @@ import {
   EventsCancelEventRegistration,
   EventsCancellableRegistrationStatus,
   EventsCancelRegistration,
+  EventsCheckInRegistration,
   EventsCreateRegistrationOptionInput,
   EventsEventListInput,
   EventsEventListRecord,
@@ -36,6 +37,7 @@ import {
   EventsPurchaseRegistrationAddonResult,
   EventsRegisterForEventPayload,
   EventsRegistrationAddonRecord,
+  EventsRegistrationScanned,
   EventsRegistrationStatus,
   EventsRegistrationStatusRecord,
 } from '../../../../../shared/rpc-contracts/app-rpcs/events.rpcs';
@@ -434,6 +436,50 @@ describe('events RPC cancellation precondition schema', () => {
     expect(() =>
       Schema.decodeUnknownSync(EventsCancelRegistration.payloadSchema)({
         expectedStatus: 'CONFIRMED',
+        registrationId: 'registration-1',
+      }),
+    ).toThrow();
+  });
+});
+
+describe('events RPC check-in payload schema', () => {
+  it('treats a payload without a check-in method as a scan', () => {
+    expect(
+      Schema.decodeUnknownSync(EventsCheckInRegistration.payloadSchema)({
+        guestCheckInCount: 0,
+        registrationId: 'registration-1',
+      }),
+    ).toEqual({
+      checkInMethod: 'scan',
+      guestCheckInCount: 0,
+      registrationId: 'registration-1',
+    });
+    expect(
+      Schema.decodeUnknownSync(EventsRegistrationScanned.payloadSchema)({
+        registrationId: 'registration-1',
+      }),
+    ).toEqual({ checkInMethod: 'scan', registrationId: 'registration-1' });
+  });
+
+  it('carries the attendee a manual check-in expects', () => {
+    expect(
+      Schema.decodeUnknownSync(EventsCheckInRegistration.payloadSchema)({
+        checkInMethod: 'manual',
+        expectedUserId: 'attendee-1',
+        guestCheckInCount: 1,
+        registrationId: 'registration-1',
+      }),
+    ).toEqual({
+      checkInMethod: 'manual',
+      expectedUserId: 'attendee-1',
+      guestCheckInCount: 1,
+      registrationId: 'registration-1',
+    });
+    expect(() =>
+      Schema.decodeUnknownSync(EventsCheckInRegistration.payloadSchema)({
+        checkInMethod: 'manual',
+        expectedUserId: '',
+        guestCheckInCount: 0,
         registrationId: 'registration-1',
       }),
     ).toThrow();

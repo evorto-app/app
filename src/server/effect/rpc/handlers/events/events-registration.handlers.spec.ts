@@ -6738,6 +6738,7 @@ describe('manual check-in access', () => {
           permissions: ['events:checkInManually'],
         });
         expect(result.allowCheckin).toBe(true);
+        expect(result.user.id).toBe(scannedRegistration.userId);
       }),
   );
 
@@ -6808,11 +6809,13 @@ describe('manual check-in access', () => {
 
   const manualCheckIn = ({
     checkInMethod = 'manual',
+    expectedUserId,
     guestCheckInCount = 0,
     permissions,
     steps,
   }: {
     checkInMethod?: 'manual' | 'scan';
+    expectedUserId?: string;
     guestCheckInCount?: number;
     permissions: readonly Permission[];
     steps: readonly CheckInDatabaseStep[];
@@ -6821,6 +6824,7 @@ describe('manual check-in access', () => {
     const effect = eventRegistrationHandlers['events.checkInRegistration'](
       {
         checkInMethod,
+        ...(expectedUserId !== undefined && { expectedUserId }),
         guestCheckInCount,
         registrationId: 'registration-1',
       },
@@ -7008,6 +7012,78 @@ describe('manual check-in access', () => {
         const result = yield* effect;
         expect(result.alreadyCheckedIn).toBe(false);
         expect(result.checkInTime).toBe(firstCheckIn.toISOString());
+        fixture.expectComplete();
+      }),
+  );
+
+  it.effect(
+    'checks in manually when the expected attendee owns the ticket',
+    () =>
+      Effect.gen(function* () {
+        const { effect, fixture } = manualCheckIn({
+          expectedUserId: checkInRegistration.userId,
+          permissions: ['events:checkInManually'],
+          steps: [
+            { operation: 'readRegistration', row: checkInRegistration },
+            { operation: 'readOrganizerRegistration' },
+            ...checkInWriteSteps(checkInRegistration),
+          ],
+        });
+        const result = yield* effect;
+        expect(result.alreadyCheckedIn).toBe(false);
+        fixture.expectComplete();
+      }),
+  );
+
+  it.effect(
+    'refuses a manual check-in after the ticket moved to someone else',
+    () =>
+      Effect.gen(function* () {
+        const { effect, fixture } = manualCheckIn({
+          expectedUserId: 'previous-owner',
+          permissions: ['events:checkInManually'],
+          steps: [
+            { operation: 'readRegistration', row: checkInRegistration },
+            { operation: 'readOrganizerRegistration' },
+          ],
+        });
+        const error = yield* effect.pipe(Effect.flip);
+        expect(error['_tag']).toBe('EventRegistrationConflictError');
+        expect(error.message).toBe(
+          'This ticket now belongs to someone else. No change was made. Check the sign-up list again.',
+        );
+        expect(fixture.writes).toEqual([]);
+        expect(fixture.commands).toEqual([]);
+        fixture.expectComplete();
+      }),
+  );
+
+  it.effect(
+    'refuses a manual check-in when the ticket moves before the lock',
+    () =>
+      Effect.gen(function* () {
+        const { effect, fixture } = manualCheckIn({
+          expectedUserId: checkInRegistration.userId,
+          permissions: ['events:checkInManually'],
+          steps: [
+            { operation: 'readRegistration', row: checkInRegistration },
+            { operation: 'readOrganizerRegistration' },
+            { operation: 'readBlockingTransfer' },
+            { operation: 'BEGIN' },
+            {
+              operation: 'lockRegistration',
+              row: { ...checkInRegistration, userId: 'transfer-recipient' },
+            },
+            { operation: 'ROLLBACK' },
+          ],
+        });
+        const error = yield* effect.pipe(Effect.flip);
+        expect(error['_tag']).toBe('EventRegistrationConflictError');
+        expect(error.message).toBe(
+          'This ticket now belongs to someone else. No change was made. Check the sign-up list again.',
+        );
+        expect(fixture.writes).toEqual([]);
+        expect(fixture.commands).toEqual(['BEGIN', 'ROLLBACK']);
         fixture.expectComplete();
       }),
   );
