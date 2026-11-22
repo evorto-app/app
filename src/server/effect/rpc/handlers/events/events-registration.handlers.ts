@@ -2491,6 +2491,7 @@ export const eventRegistrationHandlers = {
     }).pipe(Effect.catch(mapRegistrationScanInternalError)),
   'events.checkInRegistration': (
     {
+      expectedAttendeeCheckedIn,
       expectedCheckedInGuestCount,
       guestCheckInCount,
       operationKey,
@@ -2606,7 +2607,10 @@ export const eventRegistrationHandlers = {
             const recordedCheckIns = yield* tx
               .select({
                 actorUserId: eventRegistrationCheckIns.actorUserId,
+                attendeeCheckedIn: eventRegistrationCheckIns.attendeeCheckedIn,
                 checkInTime: eventRegistrationCheckIns.checkInTime,
+                expectedAttendeeCheckedIn:
+                  eventRegistrationCheckIns.expectedAttendeeCheckedIn,
                 expectedCheckedInGuestCount:
                   eventRegistrationCheckIns.expectedCheckedInGuestCount,
                 guestCheckInCount: eventRegistrationCheckIns.guestCheckInCount,
@@ -2625,6 +2629,8 @@ export const eventRegistrationHandlers = {
                 recordedCheckIn.guestCheckInCount !== guestCheckInCount ||
                 recordedCheckIn.expectedCheckedInGuestCount !==
                   expectedCheckedInGuestCount ||
+                recordedCheckIn.expectedAttendeeCheckedIn !==
+                  expectedAttendeeCheckedIn ||
                 recordedCheckIn.actorUserId !== user.id
               ) {
                 return yield* Effect.fail(
@@ -2636,7 +2642,9 @@ export const eventRegistrationHandlers = {
               }
               return {
                 _tag: 'CheckedIn' as const,
-                alreadyCheckedIn: false,
+                alreadyCheckedIn:
+                  !recordedCheckIn.attendeeCheckedIn &&
+                  recordedCheckIn.guestCheckInCount === 0,
                 checkInTime: recordedCheckIn.checkInTime,
               };
             }
@@ -2719,6 +2727,20 @@ export const eventRegistrationHandlers = {
                 }),
               );
             }
+            const lockedAttendeeCheckedIn =
+              lockedRegistration.checkInTime !== null;
+            if (
+              (lockedAttendeeCheckedIn !== expectedAttendeeCheckedIn &&
+                guestCheckInCount > 0) ||
+              (!lockedAttendeeCheckedIn && expectedAttendeeCheckedIn)
+            ) {
+              return yield* Effect.fail(
+                new EventRegistrationConflictError({
+                  message:
+                    'This ticket changed on another device. Review the current check-in count, then confirm again.',
+                }),
+              );
+            }
             const lockedRemainingGuestCount =
               lockedRegistration.guestCount -
               lockedRegistration.checkedInGuestCount;
@@ -2742,6 +2764,18 @@ export const eventRegistrationHandlers = {
               };
             }
             if (lockedRegistration.checkInTime && guestCheckInCount === 0) {
+              // Stored so a lost response can be replayed after the window.
+              yield* tx.insert(eventRegistrationCheckIns).values({
+                actorUserId: user.id,
+                attendeeCheckedIn: false,
+                checkInTime: lockedRegistration.checkInTime,
+                expectedAttendeeCheckedIn,
+                expectedCheckedInGuestCount,
+                guestCheckInCount: 0,
+                operationKey,
+                registrationId: lockedRegistration.id,
+                tenantId: tenant.id,
+              });
               return {
                 _tag: 'CheckedIn' as const,
                 alreadyCheckedIn: true,
@@ -2833,6 +2867,7 @@ export const eventRegistrationHandlers = {
               actorUserId: user.id,
               attendeeCheckedIn: !lockedRegistration.checkInTime,
               checkInTime: updatedRegistration.checkInTime,
+              expectedAttendeeCheckedIn,
               expectedCheckedInGuestCount,
               guestCheckInCount,
               operationKey,
@@ -3684,15 +3719,39 @@ export const eventRegistrationHandlers = {
         tenantId: tenant.id,
         user,
       });
-      const fulfillment = yield* getRegistrationAddonFulfillment({
+      // The ticket stays readable when only its add-ons cannot be shown, for
+      // example during an open transfer. Defects and interrupts still fail.
+      const addOns = yield* getRegistrationAddonFulfillment({
         canCancel: includesPermission(
           'events:cancelRegistrations',
           user.permissions,
         ),
         registrationId,
         tenantId: tenant.id,
-      });
-      return { addOns: fulfillment.addOns, registration };
+      }).pipe(
+        Effect.map((fulfillment) => ({
+          _tag: 'Available' as const,
+          items: fulfillment.addOns,
+        })),
+        Effect.catchTags({
+          EventRegistrationConflictError: (error) =>
+            Effect.succeed({
+              _tag: 'Unavailable' as const,
+              message: error.message,
+            }),
+          EventRegistrationInternalError: (error) =>
+            Effect.succeed({
+              _tag: 'Unavailable' as const,
+              message: error.message,
+            }),
+          EventRegistrationNotFoundError: (error) =>
+            Effect.succeed({
+              _tag: 'Unavailable' as const,
+              message: error.message,
+            }),
+        }),
+      );
+      return { addOns, registration };
     }).pipe(Effect.catch(mapRegistrationScanInternalError)),
   'events.undoRegistrationAddonRedemption': (
     { operationKey, redemptionEventId, registrationAddonId, registrationId },

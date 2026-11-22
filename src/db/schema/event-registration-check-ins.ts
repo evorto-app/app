@@ -15,7 +15,8 @@ import { eventRegistrations } from './event-registrations';
 import { users } from './users';
 
 /**
- * One row per committed check-in operation. The client sends a unique
+ * One row per committed check-in operation, including one that changed nothing
+ * because the attendee was already checked in. The client sends a unique
  * operation key with every confirmation; a retry with the same key replays the
  * stored outcome instead of counting the attendee or guests again.
  */
@@ -28,6 +29,9 @@ export const eventRegistrationCheckIns = pgTable(
     attendeeCheckedIn: boolean('attendee_checked_in').notNull(),
     checkInTime: timestamp('check_in_time').notNull(),
     createdAt: timestamp('created_at').notNull().defaultNow(),
+    expectedAttendeeCheckedIn: boolean(
+      'expected_attendee_checked_in',
+    ).notNull(),
     expectedCheckedInGuestCount: integer(
       'expected_checked_in_guest_count',
     ).notNull(),
@@ -47,10 +51,6 @@ export const eventRegistrationCheckIns = pgTable(
     check(
       'event_registration_check_ins_counts_valid',
       sql`${table.expectedCheckedInGuestCount} >= 0 AND ${table.guestCheckInCount} >= 0`,
-    ),
-    check(
-      'event_registration_check_ins_admits_someone',
-      sql`${table.attendeeCheckedIn} OR ${table.guestCheckInCount} > 0`,
     ),
     foreignKey({
       columns: [table.registrationId, table.tenantId],

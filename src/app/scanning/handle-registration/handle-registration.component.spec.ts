@@ -1,8 +1,15 @@
-import { QueryClient } from '@tanstack/angular-query-experimental';
-import { describe, expect, it, vi } from 'vitest';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
+import { APP_RPC_CLIENT } from '@app/core/effect-rpc-angular-client';
+import {
+  provideTanStackQuery,
+  QueryClient,
+} from '@tanstack/angular-query-experimental';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   applyScanCheckInResult,
+  HandleRegistrationComponent,
   registrationAddonCancellationBlockedMessage,
   registrationAddonCancellationSuccessMessage,
   registrationAddonOperationKey,
@@ -411,6 +418,16 @@ describe('scanCheckInState', () => {
     ).toBe('notConfirmed');
   });
 
+  it('treats an internal error as not confirmed because the commit may have succeeded', () => {
+    expect(
+      scanCheckInState({
+        ...base,
+        error: { _tag: 'EventRegistrationInternalError' },
+        isError: true,
+      }),
+    ).toBe('notConfirmed');
+  });
+
   it('treats a typed domain error as failed', () => {
     expect(
       scanCheckInState({
@@ -538,6 +555,7 @@ describe('scanGuestCheckInCountFromInput', () => {
 
 describe('scanCheckInRetryPayload', () => {
   const previous = {
+    expectedAttendeeCheckedIn: false,
     expectedCheckedInGuestCount: 0,
     guestCheckInCount: 1,
     operationKey: 'key-1',
@@ -610,6 +628,7 @@ describe('scanCheckInPayload', () => {
     let counter = 0;
     const input = {
       createOperationKey: () => `key-${++counter}`,
+      expectedAttendeeCheckedIn: false,
       expectedCheckedInGuestCount: 0,
       guestCheckInCount: 1,
       registrationId: 'registration-1',
@@ -623,6 +642,7 @@ describe('scanCheckInPayload', () => {
   it('keeps the key when the unconfirmed request is resent', () => {
     const first = scanCheckInPayload({
       createOperationKey: () => 'key-1',
+      expectedAttendeeCheckedIn: true,
       expectedCheckedInGuestCount: 0,
       guestCheckInCount: 0,
       registrationId: 'registration-1',
@@ -630,12 +650,13 @@ describe('scanCheckInPayload', () => {
     const resend = scanCheckInRetryPayload('notConfirmed', first);
     expect(resend).toBe(first);
     expect(resend?.operationKey).toBe('key-1');
+    expect(resend?.expectedAttendeeCheckedIn).toBe(true);
   });
 });
 
 describe('applyScanCheckInResult', () => {
   const ticket = (id: string, checkedInGuestCount: number) => ({
-    addOns: [],
+    addOns: { _tag: 'Available', items: [] },
     registration: { checkedInGuestCount, id },
   });
   const keyA = ['scanTicket', { registrationId: 'a' }];
@@ -652,10 +673,34 @@ describe('applyScanCheckInResult', () => {
     const result = { registration: { checkedInGuestCount: 2, id: 'a' } };
     await applyScanCheckInResult(client, keyA, result);
     expect(client.getQueryData(keyA)).toEqual({
-      addOns: [],
+      addOns: { _tag: 'Available', items: [] },
       registration: { checkedInGuestCount: 2, id: 'a' },
     });
     expect(client.getQueryData(keyB)).toEqual(ticket('b', 0));
+  });
+
+  it('starts a refetch in flight again so a fresh add-on state is not lost', async () => {
+    const client = setup();
+    vi.spyOn(client, 'isFetching').mockReturnValue(1);
+    const invalidate = vi.spyOn(client, 'invalidateQueries');
+    await applyScanCheckInResult(client, keyA, {
+      registration: { checkedInGuestCount: 2, id: 'a' },
+    });
+    expect(client.getQueryData(keyA)).toEqual({
+      addOns: { _tag: 'Available', items: [] },
+      registration: { checkedInGuestCount: 2, id: 'a' },
+    });
+    expect(invalidate).toHaveBeenCalledTimes(1);
+    expect(invalidate).toHaveBeenCalledWith({ exact: true, queryKey: keyA });
+  });
+
+  it('does not look the ticket up again after a plain check-in', async () => {
+    const client = setup();
+    const invalidate = vi.spyOn(client, 'invalidateQueries');
+    await applyScanCheckInResult(client, keyA, {
+      registration: { checkedInGuestCount: 2, id: 'a' },
+    });
+    expect(invalidate).not.toHaveBeenCalled();
   });
 
   it('invalidates only that ticket when the post-commit read is missing', async () => {
@@ -668,5 +713,140 @@ describe('applyScanCheckInResult', () => {
     expect(setData).not.toHaveBeenCalled();
     expect(client.getQueryState(keyB)?.isInvalidated).toBe(false);
     expect(client.getQueryState(keyA)?.isInvalidated).toBe(true);
+  });
+});
+
+describe('HandleRegistrationComponent ticket display', () => {
+  const registration = {
+    allowCheckin: true,
+    alreadyCheckedInIssue: false,
+    appliedDiscountType: null,
+    attendeeCheckedIn: false,
+    checkedInGuestCount: 0,
+    checkInTimingIssue: null,
+    event: { start: '2027-03-01T10:00:00.000Z', title: 'Welcome Party' },
+    guestCount: 0,
+    registrationOption: { title: 'Standard' },
+    registrationStatus: 'CONFIRMED',
+    remainingGuestCount: 0,
+    sameUserIssue: false,
+    user: { firstName: 'Ada', lastName: 'Lovelace' },
+  };
+  const queryKey = ['scanTicket', 'registration-1'];
+  const checkIn = vi.fn();
+  const scanTicket = vi.fn();
+  let queryClient: QueryClient;
+
+  const settle = async (
+    fixture: ComponentFixture<HandleRegistrationComponent>,
+  ) => {
+    for (let index = 0; index < 10; index++) {
+      await fixture.whenStable();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      fixture.detectChanges();
+    }
+  };
+
+  const render = async (): Promise<
+    ComponentFixture<HandleRegistrationComponent>
+  > => {
+    queryClient = new QueryClient({
+      defaultOptions: { queries: { gcTime: 0, retry: false } },
+    });
+    await TestBed.configureTestingModule({
+      imports: [HandleRegistrationComponent],
+      providers: [
+        provideRouter([]),
+        provideTanStackQuery(queryClient),
+        {
+          provide: APP_RPC_CLIENT,
+          useValue: {
+            events: {
+              cancelRegistrationAddon: { mutationOptions: () => ({}) },
+              checkInRegistration: {
+                mutationOptions: () => ({ mutationFn: checkIn }),
+              },
+              redeemRegistrationAddon: { mutationOptions: () => ({}) },
+              scanTicket: {
+                queryKey: () => queryKey,
+                queryOptions: () => ({ queryFn: scanTicket, queryKey }),
+              },
+              undoRegistrationAddonRedemption: {
+                mutationOptions: () => ({}),
+              },
+            },
+          },
+        },
+      ],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(HandleRegistrationComponent);
+    fixture.componentRef.setInput('registrationId', 'registration-1');
+    await settle(fixture);
+    return fixture;
+  };
+
+  const text = (fixture: ComponentFixture<HandleRegistrationComponent>) =>
+    fixture.nativeElement.textContent.replaceAll(/\s+/g, ' ').trim();
+
+  afterEach(() => {
+    queryClient.clear();
+    vi.clearAllMocks();
+    TestBed.resetTestingModule();
+  });
+
+  it('keeps showing the ticket and check-in result when a refetch fails afterwards', async () => {
+    scanTicket
+      .mockResolvedValueOnce({
+        addOns: { _tag: 'Available', items: [] },
+        registration,
+      })
+      .mockRejectedValue(new Error('offline'));
+    checkIn.mockResolvedValue({ registration: null });
+    const fixture = await render();
+    expect(text(fixture)).toContain('Ada Lovelace');
+
+    const button: HTMLButtonElement = [
+      ...fixture.nativeElement.querySelectorAll('button'),
+    ].find((element: HTMLButtonElement) =>
+      element.textContent?.includes('Confirm check-in'),
+    );
+    button.click();
+    await settle(fixture);
+
+    const content = text(fixture);
+    expect(checkIn).toHaveBeenCalledOnce();
+    expect(checkIn.mock.calls[0]?.[0]).toMatchObject({
+      expectedAttendeeCheckedIn: false,
+    });
+    expect(content).toContain('Check-in complete');
+    expect(content).toContain('Ada Lovelace');
+    expect(content).toContain('Ticket could not be refreshed');
+    expect(content).not.toContain('Ticket could not be loaded');
+  });
+
+  it('shows the full-page error only when the first load fails', async () => {
+    scanTicket.mockRejectedValue(new Error('offline'));
+    const fixture = await render();
+    await settle(fixture);
+    const content = text(fixture);
+    expect(content).toContain('Ticket could not be loaded');
+    expect(content).not.toContain('Ticket could not be refreshed');
+  });
+
+  it('explains unavailable add-ons without hiding the ticket or check-in', async () => {
+    scanTicket.mockResolvedValue({
+      addOns: {
+        _tag: 'Unavailable',
+        message: 'Add-ons are paused while a ticket transfer is open.',
+      },
+      registration,
+    });
+    const fixture = await render();
+    const content = text(fixture);
+    expect(content).toContain(
+      'Add-ons are paused while a ticket transfer is open.',
+    );
+    expect(content).toContain('Ada Lovelace');
+    expect(content).toContain('Confirm check-in');
   });
 });

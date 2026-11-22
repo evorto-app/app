@@ -78,10 +78,13 @@ const RegistrationAddonOperationKey = Schema.String.check(
   Schema.isMinLength(1),
   Schema.isMaxLength(100),
 );
+/** PostgreSQL text cannot hold NUL, so control characters are rejected. */
 const CheckInOperationKey = Schema.String.check(
   Schema.isTrimmed(),
   Schema.isMinLength(1),
   Schema.isMaxLength(100),
+  // eslint-disable-next-line no-control-regex -- rejects control characters on purpose
+  Schema.isPattern(/^[^\u{0}-\u{1F}\u{7F}]+$/u),
 );
 const RegistrationAddonCancellationReason = Schema.String.check(
   Schema.isTrimmed(),
@@ -204,6 +207,12 @@ export const EventsCheckInRegistration = asRpcMutation(
   Rpc.make('events.checkInRegistration', {
     error: EventsCheckInRegistrationMutationError,
     payload: Schema.Struct({
+      /**
+       * Whether the helper saw the attendee as already checked in. A new
+       * check-in that admits guests is applied only while the ticket still
+       * shows this state.
+       */
+      expectedAttendeeCheckedIn: Schema.Boolean,
       /**
        * The checked-in guest count the helper saw. A new check-in is applied
        * only while the ticket still shows this count; otherwise another device
@@ -895,7 +904,16 @@ export const EventsScanTicket = asRpcQuery(
       registrationId: Schema.NonEmptyString,
     }),
     success: Schema.Struct({
-      addOns: Schema.Array(EventsRegistrationAddonFulfillmentRecord),
+      /**
+       * The ticket's add-ons, or why they cannot be shown or changed right now
+       * (for example an open ticket transfer). The ticket loads either way.
+       */
+      addOns: Schema.Union([
+        Schema.TaggedStruct('Available', {
+          items: Schema.Array(EventsRegistrationAddonFulfillmentRecord),
+        }),
+        Schema.TaggedStruct('Unavailable', { message: Schema.NonEmptyString }),
+      ]),
       registration: EventsRegistrationScanResult,
     }),
   }),

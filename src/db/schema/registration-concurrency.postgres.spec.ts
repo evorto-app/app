@@ -573,12 +573,14 @@ const scannerUserIdFor = (fixture: Fixture) =>
   makeId('scanner', fixture.tenantId);
 
 const runCheckIn = ({
+  expectedAttendeeCheckedIn = false,
   expectedCheckedInGuestCount = 0,
   fixture,
   guestCheckInCount,
   operationKey,
   serviceLayer,
 }: {
+  expectedAttendeeCheckedIn?: boolean;
   expectedCheckedInGuestCount?: number;
   fixture: Fixture;
   guestCheckInCount: number;
@@ -645,6 +647,7 @@ const runCheckIn = ({
   return Effect.runPromise(
     eventRegistrationHandlers['events.checkInRegistration'](
       {
+        expectedAttendeeCheckedIn,
         expectedCheckedInGuestCount,
         guestCheckInCount,
         operationKey,
@@ -1580,6 +1583,7 @@ describe('database registration concurrency invariants', () => {
     );
     // Another helper admits a guest before the first client retries.
     const other = await runCheckIn({
+      expectedAttendeeCheckedIn: true,
       expectedCheckedInGuestCount: 1,
       fixture,
       guestCheckInCount: 1,
@@ -1652,7 +1656,8 @@ describe('database registration concurrency invariants', () => {
         value: expect.objectContaining({ alreadyCheckedIn: true }),
       }),
     );
-    expect(await readCheckInOperations(database, fixture)).toHaveLength(1);
+    // The no-op is stored too, so its lost response can be replayed.
+    expect(await readCheckInOperations(database, fixture)).toHaveLength(2);
 
     const closedAt = Date.now() - 3 * 60 * 60 * 1000;
     await database
@@ -1679,6 +1684,18 @@ describe('database registration concurrency invariants', () => {
         }),
       }),
     );
+    const duplicateReplay = await runCheckIn({
+      fixture,
+      guestCheckInCount: 0,
+      operationKey: 'operation-attendee-again',
+      serviceLayer,
+    });
+    expect(duplicateReplay).toEqual(
+      expect.objectContaining({
+        status: 'success',
+        value: expect.objectContaining({ alreadyCheckedIn: true }),
+      }),
+    );
     const late = await runCheckIn({
       fixture,
       guestCheckInCount: 0,
@@ -1693,7 +1710,7 @@ describe('database registration concurrency invariants', () => {
         status: 'failure',
       }),
     );
-    expect(await readCheckInOperations(database, fixture)).toHaveLength(1);
+    expect(await readCheckInOperations(database, fixture)).toHaveLength(2);
     expect(fakeHttpClient.createRequests).toHaveLength(0);
   }, 30_000);
 
@@ -1777,6 +1794,109 @@ describe('database registration concurrency invariants', () => {
     expect(state.registration?.checkedInGuestCount).toBe(1);
     expect(state.option?.checkedInSpots).toBe(2);
     expect(await readCheckInOperations(database, fixture)).toHaveLength(1);
+    expect(fakeHttpClient.createRequests).toHaveLength(0);
+  }, 30_000);
+
+  it('rejects guests from a stale attendee view and stores a stale attendee-only no-op', async () => {
+    const fixture = await prepareCheckInFixture(database, { guestCount: 3 });
+    fixtures.push(fixture);
+    const fakeHttpClient = new IdempotentStripeHttpClient();
+    const stripe = new StripeClientLibrary('sk_test_concurrency', {
+      httpClient: fakeHttpClient,
+      maxNetworkRetries: 0,
+    });
+    const serviceLayer = makeServiceLayer(databaseUrl, stripe);
+    // Two helpers load the same unchecked ticket. A admits the attendee only.
+    const helperA = await runCheckIn({
+      expectedAttendeeCheckedIn: false,
+      expectedCheckedInGuestCount: 0,
+      fixture,
+      guestCheckInCount: 0,
+      operationKey: 'operation-helper-a',
+      serviceLayer,
+    });
+    expect(helperA).toEqual(
+      expect.objectContaining({
+        status: 'success',
+        value: expect.objectContaining({ alreadyCheckedIn: false }),
+      }),
+    );
+
+    // B confirms "attendee + 1 guest" from the stale snapshot: the guest count
+    // still matches, but the attendee is no longer unchecked.
+    const helperB = await runCheckIn({
+      expectedAttendeeCheckedIn: false,
+      expectedCheckedInGuestCount: 0,
+      fixture,
+      guestCheckInCount: 1,
+      operationKey: 'operation-helper-b',
+      serviceLayer,
+    });
+    expect(helperB).toEqual(
+      expect.objectContaining({
+        error: expect.objectContaining({
+          _tag: 'EventRegistrationConflictError',
+          message:
+            'This ticket changed on another device. Review the current check-in count, then confirm again.',
+        }),
+        status: 'failure',
+      }),
+    );
+    let state = await readFixtureState(database, fixture);
+    expect(state.registration?.checkedInGuestCount).toBe(0);
+    expect(state.option?.checkedInSpots).toBe(1);
+    expect(await readCheckInOperations(database, fixture)).toHaveLength(1);
+
+    // An attendee-only request from the stale snapshot is a harmless no-op
+    // that is stored and replays as such.
+    const staleAttendeeOnly = await runCheckIn({
+      expectedAttendeeCheckedIn: false,
+      fixture,
+      guestCheckInCount: 0,
+      operationKey: 'operation-helper-c',
+      serviceLayer,
+    });
+    expect(staleAttendeeOnly).toEqual(
+      expect.objectContaining({
+        status: 'success',
+        value: expect.objectContaining({ alreadyCheckedIn: true }),
+      }),
+    );
+    const replay = await runCheckIn({
+      expectedAttendeeCheckedIn: false,
+      fixture,
+      guestCheckInCount: 0,
+      operationKey: 'operation-helper-c',
+      serviceLayer,
+    });
+    expect(replay).toEqual(
+      expect.objectContaining({
+        status: 'success',
+        value: expect.objectContaining({ alreadyCheckedIn: true }),
+      }),
+    );
+    // The same key with another attendee view is a different request.
+    const mismatch = await runCheckIn({
+      expectedAttendeeCheckedIn: true,
+      fixture,
+      guestCheckInCount: 0,
+      operationKey: 'operation-helper-c',
+      serviceLayer,
+    });
+    expect(mismatch).toEqual(
+      expect.objectContaining({
+        error: expect.objectContaining({
+          _tag: 'EventRegistrationConflictError',
+          message:
+            'This check-in request does not match the one already recorded. Reload the ticket and confirm again.',
+        }),
+        status: 'failure',
+      }),
+    );
+    state = await readFixtureState(database, fixture);
+    expect(state.registration?.checkedInGuestCount).toBe(0);
+    expect(state.option?.checkedInSpots).toBe(1);
+    expect(await readCheckInOperations(database, fixture)).toHaveLength(2);
     expect(fakeHttpClient.createRequests).toHaveLength(0);
   }, 30_000);
 

@@ -42,6 +42,8 @@ import {
 } from './registration-addon-cancellation-dialog.component';
 
 export interface ScanCheckInPayload {
+  /** Whether the helper saw the attendee as already checked in. */
+  expectedAttendeeCheckedIn: boolean;
   expectedCheckedInGuestCount: number;
   guestCheckInCount: number;
   /** Unique per confirmed check-in; a resend keeps it so nobody counts twice. */
@@ -305,10 +307,17 @@ export type ScanCheckInState =
   | 'sending'
   | 'waitingForConnection';
 
+const hasErrorTag = (error: unknown, tag: string): boolean =>
+  typeof error === 'object' &&
+  error !== null &&
+  '_tag' in error &&
+  error._tag === tag;
+
 /**
  * Describes the check-in request from the helper's point of view. A transport
  * error means every retry was used up without an answer, so it is unknown
- * whether the server saved the check-in.
+ * whether the server saved the check-in. An internal error can come from a
+ * lost commit acknowledgement, so it is just as unknown.
  */
 export const scanCheckInState = ({
   error,
@@ -335,7 +344,10 @@ export const scanCheckInState = ({
     return 'confirmed';
   }
   if (isError) {
-    return isRpcTransportError(error) ? 'notConfirmed' : 'failed';
+    return isRpcTransportError(error) ||
+      hasErrorTag(error, 'EventRegistrationInternalError')
+      ? 'notConfirmed'
+      : 'failed';
   }
   return 'idle';
 };
@@ -394,15 +406,18 @@ export const createScanCheckInOperationKey = (): string =>
 /** A fresh confirmation always gets its own operation key. */
 export const scanCheckInPayload = ({
   createOperationKey = createScanCheckInOperationKey,
+  expectedAttendeeCheckedIn,
   expectedCheckedInGuestCount,
   guestCheckInCount,
   registrationId,
 }: {
   createOperationKey?: () => string;
+  expectedAttendeeCheckedIn: boolean;
   expectedCheckedInGuestCount: number;
   guestCheckInCount: number;
   registrationId: string;
 }): ScanCheckInPayload => ({
+  expectedAttendeeCheckedIn,
   expectedCheckedInGuestCount,
   guestCheckInCount,
   operationKey: createOperationKey(),
@@ -411,12 +426,15 @@ export const scanCheckInPayload = ({
 
 /**
  * Records a committed check-in for exactly one ticket. A missing ticket read
- * (null) still counts as confirmed; that ticket alone is refetched.
+ * (null) still counts as confirmed; that ticket alone is refetched. A refetch
+ * already in flight (for example after an add-on action) is cancelled so it
+ * cannot overwrite the confirmed state, and is started again afterwards so its
+ * fresh data is not lost.
  */
 export const applyScanCheckInResult = async <Registration>(
   queryClient: Pick<
     QueryClient,
-    'cancelQueries' | 'invalidateQueries' | 'setQueryData'
+    'cancelQueries' | 'invalidateQueries' | 'isFetching' | 'setQueryData'
   >,
   queryKey: QueryKey,
   result: { registration: null | Registration },
@@ -428,11 +446,15 @@ export const applyScanCheckInResult = async <Registration>(
   }
   // A ticket refetch that started before the commit must not overwrite the
   // confirmed state.
+  const wasFetching = queryClient.isFetching({ exact: true, queryKey }) > 0;
   await queryClient.cancelQueries({ exact: true, queryKey });
   queryClient.setQueryData<{ registration: Registration }>(
     queryKey,
     (previous) => previous && { ...previous, registration },
   );
+  if (wasFetching) {
+    void queryClient.invalidateQueries({ exact: true, queryKey });
+  }
 };
 
 /** The guest input is locked while a request is in flight or being resent. */
@@ -623,6 +645,7 @@ export class HandleRegistrationComponent {
     // The expected count stays the one the helper saw.
     this.sendCheckIn(
       scanCheckInPayload({
+        expectedAttendeeCheckedIn: scanResult.attendeeCheckedIn,
         expectedCheckedInGuestCount: scanResult.checkedInGuestCount,
         guestCheckInCount: this.selectedGuestCheckInCount(),
         registrationId: this.registrationId(),
@@ -780,12 +803,7 @@ export class HandleRegistrationComponent {
     const queryKey = this.scanTicketKey(payload.registrationId);
     this.checkInMutation.mutate(payload, {
       onError: async (error) => {
-        if (
-          typeof error === 'object' &&
-          error !== null &&
-          '_tag' in error &&
-          error._tag === 'EventRegistrationConflictError'
-        ) {
+        if (hasErrorTag(error, 'EventRegistrationConflictError')) {
           await this.queryClient.invalidateQueries({ exact: true, queryKey });
         }
       },

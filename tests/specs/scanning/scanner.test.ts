@@ -33,6 +33,7 @@ import {
   seedScannerFulfillmentAddon,
   seedScannerRegistrationAcquisition,
 } from '../../support/utils/seed-scanner-fulfillment';
+import { localTenantRequestHeaders } from '../../support/utils/tenant-request-routing';
 
 test.use({ storageState: adminStateFile });
 
@@ -1312,6 +1313,11 @@ test('scan check-in counts a retried check-in once when the first response is lo
 
   let checkInRequests = 0;
   let interruptedRequests = 0;
+  let firstResponseStatus: null | number = null;
+  let committedBeforeAbort: null | {
+    checkedIn: boolean;
+    checkedInGuestCount: number | undefined;
+  } = null;
   await page.route(
     (url) => new URL(url).pathname.replace(/\/+$/u, '') === '/rpc',
     async (route) => {
@@ -1329,7 +1335,29 @@ test('scan check-in counts a retried check-in once when the first response is lo
         return;
       }
       interruptedRequests += 1;
-      await route.fetch();
+      // route.fetch() skips the context's tenant routing, so the seeded tenant
+      // header is added here; the server must commit before the response is
+      // dropped.
+      const response = await route.fetch({
+        headers: localTenantRequestHeaders(
+          await request.allHeaders(),
+          seeded.tenant.domain,
+        ),
+        maxRedirects: 0,
+      });
+      firstResponseStatus = response.status();
+      const [registration] = await database
+        .select({
+          checkedInGuestCount: eventRegistrations.checkedInGuestCount,
+          checkInTime: eventRegistrations.checkInTime,
+        })
+        .from(eventRegistrations)
+        .where(eq(eventRegistrations.id, registrationId));
+      committedBeforeAbort = {
+        checkedIn:
+          registration !== undefined && registration.checkInTime !== null,
+        checkedInGuestCount: registration?.checkedInGuestCount,
+      };
       await route.abort('failed');
     },
   );
@@ -1349,6 +1377,11 @@ test('scan check-in counts a retried check-in once when the first response is lo
   await expect(page.getByRole('button', { name: 'Checked in' })).toBeDisabled();
   expect(interruptedRequests).toBe(1);
   expect(checkInRequests).toBeGreaterThanOrEqual(2);
+  expect(firstResponseStatus).toBe(200);
+  expect(committedBeforeAbort).toEqual({
+    checkedIn: true,
+    checkedInGuestCount: 2,
+  });
   await expect
     .poll(async () => {
       const [registration] = await database
