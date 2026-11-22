@@ -620,7 +620,9 @@ Choose how many guests are arriving with the attendee, then confirm. Guests who 
     await confirmCheckIn.click();
 
     await expect(dialog).toBeHidden();
-    await expect(page.getByText(`${attendeeName} is checked in`)).toBeVisible();
+    await expect(
+      page.getByText(`${attendeeName} and 1 guest are checked in`),
+    ).toBeVisible();
     await expect(checkInButton).toHaveCount(0);
     const attendeeRow = page
       .getByTestId('event-organize-registration')
