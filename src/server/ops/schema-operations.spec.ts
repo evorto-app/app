@@ -248,6 +248,15 @@ describe('ops schema operations', () => {
           type: 'create_table',
         },
         {
+          index: {
+            isUnique: false,
+            name: 'new_table_lookup_idx',
+            schema: 'public',
+            table: 'new_table',
+          },
+          type: 'create_index',
+        },
+        {
           column: {
             name: 'optional_note',
             notNull: false,
@@ -264,6 +273,28 @@ describe('ops schema operations', () => {
 
     expect(analysis.safe).toBe(true);
     expect(analysis.unsafeReasons).toEqual([]);
+  });
+
+  it('rejects an rc.6 index on an existing table without a concurrency flag', () => {
+    const analysis = analyzeSchemaPlan({
+      ...emptyPlan(),
+      statements: [
+        {
+          index: {
+            isUnique: false,
+            name: 'events_lookup_idx',
+            schema: 'public',
+            table: 'events',
+          },
+          type: 'create_index',
+        },
+      ],
+    });
+
+    expect(analysis.safe).toBe(false);
+    expect(analysis.unsafeReasons).toEqual([
+      'Statement 1 (create_index) is not an approved expand operation',
+    ]);
   });
 
   it('binds the plan digest to supplementary statement metadata', () => {
@@ -426,7 +457,7 @@ describe('ops schema operations', () => {
       expect(commands).toHaveLength(3);
       expect(commands[2]).toEqual([
         'bun',
-        'ops/drizzle-kit.cjs',
+        'ops/drizzle-kit/bin.js',
         'push',
         '--config',
         'ops/drizzle.config.mjs',
@@ -480,7 +511,9 @@ describe('ops schema operations', () => {
           run: (command, options) => {
             commands.push({ command, environment: options?.environment });
             return Effect.succeed(
-              command.some((argument) => argument.endsWith('/drizzle-kit.cjs'))
+              command.some((argument) =>
+                argument.endsWith('/drizzle-kit/bin.js'),
+              )
                 ? result({ dialect: 'postgresql', status: 'ok' })
                 : { exitCode: 0, stderr: '', stdout: '' },
             );
@@ -508,7 +541,7 @@ describe('ops schema operations', () => {
           {
             command: [
               'bun',
-              'ops/drizzle-kit.cjs',
+              'ops/drizzle-kit/bin.js',
               'push',
               '--config',
               'ops/drizzle.config.mjs',

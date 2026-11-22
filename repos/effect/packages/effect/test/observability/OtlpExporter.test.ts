@@ -1,7 +1,7 @@
 import { assert, describe, it } from "@effect/vitest"
-import { Clock, ConfigProvider, Deferred, type Duration, Effect, Exit, Fiber, Layer, Metric, Ref, Scope } from "effect"
+import { Clock, ConfigProvider, Deferred, Duration, Effect, Exit, Fiber, Layer, Metric, Ref, Scope } from "effect"
 import { type Headers, HttpBody, HttpClient, type HttpClientError, HttpClientResponse } from "effect/http"
-import { OtlpExporter, OtlpLogger, OtlpMetrics, OtlpSerialization, OtlpTracer } from "effect/observability"
+import { Otlp, OtlpExporter, OtlpLogger, OtlpMetrics, OtlpSerialization, OtlpTracer } from "effect/observability"
 import { TestClock } from "effect/testing"
 import * as Version from "effect/Version"
 
@@ -53,13 +53,14 @@ const makeExporter = (
 
 const makeExporterRaw = (
   maxBatchSize: number | "disabled" = 1,
-  body: (data: Array<any>) => HttpBody.HttpBody = () => HttpBody.empty
+  body: (data: Array<any>) => HttpBody.HttpBody = () => HttpBody.empty,
+  exportInterval: Duration.Input = "1 hour"
 ) =>
   OtlpExporter.make({
     label: "OtlpExporterTest",
     url: "http://localhost:4318/v1/logs",
     headers: undefined,
-    exportInterval: "1 hour",
+    exportInterval,
     maxBatchSize,
     body: (data) => [body(data), Effect.void],
     shutdownTimeout: "1 second"
@@ -128,6 +129,44 @@ describe("OtlpExporter", () => {
       ])
     }))
 
+  it.effect("keeps no background fiber with an infinite interval", () => {
+    let activeFibers = 0
+    const runtimeMetrics: Metric.FiberRuntimeMetricsService = {
+      recordFiberStart: () => {
+        activeFibers++
+      },
+      recordFiberEnd: () => {
+        activeFibers--
+      }
+    }
+    return Effect.gen(function*() {
+      const { attempts, httpClient } = yield* makeStatusHttpClient(200)
+      yield* Effect.scoped(
+        Effect.gen(function*() {
+          const exporter = yield* makeExporterRaw(2, undefined, Duration.infinity)
+          const flusher = yield* OtlpExporter.Flusher
+          assert.strictEqual(activeFibers, 0)
+
+          exporter.push({ value: 1 })
+          yield* flusher.flush
+          assert.strictEqual(yield* Ref.get(attempts), 1)
+
+          exporter.push({ value: 2 })
+          exporter.push({ value: 3 })
+          yield* yieldNowN(3)
+          assert.strictEqual(activeFibers, 0)
+          assert.strictEqual(yield* Ref.get(attempts), 2)
+
+          exporter.push({ value: 4 })
+        }).pipe(
+          Effect.provideService(HttpClient.HttpClient, httpClient),
+          Effect.provide(OtlpExporter.layerFlusher)
+        )
+      )
+      assert.strictEqual(yield* Ref.get(attempts), 3)
+    }).pipe(Effect.provideService(Metric.FiberRuntimeMetrics, runtimeMetrics))
+  })
+
   it.effect("allows an in-flight timer export to finish during shutdown", () =>
     Effect.gen(function*() {
       const scope = yield* Scope.make()
@@ -176,6 +215,60 @@ describe("OtlpExporter", () => {
       yield* Deferred.await(started[2])
       yield* Deferred.succeed(releases[2], undefined)
       yield* Fiber.join(closeFiber)
+    }))
+
+  it.effect("keeps an export timer pending only while telemetry is buffered", () =>
+    Effect.gen(function*() {
+      const { attempts, httpClient } = yield* makeStatusHttpClient(200)
+      const testClock = yield* Clock.Clock
+      let pendingSleeps = 0
+      const clock: Clock.Clock = {
+        ...testClock,
+        sleep: (duration) =>
+          Effect.suspend(() => {
+            pendingSleeps++
+            return Effect.ensuring(testClock.sleep(duration), Effect.sync(() => pendingSleeps--))
+          })
+      }
+      yield* Effect.scoped(
+        Effect.gen(function*() {
+          const exporter = yield* makeExporterRaw(10).pipe(Effect.provideService(Clock.Clock, clock))
+          const flusher = yield* OtlpExporter.Flusher
+          yield* yieldNowN(3)
+          assert.strictEqual(pendingSleeps, 0)
+
+          exporter.push({ value: 1 })
+          yield* yieldNowN(3)
+          assert.strictEqual(pendingSleeps, 1)
+          yield* TestClock.adjust("1 hour")
+          assert.strictEqual(yield* Ref.get(attempts), 1)
+          assert.strictEqual(pendingSleeps, 0)
+
+          exporter.push({ value: 2 })
+          yield* flusher.flush
+          yield* yieldNowN(3)
+          assert.strictEqual(yield* Ref.get(attempts), 2)
+          assert.strictEqual(pendingSleeps, 0)
+        }).pipe(
+          Effect.provideService(HttpClient.HttpClient, httpClient),
+          Effect.provide(OtlpExporter.layerFlusher)
+        )
+      )
+    }))
+
+  it.effect("exports again once the disabled window has passed", () =>
+    Effect.gen(function*() {
+      const { attempts, httpClient } = yield* makeStatusHttpClient(400)
+      const exporter = yield* makeExporter(httpClient, { exportInterval: "1 second", maxBatchSize: 10 })
+
+      exporter.push({ value: 1 })
+      yield* TestClock.adjust("1 second")
+      assert.strictEqual(yield* Ref.get(attempts), 1)
+
+      yield* TestClock.adjust("61 seconds")
+      exporter.push({ value: 2 })
+      yield* TestClock.adjust("1 second")
+      assert.strictEqual(yield* Ref.get(attempts), 2)
     }))
 
   it.effect("allows an in-flight batch export to finish during shutdown", () =>
@@ -550,6 +643,39 @@ describe("OtlpExporter", () => {
             ]
           )
         }).pipe(Effect.provide(signals))
+      }))
+
+    it.effect("Otlp.layerFromConfig flushes enabled signals when one is disabled", () =>
+      Effect.gen(function*() {
+        const { httpClient, urls } = yield* makeStatusHttpClient(200)
+        const otlp = Otlp.layerFromConfig({
+          resource: { serviceName: "test" },
+          loggerMergeWithExisting: false
+        }).pipe(
+          Layer.provide(OtlpSerialization.layerJson),
+          Layer.provide(Layer.succeed(HttpClient.HttpClient, httpClient)),
+          Layer.provide(ConfigProvider.layer(ConfigProvider.fromEnv({
+            env: {
+              OTEL_EXPORTER_OTLP_ENDPOINT: "http://localhost:4318",
+              OTEL_LOGS_EXPORTER: "otlp",
+              OTEL_METRICS_EXPORTER: "otlp",
+              OTEL_TRACES_EXPORTER: "none",
+              OTEL_BLRP_SCHEDULE_DELAY: "3600000",
+              OTEL_METRIC_EXPORT_INTERVAL: "3600000"
+            }
+          })))
+        )
+
+        yield* Effect.gen(function*() {
+          yield* Effect.log("flush test")
+          yield* Metric.update(Metric.counter("otlp_flush_test"), 1)
+          yield* (yield* OtlpExporter.Flusher).flush
+
+          assert.deepStrictEqual(
+            [...yield* Ref.get(urls)].sort(),
+            ["http://localhost:4318/v1/logs", "http://localhost:4318/v1/metrics"]
+          )
+        }).pipe(Effect.provide(otlp))
       }))
 
     it.effect("is a no-op while the exporter is disabled", () =>

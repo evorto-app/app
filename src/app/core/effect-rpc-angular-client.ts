@@ -11,7 +11,10 @@ import {
   runInInjectionContext,
 } from '@angular/core';
 import { createEffectRpcAngularClient } from '@heddendorp/effect-angular-query';
-import { EFFECT_RPC_PROTOCOL_HTTP_LAYER } from '@heddendorp/effect-platform-angular';
+import {
+  EFFECT_RPC_PROTOCOL_HTTP_LAYER,
+  type UnsupportedRpcSerializationError,
+} from '@heddendorp/effect-platform-angular';
 
 import { AppRpcs } from '../../shared/rpc-contracts/app-rpcs';
 
@@ -102,7 +105,11 @@ export const resolveRpcUrl = (): string =>
   'window' in globalThis ? '/rpc' : `${resolveServerRpcOrigin()}/rpc`;
 
 const createAppRpcFactory = (
-  rpcLayer: Layer.Layer<RpcClient.Protocol, never, never>,
+  rpcLayer: Layer.Layer<
+    RpcClient.Protocol,
+    UnsupportedRpcSerializationError,
+    never
+  >,
 ) =>
   createEffectRpcAngularClient({
     group: AppRpcs,

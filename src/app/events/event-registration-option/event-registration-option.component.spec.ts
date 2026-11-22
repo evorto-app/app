@@ -1,5 +1,8 @@
 import { TestBed } from '@angular/core/testing';
-import { createRpcQueryFilter } from '@heddendorp/effect-angular-query';
+import {
+  createRpcQueryFilter,
+  createRpcQueryOptions,
+} from '@heddendorp/effect-angular-query';
 import { MAX_REGISTRATION_GUESTS } from '@shared/registration-quantity-limits';
 import { MAX_REGISTRATION_ANSWER_LENGTH } from '@shared/registration-question-limits';
 import {
@@ -516,10 +519,12 @@ const waitlistOptions = (): WaitlistOptions => ({
   mutationFn: submitWaitlist,
   mutationKey: ['waitlist'],
 });
-const authenticationOptions = (): AuthenticationOptions => ({
-  queryFn: checkAuthentication,
-  queryKey: [['config', 'isAuthenticated'], { type: 'query' }],
-});
+const authenticationOptions = (): AuthenticationOptions =>
+  createRpcQueryOptions({
+    pathSegments: ['config', 'isAuthenticated'],
+    queryFn: checkAuthentication,
+    type: 'query',
+  });
 
 const boundedRegistrationOption = (
   overrides: Partial<EventRegistrationOptionView> = {},

@@ -2,6 +2,7 @@ import '@angular/compiler';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { provideRouter } from '@angular/router';
+import { createTestRpcQueryOptions } from '@app/testing/rpc-query-test-options';
 import { createRpcQueryFilter } from '@heddendorp/effect-angular-query';
 import { EventConflictError } from '@shared/rpc-contracts/app-rpcs/events.errors';
 import {
@@ -214,10 +215,10 @@ describe('EventReviewsComponent review recovery', () => {
     });
     const pendingOptions: ReturnType<
       Rpc['events']['getPendingReviews']['queryOptions']
-    > = {
+    > = createTestRpcQueryOptions({
+      pathSegments: ['events', 'getPendingReviews'],
       queryFn: loadQueue,
-      queryKey: [['events', 'getPendingReviews'], { type: 'query' }],
-    };
+    });
     const reviewOptions: ReturnType<
       Rpc['events']['reviewEvent']['mutationOptions']
     > = { mutationFn: review };
@@ -526,21 +527,17 @@ describe('EventReviewsComponent review recovery', () => {
     const listOptions = (
       offset: number,
       queryFn: () => Promise<EventList>,
-    ): ReturnType<Rpc['events']['eventList']['queryOptions']> => ({
-      queryFn,
-      queryKey: [
-        ['events', 'eventList'],
-        {
-          input: {
-            limit: 100,
-            offset,
-            startAfter: '2030-01-01T00:00:00.000Z',
-            status: [],
-          },
-          type: 'query',
+    ): ReturnType<Rpc['events']['eventList']['queryOptions']> =>
+      createTestRpcQueryOptions({
+        input: {
+          limit: 100,
+          offset,
+          startAfter: '2030-01-01T00:00:00.000Z',
+          status: [],
         },
-      ],
-    });
+        pathSegments: ['events', 'eventList'],
+        queryFn,
+      });
     const firstObserver = new QueryObserver(
       queryClient,
       listOptions(0, firstListRead),

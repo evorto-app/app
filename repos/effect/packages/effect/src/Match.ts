@@ -8,6 +8,10 @@
  * patterns, and common checks such as strings, numbers, records, and class
  * instances.
  *
+ * Object patterns use their own enumerable string and symbol properties.
+ * Non-enumerable and inherited pattern properties are ignored. The selected
+ * properties may be non-enumerable or inherited on the value being matched.
+ *
  * @stability stable
  * @since 4.0.0
  */
@@ -36,6 +40,33 @@ type PartialTagHandlers<D extends string, R, Ret> = {
 type ValueTagHandlers<I> = {
   readonly [Tag in Types.Tags<"_tag", I> & string]: (_: Extract<I, { readonly _tag: Tag }>) => any
 }
+
+// Members of `R` that a literal record can dispatch on: finite string / number
+// literals whose runtime key no other string / number member can produce.
+// Widened `string` / `number` and template literals add no keys, and a literal
+// is dropped when another member spells the same key (`1` with `"1"` or
+// `string`, `"1"` or `"NaN"` with `number`).
+type LiteralKeys<R, All = Extract<R, string | number>> = R extends string | number
+  ? {} extends Record<R, unknown> ? never
+  : R extends number ? `${R}` extends All ? never : R
+  : R extends `${infer N extends number}` ? N extends All ? never : R
+  : R extends "NaN" | "Infinity" | "-Infinity" ? number extends All ? never : R
+  : R
+  : never
+
+type LiteralHandlers<R, Ret> = [Exclude<R, LiteralKeys<R>>] extends [never] ? {
+    readonly [K in LiteralKeys<R>]: (_: K) => Ret
+  }
+  : never
+
+type PartialLiteralHandlers<R, Ret> = {
+  readonly [K in LiteralKeys<R>]?: ((_: K) => Ret) | undefined
+}
+
+// Map keys separately so handler-map unions do not distribute.
+type HandledKeys<P, Keys extends keyof P = keyof P> = {
+  readonly [K in Keys]-?: undefined extends P[K] ? never : K
+}[Keys]
 
 /**
  * Marker used by `Matcher` to distinguish matchers created with `Match.value`.
@@ -603,6 +634,9 @@ type ExactPatterns<R, P> = {
  * Supports both direct value comparisons and predicate functions. If the
  * pattern matches, the associated function is executed and the matched input is
  * removed from the remaining cases tracked by the matcher.
+ * Object patterns, including nested patterns, use only own enumerable string
+ * and symbol properties. Non-enumerable and inherited pattern properties are
+ * ignored. Selected properties on the input may be non-enumerable or inherited.
  *
  * **Example** (Matching with values and predicates)
  *
@@ -671,6 +705,9 @@ export const when: <
  * Unlike {@link when}, which requires separate conditions for each pattern,
  * this function enables combining them into a single statement, making the
  * matcher more concise.
+ * Object patterns, including nested patterns, use only own enumerable string
+ * and symbol properties. Non-enumerable and inherited pattern properties are
+ * ignored. Selected properties on the input may be non-enumerable or inherited.
  *
  * **Example** (Matching one of several patterns)
  *
@@ -740,6 +777,9 @@ export const whenOr: <
  * ensures that multiple conditions are met before executing the callback. It is
  * useful when checking for values that need to fulfill multiple criteria at
  * once.
+ * Object patterns, including nested patterns, use only own enumerable string
+ * and symbol properties. Non-enumerable and inherited pattern properties are
+ * ignored. Selected properties on the input may be non-enumerable or inherited.
  *
  * **Example** (Matching all provided patterns)
  *
@@ -964,8 +1004,8 @@ export const discriminators: <D extends string>(
   self: Matcher<I, F, R, A, Pr, Ret>
 ) => Matcher<
   I,
-  Types.AddWithout<F, Extract<R, Record<D, keyof P>>>,
-  Types.ApplyFilters<I, Types.AddWithout<F, Extract<R, Record<D, keyof P>>>>,
+  Types.AddWithout<F, Extract<R, Record<D, HandledKeys<P>>>>,
+  Types.ApplyFilters<I, Types.AddWithout<F, Extract<R, Record<D, HandledKeys<P>>>>>,
   A | ReturnType<P[keyof P] & {}>,
   Pr,
   Ret
@@ -1191,8 +1231,8 @@ export const tags: <
   self: Matcher<I, F, R, A, Pr, Ret>
 ) => Matcher<
   I,
-  Types.AddWithout<F, Extract<R, Record<"_tag", keyof P>>>,
-  Types.ApplyFilters<I, Types.AddWithout<F, Extract<R, Record<"_tag", keyof P>>>>,
+  Types.AddWithout<F, Extract<R, Record<"_tag", HandledKeys<P>>>>,
+  Types.ApplyFilters<I, Types.AddWithout<F, Extract<R, Record<"_tag", HandledKeys<P>>>>>,
   A | ReturnType<P[keyof P] & {}>,
   Pr,
   Ret
@@ -1249,6 +1289,108 @@ export const tagsExhaustive: <
   internal.tagsExhaustive
 
 /**
+ * Matches string and number literal values, mapping each literal to a
+ * corresponding handler.
+ *
+ * **Details**
+ *
+ * Each handler receives the matched literal. Handled literals are removed from
+ * the remaining input, while unhandled literals and any other members (such as
+ * `null`, objects, or widened `string` / `number` types) are left for later
+ * cases. Keys must be finite string or number literals of the remaining input;
+ * unions containing both a number and its string spelling, such as
+ * `1 | "1"`, are rejected because both share the same runtime key.
+ *
+ * **Example** (Mapping literal handlers)
+ *
+ * ```ts import.meta.vitest
+ * import { Match } from "effect"
+ *
+ * type Status = "draft" | "review" | "published"
+ *
+ * const isEditable = Match.type<Status>().pipe(
+ *   Match.literals({ draft: () => true, review: () => true }),
+ *   Match.orElse(() => false)
+ * )
+ *
+ * isEditable("review") // => true
+ * isEditable("published") // => false
+ * ```
+ *
+ * @see {@link literalsExhaustive} for handling every literal and finalizing the matcher
+ *
+ * @stability unstable
+ * @category defining patterns
+ * @since 4.1.0
+ */
+export const literals: <
+  R,
+  Ret,
+  P extends
+    & PartialLiteralHandlers<R, Ret>
+    & { readonly [K in Exclude<keyof P, LiteralKeys<R>>]: never }
+>(
+  fields: Contextual<P, PartialLiteralHandlers<R, Ret>>
+) => <I, F, A, Pr>(
+  self: Matcher<I, F, R, A, Pr, Ret>
+) => Matcher<
+  I,
+  Types.AddWithout<F, Extract<R, HandledKeys<P>>>,
+  Types.ApplyFilters<I, Types.AddWithout<F, Extract<R, HandledKeys<P>>>>,
+  A | ReturnType<P[keyof P] & {}>,
+  Pr,
+  Ret
+> = internal.literals
+
+/**
+ * Matches string and number literal values and requires handling of all
+ * remaining cases.
+ *
+ * **Details**
+ *
+ * This is the exhaustive variant of {@link literals}. Every remaining member
+ * must be a finite string or number literal with a corresponding handler, so a
+ * missing literal, a widened `string` / `number` type, or any other unhandled
+ * member is reported by TypeScript.
+ *
+ * **Example** (Handling all literal cases)
+ *
+ * ```ts import.meta.vitest
+ * import { Match } from "effect"
+ *
+ * type Status = "draft" | "review" | "published"
+ *
+ * const label = Match.type<Status>().pipe(
+ *   Match.literalsExhaustive({
+ *     draft: () => "Draft",
+ *     review: () => "In review",
+ *     published: () => "Live"
+ *   })
+ * )
+ *
+ * label("review") // => "In review"
+ * ```
+ *
+ * @see {@link literals} for defining literal handlers without finalizing the matcher
+ *
+ * @stability unstable
+ * @category defining patterns
+ * @since 4.1.0
+ */
+export const literalsExhaustive: <
+  R,
+  Ret,
+  P extends
+    & LiteralHandlers<R, Ret>
+    & { readonly [K in Exclude<keyof P, LiteralKeys<R>>]: never }
+>(
+  fields: Contextual<P, LiteralHandlers<R, Ret>>
+) => <I, F, A, Pr>(
+  self: Matcher<I, F, R, A, Pr, Ret>
+) => [Pr] extends [never] ? (u: I) => Unify<A | ReturnType<P[keyof P]>> : Unify<A | ReturnType<P[keyof P]>> =
+  internal.literalsExhaustive
+
+/**
  * Creates a pattern that excludes a specific value while allowing all others.
  *
  * **When to use**
@@ -1260,6 +1402,9 @@ export const tagsExhaustive: <
  *
  * Any excluded value bypasses the provided function and continues matching
  * through later cases.
+ * Object patterns, including nested patterns, use only own enumerable string
+ * and symbol properties. Non-enumerable and inherited pattern properties are
+ * ignored. Selected properties on the input may be non-enumerable or inherited.
  *
  * **Example** (Ignoring a specific value)
  *

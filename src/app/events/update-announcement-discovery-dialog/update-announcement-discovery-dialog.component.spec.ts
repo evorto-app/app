@@ -2,6 +2,7 @@ import '@angular/compiler';
 import { TestBed } from '@angular/core/testing';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
+import { createTestRpcQueryOptions } from '@app/testing/rpc-query-test-options';
 import { RoleLookupNotFoundError } from '@shared/rpc-contracts/app-rpcs/roles.errors';
 import {
   provideTanStackQuery,
@@ -72,30 +73,27 @@ describe('UpdateAnnouncementDiscoveryDialogComponent', () => {
         {
           provide: RoleSelectQueries,
           useValue: {
-            search: (
-              search: string,
-            ): ReturnType<RoleSelectQueries['search']> => ({
-              queryFn: async () => {
-                const loadedRoles = await loadRoles();
-                return loadedRoles
-                  .filter((role) =>
-                    role.name.toLowerCase().includes(search.toLowerCase()),
-                  )
-                  .slice(0, 15);
-              },
-              queryKey: [
-                ['roles', 'findMany'],
-                { input: { search }, type: 'query' },
-              ],
-            }),
+            search: (search: string): ReturnType<RoleSelectQueries['search']> =>
+              createTestRpcQueryOptions({
+                input: { search },
+                pathSegments: ['roles', 'findMany'],
+                queryFn: async () => {
+                  const loadedRoles = await loadRoles();
+                  return loadedRoles
+                    .filter((role) =>
+                      role.name.toLowerCase().includes(search.toLowerCase()),
+                    )
+                    .slice(0, 15);
+                },
+              }),
             selected: (
               id: string,
             ): ReturnType<RoleSelectQueries['selected']> => ({
-              queryFn: () => loadRole(id),
-              queryKey: [
-                ['roles', 'findOne'],
-                { input: { id }, type: 'query' },
-              ],
+              ...createTestRpcQueryOptions({
+                input: { id },
+                pathSegments: ['roles', 'findOne'],
+                queryFn: () => loadRole(id),
+              }),
               retry: false,
               staleTime: 30_000,
             }),

@@ -15,6 +15,7 @@ import { pipeArguments } from "../Pipeable.ts"
 import type * as Predicate from "../Predicate.ts"
 import * as Result from "../Result.ts"
 import type { Unify } from "../Unify.ts"
+import * as InternalRecord from "./record.ts"
 
 /** @internal */
 export const TypeId = "~effect/Match/Matcher"
@@ -33,6 +34,10 @@ type PartialTagHandlers<D extends string, R, Ret> = {
 type ValueTagHandlers<I> = {
   readonly [Tag in Types.Tags<"_tag", I> & string]: (_: Extract<I, { readonly _tag: Tag }>) => any
 }
+
+type HandledKeys<P, Keys extends keyof P = keyof P> = {
+  readonly [K in Keys]-?: undefined extends P[K] ? never : K
+}[Keys]
 
 const TypeMatcherProto: Omit<TypeMatcher<any, any, any, any, any, any>, "cases" | "select"> = {
   [TypeId]: {
@@ -140,7 +145,7 @@ const makePredicate = (pattern: unknown): Predicate.Predicate<unknown> => {
     const len = predicates.length
 
     return (u: unknown) => {
-      if (!Array.isArray(u)) {
+      if (!Array.isArray(u) || u.length < len) {
         return false
       }
 
@@ -153,7 +158,7 @@ const makePredicate = (pattern: unknown): Predicate.Predicate<unknown> => {
       return true
     }
   } else if (pattern !== null && typeof pattern === "object") {
-    const keysAndPredicates = Reflect.ownKeys(pattern).map(
+    const keysAndPredicates = InternalRecord.ownEnumerableKeys(pattern).map(
       (key) => [key, makePredicate((pattern as any)[key])] as const
     )
     const len = keysAndPredicates.length
@@ -442,7 +447,7 @@ export const discriminators = <D extends string>(field: D) =>
   fields: Contextual<P, PartialTagHandlers<D, R, Ret>>
 ) => {
   const predicate = makeWhen(
-    (arg: any) => arg != null && Object.hasOwn(fields, arg[field]),
+    (arg: any) => arg != null && Object.hasOwn(fields, arg[field]) && (fields as any)[arg[field]] !== undefined,
     (data: any) => (fields as any)[data[field]](data)
   )
 
@@ -450,8 +455,8 @@ export const discriminators = <D extends string>(field: D) =>
     self: Matcher<I, F, R, A, Pr, Ret>
   ): Matcher<
     I,
-    Types.AddWithout<F, Extract<R, Record<D, keyof P>>>,
-    Types.ApplyFilters<I, Types.AddWithout<F, Extract<R, Record<D, keyof P>>>>,
+    Types.AddWithout<F, Extract<R, Record<D, HandledKeys<P>>>>,
+    Types.ApplyFilters<I, Types.AddWithout<F, Extract<R, Record<D, HandledKeys<P>>>>>,
     A | ReturnType<P[keyof P] & {}>,
     Pr,
     Ret
@@ -510,6 +515,23 @@ export const tags = discriminators("_tag")
 
 /** @internal */
 export const tagsExhaustive = discriminatorsExhaustive("_tag")
+
+/** @internal */
+export const literals = (fields: object) => {
+  const predicate = makeWhen(
+    (arg: any) =>
+      (typeof arg === "string" || typeof arg === "number") && Object.hasOwn(fields, arg) &&
+      (fields as any)[arg] !== undefined,
+    (data: any) => (fields as any)[data](data)
+  )
+  return (self: any): any => self.add(predicate)
+}
+
+/** @internal */
+export const literalsExhaustive = (fields: object) => {
+  const addCases = literals(fields)
+  return (matcher: any): any => exhaustive(addCases(matcher))
+}
 
 /** @internal */
 export const not = <

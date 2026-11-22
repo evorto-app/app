@@ -16,6 +16,7 @@ import {
   MatDialogRef,
 } from '@angular/material/dialog';
 import { provideRouter } from '@angular/router';
+import { createTestRpcQueryOptions } from '@app/testing/rpc-query-test-options';
 import {
   createRpcQueryFilter,
   createRpcQueryKey,
@@ -1278,15 +1279,25 @@ describe('EventOrganize receipt submission outcomes', () => {
       },
     });
     cleanupClient = queryClient;
-    const byEventOptions = (input: { eventId: string }): ByEventOptions => ({
-      queryFn: findByEvent,
-      queryKey: byEventKey(input.eventId),
-    });
-    const myOptions = (): MyOptions => ({ queryFn: findMy, queryKey: myKey });
-    const approvalOptions = (): ApprovalOptions => ({
-      queryFn: findApproval,
-      queryKey: approvalKey,
-    });
+    const byEventOptions = (input: { eventId: string }): ByEventOptions =>
+      createTestRpcQueryOptions({
+        input,
+        keyPrefix: 'rpc',
+        pathSegments: ['finance', 'receipts', 'byEvent'],
+        queryFn: findByEvent,
+      });
+    const myOptions = (): MyOptions =>
+      createTestRpcQueryOptions({
+        keyPrefix: 'rpc',
+        pathSegments: ['finance', 'receipts', 'my'],
+        queryFn: findMy,
+      });
+    const approvalOptions = (): ApprovalOptions =>
+      createTestRpcQueryOptions({
+        keyPrefix: 'rpc',
+        pathSegments: ['finance', 'receipts', 'pendingApprovalGrouped'],
+        queryFn: findApproval,
+      });
     const tenant = new ClientTenantConfig({
       cancellationDeadlineHoursBeforeStart: 24,
       currency: 'EUR',
@@ -1382,28 +1393,25 @@ describe('EventOrganize receipt submission outcomes', () => {
                 }),
               },
               findOne: {
-                queryOptions: (input: { id: string }): EventOptions => ({
-                  queryFn: async () => ({ ...eventRecord, id: input.id }),
-                  queryKey: createRpcQueryKey(['events', 'findOne'], {
+                queryOptions: (input: { id: string }): EventOptions =>
+                  createTestRpcQueryOptions({
                     input,
                     keyPrefix: 'rpc',
-                    type: 'query',
+                    pathSegments: ['events', 'findOne'],
+                    queryFn: async () => ({ ...eventRecord, id: input.id }),
                   }),
-                }),
               },
               getOrganizeOverview: {
-                queryOptions: (input: {
-                  eventId: string;
-                }): OverviewOptions => ({
-                  queryFn: async () => ({
-                    registrationOptions: [],
-                    stats: { capacity: 0, checkedIn: 0, registered: 0 },
+                queryOptions: (input: { eventId: string }): OverviewOptions =>
+                  createTestRpcQueryOptions({
+                    input,
+                    keyPrefix: 'rpc',
+                    pathSegments: ['events', 'getOrganizeOverview'],
+                    queryFn: async () => ({
+                      registrationOptions: [],
+                      stats: { capacity: 0, checkedIn: 0, registered: 0 },
+                    }),
                   }),
-                  queryKey: createRpcQueryKey(
-                    ['events', 'getOrganizeOverview'],
-                    { input, keyPrefix: 'rpc', type: 'query' },
-                  ),
-                }),
               },
             },
             finance: {

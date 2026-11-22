@@ -23,6 +23,13 @@ export const makePgTestClient = Effect.fn(function* (
     listen: () => Effect.die(new Error('Unexpected PostgreSQL listener')),
     notify: () => Effect.die(new Error('Unexpected PostgreSQL notification')),
     [PgClient.TypeId]: PgClient.TypeId,
+    poolStats: Effect.succeed({
+      idle: 0,
+      max: 0,
+      min: 0,
+      pending: 0,
+      used: 0,
+    }),
   } satisfies Omit<PgClient.PgClient, keyof SqlClient.SqlClient>;
   return Object.assign(sql, postgres);
 });

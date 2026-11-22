@@ -129,6 +129,12 @@ export * as Chunk from "./Chunk.ts"
 export * as Clock from "./Clock.ts"
 
 /**
+ * @stability experimental
+ * @since 4.1.5
+ */
+export * as Codegen from "./Codegen.ts"
+
+/**
  * @stability stable
  * @since 4.0.0
  */
@@ -163,12 +169,6 @@ export * as Context from "./Context.ts"
  * @since 2.0.0
  */
 export * as Cron from "./Cron.ts"
-
-/**
- * @stability unstable
- * @since 4.0.0
- */
-export * as Crypto from "./Crypto.ts"
 
 /**
  * @stability stable
@@ -289,6 +289,12 @@ export * as Formatter from "./Formatter.ts"
  * @since 2.0.0
  */
 export * as Function from "./Function.ts"
+
+/**
+ * @stability experimental
+ * @since 4.0.0
+ */
+export * as Glob from "./Glob.ts"
 
 /**
  * @stability unstable
@@ -541,6 +547,12 @@ export * as Queue from "./Queue.ts"
  * @since 4.0.0
  */
 export * as Random from "./Random.ts"
+
+/**
+ * @stability unstable
+ * @since 4.1.3
+ */
+export * as Rational from "./Rational.ts"
 
 /**
  * @stability stable
