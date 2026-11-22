@@ -248,6 +248,15 @@ describe('ops schema operations', () => {
           type: 'create_table',
         },
         {
+          index: {
+            isUnique: false,
+            name: 'new_table_lookup_idx',
+            schema: 'public',
+            table: 'new_table',
+          },
+          type: 'create_index',
+        },
+        {
           column: {
             name: 'optional_note',
             notNull: false,
@@ -264,6 +273,28 @@ describe('ops schema operations', () => {
 
     expect(analysis.safe).toBe(true);
     expect(analysis.unsafeReasons).toEqual([]);
+  });
+
+  it('rejects an rc.6 index on an existing table without a concurrency flag', () => {
+    const analysis = analyzeSchemaPlan({
+      ...emptyPlan(),
+      statements: [
+        {
+          index: {
+            isUnique: false,
+            name: 'events_lookup_idx',
+            schema: 'public',
+            table: 'events',
+          },
+          type: 'create_index',
+        },
+      ],
+    });
+
+    expect(analysis.safe).toBe(false);
+    expect(analysis.unsafeReasons).toEqual([
+      'Statement 1 (create_index) is not an approved expand operation',
+    ]);
   });
 
   it('binds the plan digest to supplementary statement metadata', () => {

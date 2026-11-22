@@ -237,7 +237,8 @@ const AlterEnumStatement = Schema.Struct({
 });
 const CreateIndexStatement = Schema.Struct({
   index: Schema.Struct({
-    concurrently: Schema.Boolean,
+    // Drizzle Kit rc.6 omits this flag from its index statements.
+    concurrently: Schema.optionalKey(Schema.Boolean),
     isUnique: Schema.Boolean,
     name: Schema.String,
     schema: Schema.String,
@@ -379,7 +380,7 @@ const analyzeStatement = (
       if (createdTables.has(tableMemberKey(decoded.index))) {
         return;
       }
-      return !decoded.index.isUnique && decoded.index.concurrently
+      return !decoded.index.isUnique && decoded.index.concurrently === true
         ? undefined
         : unsafeOperationReason(index, decoded.type);
     }
