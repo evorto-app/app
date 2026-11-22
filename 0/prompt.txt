@@ -1,0 +1,1 @@
+Get us to the latest state of main here and please migrate our environment setup to be compatible with t3 code
