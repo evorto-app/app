@@ -156,8 +156,8 @@ describe('ManualCheckInDialogComponent', () => {
     expect(guestInput()).toBeNull();
   });
 
-  it('shows the guest field and clamps the input to the remaining guests', async () => {
-    const { button, guestInput, settle } = await openDialog();
+  it('blocks confirmation for more guests than remain', async () => {
+    const { button, guestInput, settle, text } = await openDialog();
 
     await settle(() => {
       expect(guestInput()).not.toBeNull();
@@ -168,16 +168,26 @@ describe('ManualCheckInDialogComponent', () => {
     }
     input.value = '9';
     input.dispatchEvent(new Event('input'));
+    input.focus();
+    input.blur();
     await settle(() => {
-      expect(button('Confirm 3 check-ins')).toBeDefined();
+      expect(text()).toContain('Enter a whole number from 0 to 2.');
     });
-    expect(input.value).toBe('2');
-    input.value = '8';
+    expect(button('Confirm check-in').disabled).toBe(true);
+    expect(checkIn).not.toHaveBeenCalled();
+
+    input.value = '1.5';
     input.dispatchEvent(new Event('input'));
     await settle(() => {
-      expect(input.value).toBe('2');
+      expect(button('Confirm check-in').disabled).toBe(true);
     });
-    expect(button('Confirm 3 check-ins')).toBeDefined();
+
+    input.value = '2';
+    input.dispatchEvent(new Event('input'));
+    await settle(() => {
+      expect(button('Confirm 3 check-ins').disabled).toBe(false);
+    });
+    expect(text()).not.toContain('Enter a whole number');
   });
 
   it('shows the timing issue and blocks confirmation', async () => {
@@ -303,6 +313,27 @@ describe('ManualCheckInDialogComponent', () => {
     await settle(() => {
       expect(button('Confirm check-in').disabled).toBe(false);
     });
+  });
+
+  it('keeps confirmation disabled after the ticket fails to reload', async () => {
+    const { button, settle, text } = await openDialog();
+
+    await settle(() => {
+      expect(button('Confirm check-in').disabled).toBe(false);
+    });
+    loadScan.mockRejectedValueOnce(new Error('Network down'));
+    // Without throwOnError, refetchQueries settles even when the lookup fails.
+    await queryClient.refetchQueries({ queryKey: ['registration-scanned'] });
+
+    await settle(() => {
+      expect(text()).toContain(
+        'The ticket could not be loaded. Close this dialog and try again.',
+      );
+    });
+    expect(
+      queryClient.getQueryData(['registration-scanned', 'registration-1']),
+    ).toEqual(baseScanResult);
+    expect(button('Confirm check-in').disabled).toBe(true);
   });
 
   it('keeps the dialog open and explains a failed check-in', async () => {

@@ -65,14 +65,18 @@
         <input
           matInput
           type="number"
-          min="0"
-          [max]="scanResult.remainingGuestCount"
-          [value]="selectedGuestCheckInCount()"
-          (input)="updateGuestCheckInCount($event)"
+          inputmode="numeric"
+          step="1"
+          [formField]="guestForm.guestCount"
         />
         <mat-hint>
           {{ scanSpotCountLabel(selectedSpotCheckInCount()) }}
         </mat-hint>
+        @if (guestForm.guestCount().invalid()) {
+          <mat-error>
+            Enter a whole number from 0 to {{ remainingGuestCount() }}.
+          </mat-error>
+        }
       </mat-form-field>
     }
   }

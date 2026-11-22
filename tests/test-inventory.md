@@ -724,7 +724,8 @@ ESNcard provider credential path.
     check-in" permission and the later-guest step. App and server coverage
     pins row-action visibility (`canCheckInManually`, confirmed, not
     checked in or guests left, not the viewer's own row), the dialog's guest
-    clamp, blocking states and error copy.
+    bounds (Signal Forms field), blocking states (including a failed ticket
+    reload) and error copy.
 - Tenant/global admin:
   - Authenticated Browser review for the global-admin tenant list and
     tenant-create/edit flows. The global-admin tenant Playwright spec now

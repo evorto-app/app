@@ -3,8 +3,9 @@ import {
   Component,
   computed,
   inject,
-  signal,
+  linkedSignal,
 } from '@angular/core';
+import { form, FormField, max, min, validate } from '@angular/forms/signals';
 import { MatButtonModule } from '@angular/material/button';
 import {
   MAT_DIALOG_DATA,
@@ -28,7 +29,6 @@ import {
   scanCheckInActionDisabled,
   scanCheckInButtonLabel,
   scanCheckInTimingIssueCopy,
-  scanGuestCheckInCountFromInput,
   scannerRegistrationErrorMessage,
   scanRegistrationStatusIssueCopy,
   scanSpotCountLabel,
@@ -45,6 +45,25 @@ export interface ManualCheckInDialogResult {
   readonly checkedInGuestCount: number;
 }
 
+interface ManualCheckInGuestModel {
+  guestCount: number;
+}
+
+/**
+ * Guests mode opens on a checked-in attendee to check in a later guest, so it
+ * starts at one guest; checking in the attendee starts with no guests.
+ */
+const manualCheckInDefaultGuestCount = ({
+  attendeeCheckedIn,
+  mode,
+  remainingGuestCount,
+}: {
+  readonly attendeeCheckedIn: boolean;
+  readonly mode: ManualCheckInDialogData['mode'];
+  readonly remainingGuestCount: number;
+}): number =>
+  mode === 'guests' && attendeeCheckedIn ? Math.min(1, remainingGuestCount) : 0;
+
 export const manualCheckInErrorMessage = (
   error: unknown,
   fallback: string,
@@ -56,6 +75,7 @@ export const manualCheckInErrorMessage = (
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    FormField,
     MatButtonModule,
     MatDialogActions,
     MatDialogClose,
@@ -90,7 +110,41 @@ export class ManualCheckInDialogComponent {
   protected readonly checkInMutation = injectMutation(() =>
     this.rpc.events.checkInRegistration.mutationOptions(),
   );
-  protected readonly guestCheckInCount = signal<null | number>(null);
+  /**
+   * The ticket from the last successful lookup only. After a failed refresh
+   * Query keeps the previous data, which must not enable confirmation.
+   */
+  private readonly ticket = computed(() =>
+    this.scanResultQuery.isSuccess() ? this.scanResultQuery.data() : undefined,
+  );
+  private readonly defaultGuestCount = computed(() => {
+    const ticket = this.ticket();
+    return ticket
+      ? manualCheckInDefaultGuestCount({
+          attendeeCheckedIn: ticket.attendeeCheckedIn,
+          mode: this.data.mode,
+          remainingGuestCount: ticket.remainingGuestCount,
+        })
+      : 0;
+  });
+  private readonly guestModel = linkedSignal<ManualCheckInGuestModel>(() => ({
+    guestCount: this.defaultGuestCount(),
+  }));
+  protected readonly remainingGuestCount = computed(
+    () => this.ticket()?.remainingGuestCount ?? 0,
+  );
+  protected readonly guestForm = form(this.guestModel, (schema) => {
+    min(schema.guestCount, 0);
+    max(schema.guestCount, () => this.remainingGuestCount());
+    validate(schema.guestCount, ({ value }) =>
+      Number.isSafeInteger(value())
+        ? undefined
+        : {
+            kind: 'wholeNumber',
+            message: `Enter a whole number from 0 to ${this.remainingGuestCount()}.`,
+          },
+    );
+  });
   protected readonly title = computed(() =>
     this.data.mode === 'guests'
       ? `Check in guests of ${this.data.attendeeName}`
@@ -111,39 +165,38 @@ export class ManualCheckInDialogComponent {
   protected readonly scanRegistrationStatusIssueCopy =
     scanRegistrationStatusIssueCopy;
   protected readonly scanSpotCountLabel = scanSpotCountLabel;
-  protected readonly selectedGuestCheckInCount = computed(() => {
-    const scanResult = this.scanResultQuery.data();
-    if (!scanResult) {
-      return 0;
-    }
-    const requested =
-      this.guestCheckInCount() ??
-      (this.data.mode === 'guests' && scanResult.attendeeCheckedIn ? 1 : 0);
-    return Math.min(requested, scanResult.remainingGuestCount);
-  });
+  protected readonly selectedGuestCheckInCount = computed(() =>
+    this.guestForm.guestCount().valid() ? this.guestModel().guestCount : 0,
+  );
   protected readonly selectedSpotCheckInCount = computed(() => {
-    const scanResult = this.scanResultQuery.data();
-    if (!scanResult) {
+    const ticket = this.ticket();
+    if (!ticket) {
       return 0;
     }
     return (
-      (scanResult.attendeeCheckedIn ? 0 : 1) + this.selectedGuestCheckInCount()
+      (ticket.attendeeCheckedIn ? 0 : 1) + this.selectedGuestCheckInCount()
     );
   });
 
   /**
-   * Confirm waits for the ticket to finish loading, so a reopened dialog
-   * never confirms against cached details from before the last check-in.
+   * Confirm needs a successful lookup that has finished loading, so a
+   * reopened dialog never confirms against cached details from before the
+   * last check-in, and a failed refresh never confirms against stale ones.
    */
-  protected readonly confirmDisabled = computed(() =>
-    scanCheckInActionDisabled({
-      allowCheckin: this.scanResultQuery.data()?.allowCheckin ?? false,
-      completed: false,
-      mutationPending:
-        this.checkInMutation.isPending() || this.scanResultQuery.isFetching(),
-      spotCount: this.selectedSpotCheckInCount(),
-    }),
-  );
+  protected readonly confirmDisabled = computed(() => {
+    const ticket = this.ticket();
+    return (
+      !ticket ||
+      this.guestForm().invalid() ||
+      scanCheckInActionDisabled({
+        allowCheckin: ticket.allowCheckin,
+        completed: false,
+        mutationPending:
+          this.checkInMutation.isPending() || this.scanResultQuery.isFetching(),
+        spotCount: this.selectedSpotCheckInCount(),
+      })
+    );
+  });
 
   protected checkIn(): void {
     if (this.confirmDisabled()) {
@@ -174,22 +227,5 @@ export class ManualCheckInDialogComponent {
         },
       },
     );
-  }
-
-  protected updateGuestCheckInCount(event: Event): void {
-    const input = event.target;
-    if (!(input instanceof HTMLInputElement)) {
-      return;
-    }
-    const clamped = scanGuestCheckInCountFromInput({
-      inputValue: input.value,
-      remainingGuestCount:
-        this.scanResultQuery.data()?.remainingGuestCount ?? 0,
-    });
-    this.guestCheckInCount.set(clamped);
-    const clampedValue = String(clamped);
-    if (input.value !== clampedValue) {
-      input.value = clampedValue;
-    }
   }
 }
