@@ -2,6 +2,8 @@ import { afterAll, beforeAll, describe, expect, it, vi } from '@effect/vitest';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { Cause, ConfigProvider, Effect, Exit, Layer, Schema } from 'effect';
+import { Headers } from 'effect/http';
+import { Rpc, RpcMessage } from 'effect/rpc';
 import { Settings } from 'luxon';
 import { Pool, type PoolClient } from 'pg';
 import Stripe from 'stripe';
@@ -18,7 +20,6 @@ import {
   eventRegistrations,
   eventTemplateCategories,
   eventTemplates,
-  platformAuditEntries,
   registrationAcquisitionComponents,
   registrationAcquisitionPayments,
   registrationAcquisitions,
@@ -35,14 +36,15 @@ import {
 } from '../../db/schema';
 import {
   RpcRequestContext,
+  RpcRequestContextMiddleware,
   type RpcRequestContextShape,
 } from '../../shared/rpc-contracts/app-rpcs';
+import { EventsCheckInRegistration } from '../../shared/rpc-contracts/app-rpcs/events.rpcs';
 import { RegistrationTransferConflictError } from '../../shared/rpc-contracts/app-rpcs/registration-transfers.errors';
-import { PlatformAdministratorAuthority } from '../../types/custom/platform-authority';
 import { Tenant } from '../../types/custom/tenant';
 import { userDiscountCardLockStatement } from '../discounts/user-discount-card-lock';
 import { EventRegistrationService } from '../effect/rpc/handlers/events/event-registration.service';
-import { platformRegistrationHandlers } from '../effect/rpc/handlers/platform/platform-registrations.handlers';
+import { eventRegistrationHandlers } from '../effect/rpc/handlers/events/events-registration.handlers';
 import { RpcAccess } from '../effect/rpc/handlers/shared/rpc-access.service';
 import { createRegistrationRefundClaim } from '../payments/registration-refund';
 import { StripeClient } from '../stripe-client';
@@ -548,9 +550,6 @@ const cleanTransferLimitFixture = async (
   database: TestDatabase,
   fixture: TransferLimitFixture,
 ) => {
-  await database
-    .delete(platformAuditEntries)
-    .where(eq(platformAuditEntries.targetTenantId, fixture.tenantId));
   await database
     .delete(emailOutbox)
     .where(eq(emailOutbox.tenantId, fixture.tenantId));
@@ -1539,7 +1538,7 @@ describe('registration transfer finalization tenant limit', () => {
     ).toMatchObject({ status: 'CANCELLED', userId: candidate.sourceUserId });
   });
 
-  it('rechecks platform check-in after lock waits and keeps its audit atomic and tenant-scoped', async () => {
+  it('rechecks check-in after lock waits and keeps it tenant-scoped', async () => {
     const fixture = await seedTransferLimitFixture(database);
     fixtures.push(fixture);
     const other = await seedTransferLimitFixture(database);
@@ -1547,7 +1546,7 @@ describe('registration transfer finalization tenant limit', () => {
     const candidate = fixture.candidates[0];
     const timingCandidate = fixture.candidates[1];
     if (!candidate || !timingCandidate)
-      throw new Error('Expected platform check-in candidates');
+      throw new Error('Expected check-in candidates');
     await reopenExpiredOfferWindow(database, fixture, candidate);
     await database
       .update(registrationTransfers)
@@ -1571,35 +1570,51 @@ describe('registration transfer finalization tenant limit', () => {
     const tenantRow = await database.query.tenants.findFirst({
       where: { id: fixture.tenantId },
     });
-    if (!tenantRow) throw new Error('Missing platform check-in tenant');
-    const context = {
-      authData: {},
-      authenticated: true,
-      permissions: [],
-      platformAuthority: PlatformAdministratorAuthority.make({
-        actorEmail: 'platform@example.com',
-        actorId: 'auth0|platform-checkin-fixture',
-        kind: 'platformAdministrator',
-      }),
-      tenant: Schema.decodeUnknownSync(Tenant)(tenantRow),
-      user: null,
-      userAssigned: false,
-    } satisfies RpcRequestContextShape;
+    if (!tenantRow) throw new Error('Missing check-in tenant');
+    const tenantFor = (tenant: typeof tenantRow) =>
+      Schema.decodeUnknownSync(Tenant)(tenant);
+    const checkerPermissions: RpcRequestContextShape['permissions'] = [
+      'events:organizeAll',
+    ];
+    const contextFor = (tenant: Tenant) =>
+      ({
+        authData: { sub: 'auth0|checkin-fixture' },
+        authenticated: true,
+        permissions: checkerPermissions,
+        tenant,
+        user: {
+          auth0Id: 'auth0|checkin-fixture',
+          communicationEmail: 'checkin-fixture@example.com',
+          email: 'checkin-fixture@example.com',
+          firstName: 'Check-in',
+          homeTenantId: undefined,
+          homeTenantName: undefined,
+          iban: undefined,
+          id: 'checkin-fixture',
+          lastName: 'Organizer',
+          paypalEmail: undefined,
+          permissions: checkerPermissions,
+          roleIds: [],
+        },
+        userAssigned: true,
+      }) satisfies RpcRequestContextShape;
     const checkIn = (
       registrationId = candidate.registrationId,
-      targetTenantId = fixture.tenantId,
+      tenant = tenantFor(tenantRow),
     ) =>
       Effect.runPromiseExit(
-        platformRegistrationHandlers['platform.registrations.checkIn'](
+        eventRegistrationHandlers['events.checkInRegistration'](
+          { guestCheckInCount: 0, registrationId },
           {
-            guestCheckInCount: 0,
-            reason: 'Check the reviewed ticket',
-            registrationId,
-            targetTenantId,
+            client: new Rpc.ServerClient(1),
+            headers: Headers.empty,
+            requestId: RpcMessage.RequestId(1),
+            rpc: EventsCheckInRegistration.middleware(
+              RpcRequestContextMiddleware,
+            ),
           },
-          undefined,
         ).pipe(
-          Effect.provideService(RpcRequestContext, context),
+          Effect.provideService(RpcRequestContext, contextFor(tenant)),
           Effect.provide(RpcAccess.Default),
           Effect.provide(layer),
         ),
@@ -1613,10 +1628,6 @@ describe('registration transfer finalization tenant limit', () => {
           where: { id: target.optionId },
         }),
       ]);
-    const audit = () =>
-      database.query.platformAuditEntries.findMany({
-        where: { targetTenantId: fixture.tenantId },
-      });
     const before = await state(candidate);
     const waitForWriter = (pid: number) =>
       waitFor(async () => {
@@ -1625,7 +1636,7 @@ describe('registration transfer finalization tenant limit', () => {
           [pid],
         );
         return Number(blocked.rows[0]?.count) === 1;
-      }, 'Platform check-in did not wait for its writer');
+      }, 'Check-in did not wait for its writer');
     const client = await pool.connect();
     const writer = drizzle({ client, relations });
     let transactionOpen = false;
@@ -1660,8 +1671,8 @@ describe('registration transfer finalization tenant limit', () => {
       expect(Cause.findErrorOption(outcome.cause)).toMatchObject({
         _tag: 'Some',
         value: {
-          _tag: 'RpcBadRequestError',
-          reason: 'registrationTransferActive',
+          _tag: 'EventRegistrationConflictError',
+          message: expect.stringContaining('active transfer'),
         },
       });
     } finally {
@@ -1679,40 +1690,25 @@ describe('registration transfer finalization tenant limit', () => {
       }
     }
     expect(await state(candidate)).toEqual(before);
-    expect(await audit()).toEqual([]);
-    const wrongTenant = await checkIn(candidate.registrationId, other.tenantId);
+    const otherTenantRow = await database.query.tenants.findFirst({
+      where: { id: other.tenantId },
+    });
+    if (!otherTenantRow) throw new Error('Missing other check-in tenant');
+    const wrongTenant = await checkIn(
+      candidate.registrationId,
+      tenantFor(otherTenantRow),
+    );
     if (Exit.isSuccess(wrongTenant))
       throw new Error('Checked in another organization ticket');
     expect(Cause.findErrorOption(wrongTenant.cause)).toMatchObject({
       _tag: 'Some',
-      value: { reason: 'registrationNotFound' },
+      value: { _tag: 'EventRegistrationNotFoundError' },
     });
-    expect(
-      await database.query.platformAuditEntries.findMany({
-        where: { targetTenantId: other.tenantId },
-      }),
-    ).toEqual([]);
+    expect(await state(candidate)).toEqual(before);
     await database
       .update(registrationTransfers)
       .set({ status: 'cancelled' })
       .where(eq(registrationTransfers.id, candidate.transferId));
-    const constraint = 'test_platform_checkin_audit_failure';
-    const escapedTenant = fixture.tenantId.replaceAll("'", "''");
-    await pool.query(
-      `ALTER TABLE platform_audit_entries ADD CONSTRAINT ${constraint} CHECK (target_tenant_id <> '${escapedTenant}')`,
-    );
-    try {
-      const failedAudit = await checkIn();
-      if (Exit.isSuccess(failedAudit))
-        throw new Error('Check-in committed without its audit');
-      expect(Cause.pretty(failedAudit.cause)).toContain(constraint);
-      expect(await state(candidate)).toEqual(before);
-      expect(await audit()).toEqual([]);
-    } finally {
-      await pool.query(
-        `ALTER TABLE platform_audit_entries DROP CONSTRAINT ${constraint}`,
-      );
-    }
     const completed = await checkIn();
     if (Exit.isFailure(completed)) throw Cause.squash(completed.cause);
     expect(
@@ -1730,19 +1726,6 @@ describe('registration transfer finalization tenant limit', () => {
         where: { id: candidate.optionId },
       }),
     ).toEqual({ checkedInSpots: 1 });
-    const savedAudit = await audit();
-    expect(savedAudit).toEqual([
-      expect.objectContaining({
-        action: 'registration.checkIn',
-        actorId: 'auth0|platform-checkin-fixture',
-        after: expect.objectContaining({
-          resourceId: candidate.registrationId,
-        }),
-        reason: 'Check the reviewed ticket',
-        targetTenantId: fixture.tenantId,
-      }),
-    ]);
-
     const beforeTiming = await state(timingCandidate);
     const eventClient = await pool.connect();
     const eventWriter = drizzle({ client: eventClient, relations });
@@ -1778,7 +1761,6 @@ describe('registration transfer finalization tenant limit', () => {
         value: { _tag: 'EventCheckInUnavailableError', reason: 'ended' },
       });
       expect(await state(timingCandidate)).toEqual(beforeTiming);
-      expect(await audit()).toEqual(savedAudit);
     } finally {
       try {
         if (transactionOpen) {

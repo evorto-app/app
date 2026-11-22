@@ -62,11 +62,6 @@
         >
           Edit organization
         </a>
-        <a
-          mat-button
-          [routerLink]="['/global-admin/tenants', tenant.id, 'payment-support']"
-          >Payment support</a
-        >
         @if (tenantPublicOrigin(tenant.domain); as tenantPublicOrigin) {
           <a
             matButton="filled"

@@ -697,10 +697,6 @@ export interface CancelRegistrationForTenantArguments {
     readonly stripeAccountId: string;
     readonly transactionId: string;
   };
-  readonly onCancelled?: (
-    tx: Pick<DatabaseClient, 'insert' | 'select' | 'update'>,
-    transition: RegistrationCancellationTransition,
-  ) => Effect.Effect<void, unknown, never>;
   readonly registrationId: string;
   readonly targetTenant: Tenant;
 }
@@ -709,19 +705,6 @@ export interface RegistrationCancellationOutcome {
   readonly refundClaimId: null | string;
   readonly refundTransactionId: null | string;
   readonly status: 'alreadyCancelled' | 'cancelled';
-}
-
-export interface RegistrationCancellationTransition {
-  readonly checkInTime: Date | null;
-  readonly eventId: string;
-  readonly guestCount: number;
-  readonly refundTransactionId: null | string;
-  readonly refundTransactionStatus: 'pending' | null;
-  readonly registrationId: string;
-  readonly registrationOptionId: string;
-  readonly statusAfter: 'CANCELLED';
-  readonly statusBefore: 'CONFIRMED' | 'PENDING' | 'WAITLIST';
-  readonly userId: string;
 }
 
 type CancelRegistrationForTenantError =
@@ -740,7 +723,6 @@ export const cancelRegistrationForTenant = Effect.fn(
   expectedStatus,
   expectedUserId,
   expiredCheckout,
-  onCancelled = () => Effect.void,
   registrationId,
   targetTenant: tenant,
 }: CancelRegistrationForTenantArguments): Effect.fn.Return<
@@ -2080,18 +2062,6 @@ export const cancelRegistrationForTenant = Effect.fn(
             }
           }
 
-          yield* onCancelled(tx, {
-            checkInTime: lockedRegistration.checkInTime,
-            eventId: lockedRegistration.eventId,
-            guestCount: lockedRegistration.guestCount,
-            refundTransactionId,
-            refundTransactionStatus: refundTransactionId ? 'pending' : null,
-            registrationId: lockedRegistration.id,
-            registrationOptionId: lockedRegistration.registrationOptionId,
-            statusAfter: 'CANCELLED',
-            statusBefore: lockedRegistration.status,
-            userId: lockedRegistration.userId,
-          });
           return {
             refundClaimId: stripeRefundClaimId,
             refundTransactionId,
@@ -2202,7 +2172,6 @@ export const cancelRegistrationForTenant = Effect.fn(
         stripeAccountId,
         transactionId,
       },
-      onCancelled,
       registrationId,
       targetTenant: tenant,
     });

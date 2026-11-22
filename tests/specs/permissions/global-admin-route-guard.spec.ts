@@ -75,25 +75,6 @@ test.describe('global admin route guard allow path', () => {
       page.getByRole('heading', { name: 'Edit organization' }),
     ).toBeVisible();
   });
-
-  test('allows platform administrators to open target-scoped tenant operations directly @permissions @globalAdmin', async ({
-    page,
-    tenant,
-  }) => {
-    const operations = [
-      { heading: 'Payment support', path: 'payment-support' },
-    ] as const;
-
-    for (const operation of operations) {
-      await page.goto(`/global-admin/tenants/${tenant.id}/${operation.path}`);
-      await expect(page).toHaveURL(
-        new RegExp(`/global-admin/tenants/${tenant.id}/${operation.path}$`),
-      );
-      await expect(
-        page.getByRole('heading', { level: 1, name: operation.heading }),
-      ).toBeVisible();
-    }
-  });
 });
 
 test.describe('global admin route guard deny path', () => {
@@ -136,16 +117,6 @@ test.describe('global admin route guard deny path', () => {
     page,
   }) => {
     await page.goto('/global-admin/audit');
-    await expect(page).toHaveURL(/\/403/);
-  });
-
-  test('denies target-scoped tenant operations without platform administrator authority @permissions @globalAdmin', async ({
-    page,
-    tenant,
-  }) => {
-    test.setTimeout(60_000);
-
-    await page.goto(`/global-admin/tenants/${tenant.id}/payment-support`);
     await expect(page).toHaveURL(/\/403/);
   });
 });

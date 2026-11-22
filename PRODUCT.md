@@ -110,11 +110,13 @@ Use the administrator's real app identity without creating memberships or role
 assignments; management access is independent of tenant onboarding. Keep the
 platform authority explicit alongside the effective tenant permissions.
 
-Global administration provides organization configuration, delivery outcomes,
-change history, and payment/refund recovery. To manage events, templates,
-members, roles, tax rates, scanning, or routine finance, open the organization's
-website and use its ordinary pages. Do not duplicate those screens in the
-platform workspace.
+Global administration operates Evorto across organizations: an overview,
+organization setup, email delivery outcomes, and change history. To manage
+events, templates, members, roles, tax rates, scanning, or routine finance, open
+the organization's website and use its ordinary pages. Do not duplicate those
+screens in the platform workspace, and do not add dedicated payment or refund
+recovery tools; add a narrowly scoped support tool only when a real operational
+case justifies it.
 
 Dedicated platform actions name the target tenant explicitly, require an
 operational reason, and record the platform actor, target tenant, action,

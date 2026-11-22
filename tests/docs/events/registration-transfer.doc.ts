@@ -5,7 +5,6 @@ import { and, eq, inArray, like } from 'drizzle-orm';
 
 import {
   adminStateFile,
-  gaStateFile,
   userStateFile,
   usersToAuthenticate,
 } from '../../../helpers/user-data';
@@ -528,8 +527,6 @@ test('Finish a paid transfer and resolve a refund problem', async ({
   if (!source || !recipient || !template) {
     throw new Error('Expected documented paid-transfer users and template');
   }
-  const operatorRecoveryReason =
-    'Retry one failed previous-owner refund after operator review.';
 
   const scenario = await seedPaidRegistrationTransferScenario({
     database,
@@ -540,17 +537,6 @@ test('Finish a paid transfer and resolve a refund problem', async ({
     title: 'Paid transfer refund guide',
   });
   registerDatabaseCleanup(() => scenario.cleanup());
-  registerDatabaseCleanup(async (database) => {
-    await database
-      .delete(schema.platformAuditEntries)
-      .where(
-        and(
-          eq(schema.platformAuditEntries.action, 'refundClaim.requeue'),
-          eq(schema.platformAuditEntries.reason, operatorRecoveryReason),
-          eq(schema.platformAuditEntries.targetTenantId, tenant.id),
-        ),
-      );
-  });
 
   const registrationBefore = await database.query.eventRegistrations.findFirst({
     columns: {
@@ -1509,214 +1495,9 @@ The previous owner can reopen the event at any time. **Transferred tickets** sho
 
   await testInfo.attach('markdown', {
     body: `
-## Operator recovery
+## If the previous-owner refund fails
 
-An Evorto administrator opens the affected organization, selects **Payment support**, and then opens **Refunds needing attention**. Find the failed refund by its event, amount, failed state, and related sign-up-transfer activity. Select **Review refund**, enter the required reason for the change, and choose **Try failed refund again**.
-
-Evorto keeps the failed refund in payment history, starts a new refund attempt for the same amount, and returns the attendee page to **Transfer complete — refund in progress**. Recovery never creates a second transfer, sign-up, payment, or refund obligation.
+A failed refund never undoes the transfer: the recipient keeps the ticket and does not pay again. The previous owner's refund stays marked as needing attention, and the previous owner should contact an organizer for an update.
 `,
   });
-  const operatorPage = await openAuthenticatedTestPage({
-    baseUrl: new URL(page.url()).origin,
-    browser,
-    storageState: gaStateFile,
-    tenantDomain: tenant.domain,
-    testClock,
-  });
-  registerDatabaseCleanup(() => operatorPage.close());
-  await operatorPage.page.goto(
-    `/global-admin/tenants/${tenant.id}/payment-support`,
-  );
-  await expect(
-    operatorPage.page.getByRole('heading', {
-      level: 1,
-      name: 'Payment support',
-    }),
-  ).toBeVisible();
-  await operatorPage.page
-    .getByRole('tab', { name: 'Refunds needing attention' })
-    .click();
-  const formattedFailedRefundAmount = new Intl.NumberFormat(
-    TENANT_FORMATTING_LOCALE,
-    {
-      currency: registrationRefundPlan.currency,
-      style: 'currency',
-    },
-  ).format(registrationRefundPlan.refundAmountDue / 100);
-  const platformFinance = operatorPage.page.locator('app-platform-finance');
-  const recoveryRow = platformFinance
-    .locator('div.border-b')
-    .filter({ hasText: 'Paid transfer refund guide' })
-    .filter({ hasText: formattedFailedRefundAmount })
-    .filter({ hasText: 'Related to a ticket transfer' })
-    .filter({ hasText: 'The previous refund failed.' });
-  await expect(recoveryRow).toBeVisible({ timeout: 20_000 });
-  await expect(recoveryRow).toHaveCount(1);
-  await expect(recoveryRow).toContainText('Paid transfer refund guide');
-  await expect(recoveryRow).toContainText(formattedFailedRefundAmount);
-  await expect(recoveryRow).toContainText('Related to a ticket transfer');
-  await expect(recoveryRow).toContainText('The previous refund failed.');
-  for (const hiddenIdentifier of [
-    scenario.transferId,
-    registrationRefundPlan.id,
-    refundTransactionId,
-    failedRefundEvidence.stripeRefundId,
-  ]) {
-    await expect(platformFinance).not.toContainText(hiddenIdentifier);
-  }
-  await expect(platformFinance).not.toContainText(rawProviderError);
-  const reviewRefund = recoveryRow.getByRole('button', {
-    name: 'Review refund',
-  });
-  await expect(reviewRefund).not.toHaveAttribute('jsaction', /click/);
-  await reviewRefund.click();
-  const refundRecoveryHeading = operatorPage.page.getByRole('heading', {
-    level: 2,
-    name: 'Try failed refund again',
-  });
-  await expect(refundRecoveryHeading).toBeVisible();
-  const refundRecoveryForm = refundRecoveryHeading.locator('..');
-  await expect(refundRecoveryForm).not.toHaveAttribute('jsaction', /submit/, {
-    timeout: 20_000,
-  });
-  await expect(
-    refundRecoveryForm.getByText('Event', { exact: true }).locator('..'),
-  ).toContainText('Paid transfer refund guide');
-  await expect(
-    refundRecoveryForm.getByText('Amount', { exact: true }).locator('..'),
-  ).toContainText(formattedFailedRefundAmount);
-  await expect(
-    refundRecoveryForm.getByText('Next step', { exact: true }).locator('..'),
-  ).toContainText('Try this refund again');
-  await expect(
-    refundRecoveryForm
-      .getByText('Related activity', { exact: true })
-      .locator('..'),
-  ).toContainText('Ticket transfer');
-  for (const hiddenIdentifier of [
-    scenario.transferId,
-    registrationRefundPlan.id,
-    refundTransactionId,
-    failedRefundEvidence.stripeRefundId,
-  ]) {
-    await expect(refundRecoveryForm).not.toContainText(hiddenIdentifier);
-  }
-  await expect(refundRecoveryForm).not.toContainText(rawProviderError);
-  const refundRecoveryReason = refundRecoveryForm.getByLabel(
-    'Reason for this action',
-  );
-  await refundRecoveryReason.fill(operatorRecoveryReason);
-  await expect(refundRecoveryReason).toHaveValue(operatorRecoveryReason);
-  await takeScreenshot(
-    testInfo,
-    operatorPage.page.locator('app-platform-finance'),
-    operatorPage.page,
-    'Review and retry one failed refund',
-  );
-  const scheduleNewRefundGeneration = refundRecoveryForm.getByRole('button', {
-    name: 'Try failed refund again',
-  });
-  await expect(scheduleNewRefundGeneration).toBeEnabled();
-  await scheduleNewRefundGeneration.click();
-  await expect(
-    operatorPage.page.getByText('The refund will be tried again', {
-      exact: true,
-    }),
-  ).toBeVisible({ timeout: 20_000 });
-  await expect(
-    operatorPage.page.getByRole('heading', {
-      level: 2,
-      name: 'Try failed refund again',
-    }),
-  ).toHaveCount(0);
-  await openRegistrationTransferClaim(recipientPage.page, scenario.claimCode);
-  await expect(
-    recipientPage.page.getByRole('heading', {
-      name: 'Transfer complete — refund in progress',
-    }),
-  ).toBeVisible();
-  await page.reload();
-  await waitForRegistrationPage(page);
-  await expect(
-    sourceTransferSummary.getByRole('heading', {
-      name: 'Transfer refund is in progress',
-    }),
-  ).toBeVisible();
-  await expect(sourceTransferSummary).toContainText(
-    formattedSourceRefundAmount,
-  );
-  await takeScreenshot(
-    testInfo,
-    recipientPage.page.locator('main'),
-    recipientPage.page,
-    'Failed refund scheduled for another attempt',
-  );
-
-  const recoveredRefund = await database.query.transactions.findFirst({
-    columns: {
-      stripeRefundGeneration: true,
-      stripeRefundHistory: true,
-      stripeRefundId: true,
-      stripeRefundNextAttemptAt: true,
-      stripeRefundStatus: true,
-    },
-    where: { id: refundTransactionId, tenantId: tenant.id },
-  });
-  expect(recoveredRefund).toMatchObject({
-    stripeRefundGeneration: 1,
-    stripeRefundHistory: [expect.objectContaining({ status: 'failed' })],
-    stripeRefundId: null,
-    stripeRefundStatus: null,
-  });
-  expect(recoveredRefund?.stripeRefundNextAttemptAt).not.toBeNull();
-  expect(
-    await database.query.platformAuditEntries.findFirst({
-      where: {
-        action: 'refundClaim.requeue',
-        reason: operatorRecoveryReason,
-        targetTenantId: tenant.id,
-      },
-    }),
-  ).toMatchObject({
-    action: 'refundClaim.requeue',
-    reason: operatorRecoveryReason,
-    targetTenantId: tenant.id,
-  });
-
-  await testInfo.attach('markdown', {
-    body: `
-## Confirm the previous-owner refund completed
-
-When every original refund succeeds, the previous owner's event page changes to **Transfer refund completed** and keeps the exact total visible. The ticket still belongs to the recipient, so no transferred-ticket actions return.
-`,
-  });
-  await scenario.completeSourceRefunds();
-  await page.reload();
-  await waitForRegistrationPage(page);
-  await expect(
-    sourceTransferSummary.getByRole('heading', {
-      name: 'Transfer refund completed',
-    }),
-  ).toBeVisible();
-  await expect(sourceTransferSummary).toContainText(
-    formattedSourceRefundAmount,
-  );
-  await expect(sourceTransferSummary).toContainText('No action is needed.');
-  await expect(sourceTransferSummary.getByRole('button')).toHaveCount(0);
-  await expect(page.locator('app-event-active-registration')).toHaveCount(0);
-  await expect
-    .poll(async () => {
-      const transfer = await database.query.registrationTransfers.findFirst({
-        columns: { status: true },
-        where: { id: scenario.transferId, tenantId: tenant.id },
-      });
-      return transfer?.status;
-    })
-    .toBe('completed');
-  await takeScreenshot(
-    testInfo,
-    sourceTransferSummary,
-    page,
-    'Previous-owner refund completed without restoring ticket actions',
-  );
 });

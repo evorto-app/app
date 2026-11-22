@@ -27,7 +27,6 @@ import {
   registrationRefundClaimInsert,
   registrationRefundIdempotencyKey,
   registrationRefundMatchesPersistedClaim,
-  registrationRefundRequeueEligibility,
   registrationRefundRetryDelayMs,
   registrationRefundSourcePaymentPredicate,
   registrationRefundStatusCanAdvance,
@@ -1322,95 +1321,6 @@ describe('registration refund claims', () => {
         fixture.assertClosed();
       }),
   );
-
-  it('only creates a new refund generation for a known terminal Stripe refund', () => {
-    const base = {
-      attempts: 8,
-      leaseExpiresAt: null,
-      leaseId: null,
-      maxAttempts: 8,
-      nextAttemptAt: null,
-      refundId: 're_failed',
-      status: 'pending' as const,
-      stripeRefundStatus: 'failed' as const,
-    };
-    expect(registrationRefundRequeueEligibility(base)).toBe('newGeneration');
-    expect(
-      registrationRefundRequeueEligibility({
-        ...base,
-        refundId: null,
-      }),
-    ).toBe('ambiguous');
-    expect(
-      registrationRefundRequeueEligibility({
-        ...base,
-        refundId: null,
-        stripeRefundStatus: null,
-      }),
-    ).toBe('ambiguous');
-    expect(
-      registrationRefundRequeueEligibility({
-        ...base,
-        status: 'successful',
-        stripeRefundStatus: 'succeeded',
-      }),
-    ).toBe('succeeded');
-    expect(
-      registrationRefundRequeueEligibility({
-        ...base,
-        leaseId: 'lease-active',
-      }),
-    ).toBe('ambiguous');
-    expect(
-      registrationRefundRequeueEligibility({
-        ...base,
-        leaseExpiresAt: new Date('2026-07-10T12:10:00.000Z'),
-        leaseId: 'lease-active',
-        refundId: null,
-        stripeRefundStatus: null,
-      }),
-    ).toBe('active');
-    expect(
-      registrationRefundRequeueEligibility({
-        ...base,
-        attempts: 1,
-        nextAttemptAt: new Date('2026-07-10T12:10:00.000Z'),
-        refundId: null,
-        stripeRefundStatus: null,
-      }),
-    ).toBe('active');
-    expect(
-      registrationRefundRequeueEligibility({
-        ...base,
-        nextAttemptAt: new Date('2026-07-10T12:10:00.000Z'),
-        refundId: null,
-        stripeRefundStatus: 'pending',
-      }),
-    ).toBe('ambiguous');
-    expect(
-      registrationRefundRequeueEligibility({
-        ...base,
-        attempts: 1,
-        refundId: null,
-        stripeRefundStatus: null,
-      }),
-    ).toBe('ambiguous');
-    expect(
-      registrationRefundRequeueEligibility({
-        ...base,
-        attempts: 0,
-        refundId: null,
-        stripeRefundStatus: null,
-      }),
-    ).toBe('resumeGeneration');
-    expect(
-      registrationRefundRequeueEligibility({
-        ...base,
-        refundId: 're_processing',
-        stripeRefundStatus: 'pending',
-      }),
-    ).toBe('resumeGeneration');
-  });
 
   it('bounds worker batch sizes and exponential retry delays', () => {
     expect(normalizeRegistrationRefundBatchSize()).toBe(25);

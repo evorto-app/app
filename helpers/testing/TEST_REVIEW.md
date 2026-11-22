@@ -63,7 +63,7 @@ fixture evidence, not a hosted-CI timing claim. Production timeouts are unchange
 The refund-reconciliation source-only block is removed. Its existing PostgreSQL
 acquisition test now proves the linked transfer row rejects a competing
 `FOR UPDATE NOWAIT`, another tenant cannot resolve the link, and mismatched
-transfer kind or identity cannot requeue it or change its status. Ambiguous
+transfer kind or identity cannot change its status. Ambiguous
 source/compensation linkage still fails closed. Aggregation unit tests and
 actual paid-transfer/refund-acquisition tests remain.
 
@@ -82,9 +82,8 @@ No new syntax scanner replaces these tests.
 
 Removed `platform-authority-source.spec.ts`. The request-context resolver tests
 prove identity alone and the retired metadata alias grant no authority.
-`rpc-access.service.spec.ts` and `platform-operation.service.spec.ts` execute
-permission dependency/wildcard checks, target scoping, and delegation without a
-tenant user. The actual platform guard, global-admin handler tests, and
+`rpc-access.service.spec.ts` executes permission dependency/wildcard checks and
+delegation without a tenant user. The actual platform guard, global-admin handler tests, and
 Playwright route-denial journeys remain. Tenant URL migration PostgreSQL races
 protect pending payments/transfers; actual audit and tenant-creation tests cover
 recorded outcomes and required reasons/privacy policy.
@@ -352,10 +351,9 @@ query spelling or prescribing a particular arrangement of helper calls.
 
 The two refund recovery source assertions are replaced by a real query test.
 It seeds recoverable exhausted refunds with stale future schedules, normally
-scheduled claims, leased claims and successful refunds in two tenants. Only the
-selected tenant's exhausted claim is returned, with the attendee and event
-context; a tenant user with finance permissions cannot invoke the platform read.
-All four platform finance source assertions are now removed.
+scheduled claims, leased claims and successful refunds in two tenants. All four
+platform finance source assertions are removed with the platform finance
+operations.
 
 ## Redundant lock-order and boundary inventories
 
@@ -427,7 +425,7 @@ attachment use, and another tenant's reimbursement transaction; it reads back
 the unchanged receipt. The existing refund recovery fixture now also attempts
 invalid counters, partial leases, incomplete refund provenance, a foreign source
 payment, non-Stripe event payment and missing event/registration ownership. All
-must fail before the original recoverable claim is returned unchanged. Existing
+must fail before the original claim is returned unchanged. Existing
 calendar-day/amount, checkout replay, pending-payment uniqueness and refund worker
 cases remain; exact column inventories and SQL formatting are no longer asserted.
 

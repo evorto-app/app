@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from '@effect/vitest';
-import { and, eq, inArray } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { ConfigProvider, Effect, Layer } from 'effect';
 import * as Headers from 'effect/http/Headers';
@@ -15,7 +15,6 @@ import {
   eventRegistrationOptions,
   eventTemplateCategories,
   eventTemplates,
-  platformAuditEntries,
   roles,
   rolesToTenantUsers,
   tenants,
@@ -28,16 +27,15 @@ import {
   RpcRequestContextMiddleware,
   type RpcRequestContextShape,
 } from '../../../../../shared/rpc-contracts/app-rpcs';
+import { AdminRolesDelete } from '../../../../../shared/rpc-contracts/app-rpcs/admin.rpcs';
 import {
   EventsEventList,
   EventsFindOne,
+  EventsUpdateAnnouncementDiscovery,
 } from '../../../../../shared/rpc-contracts/app-rpcs/events.rpcs';
-import { PlatformEventsUpdateAnnouncementDiscovery } from '../../../../../shared/rpc-contracts/app-rpcs/platform-events.rpcs';
-import { PlatformRolesDelete } from '../../../../../shared/rpc-contracts/app-rpcs/platform-tenant-admin.rpcs';
-import { PlatformAdministratorAuthority } from '../../../../../types/custom/platform-authority';
-import { platformEventHandlers } from '../platform/platform-events.handlers';
-import { platformTenantAdminHandlers } from '../platform/platform-tenant-admin.handlers';
+import { adminHandlers } from '../admin.handlers';
 import { RpcAccess } from '../shared/rpc-access.service';
+import { eventLifecycleHandlers } from './events-lifecycle.handlers';
 import { eventQueryHandlers } from './events-query.handlers';
 
 const databaseUrl = process.env['DATABASE_URL'];
@@ -162,17 +160,11 @@ const authenticatedContext = ({
     userAssigned: true,
   }) satisfies RpcRequestContextShape;
 
-const platformAuthority = PlatformAdministratorAuthority.make({
-  actorEmail: 'platform-announcement@example.com',
-  actorId: 'auth0|platform-announcement-discovery',
-  kind: 'platformAdministrator',
+const roleGraphAdministratorContext = authenticatedContext({
+  permissions: ['admin:manageRoles', 'events:changeAnnouncementDiscovery'],
+  roleIds: [],
+  userId: 'announcement-role-administrator',
 });
-
-const platformContext = {
-  ...anonymousContext,
-  authenticated: true,
-  platformAuthority,
-} satisfies RpcRequestContextShape;
 
 const configLayer = ConfigProvider.layer(
   ConfigProvider.fromEnv({
@@ -224,50 +216,41 @@ const runFindOne = (context: RpcRequestContextShape, id: string) =>
     ),
   );
 
-const runPlatformAnnouncementDiscoveryUpdate = (
+const runAnnouncementDiscoveryUpdate = (
   eventId: string,
   announcementRoleIds: readonly string[],
 ) =>
   Effect.runPromise(
-    platformEventHandlers['platform.events.updateAnnouncementDiscovery'](
-      {
-        announcementRoleIds: [...announcementRoleIds],
-        eventId,
-        reason: 'Verify announcement discovery role integrity',
-        targetTenantId: tenantId,
-      },
+    eventLifecycleHandlers['events.updateAnnouncementDiscovery'](
+      { announcementRoleIds: [...announcementRoleIds], eventId },
       createRpcOptions(
-        PlatformEventsUpdateAnnouncementDiscovery.middleware(
+        EventsUpdateAnnouncementDiscovery.middleware(
           RpcRequestContextMiddleware,
         ),
       ),
     ).pipe(
       Effect.match({
         onFailure: (error) => ({ error, status: 'failure' as const }),
-        onSuccess: (event) => ({ event, status: 'success' as const }),
+        onSuccess: () => ({ status: 'success' as const }),
       }),
-      Effect.provideService(RpcRequestContext, platformContext),
+      Effect.provideService(RpcRequestContext, roleGraphAdministratorContext),
       Effect.provide(handlerLayer),
     ),
   );
 
 const runRoleDeletion = () =>
   Effect.runPromise(
-    platformTenantAdminHandlers['platform.roles.delete'](
-      {
-        reason: 'Verify announcement discovery role integrity',
-        roleId: raceRoleId,
-        targetTenantId: tenantId,
-      },
+    adminHandlers['admin.roles.delete'](
+      { id: raceRoleId },
       createRpcOptions(
-        PlatformRolesDelete.middleware(RpcRequestContextMiddleware),
+        AdminRolesDelete.middleware(RpcRequestContextMiddleware),
       ),
     ).pipe(
       Effect.match({
         onFailure: (error) => ({ error, status: 'failure' as const }),
         onSuccess: () => ({ status: 'success' as const }),
       }),
-      Effect.provideService(RpcRequestContext, platformContext),
+      Effect.provideService(RpcRequestContext, roleGraphAdministratorContext),
       Effect.provide(handlerLayer),
     ),
   );
@@ -654,15 +637,6 @@ describe('optionless announcement discovery', () => {
         ? [
             () =>
               databaseToClean
-                .delete(platformAuditEntries)
-                .where(
-                  inArray(platformAuditEntries.targetTenantId, [
-                    tenantId,
-                    otherTenantId,
-                  ]),
-                ),
-            () =>
-              databaseToClean
                 .delete(eventRegistrationOptions)
                 .where(
                   inArray(eventRegistrationOptions.id, [
@@ -1009,8 +983,8 @@ describe('optionless announcement discovery', () => {
     });
   });
 
-  it('serializes platform announcement updates with role deletion', async () => {
-    const foreignRoleUpdate = await runPlatformAnnouncementDiscoveryUpdate(
+  it('serializes announcement updates with role deletion', async () => {
+    const foreignRoleUpdate = await runAnnouncementDiscoveryUpdate(
       raceAnnouncementId,
       [otherTenantRoleId],
     );
@@ -1022,7 +996,7 @@ describe('optionless announcement discovery', () => {
       status: 'failure',
     });
 
-    const optionfulUpdate = await runPlatformAnnouncementDiscoveryUpdate(
+    const optionfulUpdate = await runAnnouncementDiscoveryUpdate(
       optionfulMatchingId,
       [],
     );
@@ -1075,9 +1049,7 @@ describe('optionless announcement discovery', () => {
       await lockTenantRoleGraph(lockClient, tenantId);
       const updatePromise = observeWorker(
         'Announcement update',
-        runPlatformAnnouncementDiscoveryUpdate(raceAnnouncementId, [
-          raceRoleId,
-        ]),
+        runAnnouncementDiscoveryUpdate(raceAnnouncementId, [raceRoleId]),
       );
       await waitForBlockedRoleGraphLocks(pool, 1, ensureWorkersUnsettled);
       const deletePromise = observeWorker('Role deletion', runRoleDeletion());
@@ -1098,18 +1070,6 @@ describe('optionless announcement discovery', () => {
         columns: { id: true },
         where: { id: raceRoleId, tenantId },
       });
-      const auditEntries = await database
-        .select({ action: platformAuditEntries.action })
-        .from(platformAuditEntries)
-        .where(
-          and(
-            eq(platformAuditEntries.targetTenantId, tenantId),
-            inArray(platformAuditEntries.action, [
-              'event.updateAnnouncementDiscovery',
-              'role.delete',
-            ]),
-          ),
-        );
 
       if (updateResult.status === 'success') {
         expect(deleteResult).toMatchObject({
@@ -1121,9 +1081,6 @@ describe('optionless announcement discovery', () => {
         });
         expect(storedEvent?.announcementRoleIds).toEqual([raceRoleId]);
         expect(storedRole).toEqual({ id: raceRoleId });
-        expect(auditEntries).toEqual([
-          { action: 'event.updateAnnouncementDiscovery' },
-        ]);
       } else {
         expect(updateResult.error).toMatchObject({
           _tag: 'RpcBadRequestError',
@@ -1132,7 +1089,6 @@ describe('optionless announcement discovery', () => {
         expect(deleteResult).toEqual({ status: 'success' });
         expect(storedEvent?.announcementRoleIds).toEqual([]);
         expect(storedRole).toBeUndefined();
-        expect(auditEntries).toEqual([{ action: 'role.delete' }]);
       }
     } catch (error) {
       recordFailure(error);

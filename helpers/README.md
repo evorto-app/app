@@ -390,8 +390,8 @@ The `demo` profile adds these named, deterministic examples alongside the varied
 
 Use `user@evorto.app` for attendee states, `organizer@evorto.app` for the
 confirmed organizer tickets, and `admin@evorto.app` for event review, templates,
-roles, and finance. `global-admin@evorto.app` can open organizations and use
-payment support. Credentials remain in the ignored local environment.
+roles, and finance. `global-admin@evorto.app` can open organizations and
+their overview. Credentials remain in the ignored local environment.
 The existing calendar includes drafts and events in review; Members Hub shows
 small admin, event-manager, treasurer, helper, and first-aid groups; broad membership groups remain hidden. Finance includes submitted
 receipts and approved reimbursements. Local CLI/Docker seeding writes actual

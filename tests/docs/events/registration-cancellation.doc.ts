@@ -6,7 +6,6 @@ import { and, eq, inArray } from 'drizzle-orm';
 
 import {
   adminStateFile,
-  gaStateFile,
   userStateFile,
   usersToAuthenticate,
 } from '../../../helpers/user-data';
@@ -607,7 +606,7 @@ This completes only the in-app follow-up. The earlier email still promised no re
     }
   });
 
-  test('Cancel a paid ticket with add-ons and resolve a refund problem', async ({
+  test('Cancel a paid ticket with add-ons and see a refund problem', async ({
     browser,
     database,
     page,
@@ -642,40 +641,18 @@ This completes only the in-app follow-up. The earlier email still promised no re
     const generationZeroRefundId = `re_test_generation_zero_${createId()}`;
     const requiresActionWebhookEventId = `evt_test_${createId()}`;
     const failedWebhookEventId = `evt_test_${createId()}`;
-    const recoveredRefundId = `re_test_recovered_${createId()}`;
-    const recoveredWebhookEventId = `evt_test_${createId()}`;
-    const resumeReason =
-      'Verified the Stripe refund before resuming status checks';
-    const newGenerationReason =
-      'Verified the failed Stripe refund before scheduling recovery';
     // eslint-disable-next-line prefer-const -- Early cleanup must safely read undefined if page acquisition is never reached.
     let scannerPage:
-      Awaited<ReturnType<typeof openAuthenticatedTestPage>> | undefined;
-    // eslint-disable-next-line prefer-const -- Early cleanup must safely read undefined if page acquisition is never reached.
-    let recoveryPage:
       Awaited<ReturnType<typeof openAuthenticatedTestPage>> | undefined;
 
     registerDatabaseCleanup(() => scenario.cleanup());
     registerDatabaseCleanup(async (cleanupDatabase) => {
-      await cleanupDatabase
-        .delete(schema.platformAuditEntries)
-        .where(
-          and(
-            eq(schema.platformAuditEntries.action, 'refundClaim.requeue'),
-            inArray(schema.platformAuditEntries.reason, [
-              resumeReason,
-              newGenerationReason,
-            ]),
-            eq(schema.platformAuditEntries.targetTenantId, tenant.id),
-          ),
-        );
       await cleanupDatabase
         .delete(schema.stripeWebhookEvents)
         .where(
           inArray(schema.stripeWebhookEvents.stripeEventId, [
             requiresActionWebhookEventId,
             failedWebhookEventId,
-            recoveredWebhookEventId,
           ]),
         );
       await cleanupDatabase
@@ -723,7 +700,6 @@ This completes only the in-app follow-up. The earlier email still promised no re
         );
     });
     registerDatabaseCleanup(async () => {
-      await recoveryPage?.close();
       await scannerPage?.close();
     });
 
@@ -1342,134 +1318,10 @@ Switch to an organizer account with access to check-in and add-on fulfillment fo
     );
     await testInfo.attach('markdown', {
       body: `
-### Complete the required payment-account action and continue the same refund
+### The payment account needs action
 
-An update that requires action on the payment account keeps the sign-up cancelled and links the update to the same refund. The profile asks the attendee to **Contact the organizer**, while the organizer scanner shows **Refund needs review**. The attendee should not sign up, pay, or cancel again. The organizer can explain that the connected payment account needs action before an Evorto administrator resumes status checks for this exact refund.
-
-When the safe automatic checks have stopped, open the organization's **Payment support** page. In **Refunds needing attention**, match the event and refund amount, then choose **Review refund**. The review shows the safe next step without exposing internal payment identifiers or technical payment errors. **Continue refund** continues checking the same refund; it does not issue another refund.
+An update that requires action on the payment account keeps the sign-up cancelled and links the update to the same refund. The profile asks the attendee to **Contact the organizer**, while the organizer scanner shows **Refund needs review**. The attendee should not sign up, pay, or cancel again. The organizer can explain that the connected payment account needs action; Evorto does not issue another refund in the meantime.
 `,
-    });
-
-    recoveryPage = await openAuthenticatedTestPage({
-      baseUrl: new URL(page.url()).origin,
-      browser,
-      storageState: gaStateFile,
-      tenantDomain: tenant.domain,
-      testClock,
-    });
-    await recoveryPage.page.goto(`/global-admin/tenants/${tenant.id}`);
-    await recoveryPage.page
-      .getByRole('link', { name: 'Payment support' })
-      .click();
-    await expect(
-      recoveryPage.page.getByRole('heading', {
-        level: 1,
-        name: 'Payment support',
-      }),
-    ).toBeVisible();
-    await recoveryPage.page
-      .getByRole('tab', { name: 'Refunds needing attention' })
-      .click();
-    const stoppedRecoveryRow = recoveryPage.page
-      .locator('div.border-b')
-      .filter({
-        hasText: 'This refund did not finish and needs review.',
-      });
-    await expect(stoppedRecoveryRow).toBeVisible({ timeout: 20_000 });
-    await expect(stoppedRecoveryRow).toContainText(scenario.title);
-    await expect(stoppedRecoveryRow).toContainText(refundAmountLabel);
-    const reviewStoppedRefund = stoppedRecoveryRow.getByRole('button', {
-      name: 'Review refund',
-    });
-    await expect(reviewStoppedRefund).not.toHaveAttribute('jsaction', /click/);
-    await reviewStoppedRefund.click();
-    const resumeRecoveryForm = recoveryPage.page
-      .getByRole('heading', {
-        level: 2,
-        name: 'Continue refund',
-      })
-      .locator('..');
-    await expect(resumeRecoveryForm).toBeVisible();
-    await expect(resumeRecoveryForm).toContainText(scenario.title);
-    await expect(resumeRecoveryForm).toContainText(refundAmountLabel);
-    await expect(resumeRecoveryForm).toContainText('Continue this refund');
-    await expect(resumeRecoveryForm).not.toContainText(refundClaim.id);
-    await expect(resumeRecoveryForm).not.toContainText(scenario.registrationId);
-    await expect(resumeRecoveryForm).not.toContainText(
-      settledCheckout.transactionId,
-    );
-    await recoveryPage.page
-      .getByLabel('Reason for this action')
-      .fill(resumeReason);
-    await takeScreenshot(
-      testInfo,
-      recoveryPage.page.locator('app-platform-finance'),
-      recoveryPage.page,
-      'Review and continue a refund that needs attention',
-    );
-    await recoveryPage.page
-      .getByRole('button', { name: 'Continue refund' })
-      .click();
-    await expect(
-      recoveryPage.page.getByText('Refund continued', {
-        exact: true,
-      }),
-    ).toBeVisible({ timeout: 20_000 });
-    await expect(stoppedRecoveryRow).toHaveCount(0);
-
-    const resumedRefund = await database.query.transactions.findFirst({
-      where: { id: refundClaim.id, tenantId: tenant.id },
-    });
-    expect(resumedRefund).toMatchObject({
-      id: refundClaim.id,
-      status: 'pending',
-      stripeRefundAttempts: 0,
-      stripeRefundGeneration: 0,
-      stripeRefundId: generationZeroRefundId,
-      stripeRefundStatus: 'requires_action',
-    });
-    expect(resumedRefund?.stripeRefundNextAttemptAt).not.toBeNull();
-    expect((await readRefundClaims()).map(({ id }) => id)).toEqual([
-      refundClaim.id,
-    ]);
-    const resumeAuditEntry =
-      await database.query.platformAuditEntries.findFirst({
-        where: {
-          action: 'refundClaim.requeue',
-          reason: resumeReason,
-          targetTenantId: tenant.id,
-        },
-      });
-    expect(resumeAuditEntry).toMatchObject({
-      action: 'refundClaim.requeue',
-      after: {
-        resourceId: refundClaim.id,
-        resourceType: 'refundClaim',
-        state: {
-          attempts: 0,
-          generation: 0,
-          hasLastError: false,
-          hasRefundId: true,
-          mode: 'resumeGeneration',
-          status: 'pending',
-          stripeRefundStatus: 'requires_action',
-        },
-      },
-      before: {
-        resourceId: refundClaim.id,
-        resourceType: 'refundClaim',
-        state: {
-          attempts: refundClaim.stripeRefundMaxAttempts,
-          generation: 0,
-          hasLastError: true,
-          hasRefundId: true,
-          mode: 'resumeGeneration',
-          status: 'pending',
-          stripeRefundStatus: 'requires_action',
-        },
-      },
-      reason: resumeReason,
-      targetTenantId: tenant.id,
     });
 
     await deliverRegistrationRefundWebhook({
@@ -1521,11 +1373,9 @@ When the safe automatic checks have stopped, open the organization's **Payment s
     );
     await testInfo.attach('markdown', {
       body: `
-### Retry a failed refund
+### A failed refund
 
-After status checks resume, an update saying the refund **failed** for the same refund asks the attendee to **Contact the organizer** and changes the organizer result to **Refund needs attention**. It does not create a second refund.
-
-Switch to an Evorto administrator account; an organization Admin role is not sufficient. Open the affected organization, select **Payment support**, open **Refunds needing attention**, and review the event, attendee, refund amount, failed state, and safe next step. Internal payment identifiers and technical payment errors remain hidden. Enter a specific **Reason for this action**, then choose **Try failed refund again**. Evorto keeps the failed refund in payment history, starts a new attempt for the same amount, and includes the reason in change history. It does not create a second refund.
+An update saying the refund **failed** for the same refund asks the attendee to **Contact the organizer** and changes the organizer result to **Refund needs attention**. It does not create a second refund, and the sign-up stays cancelled. The refund remains in this needs-attention state and is not retried automatically.
 `,
     });
     await takeScreenshot(
@@ -1534,179 +1384,6 @@ Switch to an Evorto administrator account; an organization Admin role is not suf
       scannerPage.page,
       'Cancelled add-on shows that its refund needs attention',
     );
-    await recoveryPage.page.reload();
-    await expect(
-      recoveryPage.page.getByRole('heading', {
-        level: 1,
-        name: 'Payment support',
-      }),
-    ).toBeVisible();
-    await recoveryPage.page
-      .getByRole('tab', { name: 'Refunds needing attention' })
-      .click();
-    const terminalRecoveryRow = recoveryPage.page
-      .locator('div.border-b')
-      .filter({ hasText: 'The previous refund failed.' });
-    await expect(terminalRecoveryRow).toBeVisible({ timeout: 20_000 });
-    await expect(terminalRecoveryRow).toContainText(scenario.title);
-    await expect(terminalRecoveryRow).toContainText(refundAmountLabel);
-    const reviewFailedRefund = terminalRecoveryRow.getByRole('button', {
-      name: 'Review refund',
-    });
-    await expect(reviewFailedRefund).not.toHaveAttribute('jsaction', /click/);
-    await reviewFailedRefund.click();
-    const retryRecoveryForm = recoveryPage.page
-      .getByRole('heading', {
-        level: 2,
-        name: 'Try failed refund again',
-      })
-      .locator('..');
-    await expect(retryRecoveryForm).toBeVisible();
-    await expect(retryRecoveryForm).toContainText(scenario.title);
-    await expect(retryRecoveryForm).toContainText(refundAmountLabel);
-    await expect(retryRecoveryForm).toContainText('Try this refund again');
-    await expect(retryRecoveryForm).not.toContainText(refundClaim.id);
-    await expect(retryRecoveryForm).not.toContainText(scenario.registrationId);
-    await expect(retryRecoveryForm).not.toContainText(
-      settledCheckout.transactionId,
-    );
-    await recoveryPage.page
-      .getByLabel('Reason for this action')
-      .fill(newGenerationReason);
-    await takeScreenshot(
-      testInfo,
-      recoveryPage.page.locator('app-platform-finance'),
-      recoveryPage.page,
-      'Review and try the add-on refund again',
-    );
-    await recoveryPage.page
-      .getByRole('button', { name: 'Try failed refund again' })
-      .click();
-    await expect(
-      recoveryPage.page.getByText('The refund will be tried again', {
-        exact: true,
-      }),
-    ).toBeVisible({ timeout: 20_000 });
-    await expect(terminalRecoveryRow).toHaveCount(0);
-
-    const requeuedRefund = await database.query.transactions.findFirst({
-      where: { id: refundClaim.id, tenantId: tenant.id },
-    });
-    expect(requeuedRefund).toMatchObject({
-      status: 'pending',
-      stripeRefundGeneration: 1,
-      stripeRefundHistory: [
-        expect.objectContaining({
-          generation: 0,
-          refundId: generationZeroRefundId,
-          status: 'failed',
-        }),
-      ],
-      stripeRefundId: null,
-      stripeRefundStatus: null,
-    });
-    expect(requeuedRefund?.stripeRefundNextAttemptAt).not.toBeNull();
-    expect((await readRefundClaims()).map(({ id }) => id)).toEqual([
-      refundClaim.id,
-    ]);
-    const newGenerationAuditEntry =
-      await database.query.platformAuditEntries.findFirst({
-        where: {
-          action: 'refundClaim.requeue',
-          reason: newGenerationReason,
-          targetTenantId: tenant.id,
-        },
-      });
-    expect(newGenerationAuditEntry).toMatchObject({
-      action: 'refundClaim.requeue',
-      after: {
-        resourceId: refundClaim.id,
-        resourceType: 'refundClaim',
-        state: {
-          attempts: 0,
-          generation: 1,
-          hasLastError: false,
-          hasRefundId: false,
-          mode: 'newGeneration',
-          status: 'pending',
-          stripeRefundStatus: null,
-        },
-      },
-      before: {
-        resourceId: refundClaim.id,
-        resourceType: 'refundClaim',
-        state: {
-          generation: 0,
-          hasLastError: true,
-          hasRefundId: true,
-          mode: 'newGeneration',
-          status: 'pending',
-          stripeRefundStatus: 'failed',
-        },
-      },
-      reason: newGenerationReason,
-      targetTenantId: tenant.id,
-    });
-
-    await scannerPage.page.reload();
-    await waitForScannerAddonFulfillment(scannerPage.page);
-    await expect(
-      scannerAddOn.getByText('Refund in progress', { exact: true }),
-    ).toBeVisible();
-    await page.reload();
-    profileCard = await openProfileEventCard(page, scenario.title);
-    await expect(profileCard).toContainText(/Add-on payment:\s*Refund delayed/);
-    await expect(profileCard).toContainText(refundAmountLabel);
-
-    await deliverRegistrationRefundWebhook({
-      amount: expectedRefundAmounts.grossAmount,
-      chargeId: settledCheckout.chargeId,
-      currency: tenant.currency,
-      refundClaimId: refundClaim.id,
-      refundGeneration: 1,
-      refundId: recoveredRefundId,
-      registrationId: scenario.registrationId,
-      request,
-      sourceTransactionId: settledCheckout.transactionId,
-      status: 'succeeded',
-      stripeAccountId,
-      stripeEventId: recoveredWebhookEventId,
-      tenantId: tenant.id,
-    });
-    await scannerPage.page.reload();
-    await waitForScannerAddonFulfillment(scannerPage.page);
-    await expect(
-      scannerAddOn.getByText('Refunded', { exact: true }),
-    ).toBeVisible();
-    await page.reload();
-    profileCard = await openProfileEventCard(page, scenario.title);
-    await expect(profileCard).toContainText(
-      /Add-on payment:\s*Refund complete/,
-    );
-    await expect(profileCard).toContainText(refundAmountLabel);
-    await expect(profileCard).toContainText(
-      'Your sign-up is cancelled and all refunds are complete',
-    );
-    const completedRefund = await database.query.transactions.findFirst({
-      where: { id: refundClaim.id, tenantId: tenant.id },
-    });
-    expect(completedRefund).toMatchObject({
-      status: 'successful',
-      stripeRefundGeneration: 1,
-      stripeRefundHistory: [
-        expect.objectContaining({
-          generation: 0,
-          reason: newGenerationReason,
-          refundId: generationZeroRefundId,
-          status: 'failed',
-        }),
-      ],
-      stripeRefundId: recoveredRefundId,
-      stripeRefundStatus: 'succeeded',
-    });
-    expect((await readRefundClaims()).map(({ id }) => id)).toEqual([
-      refundClaim.id,
-    ]);
     const preservedRedemptionAllocations =
       await database.query.eventRegistrationAddonFulfillmentAllocations.findMany(
         {
@@ -1741,21 +1418,6 @@ Switch to an Evorto administrator account; an organization Admin role is not suf
         },
       }),
     ).toEqual({ status: 'CANCELLED' });
-    await testInfo.attach('markdown', {
-      body: `
-### Completion
-
-After the payment service confirms the retry succeeded, the organizer view shows **Refunded** and the attendee view shows **Refund complete**. The sign-up stays cancelled, and the earlier failed attempt remains in payment history.
-
-This example demonstrates how Evorto tracks the refund; it cannot establish when a card network or bank credits the money. Treat the refund as complete in Evorto only after the payment service confirms it succeeded.
-`,
-    });
-    await takeScreenshot(
-      testInfo,
-      profileCard,
-      page,
-      'Completed refund on the cancelled attendee ticket',
-    );
   });
 
   test('Understand when you can no longer cancel your ticket', async ({

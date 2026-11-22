@@ -130,7 +130,8 @@ component regressions retain retry recovery for temporary failures.
   - the dedicated registration-transfer spec and generated guide cover the
     free private-link create/claim flow, paid offer/self-claim boundaries,
     current-price review, in-place paid Checkout finalization, source-refund
-    terminal failure, and operator requeue. The fixed-bundle candidate adds
+    terminal failure that stays in its needs-attention state. The fixed-bundle
+    candidate adds
     unchanged guest/add-on quantities and history, current-base pricing with
     recipient discounts only, and one exact plan/claim per original Stripe
     source. The source-aligned candidate now proves the append-only acquisition
@@ -141,8 +142,7 @@ component regressions retain retry recovery for temporary failures.
     ticket with one included and two Stripe-settled optional add-on units,
     production-service redemption, participant cancellation, exact source and
     refund allocation, inventory restoration, signed terminal-failure and
-    generation-1 success webhooks, scanner/Profile status projections, and
-    audited Global Admin refund recovery
+    generation-1 success webhooks, and scanner/Profile status projections
   - `specs/discounts/esn-discounts.test.ts`
   - app event edit, lifecycle-action, and organizer-action guard coverage in
     `src/app/events`
@@ -211,24 +211,14 @@ component regressions retain retry recovery for temporary failures.
 - Tenant/global admin:
   - `docs/admin/global-admin.doc.ts`
   - `docs/admin/general-settings.doc.ts`
-  - `docs/admin/platform-tenant-operations.doc.ts` documents explicit tenant
-    targeting and performs a draft-event title edit, template title edit,
-    existing-user role assignment and removal, unverifiable-receipt rejection,
-    and attendee-plus-guest check-in through the platform pages. Each action has
-    a distinct operator reason, PostgreSQL state readback, visible platform
-    audit-log readback, and deterministic cleanup. The guide does not claim to
-    execute adjacent lifecycle, tax-import, refund-recovery, registration
-    approval/cancellation, or reimbursement operations.
-  - `specs/admin/platform-tenant-operations.spec.ts` follows the discoverable
-    target-operation links, opens the refund-recovery tab, and resolves an
-    attendee ticket URL through the target-scoped platform scanner route. It also
-    cancels an owned free ticket and blocks the follow-up detail read, proving
-    that the confirmed result remains visible without a duplicate cancellation
-    or a refund claim. Platform cancellation carries the status and payment
-    snapshot confirmed by the administrator.
+  - `docs/admin/platform-tenant-operations.doc.ts` and
+    `specs/admin/platform-tenant-operations.spec.ts` cover only the organization
+    link and detail page: they follow **Open organization** to the organization's
+    own pages. Events, templates, roles, scanning, receipts, finance, and
+    registrations are covered by the ordinary tenant specs and guides
   - global-admin handler and PostgreSQL tests exercise explicit platform
-    authority, target-scoped operations, audit outcomes, bounded registration
-    reads, and required operator reasons; ESLint restricts audit mutations
+    authority, audit outcomes, and required operator reasons for organization
+    writes; ESLint restricts audit mutations
   - email-delivery tests execute enqueue/render behavior for the supported
     notification kinds; checkout-completion PostgreSQL tests and registration
     and transfer journeys inspect the persisted outbox outcomes
@@ -337,18 +327,12 @@ component regressions retain retry recovery for temporary failures.
   eligible discounts, and creates one exact refund plan/claim per original
   Stripe source. Source-user discounts do not transfer, and database-only
   completion is limited to a wholly free bundle with no refund obligation. It
-  also covers source self-claim denial, terminal refund failure, and operator
-  requeue. This candidate is not validated until the complete local gate passes.
+  also covers source self-claim denial and terminal refund failure. This candidate is not validated until the complete local gate passes.
 - `src/db/schema/registration-concurrency.postgres.spec.ts` recreates the
   inverse shared-user lock timing between a transfer notification read and a
   parallel multi-user registration insert. It proves the point-in-time email
   read completes without a global user-row write lock, releases the blocked
   insert, and commits both registrations under a bounded lock timeout.
-- `src/server/effect/rpc/handlers/platform/platform-event-creation.postgres.spec.ts`
-  creates paid events through the platform handler with ESNcard enabled and
-  disabled after the template was saved. It verifies the copied discount,
-  unchanged template and ticket price, and the creation audit entry, then rolls
-  back all fixture rows.
 - `specs/events/negative-registration-states.spec.ts` adds page-backed waitlist
   coverage for full first-come-first-served options with explicit required
   answer gating, persisted waitlist registration readback, and persisted
@@ -359,7 +343,7 @@ component regressions retain retry recovery for temporary failures.
   transfer-code guide, including private code entry without URL credentials, recipient review,
   persisted in-place ownership transition, and page-backed paid-transfer states
   for pending Checkout, successful ownership transfer with refund processing,
-  terminal source-refund failure, safe operator requeue, and completed refunds.
+  terminal source-refund failure (kept in needs attention), and completed refunds.
   The source participant's event page shows the exact aggregate refund through
   processing, failure, retry, and completion while keeping the transferred
   ticket and all management actions unavailable. Its paid fixture
@@ -671,7 +655,7 @@ ESNcard provider credential path.
     deterministic result URL, captures the overview, undo, cancellation dialog,
     and completed counters, and leaves real-device camera review as an explicit
     manual step instead of treating synthetic camera input as proof. The paid
-    Stripe cancellation, refund status, and recovery continuation is covered by
+    Stripe cancellation and refund status are covered by
     `docs/events/registration-cancellation.doc.ts`.
   - Docker-backed system-Chrome organizer aggregate review now passes for the
     scanner spec and generated event-management docs. The page-backed scanner
@@ -846,8 +830,8 @@ ESNcard provider credential path.
     preserves redeemed units, restocks only the remaining purchased unit, and
     creates one exactly allocated refund claim. Signed local failed and
     generation-1 succeeded webhooks exercise the production handler, scanner
-    and Profile projections, Global Admin **Refunds needing attention**, immutable refund
-    history, and append-only recovery audit. The guide also documents
+    and Profile projections and immutable refund
+    history. The guide also documents
     permission/tenant boundaries and retry/idempotency guidance without
     claiming a new denial test or live provider settlement certification.
   - `specs/events/manual-approval.spec.ts` and

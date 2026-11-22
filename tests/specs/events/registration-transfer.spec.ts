@@ -725,7 +725,7 @@ test('offers a paid registration privately while rejecting a source self-claim',
   ).toBeVisible();
 });
 
-test('completes a paid transfer and preserves its failed refund for operator requeue', async ({
+test('completes a paid transfer and keeps its failed refund needing attention', async ({
   browser,
   database,
   registerDatabaseCleanup,
@@ -1359,56 +1359,6 @@ test('completes a paid transfer and preserves its failed refund for operator req
       where: { id: scenario.transferId, tenantId: tenant.id },
     }),
   ).toEqual({ status: 'refund_failed' });
-
-  expect(await scenario.requeueSourceRefund()).toEqual({
-    refundAfter: {
-      attempts: 0,
-      generation: 1,
-      refundId: null,
-      status: 'pending',
-      stripeRefundStatus: null,
-    },
-    recoveryMode: 'newGeneration',
-    transferStatus: 'requeued',
-  });
-  await openRegistrationTransferClaim(recipientPage.page, scenario.claimCode);
-  await expect(
-    recipientPage.page.getByRole('heading', {
-      name: 'Transfer complete — refund in progress',
-    }),
-  ).toBeVisible();
-  expect(
-    await database.query.transactions.findFirst({
-      columns: {
-        status: true,
-        stripeRefundGeneration: true,
-        stripeRefundHistory: true,
-        stripeRefundId: true,
-        stripeRefundNextAttemptAt: true,
-        stripeRefundStatus: true,
-      },
-      where: { id: refundTransactionId, tenantId: tenant.id },
-    }),
-  ).toMatchObject({
-    status: 'pending',
-    stripeRefundGeneration: 1,
-    stripeRefundHistory: [
-      expect.objectContaining({
-        refundId: `re_transfer_${scenario.sourceTransactionId}`,
-        status: 'failed',
-      }),
-    ],
-    stripeRefundId: null,
-    stripeRefundStatus: null,
-  });
-  expect(
-    (
-      await database.query.transactions.findFirst({
-        columns: { stripeRefundNextAttemptAt: true },
-        where: { id: refundTransactionId, tenantId: tenant.id },
-      })
-    )?.stripeRefundNextAttemptAt,
-  ).not.toBeNull();
 });
 
 test('refunds an inherited add-on from the recipient Checkout through its persisted payment account', async ({

@@ -3042,20 +3042,17 @@ const createManualApprovalDatabase = ({
 const runManualApproval = ({
   database,
   executiveUserId = 'organizer-1',
-  onApproved,
   stripe,
   stripeAccountId = 'acct_123',
 }: {
   database: DatabaseClient;
   executiveUserId?: null | string;
-  onApproved?: ApproveManualRegistrationArguments['onApproved'];
   stripe: Stripe;
   stripeAccountId?: string | undefined;
 }) =>
   EventRegistrationService.approveManualRegistration({
     executiveUserId,
     expectedEventId: 'event-1',
-    ...(onApproved && { onApproved }),
     registrationId: 'registration-1',
     targetTenant: {
       ...tenantPublicOrigin,
@@ -7415,7 +7412,6 @@ describe('EventRegistrationService', () => {
     () =>
       Effect.gen(function* () {
         const approvalDatabase = yield* createManualApprovalDatabase();
-        let auditedTransition: unknown;
         const checkoutStripeClient = createStripeTestClient();
         const createSession = vi.fn(
           (parameters?: Stripe.Checkout.SessionCreateParams) => {
@@ -7436,11 +7432,6 @@ describe('EventRegistrationService', () => {
         const result = yield* runManualApproval({
           database: approvalDatabase.database,
           executiveUserId: null,
-          onApproved: (_tx, transition) => {
-            auditedTransition = transition;
-            approvalDatabase.operationOrder.push('audit');
-            return Effect.void;
-          },
           stripe: checkoutStripeClient,
         });
 
@@ -7449,24 +7440,12 @@ describe('EventRegistrationService', () => {
           'claim',
           'reserve',
           'registration',
-          'audit',
           'stripe',
           'bind',
           'email',
         ]);
         expect(approvalDatabase.claimInsertCount()).toBe(1);
         expect(approvalDatabase.claimExecutiveUserId()).toBeNull();
-        expect(auditedTransition).toEqual({
-          eventId: 'event-1',
-          guestCount: 0,
-          registrationId: 'registration-1',
-          registrationOptionId: 'option-1',
-          statusAfter: 'PENDING',
-          statusBefore: 'PENDING',
-          transactionId: expect.any(String),
-          transactionStatus: 'pending',
-          userId: 'user-1',
-        });
         expect(approvalDatabase.reservationUpdateCount()).toBe(1);
         expect(approvalDatabase.bindingUpdateCount()).toBe(1);
         expect(approvalDatabase.emailInsertCount()).toBe(1);
