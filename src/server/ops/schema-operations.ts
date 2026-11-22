@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 
 const maximumCommandOutputBytes = 4 * 1024 * 1024;
 const commandTimeoutMs = 2 * 60 * 1000;
-const drizzleExecutable = 'ops/drizzle-kit.cjs';
+const drizzleExecutable = 'ops/drizzle-kit/bin.js';
 const drizzleConfig = 'ops/drizzle.config.mjs';
 const databasePrerequisitesExecutable =
   'dist/evorto/ops/database-prerequisites.mjs';
@@ -237,7 +237,8 @@ const AlterEnumStatement = Schema.Struct({
 });
 const CreateIndexStatement = Schema.Struct({
   index: Schema.Struct({
-    concurrently: Schema.Boolean,
+    // Drizzle Kit rc.6 omits this flag from its index statements.
+    concurrently: Schema.optionalKey(Schema.Boolean),
     isUnique: Schema.Boolean,
     name: Schema.String,
     schema: Schema.String,
@@ -379,7 +380,7 @@ const analyzeStatement = (
       if (createdTables.has(tableMemberKey(decoded.index))) {
         return;
       }
-      return !decoded.index.isUnique && decoded.index.concurrently
+      return !decoded.index.isUnique && decoded.index.concurrently === true
         ? undefined
         : unsafeOperationReason(index, decoded.type);
     }

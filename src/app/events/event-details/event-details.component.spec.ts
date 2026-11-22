@@ -9,6 +9,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MatAutocompleteHarness } from '@angular/material/autocomplete/testing';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { provideRouter } from '@angular/router';
+import { createTestRpcQueryOptions } from '@app/testing/rpc-query-test-options';
 import { createRpcQueryFilter } from '@heddendorp/effect-angular-query';
 import { RpcBadRequestError } from '@shared/errors/rpc-errors';
 import { ClientTenantConfig } from '@shared/rpc-contracts/app-rpcs/config.rpcs';
@@ -1583,40 +1584,42 @@ describe('EventDetailsComponent review action outcomes', () => {
     });
     cleanupQueryClient = queryClient;
     const operations = {
-      authentication: () => ({
-        queryFn: async () => false,
-        queryKey: [['config', 'isAuthenticated'], { type: 'query' }],
-      }),
-      canOrganize: (eventId: string) => ({
-        queryFn: async () => false,
-        queryKey: [
-          ['events', 'canOrganize'],
-          { input: { eventId }, type: 'query' },
-        ],
-      }),
+      authentication: () =>
+        createTestRpcQueryOptions({
+          pathSegments: ['config', 'isAuthenticated'],
+          queryFn: async () => false,
+        }),
+      canOrganize: (eventId: string) =>
+        createTestRpcQueryOptions({
+          input: { eventId },
+          pathSegments: ['events', 'canOrganize'],
+          queryFn: async () => false,
+        }),
       eventListFilter: () => createRpcQueryFilter(['events', 'eventList']),
       eventQueryKey: eventKey,
-      findEvent: (id: string) => ({
-        queryFn: () => loadEvent(id),
-        queryKey: eventKey(id),
-      }),
-      myCards: () => ({
-        queryFn: async () => [],
-        queryKey: [['discounts', 'getMyCards'], { type: 'query' }],
-      }),
+      findEvent: (id: string) =>
+        createTestRpcQueryOptions({
+          input: { id },
+          pathSegments: ['events', 'findOne'],
+          queryFn: () => loadEvent(id),
+        }),
+      myCards: () =>
+        createTestRpcQueryOptions({
+          pathSegments: ['discounts', 'getMyCards'],
+          queryFn: async () => [],
+        }),
       pendingReviewsFilter: () =>
         createRpcQueryFilter(['events', 'getPendingReviews']),
-      registrationStatus: (eventId: string) => ({
-        queryFn: async () => ({
-          isRegistered: false,
-          outgoingTransfers: [],
-          registrations: [],
+      registrationStatus: (eventId: string) =>
+        createTestRpcQueryOptions({
+          input: { eventId },
+          pathSegments: ['events', 'getRegistrationStatus'],
+          queryFn: async () => ({
+            isRegistered: false,
+            outgoingTransfers: [],
+            registrations: [],
+          }),
         }),
-        queryKey: [
-          ['events', 'getRegistrationStatus'],
-          { input: { eventId }, type: 'query' },
-        ],
-      }),
       reviewEvent: () => ({ mutationFn: review }),
       submitForReview: () => ({ mutationFn: submitReview }),
       updateAnnouncementDiscovery: () => ({ mutationFn: changeDiscovery }),
@@ -1683,36 +1686,33 @@ describe('EventDetailsComponent review action outcomes', () => {
         {
           provide: RoleSelectQueries,
           useValue: {
-            search: (
-              search: string,
-            ): ReturnType<RoleSelectQueries['search']> => ({
-              queryFn: async () =>
-                roles
-                  .filter((role) =>
-                    role.name.toLowerCase().includes(search.toLowerCase()),
-                  )
-                  .slice(0, 15),
-              queryKey: [
-                ['roles', 'findMany'],
-                { input: { search }, type: 'query' },
-              ],
-            }),
+            search: (search: string): ReturnType<RoleSelectQueries['search']> =>
+              createTestRpcQueryOptions({
+                input: { search },
+                pathSegments: ['roles', 'findMany'],
+                queryFn: async () =>
+                  roles
+                    .filter((role) =>
+                      role.name.toLowerCase().includes(search.toLowerCase()),
+                    )
+                    .slice(0, 15),
+              }),
             selected: (
               id: string,
             ): ReturnType<RoleSelectQueries['selected']> => ({
-              queryFn: async () => {
-                const role = roles.find((role) => role.id === id);
-                if (!role)
-                  throw new RoleLookupNotFoundError({
-                    id,
-                    message: 'Role not found',
-                  });
-                return role;
-              },
-              queryKey: [
-                ['roles', 'findOne'],
-                { input: { id }, type: 'query' },
-              ],
+              ...createTestRpcQueryOptions({
+                input: { id },
+                pathSegments: ['roles', 'findOne'],
+                queryFn: async () => {
+                  const role = roles.find((role) => role.id === id);
+                  if (!role)
+                    throw new RoleLookupNotFoundError({
+                      id,
+                      message: 'Role not found',
+                    });
+                  return role;
+                },
+              }),
               retry: false,
               staleTime: 30_000,
             }),
@@ -1984,44 +1984,34 @@ describe('EventDetailsComponent review action outcomes', () => {
         .mockResolvedValue([]);
       const listOptions: ReturnType<
         OutcomeRpc['events']['eventList']['queryOptions']
-      > = {
+      > = createTestRpcQueryOptions({
+        input: {
+          limit: 100,
+          offset: 0,
+          startAfter: '2030-01-01T00:00:00.000Z',
+          status: [],
+        },
+        pathSegments: ['events', 'eventList'],
         queryFn: listRead,
-        queryKey: [
-          ['events', 'eventList'],
-          {
-            input: {
-              limit: 100,
-              offset: 0,
-              startAfter: '2030-01-01T00:00:00.000Z',
-              status: [],
-            },
-            type: 'query',
-          },
-        ],
-      };
+      });
       const secondListOptions: ReturnType<
         OutcomeRpc['events']['eventList']['queryOptions']
-      > = {
+      > = createTestRpcQueryOptions({
+        input: {
+          limit: 100,
+          offset: 100,
+          startAfter: '2030-01-01T00:00:00.000Z',
+          status: [],
+        },
+        pathSegments: ['events', 'eventList'],
         queryFn: secondListRead,
-        queryKey: [
-          ['events', 'eventList'],
-          {
-            input: {
-              limit: 100,
-              offset: 100,
-              startAfter: '2030-01-01T00:00:00.000Z',
-              status: [],
-            },
-            type: 'query',
-          },
-        ],
-      };
+      });
       const reviewListOptions: ReturnType<
         OutcomeRpc['events']['getPendingReviews']['queryOptions']
-      > = {
+      > = createTestRpcQueryOptions({
+        pathSegments: ['events', 'getPendingReviews'],
         queryFn: reviewListRead,
-        queryKey: [['events', 'getPendingReviews'], { type: 'query' }],
-      };
+      });
       const listObserver = new QueryObserver(queryClient, listOptions);
       const secondListObserver = new QueryObserver(
         queryClient,
@@ -2287,10 +2277,12 @@ describe('EventDetailsComponent review action outcomes', () => {
         eventKey('event-1'),
       );
       expect(cachedEvent).toEqual(record('PENDING_REVIEW'));
-      const detailOptions: ReturnType<EventDetailsOperations['findEvent']> = {
-        queryFn: () => loadEvent('event-1'),
-        queryKey: eventKey('event-1'),
-      };
+      const detailOptions: ReturnType<EventDetailsOperations['findEvent']> =
+        createTestRpcQueryOptions({
+          input: { id: 'event-1' },
+          pathSegments: ['events', 'findOne'],
+          queryFn: () => loadEvent('event-1'),
+        });
       const detailObserver = new QueryObserver(queryClient, detailOptions);
       let observedFetchStatus = detailObserver.getCurrentResult().fetchStatus;
       let observedData = detailObserver.getCurrentResult().data;
@@ -2577,10 +2569,12 @@ describe('EventDetailsComponent review action outcomes', () => {
     loadEvent.mockImplementation(async (id) =>
       id === 'event-2' ? nextEvent : record('PENDING_REVIEW'),
     );
-    const originalOptions: ReturnType<EventDetailsOperations['findEvent']> = {
-      queryFn: () => loadEvent('event-1'),
-      queryKey: eventKey('event-1'),
-    };
+    const originalOptions: ReturnType<EventDetailsOperations['findEvent']> =
+      createTestRpcQueryOptions({
+        input: { id: 'event-1' },
+        pathSegments: ['events', 'findOne'],
+        queryFn: () => loadEvent('event-1'),
+      });
     const originalObserver = new QueryObserver(queryClient, originalOptions);
     let originalStatus = 'loading';
     let stopOriginal: (() => void) | undefined;

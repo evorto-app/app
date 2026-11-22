@@ -121,7 +121,60 @@ describe("SchemaGetter", () => {
     await encoding("f", "Zg==")
   })
 
+  it.effect("text encoding getters report unpaired surrogates as invalid values", () =>
+    Effect.gen(function*() {
+      const input = "a\uD800b"
+      for (
+        const getter of [
+          SchemaGetter.encodeBase64<string>(),
+          SchemaGetter.encodeBase64Url<string>(),
+          SchemaGetter.encodeBase64Url<string>({ padding: true }),
+          SchemaGetter.encodeHex<string>(),
+          SchemaGetter.encodeUriComponent<string>()
+        ]
+      ) {
+        const issue = yield* SchemaGetter.run(getter, Option.some(input), { reportInput: true }).pipe(Effect.flip)
+        assert.instanceOf(issue, SchemaIssue.InvalidValue)
+        assert(SchemaIssue.hasInput(issue))
+        assert.strictEqual(issue.input, input)
+      }
+    }))
+
+  it("splitKeyValue trims and keeps empty values when requested", async () => {
+    const input = " b = x ,empty=,blank= , =ignored,novalue"
+    await makeAsserts(SchemaGetter.splitKeyValue<string>())(input, { " b ": " x ", blank: " ", " ": "ignored" })
+    await makeAsserts(SchemaGetter.splitKeyValue<string>({ trim: true }))(input, { b: "x" })
+    await makeAsserts(SchemaGetter.splitKeyValue<string>({ keepEmptyValues: true }))(
+      input,
+      { " b ": " x ", empty: "", blank: " ", " ": "ignored" }
+    )
+    await makeAsserts(SchemaGetter.splitKeyValue<string>({ trim: true, keepEmptyValues: true }))(
+      input,
+      { b: "x", empty: "", blank: "" }
+    )
+  })
+
   describe("makeTreeRecord", () => {
+    it("preserves unmatched and nested bracket characters", () => {
+      deepStrictEqual(SchemaGetter.makeTreeRecord([["a[b", "value"]]), { "a[b": "value" })
+      deepStrictEqual(SchemaGetter.makeTreeRecord([["a[b][", "value"]]), { a: { "b[": "value" } })
+      deepStrictEqual(SchemaGetter.makeTreeRecord([["a[b[c]]", "value"]]), { a: { "b[c]": "value" } })
+    })
+
+    it("does not match brackets across line terminators", () => {
+      for (const terminator of ["\n", "\r", "\u2028", "\u2029"]) {
+        const key = `a[b${terminator}c]`
+        deepStrictEqual(SchemaGetter.makeTreeRecord([[`${key}[d]`, "value"]]), { [key]: { d: "value" } })
+      }
+    })
+
+    it("preserves long unmatched bracket runs", () => {
+      const brackets = "[".repeat(64_000)
+      for (const key of [brackets, `${brackets}\n]`]) {
+        deepStrictEqual(SchemaGetter.makeTreeRecord([[key, "value"]]), { [key]: "value" })
+      }
+    })
+
     it("preserves array-valued leaves at duplicate paths", () => {
       deepStrictEqual(
         SchemaGetter.makeTreeRecord([

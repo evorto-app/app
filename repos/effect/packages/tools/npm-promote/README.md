@@ -29,19 +29,26 @@ Each run:
    `latest` is exactly the target and no deploy is recorded for that commit.
    Deploys are recorded as GitHub deployments in the `website-v4` environment,
    so a failed or interrupted deploy is retried by the next run.
-5. Closes the tracking issue if one is open. A release that a newer one
-   superseded still closes it, and a failure to close never blocks the deploy.
+5. Closes every open tracking issue. A release that a newer one superseded
+   still closes them, and a failure to close never blocks the deploy.
 
 When the version bump commit is older than `--overdue-after-hours` (12 by
 default) and the release is still not visible or cannot be promoted, the tool
-opens or updates a single tracking issue. For versions that are not visible it
-checks each version's own registry document and lists versions missing from npm
-(404), versions published but not visible yet, and versions whose check failed.
+opens or updates a single tracking issue. Promotion waits for every current
+workspace package. If only packages added after the bump are missing, live
+tags must confirm earlier packages reached their targets to skip the alert. For
+versions that are not visible it checks each version's own registry document
+and lists versions missing from npm (404), versions published but not visible
+yet, and versions whose check failed.
 Failed `npm dist-tag add` writes are listed separately, and a registry read
 that fails during promotion lists its version as unchecked. Read failures while
 deciding the website deploy happen after promotion succeeded, so they fail the
 run and are retried, but never open the tracking issue. Prerelease versions are
 never promoted.
+
+GitHub's issue listing can miss an open issue while GitHub is degraded, so a
+run may open a duplicate tracking issue. The next run keeps the oldest open
+tracking issue and closes the others as duplicates of it.
 
 `--dry-run` reads the registry and prints the plan. It never moves dist-tags,
 deploys the website, or touches GitHub issues. Real runs need

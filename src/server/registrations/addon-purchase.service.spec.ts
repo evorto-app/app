@@ -67,7 +67,7 @@ const createAddonPurchaseTaxFixture = ({
                 [
                   'addon-1',
                   0,
-                  '2026-09-15T12:00:00.000',
+                  new Date('2026-09-15T12:00:00.000Z'),
                   'event-1',
                   'purchase-1',
                   includedQuantity,
@@ -82,7 +82,7 @@ const createAddonPurchaseTaxFixture = ({
                   null,
                   'tenant-1',
                   0,
-                  '2026-09-15T12:00:00.000',
+                  new Date('2026-09-15T12:00:00.000Z'),
                 ],
               ]
             : [];
@@ -96,14 +96,14 @@ const createAddonPurchaseTaxFixture = ({
               true,
               true,
               true,
-              '2099-08-01T22:00:00.000',
+              new Date('2099-08-01T22:00:00.000Z'),
               'APPROVED',
               'Event',
               isPaid,
               10,
               10,
               price,
-              '2099-08-01T18:00:00.000',
+              new Date('2099-08-01T18:00:00.000Z'),
               stripeTaxRateId,
               'Add-on',
               10,
@@ -422,7 +422,7 @@ describe('registration add-on purchase policy', () => {
               expect(commands).toEqual(['BEGIN']);
               if (
                 statement ===
-                'select "eventId", "registrationOptionId", "status"::text, "userId" from "event_registrations" where (("event_registrations"."id" = $1) and ("event_registrations"."tenantId" = $2)) for update'
+                'select "eventId", "registrationOptionId", "status", "userId" from "event_registrations" where (("event_registrations"."id" = $1) and ("event_registrations"."tenantId" = $2)) for update'
               ) {
                 expect(parameters).toEqual(['registration-1', 'tenant-1']);
                 return [['event-1', 'option-1', 'CONFIRMED', 'user-1']];

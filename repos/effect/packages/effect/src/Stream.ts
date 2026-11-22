@@ -2922,7 +2922,44 @@ export const forever = <A, E, R>(self: Stream<A, E, R>): Stream<A, E, R> => from
  * @since 4.0.0
  */
 export const flattenIterable = <A, E, R>(self: Stream<Iterable<A>, E, R>): Stream<A, E, R> =>
-  flatMap(self, fromIterable)
+  transformPull(self, (pull, scope) => {
+    let chunk: Arr.NonEmptyReadonlyArray<Iterable<A>> | undefined
+    let index = 0
+    let iterator: Iterator<A> | undefined
+    const refill = Effect.flatMap(pull, (chunk_) => {
+      chunk = chunk_
+      index = 0
+      return loop()
+    })
+    function loop(): Pull.Pull<Arr.NonEmptyReadonlyArray<A>, E> {
+      while (true) {
+        if (iterator !== undefined) {
+          const buffer: Array<A> = []
+          while (buffer.length < DefaultChunkSize) {
+            const result = iterator.next()
+            if (result.done) {
+              iterator = undefined
+              break
+            }
+            buffer.push(result.value)
+          }
+          if (Arr.isArrayNonEmpty(buffer)) return Effect.succeed(buffer)
+        }
+        if (chunk === undefined) return refill
+        const iterable = chunk[index++]
+        if (index === chunk.length) chunk = undefined
+        if (Array.isArray(iterable)) {
+          if (Arr.isArrayNonEmpty(iterable)) return Effect.succeed(iterable)
+        } else {
+          iterator = iterable[Symbol.iterator]()
+        }
+      }
+    }
+    return Effect.as(
+      Scope.addFinalizer(scope, Effect.sync(() => iterator?.return?.())),
+      Effect.suspend(loop)
+    )
+  })
 
 /**
  * Unwraps `Take` values, emitting elements from non-empty arrays and ending or
@@ -4319,7 +4356,11 @@ export const filterEffect: {
   <A, E, R, EX, RX>(
     self: Stream<A, E, R>,
     predicate: (a: NoInfer<A>, i: number) => Effect.Effect<boolean, EX, RX>
-  ): Stream<A, E | EX, R | RX> => fromChannel(Channel.filterArrayEffect(toChannel(self), predicate))
+  ): Stream<A, E | EX, R | RX> =>
+    suspend(() => {
+      let i = 0
+      return fromChannel(Channel.filterArrayEffect(toChannel(self), (a) => predicate(a, i++)))
+    })
 )
 
 /**
@@ -4732,17 +4773,12 @@ export const peel: {
   ): Effect.fn.Return<[A2, Stream<A, E, never>], E | E2, Scope.Scope | R | R2> {
     let cause: Cause.Cause<E | Cause.Done<void>> | undefined = undefined
     const originalPull = yield* Channel.toPull(self.channel)
-    const pull: Pull.Pull<
-      Arr.NonEmptyReadonlyArray<A>,
-      E
-    > = Effect.catchCause(originalPull, (cause_) => {
+    const pull = Effect.catchCause(originalPull, (cause_) => {
       cause = cause_
       return Effect.failCause(cause_)
     })
 
-    const [result, leftover] = yield* Effect.scopedWith((scope) =>
-      sink.transform(pull as Pull.Pull<Arr.NonEmptyReadonlyArray<A>>, scope)
-    )
+    const [result, leftover] = yield* Effect.scopedWith((scope) => runSink(sink, pull, scope))
     let stream: Stream<A, E> = cause ? empty : fromPull(Effect.succeed(originalPull))
     if (leftover) {
       stream = concat(fromArray(leftover), stream)
@@ -6274,6 +6310,9 @@ export const orDie = <A, E, R>(self: Stream<A, E, R>): Stream<A, never, R> => fr
  *
  * The `log` option controls whether the failure is logged before the stream
  * terminates.
+ * Set `log: "Unhandled"` to read `References.UnhandledLogLevel` when the
+ * failure occurs; `undefined` disables logging. Minimum log level filtering
+ * still applies.
  *
  * **Gotchas**
  *
@@ -6322,12 +6361,12 @@ export const orDie = <A, E, R>(self: Stream<A, E, R>): Stream<A, never, R> => fr
  */
 export const ignore: <
   Arg extends Stream<any, any, any> | {
-    readonly log?: boolean | Severity | undefined
+    readonly log?: boolean | Severity | "Unhandled" | undefined
   } | undefined
 >(
   selfOrOptions: Arg,
   options?: {
-    readonly log?: boolean | Severity | undefined
+    readonly log?: boolean | Severity | "Unhandled" | undefined
   } | undefined
 ) => [Arg] extends [Stream<infer A, infer _E, infer R>] ? Stream<A, never, R>
   : <A, E, R>(self: Stream<A, E, R>) => Stream<A, never, R> = dual(
@@ -6335,7 +6374,7 @@ export const ignore: <
     <A, E, R>(
       self: Stream<A, E, R>,
       options?: {
-        readonly log?: boolean | Severity | undefined
+        readonly log?: boolean | Severity | "Unhandled" | undefined
       } | undefined
     ): Stream<A, never, R> => fromChannel(Channel.ignore(self.channel, options))
   )
@@ -6347,6 +6386,12 @@ export const ignore: <
  *
  * Use when you need to silently suppress a stream's entire failure cause,
  * including both typed errors and defects, rather than propagate it downstream.
+ *
+ * **Details**
+ *
+ * Set `log: "Unhandled"` to read `References.UnhandledLogLevel` when the
+ * failure occurs; `undefined` disables logging. Minimum log level filtering
+ * still applies.
  *
  * **Example** (Ignoring stream failure causes)
  *
@@ -6372,19 +6417,19 @@ export const ignore: <
  */
 export const ignoreCause: <
   Arg extends Stream<any, any, any> | {
-    readonly log?: boolean | Severity | undefined
+    readonly log?: boolean | Severity | "Unhandled" | undefined
   } | undefined
 >(
   streamOrOptions: Arg,
   options?: {
-    readonly log?: boolean | Severity | undefined
+    readonly log?: boolean | Severity | "Unhandled" | undefined
   } | undefined
 ) => [Arg] extends [Stream<infer A, infer _E, infer R>] ? Stream<A, never, R>
   : <A, E, R>(self: Stream<A, E, R>) => Stream<A, never, R> = dual(
     (args) => isStream(args[0]),
     <A, E, R>(
       self: Stream<A, E, R>,
-      options?: { readonly log?: boolean | Severity | undefined } | undefined
+      options?: { readonly log?: boolean | Severity | "Unhandled" | undefined } | undefined
     ): Stream<A, never, R> => fromChannel(Channel.ignoreCause(self.channel, options))
   )
 
@@ -6781,7 +6826,7 @@ export const takeRight: {
     const count = Count.normalize(n)
     if (count === 0) return empty
     return mapAccumArray(self, MutableList.make<A>, (list, arr) => {
-      MutableList.appendAll(list, arr)
+      MutableList.appendAllUnsafe(list, arr)
       if (list.length > count) {
         MutableList.takeNVoid(list, list.length - count)
       }
@@ -7472,10 +7517,10 @@ export const rechunk: {
       let chunk = Arr.empty<A>() as Arr.NonEmptyArray<A>
       let index = 0
       let current: Arr.NonEmptyReadonlyArray<A> | undefined
-      let done = false
+      let cause: Cause.Cause<E | Cause.Done> | undefined
 
       return Effect.suspend(function loop(): Pull.Pull<Arr.NonEmptyReadonlyArray<A>, E, void, R> {
-        if (done) return Cause.done()
+        if (cause) return Effect.failCause(cause)
         else if (current === undefined) {
           return Effect.flatMap(pull, (arr) => {
             if (chunk.length === 0 && arr.length === target) {
@@ -7502,10 +7547,10 @@ export const rechunk: {
         current = undefined
         return loop()
       }).pipe(
-        Pull.catchDone(() => {
-          if (chunk.length === 0) return Cause.done()
+        Effect.catchCause((cause_) => {
+          if (chunk.length === 0) return Effect.failCause(cause_)
           const result = chunk
-          done = true
+          cause = cause_
           chunk = [] as any
           return Effect.succeed(result)
         })
@@ -8747,15 +8792,10 @@ export const groupBy: {
 ): Stream<readonly [K, Stream<V>], E | E2, R | R2> =>
   groupByImpl(
     self,
-    Effect.fnUntraced(function*(arr, queues, queueMap) {
+    Effect.fnUntraced(function*(arr, useQueue) {
       for (let i = 0; i < arr.length; i++) {
         const [key, value] = yield* f(arr[i])
-        const oentry = MutableHashMap.get(queueMap, key)
-        const queue = Option.isSome(oentry)
-          ? oentry.value
-          : yield* Effect.scoped(RcMap.get(queues, key))
-        yield* RcMap.touch(queues, key)
-        yield* Queue.offer(queue, value)
+        yield* useQueue(key, (queue) => Queue.offer(queue, value))
       }
     }),
     options
@@ -8819,7 +8859,7 @@ export const groupByKey: {
     const batch = MutableHashMap.empty<K, Arr.NonEmptyArray<A>>()
     return groupByImpl(
       self,
-      Effect.fnUntraced(function*(arr, queues, queueMap) {
+      Effect.fnUntraced(function*(arr, useQueue) {
         for (let i = 0; i < arr.length; i++) {
           const key = f(arr[i])
           const ovalues = MutableHashMap.get(batch, key)
@@ -8830,12 +8870,7 @@ export const groupByKey: {
           }
         }
         for (const [key, values] of batch) {
-          const oentry = MutableHashMap.get(queueMap, key)
-          const queue = Option.isSome(oentry)
-            ? oentry.value
-            : yield* Effect.scoped(RcMap.get(queues, key))
-          yield* RcMap.touch(queues, key)
-          yield* Queue.offerAll(queue, values)
+          yield* useQueue(key, (queue) => Queue.offerAll(queue, values))
         }
         MutableHashMap.clear(batch)
       }),
@@ -8843,12 +8878,16 @@ export const groupByKey: {
     )
   }))
 
+type UseGroupQueue<K, V> = (
+  key: K,
+  offer: (queue: Queue.Queue<V, Cause.Done>) => Effect.Effect<unknown>
+) => Effect.Effect<unknown>
+
 const groupByImpl = <A, E, R, K, V, E2, R2>(
   self: Stream<A, E, R>,
   f: (
     arr: Arr.NonEmptyReadonlyArray<A>,
-    queues: RcMap.RcMap<K, Queue.Queue<V, Cause.Done>>,
-    queueMap: MutableHashMap.MutableHashMap<K, Queue.Queue<V, Cause.Done>>
+    useQueue: UseGroupQueue<K, V>
   ) => Effect.Effect<void, E2, R2>,
   options?: {
     readonly bufferSize?: number | undefined
@@ -8862,6 +8901,8 @@ const groupByImpl = <A, E, R, K, V, E2, R2>(
       yield* Scope.addFinalizer(scope, Queue.shutdown(out))
 
       const queueMap = MutableHashMap.empty<K, Queue.Queue<V, Cause.Done>>()
+      const idleTimeToLive = Duration.fromInputUnsafe(options?.idleTimeToLive ?? Duration.infinity)
+      const canExpire = Duration.isFinite(idleTimeToLive)
       const queues = yield* RcMap.make({
         lookup: (key: K) =>
           Effect.acquireRelease(
@@ -8876,15 +8917,29 @@ const groupByImpl = <A, E, R, K, V, E2, R2>(
               return Queue.end(queue)
             }
           ),
-        idleTimeToLive: options?.idleTimeToLive ?? Duration.infinity
+        idleTimeToLive
       }).pipe(Scope.provide(forkedScope))
+
+      const useQueue: UseGroupQueue<K, V> = (key, offer) => {
+        if (!canExpire) {
+          const existing = MutableHashMap.get(queueMap, key)
+          if (Option.isSome(existing)) return offer(existing.value)
+        }
+        // Keep the group alive until the offer has been accepted or cancelled.
+        return Effect.scoped(Effect.flatMap(RcMap.get(queues, key), offer))
+      }
 
       yield* Effect.whileLoop({
         while: constTrue,
-        body: constant(Effect.flatMap(pull, (arr) => f(arr, queues, queueMap))),
+        body: constant(Effect.flatMap(pull, (arr) => f(arr, useQueue))),
         step: constVoid
       }).pipe(
-        Effect.catchCause((cause) => Queue.failCause(out, cause)),
+        Effect.catchCause((cause) => {
+          for (const [, queue] of queueMap) {
+            Queue.endUnsafe(queue)
+          }
+          return Queue.failCause(out, cause)
+        }),
         Effect.forkIn(scope)
       )
 
@@ -8959,12 +9014,13 @@ export const groupAdjacentBy: {
           return loop
         })
       )
-      let done = false
-      return Pull.catchDone(Effect.suspend(() => done ? Cause.done() : loop), () => {
-        done = true
-        const out = group
+      let cause: Cause.Cause<E | Cause.Done> | undefined
+      return Effect.catchCause(Effect.suspend(() => cause ? Effect.failCause(cause) : loop), (cause_) => {
+        cause = cause_
+        if (group === undefined) return Effect.failCause(cause_)
+        const out = Arr.of([currentKey, group] as const)
         group = undefined
-        return out && Arr.isArrayNonEmpty(out) ? Effect.succeed(Arr.of([currentKey, out])) : Cause.done()
+        return Effect.succeed(out)
       })
     })))
 
@@ -9206,7 +9262,7 @@ export const aggregateWithin: {
         return buffer.state.exit as Exit.Exit<never, Cause.Done<void> | E>
       }
       hasInput.closeUnsafe()
-      const pull = emit(Effect.suspend(() => sink.transform(sinkUpstream as any, scope)))
+      const pull = emit(Effect.suspend(() => runSink(sink, sinkUpstream, scope)))
       return buffer.state._tag === "Open" ? Effect.raceFirst(pull, stepToBuffer) : pull
     })
   }))))
@@ -11072,10 +11128,27 @@ export const run: {
 ): Effect.Effect<A2, E | E2, R | R2> =>
   Effect.scopedWith((scope) =>
     Channel.toPullScoped(self.channel, scope).pipe(
-      Effect.flatMap((upstream) => sink.transform(upstream as any, scope)),
+      Effect.flatMap((upstream) => runSink(sink, upstream, scope)),
       Effect.map(([a]) => a)
     )
   ))
+
+/**
+ * Runs `sink` against `upstream`. Upstream failures bypass the sink's error
+ * handlers and are restored once the sink has exited.
+ */
+const runSink = <A, E, R, A2, L, E2, R2>(
+  sink: Sink.Sink<A2, A, L, E2, R2>,
+  upstream: Pull.Pull<Arr.NonEmptyReadonlyArray<A>, E, void, R>,
+  scope: Scope.Scope
+): Effect.Effect<Sink.End<A2, L>, E | E2, R | R2> =>
+  Channel.restoreUpstreamFailure<Sink.End<A2, L>, E | E2, R2>(
+    // The upstream pull runs in this fiber, which already provides `R`.
+    sink.transform(
+      Channel.upstreamFailureToDefect(upstream) as Pull.Pull<Arr.NonEmptyReadonlyArray<A>, never, void>,
+      scope
+    )
+  )
 
 /**
  * Runs the stream and collects all elements into an array.

@@ -130,7 +130,7 @@ describe('runtime role configuration', () => {
           'dist/evorto/ops/seed-staging.mjs',
           'dist/evorto/ops/reset-staging-database.mjs',
           'dist/evorto/ops/database-prerequisites.mjs',
-          'ops/drizzle-kit.cjs',
+          'ops/drizzle-kit/bin.js',
           'dist/evorto/ops/seed-staging.mjs',
         ]);
       }),

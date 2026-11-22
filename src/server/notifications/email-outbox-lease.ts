@@ -57,21 +57,6 @@ const emailOutboxIncompleteSuppressedPredicate = () => sql<boolean>`
   (${emailOutbox.suppressedAt} is null or ${emailOutbox.lastAttemptAt} is null)
 `;
 
-export const emailOutboxOperationalIncidentPredicate = () => sql<boolean>`
-  (
-    ${emailOutbox.status} in ('failed', 'deliveryUnknown')
-    or (${emailOutboxSendingIncidentPredicate()})
-    or (
-      ${emailOutbox.status} = 'sent'
-      and ${emailOutboxIncompleteSentPredicate()}
-    )
-    or (
-      ${emailOutbox.status} = 'suppressed'
-      and ${emailOutboxIncompleteSuppressedPredicate()}
-    )
-  )
-`;
-
 /**
  * Each disjoint status/incident bucket contributes at most one page. Any row
  * outside its bucket's first page cannot belong to the global first page.

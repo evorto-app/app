@@ -66,46 +66,6 @@ const validationSuccess = (
 });
 
 /**
- * Get all compatible (inclusive, active & percentage-based) tax rates for a tenant
- */
-export const getCompatibleTaxRates = Effect.fn('getCompatibleTaxRates')(
-  function* (database: DatabaseClient, tenantId: string) {
-    const tenant = yield* database.query.tenants.findFirst({
-      columns: { stripeAccountId: true },
-      where: { id: tenantId },
-    });
-    if (!tenant?.stripeAccountId) return [];
-
-    const rates = yield* database.query.tenantStripeTaxRates.findMany({
-      orderBy: (table, { asc }) => [
-        asc(table.displayName),
-        asc(table.stripeTaxRateId),
-      ],
-      where: {
-        active: true,
-        inclusive: true,
-        percentage: { isNotNull: true },
-        stripeAccountId: tenant.stripeAccountId,
-        tenantId,
-      },
-    });
-    return rates.filter((rate) => Boolean(rate.percentage?.trim()));
-  },
-);
-
-/**
- * Check if tenant has any compatible tax rates available
- */
-export const hasCompatibleTaxRates = (
-  database: DatabaseClient,
-  tenantId: string,
-): Effect.Effect<boolean> =>
-  Effect.map(
-    getCompatibleTaxRates(database, tenantId),
-    (rates) => rates.length > 0,
-  ).pipe(Effect.orDie);
-
-/**
  * Validates tax rate assignment rules for registration options
  *
  * Rules:

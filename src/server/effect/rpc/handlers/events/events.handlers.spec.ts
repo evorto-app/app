@@ -85,7 +85,7 @@ const organizerAccessSql =
 const optionAggregateSql =
   'select "event_registration_options"."checkedInSpots", "event_registration_options"."confirmedSpots", "event_registration_options"."spots" from "event_registration_options" inner join "event_instances" on (("event_instances"."id" = "event_registration_options"."eventId") and ("event_instances"."tenantId" = $1)) where "event_registration_options"."eventId" = $2';
 const attendeeProjectionSql =
-  'select "d0"."applied_discounted_price" as "appliedDiscountedPrice", "d0"."applied_discount_type"::text as "appliedDiscountType", "d0"."base_price_at_registration" as "basePriceAtRegistration", "d0"."checkInTime"::text as "checkInTime", "d0"."discount_amount" as "discountAmount", "d0"."id" as "id", "d0"."registrationOptionId" as "registrationOptionId", "d0"."status"::text as "status", "addonPurchases"."r" as "addonPurchases", "registrationOption"."r" as "registrationOption", "transactions"."r" as "transactions", "user"."r" as "user" from "event_registrations" as "d0" ';
+  'select "d0"."applied_discounted_price" as "appliedDiscountedPrice", "d0"."applied_discount_type" as "appliedDiscountType", "d0"."base_price_at_registration" as "basePriceAtRegistration", "d0"."checkInTime" as "checkInTime", "d0"."discount_amount" as "discountAmount", "d0"."id" as "id", "d0"."registrationOptionId" as "registrationOptionId", "d0"."status" as "status", "addonPurchases"."r" as "addonPurchases", "registrationOption"."r" as "registrationOption", "transactions"."r" as "transactions", "user"."r" as "user" from "event_registrations" as "d0" ';
 
 const createEventQueryDatabase = ({
   organizerRegistration = false,
@@ -150,8 +150,8 @@ const createEventQueryDatabase = ({
 };
 
 const eventDetailSql = [
-  'select "d0"."announcementRoleIds" as "announcementRoleIds", "d0"."creatorId" as "creatorId", "d0"."description" as "description", "d0"."end"::text as "end", "d0"."icon" as "icon", "d0"."id" as "id", "d0"."location" as "location", "d0"."start"::text as "start", "d0"."status"::text as "status", "d0"."statusComment" as "statusComment", "d0"."title" as "title", "registrationOptions"."r" as "registrationOptions", "reviewer"."r" as "reviewer" from "event_instances" as "d0"',
-  `left join lateral(select coalesce(json_agg(row_to_json("t".*)), '[]') as "r" from (select "d1"."closeRegistrationTime"::text as "closeRegistrationTime", "d1"."confirmedSpots" as "confirmedSpots", "d1"."description" as "description", "d1"."eventId" as "eventId", "d1"."id" as "id", "d1"."isPaid" as "isPaid", "d1"."openRegistrationTime"::text as "openRegistrationTime", "d1"."organizingRegistration" as "organizingRegistration", "d1"."price" as "price", "d1"."registrationMode" as "registrationMode", "d1"."reservedSpots" as "reservedSpots", "d1"."roleIds" as "roleIds", "d1"."spots" as "spots", "d1"."stripeTaxRateId" as "stripeTaxRateId", "d1"."title" as "title" from "event_registration_options" as "d1" where "d0"."id" = "d1"."eventId") as "t") as "registrationOptions" on true`,
+  'select "d0"."announcementRoleIds" as "announcementRoleIds", "d0"."creatorId" as "creatorId", "d0"."description" as "description", "d0"."end" as "end", "d0"."icon" as "icon", "d0"."id" as "id", "d0"."location" as "location", "d0"."start" as "start", "d0"."status" as "status", "d0"."statusComment" as "statusComment", "d0"."title" as "title", "registrationOptions"."r" as "registrationOptions", "reviewer"."r" as "reviewer" from "event_instances" as "d0"',
+  `left join lateral(select coalesce(json_agg(row_to_json("t".*)), '[]') as "r" from (select "d1"."closeRegistrationTime" as "closeRegistrationTime", "d1"."confirmedSpots" as "confirmedSpots", "d1"."description" as "description", "d1"."eventId" as "eventId", "d1"."id" as "id", "d1"."isPaid" as "isPaid", "d1"."openRegistrationTime" as "openRegistrationTime", "d1"."organizingRegistration" as "organizingRegistration", "d1"."price" as "price", "d1"."registrationMode" as "registrationMode", "d1"."reservedSpots" as "reservedSpots", "d1"."roleIds" as "roleIds", "d1"."spots" as "spots", "d1"."stripeTaxRateId" as "stripeTaxRateId", "d1"."title" as "title" from "event_registration_options" as "d1" where "d0"."id" = "d1"."eventId") as "t") as "registrationOptions" on true`,
   'left join lateral(select row_to_json("t".*) "r" from (select "d1"."firstName" as "firstName", "d1"."lastName" as "lastName" from "users" as "d1" where "d0"."reviewedBy" = "d1"."id" limit $1) as "t") as "reviewer" on true',
   'where (("d0"."id" = $2) and ("d0"."tenantId" = $3)) limit $4',
 ].join(' ');
@@ -162,9 +162,9 @@ const eventAddonsSql =
 const eventQuestionsSql =
   'select "description", "id", "registrationOptionId", "required", "sortOrder", "title" from "event_registration_questions" where (("event_registration_questions"."eventId" = $1) and ("event_registration_questions"."registrationOptionId" in ($2))) order by "event_registration_questions"."sortOrder" asc, "event_registration_questions"."id" asc';
 const optionDiscountsSql =
-  'select "discountedPrice", "discountType"::text, "registrationOptionId" from "event_registration_option_discounts" where (("event_registration_option_discounts"."discountType" = $1) and ("event_registration_option_discounts"."registrationOptionId" in ($2)))';
+  'select "discountedPrice", "discountType", "registrationOptionId" from "event_registration_option_discounts" where (("event_registration_option_discounts"."discountType" = $1) and ("event_registration_option_discounts"."registrationOptionId" in ($2)))';
 const discountCardsSql =
-  'select "d0"."validFrom"::text as "validFrom", "d0"."validTo"::text as "validTo" from "user_discount_cards" as "d0" where (("d0"."status" = $1) and ("d0"."type" = $2) and ("d0"."userId" = $3))';
+  'select "d0"."validFrom" as "validFrom", "d0"."validTo" as "validTo" from "user_discount_cards" as "d0" where (("d0"."status" = $1) and ("d0"."type" = $2) and ("d0"."userId" = $3))';
 
 const optionTaxRatesSql =
   'select "displayName", "percentage", "stripeTaxRateId" from "tenant_stripe_tax_rates" where (("tenant_stripe_tax_rates"."tenantId" = $1) and ("tenant_stripe_tax_rates"."stripeAccountId" = $2) and ("tenant_stripe_tax_rates"."stripeTaxRateId" in ($3)))';
@@ -337,11 +337,11 @@ const createEventDiscountDatabase = ({
               event.announcementRoleIds,
               event.creatorId,
               event.description,
-              databaseTimestamp(event.end),
+              event.end,
               event.icon,
               event.id,
               event.location,
-              databaseTimestamp(event.start),
+              event.start,
               event.status,
               event.statusComment,
               event.title,
@@ -418,10 +418,7 @@ const createEventDiscountDatabase = ({
                 card.type === parameters[1] &&
                 card.userId === parameters[2],
             )
-            .map((card) => [
-              databaseTimestamp(card.validFrom),
-              databaseTimestamp(card.validTo),
-            ]);
+            .map((card) => [card.validFrom, card.validTo]);
         }
         throw new Error(`Unexpected event discount SQL: ${statement}`);
       }),
@@ -784,7 +781,6 @@ describe('eventHandlers composition', () => {
       'events.approveRegistration',
       'events.canOrganize',
       'events.cancelEventRegistration',
-      'events.cancelPendingRegistration',
       'events.cancelRegistration',
       'events.cancelRegistrationAddon',
       'events.checkInRegistration',
@@ -792,7 +788,6 @@ describe('eventHandlers composition', () => {
       'events.eventList',
       'events.findGraphForEdit',
       'events.findOne',
-      'events.findOneForEdit',
       'events.getOrganizeOverview',
       'events.getPendingReviews',
       'events.getRegistrationAddonFulfillment',

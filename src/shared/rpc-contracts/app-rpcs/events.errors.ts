@@ -4,7 +4,6 @@ import {
   RpcForbiddenError,
   RpcInternalServerError,
   RpcUnauthorizedError,
-  UnauthorizedRpcError,
 } from '@shared/errors/rpc-errors';
 import { EventCheckInTimingIssue } from '@shared/event-check-in';
 import { Schema } from 'effect';
@@ -58,8 +57,8 @@ export class EventRegistrationNotFoundError extends Schema.TaggedError<EventRegi
   },
 ) {}
 
-export const EventsRpcError = UnauthorizedRpcError;
-export type EventsRpcError = UnauthorizedRpcError;
+export const EventsRpcError = RpcUnauthorizedError;
+export type EventsRpcError = RpcUnauthorizedError;
 
 export const EventsOrganizeRpcError = ForbiddenOrUnauthorizedRpcError;
 export type EventsOrganizeRpcError = ForbiddenOrUnauthorizedRpcError;

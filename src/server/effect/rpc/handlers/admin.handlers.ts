@@ -594,33 +594,6 @@ export const adminHandlers = {
 
       return decodeAdminRoleRecord(role);
     }),
-  'admin.roles.search': ({ search }, _options) =>
-    Effect.gen(function* () {
-      yield* RpcAccess.ensurePermission('admin:manageRoles');
-      const { tenant } = yield* RpcAccess.current();
-      const matchingRoles = yield* databaseEffect((database) =>
-        database.query.roles.findMany({
-          columns: {
-            defaultOrganizerRole: true,
-            defaultUserRole: true,
-            description: true,
-            displayInHub: true,
-            id: true,
-            name: true,
-            permissions: true,
-            sortOrder: true,
-          },
-          limit: 15,
-          orderBy: { name: 'asc' },
-          where: {
-            name: { ilike: `%${search}%` },
-            tenantId: tenant.id,
-          },
-        }),
-      );
-
-      return matchingRoles.map((role) => decodeAdminRoleRecord(role));
-    }),
   'admin.roles.update': ({ id, ...input }, _options) =>
     Effect.gen(function* () {
       yield* RpcAccess.ensurePermission('admin:manageRoles');

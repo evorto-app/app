@@ -6,6 +6,7 @@ import * as HttpBody from "../HttpBody.ts"
 import type { Compression, CompressionAlgorithm, CompressionOptions } from "../HttpPlatform.ts"
 import * as Response from "../HttpServerResponse.ts"
 import { compressionTransformWeb, singleChunkStream } from "./compressionBody.ts"
+import * as MediaType from "./mediaType.ts"
 
 export { compressionTransformWeb } from "./compressionBody.ts"
 
@@ -132,8 +133,7 @@ export const compressionWeb: Compression = makeCompressionWeb({
  * @internal
  */
 export const defaultCompressible = (contentType: string): boolean => {
-  const semi = contentType.indexOf(";")
-  const type = (semi === -1 ? contentType : contentType.slice(0, semi)).trim().toLowerCase()
+  const type = MediaType.normalize(contentType)
   if (type.startsWith("text/")) {
     return true
   }
@@ -155,13 +155,12 @@ const acceptMember = /^([a-z0-9!#$%&'*+.^_`|~-]+)(?:;q=(0(?:\.[0-9]{0,3})?|1(?:\
  * @internal
  */
 export const parseAcceptEncoding = (header: string): ReadonlyMap<string, number> | undefined => {
-  const trimmed = header.trim()
-  if (trimmed === "") {
-    return undefined
-  }
   const accepted = new Map<string, number>()
-  for (const part of trimmed.split(",")) {
+  for (const part of header.split(",")) {
     const member = part.trim().toLowerCase().replace(/[ \t]*;[ \t]*/g, ";")
+    if (member === "") {
+      continue
+    }
     const match = acceptMember.exec(member)
     if (match === null) {
       return undefined

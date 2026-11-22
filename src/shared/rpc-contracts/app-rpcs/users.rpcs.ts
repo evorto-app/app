@@ -195,13 +195,6 @@ export const UsersEventsFindMany = asRpcQuery(
   }),
 );
 
-export const UsersUserAssigned = asRpcQuery(
-  Rpc.make('users.userAssigned', {
-    payload: Schema.Void,
-    success: Schema.Boolean,
-  }),
-);
-
 export class UsersRpcs extends RpcGroup.make(
   UsersAssignRoles,
   UsersAuthDataFind,
@@ -212,5 +205,4 @@ export class UsersRpcs extends RpcGroup.make(
   UsersSetHomeTenant,
   UsersSelf,
   UsersUpdateProfile,
-  UsersUserAssigned,
 ) {}

@@ -20,6 +20,7 @@ import * as Exit from "effect/Exit"
 import * as Queue from "effect/Queue"
 import type * as Redacted from "effect/Redacted"
 import * as EffectResult from "effect/Result"
+import * as Scheduler from "effect/Scheduler"
 import * as Scope from "effect/Scope"
 import * as Semaphore from "effect/Semaphore"
 import { AuthenticationError, ConnectionError, SqlError, type SqlErrorReason, UnknownError } from "effect/sql/SqlError"
@@ -73,7 +74,8 @@ export type TypeId = "~@effect/sql-pg/PgConnection"
  * unless explicitly disabled through `ssl` options.
  *
  * Prepared statements are enabled by default and limited by
- * `preparedStatementCacheSize`. Disable them for statement-mode poolers or
+ * `preparedStatementCacheSize`. Disable them for poolers that drop named
+ * statements, such as PgBouncer with `max_prepared_statements = 0`, or for
  * workloads that generate unique SQL. Streams always use unnamed statements.
  *
  * With `multiplex` enabled, unpinned queries from multiple fibers are
@@ -222,7 +224,7 @@ export interface PgConnection {
    * After release, queries, streams and listeners through the returned
    * connection fail, and its `interrupt` does nothing. Releasing a pin with
    * an in-flight statement or an open listener closes the session and fails
-   * any listener queues.
+   * any listener queues, as does leaving a transaction the pin began aborted.
    */
   readonly pin: Effect.Effect<PgConnection, never, Scope.Scope>
   /**
@@ -264,7 +266,8 @@ export interface PgConnection {
   /**
    * Registers a channel listener and returns its notification queue after
    * PostgreSQL confirms `LISTEN`. The session stays pinned until the scope
-   * closes, when it runs `UNLISTEN` and shuts down the queue. PostgreSQL
+   * closes, when it runs `UNLISTEN` and shuts down the queue. A session that
+   * does not confirm `UNLISTEN` within 5 seconds is closed. PostgreSQL
    * registration errors fail the acquiring effect.
    * Connection failures after registration fail the queue with the original
    * `SqlError`. Intentional scope closure interrupts consumers.
@@ -297,7 +300,9 @@ export const PgConnection = Context.Service<PgConnection>("@effect/sql-pg/PgConn
  * Password resolution, transport, optional `SSLRequest`, startup, and
  * authentication run under `connectTimeout` (5 seconds by default). The effect
  * resolves when the backend sends `ReadyForQuery`. Closing the scope sends
- * `Terminate` and ends the socket.
+ * `Terminate`, ends the socket, and destroys the transport (a custom `stream`
+ * included) once the message has flushed, or after one second if the flush
+ * stalls. Release does not wait for the peer.
  *
  * Use `sslmode=require` or explicit `ssl: true` to require encryption.
  * Unix sockets and custom streams should set `ssl.servername` explicitly.
@@ -346,6 +351,8 @@ interface Session {
  */
 interface Consumer {
   readonly onMessage: (message: PgProtocol.BackendMessage<unknown>) => void
+  /** A `DataRow` its field reader rejected; the row itself is dropped. */
+  readonly onDecodeFailure: (error: SqlError) => void
   readonly onBatchEnd?: (() => void) | undefined
   readonly onFatal: (error: SqlError) => void
 }
@@ -363,6 +370,8 @@ const abortDrainGraceMillis = 10
 /** PostgreSQL `query_canceled` SQLSTATE. */
 const queryCanceledCode = "57014"
 const cancelRequestTimeoutMillis = 5000
+const terminateTimeoutMillis = 1000
+const unlistenTimeoutMillis = 5000
 /** How many statements a multiplexed session keeps on the wire at once. */
 const maxPipelineDepth = 128
 const streamPauseThreshold = 512
@@ -388,6 +397,8 @@ class PgConnectionImpl implements PgConnection {
   deadWith: SqlError | undefined
   closed = false
   cancelPending = false
+  /** Reported by the latest `ReadyForQuery`. */
+  transactionStatus: PgProtocol.TransactionStatus = "I"
   readonly channels = new Map<string, Set<Queue.Queue<Notification, SqlError>>>()
   readonly retireHooks = new Set<() => void>()
   /** Queued but not yet written; drained into `pipelineInFlight` on flush. */
@@ -413,6 +424,7 @@ class PgConnectionImpl implements PgConnection {
       deadError: () => this.deadWith,
       retireHooks: this.retireHooks
     }
+    session.parser.onFieldError = this.onFieldError
     session.socket.on("data", this.onData)
     session.socket.on("error", this.onSocketError)
     session.socket.on("close", this.onSocketClose)
@@ -422,8 +434,8 @@ class PgConnectionImpl implements PgConnection {
     try {
       this.session.parser.pushEach(chunk, this.dispatch)
     } catch (cause) {
-      // A field reader that threw reports the row it could not decode; anything
-      // else came out of the framing itself.
+      // Field-reader errors go to `onFieldError`, so a `ParseError` means the
+      // framing is broken; anything else was thrown while handling a message.
       return this.fatal(
         cause instanceof PgProtocol.ParseError
           ? connectionQueryError(cause, "PgConnection: Failed to parse server messages")
@@ -431,6 +443,17 @@ class PgConnectionImpl implements PgConnection {
       )
     }
     if (this.deadWith === undefined) this.consumer?.onBatchEnd?.()
+  }
+
+  /**
+   * Codecs are pure and the parser has consumed the whole row, so a value that
+   * cannot be decoded fails only the statement that read it.
+   */
+  private readonly onFieldError = (cause: unknown): void => {
+    if (this.deadWith !== undefined) return
+    const error = queryError(cause, "PgConnection: Failed to decode row")
+    if (this.consumer !== undefined) return this.consumer.onDecodeFailure(error)
+    this.fatal(error)
   }
 
   private readonly onSocketError = (cause: Error): void =>
@@ -446,6 +469,7 @@ class PgConnectionImpl implements PgConnection {
         if (message.fields.code === queryCanceledCode) this.cancelPending = false
         break
       case "ReadyForQuery":
+        this.transactionStatus = message.status
         if (this.cancelPending) {
           this.cancelPending = false
           this.retire()
@@ -509,10 +533,18 @@ class PgConnectionImpl implements PgConnection {
 
   closeUnsafe(): void {
     this.closed = true
+    const socket = this.session.socket
     let destroySocket = true
-    if (this.deadWith === undefined && this.session.socket.writable) {
+    if (this.deadWith === undefined && socket.writable) {
       try {
-        this.session.socket.end(PgProtocol.encodeTerminate())
+        // Once Terminate and our FIN have reached the kernel there is nothing
+        // left to read, so the descriptor is released without waiting for the
+        // peer's FIN, which a half-open proxy may never send.
+        const timeout = setTimeout(() => socket.destroy(), terminateTimeoutMillis)
+        timeout.unref()
+        socket.once("finish", () => socket.destroy())
+        socket.once("close", () => clearTimeout(timeout))
+        socket.end(PgProtocol.encodeTerminate())
         destroySocket = false
       } catch {
         // Fall back to the fatal path's immediate destroy below.
@@ -528,7 +560,6 @@ class PgConnectionImpl implements PgConnection {
       }),
       destroySocket
     )
-    const socket = this.session.socket
     socket.off("data", this.onData)
     socket.off("error", this.onSocketError)
     socket.off("close", this.onSocketClose)
@@ -560,6 +591,11 @@ class PgConnectionImpl implements PgConnection {
         ))
       }
       entry.machine.onMessage(message)
+    },
+    onDecodeFailure: (error) => {
+      const entry = this.pipelineInFlight[this.pipelineHead]
+      if (entry === undefined) return this.fatal(error)
+      entry.machine.onDecodeFailure(error)
     },
     onBatchEnd: () => this.flushPipeline(),
     onFatal: (error) => {
@@ -773,7 +809,9 @@ class PgConnectionImpl implements PgConnection {
         Effect.suspend(() => {
           view.released = true
           this.pinned = false
-          return this.wire.takeIfAvailable(1)
+          // An `UNLISTEN` that took the wire before the release is bounded by its
+          // own timeout, so wait for it rather than treating it as leaked work.
+          return view.unlistening > 0 ? Effect.as(this.wire.take(1), true) : this.wire.takeIfAvailable(1)
         }),
         (idle) => {
           // Retire rather than wait indefinitely for leaked work to finish.
@@ -781,6 +819,13 @@ class PgConnectionImpl implements PgConnection {
             this.fatal(connectionQueryError(
               new Error("Pinned connection released with work outstanding"),
               "PgConnection: Pinned connection released with work outstanding"
+            ))
+          } else if (view.startedIdle && this.transactionStatus === "E") {
+            // A failed cleanup, such as a cancelled `ROLLBACK`, leaves every later
+            // statement failing. A transaction open before the pin is its caller's.
+            this.fatal(connectionQueryError(
+              new Error("Pinned connection released in an aborted transaction"),
+              "PgConnection: Pinned connection released in an aborted transaction"
             ))
           }
           return idle ? Effect.andThen(this.wire.release(1), this.owner.release(1)) : this.owner.release(1)
@@ -836,11 +881,15 @@ class PinnedPgConnection implements PgConnection {
   readonly pin: Effect.Effect<PinnedPgConnection, never, Scope.Scope>
   released = false
   listeners = 0
+  unlistening = 0
+  /** No transaction was open when the pin took the session. */
+  readonly startedIdle: boolean
 
   constructor(base: PgConnectionImpl) {
     this.base = base
     this[internalsKey] = base[internalsKey]
     this.pin = Effect.succeed(this)
+    this.startedIdle = base.transactionStatus === "I"
   }
 
   // Check the lease under the wire permit so queued work cannot run after release.
@@ -1304,7 +1353,16 @@ const pinReleasedError = (): SqlError =>
 
 const escapeIdentifier = (identifier: string): string => `"${identifier.replaceAll("\"", "\"\"")}"`
 
-type QueryPhase = "close" | "parse" | "bind" | "describe" | "rows" | "complete" | "error"
+type QueryPhase = "close" | "parse" | "bind" | "describe" | "rows" | "complete" | "error" | "drain"
+
+/**
+ * After a row fails to decode the server has seen no error, so the cycle runs
+ * to its `ReadyForQuery` and these are skipped on the way. The decode failure
+ * is kept even over a later `ErrorResponse`.
+ */
+const skippedWhileDraining = (message: PgProtocol.BackendMessage<unknown>): boolean =>
+  message._tag === "DataRow" || message._tag === "CommandComplete" || message._tag === "EmptyQueryResponse" ||
+  message._tag === "ErrorResponse"
 
 /**
  * Splits a command tag such as `SELECT 3` or `INSERT 0 1`. Reading the two
@@ -1413,7 +1471,16 @@ class QueryMachine implements Consumer {
     const prepared = this.plan.prepared
     if (prepared !== undefined) prepared.parsing = false
     if (this.aborted) this.drainDone?.()
-    else this.finish(Effect.fail(error))
+    else this.finish(Effect.fail(this.failure ?? error))
+  }
+
+  onDecodeFailure(error: SqlError): void {
+    if (this.done || this.aborted || this.phase === "drain") return
+    if (this.phase !== "rows") return this.failDesync(`Unexpected DataRow during ${this.phase}`)
+    this.failure = error
+    this.phase = "drain"
+    // The rest of the result is discarded, so skip decoding it.
+    this.conn.session.parser.readField = undefined
   }
 
   onMessage(message: PgProtocol.BackendMessage<unknown>): void {
@@ -1423,6 +1490,11 @@ class QueryMachine implements Consumer {
         this.drainDone?.()
       }
       return
+    }
+    if (this.phase === "drain") {
+      if (message._tag === "ReadyForQuery") return this.complete(Effect.fail(this.failure!))
+      if (skippedWhileDraining(message)) return
+      return this.failDesync(`Unexpected ${message._tag} after a row failed to decode`)
     }
     if (this.phase === "error") {
       if (message._tag === "ReadyForQuery") {
@@ -1688,11 +1760,7 @@ const streamRows = (
 ): Stream.Stream<Row, SqlError> =>
   Stream.fromChannel(Channel.fromTransform(Effect.fnUntraced(function*(_, scope) {
     const pinned = yield* Scope.provide(pin, scope)
-    yield* Scope.provide(
-      Effect.acquireRelease(conn.wire.take(1), () => conn.wire.release(1)),
-      scope
-    )
-    if (conn.deadWith !== undefined) return yield* conn.deadWith
+    yield* Scope.provide(conn.wire.takeScoped(1), scope)
     if (pinned.released) return yield* pinReleasedError()
     // Streams stay on the unnamed path: a stream pays its setup once over the
     // whole result, so naming the statement buys little and would need the
@@ -1766,17 +1834,17 @@ const streamRows = (
         }
         return
       }
-      if (phase === "error") {
-        switch (message._tag) {
-          case "ReadyForQuery":
-            finished = true
-            done = true
-            conn.consumer = undefined
-            deliver()
-            return
-          default:
-            return failDesync(`Unexpected ${message._tag} after ErrorResponse`)
+      if (phase === "error" || phase === "drain") {
+        if (message._tag === "ReadyForQuery") {
+          finished = true
+          done = true
+          conn.consumer = undefined
+          deliver()
+          return
         }
+        if (phase === "error") return failDesync(`Unexpected ${message._tag} after ErrorResponse`)
+        if (skippedWhileDraining(message)) return
+        return failDesync(`Unexpected ${message._tag} after a row failed to decode`)
       }
       switch (message._tag) {
         case "ParseComplete":
@@ -1847,6 +1915,14 @@ const streamRows = (
       }
     }
 
+    const onDecodeFailure = (error: SqlError): void => {
+      if (done || aborted || phase === "drain") return
+      if (phase !== "rows") return failDesync(`Unexpected DataRow during ${phase}`)
+      failure = error
+      phase = "drain"
+      parser.readField = undefined
+    }
+
     const onBatchEnd = (): void => {
       if (done || aborted) return
       if (pending !== undefined) deliver()
@@ -1856,7 +1932,8 @@ const streamRows = (
     yield* Scope.addFinalizer(
       scope,
       Effect.suspend(() => {
-        if (done) return Effect.void
+        // A dead session has nothing left to drain.
+        if (done || conn.deadWith !== undefined) return Effect.void
         aborted = true
         const drain = drainAborted(conn, "Stream cancellation timed out", (onDrained) => {
           drainDone = onDrained
@@ -1866,7 +1943,10 @@ const streamRows = (
       })
     )
 
-    conn.consumer = { onMessage, onBatchEnd, onFatal }
+    // Checked as the consumer is registered: a session that dies any earlier
+    // has no consumer to tell through `onFatal`.
+    if (conn.deadWith !== undefined) return yield* conn.deadWith
+    conn.consumer = { onMessage, onDecodeFailure, onBatchEnd, onFatal }
     parser.readField = undefined
     // @effect-diagnostics-next-line tryCatchInEffectGen:off
     try {
@@ -1920,10 +2000,7 @@ const listenChannel = (
             current.delete(queue)
             if (current.size > 0) return Queue.shutdown(queue)
             conn.channels.delete(channel)
-            const unlisten = conn.deadWith === undefined
-              ? Effect.ignore(pinned.query(`UNLISTEN ${identifier}`))
-              : Effect.void
-            return Effect.andThen(unlisten, Queue.shutdown(queue))
+            return Effect.andThen(unlisten(conn, pinned, identifier), Queue.shutdown(queue))
           })
         )
         yield* pinned.query(`LISTEN ${identifier}`)
@@ -1933,6 +2010,43 @@ const listenChannel = (
       )
     })
   )
+
+/**
+ * Runs `UNLISTEN` and closes the session if PostgreSQL does not answer in time.
+ * The timer starts once the wire is free, so a long statement on the same
+ * pinned session does not count against it. Nothing is sent once the session
+ * is dead or its pin released, as the session may already have a new owner.
+ * A pin released while `UNLISTEN` holds the wire waits for it to finish, so
+ * the count moves together with the permit: the fiber cannot yield between
+ * taking the wire and counting, or between uncounting and returning it.
+ */
+const unlisten = (conn: PgConnectionImpl, pinned: PinnedPgConnection, identifier: string): Effect.Effect<void> =>
+  Effect.uninterruptible(Effect.flatMap(
+    withoutYield(Effect.flatMap(conn.wire.take(1), () =>
+      Effect.sync(() => {
+        pinned.unlistening++
+      }))),
+    () => {
+      if (conn.deadWith !== undefined || pinned.released) return releaseUnlisten(conn, pinned)
+      const timeout = setTimeout(
+        () => conn.fatal(connectionQueryError(new Error("UNLISTEN timed out"), "PgConnection: UNLISTEN timed out")),
+        unlistenTimeoutMillis
+      )
+      return Effect.ensuring(
+        Effect.ignore(conn.cycleOwned(`UNLISTEN ${identifier}`, emptyParams, true, conn.prepared)),
+        Effect.andThen(Effect.sync(() => clearTimeout(timeout)), releaseUnlisten(conn, pinned))
+      )
+    }
+  ))
+
+const releaseUnlisten = (conn: PgConnectionImpl, pinned: PinnedPgConnection): Effect.Effect<void> =>
+  withoutYield(Effect.suspend(() => {
+    pinned.unlistening--
+    return Effect.asVoid(conn.wire.release(1))
+  }))
+
+const withoutYield = <A, E, R>(effect: Effect.Effect<A, E, R>): Effect.Effect<A, E, R> =>
+  Effect.provideService(effect, Scheduler.PreventSchedulerYield, true)
 
 const sendCancelRequest = (config: ResolvedConfig, session: Session): Effect.Effect<void> =>
   Effect.callback<void>((resume) => {
