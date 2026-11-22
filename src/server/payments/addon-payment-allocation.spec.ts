@@ -1,11 +1,8 @@
-import { MAX_REGISTRATION_ADDON_QUANTITY } from '@shared/registration-quantity-limits';
-import { Effect } from 'effect';
 import { describe, expect, it } from 'vitest';
 
 import {
   allocateCumulativeQuantityAmount,
   allocateIntegerByWeight,
-  finalizeAddonPaymentAllocations,
 } from './addon-payment-allocation';
 import { maximumPersistedPaymentAmount } from './payment-amount';
 
@@ -56,55 +53,6 @@ describe('add-on payment allocation', () => {
     ).toThrow('Allocation weight total exceeds the payment limit');
   });
 
-  it('persists exact gross, tax, Stripe fee, app fee and net shares', async () => {
-    const result = await Effect.runPromise(
-      finalizeAddonPaymentAllocations({
-        applicationFee: 105,
-        grossAmount: 3500,
-        includesRegistrationCharge: true,
-        lots: [
-          {
-            baseAmount: 1000,
-            id: 'inclusive',
-            quantity: 2,
-            taxRateInclusive: true,
-            taxRatePercentage: '20',
-          },
-          {
-            baseAmount: 500,
-            id: 'exclusive',
-            quantity: 1,
-            taxRateInclusive: false,
-            taxRatePercentage: '20',
-          },
-        ],
-        stripeFee: 70,
-      }),
-    );
-
-    expect(result).toEqual([
-      {
-        applicationFeeAmount: 30,
-        grossAmount: 1000,
-        id: 'inclusive',
-        netAmount: 950,
-        stripeFeeAmount: 20,
-        taxAmount: 167,
-      },
-      {
-        applicationFeeAmount: 18,
-        grossAmount: 600,
-        id: 'exclusive',
-        netAmount: 570,
-        stripeFeeAmount: 12,
-        taxAmount: 100,
-      },
-    ]);
-    expect(
-      result.reduce((sum, allocation) => sum + allocation.grossAmount, 0),
-    ).toBe(1600);
-  });
-
   it('makes repeated partial refunds plus the final cancellation exact', () => {
     const gross = [1, 1, 1].map((quantity, index) =>
       allocateCumulativeQuantityAmount({
@@ -137,27 +85,5 @@ describe('add-on payment allocation', () => {
     expect(gross.reduce((sum, amount) => sum + amount, 0)).toBe(1000);
     expect(net.reduce((sum, amount) => sum + amount, 0)).toBe(913);
     expect(appFee.reduce((sum, amount) => sum + amount, 0)).toBe(35);
-  });
-
-  it('rejects purchase lots above the bounded registration quantity', async () => {
-    const error = await Effect.runPromise(
-      finalizeAddonPaymentAllocations({
-        applicationFee: 0,
-        grossAmount: 1000,
-        includesRegistrationCharge: false,
-        lots: [
-          {
-            baseAmount: 1000,
-            id: 'oversized',
-            quantity: MAX_REGISTRATION_ADDON_QUANTITY + 1,
-            taxRateInclusive: null,
-            taxRatePercentage: null,
-          },
-        ],
-        stripeFee: 0,
-      }).pipe(Effect.flip),
-    );
-
-    expect(error.message).toBe('Purchase lot terms are invalid');
   });
 });

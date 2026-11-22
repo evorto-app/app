@@ -775,6 +775,4 @@ export const userHandlers = {
           .where(eq(users.id, user.id)),
       );
     }),
-  'users.userAssigned': (_payload, _options) =>
-    RpcAccess.current().pipe(Effect.map((context) => context.userAssigned)),
 } satisfies Partial<AppRpcHandlers>;

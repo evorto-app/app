@@ -6,10 +6,10 @@ import { MatButtonModule } from '@angular/material/button';
 import { RouterLink } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
 import { faCalendarDays } from '@fortawesome/duotone-regular-svg-icons';
+import { normalizeStripeCheckoutUrl } from '@shared/stripe-checkout-url';
 import { injectQuery } from '@tanstack/angular-query-experimental';
 
 import { AppRpc } from '../../core/effect-rpc-angular-client';
-import { normalizeStripeCheckoutUrl } from '../../core/stripe-checkout-url';
 import { TenantDatePipe } from '../../core/tenant-date.pipe';
 
 type ProfileEventAction = Pick<
