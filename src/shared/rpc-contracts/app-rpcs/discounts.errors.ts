@@ -5,7 +5,6 @@ import {
   RpcForbiddenError,
   RpcInternalServerError,
   RpcUnauthorizedError,
-  UnauthorizedRpcError,
 } from '../../errors/rpc-errors';
 
 export class DiscountCardChangedError extends Schema.TaggedError<DiscountCardChangedError>()(
@@ -29,8 +28,8 @@ export class DiscountCardNotFoundError extends Schema.TaggedError<DiscountCardNo
   },
 ) {}
 
-export const DiscountsRpcError = UnauthorizedRpcError;
-export type DiscountsRpcError = UnauthorizedRpcError;
+export const DiscountsRpcError = RpcUnauthorizedError;
+export type DiscountsRpcError = RpcUnauthorizedError;
 
 export const DiscountsCardMutationError = Schema.Union([
   RpcBadRequestError,
