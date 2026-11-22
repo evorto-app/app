@@ -88,6 +88,7 @@ component regressions retain retry recovery for temporary failures.
   - specs/events/free-registration.test.ts
   - specs/events/manual-approval.spec.ts [stripe]
   - specs/events/negative-registration-states.spec.ts
+  - specs/events/organize-email-lists.spec.ts
   - specs/events/organizer-signup.spec.ts
   - specs/events/registration-addons.test.ts
   - specs/events/registration-page-readiness.test.ts [offline helper]

@@ -32,7 +32,6 @@ import {
   UsersEventsFindMany,
   UsersFindMany,
   UsersUpdateProfile,
-  UsersUserAssigned,
 } from '../../../../shared/rpc-contracts/app-rpcs/users.rpcs';
 import { Tenant } from '../../../../types/custom/tenant';
 import { User } from '../../../../types/custom/user';
@@ -296,7 +295,7 @@ const profileTimestamp = (value: Date | null) =>
   value?.toISOString().replace('Z', '') ?? null;
 
 const profileRegistrationRow = (registration: ProfileRegistrationFixture) => [
-  profileTimestamp(registration.checkInTime),
+  registration.checkInTime,
   registration.eventId,
   registration.guestCount,
   registration.id,
@@ -1428,57 +1427,6 @@ describe('userHandlers', () => {
         }
         expect(fixture.executeValues).not.toHaveBeenCalled();
       }),
-  );
-
-  it.effect('userAssigned reflects the current tenant assignment context', () =>
-    Effect.gen(function* () {
-      const assigned = yield* userHandlers['users.userAssigned'](
-        undefined,
-        userHandlerOptions(
-          UsersUserAssigned.middleware(RpcRequestContextMiddleware),
-        ),
-      ).pipe(
-        provideUserHandlerContext(
-          createUserHandlerContext({
-            userAssigned: true,
-          }),
-        ),
-      );
-      expect(assigned).toBe(true);
-
-      const unassigned = yield* userHandlers['users.userAssigned'](
-        undefined,
-        userHandlerOptions(
-          UsersUserAssigned.middleware(RpcRequestContextMiddleware),
-        ),
-      ).pipe(
-        provideUserHandlerContext(
-          createUserHandlerContext({
-            userAssigned: false,
-          }),
-        ),
-      );
-      expect(unassigned).toBe(false);
-    }),
-  );
-
-  it.effect('userAssigned returns false for a trusted unassigned context', () =>
-    Effect.gen(function* () {
-      const assigned = yield* userHandlers['users.userAssigned'](
-        undefined,
-        userHandlerOptions(
-          UsersUserAssigned.middleware(RpcRequestContextMiddleware),
-        ),
-      ).pipe(
-        provideUserHandlerContext(
-          createUserHandlerContext({
-            user: null,
-            userAssigned: false,
-          }),
-        ),
-      );
-      expect(assigned).toBe(false);
-    }),
   );
 });
 

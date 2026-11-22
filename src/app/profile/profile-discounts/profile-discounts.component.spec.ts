@@ -4,6 +4,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import {
   createRpcQueryFilter,
   createRpcQueryKey,
+  createRpcQueryOptions,
 } from '@heddendorp/effect-angular-query';
 import {
   RpcBadRequestError,
@@ -227,7 +228,12 @@ describe('ProfileDiscountsComponent save outcomes', () => {
               getMyCards: {
                 queryOptions: (): ReturnType<
                   Client['discounts']['getMyCards']['queryOptions']
-                > => ({ queryFn: readCards, queryKey }),
+                > =>
+                  createRpcQueryOptions({
+                    pathSegments: ['discounts', 'getMyCards'],
+                    queryFn: readCards,
+                    type: 'query',
+                  }),
               },
               refreshMyCard: {
                 mutationOptions: (): ReturnType<

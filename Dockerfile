@@ -7,7 +7,7 @@ FROM oven/bun:1.4.4@sha256:1d22548f177f4ff38e0c15baa3c2c46c6c2060ba2d1bc573bb472
 USER bun
 WORKDIR /app
 
-FROM gcr.io/distroless/base-nossl-debian13:nonroot@sha256:6d92083da644c5fceb58fb1dc50e88b3c1aa0d8b6099678223fbb801bd72962b AS distroless-runtime
+FROM gcr.io/distroless/base-nossl-debian13:nonroot@sha256:89815d620ac01d8de13cdaf04d19ed874447ca2296d4985b14b818f6e5e47854 AS distroless-runtime
 
 FROM base AS dependencies
 ARG TARGETPLATFORM
@@ -69,8 +69,7 @@ RUN --mount=type=cache,id=bun-install-cache-${TARGETPLATFORM},target=/home/bun/.
     bun install --frozen-lockfile --production --offline --cache-dir /home/bun/.bun/install/cache
 
 FROM production-dependencies AS runtime-dependencies
-RUN rm -rf node_modules/@neondatabase \
-    && find node_modules -type f -name '*.map' -delete \
+RUN find node_modules -type f -name '*.map' -delete \
     && test -z "$(find node_modules -type f -name '*.map' -print -quit)"
 
 FROM distroless-runtime AS production
@@ -82,7 +81,7 @@ COPY --from=base /usr/local/bin/bun /usr/local/bin/bun
 COPY --from=runtime-dependencies /app/node_modules ./node_modules
 COPY --from=runtime-artifacts /app/dist ./dist
 COPY --from=runtime-artifacts /app/ops/drizzle.config.mjs ./ops/drizzle.config.mjs
-COPY --from=runtime-artifacts /app/node_modules/drizzle-kit/bin.cjs ./ops/drizzle-kit.cjs
+COPY --from=runtime-artifacts /app/node_modules/drizzle-kit ./ops/drizzle-kit
 
 USER 65532:65532
 ENTRYPOINT ["/usr/local/bin/bun"]

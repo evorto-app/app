@@ -349,12 +349,7 @@ const checkInTimingDatabaseFixture = () => {
         expect(statement).toContain('for share');
         expect(parameters).toEqual([eventRecord.id, targetTenant.id]);
         operations.push('event');
-        return [
-          [
-            eventRecord.end.replace('Z', ''),
-            eventRecord.start.replace('Z', ''),
-          ],
-        ];
+        return [[new Date(eventRecord.end), new Date(eventRecord.start)]];
       }
       return rejectUnexpectedQuery(statement);
     });

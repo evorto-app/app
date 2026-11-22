@@ -126,7 +126,7 @@ const readAuditPage = (
               row.actorEmail,
               row.after,
               row.before,
-              row.createdAt.toISOString().slice(0, -1),
+              row.createdAt,
               row.cursorCreatedAt ??
                 row.createdAt.toISOString().replace(/Z$/u, '000Z'),
               row.id,
@@ -422,7 +422,7 @@ describe('globalAdminHandlers', () => {
     'summarizes single-dispatch outcomes and includes sent history',
     () =>
       Effect.gen(function* () {
-        const attempt = '2026-07-09T09:00:00.000';
+        const attempt = new Date('2026-07-09T09:00:00.000Z');
         const queries: string[] = [];
         const deliveryRows = [
           [

@@ -1,0 +1,373 @@
+diff --git a/dist/PgConnection.d.ts b/dist/PgConnection.d.ts
+index 25c6fbe0c019cc0c5cd8160a517c6162c86214ea..ce1d247e8138be624d4843986288e8288ab4eb32 100644
+--- a/dist/PgConnection.d.ts
++++ b/dist/PgConnection.d.ts
+@@ -186,12 +186,11 @@ export interface PgConnection {
+      *
+      * **Details**
+      *
+-     * On interruption, the connection drains to `ReadyForQuery` and sends a
+-     * `CancelRequest` if needed. Unless the backend confirms cancellation with
+-     * `57014`, a pool retires the session before its next checkout. A retained
+-     * checkout and an unpooled session remain exposed to a late cancel.
+-     * `statement_timeout` also reports `57014` and can be mistaken for
+-     * confirmation.
++     * On interruption, an active query sends a `CancelRequest` when needed.
++     * After that attempt settles, the session is discarded, including retained
++     * and transaction-pinned checkouts. A closed control connection or `57014`
++     * does not prove that a delayed cancellation cannot affect a later query.
++     * Completed or idle queries do not dispatch cancellation or retire a session.
+      */
+     readonly query: (sql: string, params?: ReadonlyArray<unknown>, prepare?: boolean) => Effect.Effect<Result, SqlError>;
+     /**
+diff --git a/dist/PgConnection.js b/dist/PgConnection.js
+index 3f14b1579d2b2eb18d280a0839c3e50abf2d8c05..f3462102735dff46e4a7dd686293be76eeea76b0 100644
+--- a/dist/PgConnection.js
++++ b/dist/PgConnection.js
+@@ -70,7 +70,7 @@ export const make = options => Effect.flatMap(resolveConfig(options), config =>
+   const password = yield* PasswordInternal.resolve(config.password);
+   const session = yield* connect(config, password);
+   return new PgConnectionImpl(options, config, session, options.types);
+-}), connection => Effect.sync(() => connection.closeUnsafe()), {
++}), connection => connection.close, {
+   interruptible: true
+ }).pipe(Effect.timeoutOrElse({
+   duration: config.connectTimeout,
+@@ -117,6 +117,7 @@ class PgConnectionImpl {
+   transactionStatus = "I";
+   channels = /*#__PURE__*/new Map();
+   retireHooks = /*#__PURE__*/new Set();
++  socketClosed = /*#__PURE__*/Deferred.makeUnsafe();
+   /** Queued but not yet written; drained into `pipelineInFlight` on flush. */
+   pipelinePending = [];
+   /** Written and awaiting their `ReadyForQuery`, oldest first. */
+@@ -136,13 +137,14 @@ class PgConnectionImpl {
+     this.multiplex = config.multiplex ?? false;
+     this[internalsKey] = {
+       base: this,
++      close: this.close,
+       deadError: () => this.deadWith,
+       retireHooks: this.retireHooks
+     };
+     session.parser.onFieldError = this.onFieldError;
+     session.socket.on("data", this.onData);
+     session.socket.on("error", this.onSocketError);
+-    session.socket.on("close", this.onSocketClose);
++    session.socket.once("close", this.onSocketClose);
+   }
+   onData = chunk => {
+     try {
+@@ -165,7 +167,10 @@ class PgConnectionImpl {
+     this.fatal(error);
+   };
+   onSocketError = cause => this.fatal(connectionQueryError(cause, "PgConnection: Socket error"));
+-  onSocketClose = () => this.fatal(connectionQueryError(new Error("Connection closed"), "PgConnection: Connection closed"));
++  onSocketClose = () => {
++    Deferred.doneUnsafe(this.socketClosed, Effect.void);
++    this.fatal(connectionQueryError(new Error("Connection closed"), "PgConnection: Connection closed"));
++  };
+   dispatch = message => {
+     if (this.deadWith !== undefined) return;
+     switch (message._tag) {
+@@ -226,6 +231,10 @@ class PgConnectionImpl {
+     if (this.closed) return;
+     for (const hook of this.retireHooks) hook();
+   }
++  close = /*#__PURE__*/Effect.suspend(() => {
++    this.closeUnsafe();
++    return this.session.socket.closed ? Effect.void : Deferred.await(this.socketClosed);
++  });
+   closeUnsafe() {
+     this.closed = true;
+     const socket = this.session.socket;
+@@ -254,7 +263,6 @@ class PgConnectionImpl {
+     }), destroySocket);
+     socket.off("data", this.onData);
+     socket.off("error", this.onSocketError);
+-    socket.off("close", this.onSocketClose);
+     this.retireHooks.clear();
+   }
+   /** Plans one execution. `cache` is `undefined` to force the unnamed path. */
+@@ -421,10 +429,16 @@ class PgConnectionImpl {
+   };
+   /** Sends a `CancelRequest` for this session on a side connection. */
+   cancel = /*#__PURE__*/Effect.suspend(() => {
+-    if (this.deadWith !== undefined) return Effect.void;
++    if (this.deadWith !== undefined || this.consumer === undefined) return Effect.void;
+     this.cancelPending = true;
+-    if (this.consumer === undefined) this.retire();
+-    return sendCancelRequest(this.resolved, this.session);
++    return sendCancelRequest(this.resolved, this.session).pipe(
++      Effect.ensuring(Effect.sync(() => {
++        this.fatal(connectionQueryError(
++          new Error("PostgreSQL connection discarded after query cancellation"),
++          "PgConnection: PostgreSQL connection discarded after query cancellation"
++        ));
++      }))
++    );
+   });
+   pin = /*#__PURE__*/Effect.suspend(() => {
+     const reserve = this[internalsKey].reserve;
+diff --git a/dist/PgPool.js b/dist/PgPool.js
+index 4b9c73361f97db293299bbfa379712fe63d6aafb..783947f722340fe8a3acd95aeaa4013707ba1683 100644
+--- a/dist/PgPool.js
++++ b/dist/PgPool.js
+@@ -95,6 +95,14 @@ export const make = /*#__PURE__*/Effect.fnUntraced(function* (options) {
+   // Assigned below, once the pool exists. `acquire` only runs when the pool
+   // opens a connection, which is always after that.
+   let pool;
++  const invalidate = connection => {
++    const base = connectionInternals(connection).base;
++    return Effect.gen(function* () {
++      yield* connectionInternals(base).close;
++      yield* Pool.invalidate(pool, base);
++      deadConnections.delete(base);
++    });
++  };
+   const acquire = Effect.suspend(() => {
+     const startTime = clock.currentTimeNanosUnsafe();
+     return Effect.tap(PgConnection.make(options), connection => Effect.sync(() => {
+@@ -103,10 +111,9 @@ export const make = /*#__PURE__*/Effect.fnUntraced(function* (options) {
+       const internals = connectionInternals(connection);
+       internals.retireHooks.add(() => {
+         deadConnections.add(connection);
+-        // `deadConnections` is only read by the next checkout, and a checkout
+-        // already waiting for this connection would never get that far. Tell
+-        // the pool now so it can replace the connection and admit them.
+-        runFork(Pool.invalidate(pool, connection));
++        // Keep the dead session out of the fast path while physical closure
++        // completes; only then can invalidation admit a replacement.
++        runFork(invalidate(connection));
+       });
+       // Pinning a shared session has to take it out of circulation, or a
+       // second checkout lands on the connection its own stream is holding.
+@@ -139,20 +146,19 @@ export const make = /*#__PURE__*/Effect.fnUntraced(function* (options) {
+     while (true) {
+       if (deadConnections.size > 0) {
+         const dead = Array.from(deadConnections);
+-        deadConnections.clear();
+-        yield* Effect.forEach(dead, connection => Pool.invalidate(pool, connection), {
++        yield* Effect.forEach(dead, invalidate, {
+           discard: true
+         });
+       }
+       const connection = yield* Pool.get(pool);
+       if (expired(connection)) {
+-        yield* Pool.invalidate(pool, connection);
++        yield* invalidate(connection);
+         continue;
+       }
+       return connection;
+     }
+   });
+-  const checkout = Effect.suspend(() => deadConnections.size > 0 ? retry : Effect.flatMap(Pool.get(pool), connection => expired(connection) ? Effect.andThen(Pool.invalidate(pool, connection), retry) : Effect.succeed(connection)));
++  const checkout = Effect.suspend(() => deadConnections.size > 0 ? retry : Effect.flatMap(Pool.get(pool), connection => expired(connection) ? Effect.andThen(invalidate(connection), retry) : Effect.succeed(connection)));
+   const acquireTimedOut = () => Effect.fail(new SqlError({
+     reason: new ConnectionError({
+       cause: new Error("Timed out waiting for a pooled connection"),
+@@ -183,7 +189,7 @@ export const make = /*#__PURE__*/Effect.fnUntraced(function* (options) {
+     get,
+     reserve,
+     use,
+-    invalidate: connection => Pool.invalidate(pool, connectionInternals(connection).base),
++    invalidate,
+     stats: Pool.stats(pool)
+   };
+   return pgPool;
+diff --git a/src/PgConnection.ts b/src/PgConnection.ts
+index e80a20089b7edbd0ed27435577563b04d79acd9b..29973819967cef24592d0069951e977e71df0864 100644
+--- a/src/PgConnection.ts
++++ b/src/PgConnection.ts
+@@ -233,12 +233,11 @@ export interface PgConnection {
+    *
+    * **Details**
+    *
+-   * On interruption, the connection drains to `ReadyForQuery` and sends a
+-   * `CancelRequest` if needed. Unless the backend confirms cancellation with
+-   * `57014`, a pool retires the session before its next checkout. A retained
+-   * checkout and an unpooled session remain exposed to a late cancel.
+-   * `statement_timeout` also reports `57014` and can be mistaken for
+-   * confirmation.
++   * On interruption, an active query sends a `CancelRequest` when needed.
++   * After that attempt settles, the session is discarded, including retained
++   * and transaction-pinned checkouts. A closed control connection or `57014`
++   * does not prove that a delayed cancellation cannot affect a later query.
++   * Completed or idle queries do not dispatch cancellation or retire a session.
+    */
+   readonly query: (
+     sql: string,
+@@ -319,7 +318,7 @@ export const make = (options: Config): Effect.Effect<PgConnection, SqlError, Sco
+         const session = yield* connect(config, password)
+         return new PgConnectionImpl(options, config, session, options.types)
+       }),
+-      (connection) => Effect.sync(() => connection.closeUnsafe()),
++      (connection) => connection.close,
+       { interruptible: true }
+     ).pipe(
+       Effect.timeoutOrElse({
+@@ -401,6 +400,7 @@ class PgConnectionImpl implements PgConnection {
+   transactionStatus: PgProtocol.TransactionStatus = "I"
+   readonly channels = new Map<string, Set<Queue.Queue<Notification, SqlError>>>()
+   readonly retireHooks = new Set<() => void>()
++  readonly socketClosed = Deferred.makeUnsafe<void>()
+   /** Queued but not yet written; drained into `pipelineInFlight` on flush. */
+   readonly pipelinePending: Array<PipelineEntry> = []
+   /** Written and awaiting their `ReadyForQuery`, oldest first. */
+@@ -421,13 +421,14 @@ class PgConnectionImpl implements PgConnection {
+     this.multiplex = config.multiplex ?? false
+     this[internalsKey] = {
+       base: this,
++      close: this.close,
+       deadError: () => this.deadWith,
+       retireHooks: this.retireHooks
+     }
+     session.parser.onFieldError = this.onFieldError
+     session.socket.on("data", this.onData)
+     session.socket.on("error", this.onSocketError)
+-    session.socket.on("close", this.onSocketClose)
++    session.socket.once("close", this.onSocketClose)
+   }
+ 
+   private readonly onData = (chunk: Uint8Array): void => {
+@@ -459,8 +460,10 @@ class PgConnectionImpl implements PgConnection {
+   private readonly onSocketError = (cause: Error): void =>
+     this.fatal(connectionQueryError(cause, "PgConnection: Socket error"))
+ 
+-  private readonly onSocketClose = (): void =>
++  private readonly onSocketClose = (): void => {
++    Deferred.doneUnsafe(this.socketClosed, Effect.void)
+     this.fatal(connectionQueryError(new Error("Connection closed"), "PgConnection: Connection closed"))
++  }
+ 
+   private readonly dispatch = (message: PgProtocol.BackendMessage<unknown>): void => {
+     if (this.deadWith !== undefined) return
+@@ -531,6 +534,11 @@ class PgConnectionImpl implements PgConnection {
+     for (const hook of this.retireHooks) hook()
+   }
+ 
++  readonly close: Effect.Effect<void> = Effect.suspend(() => {
++    this.closeUnsafe()
++    return this.session.socket.closed ? Effect.void : Deferred.await(this.socketClosed)
++  })
++
+   closeUnsafe(): void {
+     this.closed = true
+     const socket = this.session.socket
+@@ -562,7 +570,6 @@ class PgConnectionImpl implements PgConnection {
+     )
+     socket.off("data", this.onData)
+     socket.off("error", this.onSocketError)
+-    socket.off("close", this.onSocketClose)
+     this.retireHooks.clear()
+   }
+ 
+@@ -778,10 +785,16 @@ class PgConnectionImpl implements PgConnection {
+ 
+   /** Sends a `CancelRequest` for this session on a side connection. */
+   readonly cancel: Effect.Effect<void> = Effect.suspend(() => {
+-    if (this.deadWith !== undefined) return Effect.void
++    if (this.deadWith !== undefined || this.consumer === undefined) return Effect.void
+     this.cancelPending = true
+-    if (this.consumer === undefined) this.retire()
+-    return sendCancelRequest(this.resolved, this.session)
++    return sendCancelRequest(this.resolved, this.session).pipe(
++      Effect.ensuring(Effect.sync(() => {
++        this.fatal(connectionQueryError(
++          new Error("PostgreSQL connection discarded after query cancellation"),
++          "PgConnection: PostgreSQL connection discarded after query cancellation"
++        ))
++      }))
++    )
+   })
+ 
+   readonly pin: Effect.Effect<PinnedPgConnection, never, Scope.Scope> = Effect.suspend(() => {
+diff --git a/src/PgPool.ts b/src/PgPool.ts
+index 1fb1de888e1bfbc17e051949716952d284c110e3..ec9e1e356c2de9f0ce2dc92ee6b9724ea7b3bcaf 100644
+--- a/src/PgPool.ts
++++ b/src/PgPool.ts
+@@ -211,6 +211,14 @@ export const make = Effect.fnUntraced(function*(options: Config): Effect.fn.Retu
+   // Assigned below, once the pool exists. `acquire` only runs when the pool
+   // opens a connection, which is always after that.
+   let pool: Pool.Pool<PgConnection.PgConnection, SqlError>
++  const invalidate = (connection: PgConnection.PgConnection) => {
++    const base = connectionInternals(connection).base
++    return Effect.gen(function*() {
++      yield* connectionInternals(base).close
++      yield* Pool.invalidate(pool, base)
++      deadConnections.delete(base)
++    })
++  }
+   const acquire = Effect.suspend(() => {
+     const startTime = clock.currentTimeNanosUnsafe()
+     return Effect.tap(PgConnection.make(options), (connection) =>
+@@ -220,10 +228,9 @@ export const make = Effect.fnUntraced(function*(options: Config): Effect.fn.Retu
+         const internals = connectionInternals(connection)
+         internals.retireHooks.add(() => {
+           deadConnections.add(connection)
+-          // `deadConnections` is only read by the next checkout, and a checkout
+-          // already waiting for this connection would never get that far. Tell
+-          // the pool now so it can replace the connection and admit them.
+-          runFork(Pool.invalidate(pool, connection))
++          // Keep the dead session out of the fast path while physical closure
++          // completes; only then can invalidation admit a replacement.
++            runFork(invalidate(connection))
+         })
+         // Pinning a shared session has to take it out of circulation, or a
+         // second checkout lands on the connection its own stream is holding.
+@@ -261,12 +268,11 @@ export const make = Effect.fnUntraced(function*(options: Config): Effect.fn.Retu
+     while (true) {
+       if (deadConnections.size > 0) {
+         const dead = Array.from(deadConnections)
+-        deadConnections.clear()
+-        yield* Effect.forEach(dead, (connection) => Pool.invalidate(pool, connection), { discard: true })
++        yield* Effect.forEach(dead, invalidate, { discard: true })
+       }
+       const connection = yield* Pool.get(pool)
+       if (expired(connection)) {
+-        yield* Pool.invalidate(pool, connection)
++        yield* invalidate(connection)
+         continue
+       }
+       return connection
+@@ -276,7 +282,7 @@ export const make = Effect.fnUntraced(function*(options: Config): Effect.fn.Retu
+   const checkout: Effect.Effect<PgConnection.PgConnection, SqlError, Scope.Scope> = Effect.suspend(() =>
+     deadConnections.size > 0 ? retry : Effect.flatMap(Pool.get(pool), (connection) =>
+       expired(connection)
+-        ? Effect.andThen(Pool.invalidate(pool, connection), retry)
++        ? Effect.andThen(invalidate(connection), retry)
+         : Effect.succeed(connection))
+   )
+ 
+@@ -341,8 +347,7 @@ export const make = Effect.fnUntraced(function*(options: Config): Effect.fn.Retu
+     get,
+     reserve,
+     use,
+-    invalidate: (connection) =>
+-      Pool.invalidate(pool, connectionInternals(connection).base as PgConnection.PgConnection),
++    invalidate,
+     stats: Pool.stats(pool)
+   }
+   return pgPool
+diff --git a/src/internal/connection.ts b/src/internal/connection.ts
+index a4fa268e7512601721b461d8dc78deea4799f87a..0481ccbfe833dbccfb84914f98154dd00992fa07 100644
+--- a/src/internal/connection.ts
++++ b/src/internal/connection.ts
+@@ -1,6 +1,7 @@
+ import type * as Effect from "effect/Effect"
+ import type * as Scope from "effect/Scope"
+ import type { SqlError } from "effect/sql/SqlError"
++import type { PgConnection } from "../PgConnection.ts"
+ 
+ /** @internal */
+ export const internalsKey = "~@effect/sql-pg/PgConnection/internals" as const
+@@ -8,7 +9,9 @@ export const internalsKey = "~@effect/sql-pg/PgConnection/internals" as const
+ /** @internal */
+ export interface ConnectionInternals {
+   /** The pool item identity: the unpinned base connection. */
+-  readonly base: object
++  readonly base: PgConnection
++  /** Closes the physical stream before pool capacity can be reused. */
++  readonly close: Effect.Effect<void>
+   readonly deadError: () => SqlError | undefined
+   /** Fired when a pool must stop reusing the connection. */
+   readonly retireHooks: Set<() => void>

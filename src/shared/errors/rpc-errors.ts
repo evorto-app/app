@@ -30,17 +30,6 @@ export class RpcUnauthorizedError extends Schema.TaggedError<RpcUnauthorizedErro
   },
 ) {}
 
-export const UnauthorizedRpcError = RpcUnauthorizedError;
-export type UnauthorizedRpcError = Schema.Schema.Type<
-  typeof UnauthorizedRpcError
->;
-
-export const ForbiddenRpcError = RpcForbiddenError;
-export type ForbiddenRpcError = Schema.Schema.Type<typeof ForbiddenRpcError>;
-
-export const BadRequestRpcError = RpcBadRequestError;
-export type BadRequestRpcError = Schema.Schema.Type<typeof BadRequestRpcError>;
-
 export const ForbiddenOrUnauthorizedRpcError = Schema.Union([
   RpcForbiddenError,
   RpcUnauthorizedError,

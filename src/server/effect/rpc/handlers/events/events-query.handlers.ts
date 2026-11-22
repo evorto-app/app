@@ -26,7 +26,7 @@ import {
   sql,
 } from 'drizzle-orm';
 import { Effect } from 'effect';
-import { groupBy } from 'es-toolkit';
+import { groupBy } from 'effect/Array';
 import { DateTime } from 'luxon';
 
 import type { AppRpcHandlers } from '../shared/handler-types';
@@ -1078,140 +1078,6 @@ export const eventQueryHandlers = {
         userIsCreator: user?.id === event.creatorId,
       };
     }),
-  'events.findOneForEdit': ({ id }, _options) =>
-    Effect.gen(function* () {
-      yield* RpcAccess.ensureAuthenticated();
-      const { tenant } = yield* RpcAccess.current();
-      const user = yield* RpcAccess.requireUser();
-
-      const event = yield* databaseEffect((database) =>
-        database.query.eventInstances.findFirst({
-          columns: {
-            creatorId: true,
-            description: true,
-            end: true,
-            icon: true,
-            id: true,
-            location: true,
-            start: true,
-            status: true,
-            title: true,
-          },
-          where: { id, tenantId: tenant.id },
-          with: {
-            registrationOptions: {
-              columns: {
-                cancellationDeadlineHoursBeforeStart: true,
-                closeRegistrationTime: true,
-                description: true,
-                id: true,
-                isPaid: true,
-                openRegistrationTime: true,
-                organizingRegistration: true,
-                price: true,
-                refundFeesOnCancellation: true,
-                registeredDescription: true,
-                registrationMode: true,
-                roleIds: true,
-                spots: true,
-                stripeTaxRateId: true,
-                title: true,
-                transferDeadlineHoursBeforeStart: true,
-              },
-            },
-          },
-        }),
-      );
-
-      if (!event) {
-        return yield* Effect.fail(
-          new EventNotFoundError({ id, message: 'Event not found' }),
-        );
-      }
-
-      const canEdit =
-        event.creatorId === user.id ||
-        includesPermission('events:editAll', user.permissions);
-      if (!canEdit) {
-        return yield* Effect.fail(
-          new RpcForbiddenError({
-            message: 'You do not have permission to edit this event.',
-          }),
-        );
-      }
-
-      if (event.status !== 'DRAFT') {
-        return yield* Effect.fail(
-          new EventConflictError({
-            message: 'Event cannot be edited in its current state',
-          }),
-        );
-      }
-
-      const registrationOptionIds = event.registrationOptions.map(
-        (option) => option.id,
-      );
-      const optionDiscounts =
-        registrationOptionIds.length === 0
-          ? []
-          : yield* databaseEffect((database) =>
-              database
-                .select({
-                  discountedPrice:
-                    eventRegistrationOptionDiscounts.discountedPrice,
-                  discountType: eventRegistrationOptionDiscounts.discountType,
-                  registrationOptionId:
-                    eventRegistrationOptionDiscounts.registrationOptionId,
-                })
-                .from(eventRegistrationOptionDiscounts)
-                .where(
-                  and(
-                    eq(
-                      eventRegistrationOptionDiscounts.discountType,
-                      'esnCard',
-                    ),
-                    inArray(
-                      eventRegistrationOptionDiscounts.registrationOptionId,
-                      [...registrationOptionIds],
-                    ),
-                  ),
-                ),
-            );
-      const esnCardDiscountedPriceByOptionId =
-        getEsnCardDiscountedPriceByOptionId(optionDiscounts);
-
-      return {
-        description: event.description,
-        end: event.end.toISOString(),
-        icon: event.icon,
-        id: event.id,
-        location: event.location ?? null,
-        registrationOptions: event.registrationOptions.map((option) => ({
-          cancellationDeadlineHoursBeforeStart:
-            option.cancellationDeadlineHoursBeforeStart,
-          closeRegistrationTime: option.closeRegistrationTime.toISOString(),
-          description: option.description ?? null,
-          esnCardDiscountedPrice:
-            esnCardDiscountedPriceByOptionId.get(option.id) ?? undefined,
-          id: option.id,
-          isPaid: option.isPaid,
-          openRegistrationTime: option.openRegistrationTime.toISOString(),
-          organizingRegistration: option.organizingRegistration,
-          price: option.price,
-          refundFeesOnCancellation: option.refundFeesOnCancellation,
-          registeredDescription: option.registeredDescription ?? null,
-          registrationMode: option.registrationMode,
-          roleIds: [...option.roleIds],
-          spots: option.spots,
-          stripeTaxRateId: option.stripeTaxRateId ?? null,
-          title: option.title,
-          transferDeadlineHoursBeforeStart:
-            option.transferDeadlineHoursBeforeStart,
-        })),
-        start: event.start.toISOString(),
-        title: event.title,
-      };
-    }),
   'events.getOrganizeOverview': ({ eventId }, _options) =>
     Effect.gen(function* () {
       yield* RpcAccess.ensureAuthenticated();
@@ -1304,7 +1170,7 @@ export const eventQueryHandlers = {
             },
             user: {
               columns: {
-                email: true,
+                communicationEmail: true,
                 firstName: true,
                 id: true,
                 lastName: true,
@@ -1332,28 +1198,27 @@ export const eventQueryHandlers = {
         permissions: user.permissions,
       });
 
-      type Registration = (typeof registrationsWithRelations)[number];
       const groupedRegistrations = groupBy(
         registrationsWithRelations,
         (registration) => registration.registrationOptionId,
-      ) as Record<string, Registration[]>;
+      );
 
-      const sortedOptions = (
-        Object.entries(groupedRegistrations) as [string, Registration[]][]
-      ).toSorted(([, registrationsA], [, registrationsB]) => {
-        if (
-          registrationsA[0].registrationOption.organizingRegistration !==
-          registrationsB[0].registrationOption.organizingRegistration
-        ) {
-          return registrationsB[0].registrationOption.organizingRegistration
-            ? 1
-            : -1;
-        }
+      const sortedOptions = Object.entries(groupedRegistrations).toSorted(
+        ([, registrationsA], [, registrationsB]) => {
+          if (
+            registrationsA[0].registrationOption.organizingRegistration !==
+            registrationsB[0].registrationOption.organizingRegistration
+          ) {
+            return registrationsB[0].registrationOption.organizingRegistration
+              ? 1
+              : -1;
+          }
 
-        return registrationsA[0].registrationOption.title.localeCompare(
-          registrationsB[0].registrationOption.title,
-        );
-      });
+          return registrationsA[0].registrationOption.title.localeCompare(
+            registrationsB[0].registrationOption.title,
+          );
+        },
+      );
 
       const registrationOptions = sortedOptions.map(
         ([registrationOptionId, registrationRows]) => {
@@ -1411,7 +1276,7 @@ export const eventQueryHandlers = {
                 ...priceSnapshot,
                 checkedIn: registration.checkInTime !== null,
                 checkInTime: registration.checkInTime?.toISOString() ?? null,
-                email: registration.user.email,
+                email: registration.user.communicationEmail,
                 firstName: registration.user.firstName,
                 lastName: registration.user.lastName,
                 ...approvalState,

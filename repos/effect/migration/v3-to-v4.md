@@ -2,9 +2,9 @@
 
 # v3 to v4 Migration Reference
 
-Base: `origin/v3` (`cab7f2e3493e4a3dceda27cb1b6d28c4599cb939`)
+Base: `cab7f2e3493e4a3dceda27cb1b6d28c4599cb939` (`cab7f2e3493e4a3dceda27cb1b6d28c4599cb939`)
 
-Head: `origin/main` (`4cddd3c41e71fc4990d37c42b1bcf2ce3780b41d`)
+Head: `ca9de3c912ddb035a52b0f3f24e36ac453e417ae` (`ca9de3c912ddb035a52b0f3f24e36ac453e417ae`)
 
 This file is generated from the API diff and `migration/annotations/*.yaml`.
 
@@ -358,14 +358,9 @@ effect/rpc/Utils (barrel: effect/rpc)
 ## Removed Modules
 
 - `@effect/ai` -> `effect/ai`: The @effect/ai package was merged into the effect package; import the effect/ai barrel or import specific modules directly (e.g. effect/ai/\<Module\>).
-- `@effect/ai-amazon-bedrock` -> `none`: The @effect/ai-amazon-bedrock provider package was removed from v4 with no direct replacement. Use @aws-sdk/client-bedrock-runtime directly or build a custom v4 provider integration.
-- `@effect/ai-amazon-bedrock/AmazonBedrockClient` -> `none`: The @effect/ai-amazon-bedrock provider package was removed from v4, so AmazonBedrockClient, layer, layerConfig, make, and Service have no direct replacements. Use @aws-sdk/client-bedrock-runtime directly or build a custom v4 provider integration.
-- `@effect/ai-amazon-bedrock/AmazonBedrockConfig` -> `none`: The @effect/ai-amazon-bedrock provider package was removed from v4, so AmazonBedrockConfig has no direct replacement. Use @aws-sdk/client-bedrock-runtime directly or build a custom v4 provider integration.
-- `@effect/ai-amazon-bedrock/AmazonBedrockLanguageModel` -> `none`: The @effect/ai-amazon-bedrock language-model integration was removed from v4. Use another supported v4 provider or implement LanguageModel.LanguageModel with @aws-sdk/client-bedrock-runtime.
-- `@effect/ai-amazon-bedrock/AmazonBedrockSchema` -> `none`: The @effect/ai-amazon-bedrock package was removed from v4, including its hand-written Bedrock schemas. Use @aws-sdk/client-bedrock-runtime request and response types, or schemas supplied by a custom v4 provider integration.
-- `@effect/ai-amazon-bedrock/AmazonBedrockTool` -> `none`: The @effect/ai-amazon-bedrock package and its Anthropic-on-Bedrock provider tools were removed from v4. Recreate the capability in a custom provider integration if the Bedrock model still requires it.
-- `@effect/ai-amazon-bedrock/EventStreamEncoding` -> `none`: The @effect/ai-amazon-bedrock package and its AWS event-stream decoder were removed from v4. Use the AWS SDK's Bedrock Runtime streaming support or implement decoding in a custom provider client.
-- `@effect/ai-amazon-bedrock/index` -> `none`: The @effect/ai-amazon-bedrock provider package was removed from v4 with no direct replacement. Use @aws-sdk/client-bedrock-runtime directly or build a custom v4 provider integration.
+- `@effect/ai-amazon-bedrock/AmazonBedrockTool` -> `none`: The Bedrock package remains available, but its Anthropic-specific provider-tool constructors are removed. Define ordinary tools with effect/ai/Tool and handlers where suitable. If you need the exact Anthropic built-in protocol, use an API and provider that support it; ordinary Converse tools are not a drop-in replacement.
+- `@effect/ai-amazon-bedrock/EventStreamEncoding` -> `none`: The event-stream decoder is now internal, not a public module. Use AmazonBedrockClient service.converseStream to decode Bedrock streams and map exception frames to AiError. For a generic AWS event-stream decoder, supply your own implementation or use an AWS SDK; do not import the provider internal module.
+- `@effect/ai-amazon-bedrock/index` -> `@effect/ai-amazon-bedrock`: Import AmazonBedrockClient, AmazonBedrockConfig, AmazonBedrockLanguageModel and AmazonBedrockSchema from the package root or their package subpaths. AmazonBedrockTool and EventStreamEncoding are no longer public modules.
 - `@effect/ai-anthropic/AnthropicTokenizer`: No single module replacement; follow the curated per-API guidance below.
 - `@effect/ai-anthropic/index` -> `@effect/ai-anthropic`: The explicit /index entrypoint was removed; import the same namespaces from the @effect/ai-anthropic package root or import specific modules directly.
 - `@effect/ai-google` -> `none`: The @effect/ai-google provider package was removed from v4 with no direct replacement. Use a supported v4 provider integration for Gemini models or integrate Google's current SDK directly.
@@ -490,7 +485,7 @@ effect/rpc/Utils (barrel: effect/rpc)
 - `@effect/opentelemetry/OtlpSerialization` -> `effect/observability/OtlpSerialization`
 - `@effect/opentelemetry/OtlpTracer` -> `effect/observability/OtlpTracer`
 - `@effect/opentelemetry/Tracer`: No single module replacement; follow the curated per-API guidance below.
-- `@effect/opentelemetry/index` -> `@effect/opentelemetry`: The explicit /index entrypoint was removed; import the same namespaces from the @effect/opentelemetry package root or import specific modules directly.
+- `@effect/opentelemetry/index` -> `@effect/opentelemetry`: The explicit /index entrypoint was removed; import the same namespaces from the @effect/opentelemetry package root or import specific modules directly. NodeSdk and WebSdk are no longer in the root barrel; import them from @effect/opentelemetry/NodeSdk and @effect/opentelemetry/WebSdk.
 - `@effect/platform` -> `none`: The @effect/platform package was folded into the effect package: core services live in effect root modules (e.g. effect/FileSystem, effect/Path) and HTTP in effect/http; follow the Import Map for each module.
 - `@effect/platform-browser/index` -> `@effect/platform-browser`: The explicit /index entrypoint was removed; import the same namespaces from the @effect/platform-browser package root or import specific modules directly.
 - `@effect/platform-bun/BunCommandExecutor`: No single module replacement; follow the curated per-API guidance below.
@@ -617,7 +612,7 @@ effect/rpc/Utils (barrel: effect/rpc)
 - `@effect/sql-sqlite-react-native/index` -> `@effect/sql-sqlite-react-native`: The explicit /index entrypoint was removed; import the same namespaces from the @effect/sql-sqlite-react-native package root or import specific modules directly.
 - `@effect/sql-sqlite-wasm/index` -> `@effect/sql-sqlite-wasm`: The explicit /index entrypoint was removed; import the same namespaces from the @effect/sql-sqlite-wasm package root or import specific modules directly.
 - `@effect/sql/Migrator` -> `effect/sql/Migrator`
-- `@effect/sql/Migrator/FileSystem` -> `effect/sql/Migrator`: fromFileSystem was merged into the main Migrator module with the same (directory) signature; use Migrator.fromFileSystem as the loader.
+- `@effect/sql/Migrator/FileSystem` -> `effect/sql/MigratorFileSystem`: Same `(directory)` signature. Import `fromFileSystem` from there; it is not exported from `effect/sql/Migrator` or the `effect/sql` barrel.
 - `@effect/sql/Model` -> `effect/schema/Model`, `effect/sql/SqlModel`
 - `@effect/sql/SqlClient` -> `effect/sql/SqlClient`
 - `@effect/sql/SqlConnection` -> `effect/sql/SqlConnection`
@@ -765,6 +760,168 @@ effect/rpc/Utils (barrel: effect/rpc)
 - `effect/index`: No single module replacement; follow the curated per-API guidance below.
 
 ## API Reference
+
+### `@effect/ai-amazon-bedrock/AmazonBedrockClient`
+
+- `AmazonBedrockClient.Client` -> `AmazonBedrockClient.Service["client"]`: The old generated client interface is removed. service.client is now the authenticated HttpClient, not an object with converse methods. Use service.converse and service.converseStream for modeled operations, or execute HTTP requests with service.client.
+
+- `AmazonBedrockClient.Service` -> `AmazonBedrockClient.Service`: Pass the ConverseRequest directly to converse and converseStream instead of wrapping it in { payload, params }. streamRequest is removed; use converseStream for Bedrock streams. Both operations report effect/ai/AiError, and service.client is the authenticated HttpClient.
+
+- `AmazonBedrockClient.layer` -> `AmazonBedrockClient.layer`: Provide HttpClient, Digest and Mac services from effect/http and effect/crypto (or platform layers). SigV4 signing now uses these crypto services rather than an internal signer; the client no longer requires Scope just to construct it.
+
+- `AmazonBedrockClient.layerConfig` -> `AmazonBedrockClient.layerConfig`: Provide HttpClient, Digest and Mac services from effect/http and effect/crypto (or platform layers). SigV4 signing now uses these crypto services rather than an internal signer; the client no longer requires Scope just to construct it.
+
+- `AmazonBedrockClient.make` -> `AmazonBedrockClient.make`: Provide HttpClient, Digest and Mac services from effect/http and effect/crypto (or platform layers). SigV4 signing now uses these crypto services rather than an internal signer; the client no longer requires Scope just to construct it.
+
+### `@effect/ai-amazon-bedrock/AmazonBedrockConfig`
+
+- `AmazonBedrockConfig.AmazonBedrockConfig` -> `AmazonBedrockConfig.AmazonBedrockConfig`: The tag is now a Context.Service. Use the exported service identifier rather than the old string key, which incorrectly named @effect/ai-google. getOrUndefined and withClientTransform remain available.
+
+- `AmazonBedrockConfig.AmazonBedrockConfig.Service` -> `AmazonBedrockConfig.AmazonBedrockConfig.Service`: Keep the transformClient callback, updating HttpClient imports from @effect/platform/HttpClient to effect/http/HttpClient.
+
+### `@effect/ai-amazon-bedrock/AmazonBedrockLanguageModel`
+
+- `AmazonBedrockLanguageModel.AmazonBedrockReasoningInfo` -> `AmazonBedrockLanguageModel.ReasoningInfo`: ReasoningInfo now has optional signature and redactedContent fields instead of a type-discriminated union. Rename redactedData to redactedContent, remove the type discriminator, and use the "amazon-bedrock" provider options and metadata key.
+
+- `AmazonBedrockLanguageModel.Config` -> `AmazonBedrockLanguageModel.Config`: Config is now a Context.Service. Use Context.getOrUndefined with the service identifier instead of Config.getOrUndefined. Configure native structured output with structuredOutputs; outputConfig exposes effort while textFormat is derived from the requested response format.
+
+- `AmazonBedrockLanguageModel.Config.Service` -> `typeof AmazonBedrockLanguageModel.Config.Service`: The Config namespace interface is removed. Obtain the service type with typeof Config.Service; it contains partial Converse request options, structuredOutputs and outputConfig.effort.
+
+- `AmazonBedrockLanguageModel.model` -> `AmazonBedrockLanguageModel.model`: The provider implements effect/ai/LanguageModel. Move prompt options and response metadata from the bedrock key to `amazon-bedrock`; model identifiers now accept arbitrary strings. Provide AmazonBedrockClient with its HTTP and crypto dependencies.
+
+### `@effect/ai-amazon-bedrock/AmazonBedrockSchema`
+
+- `AmazonBedrockSchema.BedrockFoundationModelId` -> `AmazonBedrockLanguageModel.Model`: Model identifiers are now arbitrary strings, allowing inference profile IDs and ARNs. Use Schema.String if you need a runtime schema; there is no fixed model-id literal schema.
+
+- `AmazonBedrockSchema.CachePointBlock` -> `AmazonBedrockSchema.CachePointBlock`: Use the CachePointBlock schema value to validate plain data instead of relying on the v3 schema class. The same-named type is now inferred from the schema.
+
+- `AmazonBedrockSchema.ContentBlock` -> `AmazonBedrockSchema.ContentBlock`: Use the ContentBlock schema value to validate plain data instead of relying on the v3 schema class. For type positions use typeof AmazonBedrockSchema.ContentBlock.Type; the same-named type export is gone. Union members are modeled as optional fields on a struct; check each field before reading it and stop relying on v3 decoded type discriminators.
+
+- `AmazonBedrockSchema.ContentBlockDelta` -> `AmazonBedrockSchema.ContentBlockDelta`: Use the ContentBlockDelta schema value to validate plain data instead of relying on the v3 schema class. For type positions use typeof AmazonBedrockSchema.ContentBlockDelta.Type; the same-named type export is gone. Union members are modeled as optional fields on a struct; check each field before reading it and stop relying on v3 decoded type discriminators.
+
+- `AmazonBedrockSchema.ContentBlockDeltaEvent` -> `AmazonBedrockSchema.ContentBlockDeltaEvent`: Use the ContentBlockDeltaEvent schema value to validate plain data instead of relying on the v3 schema class. For type positions use typeof AmazonBedrockSchema.ContentBlockDeltaEvent.Type; the same-named type export is gone.
+
+- `AmazonBedrockSchema.ContentBlockStart` -> `AmazonBedrockSchema.ContentBlockStartEvent`: The start payload is now inline in ContentBlockStartEvent and optional. Use its start field, checking for undefined, rather than constructing a ContentBlockStart class.
+
+- `AmazonBedrockSchema.ContentBlockStartEvent` -> `AmazonBedrockSchema.ContentBlockStartEvent`: Use the ContentBlockStartEvent schema value to validate plain data instead of relying on the v3 schema class. For type positions use typeof AmazonBedrockSchema.ContentBlockStartEvent.Type; the same-named type export is gone.
+
+- `AmazonBedrockSchema.ContentBlockStopEvent` -> `AmazonBedrockSchema.ContentBlockStopEvent`: Use the ContentBlockStopEvent schema value to validate plain data instead of relying on the v3 schema class. For type positions use typeof AmazonBedrockSchema.ContentBlockStopEvent.Type; the same-named type export is gone.
+
+- `AmazonBedrockSchema.ConverseMetrics` -> `AmazonBedrockSchema.ConverseMetrics`: Use the ConverseMetrics schema value to validate plain data instead of relying on the v3 schema class. For type positions use typeof AmazonBedrockSchema.ConverseMetrics.Type; the same-named type export is gone.
+
+- `AmazonBedrockSchema.ConverseOutput` -> `AmazonBedrockSchema.ConverseResponse`: The standalone output schema is removed. Read response.output or derive its type as AmazonBedrockSchema.ConverseResponse["output"]; validate the full response with ConverseResponse.
+
+- `AmazonBedrockSchema.ConverseRequest` -> `AmazonBedrockSchema.ConverseRequest`: Use the ConverseRequest schema value to validate plain data instead of relying on the v3 schema class. The same-named type is now inferred from the schema.
+
+- `AmazonBedrockSchema.ConverseResponse` -> `AmazonBedrockSchema.ConverseResponse`: Use the ConverseResponse schema value to validate plain data instead of relying on the v3 schema class. The same-named type is now inferred from the schema.
+
+- `AmazonBedrockSchema.ConverseResponseStreamEvent` -> `AmazonBedrockSchema.ConverseStreamEvent`: Use ConverseStreamEvent for both the schema and its type. The union now also preserves unknown event types; narrow known events before reading their payloads. Exception frames fail the client stream instead of being returned as normal events.
+
+- `AmazonBedrockSchema.ConverseStreamMetadataEvent` -> `AmazonBedrockSchema.ConverseStreamMetadataEvent`: Use the ConverseStreamMetadataEvent schema value to validate plain data instead of relying on the v3 schema class. For type positions use typeof AmazonBedrockSchema.ConverseStreamMetadataEvent.Type; the same-named type export is gone.
+
+- `AmazonBedrockSchema.ConverseStreamMetrics` -> `AmazonBedrockSchema.ConverseMetrics`: Streaming metadata now uses ConverseMetrics. Use typeof ConverseMetrics.Type for the decoded type; latencyMs is a number and unmodeled response fields are preserved.
+
+- `AmazonBedrockSchema.ConverseStreamTrace` -> `none`: This standalone trace or guardrail assessment schema is removed. ConverseResponse.trace and ConverseStreamMetadataEvent.trace are unknown and response structs preserve unmodeled fields. Define an application schema to validate the trace or assessment fields you consume.
+
+- `AmazonBedrockSchema.ConverseTrace` -> `none`: This standalone trace or guardrail assessment schema is removed. ConverseResponse.trace and ConverseStreamMetadataEvent.trace are unknown and response structs preserve unmodeled fields. Define an application schema to validate the trace or assessment fields you consume.
+
+- `AmazonBedrockSchema.DocumentBlock` -> `AmazonBedrockSchema.DocumentBlock`: Use the DocumentBlock schema value to validate plain data instead of relying on the v3 schema class. For type positions use typeof AmazonBedrockSchema.DocumentBlock.Type; the same-named type export is gone. The modeled source is base64 bytes; other source fields are not typed by this schema.
+
+- `AmazonBedrockSchema.DocumentFormat` -> `AmazonBedrockSchema.DocumentFormat`: Keep the DocumentFormat schema value. The separate type alias is removed; use typeof AmazonBedrockSchema.DocumentFormat.Type in type positions.
+
+- `AmazonBedrockSchema.GuardrailAssessment` -> `none`: This standalone trace or guardrail assessment schema is removed. ConverseResponse.trace and ConverseStreamMetadataEvent.trace are unknown and response structs preserve unmodeled fields. Define an application schema to validate the trace or assessment fields you consume.
+
+- `AmazonBedrockSchema.GuardrailConfiguration` -> `AmazonBedrockSchema.GuardrailConfiguration`: Use the GuardrailConfiguration schema value to validate plain data instead of relying on the v3 schema class. For type positions use typeof AmazonBedrockSchema.GuardrailConfiguration.Type; the same-named type export is gone.
+
+- `AmazonBedrockSchema.GuardrailContentFilter` -> `none`: This standalone trace or guardrail assessment schema is removed. ConverseResponse.trace and ConverseStreamMetadataEvent.trace are unknown and response structs preserve unmodeled fields. Define an application schema to validate the trace or assessment fields you consume.
+
+- `AmazonBedrockSchema.GuardrailContentPolicyAssessment` -> `none`: This standalone trace or guardrail assessment schema is removed. ConverseResponse.trace and ConverseStreamMetadataEvent.trace are unknown and response structs preserve unmodeled fields. Define an application schema to validate the trace or assessment fields you consume.
+
+- `AmazonBedrockSchema.GuardrailContextualGroundingFilter` -> `none`: This standalone trace or guardrail assessment schema is removed. ConverseResponse.trace and ConverseStreamMetadataEvent.trace are unknown and response structs preserve unmodeled fields. Define an application schema to validate the trace or assessment fields you consume.
+
+- `AmazonBedrockSchema.GuardrailContextualGroundingPolicyAssessment` -> `none`: This standalone trace or guardrail assessment schema is removed. ConverseResponse.trace and ConverseStreamMetadataEvent.trace are unknown and response structs preserve unmodeled fields. Define an application schema to validate the trace or assessment fields you consume.
+
+- `AmazonBedrockSchema.GuardrailConverseContentBlock` -> `none`: This standalone guardrail-content schema is removed. Define an application schema for the payload you need; response content preserves unmodeled fields as unknown. For request fields outside the provider subset, use the authenticated service.client or the AWS SDK.
+
+- `AmazonBedrockSchema.GuardrailConverseImageBlock` -> `none`: This standalone guardrail-content schema is removed. Define an application schema for the payload you need; response content preserves unmodeled fields as unknown. For request fields outside the provider subset, use the authenticated service.client or the AWS SDK.
+
+- `AmazonBedrockSchema.GuardrailConverseTextBlock` -> `none`: This standalone guardrail-content schema is removed. Define an application schema for the payload you need; response content preserves unmodeled fields as unknown. For request fields outside the provider subset, use the authenticated service.client or the AWS SDK.
+
+- `AmazonBedrockSchema.GuardrailCoverage` -> `none`: This standalone trace or guardrail assessment schema is removed. ConverseResponse.trace and ConverseStreamMetadataEvent.trace are unknown and response structs preserve unmodeled fields. Define an application schema to validate the trace or assessment fields you consume.
+
+- `AmazonBedrockSchema.GuardrailCustomWord` -> `none`: This standalone trace or guardrail assessment schema is removed. ConverseResponse.trace and ConverseStreamMetadataEvent.trace are unknown and response structs preserve unmodeled fields. Define an application schema to validate the trace or assessment fields you consume.
+
+- `AmazonBedrockSchema.GuardrailImageCoverage` -> `none`: This standalone trace or guardrail assessment schema is removed. ConverseResponse.trace and ConverseStreamMetadataEvent.trace are unknown and response structs preserve unmodeled fields. Define an application schema to validate the trace or assessment fields you consume.
+
+- `AmazonBedrockSchema.GuardrailInvocationMetrics` -> `none`: This standalone trace or guardrail assessment schema is removed. ConverseResponse.trace and ConverseStreamMetadataEvent.trace are unknown and response structs preserve unmodeled fields. Define an application schema to validate the trace or assessment fields you consume.
+
+- `AmazonBedrockSchema.GuardrailManagedWord` -> `none`: This standalone trace or guardrail assessment schema is removed. ConverseResponse.trace and ConverseStreamMetadataEvent.trace are unknown and response structs preserve unmodeled fields. Define an application schema to validate the trace or assessment fields you consume.
+
+- `AmazonBedrockSchema.GuardrailPiiEntityFilter` -> `none`: This standalone trace or guardrail assessment schema is removed. ConverseResponse.trace and ConverseStreamMetadataEvent.trace are unknown and response structs preserve unmodeled fields. Define an application schema to validate the trace or assessment fields you consume.
+
+- `AmazonBedrockSchema.GuardrailRegexFilter` -> `none`: This standalone trace or guardrail assessment schema is removed. ConverseResponse.trace and ConverseStreamMetadataEvent.trace are unknown and response structs preserve unmodeled fields. Define an application schema to validate the trace or assessment fields you consume.
+
+- `AmazonBedrockSchema.GuardrailSensitiveInformationPolicyAssessment` -> `none`: This standalone trace or guardrail assessment schema is removed. ConverseResponse.trace and ConverseStreamMetadataEvent.trace are unknown and response structs preserve unmodeled fields. Define an application schema to validate the trace or assessment fields you consume.
+
+- `AmazonBedrockSchema.GuardrailTextCharactersCoverage` -> `none`: This standalone trace or guardrail assessment schema is removed. ConverseResponse.trace and ConverseStreamMetadataEvent.trace are unknown and response structs preserve unmodeled fields. Define an application schema to validate the trace or assessment fields you consume.
+
+- `AmazonBedrockSchema.GuardrailTopic` -> `none`: This standalone trace or guardrail assessment schema is removed. ConverseResponse.trace and ConverseStreamMetadataEvent.trace are unknown and response structs preserve unmodeled fields. Define an application schema to validate the trace or assessment fields you consume.
+
+- `AmazonBedrockSchema.GuardrailTopicPolicyAssessment` -> `none`: This standalone trace or guardrail assessment schema is removed. ConverseResponse.trace and ConverseStreamMetadataEvent.trace are unknown and response structs preserve unmodeled fields. Define an application schema to validate the trace or assessment fields you consume.
+
+- `AmazonBedrockSchema.GuardrailTraceAssessment` -> `none`: This standalone trace or guardrail assessment schema is removed. ConverseResponse.trace and ConverseStreamMetadataEvent.trace are unknown and response structs preserve unmodeled fields. Define an application schema to validate the trace or assessment fields you consume.
+
+- `AmazonBedrockSchema.GuardrailUsage` -> `none`: This standalone trace or guardrail assessment schema is removed. ConverseResponse.trace and ConverseStreamMetadataEvent.trace are unknown and response structs preserve unmodeled fields. Define an application schema to validate the trace or assessment fields you consume.
+
+- `AmazonBedrockSchema.GuardrailWordPolicyAssessment` -> `none`: This standalone trace or guardrail assessment schema is removed. ConverseResponse.trace and ConverseStreamMetadataEvent.trace are unknown and response structs preserve unmodeled fields. Define an application schema to validate the trace or assessment fields you consume.
+
+- `AmazonBedrockSchema.ImageBlock` -> `AmazonBedrockSchema.ImageBlock`: Use the ImageBlock schema value to validate plain data instead of relying on the v3 schema class. For type positions use typeof AmazonBedrockSchema.ImageBlock.Type; the same-named type export is gone. The modeled source is base64 bytes; other source fields are not typed by this schema.
+
+- `AmazonBedrockSchema.ImageFormat` -> `AmazonBedrockSchema.ImageFormat`: Keep the ImageFormat schema value. The separate type alias is removed; use typeof AmazonBedrockSchema.ImageFormat.Type in type positions.
+
+- `AmazonBedrockSchema.InferenceConfiguration` -> `AmazonBedrockSchema.InferenceConfiguration`: Use the InferenceConfiguration schema value to validate plain data instead of relying on the v3 schema class. For type positions use typeof AmazonBedrockSchema.InferenceConfiguration.Type; the same-named type export is gone.
+
+- `AmazonBedrockSchema.IntZeroOrGreater` -> `Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))`: Compose the nonnegative integer schema from effect/Schema. Bedrock response integer schemas no longer impose this nonnegative check.
+
+- `AmazonBedrockSchema.JsonBlock` -> `AmazonBedrockSchema.ToolResultContentBlock`: For tool-result JSON use { json: value } with ToolResultContentBlock. The JSON value remains unknown; there is no JsonBlock class.
+
+- `AmazonBedrockSchema.Message` -> `AmazonBedrockSchema.Message`: Use the Message schema value to validate plain data instead of relying on the v3 schema class. For type positions use typeof AmazonBedrockSchema.Message.Type; the same-named type export is gone.
+
+- `AmazonBedrockSchema.MessageStartEvent` -> `AmazonBedrockSchema.MessageStartEvent`: Use the MessageStartEvent schema value to validate plain data instead of relying on the v3 schema class. For type positions use typeof AmazonBedrockSchema.MessageStartEvent.Type; the same-named type export is gone.
+
+- `AmazonBedrockSchema.MessageStopEvent` -> `AmazonBedrockSchema.MessageStopEvent`: Use the MessageStopEvent schema value to validate plain data instead of relying on the v3 schema class. For type positions use typeof AmazonBedrockSchema.MessageStopEvent.Type; the same-named type export is gone.
+
+- `AmazonBedrockSchema.PerformanceConfiguration` -> `none`: There is no provider request schema for performanceConfig. For unsupported Bedrock Runtime request fields, construct and encode an HTTP request using the authenticated service.client, or use the AWS SDK directly.
+
+- `AmazonBedrockSchema.PromptRouterTrace` -> `none`: This standalone trace or guardrail assessment schema is removed. ConverseResponse.trace and ConverseStreamMetadataEvent.trace are unknown and response structs preserve unmodeled fields. Define an application schema to validate the trace or assessment fields you consume.
+
+- `AmazonBedrockSchema.ReasoningContentBlock` -> `AmazonBedrockSchema.ReasoningContentBlock`: Use the ReasoningContentBlock schema value to validate plain data instead of relying on the v3 schema class. For type positions use typeof AmazonBedrockSchema.ReasoningContentBlock.Type; the same-named type export is gone. Union members are modeled as optional fields on a struct; check each field before reading it and stop relying on v3 decoded type discriminators.
+
+- `AmazonBedrockSchema.ReasoningContentBlockDelta` -> `AmazonBedrockSchema.ContentBlockDelta`: Use the optional reasoningContent field of ContentBlockDelta. Its text, signature and redactedContent fields are optional strings, not a separately exported union schema.
+
+- `AmazonBedrockSchema.StopReason` -> `AmazonBedrockSchema.StopReason`: StopReason now accepts unknown strings as well as known reasons. Use KnownStopReason when you need the closed set of named stop reasons.
+
+- `AmazonBedrockSchema.SystemContentBlock` -> `AmazonBedrockSchema.SystemContentBlock`: Use the SystemContentBlock schema value to validate plain data instead of relying on the v3 schema class. For type positions use typeof AmazonBedrockSchema.SystemContentBlock.Type; the same-named type export is gone. Union members are modeled as optional fields on a struct; check each field before reading it and stop relying on v3 decoded type discriminators.
+
+- `AmazonBedrockSchema.TokenUsage` -> `AmazonBedrockSchema.TokenUsage`: Use the TokenUsage schema value to validate plain data instead of relying on the v3 schema class. The same-named type is now inferred from the schema.
+
+- `AmazonBedrockSchema.Tool` -> `AmazonBedrockSchema.Tool`: Use the Tool schema value to validate plain data instead of relying on the v3 schema class. For type positions use typeof AmazonBedrockSchema.Tool.Type; the same-named type export is gone. Union members are modeled as optional fields on a struct; check each field before reading it and stop relying on v3 decoded type discriminators.
+
+- `AmazonBedrockSchema.ToolChoice` -> `AmazonBedrockSchema.ToolChoice`: Use the ToolChoice schema value to validate plain data instead of relying on the v3 schema class. The same-named type is now inferred from the schema.
+
+- `AmazonBedrockSchema.ToolConfiguration` -> `AmazonBedrockSchema.ToolConfiguration`: Use the ToolConfiguration schema value to validate plain data instead of relying on the v3 schema class. For type positions use typeof AmazonBedrockSchema.ToolConfiguration.Type; the same-named type export is gone.
+
+- `AmazonBedrockSchema.ToolResultBlock` -> `AmazonBedrockSchema.ToolResultBlock`: Use the ToolResultBlock schema value to validate plain data instead of relying on the v3 schema class. For type positions use typeof AmazonBedrockSchema.ToolResultBlock.Type; the same-named type export is gone.
+
+- `AmazonBedrockSchema.ToolSpecification` -> `AmazonBedrockSchema.ToolSpecification`: Use the ToolSpecification schema value to validate plain data instead of relying on the v3 schema class. For type positions use typeof AmazonBedrockSchema.ToolSpecification.Type; the same-named type export is gone.
+
+- `AmazonBedrockSchema.ToolUseBlock` -> `AmazonBedrockSchema.ToolUseBlock`: Use the ToolUseBlock schema value to validate plain data instead of relying on the v3 schema class. For type positions use typeof AmazonBedrockSchema.ToolUseBlock.Type; the same-named type export is gone.
+
+- `AmazonBedrockSchema.ToolUseBlockDelta` -> `AmazonBedrockSchema.ContentBlockDelta`: The tool-use delta schema is now inline at ContentBlockDelta.toolUse. Check the optional field before reading its input string; there is no separate class or schema export.
+
+- `AmazonBedrockSchema.ToolUseBlockStart` -> `AmazonBedrockSchema.ContentBlockStartEvent`: The tool-use start schema is now inline at ContentBlockStartEvent.start.toolUse. Check both optional fields before reading toolUseId and name; there is no separate class or schema export.
+
+- `AmazonBedrockSchema.VideoBlock` -> `none`: There is no dedicated video schema or high-level video conversion. Unmodeled response content fields are preserved as unknown; validate video payloads with your own schema. Use the authenticated service.client for request shapes outside the modeled Converse subset.
 
 ### `@effect/ai-anthropic/AnthropicClient`
 
@@ -1124,7 +1281,7 @@ effect/rpc/Utils (barrel: effect/rpc)
 
 - `Generated.BetaResponseBashCodeExecutionToolResultError` -> `Generated.BetaResponseBashCodeExecutionToolResultError`: Still generated in v4 from the current Anthropic specification; re-check the schema's Type/Encoded shape because the generated definition changed.
 
-- `Generated.BetaResponseCharLocationCitation` -> `Generated.BetaResponseCharLocationCitation`: Still generated in v4 from the current Anthropic specification; re-check the schema's Type/Encoded shape because the generated definition changed.
+- `Generated.BetaResponseCharLocationCitation` -> `Generated.BetaResponseCharLocationCitation`: Use the generated type and codec rather than a schema class. `file_id` is optional and nullable; decoding an omitted field leaves it absent instead of supplying the v3 `null` default. Handle `undefined` as well as `null`, or normalize with `citation.file_id ?? null` when the old default is needed.
 
 - `Generated.BetaResponseCitationsConfig` -> `Generated.BetaResponseCitationsConfig`: Still generated in v4 from the current Anthropic specification; re-check the schema's Type/Encoded shape because the generated definition changed.
 
@@ -1140,7 +1297,7 @@ effect/rpc/Utils (barrel: effect/rpc)
 
 - `Generated.BetaResponseContainerUploadBlock` -> `Generated.BetaResponseContainerUploadBlock`: Still generated in v4 from the current Anthropic specification; re-check the schema's Type/Encoded shape because the generated definition changed.
 
-- `Generated.BetaResponseContentBlockLocationCitation` -> `Generated.BetaResponseContentBlockLocationCitation`: Still generated in v4 from the current Anthropic specification; re-check the schema's Type/Encoded shape because the generated definition changed.
+- `Generated.BetaResponseContentBlockLocationCitation` -> `Generated.BetaResponseContentBlockLocationCitation`: Use the generated type and codec rather than a schema class. `file_id` is optional and nullable; decoding an omitted field leaves it absent instead of supplying the v3 `null` default. Handle `undefined` as well as `null`, or normalize with `citation.file_id ?? null` when the old default is needed.
 
 - `Generated.BetaResponseContextManagement` -> `Generated.BetaResponseContextManagement`: Still generated in v4 from the current Anthropic specification; re-check the schema's Type/Encoded shape because the generated definition changed.
 
@@ -1150,7 +1307,7 @@ effect/rpc/Utils (barrel: effect/rpc)
 
 - `Generated.BetaResponseMCPToolUseBlock` -> `Generated.BetaResponseMCPToolUseBlock`: Still generated in v4 from the current Anthropic specification; re-check the schema's Type/Encoded shape because the generated definition changed.
 
-- `Generated.BetaResponsePageLocationCitation` -> `Generated.BetaResponsePageLocationCitation`: Still generated in v4 from the current Anthropic specification; re-check the schema's Type/Encoded shape because the generated definition changed.
+- `Generated.BetaResponsePageLocationCitation` -> `Generated.BetaResponsePageLocationCitation`: Use the generated type and codec rather than a schema class. `file_id` is optional and nullable; decoding an omitted field leaves it absent instead of supplying the v3 `null` default. Handle `undefined` as well as `null`, or normalize with `citation.file_id ?? null` when the old default is needed.
 
 - `Generated.BetaResponseRedactedThinkingBlock` -> `Generated.BetaResponseRedactedThinkingBlock`: Still generated in v4 from the current Anthropic specification; re-check the schema's Type/Encoded shape because the generated definition changed.
 
@@ -1274,7 +1431,7 @@ effect/rpc/Utils (barrel: effect/rpc)
 
 - `Generated.CacheCreation` -> `Generated.CacheCreation`: Still generated in v4 from the current Anthropic specification; re-check the schema's Type/Encoded shape because the generated definition changed.
 
-- `Generated.Client` -> `Generated.AnthropicClient`: Regenerated in v4 under this name; update the identifier and re-check the schema's Type/Encoded shape because the generated definition changed.
+- `Generated.Client` -> `Generated.AnthropicClient`: Renamed to `Generated.AnthropicClient<E, R>`. Endpoint effects include E alongside generated client errors and require R. E defaults to HttpClientError.HttpClientError and R to never; carry custom client error and context types through explicit annotations.
 
 - `Generated.ClientError` -> `Generated.AnthropicClientError`: Regenerated in v4 under this name; update the identifier and re-check the schema's Type/Encoded shape because the generated definition changed.
 
@@ -1446,11 +1603,11 @@ effect/rpc/Utils (barrel: effect/rpc)
 
 - `Generated.RequestWebSearchToolResultError` -> `Generated.RequestWebSearchToolResultError`: Still generated in v4 from the current Anthropic specification; re-check the schema's Type/Encoded shape because the generated definition changed.
 
-- `Generated.ResponseCharLocationCitation` -> `Generated.ResponseCharLocationCitation`: Still generated in v4 from the current Anthropic specification; re-check the schema's Type/Encoded shape because the generated definition changed.
+- `Generated.ResponseCharLocationCitation` -> `Generated.ResponseCharLocationCitation`: Use the generated type and codec rather than a schema class. `file_id` is optional and nullable; decoding an omitted field leaves it absent instead of supplying the v3 `null` default. Handle `undefined` as well as `null`, or normalize with `citation.file_id ?? null` when the old default is needed.
 
-- `Generated.ResponseContentBlockLocationCitation` -> `Generated.ResponseContentBlockLocationCitation`: Still generated in v4 from the current Anthropic specification; re-check the schema's Type/Encoded shape because the generated definition changed.
+- `Generated.ResponseContentBlockLocationCitation` -> `Generated.ResponseContentBlockLocationCitation`: Use the generated type and codec rather than a schema class. `file_id` is optional and nullable; decoding an omitted field leaves it absent instead of supplying the v3 `null` default. Handle `undefined` as well as `null`, or normalize with `citation.file_id ?? null` when the old default is needed.
 
-- `Generated.ResponsePageLocationCitation` -> `Generated.ResponsePageLocationCitation`: Still generated in v4 from the current Anthropic specification; re-check the schema's Type/Encoded shape because the generated definition changed.
+- `Generated.ResponsePageLocationCitation` -> `Generated.ResponsePageLocationCitation`: Use the generated type and codec rather than a schema class. `file_id` is optional and nullable; decoding an omitted field leaves it absent instead of supplying the v3 `null` default. Handle `undefined` as well as `null`, or normalize with `citation.file_id ?? null` when the old default is needed.
 
 - `Generated.ResponseRedactedThinkingBlock` -> `Generated.ResponseRedactedThinkingBlock`: Still generated in v4 from the current Anthropic specification; re-check the schema's Type/Encoded shape because the generated definition changed.
 
@@ -1512,6 +1669,8 @@ effect/rpc/Utils (barrel: effect/rpc)
 
 - `Generated.UploadFileV1FilesPostRequest` -> `Generated.UploadFileV1FilesPostRequestFormData`: Regenerated in v4 under this name; update the identifier and re-check the schema's Type/Encoded shape because the generated definition changed.
 
+- `Generated.Usage` -> `Generated.Usage`: Still generated in v4 from the current Anthropic specification; re-check the schema's Type/Encoded shape because the generated definition changed.
+
 - `Generated.UsageServiceTierEnum` -> `none`: Removed or inlined when the Anthropic specification client was regenerated; use the current Generated request/response schema for the relevant endpoint instead of this old snapshot helper.
 
 - `Generated.UserLocation` -> `Generated.UserLocation`: Still generated in v4 from the current Anthropic specification; re-check the schema's Type/Encoded shape because the generated definition changed.
@@ -1520,7 +1679,7 @@ effect/rpc/Utils (barrel: effect/rpc)
 
 - `Generated.WebSearchToolResultErrorCode` -> `Generated.WebSearchToolResultErrorCode`: Still generated in v4 from the current Anthropic specification; re-check the schema's Type/Encoded shape because the generated definition changed.
 
-- `Generated.make` -> `Generated.make`: Still generated in v4 from the current Anthropic specification; re-check the schema's Type/Encoded shape because the generated definition changed.
+- `Generated.make` -> `Generated.make`: make now infers E and R from `HttpClient.With<E, R>` and returns `Generated.AnthropicClient<E, R>`. Preserve those type parameters in wrappers; endpoint effects include the supplied client error E and require R. transformClient must preserve the same E and R.
 
 ### `@effect/ai-openai/Generated`
 
@@ -1676,7 +1835,7 @@ effect/rpc/Utils (barrel: effect/rpc)
 
 - `Generated.AutomaticThreadTitlingParam` -> `Generated.AutomaticThreadTitlingParam`: Available again in the regenerated v4 OpenAI client; re-check the schema's Type/Encoded shape against the current specification.
 
-- `Generated.Batch` -> `Generated.Batch`: Still generated in v4 from the current OpenAI specification; re-check the schema's Type/Encoded shape because the generated definition changed.
+- `Generated.Batch` -> `Generated.Batch`: Use the current Generated.Batch schema. The object shapes at errors have no catch-all index signature; use their declared fields rather than arbitrary JSON properties.
 
 - `Generated.BatchError` -> `Generated.BatchError`: Available again in the regenerated v4 OpenAI client; re-check the schema's Type/Encoded shape against the current specification.
 
@@ -1794,7 +1953,7 @@ effect/rpc/Utils (barrel: effect/rpc)
 
 - `Generated.ChatCompletionRequestUserMessageRole` -> `none`: Removed when the OpenAI specification client was regenerated; use the current Generated or OpenAiSchema request/response schema for the relevant endpoint instead of this old snapshot helper.
 
-- `Generated.ChatCompletionResponseMessage` -> `Generated.ChatCompletionResponseMessage`: Still generated in v4 from the current OpenAI specification; re-check the schema's Type/Encoded shape because the generated definition changed.
+- `Generated.ChatCompletionResponseMessage` -> `Generated.ChatCompletionResponseMessage`: Use the current Generated.ChatCompletionResponseMessage schema. The object shapes at function\_call have no catch-all index signature; use their declared fields rather than arbitrary JSON properties.
 
 - `Generated.ChatCompletionResponseMessageRole` -> `none`: Removed when the OpenAI specification client was regenerated; use the current Generated or OpenAiSchema request/response schema for the relevant endpoint instead of this old snapshot helper.
 
@@ -1844,7 +2003,7 @@ effect/rpc/Utils (barrel: effect/rpc)
 
 - `Generated.ClickParamType` -> `none`: Removed when the OpenAI specification client was regenerated; use the current Generated or OpenAiSchema request/response schema for the relevant endpoint instead of this old snapshot helper.
 
-- `Generated.Client` -> `none`: Removed when the OpenAI specification client was regenerated; use the current Generated or OpenAiSchema request/response schema for the relevant endpoint instead of this old snapshot helper.
+- `Generated.Client` -> `Generated.OpenAiClient`: Renamed to `Generated.OpenAiClient<E, R>`. Endpoint effects include E alongside generated client errors and require R. E defaults to HttpClientError.HttpClientError and R to never; carry custom client error and context types through explicit annotations.
 
 - `Generated.ClientError` -> `none`: Removed when the OpenAI specification client was regenerated; use the current Generated or OpenAiSchema request/response schema for the relevant endpoint instead of this old snapshot helper.
 
@@ -1972,7 +2131,7 @@ effect/rpc/Utils (barrel: effect/rpc)
 
 - `Generated.CreateBatchRequestEndpoint` -> `none`: Removed when the OpenAI specification client was regenerated; use the current Generated or OpenAiSchema request/response schema for the relevant endpoint instead of this old snapshot helper.
 
-- `Generated.CreateChatCompletionRequest` -> `Generated.CreateChatCompletionRequest`: Still generated in v4 from the current OpenAI specification; re-check the schema's Type/Encoded shape because the generated definition changed.
+- `Generated.CreateChatCompletionRequest` -> `Generated.CreateChatCompletionRequest`: Use the current Generated.CreateChatCompletionRequest schema. The object shapes at web\_search\_options.user\_location and audio have no catch-all index signature; use their declared fields rather than arbitrary JSON properties.
 
 - `Generated.CreateChatCompletionRequestAudioFormat` -> `none`: Removed when the OpenAI specification client was regenerated; use the current Generated or OpenAiSchema request/response schema for the relevant endpoint instead of this old snapshot helper.
 
@@ -2150,7 +2309,7 @@ effect/rpc/Utils (barrel: effect/rpc)
 
 - `Generated.CreateSpeechRequestStreamFormat` -> `none`: Removed when the OpenAI specification client was regenerated; use the current Generated or OpenAiSchema request/response schema for the relevant endpoint instead of this old snapshot helper.
 
-- `Generated.CreateThreadAndRunRequest` -> `Generated.CreateThreadAndRunRequest`: Still generated in v4 from the current OpenAI specification; re-check the schema's Type/Encoded shape because the generated definition changed.
+- `Generated.CreateThreadAndRunRequest` -> `Generated.CreateThreadAndRunRequest`: Use the current Generated.CreateThreadAndRunRequest schema. The object shapes at tool\_resources have no catch-all index signature; use their declared fields rather than arbitrary JSON properties.
 
 - `Generated.CreateThreadAndRunRequestModelEnum` -> `none`: Removed when the OpenAI specification client was regenerated; use the current Generated or OpenAiSchema request/response schema for the relevant endpoint instead of this old snapshot helper.
 
@@ -2496,7 +2655,7 @@ effect/rpc/Utils (barrel: effect/rpc)
 
 - `Generated.FineTuningIntegrationType` -> `none`: Removed when the OpenAI specification client was regenerated; use the current Generated or OpenAiSchema request/response schema for the relevant endpoint instead of this old snapshot helper.
 
-- `Generated.FineTuningJob` -> `Generated.FineTuningJob`: Still generated in v4 from the current OpenAI specification; re-check the schema's Type/Encoded shape because the generated definition changed.
+- `Generated.FineTuningJob` -> `Generated.FineTuningJob`: Use the current Generated.FineTuningJob schema. The object shapes at hyperparameters in both union branches have no catch-all index signature; use their declared fields rather than arbitrary JSON properties. The error field still includes a JSON record alternative.
 
 - `Generated.FineTuningJobCheckpoint` -> `Generated.FineTuningJobCheckpoint`: Still generated in v4 from the current OpenAI specification; re-check the schema's Type/Encoded shape because the generated definition changed.
 
@@ -2920,7 +3079,7 @@ effect/rpc/Utils (barrel: effect/rpc)
 
 - `Generated.ListMessagesParamsOrder` -> `none`: Removed when the OpenAI specification client was regenerated; use the current Generated or OpenAiSchema request/response schema for the relevant endpoint instead of this old snapshot helper.
 
-- `Generated.ListMessagesResponse` -> `Generated.ListMessagesResponse`: Still generated in v4 from the current OpenAI specification; re-check the schema's Type/Encoded shape because the generated definition changed.
+- `Generated.ListMessagesResponse` -> `Generated.ListMessagesResponse`: Use the current Generated.ListMessagesResponse schema. Its root object branch has no catch-all index signature; use the declared fields rather than arbitrary JSON properties. The schema still includes primitive, null, and JSON-array alternatives, so narrow to the object branch before accessing its fields.
 
 - `Generated.ListModelsResponse` -> `Generated.ListModelsResponse`: Still generated in v4 from the current OpenAI specification; re-check the schema's Type/Encoded shape because the generated definition changed.
 
@@ -2974,7 +3133,7 @@ effect/rpc/Utils (barrel: effect/rpc)
 
 - `Generated.ListRunStepsParamsOrder` -> `none`: Removed when the OpenAI specification client was regenerated; use the current Generated or OpenAiSchema request/response schema for the relevant endpoint instead of this old snapshot helper.
 
-- `Generated.ListRunStepsResponse` -> `Generated.ListRunStepsResponse`: Still generated in v4 from the current OpenAI specification; re-check the schema's Type/Encoded shape because the generated definition changed.
+- `Generated.ListRunStepsResponse` -> `Generated.ListRunStepsResponse`: Use the current Generated.ListRunStepsResponse schema. Its root object branch has no catch-all index signature; use the declared fields rather than arbitrary JSON properties. The schema still includes primitive, null, and JSON-array alternatives, so narrow to the object branch before accessing its fields.
 
 - `Generated.ListRunsParams` -> `Generated.ListRunsParams`: Still generated in v4 from the current OpenAI specification; re-check the schema's Type/Encoded shape because the generated definition changed.
 
@@ -2998,13 +3157,13 @@ effect/rpc/Utils (barrel: effect/rpc)
 
 - `Generated.ListVectorStoreFilesParamsOrder` -> `none`: Removed when the OpenAI specification client was regenerated; use the current Generated or OpenAiSchema request/response schema for the relevant endpoint instead of this old snapshot helper.
 
-- `Generated.ListVectorStoreFilesResponse` -> `Generated.ListVectorStoreFilesResponse`: Still generated in v4 from the current OpenAI specification; re-check the schema's Type/Encoded shape because the generated definition changed.
+- `Generated.ListVectorStoreFilesResponse` -> `Generated.ListVectorStoreFilesResponse`: Use the current Generated.ListVectorStoreFilesResponse schema. Its root object branch has no catch-all index signature; use the declared fields rather than arbitrary JSON properties. The schema still includes primitive, null, and JSON-array alternatives, so narrow to the object branch before accessing its fields.
 
 - `Generated.ListVectorStoresParams` -> `Generated.ListVectorStoresParams`: Still generated in v4 from the current OpenAI specification; re-check the schema's Type/Encoded shape because the generated definition changed.
 
 - `Generated.ListVectorStoresParamsOrder` -> `none`: Removed when the OpenAI specification client was regenerated; use the current Generated or OpenAiSchema request/response schema for the relevant endpoint instead of this old snapshot helper.
 
-- `Generated.ListVectorStoresResponse` -> `Generated.ListVectorStoresResponse`: Still generated in v4 from the current OpenAI specification; re-check the schema's Type/Encoded shape because the generated definition changed.
+- `Generated.ListVectorStoresResponse` -> `Generated.ListVectorStoresResponse`: Use the current Generated.ListVectorStoresResponse schema. Its root object branch has no catch-all index signature; use the declared fields rather than arbitrary JSON properties. The schema still includes primitive, null, and JSON-array alternatives, so narrow to the object branch before accessing its fields.
 
 - `Generated.ListVideosParams` -> `Generated.ListVideosParams`: Still generated in v4 from the current OpenAI specification; re-check the schema's Type/Encoded shape because the generated definition changed.
 
@@ -3124,7 +3283,7 @@ effect/rpc/Utils (barrel: effect/rpc)
 
 - `Generated.Metadata` -> `Generated.Metadata`: Still generated in v4 from the current OpenAI specification; re-check the schema's Type/Encoded shape because the generated definition changed.
 
-- `Generated.Model` -> `Generated.Model`: Still generated in v4 from the current OpenAI specification; re-check the schema's Type/Encoded shape because the generated definition changed.
+- `Generated.Model` -> `Generated.Model`: Use the current Generated.Model schema. Its root object branch has no catch-all index signature; use the declared fields rather than arbitrary JSON properties. The schema still includes primitive, null, and JSON-array alternatives, so narrow to the object branch before accessing its fields.
 
 - `Generated.ModelIdsResponses` -> `Generated.ModelIdsResponses`: Still generated in v4 from the current OpenAI specification; re-check the schema's Type/Encoded shape because the generated definition changed.
 
@@ -3158,7 +3317,7 @@ effect/rpc/Utils (barrel: effect/rpc)
 
 - `Generated.NoiseReductionType` -> `Generated.NoiseReductionType`: Still generated in v4 from the current OpenAI specification; re-check the schema's Type/Encoded shape because the generated definition changed.
 
-- `Generated.OpenAIFile` -> `Generated.OpenAIFile`: Still generated in v4 from the current OpenAI specification; re-check the schema's Type/Encoded shape because the generated definition changed.
+- `Generated.OpenAIFile` -> `Generated.OpenAIFile`: Use the current Generated.OpenAIFile schema. Its root object branch has no catch-all index signature; use the declared fields rather than arbitrary JSON properties. The schema still includes primitive, null, and JSON-array alternatives, so narrow to the object branch before accessing its fields.
 
 - `Generated.OpenAIFileObject` -> `none`: Removed when the OpenAI specification client was regenerated; use the current Generated or OpenAiSchema request/response schema for the relevant endpoint instead of this old snapshot helper.
 
@@ -3336,7 +3495,7 @@ effect/rpc/Utils (barrel: effect/rpc)
 
 - `Generated.RealtimeSessionCreateRequest` -> `Generated.RealtimeSessionCreateRequest`: Still generated in v4 from the current OpenAI specification; re-check the schema's Type/Encoded shape because the generated definition changed.
 
-- `Generated.RealtimeSessionCreateRequestGA` -> `Generated.RealtimeSessionCreateRequestGA`: Still generated in v4 from the current OpenAI specification; re-check the schema's Type/Encoded shape because the generated definition changed.
+- `Generated.RealtimeSessionCreateRequestGA` -> `Generated.RealtimeSessionCreateRequestGA`: Use the current Generated.RealtimeSessionCreateRequestGA schema. The object shapes at audio.input.noise\_reduction have no catch-all index signature; use their declared fields rather than arbitrary JSON properties.
 
 - `Generated.RealtimeSessionCreateRequestGAMaxOutputTokensEnum` -> `none`: Removed when the OpenAI specification client was regenerated; use the current Generated or OpenAiSchema request/response schema for the relevant endpoint instead of this old snapshot helper.
 
@@ -3350,9 +3509,9 @@ effect/rpc/Utils (barrel: effect/rpc)
 
 - `Generated.RealtimeSessionCreateRequestTracingEnum` -> `none`: Removed when the OpenAI specification client was regenerated; use the current Generated or OpenAiSchema request/response schema for the relevant endpoint instead of this old snapshot helper.
 
-- `Generated.RealtimeSessionCreateResponse` -> `Generated.RealtimeSessionCreateResponse`: Still generated in v4 from the current OpenAI specification; re-check the schema's Type/Encoded shape because the generated definition changed.
+- `Generated.RealtimeSessionCreateResponse` -> `Generated.RealtimeSessionCreateResponse`: Use the current Generated.RealtimeSessionCreateResponse schema. The object shapes at audio.input.noise\_reduction, audio.input.turn\_detection, and turn\_detection have no catch-all index signature; use their declared fields rather than arbitrary JSON properties.
 
-- `Generated.RealtimeSessionCreateResponseGA` -> `Generated.RealtimeSessionCreateResponseGA`: Still generated in v4 from the current OpenAI specification; re-check the schema's Type/Encoded shape because the generated definition changed.
+- `Generated.RealtimeSessionCreateResponseGA` -> `Generated.RealtimeSessionCreateResponseGA`: Use the current Generated.RealtimeSessionCreateResponseGA schema. The object shapes at audio.input.noise\_reduction have no catch-all index signature; use their declared fields rather than arbitrary JSON properties.
 
 - `Generated.RealtimeSessionCreateResponseGAMaxOutputTokensEnum` -> `none`: Removed when the OpenAI specification client was regenerated; use the current Generated or OpenAiSchema request/response schema for the relevant endpoint instead of this old snapshot helper.
 
@@ -3366,9 +3525,9 @@ effect/rpc/Utils (barrel: effect/rpc)
 
 - `Generated.RealtimeSessionCreateResponseTracingEnum` -> `none`: Removed when the OpenAI specification client was regenerated; use the current Generated or OpenAiSchema request/response schema for the relevant endpoint instead of this old snapshot helper.
 
-- `Generated.RealtimeTranscriptionSessionCreateRequest` -> `Generated.RealtimeTranscriptionSessionCreateRequest`: Still generated in v4 from the current OpenAI specification; re-check the schema's Type/Encoded shape because the generated definition changed.
+- `Generated.RealtimeTranscriptionSessionCreateRequest` -> `Generated.RealtimeTranscriptionSessionCreateRequest`: Use the current Generated.RealtimeTranscriptionSessionCreateRequest schema. The object shapes at input\_audio\_noise\_reduction have no catch-all index signature; use their declared fields rather than arbitrary JSON properties.
 
-- `Generated.RealtimeTranscriptionSessionCreateRequestGA` -> `Generated.RealtimeTranscriptionSessionCreateRequestGA`: Still generated in v4 from the current OpenAI specification; re-check the schema's Type/Encoded shape because the generated definition changed.
+- `Generated.RealtimeTranscriptionSessionCreateRequestGA` -> `Generated.RealtimeTranscriptionSessionCreateRequestGA`: Use the current Generated.RealtimeTranscriptionSessionCreateRequestGA schema. The object shapes at audio.input.noise\_reduction have no catch-all index signature; use their declared fields rather than arbitrary JSON properties.
 
 - `Generated.RealtimeTranscriptionSessionCreateRequestGAType` -> `none`: Removed when the OpenAI specification client was regenerated; use the current Generated or OpenAiSchema request/response schema for the relevant endpoint instead of this old snapshot helper.
 
@@ -3378,7 +3537,7 @@ effect/rpc/Utils (barrel: effect/rpc)
 
 - `Generated.RealtimeTranscriptionSessionCreateResponse` -> `Generated.RealtimeTranscriptionSessionCreateResponse`: Still generated in v4 from the current OpenAI specification; re-check the schema's Type/Encoded shape because the generated definition changed.
 
-- `Generated.RealtimeTranscriptionSessionCreateResponseGA` -> `Generated.RealtimeTranscriptionSessionCreateResponseGA`: Still generated in v4 from the current OpenAI specification; re-check the schema's Type/Encoded shape because the generated definition changed.
+- `Generated.RealtimeTranscriptionSessionCreateResponseGA` -> `Generated.RealtimeTranscriptionSessionCreateResponseGA`: Use the current Generated.RealtimeTranscriptionSessionCreateResponseGA schema. The object shapes at audio.input.noise\_reduction have no catch-all index signature; use their declared fields rather than arbitrary JSON properties.
 
 - `Generated.RealtimeTranscriptionSessionCreateResponseGAType` -> `none`: Removed when the OpenAI specification client was regenerated; use the current Generated or OpenAiSchema request/response schema for the relevant endpoint instead of this old snapshot helper.
 
@@ -3484,7 +3643,7 @@ effect/rpc/Utils (barrel: effect/rpc)
 
 - `Generated.RunGraderResponse` -> `Generated.RunGraderResponse`: Still generated in v4 from the current OpenAI specification; re-check the schema's Type/Encoded shape because the generated definition changed.
 
-- `Generated.RunObject` -> `Generated.RunObject`: Still generated in v4 from the current OpenAI specification; re-check the schema's Type/Encoded shape because the generated definition changed.
+- `Generated.RunObject` -> `Generated.RunObject`: Use the current Generated.RunObject schema. The object shapes at required\_action, last\_error, and incomplete\_details have no catch-all index signature; use their declared fields rather than arbitrary JSON properties.
 
 - `Generated.RunObjectIncompleteDetailsReason` -> `none`: Removed when the OpenAI specification client was regenerated; use the current Generated or OpenAiSchema request/response schema for the relevant endpoint instead of this old snapshot helper.
 
@@ -3589,6 +3748,8 @@ effect/rpc/Utils (barrel: effect/rpc)
 - `Generated.StopConfiguration` -> `Generated.StopConfiguration`: Still generated in v4 from the current OpenAI specification; re-check the schema's Type/Encoded shape because the generated definition changed.
 
 - `Generated.SubmitToolOutputsRunRequest` -> `Generated.SubmitToolOutputsRunRequest`: Still generated in v4 from the current OpenAI specification; re-check the schema's Type/Encoded shape because the generated definition changed.
+
+- `Generated.Summary` -> `Generated.SummaryTextContent`: Reasoning summary parts are generated as SummaryTextContent. It is a Schema.Struct rather than a class, so type must be supplied as "summary\_text" instead of defaulting in a constructor.
 
 - `Generated.SummaryTextContent` -> `Generated.SummaryTextContent`: Still generated in v4 from the current OpenAI specification; re-check the schema's Type/Encoded shape because the generated definition changed.
 
@@ -3998,7 +4159,7 @@ effect/rpc/Utils (barrel: effect/rpc)
 
 - `Generated.WorkflowTracingParam` -> `Generated.WorkflowTracingParam`: Available again in the regenerated v4 OpenAI client; re-check the schema's Type/Encoded shape against the current specification.
 
-- `Generated.make` -> `Generated.make`: Still generated in v4 from the current OpenAI specification; re-check the schema's Type/Encoded shape because the generated definition changed.
+- `Generated.make` -> `Generated.make`: make now infers E and R from `HttpClient.With<E, R>` and returns `Generated.OpenAiClient<E, R>`. Preserve those type parameters in wrappers; endpoint effects include the supplied client error E and require R. transformClient must preserve the same E and R.
 
 ### `@effect/ai-openai/OpenAiClient`
 
@@ -4522,7 +4683,7 @@ effect/rpc/Utils (barrel: effect/rpc)
 
 - `Generated.OpenAIResponsesTruncation` -> `Generated.OpenAIResponsesTruncation`: Still generated in v4 from the current OpenRouter specification; re-check the schema's Type/Encoded shape because the generated definition changed.
 
-- `Generated.OpenAIResponsesUsage` -> `Generated.OpenAIResponsesUsage`: Still generated in v4 from the current OpenRouter specification; re-check the schema's Type/Encoded shape because the generated definition changed.
+- `Generated.OpenAIResponsesUsage` -> `none`: The standalone schema export was removed. For the usage object type, use `NonNullable<Generated.OpenResponsesResult["usage"]>` to exclude `undefined`.
 
 - `Generated.OpenResponsesEasyInputMessage` -> `none`: Removed when the OpenRouter specification client was regenerated; use the current Generated request/response schema for the relevant endpoint instead of this old snapshot helper.
 
@@ -4746,7 +4907,7 @@ effect/rpc/Utils (barrel: effect/rpc)
 
 - `Generated.ResponseTextConfigVerbosity` -> `none`: Removed when the OpenRouter specification client was regenerated; use the current Generated request/response schema for the relevant endpoint instead of this old snapshot helper.
 
-- `Generated.ResponsesErrorField` -> `Generated.ResponsesErrorField`: Still generated in v4 from the current OpenRouter specification; re-check the schema's Type/Encoded shape because the generated definition changed.
+- `Generated.ResponsesErrorField` -> `none`: The standalone schema export was removed. For the error object type, use `NonNullable<Generated.OpenResponsesResult["error"]>` to exclude `null`.
 
 - `Generated.ResponsesErrorFieldCode` -> `none`: Removed when the OpenRouter specification client was regenerated; use the current Generated request/response schema for the relevant endpoint instead of this old snapshot helper.
 
@@ -4910,7 +5071,7 @@ effect/rpc/Utils (barrel: effect/rpc)
 
 - `AiError.AiError` -> `AiError.AiError`: Moved to effect/ai/AiError and redesigned from a union of separately tagged errors into one AiError wrapper with a semantic reason. Construct it with AiError.make({ module, method, reason }) and match error.reason rather than the old top-level tags.
 
-- `AiError.HttpRequestDetails` -> `AiError.HttpRequestDetails`: Retained in effect/ai/AiError and also re-exported as Response.HttpRequestDetails. Hash is an optional string instead of Option, headers may contain Redacted strings, and method includes TRACE.
+- `AiError.HttpRequestDetails` -> `none`: Removed. NetworkError carries only the request method and url, and HttpContext and response metadata parts no longer record the request.
 
 - `AiError.HttpRequestError` -> `AiError.make + AiError.NetworkError`: Replace the old top-level request error with an AiError whose reason is NetworkError. NetworkError.fromRequestError converts a v4 HttpClientError.RequestError.
 
@@ -4970,27 +5131,27 @@ effect/rpc/Utils (barrel: effect/rpc)
 
 - `McpServer.McpServer` -> `McpServer.McpServer`: The service is now a Context.Service. initializedClients and notificationsMailbox are no longer exposed. Registration callbacks use McpSchema.McpRequestContext; McpServerClient is only supplied for initialized stateful requests. Prefer registerToolkit, registerResource, and registerPrompt over implementing the registry shape directly.
 
-- `McpServer.layer` -> `McpServer.layer`: Moved to effect/ai/McpServer. Pass a non-empty protocols array of adapters, such as [McpProtocol.v2025\_06\_18], imported with McpProtocol from effect/ai; it still runs over a caller-provided RpcServer.Protocol.
+- `McpServer.layer` -> `McpServer.layer`: Moved to effect/ai/McpServer. Pass a non-empty protocols array of adapters, such as [McpProtocol.v2025\_06\_18], imported with McpProtocol from effect/ai; it still runs over a caller-provided RpcServer.Protocol. Pass registration layers as the registrations option to build them before the server starts.
 
-- `McpServer.layerHttp` -> `McpServer.layerHttp`: Moved to effect/ai/McpServer and the unified HttpRouter. Pass a non-empty protocols array of adapters, such as [McpProtocol.v2025\_06\_18], imported with McpProtocol from effect/ai.
+- `McpServer.layerHttp` -> `McpServer.layerHttp`: Moved to effect/ai/McpServer and the unified HttpRouter. Pass a non-empty protocols array of adapters, such as [McpProtocol.v2025\_06\_18], imported with McpProtocol from effect/ai. Pass registration layers as the registrations option; request-level dependencies it doesn't supply become HttpRouter request requirements that HttpRouter.middleware can provide.
 
-- `McpServer.layerHttpRouter` -> `McpServer.layerHttp`: Renamed and consolidated. V4 layerHttp registers the Streamable HTTP endpoint in the unified HttpRouter; pass a non-empty protocols array of adapters, such as [McpProtocol.v2025\_06\_18], imported with McpProtocol from effect/ai.
+- `McpServer.layerHttpRouter` -> `McpServer.layerHttp`: Renamed and consolidated. V4 layerHttp registers the Streamable HTTP endpoint in the unified HttpRouter; pass a non-empty protocols array of adapters, such as [McpProtocol.v2025\_06\_18], imported with McpProtocol from effect/ai, and registration layers as the registrations option.
 
-- `McpServer.layerStdio` -> `McpServer.layerStdio`: Moved to effect/ai/McpServer. Pass a non-empty protocols array of adapters, such as [McpProtocol.v2025\_06\_18], imported with McpProtocol from effect/ai.
+- `McpServer.layerStdio` -> `McpServer.layerStdio`: Moved to effect/ai/McpServer. Pass a non-empty protocols array of adapters, such as [McpProtocol.v2025\_06\_18], imported with McpProtocol from effect/ai, and registration layers as the registrations option.
 
-- `McpServer.prompt` -> `McpServer.prompt`: Moved to effect/ai/McpServer. The registration layer excludes McpSchema.McpRequestContext from prompt decoding, handler, and completion callback requirements instead of McpServerClient.
+- `McpServer.prompt` -> `McpServer.prompt`: Moved to effect/ai/McpServer. The layer now requires McpServer. Services read by prompt and completion handlers are request-level, provided with McpServer.middleware; read construction-time services in Layer.unwrap and close over them.
 
-- `McpServer.registerPrompt` -> `McpServer.registerPrompt`: Moved to effect/ai/McpServer. Prompt decoding, handler, and completion callback requirements now exclude McpSchema.McpRequestContext instead of McpServerClient; use the request context for protocol-neutral client metadata.
+- `McpServer.registerPrompt` -> `McpServer.registerPrompt`: Moved to effect/ai/McpServer. Services read by prompt and completion handlers are request-level, provided per request with McpServer.middleware; parameter decoding services are still required at registration. McpSchema.McpRequestContext is always provided.
 
-- `McpServer.registerResource` -> `McpServer.registerResource`: Moved to effect/ai/McpServer. Resource and completion handler requirements now exclude McpSchema.McpRequestContext instead of McpServerClient; use the request context for protocol-neutral client metadata.
+- `McpServer.registerResource` -> `McpServer.registerResource`: Moved to effect/ai/McpServer. Services read by resource and completion handlers are request-level, provided per request with McpServer.middleware; read construction-time services in the enclosing effect and close over them. McpSchema.McpRequestContext is always provided.
 
-- `McpServer.registerToolkit` -> `McpServer.registerToolkit`: Moved to effect/ai/McpServer. Requirements from every tool handler are propagated, excluding McpSchema.McpRequestContext instead of McpServerClient; provide the remaining handler services. Strict tools reject excess input properties; raw JSON Schema dynamic tools cannot use strict mode. Declared handler failures produce isError results, while parameter validation fails with InvalidParams.
+- `McpServer.registerToolkit` -> `McpServer.registerToolkit`: Moved to effect/ai/McpServer. Services a tool declares with dependencies or Tool.addDependency are request-level: provide them per request with McpServer.middleware instead of at registration. Parameter decoding and result encoding services are still required at registration. Strict tools reject excess input properties; raw JSON Schema dynamic tools cannot use strict mode. Declared handler failures produce isError results, while parameter validation fails with InvalidParams.
 
-- `McpServer.resource` -> `McpServer.resource`: Moved to effect/ai/McpServer. The registration layer excludes McpSchema.McpRequestContext from resource and completion handler requirements instead of McpServerClient.
+- `McpServer.resource` -> `McpServer.resource`: Moved to effect/ai/McpServer. The layer now requires McpServer. Services read by resource and completion handlers are request-level, provided with McpServer.middleware; read construction-time services in Layer.unwrap and close over them instead of using Layer.provide.
 
 - `McpServer.run` -> `McpServer.run`: Moved to effect/ai/McpServer. Pass a non-empty protocols array of adapters, such as [McpProtocol.v2025\_06\_18], imported with McpProtocol from effect/ai; it remains the Effect-level runner over RpcServer.Protocol.
 
-- `McpServer.toolkit` -> `McpServer.toolkit`: Moved to effect/ai/McpServer. The registration layer supplies McpSchema.McpRequestContext to handlers instead of excluding McpServerClient from requirements. Its requirements include services from every tool handler. Strict tools reject excess properties and require an Effect Schema rather than raw dynamic JSON Schema.
+- `McpServer.toolkit` -> `McpServer.toolkit`: Moved to effect/ai/McpServer. The layer now requires McpServer; pass it to a transport through the registrations option. Services a tool declares with dependencies are request-level and are provided with McpServer.middleware. Strict tools reject excess properties and require an Effect Schema rather than raw dynamic JSON Schema.
 
 ### `@effect/ai/Model`
 
@@ -4998,9 +5159,13 @@ effect/rpc/Utils (barrel: effect/rpc)
 
 ### `@effect/ai/Prompt`
 
-- `Prompt.FilePart` -> `Prompt.FilePart`: Moved to effect/ai/Prompt with the same file-part model and schema; update the module import.
+- `Prompt.FilePart` -> `Prompt.FilePart`: Moved to effect/ai/Prompt with the same file-part model; update the module import. Encoding now writes Uint8Array and URL data as JSON-safe { \_tag: "Uint8Array", base64 } and { \_tag: "URL", href } objects; decoding still accepts strings, raw Uint8Array, and URL values.
+
+- `Prompt.FilePartEncoded` -> `Prompt.FilePartEncoded`: Moved to effect/ai/Prompt; update the module import. data additionally accepts the tagged { \_tag: "Uint8Array", base64 } and { \_tag: "URL", href } forms, which the schema now produces when encoding byte arrays and URLs.
 
 - `Prompt.FromJson` -> `Schema.fromJsonString(Prompt.Prompt)`: The module-specific JSON schema was removed. Compose the general v4 JSON-string codec with the public Prompt codec.
+
+- `Prompt.Message` -> `Prompt.Message`: Use the Message type and codec from effect/ai/Prompt for model conversation messages. AgUiSchema.Message describes AG-UI wire messages and is not a replacement for Prompt.Message.
 
 - `Prompt.MessageContentFromString` -> `Prompt.ContentFromString`: Renamed in effect/ai/Prompt. It still decodes a string to a non-empty array containing one TextPart and encodes the first part's text.
 
@@ -5052,7 +5217,7 @@ effect/rpc/Utils (barrel: effect/rpc)
 
 - `Response.reasoningStartPart` -> `Response.makePart("reasoning-start", params)`: The lowercase convenience constructor was removed; construct the retained ReasoningStartPart through Response.makePart.
 
-- `Response.responseMetadataPart` -> `Response.makePart("response-metadata", params)`: The lowercase convenience constructor was removed. V4 id, modelId, and timestamp are optional raw values rather than Option values, and optional HTTP request details were added.
+- `Response.responseMetadataPart` -> `Response.makePart("response-metadata", params)`: The lowercase convenience constructor was removed. V4 id, modelId, and timestamp are optional raw values rather than Option values.
 
 - `Response.textDeltaPart` -> `Response.makePart("text-delta", params)`: The lowercase convenience constructor was removed; construct the retained TextDeltaPart through Response.makePart.
 
@@ -5260,6 +5425,8 @@ effect/rpc/Utils (barrel: effect/rpc)
 
 - `CliApp.CliApp.ConstructorArgs` -> `none`: Build the command with Command.make and withDescription, then pass version to Command.run; the old app constructor shape was removed.
 
+- `CliApp.CliApp.Environment` -> `Command.Environment`: Adds ChildProcessSpawner and Stdio to FileSystem, Path and Terminal; NodeServices.layer and BunServices.layer provide all five.
+
 - `CliApp.make` -> `Command.make`: Build the executable Command directly; there is no separate CliApp wrapper.
 
 - `CliApp.run` -> `Command.run`: The CliApp wrapper was removed. Attach the execute function with Command.withHandler, then run the Command with its version; v4 reads arguments through the CLI environment instead of accepting args and execute at this call.
@@ -5450,7 +5617,7 @@ effect/rpc/Utils (barrel: effect/rpc)
 
 - `Options.Options` -> `Flag.Flag`: Options was renamed to Flag in effect/cli.
 
-- `Options.Options.BooleanOptionsConfig` -> `Flag.Boolean + Flag.withAlias + Flag.map`: The config object was removed; aliases and value inversion are combinators, while custom negation names need application logic.
+- `Options.Options.BooleanOptionsConfig` -> `Flag.Boolean + Flag.withAlias + Flag.withNegation + Flag.map`: The config object was removed; aliases, the negation name, and value inversion are combinators. Flag.withNegation replaces --no-name with a single custom name and Flag.withoutNegation removes it; additional negation names need application logic.
 
 - `Options.Options.PathOptionsConfig` -> `{ readonly mustExist?: boolean }`: Path options are inline; true replaces exists=yes and omission replaces either. exists=no has no exact replacement.
 
@@ -5466,7 +5633,7 @@ effect/rpc/Utils (barrel: effect/rpc)
 
 - `Options.between` -> `Flag.between`: Use the moved combinator; v4 validates bounds when constructing the parameter.
 
-- `Options.boolean` -> `Flag.Boolean + Flag.withDefault`: Use Flag.Boolean(name).pipe(Flag.withDefault(false)) to preserve v3's omitted-flag default; bare Flag.Boolean is now required. --no-name is automatic and aliases are added with Flag.withAlias.
+- `Options.boolean` -> `Flag.Boolean + Flag.withDefault`: Use Flag.Boolean(name).pipe(Flag.withDefault(false)) to preserve v3's omitted-flag default; bare Flag.Boolean is now required. --no-name is automatic; rename it with Flag.withNegation or remove it with Flag.withoutNegation. Aliases are added with Flag.withAlias.
 
 - `Options.choice` -> `Flag.Literals`: Use the moved constructor.
 
@@ -5696,7 +5863,7 @@ effect/rpc/Utils (barrel: effect/rpc)
 
 ### `@effect/cluster/ClusterCron`
 
-- `ClusterCron.make` -> `effect/cluster/ClusterCron#make`: Moved into core Effect. The constructor remains; Duration.DurationInput is now Duration.Input.
+- `ClusterCron.make` -> `effect/cluster/ClusterCron#make`: Moved into core Effect. The constructor remains; Duration.DurationInput is now Duration.Input. Read the scheduled run time inside execute from the ClusterCron.CurrentScheduledTime service instead of parsing Entity.CurrentAddress, whose entity ID no longer encodes it when calculateNextRunFromPrevious is true.
 
 ### `@effect/cluster/ClusterError`
 
@@ -5850,7 +6017,7 @@ effect/rpc/Utils (barrel: effect/rpc)
 
 ### `@effect/cluster/SingleRunner`
 
-- `SingleRunner.layer` -> `effect/cluster/SingleRunner#layer`: Moved into core Effect. V4 additionally requires Crypto.Crypto because SQL message storage hashes long deduplication keys.
+- `SingleRunner.layer` -> `effect/cluster/SingleRunner#layer`: Moved into core Effect. V4 additionally requires the `Digest` service from `effect/crypto/Digest` because SQL message storage hashes long deduplication keys.
 
 ### `@effect/cluster/SingletonAddress`
 
@@ -5864,11 +6031,11 @@ effect/rpc/Utils (barrel: effect/rpc)
 
 ### `@effect/cluster/SqlMessageStorage`
 
-- `SqlMessageStorage.layer` -> `effect/cluster/SqlMessageStorage#layer`: Moved into core Effect. V4 adds a Crypto.Crypto requirement for hashing long deduplication keys.
+- `SqlMessageStorage.layer` -> `effect/cluster/SqlMessageStorage#layer`: Moved into core Effect. V4 adds a requirement on the `Digest` service from `effect/crypto/Digest` for hashing long deduplication keys.
 
-- `SqlMessageStorage.layerWith` -> `effect/cluster/SqlMessageStorage#layerWith`: Moved into core Effect with the same optional table prefix; v4 additionally requires Crypto.Crypto.
+- `SqlMessageStorage.layerWith` -> `effect/cluster/SqlMessageStorage#layerWith`: Moved into core Effect with the same optional table prefix; v4 additionally requires the `Digest` service from `effect/crypto/Digest`.
 
-- `SqlMessageStorage.make` -> `effect/cluster/SqlMessageStorage#make`: Moved into core Effect with the same prefix option; v4 additionally requires Crypto.Crypto.
+- `SqlMessageStorage.make` -> `effect/cluster/SqlMessageStorage#make`: Moved into core Effect with the same prefix option; v4 additionally requires the `Digest` service from `effect/crypto/Digest`.
 
 ### `@effect/cluster/SqlRunnerStorage`
 
@@ -5965,6 +6132,8 @@ effect/rpc/Utils (barrel: effect/rpc)
 - `EventLog.Handlers` -> `effect/eventlog/EventLog#Handlers`: Import Handlers from the v4 EventLog module; handlers now also receive storeId. Remote decode or handler failures leave the entire batch uncommitted and retry it after backoff instead of logging and committing past the failure. Replay handlers must tolerate repeated execution. Conflicts are stored entries with strictly greater ids, in id order; compacted replacements use their source entry as the conflict anchor.
 
 - `EventLog.HandlersTypeId` -> `effect/eventlog/EventLog#HandlersTypeId`: Import HandlersTypeId from the v4 EventLog module.
+
+- `EventLog.Registry` -> `effect/eventlog/EventLog#Registry`: Import Registry from the v4 EventLog module. add(handlers) became registerHandlerUnsafe({ event, handler }), handlers is a ReadonlyMap instead of an Effect of a record, and the static Registry.layer became EventLog.layerRegistry.
 
 - `EventLog.SchemaTypeId` -> `effect/eventlog/EventLog#SchemaTypeId`: Import SchemaTypeId from the v4 EventLog module.
 
@@ -6088,13 +6257,13 @@ effect/rpc/Utils (barrel: effect/rpc)
 
 - `Persistence.ResultPersistenceTypeId` -> `none`: The ResultPersistence brand is no longer publicly exported in v4.
 
-- `Persistence.layerKeyValueStore` -> `effect/persistence/Persistence#layerBackingKvs`: The KeyValueStore backing layer was renamed to layerBackingKvs.
+- `Persistence.layerKeyValueStore` -> `effect/persistence/Persistence#layerBackingKvs`: The KeyValueStore backing layer was renamed to layerBackingKvs. Entries are now stored under `<storeId>:<key>` with the store id percent-encoded, so entries written by v3 under `<storeId><key>` are not read back and are recomputed; clearing a store removes only its own entries.
 
 - `Persistence.layerMemory` -> `effect/persistence/Persistence#layerBackingMemory`: Use layerBackingMemory for the old backing service; v4 layerMemory creates the higher-level Persistence service.
 
 - `Persistence.layerResult` -> `effect/persistence/Persistence#layer`: The ResultPersistence service layer was renamed to layer.
 
-- `Persistence.layerResultKeyValueStore` -> `effect/persistence/Persistence#layerKvs`: The combined KeyValueStore-backed result layer was renamed to layerKvs.
+- `Persistence.layerResultKeyValueStore` -> `effect/persistence/Persistence#layerKvs`: The combined KeyValueStore-backed result layer was renamed to layerKvs. Entries are now stored under `<storeId>:<key>` with the store id percent-encoded, so entries written by v3 under `<storeId><key>` are not read back and are recomputed.
 
 - `Persistence.layerResultMemory` -> `effect/persistence/Persistence#layerMemory`: The combined memory-backed result layer was renamed to layerMemory.
 
@@ -6138,7 +6307,9 @@ effect/rpc/Utils (barrel: effect/rpc)
 
 - `Reactivity.make` -> `effect/reactivity/Reactivity#make`: Import make from the v4 unstable Reactivity module.
 
-- `Reactivity.query`: TODO: needs guidance
+- `Reactivity.query` -> `effect/reactivity/Reactivity#query`: Import query from the v4 unstable Reactivity module. It returns a Queue.Dequeue instead of a Mailbox.ReadonlyMailbox; read results with Queue operations or Stream.fromQueue. Keys stay untyped unless you augment Reactivity.Keys, which then restricts key names and IDs.
+
+- `Reactivity.stream` -> `effect/reactivity/Reactivity#stream`: Import stream from the v4 unstable Reactivity module.
 
 ### `@effect/experimental/RequestResolver`
 
@@ -6294,7 +6465,7 @@ effect/rpc/Utils (barrel: effect/rpc)
 
 ### `@effect/platform-bun/BunContext`
 
-- `BunContext.BunContext` -> `BunServices.BunServices`: The aggregate was renamed and now provides ChildProcessSpawner, Crypto, FileSystem, Path, Stdio, and Terminal; add BunWorker separately when needed.
+- `BunContext.BunContext` -> `BunServices.BunServices`: The aggregate was renamed and now provides ChildProcessSpawner, FileSystem, Path, Stdio, and Terminal. It provides no crypto services: add `BunCrypto.layer` for every `effect/crypto` family, or the `BunCrypto.layer*` layer for each family you use, and add BunWorker separately when needed.
 
 - `BunContext.layer` -> `BunServices.layer`: Use the renamed aggregate layer; worker services are no longer included.
 
@@ -6308,7 +6479,7 @@ effect/rpc/Utils (barrel: effect/rpc)
 
 ### `@effect/platform-bun/BunHttpServer`
 
-- `BunHttpServer.ServeOptions` -> `BunHttpServer.ServeOptions<R>`: The alias remains, but R is now a route-key string union and routes uses Bun.Serve.Routes; update old route-map generic arguments or infer R from routes.
+- `BunHttpServer.ServeOptions` -> `BunHttpServer.ServeOptions<R>`: The alias remains, but R is now a route-key string union and routes uses Bun.Serve.Routes; update old route-map generic arguments or infer R from routes. Bun's 10 second idleTimeout is now disabled unless idleTimeout is set, so directly exposed servers should set it.
 
 - `BunHttpServer.layerContext` -> `BunHttpServer.layerHttpServices`: Direct rename; it provides HttpPlatform, Etag.Generator, and BunServices.
 
@@ -6406,9 +6577,9 @@ effect/rpc/Utils (barrel: effect/rpc)
 
 ### `@effect/platform-node/NodeContext`
 
-- `NodeContext.NodeContext` -> `NodeServices.NodeServices`: Use the renamed service union; it replaces CommandExecutor with ChildProcessSpawner, adds Crypto and Stdio, and omits WorkerManager.
+- `NodeContext.NodeContext` -> `NodeServices.NodeServices`: Use the renamed service union; it replaces CommandExecutor with ChildProcessSpawner, adds Stdio, and omits WorkerManager. It includes no crypto services.
 
-- `NodeContext.layer` -> `NodeServices.layer`: The aggregate was renamed and now provides ChildProcessSpawner, Crypto, FileSystem, Path, Stdio, and Terminal; add NodeWorker separately when needed.
+- `NodeContext.layer` -> `NodeServices.layer`: The aggregate was renamed and now provides ChildProcessSpawner, FileSystem, Path, Stdio, and Terminal. It provides no crypto services: add `NodeCrypto.layer` for every `effect/crypto` family, or the `NodeCrypto.layer*` layer for each family you use, and add NodeWorker separately when needed.
 
 ### `@effect/platform-node/NodeFileSystem/ParcelWatcher`
 
@@ -6486,9 +6657,13 @@ effect/rpc/Utils (barrel: effect/rpc)
 
 - `Undici.Dispatcher.DispatchOptions` -> `undici.Dispatcher.DispatchOptions`: Import the same namespace type; Undici 8 removes throwOnError, adds typeOfService, and handles redirects through composed interceptors.
 
+- `Undici.Dispatcher.HttpMethod` -> `undici.Dispatcher.HttpMethod`: Import the upstream Dispatcher namespace type. Undici 8 accepts custom method strings as well as the standard methods; do not treat HttpMethod as a closed union for exhaustive matching.
+
 - `Undici.Dispatcher.RequestOptions` -> `undici.Dispatcher.RequestOptions`: Import the same namespace type; Undici 8 removes maxRedirections and redirectionLimitReached, so compose a redirect interceptor when needed.
 
 - `Undici.Dispatcher.UpgradeOptions` -> `undici.Dispatcher.UpgradeOptions`: Import the same namespace type; Undici 8 removes maxRedirections and redirectionLimitReached.
+
+- `Undici.FormData` -> `undici.FormData`: Import the upstream FormData constructor directly. It remains the multipart form-data implementation; append and set accept values with an optional filename, and get returns a string or File, or null for a missing key.
 
 - `Undici.H2CClient` -> `undici.H2CClient`: Import the upstream cleartext HTTP/2 client directly; callbacks follow Undici 8's handler API.
 
@@ -6570,7 +6745,7 @@ effect/rpc/Utils (barrel: effect/rpc)
 
 - `Command.lines` -> `ChildProcessSpawner.ChildProcessSpawner.lines`: Output collection moved onto the ChildProcessSpawner service.
 
-- `Command.runInShell` -> `ChildProcess.CommandOptions["shell"]`: Set shell when calling ChildProcess.make; there is no post-construction shell combinator.
+- `Command.runInShell` -> `ChildProcess.CommandOptions["shell"]`: Set shell when calling ChildProcess.make; there is no post-construction shell combinator. With shell set, the command string is the whole script: extra arguments fail with BadArgument and templates cannot interpolate ${} values, so build the script with CommandLine.join or CommandLine.quote.
 
 - `Command.start` -> `ChildProcessSpawner.ChildProcessSpawner.spawn`: Use the spawner service, or yield the Effectable ChildProcess.Command directly, to obtain a ChildProcessHandle.
 
@@ -6700,7 +6875,7 @@ effect/rpc/Utils (barrel: effect/rpc)
 
 - `FileSystem.layerNoop` -> `FileSystem.layerNoop`: The helper remains after moving the module to effect/FileSystem.
 
-- `FileSystem.make` -> `FileSystem.make`: The constructor remains after moving the module to effect/FileSystem; adapt the implementation to the v4 service shape.
+- `FileSystem.make` -> `FileSystem.make`: The constructor remains after moving the module to effect/FileSystem; adapt the implementation to the v4 service shape, which also requires lstat to return File.Info without following symbolic links and readDirectoryEntries to list { name, type } entries (map readDirectory names to type "Unknown" if types are unavailable). glob is derived and cannot be passed; override it afterward with FileSystem.of({ ...fs, glob }).
 
 ### `@effect/platform/Headers`
 
@@ -6856,6 +7031,8 @@ effect/rpc/Utils (barrel: effect/rpc)
 
 - `HttpApiError.Issue` -> `effect/SchemaIssue#Issue`: Structured failures now live at HttpApiSchemaError.cause.issue; format them explicitly when a flat external list is needed.
 
+- `HttpApiError.NotFound` -> `effect/http-api/HttpApiError#NotFoundNoContent`: Use NotFoundNoContent to preserve the empty 404 wire schema; NotFound now has a JSON-tagged body.
+
 - `HttpApiError.TypeId` -> `effect/http-api/HttpApiError#HttpApiSchemaErrorTypeId`: The old module symbol is gone; prefer HttpApiSchemaError.is for runtime narrowing.
 
 ### `@effect/platform/HttpApiGroup`
@@ -6912,11 +7089,15 @@ effect/rpc/Utils (barrel: effect/rpc)
 
 - `HttpApiMiddleware.HttpApiMiddleware.Provides` -> `effect/http-api/HttpApiMiddleware#Provides`: Same name and reads the expanded v4 middleware ID metadata.
 
+- `HttpApiMiddleware.HttpApiMiddleware.Without` -> `Exclude<R, HttpApiMiddleware.AnyId>`: The helper was removed because middleware IDs are explicit; use Exclude when the direct filter is still needed.
+
 - `HttpApiMiddleware.SecurityTypeId` -> `none`: The marker is private; use HttpApiMiddleware.isSecurity.
 
 - `HttpApiMiddleware.Tag` -> `effect/http-api/HttpApiMiddleware#Service`: Renamed and redesigned; use error, requires, provides, clientError, and requiredForClient configuration.
 
 - `HttpApiMiddleware.TagClass` -> `effect/http-api/HttpApiMiddleware#ServiceClass`: Renamed class type with the new two-stage type configuration and wrapping service shape.
+
+- `HttpApiMiddleware.TagClass.Base` -> `effect/http-api/HttpApiMiddleware#ServiceClass`: The shared base interface was folded into ServiceClass; there is no separate public base interface.
 
 - `HttpApiMiddleware.TagClass.BaseSecurity` -> `effect/http-api/HttpApiMiddleware#ServiceClass`: Security is conditional metadata on ServiceClass; there is no separate public base interface.
 
@@ -7104,6 +7285,8 @@ effect/rpc/Utils (barrel: effect/rpc)
 
 - `HttpClient.transform` -> `effect/http/HttpClient#transform`: Moved to the v4 HTTP module with the same request-aware transformation shape.
 
+- `HttpClient.withCookiesRef` -> `HttpClient.withCookiesRef`: Pass a Ref\<ReadonlyArray\<Cookies.Cookie\>\> instead of a Ref\<Cookies\>. Stored cookies are sent only to a matching host, path and scheme, and a cookie without a domain is never sent; seed the ref with Cookies.mergeIntoArray for the target URL or with cookies that set a domain.
+
 - `HttpClient.withSpanNameGenerator` -> `HttpClient.transformResponse(Effect.provideService(HttpClient.SpanNameGenerator, f))`: The convenience combinator was removed; provide the reference around response effects.
 
 - `HttpClient.withTracerDisabledWhen` -> `HttpClient.transformResponse(Effect.provideService(HttpClient.TracerDisabledWhen, predicate))`: The convenience combinator was removed; provide the reference around response effects.
@@ -7119,6 +7302,8 @@ effect/rpc/Utils (barrel: effect/rpc)
 - `HttpClientError.TypeId` -> `HttpClientError.isHttpClientError`: The brand key is private in v4; use the public runtime refinement.
 
 ### `@effect/platform/HttpClientRequest`
+
+- `HttpClientRequest.HttpClientRequest` -> `HttpClientRequest.HttpClientRequest`: method is now typed as string because requests converted from Web or server requests can carry methods outside the HttpMethod literals; exhaustive matches need a fallback or an HttpMethod.isHttpMethod guard.
 
 - `HttpClientRequest.Options.NoBody` -> `HttpClientRequest.Options.NoUrl`: NoBody was removed; v4 method helpers uniformly omit only url.
 
@@ -7140,7 +7325,7 @@ effect/rpc/Utils (barrel: effect/rpc)
 
 ### `@effect/platform/HttpClientResponse`
 
-- `HttpClientResponse.HttpClientResponse` -> `HttpClientResponse.HttpClientResponse`: Custom implementations must supply the required url string. It represents the resolved URL including query parameters and excluding the hash, uses the final URL after redirects, and is empty when unknown.
+- `HttpClientResponse.HttpClientResponse` -> `HttpClientResponse.HttpClientResponse`: Custom implementations must supply the required url string and an upgrade effect. url represents the resolved URL including query parameters and excluding the hash, uses the final URL after redirects, and is empty when unknown. upgrade returns the upgraded Socket and should fail with an HttpClientError when the backend cannot hand over the connection.
 
 - `HttpClientResponse.TypeId` -> `typeof HttpClientResponse.TypeId`: TypeId remains public but is now a string constant; use typeof in type position.
 
@@ -7174,6 +7359,8 @@ effect/rpc/Utils (barrel: effect/rpc)
 
 - `HttpLayerRouter.FindMyWay.make` -> `FindMyWay.make`: Import FindMyWay from effect/http.
 
+- `HttpLayerRouter.Middleware` -> `HttpRouter.Middleware`: Moved with the layer-oriented router into the consolidated HttpRouter module. McpServer.Middleware is a separate type for MCP request middleware.
+
 - `HttpLayerRouter.MiddlewareTypeId` -> `none`: The middleware type id is internal in v4; use HttpRouter.Middleware.
 
 - `HttpLayerRouter.PathInput` -> `HttpRouter.PathInput`: Moved to the consolidated v4 router.
@@ -7181,6 +7368,8 @@ effect/rpc/Utils (barrel: effect/rpc)
 - `HttpLayerRouter.Request.From` -> `HttpRouter.Request.From`: Moved with the layer-oriented router into the consolidated HttpRouter module.
 
 - `HttpLayerRouter.Request.Only` -> `HttpRouter.Request.Only`: Moved with the layer-oriented router into the consolidated HttpRouter module.
+
+- `HttpLayerRouter.Request.Without` -> `HttpRouter.Request.Without`: Moved with the layer-oriented router into the consolidated HttpRouter module. McpServer.McpRequest.Without is the MCP counterpart.
 
 - `HttpLayerRouter.Route.Context` -> `HttpRouter.Route.Context`: Moved with the Route helper types into the consolidated HttpRouter module.
 
@@ -7202,9 +7391,15 @@ effect/rpc/Utils (barrel: effect/rpc)
 
 - `HttpLayerRouter.cors` -> `HttpRouter.cors`: HttpLayerRouter was consolidated into v4 HttpRouter.
 
+- `HttpLayerRouter.disableLogger` -> `HttpRouter.disableLogger`: Moved to the consolidated HttpRouter module; provide this layer to disable HTTP request logging. CloudflareTracer.layer installs tracing and is not a replacement.
+
 - `HttpLayerRouter.layer` -> `HttpRouter.layer`: Use the layer for the consolidated HttpRouter service.
 
 - `HttpLayerRouter.make` -> `HttpRouter.make`: The layer-oriented router became the sole v4 HttpRouter implementation.
+
+- `HttpLayerRouter.middleware.Fn` -> `HttpRouter.middleware.Fn`: Moved with the layer-oriented router into the consolidated HttpRouter module. McpServer.middleware.Fn is a separate type for MCP request middleware.
+
+- `HttpLayerRouter.middleware.Make` -> `HttpRouter.middleware.Make`: Moved with the layer-oriented router into the consolidated HttpRouter module. McpServer.middleware.Make is a separate type for MCP request middleware.
 
 - `HttpLayerRouter.schemaJson` -> `HttpRouter.schemaJson`: Moved to the consolidated router with v4 Schema and error types.
 
@@ -7215,6 +7410,10 @@ effect/rpc/Utils (barrel: effect/rpc)
 - `HttpLayerRouter.toHttpEffect` -> `HttpRouter.toHttpEffect`: Moved to the consolidated HttpRouter; route-not-found failures now use HttpServerError.HttpServerError.
 
 - `HttpLayerRouter.toWebHandler` -> `HttpRouter.toWebHandler`: Moved to the consolidated router for building a Fetch handler and disposer.
+
+### `@effect/platform/HttpMethod`
+
+- `HttpMethod.hasBody` -> `HttpMethod.hasBody`: Retained and now narrows an HttpMethod to HttpMethod.WithBody. An overload also accepts any string, such as a received request method, and returns a plain boolean.
 
 ### `@effect/platform/HttpMiddleware`
 
@@ -7352,6 +7551,8 @@ effect/rpc/Utils (barrel: effect/rpc)
 
 ### `@effect/platform/HttpServerRequest`
 
+- `HttpServerRequest.HttpServerRequest` -> `HttpServerRequest.HttpServerRequest`: Custom implementations must also supply upgradeWith({ headers }), which upgrades the connection and sends the given headers on the 101 response; upgrade is equivalent to upgradeWith({}). WebSocket upgrades fail when headers are given. method is now typed as string because received methods such as PROPFIND are kept as is; exhaustive matches need a fallback or an HttpMethod.isHttpMethod guard.
+
 - `HttpServerRequest.ParsedSearchParams` -> `HttpServerRequest.ParsedSearchParams`: The marker and tag became one Context.Service class.
 
 - `HttpServerRequest.TypeId` -> `typeof HttpServerRequest.TypeId`: TypeId remains public but is now a string constant; use typeof in type position.
@@ -7369,6 +7570,8 @@ effect/rpc/Utils (barrel: effect/rpc)
 - `HttpServerRequest.toWeb` -> `HttpServerRequest.toWeb`: Retained and captures the current Context for streamed bodies.
 
 - `HttpServerRequest.toWebEither` -> `HttpServerRequest.toWebResult`: Either became Result, and the optional Runtime became an optional Context.
+
+- `HttpServerRequest.upgrade` -> `HttpServerRequest.HttpServerRequest.use((request) => request.upgrade)`: The top-level accessor was removed; read upgrade from the request service. It fails with HttpServerError instead of RequestError. HttpServerRequest.upgradeChannel remains for channel-based WebSocket handling.
 
 ### `@effect/platform/HttpServerRespondable`
 
@@ -7414,9 +7617,9 @@ effect/rpc/Utils (barrel: effect/rpc)
 
 - `KeyValueStore.layerSchema` -> `KeyValueStore.toSchemaStore`: Schema stores are now derived with toSchemaStore; define the desired Context.Service and layer explicitly.
 
-- `KeyValueStore.make` -> `KeyValueStore.make`: The constructor remains in the moved module with v4 MakeOptions.
+- `KeyValueStore.make` -> `KeyValueStore.make`: The constructor remains in the moved module with v4 MakeOptions. Custom stores must now also provide keys, an effect returning a snapshot of the stored keys; clearPrefix is derived from keys and remove when omitted.
 
-- `KeyValueStore.prefix` -> `KeyValueStore.prefix`: The prefixed-store combinator remains in the moved module.
+- `KeyValueStore.prefix` -> `KeyValueStore.prefix`: The prefixed-store combinator remains in the moved module. Unlike v3, clear, size and isEmpty now apply only to keys under the prefix, and keys returns them with the prefix removed.
 
 ### `@effect/platform/MsgPack`
 
@@ -7820,6 +8023,10 @@ effect/rpc/Utils (barrel: effect/rpc)
 
 - `RpcClient.currentHeaders` -> `effect/rpc/RpcClient#CurrentHeaders`: Renamed and changed from FiberRef to Context.Reference; prefer RpcClient.withHeaders for scoped overrides.
 
+- `RpcClient.layerProtocolHttp` -> `effect/rpc/RpcClient#layerProtocolHttp`: Retained; it provides the v4 Protocol from HttpClient and RpcSerialization.
+
+- `RpcClient.makeNoSerialization` -> `effect/rpc/RpcClient#makeNoSerialization`: Retained, but onFromClient no longer receives a discard flag; a discarded call is a Request message with discard: true. Discarded calls now complete when the server acknowledges them rather than when the request is written.
+
 - `RpcClient.makeProtocolHttp` -> `effect/rpc/RpcClient#makeProtocolHttp`: Retained; it creates the Protocol service implementation from an HttpClient.
 
 - `RpcClient.withHeadersEffect` -> `Effect.flatMap(headers, (value) => RpcClient.withHeaders(effect, value))`: withHeaders now accepts Headers.Input synchronously; evaluate effectful headers first and then scope the client effect.
@@ -7853,6 +8060,8 @@ effect/rpc/Utils (barrel: effect/rpc)
 - `RpcMiddleware.Tag` -> `effect/rpc/RpcMiddleware#Service`: Renamed and redesigned with explicit requires, provides, clientError, error, and requiredForClient configuration.
 
 - `RpcMiddleware.TagClass` -> `effect/rpc/RpcMiddleware#ServiceClass`: Renamed class type for the v4 Context.Service-based middleware declaration.
+
+- `RpcMiddleware.TagClass.Base` -> `effect/rpc/RpcMiddleware#ServiceClass`: The shared base interface was folded into ServiceClass; there is no separate public base interface.
 
 - `RpcMiddleware.TagClass.Failure` -> `effect/rpc/RpcMiddleware#Error`: Failure terminology became error; apply the extractor to the middleware ID.
 
@@ -7942,7 +8151,7 @@ effect/rpc/Utils (barrel: effect/rpc)
 
 ### `@effect/sql-clickhouse/ClickhouseClient`
 
-- `ClickhouseClient.ClickhouseClient` -> `@effect/sql-clickhouse/ClickhouseClient#ClickhouseClient`: Retained; the service value is now a Context.Service rather than a GenericTag.
+- `ClickhouseClient.ClickhouseClient` -> `@effect/sql-clickhouse/ClickhouseClient#ClickhouseClient`: Retained; the service value is now a Context.Service rather than a GenericTag. The ClickhouseClient interface no longer extends SqlClient.SqlClient. Yielding the service still gives ClickhouseClient & SqlClient, but an effect that requires ClickhouseClient no longer type-checks against a SqlClient requirement annotation, and a SqlClient-only layer no longer satisfies ClickhouseClient. Annotate a layer chosen between drivers as Layer.Layer\<SqlClient.SqlClient, E\>.
 
 - `ClickhouseClient.currentClickhouseSettings` -> `@effect/sql-clickhouse/ClickhouseClient#ClickhouseSettings`: Renamed and changed from FiberRef to Context.Reference; prefer client.withClickhouseSettings or provide the reference as a service.
 
@@ -7955,6 +8164,8 @@ effect/rpc/Utils (barrel: effect/rpc)
 - `ClickhouseMigrator.MigrationError` -> `@effect/sql-clickhouse/ClickhouseMigrator#MigrationError`: Retained via effect/sql/Migrator; migrate reason and its lowercase values to kind with PascalCase values.
 
 ### `@effect/sql-d1/D1Client`
+
+- `D1Client.D1Client` -> `@effect/sql-d1/D1Client#D1Client`: Retained; the service value is now a Context.Service, and v4 adds batch for atomic D1 batches. The D1Client interface no longer extends SqlClient.SqlClient. Yielding the service still gives D1Client & SqlClient, but an effect that requires D1Client no longer type-checks against a SqlClient requirement annotation, and a SqlClient-only layer no longer satisfies D1Client. Annotate a layer chosen between drivers as Layer.Layer\<SqlClient.SqlClient, E\>.
 
 - `D1Client.D1ClientConfig` -> `@effect/sql-d1/D1Client#D1ClientConfig`: Retained; prepareCacheTTL now uses Duration.Input.
 
@@ -7994,9 +8205,13 @@ effect/rpc/Utils (barrel: effect/rpc)
 
 - `Sqlite.makeWithConfig` -> `matching drizzle-orm Effect SQLite module#makeWithDefaults`: The generic constructor was removed; select the concrete backend and use makeWithDefaults(config), or make(config) with explicit services.
 
+### `@effect/sql-libsql/LibsqlClient`
+
+- `LibsqlClient.LibsqlClient` -> `@effect/sql-libsql/LibsqlClient#LibsqlClient`: Retained; the service value is now a Context.Service. The LibsqlClient interface no longer extends SqlClient.SqlClient. Yielding the service still gives LibsqlClient & SqlClient, but an effect that requires LibsqlClient no longer type-checks against a SqlClient requirement annotation, and a SqlClient-only layer no longer satisfies LibsqlClient. Annotate a layer chosen between drivers as Layer.Layer\<SqlClient.SqlClient, E\>.
+
 ### `@effect/sql-mssql/MssqlClient`
 
-- `MssqlClient.MssqlClient` -> `@effect/sql-mssql/MssqlClient#MssqlClient`: Retained; the service value is now a Context.Service rather than a GenericTag.
+- `MssqlClient.MssqlClient` -> `@effect/sql-mssql/MssqlClient#MssqlClient`: Retained; the service value is now a Context.Service rather than a GenericTag. The MssqlClient interface no longer extends SqlClient.SqlClient. Yielding the service still gives MssqlClient & SqlClient, but an effect that requires MssqlClient no longer type-checks against a SqlClient requirement annotation, and a SqlClient-only layer no longer satisfies MssqlClient. Annotate a layer chosen between drivers as Layer.Layer\<SqlClient.SqlClient, E\>.
 
 - `MssqlClient.MssqlClientConfig` -> `@effect/sql-mssql/MssqlClient#MssqlClientConfig`: Retained; durations use Duration.Input, parameterTypes is keyed by Statement.PrimitiveKind, and v4 adds retry and timeout options.
 
@@ -8014,13 +8229,15 @@ effect/rpc/Utils (barrel: effect/rpc)
 
 ### `@effect/sql-mysql2/MysqlClient`
 
+- `MysqlClient.MysqlClient` -> `@effect/sql-mysql2/MysqlClient#MysqlClient`: Retained; the service value is now a Context.Service. The MysqlClient interface no longer extends SqlClient.SqlClient. Yielding the service still gives MysqlClient & SqlClient, but an effect that requires MysqlClient no longer type-checks against a SqlClient requirement annotation, and a SqlClient-only layer no longer satisfies MysqlClient. Annotate a layer chosen between drivers as Layer.Layer\<SqlClient.SqlClient, E\>.
+
 - `MysqlClient.MysqlClientConfig` -> `@effect/sql-mysql2/MysqlClient#MysqlClientConfig`: Retained; connectionTTL uses Duration.Input and v4 adds disablePreparedStatements.
 
 ### `@effect/sql-pg/PgClient`
 
-- `PgClient.PgClient` -> `@effect/sql-pg/PgClient#PgClient`: Retained; the service value is now a Context.Service. The listen method returns a scoped Effect acquiring a Queue.Dequeue\<PgConnection.Notification, SqlError\>; consume it with Queue operations or Stream.fromQueue and read each notification's payload. Connection failures after registration fail the queue with the original SqlError; scope closure interrupts consumers.
+- `PgClient.PgClient` -> `@effect/sql-pg/PgClient#PgClient`: Retained; the service value is now a Context.Service. The listen method returns a scoped Effect acquiring a Queue.Dequeue\<PgConnection.Notification, SqlError\>; consume it with Queue operations or Stream.fromQueue and read each notification's payload. Connection failures after registration fail the queue with the original SqlError; scope closure interrupts consumers. The PgClient interface no longer extends SqlClient.SqlClient. Yielding the service still gives PgClient & SqlClient, but an effect that requires PgClient no longer type-checks against a SqlClient requirement annotation, and a SqlClient-only layer no longer satisfies PgClient. Annotate a layer chosen between drivers as Layer.Layer\<SqlClient.SqlClient, E\>.
 
-- `PgClient.PgClientConfig` -> `@effect/sql-pg/PgClient#PgClientConfig / PgPoolConfig`: Use PgClientConfig for base settings and PgPoolConfig for make/layer; pool sizing, idle timeout, and connection TTL moved to PgPoolConfig. The types option takes a PgTypes.Registry rather than node-pg custom types. Timestamp and timestamptz results (including array elements) are Date values with millisecond precision; infinity, -infinity, and out-of-range values become invalid Dates. Numeric readers can use getTime() or register numeric codecs. Date parameters bind as timestamptz; use PgTypes.timestamp(value) to preserve UTC fields when writing a timestamp column instead of applying the session TimeZone.
+- `PgClient.PgClientConfig` -> `@effect/sql-pg/PgClient#PgClientConfig / PgPoolConfig`: Use PgClientConfig for base settings and PgPoolConfig for make/layer; pool sizing, idle timeout, and connection TTL moved to PgPoolConfig. v3 connectTimeout also bounded waits for a free pooled connection through node-pg; v4 connectTimeout covers only opening a connection, so set acquireTimeout to fail with ConnectionError when the pool stays exhausted. The types option takes a PgTypes.Registry rather than node-pg custom types. Timestamp and timestamptz results (including array elements) are Date values with millisecond precision; infinity, -infinity, and out-of-range values become invalid Dates. Numeric readers can use getTime() or register numeric codecs. Date parameters bind as timestamptz; use PgTypes.timestamp(value) to preserve UTC fields when writing a timestamp column instead of applying the session TimeZone.
 
 - `PgClient.PgClientFromPoolOptions` -> `none`: The node-pg Pool wrapper options were removed with fromPool. Use PgClient.PgPoolConfig with PgClient.make or PgClient.layer.
 
@@ -8030,7 +8247,7 @@ effect/rpc/Utils (barrel: effect/rpc)
 
 ### `@effect/sql-sqlite-bun/SqliteClient`
 
-- `SqliteClient.SqliteClient` -> `@effect/sql-sqlite-bun/SqliteClient#SqliteClient`: Retained; the service value is now a Context.Service.
+- `SqliteClient.SqliteClient` -> `@effect/sql-sqlite-bun/SqliteClient#SqliteClient`: Retained; the service value is now a Context.Service. The SqliteClient interface no longer extends SqlClient.SqlClient. Yielding the service still gives SqliteClient & SqlClient, but an effect that requires SqliteClient no longer type-checks against a SqlClient requirement annotation, and a SqlClient-only layer no longer satisfies SqliteClient. Annotate a layer chosen between drivers as Layer.Layer\<SqlClient.SqlClient, E\>.
 
 - `SqliteClient.layer` -> `SqliteClient.layer`: The layer now has a SqlError error channel for database opening and initialization failures. Handle setup failures, or use Layer.orDie when they should remain fatal.
 
@@ -8040,11 +8257,13 @@ effect/rpc/Utils (barrel: effect/rpc)
 
 ### `@effect/sql-sqlite-do/SqliteClient`
 
+- `SqliteClient.SqliteClient` -> `@effect/sql-sqlite-do/SqliteClient#SqliteClient`: Retained; the service value is now a Context.Service. The SqliteClient interface no longer extends SqlClient.SqlClient. Yielding the service still gives SqliteClient & SqlClient, but an effect that requires SqliteClient no longer type-checks against a SqlClient requirement annotation, and a SqlClient-only layer no longer satisfies SqliteClient. Annotate a layer chosen between drivers as Layer.Layer\<SqlClient.SqlClient, E\>.
+
 - `SqliteClient.SqliteClientConfig` -> `@effect/sql-sqlite-do/SqliteClient#SqliteClientConfig`: Retained; db is optional and storage may be supplied, but one of db or storage is required at runtime.
 
 ### `@effect/sql-sqlite-node/SqliteClient`
 
-- `SqliteClient.SqliteClient` -> `@effect/sql-sqlite-node/SqliteClient#SqliteClient`: Retained on node:sqlite, but the byte-export member was removed; use backup(destination) for file backup.
+- `SqliteClient.SqliteClient` -> `@effect/sql-sqlite-node/SqliteClient#SqliteClient`: Retained on node:sqlite, but the byte-export member was removed; use backup(destination) for file backup. The SqliteClient interface no longer extends SqlClient.SqlClient. Yielding the service still gives SqliteClient & SqlClient, but an effect that requires SqliteClient no longer type-checks against a SqlClient requirement annotation, and a SqlClient-only layer no longer satisfies SqliteClient. Annotate a layer chosen between drivers as Layer.Layer\<SqlClient.SqlClient, E\>.
 
 - `SqliteClient.SqliteClientConfig` -> `@effect/sql-sqlite-node/SqliteClient#SqliteClientConfig`: Retained; prepareCacheTTL now uses Duration.Input.
 
@@ -8056,6 +8275,8 @@ effect/rpc/Utils (barrel: effect/rpc)
 
 ### `@effect/sql-sqlite-react-native/SqliteClient`
 
+- `SqliteClient.SqliteClient` -> `@effect/sql-sqlite-react-native/SqliteClient#SqliteClient`: Retained; the service value is now a Context.Service. The SqliteClient interface no longer extends SqlClient.SqlClient. Yielding the service still gives SqliteClient & SqlClient, but an effect that requires SqliteClient no longer type-checks against a SqlClient requirement annotation, and a SqlClient-only layer no longer satisfies SqliteClient. Annotate a layer chosen between drivers as Layer.Layer\<SqlClient.SqlClient, E\>.
+
 - `SqliteClient.asyncQuery` -> `@effect/sql-sqlite-react-native/SqliteClient#AsyncQuery`: Renamed and changed from FiberRef to Context.Reference; prefer withAsyncQuery or provide AsyncQuery as a service.
 
 ### `@effect/sql-sqlite-wasm/OpfsWorker`
@@ -8064,9 +8285,13 @@ effect/rpc/Utils (barrel: effect/rpc)
 
 ### `@effect/sql-sqlite-wasm/SqliteClient`
 
-- `SqliteClient.SqliteClient` -> `@effect/sql-sqlite-wasm/SqliteClient#SqliteClient`: Retained with the same export/import surface; the service value is now a Context.Service.
+- `SqliteClient.SqliteClient` -> `@effect/sql-sqlite-wasm/SqliteClient#SqliteClient`: Retained with the same export/import surface; the service value is now a Context.Service. The SqliteClient interface no longer extends SqlClient.SqlClient. Yielding the service still gives SqliteClient & SqlClient, but an effect that requires SqliteClient no longer type-checks against a SqlClient requirement annotation, and a SqlClient-only layer no longer satisfies SqliteClient. Annotate a layer chosen between drivers as Layer.Layer\<SqlClient.SqlClient, E\>.
 
 - `SqliteClient.currentTransferables` -> `@effect/sql-sqlite-wasm/SqliteClient#Transferables`: Renamed and changed from FiberRef to Context.Reference; prefer withTransferables or provide Transferables as a service.
+
+### `@effect/sql/Migrator`
+
+- `Migrator.make` -> `effect/sql/Migrator#make`: Moved with the same curried make({ dumpSchema })(options) pattern.
 
 ### `@effect/sql/Model`
 
@@ -8096,7 +8321,7 @@ effect/rpc/Utils (barrel: effect/rpc)
 
 - `SqlClient.SafeIntegers` -> `effect/sql/SqlClient#SafeIntegers`: Moved and changed from a Reference subclass to a Context.Reference value; provide it as a service.
 
-- `SqlClient.SqlClient` -> `effect/sql/SqlClient#SqlClient`: Moved into core Effect. Custom service implementations must expose driver and afterCommit; SqlClient.make supplies both. driver identifies the driver independently of its SQL dialect. afterCommit registers effects to run after the outermost successful commit and connection release attempt, discarding rolled-back work. withTransaction now also defers contextual Reactivity.invalidate and mutation invalidations until that commit. Transactions bypassing makeWithTransaction, such as sqlite-do transactions, run callbacks and invalidations immediately.
+- `SqlClient.SqlClient` -> `effect/sql/SqlClient#SqlClient`: Moved into core Effect. Custom service implementations must expose driver and afterCommit; SqlClient.make supplies both. driver identifies the driver independently of its SQL dialect. afterCommit registers effects to run after the outermost successful commit and connection release attempt, discarding rolled-back work. withTransaction now also defers contextual Reactivity.invalidate and mutation invalidations until that commit. Transactions bypassing makeWithTransaction, such as sqlite-do transactions, run callbacks and invalidations immediately. Driver-specific client interfaces should extend SqlClient.Base rather than SqlClient, so providing a generic SqlClient does not also remove the driver requirement.
 
 - `SqlClient.SqlClient.MakeOptions` -> `effect/sql/SqlClient#SqlClient.MakeOptions`: Moved; driver is now required and conventionally names the driver package without @effect/sql-, for example pg or pglite. Rename reactiveMailbox to reactiveQueue; transactionService is optional.
 
@@ -8124,11 +8349,11 @@ effect/rpc/Utils (barrel: effect/rpc)
 
 ### `@effect/sql/SqlEventLogServer`
 
-- `SqlEventLogServer.layerStorage` -> `effect/eventlog/SqlEventLogServerEncrypted#layerStorage`: Moved to the encrypted server module; remove insertBatchSize. entryTablePrefix and remoteIdTable remain, as does the EventLogEncryption requirement. Storage uses encrypted batch tables and entry-id lookup tables, not the old per-entry ciphertext schema; existing encrypted tables are not automatically converted.
+- `SqlEventLogServer.layerStorage` -> `effect/eventlog/SqlEventLogServerEncrypted#layerStorage`: Moved to the encrypted server module; remove insertBatchSize. entryTablePrefix and remoteIdTable remain. It requires the `Digest` service from `effect/crypto/Digest` instead of EventLogEncryption, which hashed the table names in v3. Storage uses encrypted batch tables and entry-id lookup tables, not the old per-entry ciphertext schema; existing encrypted tables are not automatically converted.
 
-- `SqlEventLogServer.layerStorageSubtle` -> `effect/eventlog/SqlEventLogServerEncrypted#layerStorageSubtle`: Moved to the encrypted server module; remove insertBatchSize. The layer still supplies Web Crypto encryption. Storage now uses encrypted batch tables and entry-id lookup tables; existing per-entry ciphertext tables are not automatically converted.
+- `SqlEventLogServer.layerStorageSubtle` -> `effect/eventlog/SqlEventLogServerEncrypted#layerStorageSubtle`: Moved to the encrypted server module; remove insertBatchSize. The layer supplies the Web Crypto `Digest` layer. Storage now uses encrypted batch tables and entry-id lookup tables; existing per-entry ciphertext tables are not automatically converted.
 
-- `SqlEventLogServer.makeStorage` -> `effect/eventlog/SqlEventLogServerEncrypted#makeStorage`: Moved to the encrypted server module; remove insertBatchSize. SQL, encryption, and scope requirements remain. Storage uses encrypted batch tables and entry-id lookup tables, not the old per-entry ciphertext schema; existing encrypted tables are not automatically converted.
+- `SqlEventLogServer.makeStorage` -> `effect/eventlog/SqlEventLogServerEncrypted#makeStorage`: Moved to the encrypted server module; remove insertBatchSize. SQL and scope requirements remain; the EventLogEncryption requirement is replaced by the `Digest` service from `effect/crypto/Digest`. Storage uses encrypted batch tables and entry-id lookup tables, not the old per-entry ciphertext schema; existing encrypted tables are not automatically converted.
 
 ### `@effect/sql/SqlPersistedQueue`
 
@@ -8154,9 +8379,11 @@ effect/rpc/Utils (barrel: effect/rpc)
 
 ### `@effect/sql/Statement`
 
-- `Statement.Fragment`: TODO: needs guidance
+- `Statement.Constructor` -> `effect/sql/Statement#Constructor`: Moved to core Effect. sql.updateValues now escapes its alias as an identifier without applying name transforms; pass a bare alias such as "data" rather than pre-quoted SQL, and quote mixed-case PostgreSQL aliases where the query references them. sql.insert and sql.updateValues now require a non-empty array of rows; narrow array inputs with Array.isReadonlyArrayNonEmpty first.
 
-- `Statement.FragmentId` -> `none`: The v4 fragment brand is private; use Fragment, fragment, and isFragment instead of direct type-id access.
+- `Statement.Fragment` -> `effect/sql/Statement#Fragment`: Moved with the same segments field, but the brand key is now Statement.FragmentTypeId and its value is the symbol itself rather than a function. Build fragments with the sql template or Statement.fragment and check them with Statement.isFragment; sql interpolation binds unbranded objects as parameters.
+
+- `Statement.FragmentId` -> `effect/sql/Statement#FragmentTypeId`: Renamed to FragmentTypeId, now with a different Symbol.for key. Fragment values store the symbol itself under this key instead of a function; prefer Statement.isFragment for runtime checks.
 
 - `Statement.Statement` -> `effect/sql/Statement#Statement`: Moved; the nested Transformer type is now top-level and its callback receives Fiber.Fiber rather than FiberRefs.FiberRefs.
 
@@ -8170,7 +8397,7 @@ effect/rpc/Utils (barrel: effect/rpc)
 
 - `Statement.make` -> `effect/sql/Statement#make`: Moved with the same constructor inputs.
 
-- `Statement.makeCompiler` -> `effect/sql/Statement#makeCompiler`: Moved to core Effect; the constructor options are exposed as Statement.CompilerOptions and retain the dialect-specific callbacks.
+- `Statement.makeCompiler` -> `effect/sql/Statement#makeCompiler`: Moved to core Effect; the constructor options are exposed as Statement.CompilerOptions and retain the dialect-specific callbacks. onRecordUpdate now receives the updateValues alias already escaped with onIdentifier(alias, true); insert it as is.
 
 - `Statement.setTransformer` -> `Layer.succeed(Statement.CurrentTransformer, transformer)`: The helper was removed; provide the CurrentTransformer reference as a layer.
 
@@ -8720,6 +8947,10 @@ effect/rpc/Utils (barrel: effect/rpc)
 
 - `index.WorkerRPC` -> `none`: The concrete worker RPC composition is internal. Use public Vitest RuntimeRPC, RunnerRPC, ContextRPC, or WorkerRequest types only when their narrower contract fits.
 
+- `index.beforeAll` -> `@effect/vitest#beforeAll`: Still accepts Vitest callbacks. A callback may also return an Effect, which runs with a Scope that closes after the suite's afterAll hooks; the Effect must not require other services.
+
+- `index.beforeEach` -> `@effect/vitest#beforeEach`: Still accepts Vitest callbacks. A callback may also return an Effect, which runs with a Scope that closes when the test finishes; the Effect must not require other services.
+
 - `index.bench` -> `vitest#test`: Vitest 5 removes the top-level bench export. Destructure bench from a regular test's context and await bench(name, fn).run(); use skip, only, or todo on the enclosing test.
 
 - `index.chai.Should` -> `vitest#chai.Should`: This was a Vitest re-export, not Effect API. Import it directly from vitest; @effect/vitest/index is not a valid v4 route.
@@ -8997,6 +9228,8 @@ Arbitrary.schema(schema)
 - `Brand.all` -> `Brand.all`: Still exported; combines multiple brand constructors and checks.
 
 - `Brand.error` -> `Brand.make`: Return a string or Schema filter issue directly from a Brand.make validator.
+
+- `Brand.errors` -> `Brand.make`: Return an array of strings or Schema filter issues from a Brand.make validator; they are combined into one BrandError.
 
 - `Brand.nominal` -> `Brand.nominal`: Still exported; the constructor's either method is now result.
 
@@ -9388,7 +9621,7 @@ Arbitrary.schema(schema)
 
 - `Config.boolean` -> `Config.Boolean`: Direct constructor rename.
 
-- `Config.branded` -> `Config.schema(schema.pipe(Schema.brand(brand)), path)`: Brand validation moved to Schema; define the branded schema and construct the Config with Config.schema.
+- `Config.branded` -> `Config.schema(schema.pipe(Schema.fromBrand(key, constructor)), path)`: Brand validation moved to Schema; Schema.fromBrand takes the brand key and the existing Brand.Constructor and applies its checks. Schema.brand is type-only.
 
 - `Config.chunk` -> `Config.schema(Schema.Chunk(valueSchema), path)`: Collection parsing is schema-based in v4; use Schema.Chunk when a Chunk result is still required.
 
@@ -9648,6 +9881,8 @@ Arbitrary.schema(schema)
 
 - `Data.TaggedEnum` -> `Data.TaggedEnum`: Still exported with the same record-to-discriminated-union role.
 
+- `Data.TaggedEnum.Constructor` -> `Data.TaggedEnum.Constructor`: Still the type of the object Data.taggedEnum returns for a non-generic enum, now a named intersection instead of a flattened object type. $match no longer rejects extra case keys at compile time. Annotate constructors for generic enums with Data.TaggedEnum.GenericConstructor.
+
 - `Data.TaggedEnum.GenericMatchers` -> `Data.TaggedEnum.GenericMatchers`: Still exported with $is and $match helpers.
 
 - `Data.array` -> `none`: Use a normal copied array such as [...values]; v4 compares plain arrays structurally.
@@ -9834,9 +10069,9 @@ Arbitrary.schema(schema)
 
 - `Duration.decodeUnknown` -> `Duration.fromInput`: The safe decoder was renamed and accepts Duration.Input, returning Option\<Duration\>.
 
-- `Duration.formatIso` -> `none`: ISO 8601 duration formatting was removed from the v4 Duration module. The v4 source and migration guides expose no direct replacement; retain a local formatter when this wire format is required.
+- `Duration.formatIso` -> `Duration.formatIso`: Available again from 4.1. The output is balanced into days, hours, minutes and seconds and never contains weeks, months or years; infinite durations return Option.none().
 
-- `Duration.fromIso` -> `none`: ISO 8601 duration parsing was removed from the v4 Duration module. The v4 source and migration guides expose no direct replacement; use a dedicated ISO parser and pass the resulting parts to Duration.fromInput.
+- `Duration.fromIso` -> `Duration.fromIso`: Available again from 4.1 for exact units only (weeks, days, hours, minutes and seconds). Years and months are rejected instead of approximated. Use Schema.DurationFromIsoString for a Schema codec.
 
 - `Duration.greaterThan` -> `Duration.isGreaterThan`: The comparison was renamed with the is prefix.
 
@@ -9850,7 +10085,7 @@ Arbitrary.schema(schema)
 
 - `Duration.unsafeDivide` -> `Duration.divideUnsafe`: The unsafe prefix moved to the end of the division function name.
 
-- `Duration.unsafeFormatIso` -> `none`: ISO 8601 duration formatting was removed from v4. The v4 Duration exports and migration guides contain no direct unsafe formatter; retain a local formatter if required.
+- `Duration.unsafeFormatIso` -> `none`: There is no throwing variant. Use Duration.formatIso and handle Option.none() for infinite durations.
 
 - `Duration.unsafeToNanos` -> `Duration.toNanosUnsafe`: The unsafe prefix moved to the end of the nanosecond conversion name.
 
@@ -10486,7 +10721,7 @@ Arbitrary.schema(schema)
 
 - `Equivalence.string` -> `Equivalence.String`: Capitalized instance name; case-sensitive strict equality is unchanged.
 
-- `Equivalence.struct` -> `Equivalence.Struct`: Capitalized constructor name. V4 also compares configured symbol and non-enumerable keys via Reflect.ownKeys.
+- `Equivalence.struct` -> `Equivalence.Struct`: Capitalized constructor name. V4 also compares own enumerable symbol fields.
 
 - `Equivalence.symbol` -> `Equivalence.strictEqual<symbol>()`: There is no Symbol instance export; strictEqual preserves the v3 symbol comparison.
 
@@ -10598,7 +10833,7 @@ Arbitrary.schema(schema)
 
 - `FastCheck.CloneValue`: TODO: needs guidance
 
-- `FastCheck.Command`: TODO: needs guidance
+- `FastCheck.Command` -> `FastCheck.Command`: Depend on fast-check and import it directly. The API is unchanged.
 
 - `FastCheck.CommandsContraints`: TODO: needs guidance
 
@@ -12115,9 +12350,13 @@ JsonSchema.toDocumentDraft07(Schema.toJsonSchemaDocument(schema))
 
 - `Match.When` -> `Match.When`: The case type is retained. Its evaluate method now receives any Match.fn selector arguments after the selected input; update custom case implementations that consume those arguments.
 
+- `Match.discriminators` -> `Match.discriminators`: Only definitely defined handlers remove variants from the unmatched input type. Optional handlers, handlers that may be undefined, and handler-map alternatives without a handler leave those variants unmatched. Supply defined handlers for every case before Match.exhaustive, or handle the remaining variants with another case or Match.orElse. At runtime, undefined handlers are skipped.
+
 - `Match.either` -> `Match.result`: Renamed finalizer with a container change: matched Right and unmatched Left become Result.Success and Result.Failure.
 
 - `Match.not` -> `Match.not`: Object patterns now reject top-level keys absent from every variant of the remaining input type. Correct stale property names or narrow the input before matching; function, refinement, and array patterns are not subject to this object-key check.
+
+- `Match.tags` -> `Match.tags`: Only definitely defined handlers remove variants from the unmatched input type. Optional handlers, handlers that may be undefined, and handler-map alternatives without a handler leave those variants unmatched. Supply defined handlers for every case before Match.exhaustive, or handle the remaining variants with another case or Match.orElse. At runtime, undefined handlers are skipped.
 
 - `Match.when` -> `Match.when`: Object patterns now reject top-level keys absent from every variant of the remaining input type. Correct stale property names or narrow the input before matching. Array prefix patterns retain the unmatched tail in the handler type rather than treating the pattern as the entire array.
 
@@ -12593,13 +12832,13 @@ Effect.callback<number>((resume) => resume(Effect.succeed(1)))
 
 - `Micro.exitInterrupt` -> `Exit.interrupt`: MicroExit was replaced by the unified effect/Exit module in v4. Takes an optional fiber id.
 
-- `Micro.exitIsDie` -> `Exit.hasDies`: v4 exits carry a multi-reason Cause, so tag refinements become reason queries: Exit.hasDies checks the failure cause for Die reasons.
+- `Micro.exitIsDie` -> `Exit.hasDies`: v4 exits carry a multi-reason Cause, so tag refinements become reason queries: Exit.hasDies checks the failure cause for Die reasons. It returns boolean and does not narrow the Exit; check Exit.isFailure first to read the cause.
 
-- `Micro.exitIsFail` -> `Exit.hasFails`: v4 exits carry a multi-reason Cause, so tag refinements become reason queries: Exit.hasFails checks the failure cause for Fail reasons.
+- `Micro.exitIsFail` -> `Exit.hasFails`: v4 exits carry a multi-reason Cause, so tag refinements become reason queries: Exit.hasFails checks the failure cause for Fail reasons. It returns boolean and does not narrow the Exit; check Exit.isFailure first to read the cause.
 
 - `Micro.exitIsFailure` -> `Exit.isFailure`: Same refinement in the unified effect/Exit module.
 
-- `Micro.exitIsInterrupt` -> `Exit.hasInterrupts`: v4 exits carry a multi-reason Cause, so tag refinements become reason queries: Exit.hasInterrupts checks the failure cause for Interrupt reasons.
+- `Micro.exitIsInterrupt` -> `Exit.hasInterrupts`: v4 exits carry a multi-reason Cause, so tag refinements become reason queries: Exit.hasInterrupts checks the failure cause for Interrupt reasons. It returns boolean and does not narrow the Exit; check Exit.isFailure first to read the cause.
 
 - `Micro.exitIsSuccess` -> `Exit.isSuccess`: Same refinement in the unified effect/Exit module.
 
@@ -13011,7 +13250,7 @@ Effect.forEach(items, handle, { concurrency: 10 })
 
 - `Order.string` -> `Order.String`: Capitalized instance name; case-sensitive JavaScript lexicographic ordering is unchanged.
 
-- `Order.struct` -> `Order.Struct`: Capitalized constructor name; field-order tie-breaking is unchanged.
+- `Order.struct` -> `Order.Struct`: Capitalized constructor name; field-order tie-breaking is unchanged. V4 also compares own enumerable symbol fields, after string fields.
 
 - `Order.tuple` -> `Order.Tuple([orderA, orderB, ...])`: Capitalized constructor now takes one comparator array instead of rest arguments and evaluates every configured position.
 
@@ -13287,7 +13526,7 @@ Schema.decodeSync(Schema.toType(schema))
 
 - `Predicate.some` -> `Predicate.some`: Retained with the same OR semantics, short-circuiting, and false result for an empty collection.
 
-- `Predicate.struct` -> `Predicate.Struct`: Capitalized constructor name; field checks and refinement-aware typing are retained.
+- `Predicate.struct` -> `Predicate.Struct`: Capitalized constructor name; field checks and refinement-aware typing are retained. V4 also checks own enumerable symbol fields.
 
 - `Predicate.tuple` -> `Predicate.Tuple([p1, p2, ...])`: Capitalized constructor now takes one predicate array instead of rest arguments and checks missing positions as undefined.
 
@@ -13941,6 +14180,18 @@ Schema.toFormatter(schema)
 
 - `STM.mergeAll` -> `Effect.reduce`: Reduce the input Effects sequentially and combine each produced value with the accumulator.
 
+#### `STM.negate`
+
+**Replacement:** `Effect.map`
+
+STM values are now ordinary Effects and there is no negate combinator; map the boolean with Boolean.not. Run the complete transaction with Effect.tx.
+
+**Example**
+
+```ts
+Effect.map(self, Boolean.not)
+```
+
 - `STM.none` -> `Effect.matchEffect + Option.match`: Recreate the Option success/error shuffle explicitly; no dedicated helper remains.
 
 - `STM.option` -> `Effect.option`: The combinator keeps its name, but STM values are now ordinary Effects. Run the complete transaction with Effect.tx. V4 Tx operations return ordinary Effects; compose multiple operations under one outer Effect.tx to keep them atomic.
@@ -14277,7 +14528,7 @@ Schema.toFormatter(schema)
 
 - `Schema.Annotations.GenericSchema` -> `none`: The v3 helper/protocol type was removed by the v4 Schema model rewrite. Use the public v4 constructor and infer its result types instead.
 
-- `Schema.Annotations.Schema` -> `none`: The v3 helper/protocol type was removed by the v4 Schema model rewrite. Use the public v4 constructor and infer its result types instead.
+- `Schema.Annotations.Schema` -> `none`: The v3 helper/protocol type was removed by the v4 Schema model rewrite. Schema.annotate accepts any string key, so the removed concurrency, batching, and parseOptions keys still type-check but are ignored at runtime. Pass concurrency and other parse options at runtime through SchemaAST.ParseOptions when creating or calling a parser; requests from sibling children share a batch only when that concurrency lets them be pending together, although requests started concurrently inside a transformation or by other fibers can still batch.
 
 - `Schema.Any` -> `Schema.Any`: The API remains public in v4, but its type/value declaration was consolidated; use the v4 declaration and update inferred types/signature as needed.
 
@@ -14955,7 +15206,7 @@ Schema.toFormatter(schema)
 
 - `Schema.finite` -> `Schema.isFinite`: Rename the predicate to `isFinite` and apply it with `Schema.check` or a schema's `check` method.
 
-- `Schema.format` -> `SchemaRepresentation.toCodeDocument`: Build a representation with `SchemaRepresentation.toRepresentation`, `toMultiDocument`, then `toCodeDocument`.
+- `Schema.format` -> `none`: Schema.format was removed in v4 and has no replacement.
 
 - `Schema.fromBrand` -> `Schema.fromBrand`: Pass the constructor's single concrete string brand key as the first argument, followed by the constructor and then the schema. Apply fromBrand repeatedly for multiple brands; use Schema.Union for alternatives. Constructor checks remain at runtime, while the brand is type-only and does not add AST metadata.
 
@@ -15173,9 +15424,9 @@ Schema.toFormatter(schema)
 
 - `SchemaAST.ArbitraryAnnotationId` -> `Schema.Annotations.ToArbitrary`: Symbol annotation IDs were removed. Declarations use the toCodecArbitrary annotation; filters use arbitraryConstraint.
 
-- `SchemaAST.BatchingAnnotation` -> `none`: Per-schema batching annotations were removed. They have no direct replacement. ParseOptions.concurrency controls product child parsing only; configure request batching separately.
+- `SchemaAST.BatchingAnnotation` -> `none`: Per-schema batching annotations were removed and have no direct replacement; Schema.annotate accepts the key but ignores it. A RequestResolver batches requests that are pending when its delay ends, so pass concurrency in runtime ParseOptions to let requests from sibling children share a batch. With sequential parsing, the default, children that each await one request send them in separate batches; requests started concurrently inside a transformation, or by other fibers using the same resolver, can still share a batch. Bound batch sizes with the resolver (for example RequestResolver.batchN), not with the parse option.
 
-- `SchemaAST.BatchingAnnotationId` -> `none`: Symbol annotation IDs were removed and batching is no longer a schema annotation.
+- `SchemaAST.BatchingAnnotationId` -> `none`: Symbol annotation IDs were removed and batching is no longer a schema annotation. Requests from sibling children share a batch only when ParseOptions.concurrency lets them be pending together; requests started concurrently inside a transformation or by other fibers can still batch.
 
 - `SchemaAST.BigIntKeyword` -> `SchemaAST.BigInt`: The v4 SchemaAST redesign renamed this primitive, collection, or guard while preserving its role.
 
@@ -15345,7 +15596,7 @@ Schema.toFormatter(schema)
 
 - `SchemaAST.getAnnotation` -> `SchemaAST.resolveAt`: Resolve string-keyed annotations with resolveAt, or use resolveIdentifier, resolveTitle, and resolveDescription.
 
-- `SchemaAST.getBatchingAnnotation` -> `none`: Batching annotations were removed. ParseOptions.concurrency controls product child parsing only; configure request batching separately.
+- `SchemaAST.getBatchingAnnotation` -> `none`: Batching annotations were removed. Requests from sibling children share a batch only when ParseOptions.concurrency lets them be pending together; with sequential parsing, children that each await one request send them in separate batches. Requests started concurrently inside a transformation or by other fibers using the same resolver can still batch.
 
 - `SchemaAST.getBrandAnnotation` -> `none`: Runtime brand inspection was removed because Schema.brand is type-only and does not store brand metadata in the AST.
 

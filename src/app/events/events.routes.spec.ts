@@ -6,6 +6,7 @@ import {
   Router,
   UrlTree,
 } from '@angular/router';
+import { createRpcQueryOptions } from '@heddendorp/effect-angular-query';
 import { QueryClient } from '@tanstack/angular-query-experimental';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -47,10 +48,13 @@ describe('event route access outcomes', () => {
   const findGraphForEdit = vi.fn<() => Promise<EventGraphEditRecord>>();
   const editQueryOptions = (
     input: Parameters<EditQueryOptions>[0],
-  ): ReturnType<EditQueryOptions> => ({
-    queryFn: findGraphForEdit,
-    queryKey: [['events', 'findGraphForEdit'], { input, type: 'query' }],
-  });
+  ): ReturnType<EditQueryOptions> =>
+    createRpcQueryOptions({
+      input,
+      pathSegments: ['events', 'findGraphForEdit'],
+      queryFn: findGraphForEdit,
+      type: 'query',
+    });
   const canOrganize = vi.fn<() => Promise<boolean>>();
 
   const activate = async (guard: CanActivateFn, eventId = 'event-1') => {

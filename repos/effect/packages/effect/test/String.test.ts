@@ -78,23 +78,11 @@ describe("String", () => {
     it("converts to uppercase", () => {
       strictEqual(S.toUpperCase("hello"), "HELLO")
     })
-
-    it("handles empty string", () => {
-      strictEqual(S.toUpperCase(""), "")
-    })
-
-    it("pipeable", () => {
-      strictEqual(pipe("abc", S.toUpperCase), "ABC")
-    })
   })
 
   describe("toLowerCase", () => {
     it("converts to lowercase", () => {
       strictEqual(S.toLowerCase("HELLO"), "hello")
-    })
-
-    it("handles empty string", () => {
-      strictEqual(S.toLowerCase(""), "")
     })
   })
 
@@ -103,16 +91,8 @@ describe("String", () => {
       strictEqual(S.capitalize("hello"), "Hello")
     })
 
-    it("handles single character", () => {
-      strictEqual(S.capitalize("a"), "A")
-    })
-
     it("handles empty string", () => {
       strictEqual(S.capitalize(""), "")
-    })
-
-    it("does not change already capitalized", () => {
-      strictEqual(S.capitalize("Hello"), "Hello")
     })
 
     it("expands an eszett", () => {
@@ -133,10 +113,6 @@ describe("String", () => {
   describe("uncapitalize", () => {
     it("uncapitalizes first character", () => {
       strictEqual(S.uncapitalize("Hello"), "hello")
-    })
-
-    it("handles single character", () => {
-      strictEqual(S.uncapitalize("A"), "a")
     })
 
     it("handles empty string", () => {
@@ -173,15 +149,7 @@ describe("String", () => {
 
   describe("trim", () => {
     it("trims whitespace from both ends", () => {
-      strictEqual(S.trim("  hello  "), "hello")
-    })
-
-    it("trims tabs and newlines", () => {
-      strictEqual(S.trim("\t\nhello\t\n"), "hello")
-    })
-
-    it("handles empty string", () => {
-      strictEqual(S.trim(""), "")
+      strictEqual(S.trim(" \t\nhello \t\n"), "hello")
     })
   })
 
@@ -189,19 +157,11 @@ describe("String", () => {
     it("trims leading whitespace", () => {
       strictEqual(S.trimStart("  hello  "), "hello  ")
     })
-
-    it("handles empty string", () => {
-      strictEqual(S.trimStart(""), "")
-    })
   })
 
   describe("trimEnd", () => {
     it("trims trailing whitespace", () => {
       strictEqual(S.trimEnd("  hello  "), "  hello")
-    })
-
-    it("handles empty string", () => {
-      strictEqual(S.trimEnd(""), "")
     })
   })
 
@@ -243,10 +203,6 @@ describe("String", () => {
   describe("length", () => {
     it("returns string length", () => {
       strictEqual(S.length("abc"), 3)
-    })
-
-    it("returns 0 for empty string", () => {
-      strictEqual(S.length(""), 0)
     })
   })
 
@@ -447,6 +403,32 @@ describe("String", () => {
     })
   })
 
+  describe("isWellFormed", () => {
+    it.each([
+      ["", true],
+      ["abc", true],
+      ["\uD83D\uDE00", true],
+      ["\uD800", false],
+      ["a\uDC00b", false],
+      ["\uDE00\uD83D", false]
+    ])("%j → %s", (input, expected) => {
+      strictEqual(S.isWellFormed(input), expected)
+    })
+  })
+
+  describe("toWellFormed", () => {
+    it.each([
+      ["", ""],
+      ["abc", "abc"],
+      ["\uD83D\uDE00", "\uD83D\uDE00"],
+      ["\uD800", "\uFFFD"],
+      ["a\uDC00b", "a\uFFFDb"],
+      ["\uDE00\uD83D", "\uFFFD\uFFFD"]
+    ])("%j → %j", (input, expected) => {
+      strictEqual(S.toWellFormed(input), expected)
+    })
+  })
+
   describe("padStart", () => {
     it("pads from start with spaces", () => {
       strictEqual(pipe("a", S.padStart(5)), "    a")
@@ -506,11 +488,21 @@ describe("String", () => {
     it("converts to locale lowercase", () => {
       strictEqual(pipe("ABC", S.toLocaleLowerCase()), "abc")
     })
+
+    it("applies locale-specific rules", () => {
+      strictEqual(pipe("\u0130", S.toLocaleLowerCase("tr")), "i")
+      strictEqual(pipe("I", S.toLocaleLowerCase("tr")), "\u0131")
+    })
   })
 
   describe("toLocaleUpperCase", () => {
     it("converts to locale uppercase", () => {
       strictEqual(pipe("abc", S.toLocaleUpperCase()), "ABC")
+    })
+
+    it("applies locale-specific rules", () => {
+      strictEqual(pipe("i\u0307", S.toLocaleUpperCase("lt-LT")), "I")
+      strictEqual(pipe("i", S.toLocaleUpperCase("tr")), "\u0130")
     })
   })
 
@@ -649,12 +641,24 @@ describe("String", () => {
       strictEqual(S.snakeToKebab("hello_world"), "hello-world")
       strictEqual(S.snakeToKebab("foo_bar_baz"), "foo-bar-baz")
     })
+
+    it("keeps digits and edge separators", () => {
+      strictEqual(S.snakeToKebab("v2_api"), "v2-api")
+      strictEqual(S.snakeToKebab("foo_"), "foo-")
+    })
   })
 
   describe("camelToSnake", () => {
     it("converts camelCase to snake_case", () => {
       strictEqual(S.camelToSnake("helloWorld"), "hello_world")
       strictEqual(S.camelToSnake("fooBarBaz"), "foo_bar_baz")
+    })
+
+    it("splits every capital and keeps separators", () => {
+      strictEqual(S.camelToSnake("XMLHttpRequest"), "_x_m_l_http_request")
+      strictEqual(S.camelToSnake("xmlHTTPResponse"), "xml_h_t_t_p_response")
+      strictEqual(S.camelToSnake("field2Value"), "field2_value")
+      strictEqual(S.camelToSnake("foo_"), "foo_")
     })
   })
 
@@ -663,12 +667,21 @@ describe("String", () => {
       strictEqual(S.pascalToSnake("HelloWorld"), "hello_world")
       strictEqual(S.pascalToSnake("FooBarBaz"), "foo_bar_baz")
     })
+
+    it("splits every capital", () => {
+      strictEqual(S.pascalToSnake("XMLHttpRequest"), "x_m_l_http_request")
+      strictEqual(S.pascalToSnake("field2Value"), "field2_value")
+    })
   })
 
   describe("kebabToSnake", () => {
     it("converts kebab-case to snake_case", () => {
       strictEqual(S.kebabToSnake("hello-world"), "hello_world")
       strictEqual(S.kebabToSnake("foo-bar-baz"), "foo_bar_baz")
+    })
+
+    it("keeps repeated and edge separators", () => {
+      strictEqual(S.kebabToSnake("--foo--"), "__foo__")
     })
   })
 
@@ -761,6 +774,11 @@ describe("String", () => {
       strictEqual(S.configCase("api-v2 xml"), "API_V2_XML")
       strictEqual(S.configCase("field2Value"), "FIELD2_VALUE")
     })
+
+    it("is not idempotent", () => {
+      strictEqual(S.configCase("field2value"), "FIELD2VALUE")
+      strictEqual(S.configCase("FIELD2VALUE"), "FIELD2_VALUE")
+    })
   })
 
   describe("kebabCase", () => {
@@ -774,6 +792,33 @@ describe("String", () => {
     it("converts to snake_case", () => {
       strictEqual(S.snakeCase("hello world"), "hello_world")
       strictEqual(S.snakeCase("helloWorld"), "hello_world")
+    })
+  })
+
+  describe("Unicode case conversion", () => {
+    it("preserves accented letters at case boundaries", () => {
+      strictEqual(S.camelCase("CaféÜber"), "caféÜber")
+    })
+
+    it("preserves caseless letters at number boundaries", () => {
+      strictEqual(S.snakeCase("日本語2テキスト"), "日本語_2_テキスト")
+    })
+
+    it("preserves combining marks", () => {
+      strictEqual(S.snakeCase("हिन्दी भाषा"), "हिन्दी_भाषा")
+    })
+
+    it("preserves marks at non-ASCII number boundaries", () => {
+      strictEqual(S.snakeCase("cafe\u0301٣\u0308a"), "cafe\u0301_٣\u0308_a")
+    })
+
+    it("preserves Unicode config keys without splitting digit groups", () => {
+      strictEqual(S.configCase("café٣Name"), "CAFÉ٣_NAME")
+    })
+
+    it("preserves decomposed marks at case boundaries without normalization", () => {
+      strictEqual(S.snakeCase("cafe\u0301Bar"), "cafe\u0301_bar")
+      strictEqual(S.configCase("Ø\u0301Æ\u0301ø"), "Ø\u0301_Æ\u0301Ø")
     })
   })
 

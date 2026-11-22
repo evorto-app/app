@@ -15,9 +15,6 @@ const pollingInterval = Duration.minutes(5);
 const safetyGraceMilliseconds = 15 * 60 * 1000;
 const readyOrphanRetentionMilliseconds = 24 * 60 * 60 * 1000;
 
-type ReceiptUploadStatus =
-  'cleaning' | 'consumed' | 'finalizing' | 'pending' | 'ready' | 'rejected';
-
 export class ReceiptOrphanCleanupError extends Data.TaggedError(
   'ReceiptOrphanCleanupError',
 )<{
@@ -30,31 +27,6 @@ export const normalizeReceiptOrphanBatchSize = (
   Number.isFinite(batchSize)
     ? Math.min(maximumBatchSize, Math.max(1, Math.trunc(batchSize)))
     : defaultBatchSize;
-
-export const isReceiptUploadOrphan = (input: {
-  readonly expiresAt: Date;
-  readonly now: Date;
-  readonly status: ReceiptUploadStatus;
-  readonly updatedAt: Date;
-}) => {
-  if (input.status === 'consumed') {
-    return false;
-  }
-  if (input.status === 'cleaning') {
-    return (
-      input.updatedAt.getTime() <= input.now.getTime() - safetyGraceMilliseconds
-    );
-  }
-  if (input.status === 'ready') {
-    return (
-      input.updatedAt.getTime() <=
-      input.now.getTime() - readyOrphanRetentionMilliseconds
-    );
-  }
-  return (
-    input.expiresAt.getTime() <= input.now.getTime() - safetyGraceMilliseconds
-  );
-};
 
 export const processReceiptOrphans = Effect.fn('processReceiptOrphans')(
   function* (options: { batchSize?: number; now?: Date } = {}) {

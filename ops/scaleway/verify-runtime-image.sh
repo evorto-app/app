@@ -96,7 +96,7 @@ readonly required_artifacts=(
   app/dist/evorto/ops/reset-staging-database.mjs
   app/dist/evorto/ops/seed-staging.mjs
   app/ops/drizzle.config.mjs
-  app/ops/drizzle-kit.cjs
+  app/ops/drizzle-kit/bin.js
 )
 for required_artifact in "${required_artifacts[@]}"; do
   # Check every component before file checks or content scans can follow a link.

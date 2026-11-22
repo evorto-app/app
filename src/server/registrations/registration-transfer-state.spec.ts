@@ -4,7 +4,6 @@ import { Effect } from 'effect';
 import {
   ensureRegistrationTransferTransition,
   resolveRegistrationCancellationDeadline,
-  resolveRegistrationFeeRefund,
   resolveRegistrationTransferDeadline,
   resolveRegistrationTransferRefundPlan,
 } from './registration-transfer-state';
@@ -93,18 +92,6 @@ describe('registration transfer state', () => {
         assert.strictEqual(
           cancellation.toISOString(),
           '2026-08-15T18:00:00.000Z',
-        );
-        assert.isTrue(
-          resolveRegistrationFeeRefund({
-            optionRefundFees: null,
-            tenantRefundFees: true,
-          }),
-        );
-        assert.isFalse(
-          resolveRegistrationFeeRefund({
-            optionRefundFees: false,
-            tenantRefundFees: true,
-          }),
         );
       }),
   );

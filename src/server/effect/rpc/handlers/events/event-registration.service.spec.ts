@@ -332,7 +332,7 @@ type RegistrationSnapshotOption = Omit<
 };
 
 const registrationSnapshotSelectPrefix =
-  'select "d0"."closeRegistrationTime"::text as "closeRegistrationTime", "d0"."id" as "id", "d0"."isPaid" as "isPaid", "d0"."openRegistrationTime"::text as "openRegistrationTime", "d0"."organizingRegistration" as "organizingRegistration", "d0"."price" as "price", "d0"."registrationMode"::text as "registrationMode", "d0"."roleIds" as "roleIds", "d0"."stripeTaxRateId" as "stripeTaxRateId", "event"."r" as "event" from "event_registration_options" as "d0" ';
+  'select "d0"."closeRegistrationTime" as "closeRegistrationTime", "d0"."id" as "id", "d0"."isPaid" as "isPaid", "d0"."openRegistrationTime" as "openRegistrationTime", "d0"."organizingRegistration" as "organizingRegistration", "d0"."price" as "price", "d0"."registrationMode" as "registrationMode", "d0"."roleIds" as "roleIds", "d0"."stripeTaxRateId" as "stripeTaxRateId", "event"."r" as "event" from "event_registration_options" as "d0" ';
 
 const readRegistrationSnapshotFixture = ({
   option,
@@ -348,7 +348,7 @@ const readRegistrationSnapshotFixture = ({
   if (!statement.startsWith(registrationSnapshotSelectPrefix)) return;
   expect(transactionOpen).toBe(true);
   expect(statement).toContain(
-    'select "d1"."start"::text as "start", "d1"."status" as "status", "d1"."tenantId" as "tenantId" from "event_instances" as "d1"',
+    'select "d1"."start" as "start", "d1"."status" as "status", "d1"."tenantId" as "tenantId" from "event_instances" as "d1"',
   );
   expect(statement).toContain('"d0"."eventId" = "d1"."id"');
   expect(
@@ -360,10 +360,10 @@ const readRegistrationSnapshotFixture = ({
   if (!option) return [];
   return [
     [
-      option.closeRegistrationTime.toISOString().replace('Z', ''),
+      option.closeRegistrationTime,
       option.id,
       option.isPaid,
-      option.openRegistrationTime.toISOString().replace('Z', ''),
+      option.openRegistrationTime,
       option.organizingRegistration,
       option.price,
       option.registrationMode,
@@ -420,11 +420,11 @@ type RegistrationDiscountCard = Pick<
 const registrationDiscountProvidersSql =
   'select "d0"."discount_providers" as "discountProviders" from "tenants" as "d0" where "d0"."id" = $1 limit $2';
 const registrationDiscountRowsSql =
-  'select "d0"."discountedPrice" as "discountedPrice", "d0"."discountType"::text as "discountType" from "event_registration_option_discounts" as "d0" where "d0"."registrationOptionId" = $1';
+  'select "d0"."discountedPrice" as "discountedPrice", "d0"."discountType" as "discountType" from "event_registration_option_discounts" as "d0" where "d0"."registrationOptionId" = $1';
 const registrationDiscountCardOwnerLockSql =
   'select pg_advisory_xact_lock_shared(hashtextextended($1, 0))';
 const registrationDiscountCardsSql =
-  'select "status"::text, "type"::text, "validFrom"::text, "validTo"::text from "user_discount_cards" where "user_discount_cards"."userId" = $1 order by "user_discount_cards"."id" for share';
+  'select "status", "type", "validFrom", "validTo" from "user_discount_cards" where "user_discount_cards"."userId" = $1 order by "user_discount_cards"."id" for share';
 const readLockedNoDiscountFixture = ({
   parameters,
   statement,
@@ -540,12 +540,12 @@ const createRegistrationReadDatabaseLayer = ({
           if (!option) return [];
           return [
             [
-              option.closeRegistrationTime.toISOString().replace('Z', ''),
+              option.closeRegistrationTime,
               option.confirmedSpots,
               option.eventId,
               option.id,
               option.isPaid,
-              option.openRegistrationTime.toISOString().replace('Z', ''),
+              option.openRegistrationTime,
               option.organizingRegistration,
               option.price,
               option.registrationMode,
@@ -1711,14 +1711,14 @@ const createReservationDatabaseFixture = ({
           }
           case 'lockEligibility': {
             expect(statement).toBe(
-              `select "${optionTable}"."closeRegistrationTime"::text, "${eventTable}"."status"::text, "${optionTable}"."openRegistrationTime"::text, "${optionTable}"."organizingRegistration", "${optionTable}"."registrationMode"::text, "${optionTable}"."roleIds" from "${optionTable}" inner join "${eventTable}" on (("${eventTable}"."id" = "${optionTable}"."eventId") and ("${eventTable}"."tenantId" = $1)) where (("${optionTable}"."id" = $2) and ("${optionTable}"."eventId" = $3)) for update of "${optionTable}"`,
+              `select "${optionTable}"."closeRegistrationTime", "${eventTable}"."status", "${optionTable}"."openRegistrationTime", "${optionTable}"."organizingRegistration", "${optionTable}"."registrationMode", "${optionTable}"."roleIds" from "${optionTable}" inner join "${eventTable}" on (("${eventTable}"."id" = "${optionTable}"."eventId") and ("${eventTable}"."tenantId" = $1)) where (("${optionTable}"."id" = $2) and ("${optionTable}"."eventId" = $3)) for update of "${optionTable}"`,
             );
             expect(parameters).toEqual(['tenant-1', 'option-1', 'event-1']);
             return [
               [
-                sqlDate(option.closeRegistrationTime),
+                option.closeRegistrationTime,
                 option.event.status,
-                sqlDate(option.openRegistrationTime),
+                option.openRegistrationTime,
                 option.organizingRegistration,
                 option.registrationMode,
                 [...option.roleIds],
@@ -1811,7 +1811,7 @@ const createReservationDatabaseFixture = ({
           }
           case 'readAcquisitions': {
             expect(statement).toBe(
-              `select "acquired_at"::text, "event_id", "id", "kind"::text, "operation_key", "ordinal", "owner_user_id", "previous_acquisition_id", "registration_id", "spot_count", "tenant_id", "transfer_id" from "${acquisitionTable}" where (("${acquisitionTable}"."tenant_id" = $1) and ("${acquisitionTable}"."registration_id" = $2)) order by "${acquisitionTable}"."ordinal" desc for update`,
+              `select "acquired_at", "event_id", "id", "kind", "operation_key", "ordinal", "owner_user_id", "previous_acquisition_id", "registration_id", "spot_count", "tenant_id", "transfer_id" from "${acquisitionTable}" where (("${acquisitionTable}"."tenant_id" = $1) and ("${acquisitionTable}"."registration_id" = $2)) order by "${acquisitionTable}"."ordinal" desc for update`,
             );
             expect(parameters).toEqual([
               'tenant-1',
@@ -1933,10 +1933,7 @@ const createReservationDatabaseFixture = ({
               'stripeTaxRateId',
             ];
             const rootSelection = scalarColumns
-              .map(
-                (column) =>
-                  `"d0"."${column}"${column === 'closeRegistrationTime' || column === 'openRegistrationTime' || column === 'registrationMode' ? '::text' : ''} as "${column}"`,
-              )
+              .map((column) => `"d0"."${column}" as "${column}"`)
               .join(', ');
             expect(
               statement.startsWith(
@@ -1944,7 +1941,7 @@ const createReservationDatabaseFixture = ({
               ),
             ).toBe(true);
             expect(statement).toContain(
-              `select "d1"."start"::text as "start", "d1"."status" as "status", "d1"."tenantId" as "tenantId", "d1"."title" as "title" from "${eventTable}" as "d1"`,
+              `select "d1"."start" as "start", "d1"."status" as "status", "d1"."tenantId" as "tenantId", "d1"."title" as "title" from "${eventTable}" as "d1"`,
             );
             expect(statement).toContain(
               `select "d1"."id" as "id", "d1"."required" as "required" from "${getTableName(eventRegistrationQuestions)}" as "d1"`,
@@ -1955,12 +1952,12 @@ const createReservationDatabaseFixture = ({
             expect(parameters).toEqual([1, 'event-1', 'option-1', 1]);
             return [
               [
-                sqlDate(option.closeRegistrationTime),
+                option.closeRegistrationTime,
                 option.confirmedSpots,
                 option.eventId,
                 option.id,
                 option.isPaid,
-                sqlDate(option.openRegistrationTime),
+                option.openRegistrationTime,
                 option.organizingRegistration,
                 option.price,
                 option.registrationMode,
@@ -2068,9 +2065,9 @@ const createWaitlistDatabaseFixture = ({
           expect(parameters).toEqual(['tenant-1', 'option-1', 'event-1']);
           return [
             [
-              option.closeRegistrationTime.toISOString().replace('Z', ''),
+              option.closeRegistrationTime,
               option.event.status,
-              option.openRegistrationTime.toISOString().replace('Z', ''),
+              option.openRegistrationTime,
               option.organizingRegistration,
               option.registrationMode,
               [...option.roleIds],
@@ -2221,11 +2218,11 @@ const createWaitlistDatabaseFixture = ({
             expect(parameters).toEqual([1, 'event-1', 'option-1', 1]);
             return [
               [
-                option.closeRegistrationTime.toISOString().replace('Z', ''),
+                option.closeRegistrationTime,
                 option.confirmedSpots,
                 option.eventId,
                 option.id,
-                option.openRegistrationTime.toISOString().replace('Z', ''),
+                option.openRegistrationTime,
                 option.organizingRegistration,
                 option.registrationMode,
                 option.reservedSpots,
@@ -2647,7 +2644,7 @@ const createManualApprovalDatabase = ({
             statement.startsWith('select ') &&
             statement.includes(` from "${getTableName(eventRegistrations)}"`)
           ) {
-            expect(statement).toMatch(/^select "status"::text from /);
+            expect(statement).toMatch(/^select "status" from /);
             expect(statement).toContain(' for update');
             expect(parameters).toEqual(
               expect.arrayContaining(['registration-1', 'tenant-1', 'event-1']),
@@ -2749,7 +2746,7 @@ const createManualApprovalDatabase = ({
               ]),
             );
             if (!claim) return [];
-            if (statement.startsWith('select "method"::text, '))
+            if (statement.startsWith('select "method", '))
               return [
                 [
                   'stripe',
@@ -2760,7 +2757,7 @@ const createManualApprovalDatabase = ({
                   'registration',
                 ],
               ];
-            if (statement.startsWith('select "status"::text, '))
+            if (statement.startsWith('select "status", '))
               return [
                 [
                   'pending',
@@ -2772,7 +2769,7 @@ const createManualApprovalDatabase = ({
               ];
             if (
               statement.startsWith(
-                'select "stripe_checkout_cancellation_requested_at"::text, "stripe_checkout_incident_session_id", ',
+                'select "stripe_checkout_cancellation_requested_at", "stripe_checkout_incident_session_id", ',
               )
             )
               return [
@@ -2785,7 +2782,7 @@ const createManualApprovalDatabase = ({
               ];
             if (
               statement.startsWith(
-                'select "stripe_checkout_cancellation_requested_at"::text, "stripeCheckoutSessionId", ',
+                'select "stripe_checkout_cancellation_requested_at", "stripeCheckoutSessionId", ',
               )
             )
               return [
@@ -3222,7 +3219,7 @@ const createDirectCheckoutDatabase = ({
               ]
             : [];
         }
-        expect(statement).toContain('select "status"::text from');
+        expect(statement).toContain('select "status" from');
         expect(parameters).toEqual([
           requireRegistration().id,
           'event-1',
@@ -3251,12 +3248,12 @@ const createDirectCheckoutDatabase = ({
         expect(parameters).toEqual([1, 'event-1', 'option-1', 1]);
         return [
           [
-            option.closeRegistrationTime.toISOString().replace('Z', ''),
+            option.closeRegistrationTime,
             option.confirmedSpots,
             option.eventId,
             option.id,
             option.isPaid,
-            option.openRegistrationTime.toISOString().replace('Z', ''),
+            option.openRegistrationTime,
             option.organizingRegistration,
             option.price,
             option.registrationMode,
@@ -3319,7 +3316,7 @@ const createDirectCheckoutDatabase = ({
       }
       assertLockedRead(statement);
       const current = requireClaim();
-      if (statement.startsWith('select "method"::text,')) {
+      if (statement.startsWith('select "method",')) {
         expect(parameters).toEqual([
           ...claimTupleParameters(),
           'tenant-1',
@@ -3336,7 +3333,7 @@ const createDirectCheckoutDatabase = ({
           ],
         ];
       }
-      if (statement.startsWith('select "status"::text,')) {
+      if (statement.startsWith('select "status",')) {
         expect(parameters).toEqual(claimTupleParameters());
         return [
           [
@@ -3425,7 +3422,7 @@ const createDirectCheckoutDatabase = ({
     Effect.sync(() => {
       expect(transactionSnapshot).toBeDefined();
       expect(statement).toContain(
-        ' returning "amount", "appFee", "currency"::text, "id"',
+        ' returning "amount", "appFee", "currency", "id"',
       );
       const amount = option.price * (requireRegistration().guestCount + 1);
       const id = Schema.decodeUnknownSync(Schema.String)(parameters[0]);
@@ -4143,7 +4140,7 @@ describe('EventRegistrationService', () => {
                       : ['option'],
                   );
                   expect(statement).toBe(
-                    'select "d0"."discountedPrice" as "discountedPrice", "d0"."discountType"::text as "discountType" from "event_registration_option_discounts" as "d0" where "d0"."registrationOptionId" = $1',
+                    'select "d0"."discountedPrice" as "discountedPrice", "d0"."discountType" as "discountType" from "event_registration_option_discounts" as "d0" where "d0"."registrationOptionId" = $1',
                   );
                   expect(parameters).toEqual(['option-1']);
                   reads.push('discounts');
@@ -4185,8 +4182,8 @@ describe('EventRegistrationService', () => {
                   return cards.map((card) => [
                     card.status,
                     card.type,
-                    card.validFrom?.toISOString().replace('Z', '') ?? null,
-                    card.validTo?.toISOString().replace('Z', '') ?? null,
+                    card.validFrom ?? null,
+                    card.validTo ?? null,
                   ]);
                 }
                 throw new Error(

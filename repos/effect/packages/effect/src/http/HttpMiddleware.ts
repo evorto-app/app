@@ -42,8 +42,10 @@ import * as TraceContext from "./HttpTraceContext.ts"
 import * as compressionInternal from "./internal/compression.ts"
 import * as decompressionInternal from "./internal/decompression.ts"
 import * as bodyInternal from "./internal/httpBody.ts"
-import { appendPreResponseHandlerUnsafe, CurrentRequestState } from "./internal/requestState.ts"
+import * as RedactedPath from "./internal/redactedPath.ts"
+import { appendPreResponseHandlerUnsafe, CurrentRequestState, type RequestState } from "./internal/requestState.ts"
 import * as tracing from "./internal/tracing.ts"
+import * as internalUrlParams from "./internal/urlParams.ts"
 import * as UrlParams from "./UrlParams.ts"
 
 /**
@@ -135,19 +137,6 @@ export declare namespace HttpMiddleware {
  */
 export const make = <M extends HttpMiddleware>(middleware: M): M => middleware
 
-const stripSearchAndHash = (url: string): string => {
-  const queryIndex = url.indexOf("?")
-  const hashIndex = url.indexOf("#")
-
-  if (queryIndex === -1) {
-    return hashIndex === -1 ? url : url.slice(0, hashIndex)
-  }
-  if (hashIndex === -1) {
-    return url.slice(0, queryIndex)
-  }
-  return url.slice(0, Math.min(queryIndex, hashIndex))
-}
-
 /**
  * Runs an effect with HTTP response logging disabled for the current server request.
  *
@@ -232,12 +221,16 @@ export const logger: <E, R>(
   Effect.withFiber((fiber) => {
     const request = Context.getUnsafe(fiber.context, HttpServerRequest)
     const state = Context.getOrUndefined(fiber.context, CurrentRequestState)
-    const path = stripSearchAndHash(request.url)
     return Effect.withLogSpan(
       Effect.flatMap(Effect.exit(httpApp), (exit) => {
         if (state?.loggerDisabled) {
           return exit
-        } else if (exit._tag === "Failure") {
+        }
+        // Read on exit because the router records `redactedPath` on match.
+        const path = state?.redactedPath !== undefined
+          ? RedactedPath.format(state.redactedPath)
+          : internalUrlParams.stripSearchAndHash(request.url)
+        if (exit._tag === "Failure") {
           const [response, cause] = causeResponseStripped(exit.cause)
           const message = Option.isSome(cause) &&
               !cause.value.reasons.every((reason) =>
@@ -278,11 +271,25 @@ export const isTracerDisabledUnsafe = (
 
 // OpenTelemetry requires failed server spans for 5xx responses.
 const responseSpanExit = (
+  fiber: Fiber.Fiber<unknown, unknown>,
   request: HttpServerRequest,
-  response: HttpServerResponse
+  response: HttpServerResponse,
+  state: RequestState | undefined
 ): Exit.Exit<HttpServerResponse, HttpServerError> => {
   if (!(response.status >= 500 && response.status < 600)) {
     return Exit.succeed(response)
+  }
+  // The message is path-only, but exporters can still read `error.request.url`
+  // after the request-scoped redacted names are gone.
+  let url = UrlParams.redactUrl(
+    request.url,
+    withStateNames(fiber.getRef(UrlParams.CurrentRedactedNames), state?.redactedUrlParamNames)
+  )
+  if (state?.redactedPath !== undefined) {
+    url = RedactedPath.format(state.redactedPath) + url.slice(internalUrlParams.stripSearchAndHash(url).length)
+  }
+  if (url !== request.url) {
+    request = request.modify({ url })
   }
   const stackTraceLimit = getStackTraceLimit()
   setStackTraceLimit(0)
@@ -292,6 +299,12 @@ const responseSpanExit = (
     setStackTraceLimit(stackTraceLimit)
   }
 }
+
+const withStateNames = (
+  names: ReadonlyArray<string | RegExp>,
+  stateNames: ReadonlyArray<string | RegExp> | undefined
+): ReadonlyArray<string | RegExp> =>
+  stateNames === undefined || stateNames.length === 0 ? names : [...names, ...stateNames]
 
 /**
  * Middleware that creates a server trace span for each request and records request and response HTTP attributes.
@@ -318,11 +331,12 @@ export const tracer: <E, R>(
     internalEffect.onExitUnsafe<HttpServerResponse, unknown>(fiber, (exit) => {
       fiber.setContext(prevServices)
       const endTime = fiber.getRef(Clock).currentTimeNanosUnsafe()
+      const state = Context.getOrUndefined(prevServices, CurrentRequestState)
       if (Exit.isSuccess(exit) && (!span.sampled || fiber.getRef(Tracer) === nativeTracer)) {
-        span.end(endTime, responseSpanExit(request, exit.value))
+        span.end(endTime, responseSpanExit(fiber, request, exit.value, state))
         return undefined
       }
-      const redactedHeaderNames = fiber.getRef(Headers.CurrentRedactedNames)
+      const redactedHeaderNames = withStateNames(fiber.getRef(Headers.CurrentRedactedNames), state?.redactedHeaderNames)
       const headerFilter = fiber.getRef(TracerHeaderFilter)
       // Complete the span before the request fiber exits so shutdown can flush it.
       let response: HttpServerResponse
@@ -333,16 +347,21 @@ export const tracer: <E, R>(
         // OpenTelemetry only treats 5xx responses as server span errors; interrupts still fail the span.
         spanExit = Option.isSome(cause) && (response.status >= 500 || Cause.hasInterrupts(cause.value))
           ? Exit.failCause(cause.value)
-          : responseSpanExit(request, response)
+          : responseSpanExit(fiber, request, response, state)
       } else {
         response = exit.value
-        spanExit = responseSpanExit(request, response)
+        spanExit = responseSpanExit(fiber, request, response, state)
       }
       if (span.sampled) {
         span.attribute("http.request.method", request.method)
         const url = Request.toURL(request)
         if (Option.isSome(url)) {
-          tracing.addUrlAttributes(span, url.value, fiber.getRef(UrlParams.CurrentRedactedNames))
+          if (state?.redactedPath !== undefined) url.value.pathname = RedactedPath.format(state.redactedPath)
+          tracing.addUrlAttributes(
+            span,
+            url.value,
+            withStateNames(fiber.getRef(UrlParams.CurrentRedactedNames), state?.redactedUrlParamNames)
+          )
         }
         if (request.headers["user-agent"] !== undefined) {
           span.attribute("user_agent.original", request.headers["user-agent"])
@@ -434,7 +453,9 @@ export interface TrustedProxyOptions {
  * @category proxying
  * @since 4.0.0
  */
-export const xForwardedHeaders = (options: TrustedProxyOptions): HttpMiddleware => {
+export const xForwardedHeaders = (options: TrustedProxyOptions): <E, R>(
+  httpApp: Effect.Effect<HttpServerResponse, E, HttpServerRequest | R>
+) => Effect.Effect<HttpServerResponse, E, HttpServerRequest | R> => {
   const { trustedProxies } = options
   const isTrusted: Predicate<NetAddress.IpAddress> = typeof trustedProxies === "function"
     ? trustedProxies
@@ -540,8 +561,8 @@ export const cors = (options?: {
     : (origin: string) => (opts.allowedOrigins as ReadonlyArray<string>).includes(origin)
 
   const allowOrigin = typeof opts.allowedOrigins === "function" || opts.allowedOrigins.length > 1
-    ? ((originHeader: string): ReadonlyRecord<string, string> => {
-      if (!isAllowedOrigin(originHeader)) return { vary: "Origin" }
+    ? ((originHeader: string | undefined): ReadonlyRecord<string, string> => {
+      if (originHeader === undefined || !isAllowedOrigin(originHeader)) return { vary: "Origin" }
       return {
         "access-control-allow-origin": originHeader,
         vary: "Origin"
