@@ -3,9 +3,15 @@ const stripeCheckoutHostname = 'checkout.stripe.com';
 const parseStripeCheckoutUrl = (
   value: null | string | undefined,
 ): null | URL => {
-  if (!value || !URL.canParse(value)) return null;
+  if (!value) return null;
 
-  const url = new URL(value);
+  // Browsers ship this helper too; Safari before 17 has no URL.canParse.
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return null;
+  }
   if (
     url.protocol !== 'https:' ||
     url.hostname !== stripeCheckoutHostname ||

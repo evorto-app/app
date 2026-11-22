@@ -81,14 +81,13 @@ export const PipeInspectableProto = {
 /** @internal */
 export const StructuralProto = {
   [Hash.symbol](this: any): number {
-    return Hash.structureKeys(this, Object.keys(this))
+    return Hash.structureKeys(this, InternalRecord.ownEnumerableKeys(this))
   },
   [Equal.symbol](this: any, that: any): boolean {
-    const selfKeys = Object.keys(this)
-    const thatKeys = Object.keys(that)
-    if (selfKeys.length !== thatKeys.length) return false
-    for (let i = 0; i < selfKeys.length; i++) {
-      if (selfKeys[i] !== thatKeys[i] || !Equal.equals(this[selfKeys[i]], that[selfKeys[i]])) {
+    const selfKeys = InternalRecord.ownEnumerableKeys(this)
+    if (selfKeys.length !== InternalRecord.ownEnumerableKeys(that).length) return false
+    for (const key of selfKeys) {
+      if (!Object.prototype.propertyIsEnumerable.call(that, key) || !Equal.equals(this[key], that[key])) {
         return false
       }
     }
@@ -216,6 +215,8 @@ export abstract class ReasonBase<Tag extends string> implements Cause.Cause.Reas
       if (options?.overwrite !== true && newAnnotations.has(key)) return
       newAnnotations.set(key, value)
     })
+    // Keep the reason when nothing was added, so interrupts still match by identity.
+    if (options?.overwrite !== true && newAnnotations.size === this.annotations.size) return this
     const self = Object.assign(Object.create(Object.getPrototypeOf(this)), this)
     self.annotations = newAnnotations
     return self

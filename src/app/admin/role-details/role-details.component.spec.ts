@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
+import { createRpcQueryOptions } from '@heddendorp/effect-angular-query';
 import {
   RpcForbiddenError,
   RpcInternalServerError,
@@ -22,10 +23,13 @@ type FindRoleOptions = ReturnType<
 const findRole = vi.fn<() => Promise<AdminRoleRecord>>();
 const queryOptions = (
   input: Parameters<FindRoleOptions>[0],
-): ReturnType<FindRoleOptions> => ({
-  queryFn: findRole,
-  queryKey: [['admin', 'roles', 'findOne'], { input, type: 'query' }],
-});
+): ReturnType<FindRoleOptions> =>
+  createRpcQueryOptions({
+    input,
+    pathSegments: ['admin', 'roles', 'findOne'],
+    queryFn: findRole,
+    type: 'query',
+  });
 
 describe('RoleDetailsComponent effective permissions', () => {
   let queryClient: QueryClient;

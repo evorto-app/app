@@ -8,7 +8,10 @@ import {
   MatDialogRef,
 } from '@angular/material/dialog';
 import { provideRouter } from '@angular/router';
-import { createRpcQueryFilter } from '@heddendorp/effect-angular-query';
+import {
+  createRpcQueryFilter,
+  createRpcQueryOptions,
+} from '@heddendorp/effect-angular-query';
 import {
   RpcForbiddenError,
   RpcInternalServerError,
@@ -343,13 +346,12 @@ describe('CategoryListComponent save outcomes', () => {
               findMany: {
                 queryOptions: (): ReturnType<
                   Client['templateCategories']['findMany']['queryOptions']
-                > => ({
-                  queryFn: findCategories,
-                  queryKey: [
-                    ['templateCategories', 'findMany'],
-                    { type: 'query' },
-                  ],
-                }),
+                > =>
+                  createRpcQueryOptions({
+                    pathSegments: ['templateCategories', 'findMany'],
+                    queryFn: findCategories,
+                    type: 'query',
+                  }),
               },
               update: {
                 mutationOptions: (): ReturnType<
@@ -361,13 +363,12 @@ describe('CategoryListComponent save outcomes', () => {
               groupedByCategory: {
                 queryOptions: (): ReturnType<
                   Client['templates']['groupedByCategory']['queryOptions']
-                > => ({
-                  queryFn: findGroups,
-                  queryKey: [
-                    ['templates', 'groupedByCategory'],
-                    { type: 'query' },
-                  ],
-                }),
+                > =>
+                  createRpcQueryOptions({
+                    pathSegments: ['templates', 'groupedByCategory'],
+                    queryFn: findGroups,
+                    type: 'query',
+                  }),
               },
             },
           },

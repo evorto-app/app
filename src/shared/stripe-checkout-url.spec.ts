@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   normalizeStripeCheckoutUrl,
@@ -29,6 +29,26 @@ describe('normalizeStripeCheckoutUrl', () => {
     'https://checkout.stripe.com:444/c/pay/cs_test_123',
   ])('rejects an unsafe checkout destination: %s', (value) => {
     expect(normalizeStripeCheckoutUrl(value)).toBeNull();
+  });
+
+  describe('without URL.canParse (Safari before 17)', () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('still normalizes valid URLs and rejects malformed ones', () => {
+      // Safari 16 has no URL.canParse; calling it there throws a TypeError.
+      const canParse = vi.spyOn(URL, 'canParse').mockImplementation(() => {
+        throw new TypeError('URL.canParse is not a function');
+      });
+
+      expect(normalizeStripeCheckoutUrl(checkoutUrl)).toBe(checkoutUrl);
+      expect(normalizeStripeCheckoutUrl('not a URL')).toBeNull();
+      expect(stripeCheckoutUrlMatchesSession(checkoutUrl, sessionId)).toBe(
+        true,
+      );
+      expect(canParse).not.toHaveBeenCalled();
+    });
   });
 });
 

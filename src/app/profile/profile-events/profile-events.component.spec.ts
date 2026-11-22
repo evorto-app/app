@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 
-import { normalizeStripeCheckoutUrl } from '../../core/stripe-checkout-url';
 import {
   profileEventActionNote,
   profileEventAddonIncludedLabel,
@@ -386,17 +385,4 @@ describe('profile event labels', () => {
       'After the refund, check whether you can still sign up or contact the organizer',
     );
   });
-});
-
-it('only treats Stripe Checkout HTTPS URLs as continuation links', () => {
-  expect(
-    normalizeStripeCheckoutUrl('https://checkout.stripe.com/pay/cs_test_123'),
-  ).toBe('https://checkout.stripe.com/pay/cs_test_123');
-  expect(
-    normalizeStripeCheckoutUrl('http://checkout.stripe.com/pay/cs_test_123'),
-  ).toBeNull();
-  expect(
-    normalizeStripeCheckoutUrl('https://checkout.stripe.com.evil.example/pay'),
-  ).toBeNull();
-  expect(normalizeStripeCheckoutUrl('javascript:alert(1)')).toBeNull();
 });

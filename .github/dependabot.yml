@@ -4,13 +4,70 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
     exclude-paths:
       - "repos/**"
+    groups:
+      angular:
+        patterns:
+          - "@angular/*"
+          - "angular-eslint"
+      effect:
+        patterns:
+          - "effect"
+          - "@effect/*"
+          - "@heddendorp/effect-*"
+      drizzle:
+        patterns:
+          - "drizzle-*"
+      tiptap:
+        patterns:
+          - "@tiptap/*"
+      opentelemetry:
+        patterns:
+          - "@opentelemetry/*"
+      playwright:
+        patterns:
+          - "playwright*"
+          - "@playwright/*"
+          - "@axe-core/playwright"
+      lint-and-test:
+        patterns:
+          - "eslint"
+          - "@eslint/*"
+          - "eslint-*"
+          - "typescript-eslint"
+          - "yaml-eslint-parser"
+          - "vitest"
+          - "happy-dom"
+      types:
+        patterns:
+          - "@types/*"
+      minor-and-patch:
+        applies-to: version-updates
+        update-types:
+          - "minor"
+          - "patch"
+        patterns:
+          - "*"
   - package-ecosystem: "docker"
     directory: "/"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
+    groups:
+      docker-images:
+        patterns:
+          - "*"
   - package-ecosystem: "docker-compose"
     directory: "/"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
+    groups:
+      docker-compose-images:
+        patterns:
+          - "*"

@@ -130,16 +130,6 @@ export const EventsCanOrganize = asRpcQuery(
   }),
 );
 
-export const EventsCancelPendingRegistration = asRpcMutation(
-  Rpc.make('events.cancelPendingRegistration', {
-    error: EventsCancelPendingRegistrationError,
-    payload: Schema.Struct({
-      registrationId: Schema.NonEmptyString,
-    }),
-    success: Schema.Void,
-  }),
-);
-
 export const EventsCancelRegistration = asRpcMutation(
   Rpc.make('events.cancelRegistration', {
     error: EventsCancelPendingRegistrationError,
@@ -413,25 +403,6 @@ export const EventsFindOneForEditRegistrationOption = Schema.Struct({
   title: Schema.NonEmptyString,
   transferDeadlineHoursBeforeStart: Schema.NullOr(nonNegativeNumber),
 });
-
-export const EventsFindOneForEdit = asRpcQuery(
-  Rpc.make('events.findOneForEdit', {
-    error: EventsFindOneForEditRpcError,
-    payload: Schema.Struct({
-      id: Schema.NonEmptyString,
-    }),
-    success: Schema.Struct({
-      description: Schema.NonEmptyString,
-      end: Schema.NonEmptyString,
-      icon: iconSchema,
-      id: Schema.NonEmptyString,
-      location: Schema.NullOr(EventLocation),
-      registrationOptions: Schema.Array(EventsFindOneForEditRegistrationOption),
-      start: Schema.NonEmptyString,
-      title: Schema.NonEmptyString,
-    }),
-  }),
-);
 
 export const EventsFindOneRegistrationOption = Schema.Struct({
   appliedDiscountType: Schema.NullOr(Schema.Literal('esnCard')),
@@ -1106,7 +1077,6 @@ export const EventsUpdateGraph = asRpcMutation(
 
 export class EventsRpcs extends RpcGroup.make(
   EventsApproveRegistration,
-  EventsCancelPendingRegistration,
   EventsCancelRegistration,
   EventsCancelEventRegistration,
   EventsCanOrganize,
@@ -1114,7 +1084,6 @@ export class EventsRpcs extends RpcGroup.make(
   EventsCreate,
   EventsEventList,
   EventsFindOne,
-  EventsFindOneForEdit,
   EventsFindGraphForEdit,
   EventsGetOrganizeOverview,
   EventsGetPendingReviews,

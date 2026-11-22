@@ -2443,12 +2443,6 @@ export const eventRegistrationHandlers = {
       registrationId,
       requireOrganizerAccess: true,
     }),
-  'events.cancelPendingRegistration': ({ registrationId }, _options) =>
-    cancelRegistration({
-      expectedPaymentPending: false,
-      expectedStatus: 'PENDING',
-      registrationId,
-    }),
   'events.cancelRegistration': (
     { expectedPaymentPending, expectedStatus, registrationId },
     _options,

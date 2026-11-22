@@ -1,5 +1,4 @@
 import { Effect, Schema } from 'effect';
-import { uniq } from 'es-toolkit';
 
 import { Database, type DatabaseClient } from '../../db';
 import { getPreparedStatements } from '../../db/prepared-statements';
@@ -16,7 +15,7 @@ import { hasCurrentTenantOnboarding } from '../onboarding/tenant-onboarding.serv
 
 const normalizePermissions = <P extends Permission>(
   permissions: readonly P[],
-) => uniq(permissions);
+) => [...new Set(permissions)];
 
 const PersistedTenantRolePermissions = Schema.Array(TenantRolePermissionSchema);
 

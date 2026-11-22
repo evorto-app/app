@@ -14,10 +14,7 @@ import {
   allocateIntegerByWeight,
   resolveAddonTaxAmounts,
 } from '../payments/addon-payment-allocation';
-import {
-  deriveRegistrationPaymentFeeSnapshot,
-  type RegistrationPaymentFeeSnapshot,
-} from '../payments/registration-payment-fee-snapshot';
+import { deriveRegistrationPaymentFeeSnapshot } from '../payments/registration-payment-fee-snapshot';
 import { StripeClient } from '../stripe-client';
 
 export type AcquisitionComponentTerm =
@@ -239,18 +236,6 @@ export const resolveStripeAcquisitionPaymentSettlement = Effect.fn(
     stripeNetAmount: snapshot.stripeNetAmount,
   } satisfies AcquisitionPaymentSettlement;
 });
-
-const paymentSettlementFromSnapshot = (
-  snapshot: RegistrationPaymentFeeSnapshot,
-): AcquisitionPaymentSettlement => ({
-  applicationFeeAmount: snapshot.appFee,
-  grossAmount: snapshot.grossAmount,
-  stripeFeeAmount: snapshot.stripeFee,
-  stripeNetAmount: snapshot.stripeNetAmount,
-});
-
-export const acquisitionPaymentSettlementFromSnapshot =
-  paymentSettlementFromSnapshot;
 
 const lockAndValidatePaymentSource = Effect.fn(
   'lockAndValidateAcquisitionPaymentSource',

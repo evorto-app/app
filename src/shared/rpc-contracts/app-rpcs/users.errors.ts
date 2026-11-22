@@ -3,7 +3,7 @@ import { Schema } from 'effect';
 import {
   BadRequestOrUnauthorizedRpcError,
   ForbiddenOrUnauthorizedRpcError,
-  UnauthorizedRpcError,
+  RpcUnauthorizedError,
 } from '../../errors/rpc-errors';
 
 export class UserRoleAssignmentNotFoundError extends Schema.TaggedError<UserRoleAssignmentNotFoundError>()(
@@ -20,8 +20,8 @@ export class UserSelfRoleRemovalError extends Schema.TaggedError<UserSelfRoleRem
   },
 ) {}
 
-export const UserRpcError = UnauthorizedRpcError;
-export type UserRpcError = UnauthorizedRpcError;
+export const UserRpcError = RpcUnauthorizedError;
+export type UserRpcError = RpcUnauthorizedError;
 
 export const UsersFindManyError = ForbiddenOrUnauthorizedRpcError;
 export type UsersFindManyError = ForbiddenOrUnauthorizedRpcError;

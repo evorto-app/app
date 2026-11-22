@@ -210,11 +210,11 @@ describe('RegistrationTransferService.getClaim tenant settings', () => {
             return [
               [
                 null,
-                '2099-09-18T12:00:00.000',
+                new Date('2099-09-18T12:00:00.000Z'),
                 'event-1',
-                '2099-09-18T10:00:00.000',
+                new Date('2099-09-18T10:00:00.000Z'),
                 'Transfer event',
-                '2099-09-17T10:00:00.000',
+                new Date('2099-09-17T10:00:00.000Z'),
                 null,
                 'option-1',
                 true,
@@ -612,9 +612,9 @@ const transferInput: Parameters<TransferService['claim']>[0] = {
     roleIds: [],
   },
 };
-const eventStart = '2099-08-01 18:00:00';
-const eventEnd = '2099-08-01 22:00:00';
-const transferExpiry = '2099-07-31 18:00:00';
+const eventStart = new Date('2099-08-01T18:00:00.000Z');
+const eventEnd = new Date('2099-08-01T22:00:00.000Z');
+const transferExpiry = new Date('2099-07-31T18:00:00.000Z');
 
 const checkoutFixture = () => {
   const stripe = new Stripe('sk_test_transfer_persisted_boundaries', {
@@ -697,7 +697,7 @@ describe('private transfer code recovery', () => {
                       eventStart,
                       'APPROVED',
                       'Event',
-                      '1960-01-01 00:00:00',
+                      new Date('1960-01-01T00:00:00.000Z'),
                       'event-1',
                       'option-1',
                       0,

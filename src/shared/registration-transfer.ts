@@ -75,11 +75,3 @@ export const isActiveRegistrationTransferStatus = (
     }
   }
 };
-
-export const terminalRegistrationTransferStatuses =
-  new Set<RegistrationTransferStatus>([
-    'cancelled',
-    'compensated',
-    'completed',
-    'expired',
-  ]);
