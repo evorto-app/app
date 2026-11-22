@@ -3739,11 +3739,22 @@ export const eventRegistrationHandlers = {
               _tag: 'Unavailable' as const,
               message: error.message,
             }),
+          // Not every internal add-on failure is logged by the service, and
+          // its wording is meant for administrators: log it here and show the
+          // helper a plain message.
           EventRegistrationInternalError: (error) =>
-            Effect.succeed({
-              _tag: 'Unavailable' as const,
-              message: error.message,
-            }),
+            Effect.logError('Ticket add-ons could not be read for a scan').pipe(
+              Effect.annotateLogs({
+                message: error.message,
+                registrationId,
+                tenantId: tenant.id,
+              }),
+              Effect.as({
+                _tag: 'Unavailable' as const,
+                message:
+                  'Add-ons cannot be shown right now. Contact an Evorto administrator.',
+              }),
+            ),
           EventRegistrationNotFoundError: (error) =>
             Effect.succeed({
               _tag: 'Unavailable' as const,

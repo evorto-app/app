@@ -563,6 +563,19 @@ export class HandleRegistrationComponent {
       isSuccess: this.checkInMutation.isSuccess(),
     }),
   );
+  /**
+   * An unconfirmed check-in that the server answered with an internal error
+   * instead of a dropped connection. Internal wording stays hidden, as with
+   * every scanner error.
+   */
+  protected readonly checkInServerUnconfirmed = computed(
+    () =>
+      this.checkInState() === 'notConfirmed' &&
+      hasErrorTag(
+        this.checkInMutation.error(),
+        'EventRegistrationInternalError',
+      ),
+  );
   protected readonly scanTicketQuery = injectQuery(() => ({
     ...this.rpc.events.scanTicket.queryOptions({
       registrationId: this.registrationId(),

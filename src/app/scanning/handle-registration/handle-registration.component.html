@@ -350,10 +350,18 @@
           role="alert"
         >
           <p class="title-small">Check-in not confirmed</p>
-          <p>
-            The connection dropped, so it is unclear whether this check-in was
-            saved. Select Try again. It will not be counted twice.
-          </p>
+          @if (checkInServerUnconfirmed()) {
+            <p>
+              The server could not confirm whether this check-in was saved.
+              Select Try again. It will not be counted twice. If this keeps
+              happening, contact an Evorto administrator.
+            </p>
+          } @else {
+            <p>
+              The connection dropped, so it is unclear whether this check-in was
+              saved. Select Try again. It will not be counted twice.
+            </p>
+          }
         </div>
       }
       @case ("failed") {

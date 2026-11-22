@@ -6203,9 +6203,14 @@ describe('event registration scan handlers', () => {
               ),
             );
 
+            // Internal wording is for administrators; the helper gets a
+            // plain message and the failure is logged by the handler.
             expect(result.addOns).toEqual({
               _tag: 'Unavailable',
-              message: failure.message,
+              message:
+                failure._tag === 'EventRegistrationInternalError'
+                  ? 'Add-ons cannot be shown right now. Contact an Evorto administrator.'
+                  : failure.message,
             });
             expect(result.registration).toMatchObject({
               registrationOption: { title: 'Participant' },

@@ -824,6 +824,36 @@ describe('HandleRegistrationComponent ticket display', () => {
     expect(content).not.toContain('Ticket could not be loaded');
   });
 
+  it('explains an unconfirmed check-in after an internal error without the connection text', async () => {
+    scanTicket.mockResolvedValue({
+      addOns: { _tag: 'Available', items: [] },
+      registration,
+    });
+    checkIn.mockRejectedValue({
+      _tag: 'EventRegistrationInternalError',
+      message:
+        'The event details are unavailable, so no check-in was recorded. Contact an Evorto administrator.',
+    });
+    const fixture = await render();
+    const button: HTMLButtonElement = [
+      ...fixture.nativeElement.querySelectorAll('button'),
+    ].find((element: HTMLButtonElement) =>
+      element.textContent?.includes('Confirm check-in'),
+    );
+    button.click();
+    await settle(fixture);
+
+    const content = text(fixture);
+    expect(content).toContain('Check-in not confirmed');
+    expect(content).toContain(
+      'The server could not confirm whether this check-in was saved.',
+    );
+    expect(content).toContain('contact an Evorto administrator.');
+    expect(content).not.toContain('The event details are unavailable');
+    expect(content).not.toContain('The connection dropped');
+    expect(content).toContain('Try again');
+  });
+
   it('shows the full-page error only when the first load fails', async () => {
     scanTicket.mockRejectedValue(new Error('offline'));
     const fixture = await render();
