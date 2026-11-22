@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router, UrlTree } from '@angular/router';
+import { createTestRpcQueryOptions } from '@app/testing/rpc-query-test-options';
 import { RpcForbiddenError } from '@shared/errors/rpc-errors';
 import { MAX_REGISTRATION_QUESTIONS } from '@shared/registration-question-limits';
 import {
@@ -23,19 +24,21 @@ type RpcClient = ReturnType<typeof AppRpc.injectClient>;
 
 const findGraphForEdit = vi.fn<() => Promise<EventGraphEditRecord>>();
 const editQueryOptions = vi.fn(
-  (input: Parameters<EditQueryOptions>[0]): ReturnType<EditQueryOptions> => ({
-    queryFn: findGraphForEdit,
-    queryKey: [['events', 'findGraphForEdit'], { input, type: 'query' }],
-  }),
+  (input: Parameters<EditQueryOptions>[0]): ReturnType<EditQueryOptions> =>
+    createTestRpcQueryOptions({
+      input,
+      pathSegments: ['events', 'findGraphForEdit'],
+      queryFn: findGraphForEdit,
+    }),
 );
 const findPublicEvent = vi.fn<() => Promise<never>>();
 const publicQueryOptions = vi.fn(
-  (
-    input: Parameters<PublicQueryOptions>[0],
-  ): ReturnType<PublicQueryOptions> => ({
-    queryFn: findPublicEvent,
-    queryKey: [['events', 'findOne'], { input, type: 'query' }],
-  }),
+  (input: Parameters<PublicQueryOptions>[0]): ReturnType<PublicQueryOptions> =>
+    createTestRpcQueryOptions({
+      input,
+      pathSegments: ['events', 'findOne'],
+      queryFn: findPublicEvent,
+    }),
 );
 const maybeSelf = vi.fn<() => Promise<null>>();
 const hasPermissionSync = vi.fn<PermissionsService['hasPermissionSync']>();

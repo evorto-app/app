@@ -198,8 +198,7 @@ const graphUpdateRpcOptions = () => ({
   rpc: EventsUpdateGraph.middleware(RpcRequestContextMiddleware),
 });
 
-const graphDatabaseTimestamp = (value: Date) =>
-  value.toISOString().replace('T', ' ').replace('Z', '');
+const graphDatabaseTimestamp = (value: Date) => value;
 
 const createGraphUpdateDatabase = ({
   simpleModeEnabled = false,
@@ -282,7 +281,7 @@ const createGraphUpdateDatabase = ({
         sqlCalls(statement, parameters);
         if (
           statement.startsWith(
-            'select "d0"."creatorId" as "creatorId", "d0"."status"::text as "status"',
+            'select "d0"."creatorId" as "creatorId", "d0"."status" as "status"',
           )
         ) {
           expect(statement).toContain('from "event_instances" as "d0"');
@@ -312,7 +311,7 @@ const createGraphUpdateDatabase = ({
         }
         if (
           statement.startsWith(
-            'select "description", "end"::text, "icon", "id", "location", "simpleModeEnabled", "start"::text, "title" from "event_instances"',
+            'select "description", "end", "icon", "id", "location", "simpleModeEnabled", "start", "title" from "event_instances"',
           )
         ) {
           expect(statement).toContain('"event_instances"."id" = $1');
@@ -2192,10 +2191,9 @@ describe('announcement discovery lifecycle', () => {
           'write',
         ]);
         expect(fixture.writes).toHaveBeenCalledTimes(1);
-        expect(fixture.writes.mock.calls[0]?.[1]).toContainEqual([
-          'role-a',
-          'role-b',
-        ]);
+        expect(fixture.writes.mock.calls[0]?.[1]).toContain(
+          '{"role-a","role-b"}',
+        );
         expect(fixture.transactionCommands).toEqual(['BEGIN', 'COMMIT']);
       }),
   );

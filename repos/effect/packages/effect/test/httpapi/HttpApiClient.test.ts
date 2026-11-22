@@ -1,6 +1,6 @@
 import { assert, describe, it } from "@effect/vitest"
 import { strictEqual } from "@effect/vitest/utils"
-import { Cause, Effect, Exit, Schema, Stream } from "effect"
+import { Cause, Effect, Exit, Fiber, Schema, Stream, Tracer } from "effect"
 import { Sse } from "effect/encoding"
 import { HttpClient, HttpClientError, HttpClientRequest, HttpClientResponse } from "effect/http"
 import { HttpApi, HttpApiClient, HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from "effect/http-api"
@@ -498,6 +498,31 @@ describe("HttpApiClient", () => {
         assert.deepStrictEqual(first.map((chunk) => Array.from(chunk)), [[1, 2]])
       }))
 
+    it.effect("decodes a stream with listed content types regardless of the received content type", () =>
+      Effect.gen(function*() {
+        const Api = HttpApi.make("Api").add(
+          HttpApiGroup.make("test").add(
+            HttpApiEndpoint.get("events", "/events", {
+              success: HttpApiSchema.StreamNdjson({
+                schema: Schema.Struct({ id: Schema.Number }),
+                contentType: ["application/jsonl", "application/json"]
+              })
+            })
+          )
+        )
+        for (const contentType of ["application/json", "text/plain"]) {
+          const client = yield* HttpApiClient.makeWith(Api, {
+            baseUrl: "http://test",
+            httpClient: clientFromResponse(() =>
+              new Response(textStream([`{"id":1}\n`]), { status: 200, headers: { "content-type": contentType } })
+            )
+          })
+
+          const items = yield* client.test.events().pipe(Effect.flatMap(Stream.runCollect))
+          assert.deepStrictEqual(items, [{ id: 1 }])
+        }
+      }))
+
     it.effect("decodes WithHeaders StreamUint8Array bodies and headers", () =>
       Effect.gen(function*() {
         const Api = HttpApi.make("Api").add(
@@ -860,6 +885,22 @@ describe("HttpApiClient", () => {
         assert.strictEqual(error, "NoContentError")
       }))
 
+    it.effect("describes undeclared statuses in the DecodeError", () =>
+      Effect.gen(function*() {
+        const client = yield* makeClient(() =>
+          new Response(JSON.stringify({ message: "valid but undeclared" }), {
+            status: 418,
+            headers: { "content-type": "application/json" }
+          })
+        )
+
+        const error = yield* Effect.flip(client.test.textFirst({}))
+        assert.ok(HttpClientError.isHttpClientError(error))
+        assert.strictEqual(error.reason._tag, "DecodeError")
+        assert.strictEqual(error.reason.description, "undeclared status code")
+        assert.strictEqual(error.response?.status, 418)
+      }))
+
     it.effect("groups schemas by normalized declared content type", () =>
       Effect.gen(function*() {
         const client = yield* makeClient(() =>
@@ -873,6 +914,80 @@ describe("HttpApiClient", () => {
         assert.deepStrictEqual(error, { _tag: "SecondJsonError", message: "bad request" })
       }))
   })
+
+  describe("decodeResponse", () => {
+    it.effect("decodes a response-only body that arrives after the head", () =>
+      Effect.gen(function*() {
+        let body!: ReadableStreamDefaultController<Uint8Array>
+        const client = yield* HttpApiClient.makeWith(WaitApi, {
+          baseUrl: "http://test",
+          httpClient: clientFromResponse(() =>
+            new Response(
+              new ReadableStream({
+                start(controller) {
+                  body = controller
+                }
+              }),
+              { headers: { "content-type": "application/json" } }
+            )
+          )
+        })
+
+        const response = yield* client.containers.wait({ params: { id: "1" }, responseMode: "response-only" })
+        const decode = HttpApiClient.decodeResponse(WaitApi, { group: "containers", endpoint: "wait" })
+        const fiber = yield* Effect.forkChild(decode(response))
+        body.enqueue(textEncoder.encode(JSON.stringify({ StatusCode: 0 })))
+        body.close()
+        assert.deepStrictEqual(yield* Fiber.join(fiber), { StatusCode: 0 })
+      }))
+
+    it.effect("fails with declared errors like decoded-only", () =>
+      Effect.gen(function*() {
+        const response = HttpClientResponse.fromWeb(
+          HttpClientRequest.post("http://test/containers/1/wait"),
+          new Response(JSON.stringify({ _tag: "EndpointError", message: "no such container" }), {
+            status: 400,
+            headers: { "content-type": "application/json" }
+          })
+        )
+
+        const decode = HttpApiClient.decodeResponse(WaitApi, { group: "containers", endpoint: "wait" })
+        const error = yield* Effect.flip(decode(response))
+        assert.deepStrictEqual(error, new EndpointError({ message: "no such container" }))
+      }))
+  })
+
+  it.effect("decodes single-value form response arrays with headers and declared errors", () =>
+    Effect.gen(function*() {
+      const Form = Schema.Struct({
+        tags: Schema.Array(Schema.String),
+        note: Schema.Array(Schema.String)
+      }).pipe(HttpApiSchema.asFormUrlEncoded())
+      const Api = HttpApi.make("Api").add(
+        HttpApiGroup.make("test").add(HttpApiEndpoint.get("form", "/form", {
+          success: HttpApiSchema.WithHeaders(Form, { "x-count": Schema.Int }),
+          error: Form.pipe(HttpApiSchema.status(400))
+        }))
+      )
+      const decode = HttpApiClient.decodeResponse(Api, { group: "test", endpoint: "form" })
+      const response = (status: number) =>
+        HttpClientResponse.fromWeb(
+          HttpClientRequest.get("http://test/form"),
+          new Response("tags=a&note=x", {
+            status,
+            headers: { "content-type": "application/x-www-form-urlencoded", "x-count": "1" }
+          })
+        )
+
+      assert.deepStrictEqual(
+        yield* decode(response(200)),
+        HttpApiSchema.withHeaders({ body: { tags: ["a"], note: ["x"] }, headers: { "x-count": 1 } })
+      )
+      assert.deepStrictEqual(
+        yield* Effect.flip(decode(response(400))),
+        { tags: ["a"], note: ["x"] }
+      )
+    }))
 
   it.effect("decodes form-urlencoded responses", () =>
     Effect.gen(function*() {
@@ -1097,6 +1212,71 @@ describe("HttpApiClient", () => {
       assert.strictEqual(typeof groupClient["__proto__"], "function")
     }))
 
+  describe("RedactedNames", () => {
+    it.effect("redacts declared query and header names in client spans, including nested keys", () =>
+      Effect.gen(function*() {
+        const Api = HttpApi.make("Api").add(
+          HttpApiGroup.make("images").add(
+            HttpApiEndpoint.post("build", "/build", {
+              query: {
+                buildargs: Schema.Record(Schema.String, Schema.String),
+                remote: Schema.String,
+                t: Schema.String
+              },
+              headers: {
+                "x-registry-config": Schema.String,
+                "x-registry-mirror": Schema.String,
+                "x-page": Schema.String
+              }
+            }).annotate(HttpApi.RedactedNames, {
+              query: ["buildargs", "remote"],
+              headers: [/^x-registry-/]
+            })
+          )
+        )
+        const capture = captureRequest()
+        const client = yield* HttpApiClient.makeWith(Api, { baseUrl: "http://test", httpClient: capture.httpClient })
+
+        yield* capture.trace(client.images.build({
+          query: { buildargs: { NPM_TOKEN: "s3cret" }, remote: "https://user:pass@host/repo.git", t: "app" },
+          headers: { "x-registry-config": "cfg-s3cret", "x-registry-mirror": "mirror", "x-page": "1" }
+        }))
+
+        strictEqual(
+          capture.span.attributes.get("url.full"),
+          "http://test/build?buildargs%5BNPM_TOKEN%5D=REDACTED&remote=REDACTED&t=app"
+        )
+        strictEqual(capture.span.attributes.get("url.query"), "buildargs%5BNPM_TOKEN%5D=REDACTED&remote=REDACTED&t=app")
+        strictEqual(capture.span.attributes.get("http.request.header.x-registry-config"), "<redacted>")
+        strictEqual(capture.span.attributes.get("http.request.header.x-registry-mirror"), "<redacted>")
+        strictEqual(capture.span.attributes.get("http.request.header.x-page"), "1")
+        // The wire is unchanged.
+        strictEqual(
+          capture.sent.url,
+          "http://test/build?buildargs%5BNPM_TOKEN%5D=s3cret&remote=https%3A%2F%2Fuser%3Apass%40host%2Frepo.git&t=app"
+        )
+        strictEqual(capture.sent.headers["x-registry-config"], "cfg-s3cret")
+      }))
+
+    it.effect("combines names declared on the API, group and endpoint with the current defaults", () =>
+      Effect.gen(function*() {
+        const Api = HttpApi.make("Api").add(
+          HttpApiGroup.make("test").add(
+            HttpApiEndpoint.get("get", "/get", {
+              query: { a: Schema.String, b: Schema.String, c: Schema.String, sig: Schema.String, page: Schema.String }
+            }).annotate(HttpApi.RedactedNames, { query: ["c"] })
+          ).annotate(HttpApi.RedactedNames, { query: ["b"] })
+        ).annotate(HttpApi.RedactedNames, { query: ["a"] })
+        const capture = captureRequest()
+        const client = yield* HttpApiClient.makeWith(Api, { baseUrl: "http://test", httpClient: capture.httpClient })
+
+        yield* capture.trace(client.test.get({ query: { a: "1", b: "2", c: "3", sig: "4", page: "5" } }))
+
+        strictEqual(capture.span.attributes.get("url.query"), "a=REDACTED&b=REDACTED&c=REDACTED&sig=REDACTED&page=5")
+        strictEqual(capture.sent.url, "http://test/get?a=1&b=2&c=3&sig=4&page=5")
+      }))
+  })
+
   it.effect("applies transformClient to endpoint clients exactly once", () =>
     Effect.gen(function*() {
       const Api = HttpApi.make("Api").add(
@@ -1198,6 +1378,41 @@ describe("HttpApiClient", () => {
       strictEqual(urls[0], "https://api.example.com/files")
       strictEqual(urls[1], "https://api.example.com/files/a%2Fb")
     }))
+
+  it.effect("rejects dot segment path parameters before sending requests", () =>
+    Effect.gen(function*() {
+      const Api = HttpApi.make("Api")
+        .add(
+          HttpApiGroup.make("users")
+            .add(
+              HttpApiEndpoint.delete("remove", "/users/:id", {
+                params: {
+                  id: Schema.String
+                }
+              })
+            )
+        )
+      const urls: Array<string> = []
+      const httpClient = HttpClient.make((request, url) =>
+        Effect.sync(() => {
+          urls.push(url.toString())
+          return HttpClientResponse.fromWeb(request, new Response(null, { status: 204 }))
+        })
+      )
+      const client = yield* HttpApiClient.makeWith(Api, {
+        httpClient,
+        baseUrl: "https://api.example.com/api/v1"
+      })
+
+      const exits = yield* Effect.forEach([".", ".."], (id) =>
+        client.users.remove({
+          params: { id },
+          responseMode: "response-only"
+        }).pipe(Effect.exit))
+
+      assert.deepStrictEqual(urls, [])
+      assert.isTrue(exits.every(Exit.hasDies))
+    }))
 })
 
 const textEncoder = new TextEncoder()
@@ -1259,6 +1474,16 @@ const MixedSuccessApi = HttpApi.make("MixedSuccessApi").add(
     )
 )
 
+const WaitApi = HttpApi.make("WaitApi").add(
+  HttpApiGroup.make("containers").add(
+    HttpApiEndpoint.post("wait", "/containers/:id/wait", {
+      params: { id: Schema.String },
+      success: Schema.Struct({ StatusCode: Schema.Number }),
+      error: EndpointError
+    })
+  )
+)
+
 const JsonResponseError = Schema.Struct({
   _tag: Schema.Literal("JsonError"),
   message: Schema.String
@@ -1307,6 +1532,39 @@ const ErrorContentTypeApi = HttpApi.make("ErrorContentTypeApi").add(
       })
     )
 )
+
+// Records the client span and the request that reaches the wire.
+const captureRequest = () => {
+  let span: Tracer.NativeSpan | undefined
+  let sent: { readonly url: string; readonly headers: Record<string, string> } | undefined
+  const tracer = Tracer.make({
+    span(options) {
+      span = new Tracer.NativeSpan(options)
+      return span
+    }
+  })
+  return {
+    httpClient: HttpClient.make((request, url) =>
+      Effect.sync(() => {
+        sent = { url: url.toString(), headers: request.headers }
+        return HttpClientResponse.fromWeb(request, new Response(null, { status: 204 }))
+      })
+    ),
+    trace: <A, E, R>(effect: Effect.Effect<A, E, R>): Effect.Effect<A, E, R> =>
+      effect.pipe(
+        Effect.provideService(Tracer.Tracer, tracer),
+        Effect.provideService(HttpClient.TracerHeaderFilter, () => true)
+      ),
+    get span() {
+      assert(span !== undefined)
+      return span
+    },
+    get sent() {
+      assert(sent !== undefined)
+      return sent
+    }
+  }
+}
 
 const clientFromResponse = (response: () => Response): HttpClient.HttpClient =>
   HttpClient.make((request): Effect.Effect<HttpClientResponse.HttpClientResponse, never, never> =>

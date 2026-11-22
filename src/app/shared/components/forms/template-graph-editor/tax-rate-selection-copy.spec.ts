@@ -14,6 +14,7 @@ import { provideLuxonDateAdapter } from '@angular/material-luxon-adapter';
 import { DateAdapter } from '@angular/material/core';
 import { MatFormFieldHarness } from '@angular/material/form-field/testing';
 import { MatSelectHarness } from '@angular/material/select/testing';
+import { createTestRpcQueryOptions } from '@app/testing/rpc-query-test-options';
 import { createRpcQueryKey } from '@heddendorp/effect-angular-query';
 import { registrationModes } from '@shared/registration-modes';
 import { ClientTenantConfig } from '@shared/rpc-contracts/app-rpcs/config.rpcs';
@@ -407,23 +408,23 @@ describe('rendered tax-rate selector recovery', () => {
               findMany: {
                 queryOptions: (): ReturnType<
                   Client['roles']['findMany']['queryOptions']
-                > => ({
-                  queryFn: async () => [],
-                  queryKey: createRpcQueryKey(['roles', 'findMany'], {
+                > =>
+                  createTestRpcQueryOptions({
                     input: { search: '' },
-                    type: 'query',
+                    pathSegments: ['roles', 'findMany'],
+                    queryFn: async () => [],
                   }),
-                }),
               },
             },
             taxRates: {
               listActive: {
                 queryOptions: (): ReturnType<
                   Client['taxRates']['listActive']['queryOptions']
-                > => ({
-                  queryFn: readRates,
-                  queryKey,
-                }),
+                > =>
+                  createTestRpcQueryOptions({
+                    pathSegments: ['taxRates', 'listActive'],
+                    queryFn: readRates,
+                  }),
               },
             },
           },

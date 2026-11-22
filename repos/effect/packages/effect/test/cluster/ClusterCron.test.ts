@@ -1,5 +1,5 @@
 import { assert, describe, it } from "@effect/vitest"
-import { Cron, DateTime, Effect, Layer, PrimaryKey, Schema } from "effect"
+import { Context, Cron, DateTime, Duration, Effect, Layer, PrimaryKey, Schema } from "effect"
 import {
   ClusterCron,
   ClusterError,
@@ -26,8 +26,7 @@ const deploy = Effect.fnUntraced(function*(entities: Layer.Layer<never, never, S
     Layer.provide(ShardingConfig.layer({
       entityRegistrationTimeout: 1000,
       entityTerminationTimeout: 0,
-      entityMessagePollInterval: 100,
-      refreshAssignmentsInterval: 0
+      entityMessagePollInterval: 100
     }))
   ))
   for (let i = 0; i < millis / 100; i++) {
@@ -50,7 +49,42 @@ const LegacyCronEntity = Entity.make("ClusterCron/test", [
   Rpc.make("run", { payload: LegacyCronPayload }).annotate(ClusterSchema.Persisted, true)
 ])
 
-describe("ClusterCron", () => {
+describe("ClusterCron", { concurrent: false }, () => {
+  it.effect("annotates its entity with its schedule", () =>
+    Effect.gen(function*() {
+      const cron = Cron.parseUnsafe("0 9 * * 1-5", "Europe/London")
+      const schedules = new Map<string, Context.Service.Shape<typeof ClusterCron.CronSchedule> | undefined>()
+      const recording = Layer.succeed(
+        Sharding.Sharding,
+        {
+          registerEntity: (entity: Entity.Any) =>
+            Effect.sync(() => {
+              schedules.set(entity.type, Context.getOrUndefined(entity.protocol.annotations, ClusterCron.CronSchedule))
+            }),
+          registerSingleton: () => Effect.void
+        } as unknown as Sharding.Sharding["Service"]
+      )
+      yield* Layer.build(
+        Layer.mergeAll(
+          ClusterCron.make({ name: "weekdays", cron, execute: Effect.void }),
+          ClusterCron.make({
+            name: "chained",
+            cron,
+            execute: Effect.void,
+            calculateNextRunFromPrevious: true,
+            skipIfOlderThan: "1 hour"
+          })
+        ).pipe(Layer.provide(recording))
+      )
+      const weekdays = schedules.get("ClusterCron/weekdays")
+      assert.strictEqual(weekdays?.cron, cron)
+      assert.strictEqual(weekdays?.calculateNextRunFromPrevious, false)
+      assert.deepStrictEqual(weekdays?.skipIfOlderThan, Duration.days(1))
+      const chained = schedules.get("ClusterCron/chained")
+      assert.strictEqual(chained?.calculateNextRunFromPrevious, true)
+      assert.deepStrictEqual(chained?.skipIfOlderThan, Duration.hours(1))
+    }))
+
   it.effect("recovers from a transient failure to schedule the initial run", () => {
     let failed = false
     let runs = 0
@@ -68,7 +102,7 @@ describe("ClusterCron", () => {
           })
       })),
       Layer.provide(MessageStorage.layerMemory),
-      Layer.provide(ShardingConfig.layer({ entityMessagePollInterval: 100, refreshAssignmentsInterval: 0 }))
+      Layer.provide(ShardingConfig.layer({ entityMessagePollInterval: 100 }))
     )
     const layer = ClusterCron.make({
       name: "test",
@@ -109,7 +143,7 @@ describe("ClusterCron", () => {
           })
       })),
       Layer.provide(MessageStorage.layerMemory),
-      Layer.provide(ShardingConfig.layer({ entityMessagePollInterval: 100, refreshAssignmentsInterval: 0 }))
+      Layer.provide(ShardingConfig.layer({ entityMessagePollInterval: 100 }))
     )
     const layer = ClusterCron.make({
       name: "test",
@@ -230,11 +264,13 @@ describe("ClusterCron", () => {
     Effect.gen(function*() {
       const everySecond = Cron.parseUnsafe("* * * * * *", "UTC")
       const scheduled: Array<string> = []
+      let observedSchedule: Context.Service.Shape<typeof ClusterCron.CronSchedule> | undefined
       const cron = ClusterCron.make({
         name: "test",
         cron: everySecond,
         calculateNextRunFromPrevious: true,
         execute: Effect.gen(function*() {
+          observedSchedule = yield* ClusterCron.CronSchedule
           scheduled.push(DateTime.formatIso(yield* ClusterCron.CurrentScheduledTime))
         })
       })
@@ -265,5 +301,8 @@ describe("ClusterCron", () => {
       // redeploy while the chain has a healthy pending run
       yield* deploy(cron, 2500)
       assertEachInstantOnce(DateTime.formatIso(legacy))
+      assert.strictEqual(observedSchedule?.cron, everySecond)
+      assert.strictEqual(observedSchedule?.calculateNextRunFromPrevious, true)
+      assert.deepStrictEqual(observedSchedule?.skipIfOlderThan, Duration.days(1))
     }).pipe(Effect.provide(MessageStorage.MemoryDriver.layer)))
 })

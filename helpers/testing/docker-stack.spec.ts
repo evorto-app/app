@@ -219,7 +219,7 @@ process.exit(result.status ?? 1);
     expect(invocations).toEqual([
       'true|helpers/database.ts',
       'unset|helpers/reset-database-schema.ts',
-      'unset|./node_modules/drizzle-kit/bin.cjs push --force',
+      'unset|./node_modules/drizzle-kit/bin.js push --force',
       'unset|helpers/database.ts',
     ]);
   });

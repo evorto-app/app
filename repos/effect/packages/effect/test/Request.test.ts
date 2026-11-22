@@ -8,6 +8,8 @@ import { Persistable, Persistence } from "effect/persistence"
 import * as Request from "effect/Request"
 import * as Resolver from "effect/RequestResolver"
 import { TestClock } from "effect/testing"
+import { collectGarbage } from "./utils/gc.ts"
+import { withIgnoredProperties } from "./utils/structFields.ts"
 
 class Counter extends Context.Service<Counter, { count: number }>()("Counter") {}
 class Requests extends Context.Service<Requests, { count: number }>()("Requests") {}
@@ -155,6 +157,19 @@ describe("Request", { concurrent: false }, () => {
     assert.strictEqual(new SymbolRequest({ [key]: "value" })[key], "value")
   })
 
+  it("equality and hashing use only enumerable own string and symbol fields", () => {
+    const key = Symbol("key")
+    class Lookup extends Request.Class<{ readonly id: number; readonly [key]: number }, string> {}
+    const first = withIgnoredProperties(new Lookup({ id: 1, [key]: 2 }))
+    const same = new Lookup({ id: 1, [key]: 2 })
+    const different = new Lookup({ id: 1, [key]: 3 })
+
+    assert.isTrue(Equal.equals(first, same))
+    assert.strictEqual(Hash.hash(first), Hash.hash(same))
+    assert.isFalse(Equal.equals(first, different))
+    assert.notStrictEqual(Hash.hash(first), Hash.hash(different))
+  })
+
   it("compares StructuralProto values when hashes collide", () => {
     class Req extends Request.Class<{ id: string; account: string }, string> {}
 
@@ -163,6 +178,15 @@ describe("Request", { concurrent: false }, () => {
 
     assert.strictEqual(Hash.hash(a), Hash.hash(b))
     assert.strictEqual(Equal.equals(a, b), false)
+  })
+
+  it("compares StructuralProto values regardless of key order", () => {
+    const make = Request.of<Request.Request<void> & { readonly a: number; readonly b: number }>()
+    const a = make({ a: 1, b: 2 })
+    const b = make({ b: 2, a: 1 })
+
+    assert.strictEqual(Hash.hash(a), Hash.hash(b))
+    assert.isTrue(Equal.equals(a, b))
   })
 
   it.effect(
@@ -903,4 +927,24 @@ describe("Request", { concurrent: false }, () => {
       assert.strictEqual(yield* Effect.request(new GetNameById({ id: 1 }), resolver), "1")
       assert.deepStrictEqual(batches, [[1]])
     }))
+
+  // Bun does not expose `gc` through V8 flags.
+  it.effect.skipIf(process.versions.bun !== undefined)(
+    "batches do not retain completed requests",
+    () =>
+      Effect.gen(function*() {
+        let reference!: WeakRef<GetNameById>
+        yield* Effect.request(
+          new GetNameById({ id: 0 }),
+          Resolver.make<GetNameById>((entries) =>
+            Effect.sync(() => {
+              reference = new WeakRef(entries[0].request)
+              entries[0].completeUnsafe(Exit.succeed(""))
+            })
+          )
+        )
+        yield* collectGarbage
+        assert.isUndefined(reference.deref())
+      })
+  )
 })

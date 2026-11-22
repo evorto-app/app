@@ -20,6 +20,7 @@ import {
 import { KeyValueStore } from "effect/persistence"
 import { AsyncResult, Atom, AtomRegistry, Hydration, Reactivity } from "effect/reactivity"
 import { TestClock } from "effect/testing"
+import { inspect } from "node:util"
 import { collectGarbage, getGc } from "../utils/gc.ts"
 
 declare const global: any
@@ -262,6 +263,38 @@ describe("Atom", { concurrent: false }, () => {
     }
   })
 
+  it.each([false, true])("searchParam cancels stale writes but preserves observer writes (%s)", async (normalize) => {
+    const r = AtomRegistry.make()
+    const location = new URL("http://localhost/current?q=before&page=2")
+    const events = new EventTarget()
+    const pushState = vitest.fn()
+    vitest.stubGlobal("window", {
+      location,
+      history: { pushState },
+      addEventListener: events.addEventListener.bind(events),
+      removeEventListener: events.removeEventListener.bind(events)
+    })
+    try {
+      const q = Atom.searchParam("q")
+      const page = Atom.searchParam("page", { schema: Schema.NumberFromString })
+      r.subscribe(q, (value) => {
+        if (normalize && value === "OLD") r.set(q, "old")
+      })
+      r.mount(page)
+      r.set(q, "pending")
+      r.set(page, Option.some(9))
+      location.search = "?q=OLD&page=1"
+      events.dispatchEvent(new Event("popstate"))
+      await vitest.advanceTimersByTimeAsync(500)
+      assert.deepStrictEqual(pushState.mock.calls, normalize ? [[{}, "", "/current?q=old&page=1"]] : [])
+      assert.strictEqual(r.get(q), normalize ? "old" : "OLD")
+      assert.deepStrictEqual(r.get(page), Option.some(1))
+    } finally {
+      r.dispose()
+      vitest.unstubAllGlobals()
+    }
+  })
+
   it("runtime", async () => {
     const count = counterRuntime.atom(Counter.use((_) => _.get)).pipe(
       Atom.withLabel("count")
@@ -438,7 +471,7 @@ describe("Atom", { concurrent: false }, () => {
     }
   })
 
-  it("runtime replacement", async () => {
+  it("runtime replacement via a layer initial value", async () => {
     const count = counterRuntime.atom(Counter.use((_) => _.get))
     const r = AtomRegistry.make({
       initialValues: [Atom.initialValue(counterRuntime.layer, CounterTest)]
@@ -448,7 +481,7 @@ describe("Atom", { concurrent: false }, () => {
     expect(result.value).toEqual(10)
   })
 
-  it("runtime replacement", async () => {
+  it("fnSync replacement via an initial value", async () => {
     const count = Atom.fnSync<number, number>((x) => x, { initialValue: 0 })
     const r = AtomRegistry.make({ initialValues: [Atom.initialValue(count, 10)] })
     const result = r.get(count)
@@ -867,6 +900,33 @@ describe("Atom", { concurrent: false }, () => {
     r.subscribe(derived, (value) => seen.push(value))
     r.set(a, 0)
     assert.deepStrictEqual(seen, [5])
+  })
+
+  it("a listener added to an uninitialized derived atom hears its changes", () => {
+    const count = Atom.make(0)
+    const doubled = Atom.map(count, (n) => n * 2)
+    const r = AtomRegistry.make()
+    const seen: Array<number> = []
+    r.subscribe(doubled, (value) => seen.push(value))
+    r.set(count, 1)
+    r.set(count, 2)
+    assert.deepStrictEqual(seen, [2, 4])
+  })
+
+  it("subscribing reports a dependency's finalizer error from a failed build", () => {
+    let failing = true
+    const parent = Atom.make((get) => {
+      if (!failing) return 0
+      get.addFinalizer(() => {
+        throw new Error("cleanup failed")
+      })
+      throw new Error("build failed")
+    })
+    const derived = Atom.map(parent, (n) => n)
+    const r = AtomRegistry.make()
+    assert.throws(() => r.get(derived), /build failed/)
+    failing = false
+    assert.throws(() => r.subscribe(derived, () => {}), /cleanup failed/)
   })
 
   it("recovers an observed dependent when its parent first succeeds after throwing", () => {
@@ -1361,10 +1421,10 @@ describe("Atom", { concurrent: false }, () => {
     }
   )
 
-  it("label", async () => {
-    expect(
-      Atom.make(0).pipe(Atom.withLabel("counter")).label![1]
-    ).toMatch(/Atom.test.ts:\d+:\d+/)
+  it("label", () => {
+    const makeCounter = () => Atom.make(0).pipe(Atom.withLabel("counter"))
+    const atom = makeCounter()
+    assert.match(inspect(atom), /makeCounter .*Atom\.test\.ts:\d+:\d+/)
   })
 
   it("batching", async () => {
@@ -1878,7 +1938,7 @@ describe("Atom", { concurrent: false }, () => {
     assert.deepStrictEqual(r.get(atom), Result.succeed(123))
   })
 
-  it("SubscriptionRef", async () => {
+  it("SubscriptionRef reflects updates made to the ref", async () => {
     vitest.useRealTimers()
     const ref = SubscriptionRef.make(123).pipe(Effect.runSync)
     const atom = Atom.subscriptionRef(ref)
@@ -1888,7 +1948,7 @@ describe("Atom", { concurrent: false }, () => {
     assert.deepStrictEqual(r.get(atom), 124)
   })
 
-  it("SubscriptionRef", async () => {
+  it("SubscriptionRef writes registry sets to the ref", async () => {
     vitest.useRealTimers()
     const ref = SubscriptionRef.make(0).pipe(Effect.runSync)
     const atom = Atom.subscriptionRef(ref)
@@ -3404,7 +3464,8 @@ describe("Atom", { concurrent: false }, () => {
               storage.delete(key)
             }),
           clear: Effect.sync(() => storage.clear()),
-          size: Effect.sync(() => storage.size)
+          size: Effect.sync(() => storage.size),
+          keys: Effect.sync(() => Array.from(storage.keys()))
         })
       )
 
@@ -3455,7 +3516,8 @@ describe("Atom", { concurrent: false }, () => {
               storage.delete(key)
             }),
           clear: Effect.sync(() => storage.clear()),
-          size: Effect.sync(() => storage.size)
+          size: Effect.sync(() => storage.size),
+          keys: Effect.sync(() => Array.from(storage.keys()))
         })
       )
 
@@ -3507,7 +3569,8 @@ describe("Atom", { concurrent: false }, () => {
               storage.delete(key)
             }),
           clear: Effect.sync(() => storage.clear()),
-          size: Effect.sync(() => storage.size)
+          size: Effect.sync(() => storage.size),
+          keys: Effect.sync(() => Array.from(storage.keys()))
         })
       )
 
@@ -3539,6 +3602,29 @@ describe("Atom", { concurrent: false }, () => {
       assert(AsyncResult.isSuccess(updated))
       expect(updated.value).toEqual(24)
     })
+
+    for (const mode of ["sync", "async"] as const) {
+      it(`${mode} mode retains persisted writes across refresh`, () => {
+        const atom = Atom.kvs({
+          mode,
+          runtime: Atom.runtime(KeyValueStore.layerMemory.pipe(
+            Layer.tap((services) =>
+              Context.get(services, KeyValueStore.KeyValueStore).set("theme", JSON.stringify("light"))
+            )
+          )),
+          key: "theme",
+          schema: Schema.String,
+          defaultValue: () => "light"
+        })
+        const r = AtomRegistry.make()
+        r.mount(atom)
+        r.set(atom, "dark")
+        r.refresh(atom)
+        const value = r.get(atom)
+        assert.strictEqual(AsyncResult.isAsyncResult(value) ? AsyncResult.getOrThrow(value) : value, "dark")
+        r.dispose()
+      })
+    }
   })
 })
 

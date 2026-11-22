@@ -1,5 +1,6 @@
 import '@angular/compiler';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { createRpcQueryOptions } from '@heddendorp/effect-angular-query';
 import {
   provideTanStackQuery,
   QueryClient,
@@ -93,10 +94,11 @@ describe('ProfileReceiptsComponent load recovery', () => {
     });
     const options: ReturnType<
       Client['finance']['receipts']['my']['queryOptions']
-    > = {
+    > = createRpcQueryOptions({
+      pathSegments: ['finance', 'receipts', 'my'],
       queryFn: readReceipts,
-      queryKey: [['finance', 'receipts', 'my'], { type: 'query' }],
-    };
+      type: 'query',
+    });
     await TestBed.configureTestingModule({
       imports: [ProfileReceiptsComponent],
       providers: [

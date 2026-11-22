@@ -1,8 +1,27 @@
 import { assert, describe, it } from "@effect/vitest"
 import { DateTime, Effect, Schema } from "effect"
 import { Model, VariantSchema } from "effect/schema"
+import { withIgnoredProperties } from "../utils/structFields.ts"
 
 describe("VariantSchema", () => {
+  it("extracts enumerable symbol fields across variants and ignores hidden or inherited definitions", () => {
+    const shared = Symbol("shared")
+    const variant = Symbol("variant")
+    const Test = VariantSchema.make({ variants: ["a", "b"], defaultVariant: "a" })
+    const fields = Test.Struct(withIgnoredProperties({
+      name: Schema.String,
+      [shared]: Schema.Number,
+      [variant]: Test.Field({ a: Schema.Number, b: Schema.String })
+    }))
+    const first = { name: "value", [shared]: 1, [variant]: 2 }
+    const second = { name: "value", [shared]: 1, [variant]: "two" }
+
+    assert.deepStrictEqual(Schema.decodeUnknownSync(Test.extract(fields, "a"))(first), first)
+    assert.deepStrictEqual(Schema.decodeUnknownSync(Test.extract(fields, "b"))(second), second)
+    assert.isFalse(Schema.is(Test.extract(fields, "a"))(second))
+    assert.isFalse(Schema.is(Test.extract(fields, "b"))(first))
+  })
+
   it("FieldOnly and FieldExcept select fields from key arrays", () => {
     const Test = VariantSchema.make({
       variants: ["a", "b", "c"],
@@ -161,6 +180,17 @@ describe("Model", () => {
     assert.deepStrictEqual(encodeJson({ active: true }), { active: true })
     assert.deepStrictEqual(decodeJson({ active: false }), { active: false })
   })
+
+  it.effect("UuidV7Insert generates strictly increasing ids", () =>
+    Effect.gen(function*() {
+      const insert = Model.extract(
+        Model.Struct({ id: Model.UuidV7Insert(Schema.String.pipe(Schema.brand("Id"))) }),
+        "insert"
+      )
+      const ids: Array<string> = []
+      for (let i = 0; i < 2000; i++) ids.push((yield* insert.makeEffect({})).id)
+      assert.isTrue(ids.every((id, i) => i === 0 || ids[i - 1] < id))
+    }))
 
   it.effect("Overrideable defaults are constructor-only and accept explicit overrides", () =>
     Effect.gen(function*() {

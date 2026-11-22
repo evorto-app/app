@@ -2,6 +2,7 @@ import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { provideRouter, Router } from '@angular/router';
+import { createTestRpcQueryOptions } from '@app/testing/rpc-query-test-options';
 import { createRpcQueryFilter } from '@heddendorp/effect-angular-query';
 import {
   RpcBadRequestError,
@@ -73,10 +74,12 @@ const findTaxRates =
   vi.fn<() => Promise<readonly TaxRatesListActiveRecord[]>>();
 const findRoles = vi.fn<() => Promise<readonly RoleLookupRecord[]>>();
 const roleQueryOptions = vi.fn(
-  (input: Parameters<RoleQueryOptions>[0]): ReturnType<RoleQueryOptions> => ({
-    queryFn: findRoles,
-    queryKey: [['roles', 'findMany'], { input, type: 'query' }],
-  }),
+  (input: Parameters<RoleQueryOptions>[0]): ReturnType<RoleQueryOptions> =>
+    createTestRpcQueryOptions({
+      input,
+      pathSegments: ['roles', 'findMany'],
+      queryFn: findRoles,
+    }),
 );
 const savedOption = (
   id: string,
@@ -122,10 +125,12 @@ const findTemplate = vi.fn<() => Promise<TemplateGraphRecord>>();
 const templateQueryOptions = vi.fn(
   (
     input: Parameters<TemplateQueryOptions>[0],
-  ): ReturnType<TemplateQueryOptions> => ({
-    queryFn: findTemplate,
-    queryKey: [['templates', 'findOne'], { input, type: 'query' }],
-  }),
+  ): ReturnType<TemplateQueryOptions> =>
+    createTestRpcQueryOptions({
+      input,
+      pathSegments: ['templates', 'findOne'],
+      queryFn: findTemplate,
+    }),
 );
 const tenant = new ClientTenantConfig({
   cancellationDeadlineHoursBeforeStart: 24,
@@ -235,13 +240,11 @@ describe('TemplateEditComponent role catalog defaults', () => {
               getTenantProviders: {
                 queryOptions: (): ReturnType<
                   RpcClient['discounts']['getTenantProviders']['queryOptions']
-                > => ({
-                  queryFn: async () => [],
-                  queryKey: [
-                    ['discounts', 'getTenantProviders'],
-                    { type: 'query' },
-                  ],
-                }),
+                > =>
+                  createTestRpcQueryOptions({
+                    pathSegments: ['discounts', 'getTenantProviders'],
+                    queryFn: async () => [],
+                  }),
               },
             },
             roles: { findMany: { queryOptions: roleQueryOptions } },
@@ -249,23 +252,22 @@ describe('TemplateEditComponent role catalog defaults', () => {
               listActive: {
                 queryOptions: (): ReturnType<
                   RpcClient['taxRates']['listActive']['queryOptions']
-                > => ({
-                  queryFn: findTaxRates,
-                  queryKey: [['taxRates', 'listActive'], { type: 'query' }],
-                }),
+                > =>
+                  createTestRpcQueryOptions({
+                    pathSegments: ['taxRates', 'listActive'],
+                    queryFn: findTaxRates,
+                  }),
               },
             },
             templateCategories: {
               findMany: {
                 queryOptions: (): ReturnType<
                   RpcClient['templateCategories']['findMany']['queryOptions']
-                > => ({
-                  queryFn: async () => [],
-                  queryKey: [
-                    ['templateCategories', 'findMany'],
-                    { type: 'query' },
-                  ],
-                }),
+                > =>
+                  createTestRpcQueryOptions({
+                    pathSegments: ['templateCategories', 'findMany'],
+                    queryFn: async () => [],
+                  }),
               },
             },
             templates: {
@@ -836,13 +838,11 @@ describe('TemplateEditComponent save outcomes', () => {
               getTenantProviders: {
                 queryOptions: (): ReturnType<
                   OutcomeRpcClient['discounts']['getTenantProviders']['queryOptions']
-                > => ({
-                  queryFn: async () => [],
-                  queryKey: [
-                    ['discounts', 'getTenantProviders'],
-                    { type: 'query' },
-                  ],
-                }),
+                > =>
+                  createTestRpcQueryOptions({
+                    pathSegments: ['discounts', 'getTenantProviders'],
+                    queryFn: async () => [],
+                  }),
               },
             },
             queryFilter: createRpcQueryFilter,
@@ -854,21 +854,23 @@ describe('TemplateEditComponent save outcomes', () => {
                   >[0],
                 ): ReturnType<
                   OutcomeRpcClient['roles']['findMany']['queryOptions']
-                > => ({
-                  queryFn: async () => {
-                    const search = input.search;
-                    return search === undefined
-                      ? roles
-                      : roles
-                          .filter((role) =>
-                            role.name
-                              .toLowerCase()
-                              .includes(search.toLowerCase()),
-                          )
-                          .slice(0, 15);
-                  },
-                  queryKey: [['roles', 'findMany'], { input, type: 'query' }],
-                }),
+                > =>
+                  createTestRpcQueryOptions({
+                    input,
+                    pathSegments: ['roles', 'findMany'],
+                    queryFn: async () => {
+                      const search = input.search;
+                      return search === undefined
+                        ? roles
+                        : roles
+                            .filter((role) =>
+                              role.name
+                                .toLowerCase()
+                                .includes(search.toLowerCase()),
+                            )
+                            .slice(0, 15);
+                    },
+                  }),
               },
               findOne: {
                 queryOptions: (
@@ -877,49 +879,50 @@ describe('TemplateEditComponent save outcomes', () => {
                   >[0],
                 ): ReturnType<
                   OutcomeRpcClient['roles']['findOne']['queryOptions']
-                > => ({
-                  queryFn: async () => {
-                    const role = roles.find(
-                      (candidate) => candidate.id === input.id,
-                    );
-                    if (!role)
-                      throw new RoleLookupNotFoundError({
-                        id: input.id,
-                        message: 'Role not found',
-                      });
-                    return role;
-                  },
-                  queryKey: [['roles', 'findOne'], { input, type: 'query' }],
-                }),
+                > =>
+                  createTestRpcQueryOptions({
+                    input,
+                    pathSegments: ['roles', 'findOne'],
+                    queryFn: async () => {
+                      const role = roles.find(
+                        (candidate) => candidate.id === input.id,
+                      );
+                      if (!role)
+                        throw new RoleLookupNotFoundError({
+                          id: input.id,
+                          message: 'Role not found',
+                        });
+                      return role;
+                    },
+                  }),
               },
             },
             taxRates: {
               listActive: {
                 queryOptions: (): ReturnType<
                   OutcomeRpcClient['taxRates']['listActive']['queryOptions']
-                > => ({
-                  queryFn: async () => [],
-                  queryKey: [['taxRates', 'listActive'], { type: 'query' }],
-                }),
+                > =>
+                  createTestRpcQueryOptions({
+                    pathSegments: ['taxRates', 'listActive'],
+                    queryFn: async () => [],
+                  }),
               },
             },
             templateCategories: {
               findMany: {
                 queryOptions: (): ReturnType<
                   OutcomeRpcClient['templateCategories']['findMany']['queryOptions']
-                > => ({
-                  queryFn: async () => [
-                    {
-                      icon: { iconColor: 2, iconName: 'calendar:fas' },
-                      id: 'category-1',
-                      title: 'Trips',
-                    },
-                  ],
-                  queryKey: [
-                    ['templateCategories', 'findMany'],
-                    { type: 'query' },
-                  ],
-                }),
+                > =>
+                  createTestRpcQueryOptions({
+                    pathSegments: ['templateCategories', 'findMany'],
+                    queryFn: async () => [
+                      {
+                        icon: { iconColor: 2, iconName: 'calendar:fas' },
+                        id: 'category-1',
+                        title: 'Trips',
+                      },
+                    ],
+                  }),
               },
             },
             templates: {
@@ -931,7 +934,12 @@ describe('TemplateEditComponent save outcomes', () => {
                   >[0],
                 ): ReturnType<
                   OutcomeRpcClient['templates']['findOne']['queryOptions']
-                > => ({ queryFn: findTemplate, queryKey: detailKey(input) }),
+                > =>
+                  createTestRpcQueryOptions({
+                    input,
+                    pathSegments: ['templates', 'findOne'],
+                    queryFn: findTemplate,
+                  }),
               },
               update: {
                 mutationOptions: (): ReturnType<

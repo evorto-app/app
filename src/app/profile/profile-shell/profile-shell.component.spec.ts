@@ -1,6 +1,7 @@
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
+import { createRpcQueryOptions } from '@heddendorp/effect-angular-query';
 import {
   provideTanStackQuery,
   QueryClient,
@@ -99,10 +100,11 @@ describe('Profile receipt navigation', () => {
       else readReceipts.mockResolvedValue(state === 'empty' ? [] : [receipt]);
       const options: ReturnType<
         Client['finance']['receipts']['my']['queryOptions']
-      > = {
+      > = createRpcQueryOptions({
+        pathSegments: ['finance', 'receipts', 'my'],
         queryFn: readReceipts,
-        queryKey: [['finance', 'receipts', 'my'], { type: 'query' }],
-      };
+        type: 'query',
+      });
       await TestBed.configureTestingModule({
         imports: [ProfileShellComponent],
         providers: [

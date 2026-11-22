@@ -1,5 +1,5 @@
 import { assert, describe, expect, it } from "@effect/vitest"
-import { Context, Effect, Exit, Fiber, FileSystem, Layer, Option, Path, Redacted, Runtime, Stdio } from "effect"
+import { Context, Effect, Exit, Fiber, FileSystem, Layer, Option, Path, Redacted, Runtime, Schema, Stdio } from "effect"
 import {
   Argument,
   CliConfig,
@@ -14,6 +14,7 @@ import {
 import { toImpl } from "effect/cli/internal/command"
 import { ChildProcessSpawner } from "effect/process"
 import { TestConsole } from "effect/testing"
+import { withIgnoredProperties } from "../utils/structFields.ts"
 import * as Cli from "./fixtures/ComprehensiveCli.ts"
 import * as MockTerminal from "./services/MockTerminal.ts"
 import * as TestActions from "./services/TestActions.ts"
@@ -161,7 +162,7 @@ describe("Command", () => {
         yield* MockTerminal.inputKey("enter")
         yield* Fiber.join(fiber)
 
-        assert.deepStrictEqual(captured, [["greet", "--name", "Alice", "2"]])
+        assert.deepStrictEqual(captured, [["greet", "--name", "Alice", "--", "2"]])
       }).pipe(Effect.provide(TestLayer)))
 
     it.effect("should run wizard-generated arguments with --wizard", () =>
@@ -361,6 +362,60 @@ describe("Command", () => {
         assert.deepStrictEqual(captured, ["selected"])
       }).pipe(Effect.provide(TestLayer)))
 
+    it.effect("should replace typed flags and arguments with wizard answers", () =>
+      Effect.gen(function*() {
+        const captured: Array<readonly [string, string]> = []
+        const command = Command.make("demo", {
+          name: Flag.String("name"),
+          value: Argument.String("value")
+        }, ({ name, value }) => Effect.sync(() => captured.push([name, value])))
+
+        const fiber = yield* Command.runWith(command, { version: "1.0.0" })([
+          "--name",
+          "typed",
+          "typed",
+          "--wizard"
+        ]).pipe(Effect.forkChild)
+        yield* MockTerminal.inputText("prompted")
+        yield* MockTerminal.inputKey("enter")
+        yield* MockTerminal.inputText("prompted")
+        yield* MockTerminal.inputKey("enter")
+        yield* MockTerminal.inputKey("enter")
+        yield* Fiber.join(fiber)
+
+        assert.deepStrictEqual(captured, [["prompted", "prompted"]])
+      }).pipe(Effect.provide(TestLayer)))
+
+    it.effect("should preserve inherited clustered flags before a boolean-looking wizard answer", () =>
+      Effect.gen(function*() {
+        const captured: Array<readonly [boolean, boolean, string]> = []
+        const root = Command.make("root").pipe(
+          Command.withSharedFlags({
+            silent: Flag.Boolean("silent").pipe(Flag.withAlias("s")),
+            ipv4: Flag.Boolean("ipv4").pipe(Flag.withAlias("4"))
+          })
+        )
+        const child = Command.make("child", { value: Argument.String("value") }, ({ value }) =>
+          Effect.gen(function*() {
+            const { silent, ipv4 } = yield* root
+            captured.push([silent, ipv4, value])
+          }))
+        const command = root.pipe(Command.withSubcommands([child]))
+
+        const fiber = yield* Command.runWith(command, { version: "1.0.0" })([
+          "child",
+          "-s4",
+          "typed",
+          "--wizard"
+        ]).pipe(Effect.forkChild)
+        yield* MockTerminal.inputText("false")
+        yield* MockTerminal.inputKey("enter")
+        yield* MockTerminal.inputKey("enter")
+        yield* Fiber.join(fiber)
+
+        assert.deepStrictEqual(captured, [[true, true, "false"]])
+      }).pipe(Effect.provide(TestLayer)))
+
     it.effect("should reject --completions without a shell", () =>
       Effect.gen(function*() {
         let invoked = false
@@ -535,6 +590,28 @@ describe("Command", () => {
           command: "users create",
           details: { username, email: Option.some(email), role, notify: true }
         })
+      }).pipe(Effect.provide(TestLayer)))
+
+    it.effect("preserves enumerable symbol fields in nested and shared command configs", () =>
+      Effect.gen(function*() {
+        const nested = Symbol("nested")
+        const count = Symbol("count")
+        const shared = Symbol("shared")
+        const received: Array<unknown> = []
+        const command = Command.make(
+          "test",
+          withIgnoredProperties({
+            name: Flag.String("name"),
+            [nested]: withIgnoredProperties({ [count]: Flag.Int("count") })
+          })
+        ).pipe(
+          Command.withSharedFlags(withIgnoredProperties({ [shared]: Flag.String("format") })),
+          Command.withHandler((config) => Effect.sync(() => received.push(config)))
+        )
+
+        yield* Command.runWith(command, { version: "1.0.0" })(["--name", "value", "--count", "2", "--format", "json"])
+
+        assert.deepStrictEqual(received, [{ name: "value", [nested]: { [count]: 2 }, [shared]: "json" }])
       }).pipe(Effect.provide(TestLayer)))
 
     it.effect("should work with effectful handlers", () =>
@@ -924,6 +1001,48 @@ describe("Command", () => {
         assert.isTrue(stderr.some((line) => String(line).includes("invalid-command")))
       }).pipe(Effect.provide(TestLayer)))
 
+    it.effect("should route built-in output through the configured presenter", () =>
+      Effect.gen(function*() {
+        const events: Array<string> = []
+        const PresenterLayer = CliOutput.layerPresenter({
+          present: (event) =>
+            Effect.sync(() => {
+              events.push(event._tag === "Help" ? `Help(${event.reason})` : event._tag)
+            })
+        })
+        const run = Command.runWith(Command.make("greet", { name: Flag.String("name") }), { version: "1.0.0" })
+        const runEmpty = Command.runWith(Command.make("empty"), { version: "1.0.0" })
+
+        yield* Effect.gen(function*() {
+          yield* run(["--help"])
+          yield* run(["--version"])
+          yield* Effect.flip(run([]))
+          yield* Effect.flip(runEmpty([]))
+        }).pipe(Effect.provide(PresenterLayer))
+
+        assert.deepStrictEqual(events, ["Help(Requested)", "Version", "InvalidInvocation", "Help(Implicit)"])
+        assert.deepStrictEqual(yield* TestConsole.logLines, [])
+        assert.deepStrictEqual(yield* TestConsole.errorLines, [])
+      }).pipe(Effect.provide(TestLayer)))
+
+    it.effect("should show help for invalid global flag values", () =>
+      Effect.gen(function*() {
+        const Region = GlobalFlag.Setting("region")({
+          flag: Flag.Literals("region", ["us", "eu"]).pipe(Flag.withDefault("us"))
+        })
+        const deploy = Command.make("deploy").pipe(Command.withGlobalFlags([Region]))
+        const runCommand = Command.runWith(Command.make("app").pipe(Command.withSubcommands([deploy])), {
+          version: "1.0.0"
+        })
+
+        for (const flag of ["completions", "log-level", "region"]) {
+          const error = yield* Effect.flip(runCommand(["deploy", `--${flag}`, "bad"]))
+          assert.instanceOf(error, CliError.ShowHelp)
+          assert.deepStrictEqual(error.commandPath, ["app", "deploy"])
+          assert.instanceOf(error.errors[0], CliError.InvalidValue)
+        }
+      }).pipe(Effect.provide(TestLayer)))
+
     it.effect("should propagate handler errors from run", () =>
       Effect.gen(function*() {
         const result = yield* Effect.flip(Cli.run(["test-failing", "--input", "test"]))
@@ -945,6 +1064,32 @@ describe("Command", () => {
         const stderr = yield* TestConsole.errorLines
         assert.lengthOf(stderr, 1)
         assert.strictEqual(String(stderr[0]), "\nERROR\n  Deployment failed")
+        assert.isEmpty(yield* TestConsole.logLines)
+      }).pipe(Effect.provide(TestLayer)))
+
+    it.effect("should render tagged handler failures with a userMessage and rethrow the original error", () =>
+      Effect.gen(function*() {
+        class Occupied extends Schema.TaggedError<Occupied>()("Occupied", {
+          path: Schema.String
+        }) {
+          override get [CliError.userMessage]() {
+            return `${this.path} already exists. Re-run with --force to replace it.`
+          }
+        }
+
+        const failure = new Occupied({ path: "config.yaml" })
+        const command = Command.make("deploy", {}, () => failure)
+
+        const error = yield* Effect.flip(Command.runWith(command, { version: "1.0.0" })([]))
+
+        assert.strictEqual(error, failure)
+        assert.isFalse(Runtime.getErrorReported(error))
+        const stderr = yield* TestConsole.errorLines
+        assert.lengthOf(stderr, 1)
+        assert.strictEqual(
+          String(stderr[0]),
+          "\nERROR\n  config.yaml already exists. Re-run with --force to replace it."
+        )
         assert.isEmpty(yield* TestConsole.logLines)
       }).pipe(Effect.provide(TestLayer)))
 
@@ -1148,6 +1293,72 @@ describe("Command", () => {
         ])
         assert.deepStrictEqual(seen, [["after subcommands", ["useApi"]]])
       }).pipe(Effect.provide(TestLayer)))
+
+    it.effect("passes domain errors through like handler failures, without help", () =>
+      Effect.gen(function*() {
+        class Conflict extends Schema.TaggedError<Conflict>()("Conflict", {
+          flags: Schema.Array(Schema.String)
+        }) {
+          override get [CliError.userMessage]() {
+            return `${this.flags.join(" and ")} are mutually exclusive`
+          }
+        }
+        // A fresh instance per run, because rendering marks the error as reported
+        let raised: Conflict | undefined
+        const command = Command.make("download", {
+          useApi: Flag.Boolean("use-api").pipe(Flag.withDefault(false)),
+          useDocker: Flag.Boolean("use-docker").pipe(Flag.withDefault(false))
+        }, () => Effect.void).pipe(
+          Command.validate(({ useApi, useDocker }) =>
+            useApi && useDocker
+              ? Effect.suspend(() => Effect.fail(raised = new Conflict({ flags: ["--use-api", "--use-docker"] })))
+              : Effect.void
+          )
+        )
+
+        const rendered = yield* Effect.flip(
+          Command.runWith(command, { version: "1.0.0" })(["--use-api", "--use-docker"])
+        )
+        assert.strictEqual(rendered, raised)
+        assert.isFalse(Runtime.getErrorReported(rendered))
+        assert.deepStrictEqual(yield* TestConsole.errorLines, [
+          "\nERROR\n  --use-api and --use-docker are mutually exclusive"
+        ])
+        assert.isEmpty(yield* TestConsole.logLines)
+
+        const silent = yield* Effect.flip(
+          Command.runWith(command, { version: "1.0.0", renderErrors: false })(["--use-api", "--use-docker"])
+        )
+        assert.strictEqual(silent, raised)
+        assert.isTrue(Runtime.getErrorReported(silent))
+        assert.lengthOf(yield* TestConsole.errorLines, 1)
+      }).pipe(Effect.provide(TestLayer)))
+
+    it.effect("fails a subcommand run with a parent's domain error, rendering nothing without userMessage", () =>
+      Effect.gen(function*() {
+        class LinkedAndLocal extends Schema.TaggedError<LinkedAndLocal>()("LinkedAndLocal", {}) {}
+        const handled: Array<string> = []
+        const push = Command.make("push", {}, () =>
+          Effect.sync(() => {
+            handled.push("push")
+          }))
+        const db = Command.make("db").pipe(
+          Command.withSharedFlags({
+            linked: Flag.Boolean("linked").pipe(Flag.withDefault(false)),
+            local: Flag.Boolean("local").pipe(Flag.withDefault(false))
+          }),
+          Command.withSubcommands([push]),
+          Command.validate(({ linked, local }) => linked && local ? Effect.fail(new LinkedAndLocal()) : Effect.void)
+        )
+
+        const error = yield* Effect.flip(Command.runWith(db, { version: "1.0.0" })(["--linked", "--local", "push"]))
+
+        assert.instanceOf(error, LinkedAndLocal)
+        assert.isTrue(Runtime.getErrorReported(error))
+        assert.deepStrictEqual(handled, [])
+        assert.isEmpty(yield* TestConsole.errorLines)
+        assert.isEmpty(yield* TestConsole.logLines)
+      }).pipe(Effect.provide(TestLayer)))
   })
 
   describe("withSubcommands", () => {
@@ -1304,12 +1515,6 @@ describe("Command", () => {
           command: "git",
           details: { verbose: true }
         })
-      }).pipe(Effect.provide(TestLayer)))
-
-    it.effect("should propagate subcommand errors", () =>
-      Effect.gen(function*() {
-        const result = yield* Effect.flip(Cli.run(["test-failing", "--input", "test"]))
-        assert.strictEqual(result, "Handler error")
       }).pipe(Effect.provide(TestLayer)))
 
     it.effect("should provide shared parent context to subcommands", () =>
@@ -2124,7 +2329,7 @@ describe("Command", () => {
 
         const runCmd = Command.runWith(cmd, { version: "1.0.0" })
 
-        yield* runCmd(["--verbose", "a.txt", "b.txt", "--verbose", "c.txt"])
+        yield* runCmd(["a.txt", "b.txt", "--verbose", "c.txt"])
 
         assert.deepStrictEqual(captured, [{ files: ["a.txt", "b.txt", "c.txt"], verbose: true }])
       }).pipe(Effect.provide(TestLayer)))
