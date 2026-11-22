@@ -313,46 +313,6 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
   },
 ] as const;
 
-// Type-safe permissions record
-export const PERMISSIONS = {
-  ADMIN: Object.fromEntries(
-    ADMIN_GROUP.permissions.map((perm) => [
-      perm.toUpperCase(),
-      `${ADMIN_GROUP.key}:${perm}` as Permission,
-    ]),
-  ),
-  EVENTS: Object.fromEntries(
-    EVENTS_GROUP.permissions.map((perm) => [
-      perm.toUpperCase(),
-      `${EVENTS_GROUP.key}:${perm}` as Permission,
-    ]),
-  ),
-  FINANCE: Object.fromEntries(
-    FINANCE_GROUP.permissions.map((perm) => [
-      perm.toUpperCase(),
-      `${FINANCE_GROUP.key}:${perm}` as Permission,
-    ]),
-  ),
-  INTERNAL: Object.fromEntries(
-    INTERNAL_GROUP.permissions.map((perm) => [
-      perm.toUpperCase(),
-      `${INTERNAL_GROUP.key}:${perm}` as Permission,
-    ]),
-  ),
-  TEMPLATES: Object.fromEntries(
-    TEMPLATES_GROUP.permissions.map((perm) => [
-      perm.toUpperCase(),
-      `${TEMPLATES_GROUP.key}:${perm}` as Permission,
-    ]),
-  ),
-  USERS: Object.fromEntries(
-    USERS_GROUP.permissions.map((perm) => [
-      perm.toUpperCase(),
-      `${USERS_GROUP.key}:${perm}` as Permission,
-    ]),
-  ),
-} as const;
-
 // Get all permission keys as a flat array with proper typing
 export const ALL_PERMISSIONS = PERMISSION_GROUPS.flatMap((group) =>
   group.permissions.map((perm) => perm.key),

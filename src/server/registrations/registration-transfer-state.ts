@@ -127,14 +127,6 @@ export const resolveRegistrationCancellationDeadline = Effect.fn(
   return new Date(eventStart.getTime() - resolvedHours * 60 * 60 * 1000);
 });
 
-export const resolveRegistrationFeeRefund = ({
-  optionRefundFees,
-  tenantRefundFees,
-}: {
-  optionRefundFees: boolean | null;
-  tenantRefundFees: boolean;
-}): boolean => optionRefundFees ?? tenantRefundFees;
-
 export const resolveRegistrationTransferRefundPlan = Effect.fn(
   'resolveRegistrationTransferRefundPlan',
 )(function* (

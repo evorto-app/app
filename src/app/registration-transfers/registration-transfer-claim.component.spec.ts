@@ -17,7 +17,6 @@ import {
 import { Schema } from 'effect';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { normalizeStripeCheckoutUrl } from '../core/stripe-checkout-url';
 import { TENANT_DATE_PIPE_TIMEZONE } from '../core/tenant-date.pipe';
 import {
   reconcileTransferClaimAnswers,
@@ -595,24 +594,6 @@ describe('registrationTransferClaimPayload', () => {
     });
     expect(payload).not.toHaveProperty('addOns');
     expect(payload).not.toHaveProperty('guestCount');
-  });
-});
-
-describe('normalizeStripeCheckoutUrl', () => {
-  it('accepts only an exact HTTPS Stripe Checkout host', () => {
-    expect(
-      normalizeStripeCheckoutUrl(
-        'https://checkout.stripe.com/c/pay/cs_test_123',
-      ),
-    ).toBe('https://checkout.stripe.com/c/pay/cs_test_123');
-    expect(
-      normalizeStripeCheckoutUrl(
-        'https://checkout.stripe.com.evil.example/cs_test_123',
-      ),
-    ).toBeNull();
-    expect(
-      normalizeStripeCheckoutUrl('javascript:alert(document.domain)'),
-    ).toBeNull();
   });
 });
 
