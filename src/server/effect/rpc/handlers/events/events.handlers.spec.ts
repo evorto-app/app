@@ -953,7 +953,7 @@ describe('organizer overview authorization', () => {
               null,
               0,
               1,
-              '2026-09-15T12:00:00',
+              new Date('2026-09-15T12:00:00.000Z'),
               0,
               3,
               'registration-1',
