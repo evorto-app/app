@@ -53,6 +53,7 @@ import {
   receiptReviewCountries,
   receiptReviewNotificationNotice,
   receiptReviewSuccessMessage,
+  receiptSelfApprovalNotice,
 } from './receipt-approval-detail.component';
 
 describe('receiptReviewCountries', () => {
@@ -212,11 +213,13 @@ const approvalReceipt: FinanceReceiptForApprovalRecord = {
   refundTransactionId: null,
   rejectionReason: null,
   reviewedAt: null,
+  selfApprovalBlocked: false,
   status: 'submitted',
   submittedByEmail: 'ada@example.test',
   submittedByFirstName: 'Ada',
   submittedByLastName: 'Lovelace',
   submittedByUserId: 'user-1',
+  submittedTotalAmount: null,
   taxAmount: 100,
   totalAmount: 1299,
   updatedAt: '2026-09-01T09:00:00Z',
@@ -576,6 +579,46 @@ describe('receipt review component mutation outcomes', () => {
       expectRetained();
     },
   );
+
+  it('enables Approve and hides the self-approval note when not blocked', () => {
+    expect(approvalButton(fixture, 'Approve').disabled).toBe(false);
+    expect(
+      approvalRoot(fixture).querySelector('[data-testid="self-approval-note"]'),
+    ).toBeNull();
+  });
+
+  it('disables Approve, keeps Reject and shows the note when self-approval is blocked', async () => {
+    findReceipt.mockResolvedValue({
+      ...approvalReceipt,
+      selfApprovalBlocked: true,
+    });
+    await queryClient.invalidateQueries({ queryKey: approvalReceiptKey });
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(
+        approvalRoot(fixture).querySelector(
+          '[data-testid="self-approval-note"]',
+        )?.textContent,
+      ).toContain(receiptSelfApprovalNotice);
+    });
+    expect(approvalButton(fixture, 'Approve').disabled).toBe(true);
+    expect(approvalButton(fixture, 'Reject').disabled).toBe(false);
+    expect(receiptSelfApprovalNotice).toBe(
+      'You submitted this receipt. Another approver must approve it. An admin can allow self-approval in the receipt settings.',
+    );
+  });
+
+  it('blocks approval in the disabled-state helper when self-approval is blocked', () => {
+    expect(
+      receiptApprovalDisabled({
+        evidenceAvailable: true,
+        formInvalid: false,
+        mutationPending: false,
+        receiptPending: false,
+        selfApprovalBlocked: true,
+      }),
+    ).toBe(true);
+  });
 
   it.each([
     new RpcBadRequestError({ message: 'Correct the tax amount.' }),

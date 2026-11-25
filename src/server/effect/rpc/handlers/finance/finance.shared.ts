@@ -32,6 +32,7 @@ interface ReceiptCountryConfigTenant {
     | undefined
     | {
         allowOther?: unknown;
+        allowSelfApproval?: boolean | undefined;
         receiptCountries?: readonly string[] | undefined;
       };
 }
@@ -47,6 +48,10 @@ const requireReceiptCountrySettings = (tenant: ReceiptCountryConfigTenant) => {
     receiptCountries: [...settings.receiptCountries],
   };
 };
+
+export const isReceiptSelfApprovalAllowed = (
+  tenant: ReceiptCountryConfigTenant,
+): boolean => tenant.receiptSettings?.allowSelfApproval === true;
 
 export const databaseEffect = <A>(
   operation: (database: DatabaseClient) => Effect.Effect<A, unknown, never>,
@@ -171,6 +176,7 @@ export const financeReceiptView = {
   reviewedAt: financeReceipts.reviewedAt,
   status: financeReceipts.status,
   submittedByUserId: financeReceipts.submittedByUserId,
+  submittedTotalAmount: financeReceipts.submittedTotalAmount,
   taxAmount: financeReceipts.taxAmount,
   tenantId: financeReceipts.tenantId,
   totalAmount: financeReceipts.totalAmount,
@@ -198,6 +204,7 @@ export const normalizeFinanceReceiptBaseRecord = (receipt: {
   reviewedAt: Date | null;
   status: 'approved' | 'refunded' | 'rejected' | 'submitted';
   submittedByUserId: string;
+  submittedTotalAmount: null | number;
   taxAmount: number;
   totalAmount: number;
   updatedAt: Date;
@@ -222,6 +229,7 @@ export const normalizeFinanceReceiptBaseRecord = (receipt: {
   reviewedAt: receipt.reviewedAt?.toISOString() ?? null,
   status: receipt.status,
   submittedByUserId: receipt.submittedByUserId,
+  submittedTotalAmount: receipt.submittedTotalAmount ?? null,
   taxAmount: receipt.taxAmount,
   totalAmount: receipt.totalAmount,
   updatedAt: receipt.updatedAt.toISOString(),

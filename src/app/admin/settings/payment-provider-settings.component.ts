@@ -61,6 +61,7 @@ import {
 
 interface PaymentProviderSettingsModel {
   allowOther: boolean;
+  allowReceiptSelfApproval: boolean;
   buyEsnCardUrl: string;
   currency: AdminTenantUpdatePaymentProviderSettingsInput['currency'];
   esnCardEnabled: boolean;
@@ -125,6 +126,7 @@ export class PaymentProviderSettingsComponent {
   );
   private readonly model = signal<PaymentProviderSettingsModel>({
     allowOther: false,
+    allowReceiptSelfApproval: false,
     buyEsnCardUrl: '',
     currency: 'EUR',
     esnCardEnabled: false,
@@ -192,6 +194,7 @@ export class PaymentProviderSettingsComponent {
         try {
           await this.updateMutation.mutateAsync({
             allowOther: settings.allowOther,
+            allowReceiptSelfApproval: settings.allowReceiptSelfApproval,
             buyEsnCardUrl: optionalTrimmed(settings.buyEsnCardUrl),
             currency: settings.currency,
             esnCardEnabled: settings.esnCardEnabled,
@@ -253,6 +256,8 @@ export class PaymentProviderSettingsComponent {
       );
       this.model.set({
         allowOther: receiptSettings.allowOther,
+        allowReceiptSelfApproval:
+          tenant.receiptSettings.allowSelfApproval ?? false,
         buyEsnCardUrl:
           tenant.discountProviders.esnCard.config.buyEsnCardUrl ?? '',
         currency: tenant.currency,

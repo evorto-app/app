@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from '@effect/vitest';
-import { TransactionRollbackError } from 'drizzle-orm';
+import { SQL, TransactionRollbackError } from 'drizzle-orm';
+import { PgDialect } from 'drizzle-orm/pg-core';
 import { Context, Effect, Exit, Layer } from 'effect';
 import { Headers } from 'effect/http';
 import { Rpc, RpcMessage } from 'effect/rpc';
@@ -71,6 +72,18 @@ const receiptRefundOptions = {
   headers: Headers.empty,
   requestId: RpcMessage.RequestId(1),
   rpc: receiptRefundRpc.middleware(RpcRequestContextMiddleware),
+};
+
+const receiptFindOneForApprovalRpc = [...AppRpcs.requests.values()].find(
+  (rpc) => rpc._tag === 'finance.receipts.findOneForApproval',
+);
+if (!receiptFindOneForApprovalRpc)
+  throw new Error('finance.receipts.findOneForApproval RPC is missing');
+const receiptFindOneForApprovalOptions = {
+  client: new Rpc.ServerClient(1),
+  headers: Headers.empty,
+  requestId: RpcMessage.RequestId(1),
+  rpc: receiptFindOneForApprovalRpc.middleware(RpcRequestContextMiddleware),
 };
 
 const receiptMyRpc = [...AppRpcs.requests.values()].find(
@@ -160,6 +173,12 @@ const createUser = (permissions: readonly Permission[]) => ({
   roleIds: [],
 });
 
+interface TestReceiptSettings {
+  allowOther: boolean;
+  allowSelfApproval?: boolean;
+  receiptCountries: string[];
+}
+
 const createContextLayer = (
   permissions: readonly Permission[],
   options: {
@@ -167,13 +186,16 @@ const createContextLayer = (
     receiptMediaService?: Partial<
       Context.Service.Shape<typeof ReceiptMediaService>
     >;
+    receiptSettings?: TestReceiptSettings;
   } = {},
 ) => {
   const requestContext = {
     authData: {},
     authenticated: true,
     permissions,
-    tenant,
+    tenant: options.receiptSettings
+      ? { ...tenant, receiptSettings: options.receiptSettings }
+      : tenant,
     user: createUser(permissions),
     userAssigned: true,
   } satisfies RpcRequestContextShape;
@@ -742,8 +764,11 @@ const submittedReceiptRow = {
   refundTransactionId: null,
   rejectionReason: null,
   reviewedAt: null,
+  reviewedByFirstName: null,
+  reviewedByLastName: null,
   status: 'submitted' as const,
   submittedByUserId: 'user-1',
+  submittedTotalAmount: null,
   taxAmount: 20,
   tenantId: 'tenant-1',
   totalAmount: 100,
@@ -756,6 +781,7 @@ const databaseWithMyReceipts = (
   const query = {
     from: () => query,
     innerJoin: () => query,
+    leftJoin: () => query,
     orderBy: () => Effect.succeed(rows),
     select: () => query,
     where: () => query,
@@ -801,10 +827,12 @@ const databaseWithReceiptReviewLifecycle = ({
       'receipts/tenant-1/event-1/user-1/upload-1-receipt.png',
   },
   recordedCountry = 'NL',
+  submittedByUserId = 'user-2',
 }: {
   lockedEvidence?: typeof submittedReceiptRow;
   preflightEvidence?: typeof submittedReceiptRow;
   recordedCountry?: string;
+  submittedByUserId?: string;
 } = {}) => {
   const operations: string[] = [];
   const preflightQuery = {
@@ -828,6 +856,7 @@ const databaseWithReceiptReviewLifecycle = ({
           status: 'submitted' as const,
           submittedByCommunicationEmail: null,
           submittedByEmail: 'alice@example.com',
+          submittedByUserId,
         },
       ]);
     },
@@ -848,6 +877,8 @@ const databaseWithReceiptReviewLifecycle = ({
   };
   let updatedStatus: 'approved' | 'rejected' = 'approved';
   let updatedCountry: string | undefined;
+  let updatedValues:
+    undefined | { submittedTotalAmount: unknown; totalAmount: number };
   const updateQuery = {
     returning: () => {
       operations.push('receipt:update');
@@ -856,9 +887,12 @@ const databaseWithReceiptReviewLifecycle = ({
     set: (values: {
       purchaseCountry: string;
       status: 'approved' | 'rejected';
+      submittedTotalAmount: unknown;
+      totalAmount: number;
     }) => {
       updatedStatus = values.status;
       updatedCountry = values.purchaseCountry;
+      updatedValues = values;
       return updateQuery;
     },
     where: () => updateQuery,
@@ -895,7 +929,29 @@ const databaseWithReceiptReviewLifecycle = ({
     operations,
     queuedEmail: () => queuedEmail,
     updatedCountry: () => updatedCountry,
+    updatedValues: () => updatedValues,
   };
+};
+
+const databaseWithApprovalReceipt = (submittedByUserId: string) => {
+  const query = {
+    from: () => query,
+    innerJoin: () => query,
+    limit: () => Effect.succeed([row]),
+    where: () => query,
+  };
+  const row = {
+    ...submittedReceiptRow,
+    attachmentStorageKey:
+      'receipts/tenant-1/event-1/user-1/upload-1-receipt.png',
+    submittedByCommunicationEmail: null,
+    submittedByEmail: 'bob@example.com',
+    submittedByFirstName: 'Bob',
+    submittedByLastName: 'Builder',
+    submittedByUserId,
+  };
+
+  return { select: () => query };
 };
 
 describe('financeHandlers composition', () => {
@@ -1020,8 +1076,11 @@ describe('finance profile receipt reads', () => {
             refundTransactionId: null,
             rejectionReason: null,
             reviewedAt: null,
+            reviewedByFirstName: null,
+            reviewedByLastName: null,
             status: 'submitted',
             submittedByUserId: 'user-1',
+            submittedTotalAmount: null,
             taxAmount: 20,
             totalAmount: 100,
             updatedAt: '2026-05-19T10:00:00.000Z',
@@ -2662,6 +2721,198 @@ describe('finance receipt amount validation', () => {
 
         expect(error['_tag']).toBe('RpcBadRequestError');
         expect(error).toMatchObject({ reason: 'invalidReceiptDate' });
+      }),
+  );
+});
+
+const reviewFixtureInput = {
+  ...receiptFieldsInput,
+  id: 'receipt-1',
+} as const;
+
+const selfApprovalMessage =
+  'Another approver must review your own receipt. An admin can allow self-approval in the receipt settings.';
+
+const reviewReceiptAs = (
+  status: 'approved' | 'rejected',
+  fixture: ReturnType<typeof databaseWithReceiptReviewLifecycle>,
+  receiptSettings?: TestReceiptSettings,
+  input: Partial<typeof receiptFieldsInput> = {},
+) =>
+  financeHandlers['finance.receipts.review'](
+    {
+      ...reviewFixtureInput,
+      ...input,
+      ...(status === 'rejected' && { rejectionReason: 'Unreadable' }),
+      status,
+    },
+    receiptReviewOptions,
+  ).pipe(
+    Effect.provide(
+      createContextLayer(['finance:approveReceipts'], {
+        database: fixture.database,
+        receiptMediaService: { objectExists: () => Effect.succeed(true) },
+        ...(receiptSettings && { receiptSettings }),
+      }),
+    ),
+  );
+
+describe('finance receipt self-approval', () => {
+  it.effect(
+    'blocks approving your own receipt when self-approval is not configured',
+    () =>
+      Effect.gen(function* () {
+        const fixture = databaseWithReceiptReviewLifecycle({
+          submittedByUserId: 'user-1',
+        });
+        const error = yield* reviewReceiptAs('approved', fixture).pipe(
+          Effect.flip,
+        );
+
+        expect(error['_tag']).toBe('RpcBadRequestError');
+        expect(error).toMatchObject({
+          message: selfApprovalMessage,
+          reason: 'selfApprovalNotAllowed',
+        });
+        expect(fixture.operations).not.toContain('receipt:update');
+        expect(fixture.operations).not.toContain('email:enqueue');
+        expect(fixture.updatedValues()).toBeUndefined();
+      }),
+  );
+
+  it.effect('blocks approving your own receipt when the setting is false', () =>
+    Effect.gen(function* () {
+      const fixture = databaseWithReceiptReviewLifecycle({
+        submittedByUserId: 'user-1',
+      });
+      const error = yield* reviewReceiptAs('approved', fixture, {
+        allowOther: false,
+        allowSelfApproval: false,
+        receiptCountries: ['NL'],
+      }).pipe(Effect.flip);
+
+      expect(error).toMatchObject({ reason: 'selfApprovalNotAllowed' });
+      expect(fixture.operations).not.toContain('receipt:update');
+    }),
+  );
+
+  it.effect('approves your own receipt when self-approval is allowed', () =>
+    Effect.gen(function* () {
+      const fixture = databaseWithReceiptReviewLifecycle({
+        submittedByUserId: 'user-1',
+      });
+      const result = yield* reviewReceiptAs('approved', fixture, {
+        allowOther: false,
+        allowSelfApproval: true,
+        receiptCountries: ['NL'],
+      });
+
+      expect(result).toEqual({ id: 'receipt-1', status: 'approved' });
+      expect(fixture.operations).toContain('receipt:update');
+    }),
+  );
+
+  it.effect('approves another submitter receipt without the setting', () =>
+    Effect.gen(function* () {
+      const fixture = databaseWithReceiptReviewLifecycle({
+        submittedByUserId: 'user-2',
+      });
+      const result = yield* reviewReceiptAs('approved', fixture);
+
+      expect(result).toEqual({ id: 'receipt-1', status: 'approved' });
+      expect(fixture.operations).toContain('receipt:update');
+    }),
+  );
+
+  it.effect(
+    'still lets you reject your own receipt when the setting is off',
+    () =>
+      Effect.gen(function* () {
+        const fixture = databaseWithReceiptReviewLifecycle({
+          submittedByUserId: 'user-1',
+        });
+        const result = yield* reviewReceiptAs('rejected', fixture);
+
+        expect(result).toEqual({ id: 'receipt-1', status: 'rejected' });
+        expect(fixture.operations).toContain('receipt:update');
+      }),
+  );
+
+  it.effect(
+    'records the submitted total from the current database value, not the reviewed total',
+    () =>
+      Effect.gen(function* () {
+        const fixture = databaseWithReceiptReviewLifecycle();
+        yield* reviewReceiptAs('approved', fixture, undefined, {
+          totalAmount: 90,
+        });
+
+        const values = fixture.updatedValues();
+        expect(values?.totalAmount).toBe(90);
+        const submittedTotal = values?.submittedTotalAmount;
+        if (!(submittedTotal instanceof SQL)) {
+          throw new TypeError('submittedTotalAmount must be an SQL expression');
+        }
+        const query = new PgDialect().sqlToQuery(submittedTotal);
+        expect(query.sql).toBe(
+          'coalesce("finance_receipts"."submittedTotalAmount", "finance_receipts"."totalAmount")',
+        );
+      }),
+  );
+
+  it.effect('allows recording a reimbursement for your own receipt', () =>
+    Effect.gen(function* () {
+      const fixture = databaseWithSuccessfulRefund();
+      const result = yield* financeHandlers['finance.receipts.createRefund'](
+        {
+          payoutReference: 'NL91ABNA0417164300',
+          payoutType: 'iban',
+          receiptIds: ['receipt-1'],
+        },
+        receiptRefundOptions,
+      ).pipe(
+        Effect.provide(
+          createContextLayer(['finance:refundReceipts'], {
+            database: fixture.database,
+          }),
+        ),
+      );
+
+      expect(result.receiptCount).toBe(1);
+      // the fixture receipt was submitted by the same user who records it
+      expect(fixture.insertedTransaction()).toMatchObject({
+        targetUserId: 'user-1',
+      });
+    }),
+  );
+
+  it.effect.each([
+    { allowed: undefined, blocked: true, submitter: 'user-1' },
+    { allowed: false, blocked: true, submitter: 'user-1' },
+    { allowed: true, blocked: false, submitter: 'user-1' },
+    { allowed: undefined, blocked: false, submitter: 'user-2' },
+  ])(
+    'reports selfApprovalBlocked=$blocked for submitter $submitter and setting $allowed',
+    ({ allowed, blocked, submitter }) =>
+      Effect.gen(function* () {
+        const result = yield* financeHandlers[
+          'finance.receipts.findOneForApproval'
+        ]({ id: 'receipt-1' }, receiptFindOneForApprovalOptions).pipe(
+          Effect.provide(
+            createContextLayer(['finance:approveReceipts'], {
+              database: databaseWithApprovalReceipt(submitter),
+              receiptMediaService: { objectExists: () => Effect.succeed(true) },
+              receiptSettings: {
+                allowOther: false,
+                ...(allowed !== undefined && { allowSelfApproval: allowed }),
+                receiptCountries: ['NL'],
+              },
+            }),
+          ),
+        );
+
+        expect(result.selfApprovalBlocked).toBe(blocked);
+        expect(result.submittedTotalAmount).toBeNull();
       }),
   );
 });

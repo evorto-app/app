@@ -7,6 +7,26 @@ import { TenantDatePipe } from '../../core/tenant-date.pipe';
 import { ReceiptAmountPipe } from '../../finance/shared/receipt-amount.pipe';
 import { receiptStatusLabel } from '../../finance/shared/receipt-status-label';
 
+export const receiptAmountChanged = (receipt: {
+  status: 'approved' | 'refunded' | 'rejected' | 'submitted';
+  submittedTotalAmount: null | number;
+  totalAmount: number;
+}): boolean =>
+  (receipt.status === 'approved' || receipt.status === 'refunded') &&
+  receipt.submittedTotalAmount !== null &&
+  receipt.submittedTotalAmount !== receipt.totalAmount;
+
+export const receiptReviewerName = (receipt: {
+  reviewedByFirstName: null | string;
+  reviewedByLastName: null | string;
+}): null | string => {
+  const name = [receipt.reviewedByFirstName, receipt.reviewedByLastName]
+    .map((part) => part?.trim() ?? '')
+    .filter((part) => part.length > 0)
+    .join(' ');
+  return name.length > 0 ? name : null;
+};
+
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [MatButtonModule, ReceiptAmountPipe, TenantDatePipe],
@@ -18,6 +38,8 @@ export class ProfileReceiptsComponent {
   protected readonly myReceiptsQuery = injectQuery(() =>
     this.rpc.finance.receipts.my.queryOptions(),
   );
+  protected readonly receiptAmountChanged = receiptAmountChanged;
+  protected readonly receiptReviewerName = receiptReviewerName;
   protected readonly receiptRetryPending = signal(false);
   protected readonly receiptStatusLabel = receiptStatusLabel;
 

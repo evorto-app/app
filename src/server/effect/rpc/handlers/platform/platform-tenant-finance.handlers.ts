@@ -39,6 +39,7 @@ import {
   isNull,
   not,
   or,
+  sql,
 } from 'drizzle-orm';
 import { DateTime, Effect, Schema } from 'effect';
 import * as Rpc from 'effect/rpc/Rpc';
@@ -668,6 +669,7 @@ export const platformReceiptReviewUpdate = (input: {
 }) => ({
   ...input,
   reviewedByUserId: null,
+  submittedTotalAmount: sql<number>`coalesce(${financeReceipts.submittedTotalAmount}, ${financeReceipts.totalAmount})`,
 });
 
 export const canPlatformReviewReceipt = (

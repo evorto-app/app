@@ -1055,6 +1055,130 @@ describe('receipt review and reimbursement serialization', () => {
     postgresConcurrencyTestTimeoutMs,
   );
 
+  it('keeps the submitted total when the reviewer changes the total', async () => {
+    const fixture = await seedReceipt('submitted');
+
+    const result = await trackHandlerOperation(
+      Effect.runPromise(
+        financeHandlers['finance.receipts.review'](
+          {
+            alcoholAmount: 0,
+            depositAmount: 0,
+            hasAlcohol: false,
+            hasDeposit: false,
+            id: fixture.receiptId,
+            purchaseCountry: 'NL',
+            receiptDate: '2026-07-31',
+            rejectionReason: 'The total was wrong',
+            status: 'rejected',
+            taxAmount: 20,
+            totalAmount: 80,
+          },
+          { headers: {} } as never,
+        ).pipe(Effect.provide(fixture.handlerLayer)),
+      ),
+    );
+
+    expect(result).toEqual({ id: fixture.receiptId, status: 'rejected' });
+    expect(
+      await database.query.financeReceipts.findFirst({
+        columns: {
+          status: true,
+          submittedTotalAmount: true,
+          totalAmount: true,
+        },
+        where: { id: fixture.receiptId },
+      }),
+    ).toEqual({
+      status: 'rejected',
+      submittedTotalAmount: 100,
+      totalAmount: 80,
+    });
+  });
+
+  it('blocks self-approval until the section allows it and keeps the submitted total', async () => {
+    const fixture = await seedReceipt('submitted');
+    const fields = {
+      alcoholAmount: 0,
+      depositAmount: 0,
+      hasAlcohol: false,
+      hasDeposit: false,
+      id: fixture.receiptId,
+      purchaseCountry: 'NL',
+      receiptDate: '2026-07-31',
+      status: 'approved' as const,
+      taxAmount: 20,
+      totalAmount: 80,
+    };
+    const approveOwnReceipt = (allowSelfApproval: boolean | undefined) =>
+      Effect.gen(function* () {
+        const media = yield* ReceiptMediaService;
+        return yield* financeHandlers['finance.receipts.review'](fields, {
+          headers: {},
+        } as never).pipe(
+          Effect.provideService(ReceiptMediaService, {
+            ...media,
+            objectExists: () => Effect.succeed(true),
+          }),
+          Effect.provideService(RpcRequestContext, {
+            ...fixture.requestContext,
+            tenant: {
+              ...fixture.requestContext.tenant,
+              receiptSettings: {
+                ...fixture.requestContext.tenant.receiptSettings,
+                ...(allowSelfApproval !== undefined && { allowSelfApproval }),
+              },
+            },
+          }),
+        );
+      }).pipe(Effect.provide(fixture.handlerLayer));
+
+    const error = await trackHandlerOperation(
+      Effect.runPromise(approveOwnReceipt(undefined).pipe(Effect.flip)),
+    );
+    expect(error).toMatchObject({
+      _tag: 'RpcBadRequestError',
+      reason: 'selfApprovalNotAllowed',
+    });
+    expect(
+      await database.query.financeReceipts.findFirst({
+        columns: {
+          reviewedByUserId: true,
+          status: true,
+          submittedTotalAmount: true,
+          totalAmount: true,
+        },
+        where: { id: fixture.receiptId },
+      }),
+    ).toEqual({
+      reviewedByUserId: null,
+      status: 'submitted',
+      submittedTotalAmount: null,
+      totalAmount: 100,
+    });
+
+    const result = await trackHandlerOperation(
+      Effect.runPromise(approveOwnReceipt(true)),
+    );
+    expect(result).toEqual({ id: fixture.receiptId, status: 'approved' });
+    expect(
+      await database.query.financeReceipts.findFirst({
+        columns: {
+          reviewedByUserId: true,
+          status: true,
+          submittedTotalAmount: true,
+          totalAmount: true,
+        },
+        where: { id: fixture.receiptId },
+      }),
+    ).toEqual({
+      reviewedByUserId: fixture.userId,
+      status: 'approved',
+      submittedTotalAmount: 100,
+      totalAmount: 80,
+    });
+  });
+
   it(
     'rejects a stale rejection that waits behind a concurrent reimbursement transition',
     async () => {

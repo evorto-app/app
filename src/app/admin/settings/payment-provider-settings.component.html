@@ -68,7 +68,7 @@
           prices.
         </p>
       }
-      <mat-form-field>
+      <mat-form-field subscriptSizing="dynamic">
         <mat-label>Currency</mat-label>
         <mat-select [formField]="settingsForm.currency">
           @for (currency of currencyOptions; track currency) {
@@ -110,6 +110,16 @@
       <p class="text-on-surface-variant text-xs">
         Adds an “Other” option for receipts outside the selected countries.
       </p>
+      <mat-slide-toggle
+        class="mt-2"
+        [formField]="settingsForm.allowReceiptSelfApproval"
+      >
+        Allow approvers to approve their own receipts
+      </mat-slide-toggle>
+      <p class="text-on-surface-variant text-xs">
+        Useful for sections with a single treasurer. Off: another approver must
+        review each receipt.
+      </p>
     </section>
 
     <section class="grid grid-cols-1">
@@ -118,7 +128,7 @@
         ESNcard discounts
       </mat-slide-toggle>
       @if (settingsForm.esnCardEnabled().value()) {
-        <mat-form-field class="mt-4">
+        <mat-form-field class="mt-4" subscriptSizing="dynamic">
           <mat-label>ESNcard purchase web address</mat-label>
           <input
             matInput

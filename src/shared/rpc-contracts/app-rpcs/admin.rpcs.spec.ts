@@ -122,6 +122,7 @@ const currentOrganizationSettingsInput = {
 
 const currentPaymentProviderSettingsInput = {
   allowOther: true,
+  allowReceiptSelfApproval: false,
   buyEsnCardUrl: 'https://esncard.org/',
   currency: 'EUR' as const,
   esnCardEnabled: true,

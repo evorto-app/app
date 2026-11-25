@@ -5,6 +5,7 @@ export interface ReceiptCountryOption {
 
 export interface ReceiptCountrySettings {
   allowOther: boolean;
+  allowSelfApproval?: boolean;
   receiptCountries: string[];
 }
 
@@ -74,6 +75,7 @@ export const isCanonicalReceiptCountryCode = (value: string): boolean =>
 
 export const resolveReceiptCountrySettings = (configuredSettings: {
   allowOther: unknown;
+  allowSelfApproval?: boolean | undefined;
   receiptCountries: readonly string[];
 }): ReceiptCountrySettings => {
   const { allowOther } = configuredSettings;
@@ -102,6 +104,9 @@ export const resolveReceiptCountrySettings = (configuredSettings: {
 
   return {
     allowOther,
+    ...(configuredSettings.allowSelfApproval !== undefined && {
+      allowSelfApproval: configuredSettings.allowSelfApproval,
+    }),
     receiptCountries,
   };
 };

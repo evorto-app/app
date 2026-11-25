@@ -73,15 +73,23 @@ export const receiptReviewActionDisabled = ({
   receiptPending: boolean;
 }): boolean => formInvalid || receiptPending || mutationPending;
 
+export const receiptSelfApprovalNotice =
+  'You submitted this receipt. Another approver must approve it. An admin can allow self-approval in the receipt settings.';
+
 export const receiptApprovalDisabled = ({
   evidenceAvailable,
+  selfApprovalBlocked = false,
   ...reviewState
 }: {
   evidenceAvailable: boolean;
   formInvalid: boolean;
   mutationPending: boolean;
   receiptPending: boolean;
-}): boolean => !evidenceAvailable || receiptReviewActionDisabled(reviewState);
+  selfApprovalBlocked?: boolean;
+}): boolean =>
+  !evidenceAvailable ||
+  selfApprovalBlocked ||
+  receiptReviewActionDisabled(reviewState);
 
 export const receiptRejectionDisabled = ({
   rejectionReason,
@@ -152,6 +160,7 @@ export class ReceiptApprovalDetailComponent {
   protected readonly receiptApprovalDisabled = receiptApprovalDisabled;
   protected readonly receiptEvidenceUnavailableNotice =
     receiptEvidenceUnavailableNotice;
+  protected readonly receiptSelfApprovalNotice = receiptSelfApprovalNotice;
   protected readonly receiptRejectionDisabled = receiptRejectionDisabled;
   protected readonly receiptReviewNotificationNotice =
     receiptReviewNotificationNotice;
@@ -331,10 +340,16 @@ export class ReceiptApprovalDetailComponent {
     };
     const evidenceAvailable =
       this.receiptQuery.data()?.receiptEvidenceAvailable ?? false;
+    const selfApprovalBlocked =
+      this.receiptQuery.data()?.selfApprovalBlocked ?? false;
     const rejectionReason = this.rejectionReason().trim();
     const actionDisabled =
       status === 'approved'
-        ? receiptApprovalDisabled({ evidenceAvailable, ...reviewState })
+        ? receiptApprovalDisabled({
+            evidenceAvailable,
+            selfApprovalBlocked,
+            ...reviewState,
+          })
         : receiptRejectionDisabled({ rejectionReason, ...reviewState });
     if (actionDisabled) {
       if (formInvalid || this.receiptQuery.isPending()) {

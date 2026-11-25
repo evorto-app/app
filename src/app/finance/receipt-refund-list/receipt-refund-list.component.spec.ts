@@ -308,6 +308,7 @@ const refundGroup: FinanceReceiptRefundGroupRecord = {
       submittedByFirstName: 'Ada',
       submittedByLastName: 'Lovelace',
       submittedByUserId: 'user-1',
+      submittedTotalAmount: null,
       taxAmount: 100,
       totalAmount: 1299,
       updatedAt: '2026-09-01T11:00:00Z',

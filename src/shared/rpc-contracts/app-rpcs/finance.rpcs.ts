@@ -100,6 +100,7 @@ export const FinanceReceiptBaseRecord = Schema.Struct({
   reviewedAt: Schema.NullOr(Schema.NonEmptyString),
   status: FinanceReceiptStatus,
   submittedByUserId: Schema.NonEmptyString,
+  submittedTotalAmount: Schema.NullOr(FinanceReceiptPositiveMinorUnitAmount),
   taxAmount: FinanceReceiptMinorUnitAmount,
   totalAmount: FinanceReceiptPositiveMinorUnitAmount,
   updatedAt: Schema.NonEmptyString,
@@ -130,6 +131,8 @@ export const FinanceReceiptWithEventRecord = extendStruct(
   Schema.Struct({
     eventStart: Schema.NonEmptyString,
     eventTitle: Schema.NonEmptyString,
+    reviewedByFirstName: Schema.NullOr(Schema.String),
+    reviewedByLastName: Schema.NullOr(Schema.String),
   }),
 );
 export type FinanceReceiptWithEventRecord = Schema.Schema.Type<
@@ -142,6 +145,7 @@ export const FinanceReceiptForApprovalRecord = extendStruct(
     eventStart: Schema.NonEmptyString,
     eventTitle: Schema.NonEmptyString,
     receiptEvidenceAvailable: Schema.Boolean,
+    selfApprovalBlocked: Schema.Boolean,
   }),
 );
 export type FinanceReceiptForApprovalRecord = Schema.Schema.Type<
