@@ -786,6 +786,48 @@ describe('optionless announcement discovery', () => {
     ).toEqual([]);
   });
 
+  it('summarizes only the registration options the viewer may see', async () => {
+    const expectedSummary = {
+      organizerSlots: null,
+      participantSignUp: {
+        availability: 'opens',
+        closesAt: '2100-01-01T23:00:00.000Z',
+        // Neither viewer sees an organizer option: no exact spots, and a
+        // sign-up that has not opened has no fill level.
+        exactSpots: null,
+        fillLevel: null,
+        highestPrice: 0,
+        lowestPrice: 0,
+        opensAt: '2099-12-01T00:00:00.000Z',
+      },
+    };
+    const findListed = (
+      days: Awaited<ReturnType<typeof runEventList>>,
+      id: string,
+    ) => days.flatMap((day) => day.events).find((event) => event.id === id);
+
+    const anonymous = await runEventList(anonymousContext);
+    expect(findListed(anonymous, optionfulUnrestrictedId)).toMatchObject(
+      expectedSummary,
+    );
+
+    const matching = await runEventList(
+      authenticatedContext({
+        roleIds: [matchingRoleId],
+        userId: matchingUserId,
+      }),
+    );
+    expect(findListed(matching, optionfulMatchingId)).toMatchObject(
+      expectedSummary,
+    );
+    // Announcement-only event: no options, so no sign-up summaries.
+    expect(findListed(matching, matchingAnnouncementId)).toMatchObject({
+      hasRegistrationOptions: false,
+      organizerSlots: null,
+      participantSignUp: null,
+    });
+  });
+
   it('keeps announcement targeting separate from option eligibility and preserves direct links', async () => {
     expect(listedEventIds(await runEventList(anonymousContext))).toEqual(
       [optionfulDefaultRoleId, optionfulUnrestrictedId].toSorted(),

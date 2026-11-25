@@ -1,5 +1,6 @@
 import type { EventsEventListRecord } from '@shared/rpc-contracts/app-rpcs/events.rpcs';
 
+import { CurrencyPipe } from '@angular/common';
 import {
   afterNextRender,
   ChangeDetectionStrategy,
@@ -12,7 +13,7 @@ import {
 import { MatButtonModule } from '@angular/material/button';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { FontAwesomeModule } from '@fortawesome/angular-fontawesome';
-import { faClock } from '@fortawesome/duotone-regular-svg-icons';
+import { faClock, faUsersGear } from '@fortawesome/duotone-regular-svg-icons';
 
 import {
   TENANT_DATE_PIPE_TIMEZONE,
@@ -24,6 +25,7 @@ import { Shape } from '../../shared/components/shape/shape';
 import { TwoColumnLayoutComponent } from '../../shared/components/two-column-layout/two-column-layout.component';
 import { IfAnyPermissionDirective } from '../../shared/directives/if-any-permission.directive';
 import { EventListService } from '../event-list.service';
+import { eventListCardDetails } from './event-list-card-details';
 import {
   eventPreviewRelativeDate,
   EventPreviewService,
@@ -70,6 +72,7 @@ export const eventListSignUpStateLabel = (
     RouterOutlet,
     RouterLinkActive,
     TenantDatePipe,
+    CurrencyPipe,
     IfAnyPermissionDirective,
   ],
   selector: 'app-event-list',
@@ -83,7 +86,9 @@ export class EventListComponent {
   protected readonly eventDays = this.eventListService.eventDays;
   protected readonly eventListSignUpStateLabel = eventListSignUpStateLabel;
   protected readonly eventQuery = this.eventListService.eventQuery;
+  protected readonly eventListCardDetails = eventListCardDetails;
   protected readonly faClock = faClock;
+  protected readonly faUsersGear = faUsersGear;
   protected readonly outletActive = signal(false);
   private readonly previewReady = signal(false);
   protected readonly previewIndex = signal(0);

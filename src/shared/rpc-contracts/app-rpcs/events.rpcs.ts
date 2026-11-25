@@ -361,11 +361,80 @@ export type EventsEventListUserSignUpState = Schema.Schema.Type<
   typeof EventsEventListUserSignUpState
 >;
 
+/**
+ * Sign-up state of the options a list card describes, decided on the server
+ * with the registration clock: `open` with places left, `full`, `opens`
+ * later, or `closed`.
+ */
+export const EventsEventListSignUpAvailability = literalUnion(
+  'closed',
+  'full',
+  'open',
+  'opens',
+);
+
+export type EventsEventListSignUpAvailability = Schema.Schema.Type<
+  typeof EventsEventListSignUpAvailability
+>;
+
+/**
+ * How full an open sign-up is, as v3 showed it to members: taken / capacity
+ * below 0.5 is `many`, below 0.8 `some`, otherwise `few` (full is
+ * `availability: 'full'`).
+ */
+export const EventsEventListFillLevel = literalUnion('few', 'many', 'some');
+
+export type EventsEventListFillLevel = Schema.Schema.Type<
+  typeof EventsEventListFillLevel
+>;
+
+/** Exact participant spots; only sent to viewers who may organize the event. */
+export const EventsEventListExactSpots = Schema.Struct({
+  capacity: nonNegativeNumber,
+  spotsLeft: nonNegativeNumber,
+});
+
+export type EventsEventListExactSpots = Schema.Schema.Type<
+  typeof EventsEventListExactSpots
+>;
+
+/**
+ * Participant sign-up summary over the registration options the viewer may
+ * see. Prices are base prices in cents; discounts stay on the event page.
+ * `fillLevel` is set only while sign-up is open and not full; `exactSpots`
+ * only for viewers who may organize the event (`organizerSlots` present).
+ */
+export const EventsEventListParticipantSignUp = Schema.Struct({
+  availability: EventsEventListSignUpAvailability,
+  closesAt: Schema.NonEmptyString,
+  exactSpots: Schema.NullOr(EventsEventListExactSpots),
+  fillLevel: Schema.NullOr(EventsEventListFillLevel),
+  highestPrice: nonNegativeNumber,
+  lowestPrice: nonNegativeNumber,
+  opensAt: Schema.NonEmptyString,
+});
+
+export type EventsEventListParticipantSignUp = Schema.Schema.Type<
+  typeof EventsEventListParticipantSignUp
+>;
+
+/** Organizer slots over the organizer options the viewer may sign up for. */
+export const EventsEventListOrganizerSlots = Schema.Struct({
+  capacity: nonNegativeNumber,
+  filled: nonNegativeNumber,
+});
+
+export type EventsEventListOrganizerSlots = Schema.Schema.Type<
+  typeof EventsEventListOrganizerSlots
+>;
+
 export const EventsEventListRecord = Schema.Struct({
   announcementRoleCount: nonNegativeNumber,
   hasRegistrationOptions: Schema.Boolean,
   icon: iconSchema,
   id: Schema.NonEmptyString,
+  organizerSlots: Schema.NullOr(EventsEventListOrganizerSlots),
+  participantSignUp: Schema.NullOr(EventsEventListParticipantSignUp),
   start: Schema.NonEmptyString,
   status: EventReviewStatus,
   title: Schema.NonEmptyString,
