@@ -9,15 +9,41 @@
     >
       <fa-icon [icon]="faArrowLeft" />
     </a>
-    <h1 class="title-large">
+    <h1 class="title-large min-w-0 break-words">
       {{ eventQuery.isSuccess() ? eventQuery.data().title : "Organize event" }}
     </h1>
     <div class="grow"></div>
     @if (eventQuery.isSuccess()) {
-      <span class="text-on-surface-variant text-sm">
+      <span class="text-on-surface-variant shrink-0 text-sm">
         {{ eventQuery.data().start | date: "shortDate" }} •
         {{ eventQuery.data().start | date: "shortTime" }}
       </span>
+    }
+    @if (organizerOverviewQuery.isSuccess()) {
+      <button
+        aria-label="Open event actions"
+        class="shrink-0"
+        mat-icon-button
+        type="button"
+        [matMenuTriggerFor]="eventActionsMenu"
+      >
+        <fa-duotone-icon [icon]="faEllipsisVertical" />
+      </button>
+      <mat-menu #eventActionsMenu="matMenu">
+        <a
+          aria-label="Download CSV of registrations"
+          download
+          mat-menu-item
+          [href]="registrationsExportUrl()"
+        >
+          <fa-duotone-icon
+            matMenuItemIcon
+            class="mat-icon"
+            [icon]="faFileCsv"
+          />
+          <span>Download CSV</span>
+        </a>
+      </mat-menu>
     }
   </div>
 

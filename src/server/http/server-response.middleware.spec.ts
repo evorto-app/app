@@ -549,6 +549,11 @@ describe('server response middleware', () => {
       safeServerRequestRoute('/qr/registration/sensitive-registration-id'),
     ).toBe('/qr/registration/:registrationId');
     expect(
+      safeServerRequestRoute(
+        '/exports/events/sensitive-event-id/registrations.csv?x=1',
+      ),
+    ).toBe('/exports/events/:eventId/registrations.csv');
+    expect(
       safeServerRequestRoute('/tenant-assets/tenant-1/logo/file-name.png'),
     ).toBe('/tenant-assets/:tenantId/:kind/:fileName');
   });

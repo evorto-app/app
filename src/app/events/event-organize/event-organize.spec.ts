@@ -2682,3 +2682,251 @@ describe('EventOrganize email list copying', () => {
     ).toEqual(['Organizers', 'Attendees', 'Checked in', 'Not checked in']);
   });
 });
+
+describe('EventOrganize registrations CSV download', () => {
+  type Client = ReturnType<typeof AppRpc.injectClient>;
+  type EventOptions = ReturnType<Client['events']['findOne']['queryOptions']>;
+  type OverviewOptions = ReturnType<
+    Client['events']['getOrganizeOverview']['queryOptions']
+  >;
+  type ByEventOptions = ReturnType<
+    Client['finance']['receipts']['byEvent']['queryOptions']
+  >;
+  type EventRecord = Awaited<ReturnType<Client['events']['findOne']['call']>>;
+  type OverviewState = 'error' | 'pending' | 'success';
+  const eventRecord: EventRecord = {
+    addOns: [],
+    announcementRoleCount: 1,
+    announcementRoleIds: ['role-attendee'],
+    creatorId: 'creator-1',
+    description: '<p>Export workshop</p>',
+    end: '2030-01-02T12:00:00.000Z',
+    hasRegistrationOptions: false,
+    icon: { iconColor: 2, iconName: 'calendar:fas' },
+    id: 'event-1',
+    location: null,
+    registrationOptions: [],
+    registrationOptionsHiddenByEligibility: false,
+    reviewer: null,
+    start: '2030-01-02T10:00:00.000Z',
+    status: 'APPROVED',
+    statusComment: null,
+    title: 'Export workshop',
+    userIsCreator: true,
+  };
+  const downloadName = 'Download CSV of registrations';
+  let queryClient: QueryClient | undefined;
+  let fixture: ComponentFixture<EventOrganize> | undefined;
+
+  const render = async (state: OverviewState) => {
+    const client = new QueryClient({
+      defaultOptions: {
+        mutations: { retry: false },
+        queries: { gcTime: 0, retry: false },
+      },
+    });
+    queryClient = client;
+    const tenant = new ClientTenantConfig({
+      cancellationDeadlineHoursBeforeStart: 24,
+      currency: 'EUR',
+      defaultLocation: undefined,
+      discountProviders: { esnCard: { config: {}, status: 'disabled' } },
+      domain: 'tenant.example.test',
+      emailSenderEmail: undefined,
+      emailSenderName: undefined,
+      faviconUrl: undefined,
+      id: 'tenant-1',
+      legalNoticeText: undefined,
+      legalNoticeUrl: undefined,
+      logoUrl: undefined,
+      maxActiveRegistrationsPerUser: 3,
+      name: 'Tenant',
+      paymentsConfigured: true,
+      privacyPolicyText: undefined,
+      privacyPolicyUrl: undefined,
+      receiptSettings: { allowOther: false, receiptCountries: ['DE', 'NL'] },
+      refundFeesOnCancellation: false,
+      seoDescription: undefined,
+      seoTitle: undefined,
+      termsText: undefined,
+      termsUrl: undefined,
+      theme: 'evorto',
+      timezone: 'Europe/Berlin',
+      transferDeadlineHoursBeforeStart: 24,
+    });
+    const unused = (name: string) => ({
+      mutationFn: async () => {
+        throw new Error(`${name} must not run while downloading the CSV.`);
+      },
+      mutationKey: [`unused-${name}`],
+    });
+    await TestBed.configureTestingModule({
+      imports: [EventOrganize],
+      providers: [
+        provideRouter([]),
+        provideTanStackQuery(client),
+        { provide: DEFAULT_CURRENCY_CODE, useValue: 'EUR' },
+        { provide: TENANT_DATE_PIPE_TIMEZONE, useValue: 'Europe/Berlin' },
+        {
+          provide: ConfigService,
+          useValue: { tenant, updateTitle: vi.fn() } satisfies Pick<
+            ConfigService,
+            'tenant' | 'updateTitle'
+          >,
+        },
+        {
+          provide: NotificationService,
+          useValue: {
+            showError: vi.fn(),
+            showSuccess: vi.fn(),
+          } satisfies Pick<NotificationService, 'showError' | 'showSuccess'>,
+        },
+        {
+          provide: APP_RPC_CLIENT,
+          useValue: {
+            events: {
+              approveRegistration: {
+                mutationOptions: () => unused('approval'),
+              },
+              cancelEventRegistration: {
+                mutationOptions: () => unused('cancellation'),
+              },
+              findOne: {
+                queryOptions: (input: { id: string }): EventOptions => ({
+                  queryFn: async () => ({ ...eventRecord, id: input.id }),
+                  queryKey: createRpcQueryKey(['events', 'findOne'], {
+                    input,
+                    keyPrefix: 'rpc',
+                    type: 'query',
+                  }),
+                }),
+              },
+              getOrganizeOverview: {
+                queryOptions: (input: {
+                  eventId: string;
+                }): OverviewOptions => ({
+                  queryFn: async () => {
+                    if (state === 'pending') {
+                      return new Promise<never>(() => {
+                        /* Keep the overview pending. */
+                      });
+                    }
+                    if (state === 'error') {
+                      throw new RpcForbiddenError({
+                        message: 'Private permission detail',
+                      });
+                    }
+                    return {
+                      registrationOptions: [],
+                      stats: { capacity: 0, checkedIn: 0, registered: 0 },
+                    };
+                  },
+                  queryKey: createRpcQueryKey(
+                    ['events', 'getOrganizeOverview'],
+                    { input, keyPrefix: 'rpc', type: 'query' },
+                  ),
+                }),
+              },
+            },
+            finance: {
+              receiptMedia: {
+                createUpload: { mutationOptions: () => unused('upload') },
+                finalizeUpload: { mutationOptions: () => unused('finalize') },
+              },
+              receipts: {
+                byEvent: {
+                  queryKey: (input: { eventId: string }) =>
+                    createRpcQueryKey(['finance', 'receipts', 'byEvent'], {
+                      input,
+                      keyPrefix: 'rpc',
+                      type: 'query',
+                    }),
+                  queryOptions: (input: {
+                    eventId: string;
+                  }): ByEventOptions => ({
+                    queryFn: async () => [],
+                    queryKey: createRpcQueryKey(
+                      ['finance', 'receipts', 'byEvent'],
+                      { input, keyPrefix: 'rpc', type: 'query' },
+                    ),
+                  }),
+                },
+                submit: { mutationOptions: () => unused('submit') },
+              },
+            },
+          },
+        },
+      ],
+    }).compileComponents();
+    const created = TestBed.createComponent(EventOrganize);
+    fixture = created;
+    created.componentRef.setInput('eventId', 'event-1');
+    created.detectChanges();
+    await vi.waitFor(() => {
+      created.detectChanges();
+      const text = created.nativeElement.textContent ?? '';
+      expect(
+        state === 'pending'
+          ? text.includes('Loading attendees')
+          : state === 'error'
+            ? text.includes('Attendees could not be loaded')
+            : text.includes('Places filled'),
+      ).toBe(true);
+    });
+    const root: unknown = created.nativeElement;
+    if (!(root instanceof HTMLElement))
+      throw new Error('Expected the organizer component root.');
+    return root;
+  };
+
+  const actionsTrigger = (root: HTMLElement) =>
+    root.querySelector<HTMLButtonElement>(
+      'button[aria-label="Open event actions"]',
+    );
+
+  const downloadMenuItem = () =>
+    document.querySelector<HTMLAnchorElement>(
+      `a[role="menuitem"][aria-label="${CSS.escape(downloadName)}"]`,
+    );
+
+  afterEach(() => {
+    fixture?.destroy();
+    fixture = undefined;
+    queryClient?.clear();
+    queryClient = undefined;
+    TestBed.resetTestingModule();
+  });
+
+  it('offers the registrations CSV download in the event actions menu once the overview loaded', async () => {
+    const root = await render('success');
+    const trigger = actionsTrigger(root);
+
+    expect(trigger).not.toBeNull();
+    expect(downloadMenuItem()).toBeNull();
+
+    trigger?.click();
+    await vi.waitFor(() => {
+      fixture?.detectChanges();
+      expect(downloadMenuItem()).not.toBeNull();
+    });
+    const item = downloadMenuItem();
+
+    expect(item?.getAttribute('href')).toBe(
+      '/exports/events/event-1/registrations.csv',
+    );
+    expect(item?.hasAttribute('download')).toBe(true);
+    expect(item?.textContent?.trim()).toBe('Download CSV');
+  });
+
+  it('hides the event actions menu while the overview is pending', async () => {
+    const root = await render('pending');
+
+    expect(actionsTrigger(root)).toBeNull();
+  });
+
+  it('hides the event actions menu when the overview failed to load', async () => {
+    const root = await render('error');
+
+    expect(actionsTrigger(root)).toBeNull();
+  });
+});

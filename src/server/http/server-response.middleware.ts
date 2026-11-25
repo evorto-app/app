@@ -23,6 +23,8 @@ import { applySecurityHeaders } from './security-headers';
 const notFoundServerResponse = HttpServerResponse.empty({ status: 404 });
 const requestIdPattern = /^[a-zA-Z0-9_-]{1,64}$/u;
 const qrRegistrationPath = /^\/qr\/registration\/[^/]+$/u;
+const eventRegistrationsExportPath =
+  /^\/exports\/events\/[^/]+\/registrations\.csv$/u;
 const tenantBrandAssetPath = /^\/tenant-assets\/[^/]+\/[^/]+\/[^/]+$/u;
 
 export const safeServerRequestRoute = (requestUrl: string): string => {
@@ -30,6 +32,9 @@ export const safeServerRequestRoute = (requestUrl: string): string => {
 
   if (qrRegistrationPath.test(pathname)) {
     return '/qr/registration/:registrationId';
+  }
+  if (eventRegistrationsExportPath.test(pathname)) {
+    return '/exports/events/:eventId/registrations.csv';
   }
   if (tenantBrandAssetPath.test(pathname)) {
     return '/tenant-assets/:tenantId/:kind/:fileName';

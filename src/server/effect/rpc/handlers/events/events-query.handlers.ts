@@ -131,6 +131,8 @@ const canOrganizeEvent = Effect.fn('Events.canOrganizeEvent')(function* ({
   });
 });
 
+export { canOrganizeEvent };
+
 export const organizerRegistrationApprovalState = ({
   registrationMode,
   registrationStatus,
