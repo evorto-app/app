@@ -448,11 +448,20 @@ test.beforeAll(() => {
   ).toBeGreaterThan(0);
 });
 
+const lostCheckoutRequest = () => ({
+  customerEmail: 'webhook-fixture@example.test',
+  eventTitle: 'Webhook replay fixture',
+  eventUrl: 'https://example.test/events/webhook',
+  expiresAt: Math.floor(Date.now() / 1000) + 60 * 60,
+  lineItems: [{ name: 'Registration fee', quantity: 1, unitAmount: 2500 }],
+  notificationEmail: 'webhook-fixture@example.test',
+});
+
 test.beforeEach(async () => {
   webhookSecret = await resolveStripeWebhookSecret();
 });
 
-test('an exact pending transaction and checkout session match completes once under webhook replay @finance @stripe', async ({
+test('reattaches a lost paid Checkout and confirms exactly once under webhook replay @finance @stripe', async ({
   database,
   request,
   seeded,
@@ -508,8 +517,8 @@ test('an exact pending transaction and checkout session match completes once und
     method: 'stripe',
     status: 'pending',
     stripeAccountId,
-    stripeCheckoutSessionId: checkoutSessionId,
-    stripeCheckoutUrl: `https://checkout.stripe.com/c/pay/${checkoutSessionId}`,
+    stripeCheckoutReconcileNextAt: new Date(Date.now() + 60 * 60 * 1000),
+    stripeCheckoutRequest: lostCheckoutRequest(),
     targetUserId: regularUserId,
     tenantId: tenant.id,
     type: 'registration',
@@ -536,6 +545,7 @@ test('an exact pending transaction and checkout session match completes once und
           registrationId,
           tenantId: tenant.id,
           transactionId,
+          userId: regularUserId,
         },
         object: 'checkout.session',
         payment_intent: {
@@ -609,11 +619,13 @@ test('an exact pending transaction and checkout session match completes once und
       });
       return {
         paymentIntentId: updatedTransaction?.stripePaymentIntentId,
+        sessionId: updatedTransaction?.stripeCheckoutSessionId,
         status: updatedTransaction?.status,
       };
     })
     .toEqual({
       paymentIntentId: settledPayment.paymentIntentId,
+      sessionId: checkoutSessionId,
       status: 'successful',
     });
 
@@ -1144,7 +1156,7 @@ test('invalid checkout bindings and stale state leave registrations, payments, a
   }
 });
 
-test('expired checkout webhook resolves the persisted session and releases reserved capacity @finance @stripe', async ({
+test('expired checkout webhook attaches the original incident session and releases reserved capacity @finance @stripe', async ({
   database,
   request,
   seeded,
@@ -1187,6 +1199,7 @@ test('expired checkout webhook resolves the persisted session and releases reser
 
   await database.insert(schema.transactions).values({
     amount: 2500,
+    appFee: 0,
     comment: 'Webhook expired checkout capacity test',
     currency: 'EUR',
     eventId: seeded.scenario.events.paidOpen.eventId,
@@ -1196,14 +1209,15 @@ test('expired checkout webhook resolves the persisted session and releases reser
     method: 'stripe',
     status: 'pending',
     stripeAccountId,
-    stripeCheckoutSessionId: checkoutSessionId,
-    stripeCheckoutUrl: `https://checkout.stripe.com/c/pay/${checkoutSessionId}`,
+    stripeCheckoutIncidentSessionId: checkoutSessionId,
+    stripeCheckoutReconcileLastError: 'Session attachment was interrupted',
+    stripeCheckoutRequest: lostCheckoutRequest(),
     targetUserId: regularUserId,
     tenantId: tenant.id,
     type: 'registration',
   });
 
-  const payload = JSON.stringify({
+  const event = {
     account: stripeAccountId,
     api_version: '2024-11-20.acacia',
     created: 1_706_784_000,
@@ -1212,7 +1226,12 @@ test('expired checkout webhook resolves the persisted session and releases reser
         amount_total: 2500,
         currency: 'eur',
         id: checkoutSessionId,
-        metadata: {},
+        metadata: {
+          registrationId,
+          tenantId: tenant.id,
+          transactionId,
+          userId: regularUserId,
+        },
         object: 'checkout.session',
         payment_status: 'unpaid',
         status: 'expired',
@@ -1227,27 +1246,39 @@ test('expired checkout webhook resolves the persisted session and releases reser
       idempotency_key: null,
     },
     type: 'checkout.session.expired',
-  });
+  };
+  const deliver = (checkoutEvent: typeof event) => {
+    const payload = JSON.stringify(checkoutEvent);
+    return request.fetch('/webhooks/stripe', {
+      data: Buffer.from(payload, 'utf8'),
+      failOnStatusCode: false,
+      headers: {
+        'content-type': 'application/json',
+        'stripe-signature': Stripe.webhooks.generateTestHeaderString({
+          payload,
+          secret: webhookSecret,
+        }),
+      },
+      method: 'POST',
+    });
+  };
 
-  const signature = Stripe.webhooks.generateTestHeaderString({
-    payload,
-    secret: webhookSecret,
+  const otherSessionId = `cs_test_${getId()}`;
+  const conflictingDelivery = await deliver({
+    ...event,
+    data: { object: { ...event.data.object, id: otherSessionId } },
+    id: `evt_test_${getId()}`,
   });
+  expect(conflictingDelivery.status()).toBe(400);
 
-  const delivery = await request.fetch('/webhooks/stripe', {
-    data: Buffer.from(payload, 'utf8'),
-    failOnStatusCode: false,
-    headers: {
-      'content-type': 'application/json',
-      'stripe-signature': signature,
-    },
-    method: 'POST',
-  });
+  const delivery = await deliver(event);
   const body = await delivery.text();
   expect(
     delivery.status(),
     `Expected webhook delivery to return 200, received ${delivery.status()} with body "${body}"`,
   ).toBe(200);
+  const replay = await deliver({ ...event, id: `evt_test_${getId()}` });
+  expect(replay.status()).toBe(200);
 
   await expect
     .poll(async () => {
@@ -1269,15 +1300,19 @@ test('expired checkout webhook resolves the persisted session and releases reser
 
       return {
         confirmedSpots: updatedOption?.confirmedSpots,
+        incidentSessionId: updatedTransaction?.stripeCheckoutIncidentSessionId,
         registrationStatus: updatedRegistration?.status,
         reservedSpots: updatedOption?.reservedSpots,
+        sessionId: updatedTransaction?.stripeCheckoutSessionId,
         transactionStatus: updatedTransaction?.status,
       };
     })
     .toEqual({
       confirmedSpots: originalOption?.confirmedSpots,
+      incidentSessionId: null,
       registrationStatus: 'CANCELLED',
       reservedSpots: originalOption?.reservedSpots,
+      sessionId: checkoutSessionId,
       transactionStatus: 'cancelled',
     });
 });

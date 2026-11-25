@@ -1375,7 +1375,7 @@ An update that requires action on the payment account keeps the sign-up cancelle
       body: `
 ### A failed refund
 
-An update saying the refund **failed** for the same refund asks the attendee to **Contact the organizer** and changes the organizer result to **Refund needs attention**. It does not create a second refund, and the sign-up stays cancelled. The refund remains in this needs-attention state and is not retried automatically.
+An update saying the refund **failed** for the same refund asks the attendee to **Contact the organizer** and changes the organizer result to **Refund needs attention**. It does not create a second refund, and the sign-up stays cancelled. The refund remains in this needs-attention state and is not retried automatically. A section admin with Stripe access can check the original payment and refund status in Stripe.
 `,
     });
     await takeScreenshot(
@@ -1828,7 +1828,7 @@ The attendee name and sign-up choice are the first review context. Selecting the
 
 The success message and disappearing attendee row show that the cancellation completed. The sign-up is **Cancelled**, both attendee and guest spots are released, and the attendee receives an email that identifies the organizer cancellation. This free sign-up creates no refund.
 
-Paid tickets and paid add-ons are handled through online payments only. Evorto must first confirm the original payment and add-on amounts. If payment safety cannot be confirmed, nothing changes: the ticket and inventory remain intact. If an immediate refund attempt fails, the ticket remains cancelled and Evorto shows the refund status so an administrator can retry it safely.
+Paid tickets and paid add-ons are handled through online payments only. Evorto must first confirm the original payment and add-on amounts. If payment safety cannot be confirmed, nothing changes: the ticket and inventory remain intact. If the refund fails, the ticket remains cancelled and Evorto shows **Refund needs attention**. A section admin with Stripe access can check the original payment and refund status in Stripe.
 
 This sign-up is free, so cancellation creates no refund. For a paid sign-up, check the refund status shown in Evorto before telling an attendee that money has been returned.
 

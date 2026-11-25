@@ -501,11 +501,11 @@ The transfer keeps the same confirmed ticket and occupied capacity, moves owners
 For a paid transfer, **Accept ticket** opens a payment page on the organization's connected account and includes the platform application fee. The recipient's payment is recalculated independently from the previous owner's refunds. After payment succeeds, the complete bundle moves to the recipient and Evorto refunds the exact remaining refundable amount from each original online payment after accounting for prior successful refunds. When the bundle is free and no refund is needed, the transfer completes immediately without opening a payment page.
 
 - **Transfer complete — refund in progress** means the recipient owns the ticket and one or more refunds to the previous owner are still being processed.
-- **Transfer complete — refund needs attention** still means the recipient owns the ticket. An Evorto administrator must retry the failed refund; the attendee must not pay or claim again.
+- **Transfer complete — refund needs attention** still means the recipient owns the ticket. A section admin with Stripe access can check the original payment and refund status in Stripe. The attendee must not pay or claim again.
 - If the previous owner's ticket becomes ineligible or the fixed bundle otherwise changes after the recipient pays but before the transfer completes, Evorto leaves ownership unchanged and starts a full recipient refund including any fees. Check-in and fulfillment activity remain part of the bundle history. **Transfer stopped — refund processing** and **Transfer stopped — refund needs attention** mean the recipient does not own the ticket and must not pay or claim again.
 - If Checkout expires or the offer is cancelled before payment, the pending payment is released and the current owner keeps the confirmed ticket.
 
-Continue with [Finish a paid transfer and resolve a refund problem](/docs/finish-a-paid-transfer-and-resolve-a-refund-problem) for the paid Checkout and refund-recovery states.
+Continue with [Finish a paid transfer and resolve a refund problem](/docs/finish-a-paid-transfer-and-resolve-a-refund-problem) for the paid Checkout and refund statuses.
 `,
   });
 });
@@ -1405,7 +1405,7 @@ Open the transfer page and enter the same private code. **Payment still required
 
 **Transfer complete — refund in progress** means payment and ticket ownership are final: the same confirmed ticket and its full bundle now belong to the recipient, the previous owner no longer owns it, and one or more refunds to the previous owner are still being processed. The recipient must not pay again. The recipient's new online payment remains independent from those exact refunds.
 
-If any refund fails and needs attention, the recipient still owns the ticket and the other refunds continue independently. The private page changes to **Transfer complete — refund needs attention** so nobody mistakes a refund problem for an incomplete purchase.
+If any refund fails and needs attention, the recipient still owns the ticket and the other refunds continue independently. A section admin with Stripe access can check the original payment and refund status in Stripe. The private page changes to **Transfer complete — refund needs attention** so nobody mistakes a refund problem for an incomplete purchase.
 
 The previous owner can reopen the event at any time. **Transferred tickets** shows the exact total refund amount and whether it is processing, needs attention, or completed. This history does not restore ticket ownership or ticket actions.
 `,

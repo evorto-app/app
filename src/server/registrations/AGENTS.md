@@ -50,8 +50,10 @@ completion and cleanup. Transfer behavior remains in the transfer modules.
   do not offer another approval or payment-create attempt. There is no manual
   recovery action: missing, ambiguous, incomplete or mismatched provider
   evidence keeps the hold; only canonical completion/expiry reconciliation
-  changes it. A claim marked as a Checkout incident is excluded from expiry
-  cleanup, so it keeps the place until someone resolves it outside the app.
+  changes it. A verified terminal webhook can attach the original unbound
+  direct-registration Checkout from its metadata before normal reconciliation.
+  Ordinary expiry cleanup still skips a claim marked as an incident while it
+  remains unbound.
 
 Unit fixtures use real Drizzle construction with explicit typed connection rows.
 PostgreSQL tests prove locking, rollback, leases and replay behavior against the

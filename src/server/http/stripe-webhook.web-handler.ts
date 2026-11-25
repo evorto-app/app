@@ -1,7 +1,17 @@
 import type Stripe from 'stripe';
 
 import { registrationSpotCount } from '@shared/registration-spots';
-import { and, eq, isNull, lte, or, sql } from 'drizzle-orm';
+import {
+  and,
+  eq,
+  exists,
+  isNotNull,
+  isNull,
+  lte,
+  notExists,
+  or,
+  sql,
+} from 'drizzle-orm';
 import { Effect, Schema } from 'effect';
 
 import { Database, type DatabaseClient } from '../../db';
@@ -550,6 +560,80 @@ export const validateCheckoutSessionBinding = ({
   };
 };
 
+const attachUnboundDirectRegistrationCheckout = (
+  database: DatabaseClient,
+  account: string | undefined,
+  session: Stripe.Checkout.Session,
+) => {
+  const metadata = session.metadata;
+  const registrationId = metadata?.['registrationId'];
+  const tenantId = metadata?.['tenantId'];
+  const transactionId = metadata?.['transactionId'];
+  const userId = metadata?.['userId'];
+  if (
+    !account ||
+    !session.id ||
+    !metadata ||
+    Object.keys(metadata).length !== 4 ||
+    !registrationId ||
+    !tenantId ||
+    !transactionId ||
+    !userId
+  ) {
+    return Effect.void;
+  }
+
+  const { registrationTransfers, tenants, transactions } = schema;
+  return database
+    .update(transactions)
+    .set({
+      stripeCheckoutIncidentSessionId: null,
+      stripeCheckoutReconcileLastError: null,
+      stripeCheckoutSessionId: session.id,
+    })
+    .where(
+      and(
+        eq(transactions.id, transactionId),
+        eq(transactions.eventRegistrationId, registrationId),
+        eq(transactions.tenantId, tenantId),
+        eq(transactions.targetUserId, userId),
+        eq(transactions.stripeAccountId, account),
+        eq(transactions.method, 'stripe'),
+        eq(transactions.type, 'registration'),
+        eq(transactions.status, 'pending'),
+        isNotNull(transactions.stripeCheckoutRequest),
+        isNull(transactions.stripeCheckoutSessionId),
+        or(
+          isNull(transactions.stripeCheckoutIncidentSessionId),
+          eq(transactions.stripeCheckoutIncidentSessionId, session.id),
+        ),
+        exists(
+          database
+            .select({ id: tenants.id })
+            .from(tenants)
+            .where(
+              and(
+                eq(tenants.id, tenantId),
+                eq(tenants.stripeAccountId, account),
+              ),
+            ),
+        ),
+        notExists(
+          database
+            .select({ id: registrationTransfers.id })
+            .from(registrationTransfers)
+            .where(
+              eq(
+                registrationTransfers.recipientCheckoutTransactionId,
+                transactionId,
+              ),
+            ),
+        ),
+      ),
+    )
+    .pipe(Effect.asVoid);
+};
+
 const resolveCheckoutSession = (
   event: Stripe.Event,
   eventSession: Stripe.Checkout.Session,
@@ -561,20 +645,36 @@ const resolveCheckoutSession = (
   databaseEffect((database) =>
     Effect.gen(function* () {
       const paymentIntentId = getCheckoutSessionPaymentIntentId(eventSession);
-      const persisted = yield* database.query.transactions.findFirst({
-        columns: {
-          eventRegistrationId: true,
-          id: true,
-          method: true,
-          status: true,
-          stripeAccountId: true,
-          stripeCheckoutSessionId: true,
-          stripePaymentIntentId: true,
-          tenantId: true,
-          type: true,
-        },
-        where: { stripeCheckoutSessionId: eventSession.id },
-      });
+      const findBoundTransaction = () =>
+        database.query.transactions.findFirst({
+          columns: {
+            eventRegistrationId: true,
+            id: true,
+            method: true,
+            status: true,
+            stripeAccountId: true,
+            stripeCheckoutSessionId: true,
+            stripePaymentIntentId: true,
+            tenantId: true,
+            type: true,
+          },
+          where: { stripeCheckoutSessionId: eventSession.id },
+        });
+      let persisted = yield* findBoundTransaction();
+      if (
+        !persisted &&
+        ((event.type === 'checkout.session.completed' && paymentIntentId) ||
+          (event.type === 'checkout.session.expired' &&
+            eventSession.payment_status === 'unpaid'))
+      ) {
+        yield* attachUnboundDirectRegistrationCheckout(
+          database,
+          event.account,
+          eventSession,
+        );
+        // Another delivery or checkout creation may have saved the same link.
+        persisted = yield* findBoundTransaction();
+      }
       if (!persisted) {
         return { type: 'unresolved' } as const;
       }
