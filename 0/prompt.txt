@@ -1,0 +1,16 @@
+Please check if 248 is ready to merge
+
+---
+
+Did we get rid of our patch in the dependencies?
+Also is the drizzle thing a bug on their end?
+
+---
+
+Is there an open issue for the drizzle bug? and can we get rid of the patch or is there something to follow for that issue on drizzles side?
+
+---
+
+Please open upstream issues for both bugs with reproducers, and link them from PR 248 so we can follow the Drizzle fix and know when we can drop our Effect patch.
+
+Get our PR merged once it is ready though
