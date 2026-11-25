@@ -2,6 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { APP_RPC_CLIENT } from '@app/core/effect-rpc-angular-client';
 import {
+  onlineManager,
   provideTanStackQuery,
   QueryClient,
 } from '@tanstack/angular-query-experimental';
@@ -671,7 +672,7 @@ describe('applyScanCheckInResult', () => {
   it('updates only the confirmed ticket and leaves another cached ticket untouched', async () => {
     const client = setup();
     const result = { registration: { checkedInGuestCount: 2, id: 'a' } };
-    await applyScanCheckInResult(client, keyA, result);
+    await applyScanCheckInResult(client, keyA, result, 1);
     expect(client.getQueryData(keyA)).toEqual({
       addOns: { _tag: 'Available', items: [] },
       registration: { checkedInGuestCount: 2, id: 'a' },
@@ -683,9 +684,12 @@ describe('applyScanCheckInResult', () => {
     const client = setup();
     vi.spyOn(client, 'isFetching').mockReturnValue(1);
     const invalidate = vi.spyOn(client, 'invalidateQueries');
-    await applyScanCheckInResult(client, keyA, {
-      registration: { checkedInGuestCount: 2, id: 'a' },
-    });
+    await applyScanCheckInResult(
+      client,
+      keyA,
+      { registration: { checkedInGuestCount: 2, id: 'a' } },
+      1,
+    );
     expect(client.getQueryData(keyA)).toEqual({
       addOns: { _tag: 'Available', items: [] },
       registration: { checkedInGuestCount: 2, id: 'a' },
@@ -697,17 +701,41 @@ describe('applyScanCheckInResult', () => {
   it('does not look the ticket up again after a plain check-in', async () => {
     const client = setup();
     const invalidate = vi.spyOn(client, 'invalidateQueries');
-    await applyScanCheckInResult(client, keyA, {
-      registration: { checkedInGuestCount: 2, id: 'a' },
-    });
+    await applyScanCheckInResult(
+      client,
+      keyA,
+      { registration: { checkedInGuestCount: 2, id: 'a' } },
+      1,
+    );
     expect(invalidate).not.toHaveBeenCalled();
+  });
+
+  it('keeps a ticket refreshed during check-in and schedules an exact refetch', async () => {
+    const client = setup();
+    const updateCount = client.getQueryState(keyA)?.dataUpdateCount ?? 0;
+    client.setQueryData(keyA, ticket('a', 2));
+    const invalidate = vi.spyOn(client, 'invalidateQueries');
+
+    await applyScanCheckInResult(
+      client,
+      keyA,
+      { registration: { checkedInGuestCount: 1, id: 'a' } },
+      updateCount,
+    );
+
+    expect(client.getQueryData(keyA)).toEqual(ticket('a', 2));
+    expect(client.getQueryData(keyB)).toEqual(ticket('b', 0));
+    expect(invalidate).toHaveBeenCalledExactlyOnceWith({
+      exact: true,
+      queryKey: keyA,
+    });
   });
 
   it('invalidates only that ticket when the post-commit read is missing', async () => {
     const client = setup();
     const invalidate = vi.spyOn(client, 'invalidateQueries');
     const setData = vi.spyOn(client, 'setQueryData');
-    await applyScanCheckInResult(client, keyA, { registration: null });
+    await applyScanCheckInResult(client, keyA, { registration: null }, 1);
     expect(invalidate).toHaveBeenCalledTimes(1);
     expect(invalidate).toHaveBeenCalledWith({ exact: true, queryKey: keyA });
     expect(setData).not.toHaveBeenCalled();
@@ -863,20 +891,57 @@ describe('HandleRegistrationComponent ticket display', () => {
     expect(content).not.toContain('Ticket could not be refreshed');
   });
 
-  it('explains unavailable add-ons without hiding the ticket or check-in', async () => {
+  it('explains when the initial ticket lookup is paused offline', async () => {
     scanTicket.mockResolvedValue({
-      addOns: {
-        _tag: 'Unavailable',
-        message: 'Add-ons are paused while a ticket transfer is open.',
-      },
+      addOns: { _tag: 'Available', items: [] },
       registration,
     });
+    onlineManager.setOnline(false);
+    try {
+      const fixture = await render();
+      expect(text(fixture)).toContain(
+        'Waiting for a connection to load the ticket',
+      );
+      expect(scanTicket).not.toHaveBeenCalled();
+
+      onlineManager.setOnline(true);
+      await settle(fixture);
+      expect(text(fixture)).toContain('Ada Lovelace');
+      expect(scanTicket).toHaveBeenCalledOnce();
+    } finally {
+      onlineManager.setOnline(true);
+    }
+  });
+
+  it('lets the helper reload unavailable add-ons without leaving the ticket', async () => {
+    scanTicket
+      .mockResolvedValueOnce({
+        addOns: {
+          _tag: 'Unavailable',
+          message: 'Add-ons cannot be shown right now.',
+        },
+        registration,
+      })
+      .mockResolvedValue({
+        addOns: { _tag: 'Available', items: [] },
+        registration,
+      });
     const fixture = await render();
     const content = text(fixture);
-    expect(content).toContain(
-      'Add-ons are paused while a ticket transfer is open.',
-    );
+    expect(content).toContain('Add-ons cannot be shown right now.');
     expect(content).toContain('Ada Lovelace');
     expect(content).toContain('Confirm check-in');
+
+    const retry: HTMLButtonElement = [
+      ...fixture.nativeElement.querySelectorAll('button'),
+    ].find((element: HTMLButtonElement) =>
+      element.textContent?.includes('Retry add-ons'),
+    );
+    retry.click();
+    await settle(fixture);
+
+    expect(scanTicket).toHaveBeenCalledTimes(2);
+    expect(text(fixture)).not.toContain('Add-ons cannot be shown right now.');
+    expect(text(fixture)).toContain('Ada Lovelace');
   });
 });

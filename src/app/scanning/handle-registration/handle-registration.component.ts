@@ -432,12 +432,10 @@ export const scanCheckInPayload = ({
  * fresh data is not lost.
  */
 export const applyScanCheckInResult = async <Registration>(
-  queryClient: Pick<
-    QueryClient,
-    'cancelQueries' | 'invalidateQueries' | 'isFetching' | 'setQueryData'
-  >,
+  queryClient: QueryClient,
   queryKey: QueryKey,
   result: { registration: null | Registration },
+  initialDataUpdateCount: number,
 ): Promise<void> => {
   const { registration } = result;
   if (registration === null) {
@@ -448,6 +446,15 @@ export const applyScanCheckInResult = async <Registration>(
   // confirmed state.
   const wasFetching = queryClient.isFetching({ exact: true, queryKey }) > 0;
   await queryClient.cancelQueries({ exact: true, queryKey });
+  if (
+    (queryClient.getQueryState(queryKey)?.dataUpdateCount ?? 0) !==
+    initialDataUpdateCount
+  ) {
+    // A refresh finished during the request. Keep its snapshot until a new
+    // lookup can establish which data is current.
+    void queryClient.invalidateQueries({ exact: true, queryKey });
+    return;
+  }
   queryClient.setQueryData<{ registration: Registration }>(
     queryKey,
     (previous) => previous && { ...previous, registration },
@@ -627,6 +634,16 @@ export class HandleRegistrationComponent {
   private readonly dialog = inject(MatDialog);
   private readonly queryClient = inject(QueryClient);
   private readonly redeemIntentStore = new RegistrationAddonRedeemIntentStore();
+
+  canLeaveTicket(): boolean {
+    if (this.checkInMutation.isPending()) return false;
+    if (this.checkInState() !== 'notConfirmed') return true;
+    return (
+      globalThis.confirm?.(
+        'This check-in is still unconfirmed. Leave the ticket without checking its result?',
+      ) ?? false
+    );
+  }
 
   checkIn() {
     const state = this.checkInState();
@@ -814,6 +831,8 @@ export class HandleRegistrationComponent {
 
   private sendCheckIn(payload: ScanCheckInPayload): void {
     const queryKey = this.scanTicketKey(payload.registrationId);
+    const initialDataUpdateCount =
+      this.queryClient.getQueryState(queryKey)?.dataUpdateCount ?? 0;
     this.checkInMutation.mutate(payload, {
       onError: async (error) => {
         if (hasErrorTag(error, 'EventRegistrationConflictError')) {
@@ -822,7 +841,12 @@ export class HandleRegistrationComponent {
       },
       onSuccess: async (result) => {
         this.localCheckInCompleted.set(true);
-        await applyScanCheckInResult(this.queryClient, queryKey, result);
+        await applyScanCheckInResult(
+          this.queryClient,
+          queryKey,
+          result,
+          initialDataUpdateCount,
+        );
       },
     });
   }

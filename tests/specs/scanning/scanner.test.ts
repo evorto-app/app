@@ -1485,6 +1485,8 @@ test('scan check-in waits while offline and sends once the connection returns', 
     page.getByRole('status').filter({ hasText: 'No connection.' }),
   ).toBeVisible();
   await expect(page.getByLabel('Guests to check in now')).toBeDisabled();
+  const backToScanner = page.getByLabel('Back to scanner');
+  await expect(backToScanner).toBeDisabled();
   expect(await readCheckInState()).toEqual({
     checkedIn: false,
     checkedInGuestCount: 0,
@@ -1496,6 +1498,7 @@ test('scan check-in waits while offline and sends once the connection returns', 
     timeout: 20_000,
   });
   await expect(page.getByRole('button', { name: 'Checked in' })).toBeDisabled();
+  await expect(backToScanner).toBeEnabled();
   await expect.poll(readCheckInState).toEqual({
     checkedIn: true,
     checkedInGuestCount: 2,

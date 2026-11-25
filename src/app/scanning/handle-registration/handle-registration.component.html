@@ -1,5 +1,10 @@
 <div class="mb-4 flex flex-row items-center gap-2">
-  <a routerLink="/scan" mat-icon-button aria-label="Back to scanner">
+  <a
+    routerLink="/scan"
+    mat-icon-button
+    aria-label="Back to scanner"
+    [disabled]="checkInMutation.isPending()"
+  >
     <fa-duotone-icon [icon]="faArrowLeft" />
   </a>
   <h1 class="title-large">Ticket scanned</h1>
@@ -10,11 +15,13 @@
     class="bg-surface text-on-surface flex animate-pulse cursor-progress flex-col gap-2 rounded-2xl p-4"
   >
     <h2 class="title-medium">Loading…</h2>
-    @if (scanTicketQuery.failureCount() > 0) {
-      <p class="body-medium" aria-live="polite" role="status">
+    <p class="body-medium" role="status">
+      @if (scanTicketQuery.isPaused()) {
+        Waiting for a connection to load the ticket…
+      } @else if (scanTicketQuery.failureCount() > 0) {
         Connection problem. Trying again…
-      </p>
-    }
+      }
+    </p>
   </div>
 } @else if (scanTicketQuery.isLoadingError()) {
   <div class="bg-error text-on-error rounded-2xl p-4">
@@ -154,12 +161,26 @@
       </div>
     </div>
     @if (ticket.addOns._tag === "Unavailable") {
-      <p
+      <div
         class="bg-surface-container text-on-surface mt-4 rounded-lg p-4 text-sm"
-        role="status"
       >
-        {{ ticket.addOns.message }}
-      </p>
+        <p role="status">{{ ticket.addOns.message }}</p>
+        <button
+          mat-stroked-button
+          type="button"
+          class="mt-3"
+          [disabled]="scanTicketQuery.fetchStatus() !== 'idle'"
+          (click)="retryRegistration()"
+        >
+          @if (scanTicketQuery.isPaused()) {
+            Waiting for connection…
+          } @else if (scanTicketQuery.isFetching()) {
+            Retrying add-ons…
+          } @else {
+            Retry add-ons
+          }
+        </button>
+      </div>
     } @else if (ticket.addOns.items.length > 0) {
       <section
         class="bg-surface text-on-surface mt-4 overflow-hidden rounded-lg border"
@@ -321,6 +342,11 @@
     }
     <div aria-live="polite" role="status">
       @switch (checkInState()) {
+        @case ("sending") {
+          <div class="bg-surface-container text-on-surface mt-4 rounded p-4">
+            <p>Waiting for the check-in result. Keep this page open.</p>
+          </div>
+        }
         @case ("retrying") {
           <div class="bg-surface-container text-on-surface mt-4 rounded p-4">
             <p>Connection problem. Retrying check-in…</p>
