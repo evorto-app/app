@@ -6904,6 +6904,7 @@ describe('event registration scan handlers', () => {
           'events.checkInRegistration'
         ](
           {
+            expectedAttendeeCheckedIn: false,
             expectedCheckedInGuestCount: 0,
             guestCheckInCount: -1,
             operationKey: 'operation-1',

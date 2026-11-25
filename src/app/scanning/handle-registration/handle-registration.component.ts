@@ -12,6 +12,7 @@ import {
   computed,
   inject,
   input,
+  linkedSignal,
   signal,
 } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
@@ -446,12 +447,12 @@ export const applyScanCheckInResult = async <Registration>(
   // confirmed state.
   const wasFetching = queryClient.isFetching({ exact: true, queryKey }) > 0;
   await queryClient.cancelQueries({ exact: true, queryKey });
+  const currentState = queryClient.getQueryState(queryKey);
   if (
-    (queryClient.getQueryState(queryKey)?.dataUpdateCount ?? 0) !==
-    initialDataUpdateCount
+    (currentState?.dataUpdateCount ?? 0) !== initialDataUpdateCount ||
+    currentState?.status === 'error'
   ) {
-    // A refresh finished during the request. Keep its snapshot until a new
-    // lookup can establish which data is current.
+    // Preserve the last lookup's data or warning until a new lookup succeeds.
     void queryClient.invalidateQueries({ exact: true, queryKey });
     return;
   }
@@ -560,16 +561,21 @@ export class HandleRegistrationComponent {
     retry: rpcTransportRetry,
     retryDelay: rpcTransportRetryDelay,
   }));
-  protected readonly checkInState = computed(() =>
-    scanCheckInState({
+  protected readonly checkInState = computed(() => {
+    if (
+      this.checkInMutation.variables()?.registrationId !== this.registrationId()
+    ) {
+      return 'idle';
+    }
+    return scanCheckInState({
       error: this.checkInMutation.error(),
       failureCount: this.checkInMutation.failureCount(),
       isError: this.checkInMutation.isError(),
       isPaused: this.checkInMutation.isPaused(),
       isPending: this.checkInMutation.isPending(),
       isSuccess: this.checkInMutation.isSuccess(),
-    }),
-  );
+    });
+  });
   /**
    * An unconfirmed check-in that the server answered with an internal error
    * instead of a dropped connection. Internal wording stays hidden, as with
@@ -590,7 +596,10 @@ export class HandleRegistrationComponent {
     retry: rpcTransportRetry,
     retryDelay: rpcTransportRetryDelay,
   }));
-  protected readonly guestCheckInCount = signal(0);
+  protected readonly guestCheckInCount = linkedSignal({
+    computation: () => 0,
+    source: this.registrationId,
+  });
   protected readonly selectedGuestCheckInCount = computed(() => {
     const scanResult = this.scanTicketQuery.data()?.registration;
     if (!scanResult) {
@@ -607,12 +616,8 @@ export class HandleRegistrationComponent {
       (scanResult.attendeeCheckedIn ? 0 : 1) + this.selectedGuestCheckInCount()
     );
   });
-  private readonly localCheckInCompleted = signal(false);
   protected readonly checkInCompleted = computed(
-    () =>
-      this.localCheckInCompleted() ||
-      (this.checkInMutation.isSuccess() &&
-        this.selectedSpotCheckInCount() === 0),
+    () => this.checkInState() === 'confirmed',
   );
   protected readonly faArrowLeft = faArrowLeft;
   protected readonly pendingAddonId = signal<string | undefined>(undefined);
@@ -840,7 +845,6 @@ export class HandleRegistrationComponent {
         }
       },
       onSuccess: async (result) => {
-        this.localCheckInCompleted.set(true);
         await applyScanCheckInResult(
           this.queryClient,
           queryKey,

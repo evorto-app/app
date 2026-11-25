@@ -731,6 +731,33 @@ describe('applyScanCheckInResult', () => {
     });
   });
 
+  it('preserves a failed refresh and schedules another read after check-in', async () => {
+    const client = setup();
+    const updateCount = client.getQueryState(keyA)?.dataUpdateCount ?? 0;
+    const refreshError = new Error('Lookup failed');
+    await expect(
+      client.fetchQuery({
+        queryFn: () => Promise.reject(refreshError),
+        queryKey: keyA,
+      }),
+    ).rejects.toBe(refreshError);
+    const invalidate = vi.spyOn(client, 'invalidateQueries');
+
+    await applyScanCheckInResult(
+      client,
+      keyA,
+      { registration: { checkedInGuestCount: 1, id: 'a' } },
+      updateCount,
+    );
+
+    expect(client.getQueryState(keyA)?.error).toBe(refreshError);
+    expect(client.getQueryData(keyA)).toEqual(ticket('a', 0));
+    expect(invalidate).toHaveBeenCalledExactlyOnceWith({
+      exact: true,
+      queryKey: keyA,
+    });
+  });
+
   it('invalidates only that ticket when the post-commit read is missing', async () => {
     const client = setup();
     const invalidate = vi.spyOn(client, 'invalidateQueries');
@@ -760,7 +787,10 @@ describe('HandleRegistrationComponent ticket display', () => {
     sameUserIssue: false,
     user: { firstName: 'Ada', lastName: 'Lovelace' },
   };
-  const queryKey = ['scanTicket', 'registration-1'];
+  const queryKey = ({ registrationId }: { registrationId: string }) => [
+    'scanTicket',
+    registrationId,
+  ];
   const checkIn = vi.fn();
   const scanTicket = vi.fn();
   let queryClient: QueryClient;
@@ -796,8 +826,11 @@ describe('HandleRegistrationComponent ticket display', () => {
               },
               redeemRegistrationAddon: { mutationOptions: () => ({}) },
               scanTicket: {
-                queryKey: () => queryKey,
-                queryOptions: () => ({ queryFn: scanTicket, queryKey }),
+                queryKey,
+                queryOptions: (input: { registrationId: string }) => ({
+                  queryFn: () => scanTicket(input),
+                  queryKey: queryKey(input),
+                }),
               },
               undoRegistrationAddonRedemption: {
                 mutationOptions: () => ({}),
@@ -880,6 +913,36 @@ describe('HandleRegistrationComponent ticket display', () => {
     expect(content).not.toContain('The event details are unavailable');
     expect(content).not.toContain('The connection dropped');
     expect(content).toContain('Try again');
+  });
+
+  it('keeps an unconfirmed request from following a reused ticket view', async () => {
+    scanTicket.mockResolvedValue({
+      addOns: { _tag: 'Available', items: [] },
+      registration,
+    });
+    checkIn
+      .mockRejectedValueOnce({ _tag: 'EventRegistrationInternalError' })
+      .mockResolvedValue({ registration });
+    const fixture = await render();
+    const confirmButton = (): HTMLButtonElement =>
+      [...fixture.nativeElement.querySelectorAll('button')].find(
+        (element: HTMLButtonElement) =>
+          element.textContent?.includes('Confirm check-in'),
+      );
+    confirmButton().click();
+    await settle(fixture);
+    expect(text(fixture)).toContain('Check-in not confirmed');
+
+    fixture.componentRef.setInput('registrationId', 'registration-2');
+    await settle(fixture);
+    expect(text(fixture)).not.toContain('Check-in not confirmed');
+    expect(text(fixture)).not.toContain('Try again');
+    confirmButton().click();
+    await settle(fixture);
+
+    expect(
+      checkIn.mock.calls.map(([payload]) => payload.registrationId),
+    ).toEqual(['registration-1', 'registration-2']);
   });
 
   it('shows the full-page error only when the first load fails', async () => {
