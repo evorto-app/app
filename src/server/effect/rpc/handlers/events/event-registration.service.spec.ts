@@ -50,6 +50,8 @@ import {
   userDiscountCards,
   usersToTenants,
 } from '../../../../../db/schema';
+import { defaultStripeApplicationFeeRate } from '../../../../config/stripe-config';
+import { applicationFeeAmount } from '../../../../payments/application-fee';
 import { maximumPersistedPaymentAmount } from '../../../../payments/payment-amount';
 import { checkoutSessionIncidentLastError } from '../../../../registrations/checkout-session-incident';
 import { validateRegistrationQuestionAnswers } from '../../../../registrations/event-question-answer-guard';
@@ -3432,7 +3434,7 @@ const createDirectCheckoutDatabase = ({
         id,
         'tenant-1',
         amount,
-        Math.round(amount * 0.035),
+        applicationFeeAmount(amount, defaultStripeApplicationFeeRate),
         'Registration for event Approved event event-1',
         'EUR',
         'event-1',
@@ -3450,7 +3452,7 @@ const createDirectCheckoutDatabase = ({
       claimStatus = 'pending';
       claim = {
         amount,
-        appFee: Math.round(amount * 0.035),
+        appFee: applicationFeeAmount(amount, defaultStripeApplicationFeeRate),
         currency: 'EUR',
         id,
         stripeAccountId: lockedStripeAccountId,

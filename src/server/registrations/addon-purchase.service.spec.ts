@@ -9,6 +9,7 @@ import { Effect, Layer } from 'effect';
 import Stripe from 'stripe';
 
 import { type eventAddons, type tenantStripeTaxRates } from '../../db/schema';
+import { defaultStripeApplicationFeeRate } from '../config/stripe-config';
 import { StripeClient } from '../stripe-client';
 import { createRegistrationDatabaseTestLayer } from '../testing/registration-database';
 import { createRejectingStripeClient } from '../testing/stripe-test-fixtures';
@@ -353,6 +354,7 @@ describe('registration add-on purchase policy', () => {
   it('derives exact no-tax and Stripe tax amounts before reserving stock', () => {
     expect(
       resolveRegistrationAddonPurchaseAmounts({
+        applicationFeeRate: defaultStripeApplicationFeeRate,
         quantity: 2,
         taxRateInclusive: null,
         taxRatePercentage: null,
@@ -366,6 +368,7 @@ describe('registration add-on purchase policy', () => {
     });
     expect(
       resolveRegistrationAddonPurchaseAmounts({
+        applicationFeeRate: defaultStripeApplicationFeeRate,
         quantity: 2,
         taxRateInclusive: false,
         taxRatePercentage: '19',
@@ -379,6 +382,7 @@ describe('registration add-on purchase policy', () => {
     });
     expect(
       resolveRegistrationAddonPurchaseAmounts({
+        applicationFeeRate: defaultStripeApplicationFeeRate,
         quantity: 2,
         taxRateInclusive: true,
         taxRatePercentage: '19',
@@ -395,6 +399,7 @@ describe('registration add-on purchase policy', () => {
   it('rejects unsafe quantities and incomplete tax snapshots', () => {
     expect(
       resolveRegistrationAddonPurchaseAmounts({
+        applicationFeeRate: defaultStripeApplicationFeeRate,
         quantity: 0,
         taxRateInclusive: null,
         taxRatePercentage: null,
@@ -403,6 +408,7 @@ describe('registration add-on purchase policy', () => {
     ).toBeUndefined();
     expect(
       resolveRegistrationAddonPurchaseAmounts({
+        applicationFeeRate: defaultStripeApplicationFeeRate,
         quantity: 1,
         taxRateInclusive: null,
         taxRatePercentage: '19',

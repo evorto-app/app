@@ -10,6 +10,8 @@ import { usersToAuthenticate } from '../../../helpers/user-data';
 import { createId } from '../../../src/db/create-id';
 import { relations } from '../../../src/db/relations';
 import * as schema from '../../../src/db/schema';
+import { defaultStripeApplicationFeeRate } from '../../../src/server/config/stripe-config';
+import { applicationFeeAmount } from '../../../src/server/payments/application-fee';
 import { deleteRegistrationAcquisitionLedger } from './registration-acquisition-cleanup';
 import { futureServerEventWindow } from './server-test-clock';
 
@@ -339,7 +341,10 @@ export const seedManualApprovalScenario = async ({
         }
         await transaction.insert(schema.transactions).values({
           amount: option.price,
-          appFee: Math.round(option.price * 0.035),
+          appFee: applicationFeeAmount(
+            option.price,
+            defaultStripeApplicationFeeRate,
+          ),
           comment: `Uncertain payment setup for ${event.title}`,
           currency: tenant.currency,
           eventId: event.id,

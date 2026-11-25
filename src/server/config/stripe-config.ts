@@ -1,11 +1,32 @@
-import { Config, Effect, Option } from 'effect';
+import { Config, ConfigProvider, Effect, Option } from 'effect';
 import fs from 'node:fs/promises';
 
 import { missingFieldError } from './config-error';
 import { optionalTrimmedString } from './config-string';
 
+/** Share of each Stripe charge kept as the Connect application fee. */
+export const defaultStripeApplicationFeeRate = 0.035;
+
+export const stripeApplicationFeeRateConfig = Config.Finite(
+  'STRIPE_APPLICATION_FEE_RATE',
+).pipe(
+  Config.withDefault(defaultStripeApplicationFeeRate),
+  Config.mapEffect((rate) =>
+    rate >= 0 && rate < 1
+      ? Effect.succeed(rate)
+      : Effect.fail(
+          new Config.ConfigError(
+            new ConfigProvider.SourceError({
+              message: `Expected STRIPE_APPLICATION_FEE_RATE to be at least 0 and below 1, got ${rate}`,
+            }),
+          ),
+        ),
+  ),
+);
+
 export const stripeConfig = Config.all({
   STRIPE_API_KEY: optionalTrimmedString('STRIPE_API_KEY'),
+  STRIPE_APPLICATION_FEE_RATE: stripeApplicationFeeRateConfig,
   STRIPE_TEST_ACCOUNT_ID: optionalTrimmedString('STRIPE_TEST_ACCOUNT_ID'),
   STRIPE_WEBHOOK_SECRET: optionalTrimmedString('STRIPE_WEBHOOK_SECRET'),
   STRIPE_WEBHOOK_SECRET_FILE: optionalTrimmedString(
