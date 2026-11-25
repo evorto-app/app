@@ -5,6 +5,7 @@ import {
   boolean,
   check,
   foreignKey,
+  index,
   jsonb,
   pgEnum,
   pgTable,
@@ -76,6 +77,10 @@ export const eventInstances = pgTable(
       foreignColumns: [eventTemplates.id, eventTemplates.tenantId],
       name: eventTemplateTenantForeignKeyName,
     }),
+    // Event list window: tenant + `end` (EVO-18, measured with EXPLAIN ANALYZE).
+    index('event_instances_tenant_end_idx')
+      .on(table.tenantId, table.end)
+      .concurrently(),
     unique(eventTenantIdentityUniqueConstraintName).on(
       table.id,
       table.tenantId,

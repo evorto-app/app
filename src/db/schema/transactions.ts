@@ -335,6 +335,10 @@ export const transactions = pgTable(
     stripeCheckoutReconcileIndex: index(
       'transactions_checkout_reconcile_idx',
     ).on(table.type, table.status, table.stripeCheckoutReconcileNextAt),
+    // Finance list by tenant, newest first (EVO-18, measured with EXPLAIN ANALYZE).
+    tenantCreatedAtIndex: index('transactions_tenant_created_at_idx')
+      .on(table.tenantId, table.createdAt)
+      .concurrently(),
     tenantIdentity: unique('transactions_id_tenant_unique').on(
       table.id,
       table.tenantId,

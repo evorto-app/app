@@ -130,6 +130,8 @@ export const usersToTenants = pgTable(
       .references(() => users.id),
   },
   (table) => [
+    // Member list by tenant (EVO-18, measured with EXPLAIN ANALYZE).
+    index('users_to_tenants_tenant_idx').on(table.tenantId).concurrently(),
     unique(userTenantIdentityUniqueConstraintName).on(table.id, table.tenantId),
     unique().on(table.userId, table.tenantId),
   ],
