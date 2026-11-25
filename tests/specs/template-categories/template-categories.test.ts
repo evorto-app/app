@@ -7,7 +7,6 @@ test.use({ storageState: adminStateFile });
 
 test('create template category', async ({
   database,
-  isMobile,
   page,
   seedDate,
   tenant,
@@ -17,12 +16,13 @@ test('create template category', async ({
   await page.goto('.');
   await page.getByRole('link', { name: 'Templates' }).click();
   await expect(page).toHaveURL(/\/templates/);
-  if (isMobile) {
-    await page.getByRole('button', { name: 'Menu' }).click();
-    await page.getByRole('menuitem', { name: 'Manage categories' }).click();
-  } else {
-    await page.getByRole('link', { name: 'Manage categories' }).click();
-  }
+  const listActions = page.getByRole('button', {
+    name: 'Open template list actions',
+  });
+  // The menu needs the hydrated click listener (event replay marker gone).
+  await expect(listActions).not.toHaveAttribute('jsaction', /click/);
+  await listActions.click();
+  await page.getByRole('menuitem', { name: 'Manage categories' }).click();
   await expect(page).toHaveURL(/\/templates\/categories/);
   const categoriesTable = page.getByRole('table');
   await expect(categoriesTable).toBeVisible();
@@ -63,7 +63,6 @@ test('create template category', async ({
 
 test('edit template category', async ({
   database,
-  isMobile,
   page,
   seedDate,
   templateCategories,
@@ -78,12 +77,13 @@ test('edit template category', async ({
   await page.goto('.');
   await page.getByRole('link', { name: 'Templates' }).click();
   await expect(page).toHaveURL(/\/templates/);
-  if (isMobile) {
-    await page.getByRole('button', { name: 'Menu' }).click();
-    await page.getByRole('menuitem', { name: 'Manage categories' }).click();
-  } else {
-    await page.getByRole('link', { name: 'Manage categories' }).click();
-  }
+  const listActions = page.getByRole('button', {
+    name: 'Open template list actions',
+  });
+  // The menu needs the hydrated click listener (event replay marker gone).
+  await expect(listActions).not.toHaveAttribute('jsaction', /click/);
+  await listActions.click();
+  await page.getByRole('menuitem', { name: 'Manage categories' }).click();
   await expect(page).toHaveURL(/\/templates\/categories/);
   const categoriesTable = page.getByRole('table');
   await expect(categoriesTable).toBeVisible();
