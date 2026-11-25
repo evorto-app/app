@@ -1115,6 +1115,7 @@ const questionRaceLayer = (
   const config = ConfigProvider.layer(
     ConfigProvider.fromEnv({
       env: {
+        APP_ENVIRONMENT: 'local',
         BASE_URL: 'https://question-race.example',
         DATABASE_TLS_REQUIRED: 'false',
         DATABASE_URL: url,

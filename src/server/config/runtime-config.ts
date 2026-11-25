@@ -9,10 +9,6 @@ import {
 } from './object-storage-config';
 import { serverConfig, type ServerConfig } from './server-config';
 import { stripeConfig, type StripeConfig } from './stripe-config';
-import {
-  type TestRuntimeConfigState,
-  testRuntimeConfigState,
-} from './test-runtime-config';
 
 export interface RuntimeConfigShape {
   auth: AuthConfig;
@@ -21,7 +17,6 @@ export interface RuntimeConfigShape {
   objectStorage: ObjectStorageConfigState;
   server: ServerConfig;
   stripe: StripeConfig;
-  testRuntime: TestRuntimeConfigState;
 }
 
 const runtimeConfigEffect = Effect.gen(function* () {
@@ -32,7 +27,6 @@ const runtimeConfigEffect = Effect.gen(function* () {
     objectStorage: yield* objectStorageStateConfig,
     server: yield* serverConfig,
     stripe: yield* stripeConfig,
-    testRuntime: yield* testRuntimeConfigState,
   } satisfies RuntimeConfigShape;
 });
 

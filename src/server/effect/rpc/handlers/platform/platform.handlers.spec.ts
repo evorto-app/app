@@ -390,7 +390,7 @@ const checkInTimingDatabaseFixture = () => {
 const platformRegistrationInternalFailureLayer = Layer.mergeAll(
   ConfigProvider.layer(
     ConfigProvider.fromEnv({
-      env: { E2E_NOW_ISO: 'not-an-instant' },
+      env: { APP_ENVIRONMENT: 'local', E2E_NOW_ISO: 'not-an-instant' },
     }),
   ),
   EventRegistrationService.Default,
@@ -1094,7 +1094,9 @@ describe('platform event, template, and registration handlers', () => {
                 RpcAccess.Default,
                 Layer.succeed(RpcRequestContext, operation.requestContext),
                 ConfigProvider.layer(
-                  ConfigProvider.fromEnv({ env: { E2E_NOW_ISO: timing.now } }),
+                  ConfigProvider.fromEnv({
+                    env: { APP_ENVIRONMENT: 'local', E2E_NOW_ISO: timing.now },
+                  }),
                 ),
               ),
             ),

@@ -1,6 +1,7 @@
 import { Config, ConfigProvider, Effect, Option } from 'effect';
 
 import { optionalTrimmedString } from './config-string';
+import { applicationEnvironmentConfig } from './deployment-config';
 
 export type RegistrationRefundWorkerRuntimeMode =
   'disabledForPlaywright' | 'enabled';
@@ -13,6 +14,7 @@ const disabledForPlaywrightMode: RegistrationRefundWorkerRuntimeMode =
   'disabledForPlaywright';
 
 export const registrationRefundWorkerRuntimeModeConfig = Config.all({
+  APP_ENVIRONMENT: Config.option(applicationEnvironmentConfig),
   E2E_NOW_ISO: optionalTrimmedString('E2E_NOW_ISO'),
   E2E_RUNTIME_MODE: Config.option(
     Config.Literal('playwright', 'E2E_RUNTIME_MODE'),
@@ -23,8 +25,19 @@ export const registrationRefundWorkerRuntimeModeConfig = Config.all({
   NODE_ENV: optionalTrimmedString('NODE_ENV'),
 }).pipe(
   Config.mapEffect(
-    ({ E2E_NOW_ISO, E2E_RUNTIME_MODE, LOCAL_DATABASE, NODE_ENV }) => {
-      if (Option.isNone(E2E_RUNTIME_MODE)) {
+    ({
+      APP_ENVIRONMENT,
+      E2E_NOW_ISO,
+      E2E_RUNTIME_MODE,
+      LOCAL_DATABASE,
+      NODE_ENV,
+    }) => {
+      // Test-only runtime mode is ignored outside APP_ENVIRONMENT=local; the
+      // startup guard logs the misconfiguration.
+      if (
+        Option.isNone(E2E_RUNTIME_MODE) ||
+        Option.getOrUndefined(APP_ENVIRONMENT) !== 'local'
+      ) {
         return Effect.succeed(enabledMode);
       }
 

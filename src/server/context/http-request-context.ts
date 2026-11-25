@@ -48,7 +48,7 @@ const resolveHttpRequestContextEffect = (
   Database | RuntimeConfig
 > =>
   Effect.gen(function* () {
-    const { deployment, testRuntime } = yield* RuntimeConfig;
+    const { deployment, server } = yield* RuntimeConfig;
     const requestOrigin = resolveRequestOrigin(request);
     const authentication = resolveAuthenticationContext({
       isAuthenticated: isAuthenticated(authSession),
@@ -65,7 +65,7 @@ const resolveHttpRequestContextEffect = (
         applicationEnvironment: deployment.APP_ENVIRONMENT,
         localTestTenantDomain:
           resolveRequestHeader(request, localTestTenantDomainHeader) ??
-          Option.getOrUndefined(testRuntime.TENANT_DOMAIN),
+          Option.getOrUndefined(server.TENANT_DOMAIN),
         trustedTenantDomain: routing.trustedTenantDomain,
       }),
     });

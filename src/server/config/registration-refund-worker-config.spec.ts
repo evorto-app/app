@@ -37,6 +37,7 @@ describe('registration-refund-worker-config', () => {
       expect(
         yield* readRuntimeMode([
           ['E2E_NOW_ISO', '2026-07-12T12:00:00.000Z'],
+          ['APP_ENVIRONMENT', 'local'],
           ['E2E_RUNTIME_MODE', 'playwright'],
           ['LOCAL_DATABASE', 'true'],
           ['NODE_ENV', 'development'],
@@ -45,20 +46,27 @@ describe('registration-refund-worker-config', () => {
     }),
   );
 
-  it.effect('fails closed when production requests Playwright mode', () =>
+  it.effect('ignores Playwright mode outside the local environment', () =>
     Effect.gen(function* () {
-      const error = yield* Effect.flip(
-        readRuntimeMode([
+      for (const environment of ['staging', 'production']) {
+        expect(
+          yield* readRuntimeMode([
+            ['APP_ENVIRONMENT', environment],
+            ['E2E_NOW_ISO', '2026-07-12T12:00:00.000Z'],
+            ['E2E_RUNTIME_MODE', 'playwright'],
+            ['LOCAL_DATABASE', 'true'],
+            ['NODE_ENV', 'development'],
+          ]),
+        ).toBe('enabled');
+      }
+      expect(
+        yield* readRuntimeMode([
           ['E2E_NOW_ISO', '2026-07-12T12:00:00.000Z'],
           ['E2E_RUNTIME_MODE', 'playwright'],
           ['LOCAL_DATABASE', 'true'],
-          ['NODE_ENV', 'production'],
+          ['NODE_ENV', 'development'],
         ]),
-      );
-
-      expect(error.message).toContain(
-        'E2E_RUNTIME_MODE=playwright may disable the registration refund worker only',
-      );
+      ).toBe('enabled');
     }),
   );
 
@@ -66,16 +74,19 @@ describe('registration-refund-worker-config', () => {
     Effect.gen(function* () {
       for (const entries of [
         [
+          ['APP_ENVIRONMENT', 'local'],
           ['E2E_RUNTIME_MODE', 'playwright'],
           ['LOCAL_DATABASE', 'true'],
           ['NODE_ENV', 'development'],
         ],
         [
+          ['APP_ENVIRONMENT', 'local'],
           ['E2E_NOW_ISO', '2026-07-12T12:00:00.000Z'],
           ['E2E_RUNTIME_MODE', 'playwright'],
           ['NODE_ENV', 'development'],
         ],
         [
+          ['APP_ENVIRONMENT', 'local'],
           ['E2E_NOW_ISO', '2026-07-12T12:00:00.000Z'],
           ['E2E_RUNTIME_MODE', 'playwright'],
           ['LOCAL_DATABASE', 'true'],
@@ -92,7 +103,10 @@ describe('registration-refund-worker-config', () => {
   it.effect('rejects unknown E2E runtime modes', () =>
     Effect.gen(function* () {
       const error = yield* Effect.flip(
-        readRuntimeMode([['E2E_RUNTIME_MODE', 'production']]),
+        readRuntimeMode([
+          ['APP_ENVIRONMENT', 'local'],
+          ['E2E_RUNTIME_MODE', 'production'],
+        ]),
       );
 
       expect(error.message).toMatch(/E2E_RUNTIME_MODE/);

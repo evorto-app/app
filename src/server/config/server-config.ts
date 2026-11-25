@@ -8,6 +8,7 @@ import {
 } from 'effect';
 
 import { nonEmptyTrimmedString, optionalTrimmedString } from './config-string';
+import { applicationEnvironmentConfig } from './deployment-config';
 
 const serverLogLevelNames = [
   'all',
@@ -27,7 +28,21 @@ const actionsStepDebugConfig = Config.Boolean('ACTIONS_STEP_DEBUG').pipe(
 );
 const baseUrlConfig = optionalTrimmedString('BASE_URL');
 const ciConfig = Config.Boolean('CI').pipe(Config.withDefault(false));
-const pinnedNowIsoConfig = optionalTrimmedString('E2E_NOW_ISO');
+// Test-only controls are honored only when APP_ENVIRONMENT is exactly `local`.
+// Everywhere else (staging, production, or an unset environment) they are
+// ignored so the real clock always applies; startup logs the misconfiguration
+// via `logIgnoredTestOnlySettings`.
+const pinnedNowIsoConfig = Config.all({
+  APP_ENVIRONMENT: Config.option(applicationEnvironmentConfig),
+  E2E_NOW_ISO: optionalTrimmedString('E2E_NOW_ISO'),
+}).pipe(
+  Config.map(({ APP_ENVIRONMENT, E2E_NOW_ISO }) =>
+    Option.getOrUndefined(APP_ENVIRONMENT) === 'local'
+      ? E2E_NOW_ISO
+      : Option.none<string>(),
+  ),
+);
+const localTestTenantDomainConfig = optionalTrimmedString('TENANT_DOMAIN');
 const nodeEnvironmentConfig = optionalTrimmedString('NODE_ENV');
 const packageVersionConfig = optionalTrimmedString('npm_package_version');
 const portConfig = Config.Port('PORT').pipe(Config.withDefault(4000));
@@ -115,6 +130,7 @@ export const serverConfig = Config.all({
   PUBLIC_GOOGLE_MAPS_API_KEY: publicGoogleMapsApiKeyConfig,
   SERVER_LOG_LEVEL: serverLogLevelConfig,
   SSR_RPC_ORIGIN: optionalTrimmedString('SSR_RPC_ORIGIN'),
+  TENANT_DOMAIN: localTestTenantDomainConfig,
 });
 
 export type ServerClockConfig = Config.Success<typeof serverClockConfig>;

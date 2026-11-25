@@ -38,6 +38,7 @@ import { makeRuntimeConfigProvider } from './server/config/provider';
 import { registrationRefundWorkerRuntimeModeConfig } from './server/config/registration-refund-worker-config';
 import { RuntimeConfig } from './server/config/runtime-config';
 import { serverNetworkConfig } from './server/config/server-config';
+import { logIgnoredTestOnlySettings } from './server/config/test-only-settings-guard';
 import { resolveHttpRequestContext } from './server/context/http-request-context';
 import { toRpcRequestContext } from './server/effect/rpc/app-rpcs.request-handler';
 import {
@@ -895,6 +896,7 @@ const serveEffect = Effect.gen(function* () {
       ),
     );
   const deployment = yield* configuredDeployment;
+  yield* logIgnoredTestOnlySettings(requestHandlerRuntimeConfigProvider);
   const runtimeRole = yield* validateRuntimeRoleConfiguration(deployment);
 
   if (runtimeRole.role === 'worker' && runtimeRole.triggerMode === 'poll') {
