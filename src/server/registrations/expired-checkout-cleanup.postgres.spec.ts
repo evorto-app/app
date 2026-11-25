@@ -9,7 +9,7 @@ import {
 } from '@effect/vitest';
 import { and, eq } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { ConfigProvider, Effect, Layer, Result } from 'effect';
+import { ConfigProvider, Effect, Layer } from 'effect';
 import { randomUUID } from 'node:crypto';
 import { Pool, type PoolClient } from 'pg';
 import Stripe from 'stripe';
@@ -42,7 +42,6 @@ import {
   processRegistrationRefundClaim,
   reconcileRegistrationRefundWebhook,
   registrationRefundIdempotencyKey,
-  requeueRegistrationRefundClaim,
 } from '../payments/registration-refund';
 import { StripeClient } from '../stripe-client';
 import {
@@ -1316,7 +1315,7 @@ describe('expired unbound checkout cleanup concurrency', () => {
     );
   }, 30_000);
 
-  it('atomically requeues one terminal refund generation and rejects its late archived webhook', async () => {
+  it('rejects a late webhook for an archived refund generation', async () => {
     const fixture = await seedFixture(database, 4_000_000_000);
     fixtures.push(fixture);
     const stripePaymentIntentId = `pi_${fixture.transactionId}`;
@@ -1352,48 +1351,26 @@ describe('expired unbound checkout cleanup concurrency', () => {
       })
       .where(eq(transactions.id, refundClaim.id));
 
-    const runRequeue = () =>
-      Effect.runPromise(
-        Database.use((effectDatabase) =>
-          effectDatabase.transaction((tx) =>
-            requeueRegistrationRefundClaim(tx, {
-              reason: 'Operator confirmed terminal Stripe failure',
-              refundClaimId: refundClaim.id,
-              tenantId: fixture.tenantId,
-            }),
-          ),
-        ).pipe(
-          Effect.result,
-          Effect.provide(makeDatabaseServiceLayer(databaseUrl)),
-        ),
-      );
-    const outcomes = await awaitAllOperations([runRequeue(), runRequeue()]);
-    expect(
-      outcomes
-        .map((outcome) =>
-          Result.isSuccess(outcome) ? outcome.success.mode : 'rejected',
-        )
-        .toSorted(),
-    ).toEqual(['newGeneration', 'rejected']);
-
-    const requeued = await database.query.transactions.findFirst({
-      where: { id: refundClaim.id },
-    });
-    expect(requeued).toEqual(
-      expect.objectContaining({
+    // Seed the state an earlier requeue left behind: generation 1 with the
+    // archived terminal refund recorded in the history.
+    await database
+      .update(transactions)
+      .set({
         stripeRefundAttempts: 0,
         stripeRefundGeneration: 1,
+        stripeRefundHistory: [
+          {
+            closedAt: '2026-07-10T12:00:00.000Z',
+            generation: 0,
+            reason: 'Earlier requeue',
+            refundId: archivedRefundId,
+            status: 'failed',
+          },
+        ],
         stripeRefundId: null,
         stripeRefundStatus: null,
-      }),
-    );
-    expect(requeued?.stripeRefundHistory).toEqual([
-      expect.objectContaining({
-        generation: 0,
-        refundId: archivedRefundId,
-        status: 'failed',
-      }),
-    ]);
+      })
+      .where(eq(transactions.id, refundClaim.id));
 
     const lateWebhook = await Effect.runPromise(
       reconcileRegistrationRefundWebhook(

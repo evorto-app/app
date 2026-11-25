@@ -17,7 +17,6 @@ describe('GLOBAL_ADMIN_ROUTES', () => {
       'audit',
       'tenants/create',
       'tenants/:tenantId/edit',
-      'tenants/:tenantId/payment-support',
       'tenants/:tenantId',
       'email-outbox',
       'tenants',

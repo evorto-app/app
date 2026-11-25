@@ -225,10 +225,11 @@ silently impersonating another tenant user or depending on tenant roles. A
 verified platform administrator's own persisted app identity may be used by
 ordinary tenant APIs with every tenant capability; those requests retain their
 resolved tenant boundary. The global-admin UI links to the organization's own
-website for ordinary management rather than shipping parallel editors. Its
-organization-scoped support page contains only payment and refund recovery.
-Dedicated platform-operation contracts keep their
-explicit target, reason, and audit requirements. Record actor, target tenant,
+website for ordinary management rather than shipping parallel editors or
+dedicated payment and refund recovery tools; narrowly scoped support tools are
+added only when real operational cases justify them. Platform writes (currently
+organization create and update) keep their explicit target, reason, and audit
+requirements. Record actor, target tenant,
 action, before/after data, reason, and timestamp in application/API append-only
 audit entries for every cross-tenant platform action. Authorization remains in
 the Effect server layer; the database schema does not install RLS policies or

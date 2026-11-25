@@ -5025,13 +5025,6 @@ describe('event registration cancellation handlers', () => {
     'persists a durable Stripe refund claim against its historical Stripe account',
     () =>
       Effect.gen(function* () {
-        let cancellationTransition:
-          | Parameters<
-              NonNullable<
-                Parameters<typeof cancelRegistrationForTenant>[0]['onCancelled']
-              >
-            >[1]
-          | undefined;
         const {
           databaseLayer,
           refundAllocations,
@@ -5045,10 +5038,6 @@ describe('event registration cancellation handlers', () => {
           cancelledBy: 'organizer',
           enforceParticipantDeadline: false,
           executiveUserId: null,
-          onCancelled: (_tx, transition) => {
-            cancellationTransition = transition;
-            return Effect.void;
-          },
           registrationId: 'registration-1',
           targetTenant: {
             ...tenant,
@@ -5130,18 +5119,6 @@ describe('event registration cancellation handlers', () => {
           75,
           tenant.id,
         ]);
-        expect(cancellationTransition).toEqual({
-          checkInTime: null,
-          eventId: 'event-1',
-          guestCount: 1,
-          refundTransactionId: expect.any(String),
-          refundTransactionStatus: 'pending',
-          registrationId: 'registration-1',
-          registrationOptionId: 'option-1',
-          statusAfter: 'CANCELLED',
-          statusBefore: 'CONFIRMED',
-          userId: 'attendee-1',
-        });
         expect(transactionCommands).toEqual([
           'BEGIN',
           'COMMIT',

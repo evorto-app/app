@@ -6,17 +6,9 @@ import { relations } from '@db/relations';
 import * as schema from '@db/schema';
 import { completePaidRegistrationCheckout } from '@server/registrations/registration-checkout-completion';
 import { cancelRegistrationAddon } from '@server/registrations/addon-fulfillment.service';
-import {
-  type RegistrationTransferRefundRequeueStatus,
-  markRegistrationTransferRefundRequeued,
-  reconcileRegistrationTransferRefund,
-} from '@server/registrations/registration-transfer-refund-reconciliation';
+import { reconcileRegistrationTransferRefund } from '@server/registrations/registration-transfer-refund-reconciliation';
 import { createRegistrationTransferClaimCode } from '@server/registrations/registration-transfer-claim-code';
 import { StripeClient } from '@server/stripe-client';
-import {
-  type RegistrationRefundRequeueState,
-  requeueRegistrationRefundClaim,
-} from '@server/payments/registration-refund';
 import { deriveTenantPublicOrigin } from '@shared/tenant-origin';
 import { registrationTransferAddonAllocationKey } from '@shared/registration-transfer';
 import { and, eq, like } from 'drizzle-orm';
@@ -227,33 +219,13 @@ export interface PaidRegistrationTransferScenario {
   completeCheckout: () => Promise<
     'alreadyCompleted' | 'alreadyFinalized' | 'compensationQueued' | 'finalized'
   >;
-  completeSourceRefunds: () => Promise<readonly string[]>;
   failSourceRefund: () => Promise<string>;
-  requeueSourceRefund: () => Promise<{
-    readonly refundAfter: RegistrationRefundRequeueState;
-    readonly recoveryMode: 'newGeneration' | 'resumeGeneration';
-    readonly transferStatus: 'alreadyPending' | 'notTransfer' | 'requeued';
-  }>;
   cleanup: () => Promise<void>;
 }
 
 const effectDatabaseLayer = databaseLayer.pipe(
   Layer.provide(ConfigProvider.layer(ConfigProvider.fromEnv())),
 );
-const requireRefundRequeueStatus = (
-  status: string,
-): RegistrationTransferRefundRequeueStatus => {
-  switch (status) {
-    case 'alreadyPending':
-    case 'notTransfer':
-    case 'requeued':
-      return status;
-    default:
-      throw new Error(
-        `Unexpected registration transfer refund requeue status: ${status}`,
-      );
-  }
-};
 
 export const seedPaidRegistrationTransferScenario = async (
   input: PaidRegistrationTransferScenarioInput,
@@ -1130,101 +1102,6 @@ export const seedPaidRegistrationTransferScenario = async (
     return refundTransactionId;
   };
 
-  const requeueSourceRefund = async () => {
-    const plan =
-      await input.database.query.registrationTransferRefundPlanItems.findFirst({
-        columns: { refundTransactionId: true },
-        where: {
-          sourceTransactionId,
-          tenantId: input.tenant.id,
-          transferId,
-        },
-      });
-    const refundTransactionId = plan?.refundTransactionId;
-    if (!refundTransactionId) {
-      throw new Error('Expected a source refund claim for operator requeue');
-    }
-    return runDatabaseEffect(
-      Database.use((database) =>
-        database.transaction((tx) =>
-          Effect.gen(function* () {
-            const recovery = yield* requeueRegistrationRefundClaim(tx, {
-              reason: 'Playwright verifies deterministic refund recovery',
-              refundClaimId: refundTransactionId,
-              tenantId: input.tenant.id,
-            });
-            const transferStatus =
-              yield* markRegistrationTransferRefundRequeued(tx, {
-                expectedTransfer: { kind: 'source', transferId },
-                reason: recovery.reason,
-                refundTransactionId,
-                tenantId: input.tenant.id,
-              });
-            return {
-              refundAfter: recovery.after,
-              recoveryMode: recovery.mode,
-              transferStatus: requireRefundRequeueStatus(transferStatus),
-            };
-          }),
-        ),
-      ),
-    );
-  };
-
-  const completeSourceRefunds = async () => {
-    const plans =
-      await input.database.query.registrationTransferRefundPlanItems.findMany({
-        columns: { refundTransactionId: true },
-        orderBy: { sourceTransactionId: 'asc' },
-        where: {
-          tenantId: input.tenant.id,
-          transferId,
-        },
-      });
-    const refundTransactionIds = plans.flatMap((plan) =>
-      plan.refundTransactionId ? [plan.refundTransactionId] : [],
-    );
-    if (
-      refundTransactionIds.length === 0 ||
-      refundTransactionIds.length !== plans.length
-    ) {
-      throw new Error('Expected every source refund claim before completion');
-    }
-
-    for (const refundTransactionId of refundTransactionIds) {
-      await input.database
-        .update(schema.transactions)
-        .set({
-          status: 'successful',
-          stripeRefundClaimLeaseExpiresAt: null,
-          stripeRefundClaimLeaseId: null,
-          stripeRefundId: `re_transfer_complete_${refundTransactionId}`,
-          stripeRefundLastError: null,
-          stripeRefundNextAttemptAt: null,
-          stripeRefundStatus: 'succeeded',
-        })
-        .where(
-          and(
-            eq(schema.transactions.id, refundTransactionId),
-            eq(schema.transactions.tenantId, input.tenant.id),
-            eq(schema.transactions.type, 'refund'),
-          ),
-        );
-      await runDatabaseEffect(
-        Database.use((database) =>
-          database.transaction((tx) =>
-            reconcileRegistrationTransferRefund(tx, {
-              refundTransactionId,
-              stripeRefundStatus: 'succeeded',
-            }),
-          ),
-        ),
-      );
-    }
-
-    return refundTransactionIds;
-  };
-
   const cleanup = async () => {
     await input.database
       .delete(schema.emailOutbox)
@@ -1370,7 +1247,6 @@ export const seedPaidRegistrationTransferScenario = async (
     claimCode: claimCredential.claimCode,
     cleanup,
     completeCheckout,
-    completeSourceRefunds,
     eventId,
     failSourceRefund,
     optionId,
@@ -1380,7 +1256,6 @@ export const seedPaidRegistrationTransferScenario = async (
     recipientPaymentIntentId: paymentIntentId,
     recipientRegistrationId,
     recipientTransactionId,
-    requeueSourceRefund,
     freePurchaseLotId,
     sourceAcquisitionId,
     sourceRegistrationId,

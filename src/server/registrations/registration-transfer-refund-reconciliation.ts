@@ -12,40 +12,14 @@ import { Effect } from 'effect';
 export type RegistrationTransferRefundReconciliationStatus =
   'alreadyReconciled' | 'notTransfer' | 'reconciled' | 'unchanged';
 
-export type RegistrationTransferRefundRequeueStatus =
-  'alreadyPending' | 'notTransfer' | 'requeued';
-
-const requeueAlreadyPending =
-  'alreadyPending' satisfies RegistrationTransferRefundRequeueStatus;
 const reconciliationAlreadyReconciled =
   'alreadyReconciled' satisfies RegistrationTransferRefundReconciliationStatus;
-const refundNotTransfer = 'notTransfer' satisfies
-  | RegistrationTransferRefundReconciliationStatus
-  | RegistrationTransferRefundRequeueStatus;
+const refundNotTransfer =
+  'notTransfer' satisfies RegistrationTransferRefundReconciliationStatus;
 const reconciliationReconciled =
   'reconciled' satisfies RegistrationTransferRefundReconciliationStatus;
-const requeueRequeued =
-  'requeued' satisfies RegistrationTransferRefundRequeueStatus;
 const reconciliationUnchanged =
   'unchanged' satisfies RegistrationTransferRefundReconciliationStatus;
-
-export type RegistrationTransferRefundRecoveryLookup =
-  | {
-      readonly kind: 'compensation' | 'source';
-      readonly status: 'matched';
-      readonly transfer: {
-        readonly id: string;
-        readonly status: typeof registrationTransfers.$inferSelect.status;
-        readonly tenantId: string;
-      };
-    }
-  | { readonly status: 'ambiguous' }
-  | { readonly status: 'notTransfer' };
-
-export interface RegistrationTransferRefundRecoveryTarget {
-  readonly kind: 'compensation' | 'source';
-  readonly transferId: string;
-}
 
 export type RegistrationTransferSourceRefundAggregate =
   'failed' | 'pending' | 'succeeded';
@@ -93,91 +67,6 @@ export const registrationTransferSourceRefundAggregate = (
   }
   return pending ? 'pending' : 'succeeded';
 };
-
-/**
- * Resolves the transfer linked to a validated refund transaction and locks only
- * that transfer row. The caller must already hold a row lock on the refund
- * transaction so a concurrent writer cannot attach a new transfer link between
- * the candidate lookup and the transfer lock.
- */
-export const lockRegistrationTransferRefundForRecovery = Effect.fn(
-  'lockRegistrationTransferRefundForRecovery',
-)(function* (
-  tx: RegistrationTransferTransaction,
-  input: { readonly refundTransactionId: string; readonly tenantId: string },
-) {
-  const compensationLinks = yield* tx
-    .select({ id: registrationTransfers.id })
-    .from(registrationTransfers)
-    .where(
-      and(
-        eq(
-          registrationTransfers.compensationRefundTransactionId,
-          input.refundTransactionId,
-        ),
-        eq(registrationTransfers.tenantId, input.tenantId),
-      ),
-    );
-  const sourceLinks = yield* tx
-    .select({ transferId: registrationTransferRefundPlanItems.transferId })
-    .from(registrationTransferRefundPlanItems)
-    .where(
-      and(
-        eq(
-          registrationTransferRefundPlanItems.refundTransactionId,
-          input.refundTransactionId,
-        ),
-        eq(registrationTransferRefundPlanItems.tenantId, input.tenantId),
-      ),
-    );
-  const links = [
-    ...compensationLinks.map(({ id }) => ({
-      id,
-      kind: 'compensation' as const,
-    })),
-    ...sourceLinks.map(({ transferId }) => ({
-      id: transferId,
-      kind: 'source' as const,
-    })),
-  ];
-  if (links.length === 0) {
-    return {
-      status: 'notTransfer',
-    } satisfies RegistrationTransferRefundRecoveryLookup;
-  }
-  if (links.length !== 1) {
-    return {
-      status: 'ambiguous',
-    } satisfies RegistrationTransferRefundRecoveryLookup;
-  }
-
-  const link = links[0];
-  const transferRows = yield* tx
-    .select({
-      id: registrationTransfers.id,
-      status: registrationTransfers.status,
-      tenantId: registrationTransfers.tenantId,
-    })
-    .from(registrationTransfers)
-    .where(
-      and(
-        eq(registrationTransfers.id, link.id),
-        eq(registrationTransfers.tenantId, input.tenantId),
-      ),
-    )
-    .for('update');
-  const transfer = transferRows[0];
-  if (!transfer || transferRows.length !== 1) {
-    return {
-      status: 'ambiguous',
-    } satisfies RegistrationTransferRefundRecoveryLookup;
-  }
-  return {
-    kind: link.kind,
-    status: 'matched',
-    transfer,
-  } satisfies RegistrationTransferRefundRecoveryLookup;
-});
 
 const loadRegistrationTransferRefundMapping = Effect.fn(
   'loadRegistrationTransferRefundMapping',
@@ -327,129 +216,6 @@ const insertTransferRefundEvent = Effect.fn('insertTransferRefundEvent')(
     yield* tx.insert(registrationTransferEvents).values(input);
   },
 );
-
-export const markRegistrationTransferRefundRequeued = Effect.fn(
-  'markRegistrationTransferRefundRequeued',
-)(function* (
-  tx: RegistrationTransferTransaction,
-  input: {
-    readonly expectedTransfer: null | RegistrationTransferRefundRecoveryTarget;
-    readonly reason: string;
-    readonly refundTransactionId: string;
-    readonly tenantId: string;
-  },
-) {
-  const reason = input.reason.trim();
-  if (!reason || !input.expectedTransfer) return refundNotTransfer;
-  const mapping = yield* loadRegistrationTransferRefundMapping(tx, {
-    refundTransactionId: input.refundTransactionId,
-    tenantId: input.tenantId,
-  });
-  if (
-    !mapping ||
-    mapping.kind !== input.expectedTransfer.kind ||
-    mapping.transfer.id !== input.expectedTransfer.transferId
-  ) {
-    return refundNotTransfer;
-  }
-
-  const transfer = mapping.transfer;
-  if (mapping.kind === 'compensation') {
-    if (transfer.status === 'compensation_pending') {
-      return requeueAlreadyPending;
-    }
-    if (transfer.status !== 'compensation_failed') return refundNotTransfer;
-
-    const requeued = yield* tx
-      .update(registrationTransfers)
-      .set({ lastError: null, status: 'compensation_pending' })
-      .where(
-        and(
-          eq(registrationTransfers.id, transfer.id),
-          eq(
-            registrationTransfers.compensationRefundTransactionId,
-            input.refundTransactionId,
-          ),
-          eq(registrationTransfers.status, 'compensation_failed'),
-          eq(registrationTransfers.tenantId, input.tenantId),
-        ),
-      )
-      .returning({ id: registrationTransfers.id });
-    if (requeued.length !== 1) return refundNotTransfer;
-    yield* insertTransferRefundEvent(tx, {
-      eventType: 'compensation_requeued',
-      fromStatus: 'compensation_failed',
-      reason,
-      tenantId: transfer.tenantId,
-      toStatus: 'compensation_pending',
-      transferId: transfer.id,
-    });
-    return requeueRequeued;
-  }
-
-  if (
-    transfer.status !== 'refund_failed' &&
-    transfer.status !== 'refund_pending'
-  ) {
-    return refundNotTransfer;
-  }
-  const siblingItems = yield* loadSourceRefundPlanItemStates(tx, transfer);
-  const aggregate = registrationTransferSourceRefundAggregate(siblingItems);
-  if (transfer.status === 'refund_pending' && aggregate !== 'failed') {
-    return requeueAlreadyPending;
-  }
-  if (aggregate === 'failed') {
-    if (transfer.status === 'refund_pending') {
-      const failed = yield* tx
-        .update(registrationTransfers)
-        .set({
-          lastError:
-            'One or more source refunds still require operator attention',
-          status: 'refund_failed',
-        })
-        .where(
-          and(
-            eq(registrationTransfers.id, transfer.id),
-            eq(registrationTransfers.status, 'refund_pending'),
-            eq(registrationTransfers.tenantId, input.tenantId),
-          ),
-        )
-        .returning({ id: registrationTransfers.id });
-      if (failed.length !== 1) return refundNotTransfer;
-      yield* insertTransferRefundEvent(tx, {
-        eventType: 'refund_failed',
-        fromStatus: 'refund_pending',
-        reason: 'One or more source refunds still require operator attention',
-        tenantId: transfer.tenantId,
-        toStatus: 'refund_failed',
-        transferId: transfer.id,
-      });
-    }
-    return requeueRequeued;
-  }
-
-  const requeued = yield* tx
-    .update(registrationTransfers)
-    .set({ lastError: null, status: 'refund_pending' })
-    .where(
-      and(
-        eq(registrationTransfers.id, transfer.id),
-        eq(registrationTransfers.status, 'refund_failed'),
-        eq(registrationTransfers.tenantId, input.tenantId),
-      ),
-    )
-    .returning({ id: registrationTransfers.id });
-  if (requeued.length !== 1) return refundNotTransfer;
-  yield* insertTransferRefundEvent(tx, {
-    eventType: 'refund_requeued',
-    fromStatus: 'refund_failed',
-    reason,
-    tenantId: transfer.tenantId,
-    toStatus: 'refund_pending',
-    transferId: transfer.id,
-  });
-  return requeueRequeued;
-});
 
 const reconcileCompensationRefund = Effect.fn('reconcileCompensationRefund')(
   function* (

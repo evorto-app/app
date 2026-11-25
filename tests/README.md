@@ -197,19 +197,16 @@ verification without blanket certificate-error overrides.
 ## Platform Operation Coverage
 
 - `specs/admin/platform-tenant-operations.spec.ts` checks the organization link
-  and payment-only support tabs. Its recovery journey restores an original
-  Stripe test-mode Checkout, then verifies the same claim, held capacity,
-  approval notification, and privacy-safe audit. Cleanup expires only the
-  fixture's exact unpaid test session.
+  and detail page; ordinary management happens on the organization's own pages.
 - `specs/permissions/global-admin-tenant-override.spec.ts` follows **Open
   organization** into ordinary administration and proves real writes with no
   tenant membership or a role granting no capabilities.
-- `docs/admin/platform-tenant-operations.doc.ts` documents the organization link,
-  audited payment recovery, and change history. Ordinary tenant guides cover
-  events, templates, roles, scanning, receipts, and routine finance.
-- PostgreSQL recovery coverage retains concurrent changes, tenant boundaries,
-  discovery pagination, audit rollback, email preservation, and canonical
-  paid/expired reconciliation, including add-on stock and fee mismatches.
+- `docs/admin/platform-tenant-operations.doc.ts` documents the organization
+  link. Ordinary tenant guides cover events, templates, roles, scanning,
+  receipts, and routine finance.
+- PostgreSQL coverage retains tenant boundaries, audit rollback, and canonical
+  paid/expired Checkout reconciliation, including add-on stock and fee
+  mismatches.
 
 ## Paid Registration Checkout Coverage
 
@@ -225,7 +222,7 @@ verification without blanket certificate-error overrides.
 - `specs/events/registration-transfer.spec.ts` exercises the free-registration
   private-offer/manual-code claim flow, paid private-offer/current-price and self-claim
   boundaries, deterministic paid Checkout completion through the shared server
-  finalizer, and terminal source-refund failure plus operator requeue. Binding
+  finalizer, and terminal source-refund failure that stays in needs attention. Binding
   transfer coverage must also prove that the registration, guest quantity, all
   included/free/purchased add-on quantities, and fulfillment/check-in history
   move unchanged as one fixed bundle, priced at current base prices with only
@@ -239,7 +236,7 @@ verification without blanket certificate-error overrides.
 - `docs/events/registration-transfer.doc.ts` generates the participant-facing
   walkthrough for creating and claiming a private transfer offer by private code. Its paid
   journey captures the pending Checkout, confirmed/refund-processing,
-  refund-needs-attention, and safely requeued states from persisted data and
+  and refund-needs-attention states from persisted data and
   explains the fixed-bundle, current-recipient-pricing contract. It also follows
   the source participant's event-page summary through processing, failure,
   retry, and completion, showing the exact aggregate refund without restoring
@@ -255,17 +252,16 @@ verification without blanket certificate-error overrides.
   cancels through the participant UI and reads back exact source allocation,
   refund allocation, inventory, capacity, and cancellation-email state.
 - The same journey sends signed local Stripe refund webhooks through the
-  production `/webhooks/stripe` handler. It proves the failed, safely requeued
-  generation-1, and succeeded states across the organizer scanner result,
-  participant Profile, Global Admin **Refunds needing attention** UI, durable refund
-  history, and append-only platform audit record. This is deterministic local
+  production `/webhooks/stripe` handler. It proves the failed and succeeded
+  states across the organizer scanner result, participant Profile, and durable
+  refund history. This is deterministic local
   workflow evidence, not certification of live bank or card-network settlement.
 - Compose only passes through `E2E_RUNTIME_MODE`; ordinary `docker:start` and
   `docker:resume` do not force it. The disposable Docker Playwright server and
   E2E CI launch paths set `E2E_RUNTIME_MODE=playwright`. Server startup
   accepts that mode only together with `NODE_ENV=development`,
   `LOCAL_DATABASE=true`, and the pinned `E2E_NOW_ISO`, then pauses only the
-  recurring registration-refund worker so audited recovery assertions and
+  recurring registration-refund worker so refund assertions and
   signed webhook transitions cannot race it. Immediate refund processing still
   runs through production code. Outside that validated local mode the worker is
   enabled by default; an attempted production override fails server startup.

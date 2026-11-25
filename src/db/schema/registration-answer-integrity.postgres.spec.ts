@@ -30,8 +30,9 @@ import {
 import { userDiscountCardLockStatement } from '../../server/discounts/user-discount-card-lock';
 import { discountHandlers } from '../../server/effect/rpc/handlers/discounts.handlers';
 import { EventRegistrationService } from '../../server/effect/rpc/handlers/events/event-registration.service';
+import { eventLifecycleHandlers } from '../../server/effect/rpc/handlers/events/events-lifecycle.handlers';
+import { eventQueryHandlers } from '../../server/effect/rpc/handlers/events/events-query.handlers';
 import { onboardingHandlers } from '../../server/effect/rpc/handlers/onboarding.handlers';
-import { platformEventHandlers } from '../../server/effect/rpc/handlers/platform/platform-events.handlers';
 import { RpcAccess } from '../../server/effect/rpc/handlers/shared/rpc-access.service';
 import { userHandlers } from '../../server/effect/rpc/handlers/users.handlers';
 import { ensureAnsweredEventQuestionsUnchanged } from '../../server/registrations/event-question-answer-guard';
@@ -57,10 +58,13 @@ import {
   DiscountsUpsertMyCard,
 } from '../../shared/rpc-contracts/app-rpcs/discounts.rpcs';
 import {
+  EventsFindGraphForEdit,
+  EventsUpdateGraph,
+} from '../../shared/rpc-contracts/app-rpcs/events.rpcs';
+import {
   UsersSetHomeTenant,
   UsersUpdateProfile,
 } from '../../shared/rpc-contracts/app-rpcs/users.rpcs';
-import { PlatformAdministratorAuthority } from '../../types/custom/platform-authority';
 import { Tenant } from '../../types/custom/tenant';
 import { User } from '../../types/custom/user';
 import { Database, databaseLayer } from '../database.layer';
@@ -84,7 +88,6 @@ import {
   eventRegistrations,
   eventTemplateCategories,
   eventTemplates,
-  platformAuditEntries,
   registrationAcquisitionComponents,
   registrationAcquisitionPayments,
   registrationAcquisitions,
@@ -373,9 +376,6 @@ const cleanFixture = async (
     .delete(tenantPrivacyPolicyVersions)
     .where(inArray(tenantPrivacyPolicyVersions.tenantId, fixture.tenantIds));
   await database
-    .delete(platformAuditEntries)
-    .where(inArray(platformAuditEntries.targetTenantId, fixture.tenantIds));
-  await database
     .delete(registrationAcquisitionComponents)
     .where(
       inArray(registrationAcquisitionComponents.tenantId, fixture.tenantIds),
@@ -496,13 +496,10 @@ describe('registration answer integrity in PostgreSQL', () => {
   });
 
   it.effect(
-    'rejects platform edits to answered questions and rolls back the whole event update',
+    'rejects tenant edits to answered questions and rolls back the whole event update',
     () => {
       const owned = makeFixture();
-      const target = {
-        eventId: owned.eventIds[0],
-        targetTenantId: owned.tenantIds[0],
-      };
+      const target = { eventId: owned.eventIds[0] };
       return Effect.gen(function* () {
         yield* Effect.promise(async () => {
           await seedFixture(database, owned, false);
@@ -516,65 +513,100 @@ describe('registration answer integrity in PostgreSQL', () => {
             questionId: owned.questionIds[0],
             registrationId: owned.registrationId,
             registrationOptionId: owned.optionIds[0],
-            tenantId: target.targetTenantId,
+            tenantId: owned.tenantIds[0],
           });
         });
         const [tenantRecord] = yield* Effect.promise(() =>
           database
             .select()
             .from(tenants)
-            .where(eq(tenants.id, target.targetTenantId)),
+            .where(eq(tenants.id, owned.tenantIds[0])),
         );
         const tenant = yield* Schema.decodeUnknownEffect(Tenant)(tenantRecord);
-        const requestContext = {
-          authData: {},
-          authenticated: true,
-          permissions: [],
-          platformAuthority: PlatformAdministratorAuthority.make({
-            actorEmail: 'platform@example.org',
-            actorId: 'auth0|question-history',
-            kind: 'platformAdministrator',
-          }),
+        const requestContext = admissionCardRequestContext(
           tenant,
-          user: null,
-          userAssigned: false,
-        } satisfies RpcRequestContextShape;
+          owned.userId,
+        );
         yield* Effect.gen(function* () {
-          const before = yield* platformEventHandlers[
-            'platform.events.findOne'
-          ](target, undefined);
+          const findGraph = () =>
+            eventQueryHandlers['events.findGraphForEdit'](
+              { id: target.eventId },
+              {
+                client: new Rpc.ServerClient(1),
+                headers: Headers.empty,
+                requestId: RpcMessage.RequestId(1),
+                rpc: EventsFindGraphForEdit.middleware(
+                  RpcRequestContextMiddleware,
+                ),
+              },
+            );
+          const updateGraph = (
+            input: Parameters<
+              (typeof eventLifecycleHandlers)['events.updateGraph']
+            >[0],
+          ) =>
+            eventLifecycleHandlers['events.updateGraph'](input, {
+              client: new Rpc.ServerClient(1),
+              headers: Headers.empty,
+              requestId: RpcMessage.RequestId(1),
+              rpc: EventsUpdateGraph.middleware(RpcRequestContextMiddleware),
+            });
+          const before = yield* findGraph();
+          const toQuestionInput = (
+            question: (typeof before.questions)[number],
+          ) => {
+            const { registrationOptionId, ...rest } = question;
+            return {
+              ...rest,
+              key: question.id,
+              registrationOptionKey: registrationOptionId,
+            };
+          };
           const updateInput = {
-            ...target,
-            addOns: before.addOns,
+            addOns: before.addOns.map((addOn) => ({
+              ...addOn,
+              key: addOn.id,
+              registrationOptions: addOn.registrationOptions.map(
+                ({ registrationOptionId, ...mapping }) => ({
+                  ...mapping,
+                  registrationOptionKey: registrationOptionId,
+                }),
+              ),
+            })),
             description: before.description,
             end: before.end,
+            eventId: target.eventId,
             icon: before.icon,
             location: before.location,
-            questions: before.questions,
-            reason: 'Correct the activity details',
-            registrationOptions: before.registrationOptions,
+            questions: before.questions.map((question) =>
+              toQuestionInput(question),
+            ),
+            registrationOptions: before.registrationOptions.map((option) => ({
+              ...option,
+              esnCardDiscountedPrice: option.esnCardDiscountedPrice ?? null,
+              key: option.id,
+              roleIds: [...option.roleIds],
+            })),
+            simpleModeEnabled: before.simpleModeEnabled,
             start: before.start,
             title: before.title,
           };
           for (const mutation of ['change', 'remove'] as const) {
             const result = yield* Effect.result(
-              platformEventHandlers['platform.events.update'](
-                {
-                  ...updateInput,
-                  questions:
-                    mutation === 'remove'
-                      ? before.questions.filter(
-                          (question) => question.id !== owned.questionIds[0],
-                        )
-                      : before.questions.map((question) =>
-                          question.id === owned.questionIds[0]
-                            ? { ...question, title: 'Changed meaning' }
-                            : question,
-                        ),
-                  title: 'This unrelated edit must also roll back',
-                },
-                undefined,
-              ),
+              updateGraph({
+                ...updateInput,
+                questions:
+                  mutation === 'remove'
+                    ? updateInput.questions.filter(
+                        (question) => question.id !== owned.questionIds[0],
+                      )
+                    : updateInput.questions.map((question) =>
+                        question.id === owned.questionIds[0]
+                          ? { ...question, title: 'Changed meaning' }
+                          : question,
+                      ),
+                title: 'This unrelated edit must also roll back',
+              }),
             );
             expect(Result.isFailure(result)).toBe(true);
             if (Result.isFailure(result)) {
@@ -583,41 +615,22 @@ describe('registration answer integrity in PostgreSQL', () => {
                 reason: 'eventQuestionInUse',
               });
             }
-            const after = yield* platformEventHandlers[
-              'platform.events.findOne'
-            ](target, undefined);
+            const after = yield* findGraph();
             expect(after).toEqual(before);
           }
-          expect(
-            yield* Effect.promise(() =>
-              database
-                .select({ id: platformAuditEntries.id })
-                .from(platformAuditEntries)
-                .where(
-                  eq(
-                    platformAuditEntries.targetTenantId,
-                    target.targetTenantId,
-                  ),
-                ),
+          yield* updateGraph({
+            ...updateInput,
+            questions: updateInput.questions.map((question) =>
+              question.id === owned.questionIds[1]
+                ? {
+                    ...question,
+                    description: '  New guidance  ',
+                    title: '  Revised prompt  ',
+                  }
+                : question,
             ),
-          ).toEqual([]);
-          const updated = yield* platformEventHandlers[
-            'platform.events.update'
-          ](
-            {
-              ...updateInput,
-              questions: before.questions.map((question) =>
-                question.id === owned.questionIds[1]
-                  ? {
-                      ...question,
-                      description: '  New guidance  ',
-                      title: '  Revised prompt  ',
-                    }
-                  : question,
-              ),
-            },
-            undefined,
-          );
+          });
+          const updated = yield* findGraph();
           expect(
             updated.questions.find(
               (question) => question.id === owned.questionIds[1],
@@ -645,16 +658,6 @@ describe('registration answer integrity in PostgreSQL', () => {
               ),
           ),
         ).toEqual([{ answer: 'Keep this historical answer' }]);
-        expect(
-          yield* Effect.promise(() =>
-            database
-              .select({ id: platformAuditEntries.id })
-              .from(platformAuditEntries)
-              .where(
-                eq(platformAuditEntries.targetTenantId, target.targetTenantId),
-              ),
-          ),
-        ).toHaveLength(1);
       }).pipe(
         Effect.ensuring(Effect.promise(() => cleanFixture(database, owned))),
       );
@@ -1773,7 +1776,6 @@ const readAdmissionSnapshotEffects = async (
     acquisitionComponents,
     acquisitionPayments,
     emails,
-    audit,
     addonStock,
     addonPurchases,
     addonLots,
@@ -1829,11 +1831,6 @@ const readAdmissionSnapshotEffects = async (
       .where(eq(emailOutbox.tenantId, fixture.tenantIds[0]))
       .orderBy(emailOutbox.id),
     database
-      .select()
-      .from(platformAuditEntries)
-      .where(eq(platformAuditEntries.targetTenantId, fixture.tenantIds[0]))
-      .orderBy(platformAuditEntries.id),
-    database
       .select({
         id: eventAddons.id,
         quantity: eventAddons.totalAvailableQuantity,
@@ -1862,7 +1859,6 @@ const readAdmissionSnapshotEffects = async (
     addonPurchases,
     addonStock,
     answers,
-    audit,
     capacity,
     emails,
     payments,
@@ -2593,7 +2589,6 @@ describe('registration admission snapshots in PostgreSQL', () => {
         const client = await pool.connect();
         const editor = drizzle({ client, relations });
         const settledOperations: Promise<void>[] = [];
-        let approvalHookCalls = 0;
         let cardInvalidation:
           | Awaited<ReturnType<typeof startAdmissionCardInvalidation>>
           | undefined;
@@ -2697,26 +2692,6 @@ describe('registration admission snapshots in PostgreSQL', () => {
               ? EventRegistrationService.approveManualRegistration({
                   executiveUserId: fixture.userId,
                   expectedEventId: fixture.eventIds[0],
-                  onApproved: (tx, transition) =>
-                    Effect.gen(function* () {
-                      approvalHookCalls++;
-                      yield* tx.insert(platformAuditEntries).values({
-                        action: 'registration.approve',
-                        actorId: 'admission-snapshot-test',
-                        after: {
-                          resourceId: fixture.registrationId,
-                          resourceType: 'registration',
-                          state: { status: transition.statusAfter },
-                        },
-                        before: {
-                          resourceId: fixture.registrationId,
-                          resourceType: 'registration',
-                          state: { status: 'PENDING' },
-                        },
-                        reason: 'Approve the reviewed registration',
-                        targetTenantId: fixture.tenantIds[0],
-                      });
-                    }),
                   registrationId: fixture.registrationId,
                   targetTenant: tenant,
                 })
@@ -2771,7 +2746,6 @@ describe('registration admission snapshots in PostgreSQL', () => {
             ).toEqual(beforeDiscounts);
           }
           expect(stripeHttpClient.requestCount).toBe(0);
-          expect(approvalHookCalls).toBe(0);
         } catch (error) {
           recordFailure(failures, error);
         } finally {

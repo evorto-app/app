@@ -16,7 +16,6 @@ import {
   eventRegistrationOptions,
   eventTemplateCategories,
   eventTemplates,
-  platformAuditEntries,
   roles,
   templateRegistrationOptions,
   tenants,
@@ -36,11 +35,9 @@ import {
   TemplatesCreate,
   TemplatesUpdate,
 } from '../shared/rpc-contracts/app-rpcs/templates.rpcs';
-import { PlatformAdministratorAuthority } from '../types/custom/platform-authority';
 import { Tenant } from '../types/custom/tenant';
 import { adminHandlers } from './effect/rpc/handlers/admin.handlers';
 import { eventLifecycleHandlers } from './effect/rpc/handlers/events/events-lifecycle.handlers';
-import { platformEventHandlers } from './effect/rpc/handlers/platform/platform-events.handlers';
 import { RpcAccess } from './effect/rpc/handlers/shared/rpc-access.service';
 import { templateHandlers } from './effect/rpc/handlers/templates.handlers';
 import { lockTenantCurrencyForFinancialConfiguration } from './tenant-currency-integrity';
@@ -126,9 +123,6 @@ describe('authoring and tenant configuration concurrency', () => {
   });
 
   afterAll(async () => {
-    await database
-      .delete(platformAuditEntries)
-      .where(inArray(platformAuditEntries.targetTenantId, tenantIds));
     await database
       .delete(eventRegistrationOptions)
       .where(
@@ -257,19 +251,6 @@ describe('authoring and tenant configuration concurrency', () => {
       ...context,
       user: { ...context.user, auth0Id: `auth0|${creatorId}`, id: creatorId },
     };
-    const platformContext = {
-      authData: {},
-      authenticated: true,
-      permissions: [],
-      platformAuthority: PlatformAdministratorAuthority.make({
-        actorEmail: 'platform@example.com',
-        actorId: 'auth0|account-race',
-        kind: 'platformAdministrator',
-      }),
-      tenant,
-      user: null,
-      userAssigned: false,
-    } satisfies RpcRequestContextShape;
     const ordinaryCreate = eventLifecycleHandlers['events.create'](
       {
         description: '<p>A paid event</p>',
@@ -307,23 +288,7 @@ describe('authoring and tenant configuration concurrency', () => {
         rpc: EventsCreate.middleware(RpcRequestContextMiddleware),
       },
     ).pipe(Effect.provideService(RpcRequestContext, ordinaryContext));
-    const platformCreate = platformEventHandlers['platform.events.create'](
-      {
-        creatorUserId: creatorId,
-        description: '<p>A paid event</p>',
-        end: '2099-07-10T14:00:00.000Z',
-        reason: 'Create reviewed event',
-        start: '2099-07-10T12:00:00.000Z',
-        targetTenantId: fixture.tenantId,
-        templateId: fixture.templateId,
-        title: 'Paid event',
-      },
-      undefined,
-    ).pipe(
-      Effect.provideService(RpcRequestContext, platformContext),
-      Effect.map(({ id }) => ({ id })),
-    );
-    for (const operation of [ordinaryCreate, platformCreate]) {
+    for (const operation of [ordinaryCreate]) {
       await database
         .update(tenants)
         .set({ stripeAccountId })
@@ -370,11 +335,6 @@ describe('authoring and tenant configuration concurrency', () => {
         expect(
           await database.query.eventInstances.findMany({
             where: { tenantId: fixture.tenantId },
-          }),
-        ).toEqual([]);
-        expect(
-          await database.query.platformAuditEntries.findMany({
-            where: { targetTenantId: fixture.tenantId },
           }),
         ).toEqual([]);
       } finally {

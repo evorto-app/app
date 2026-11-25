@@ -32,14 +32,6 @@ export const GLOBAL_ADMIN_ROUTES: Routes = [
       },
       {
         loadComponent: () =>
-          import('./platform-tenant-admin/platform-finance.component').then(
-            (m) => m.PlatformFinanceComponent,
-          ),
-        path: 'tenants/:tenantId/payment-support',
-        title: 'Payment recovery',
-      },
-      {
-        loadComponent: () =>
           import('./tenant-detail/tenant-detail.component').then(
             (m) => m.TenantDetailComponent,
           ),

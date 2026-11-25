@@ -19,6 +19,7 @@ import {
   EventsGetRegistrationStatus,
   EventsPurchaseRegistrationAddon,
 } from '@shared/rpc-contracts/app-rpcs/events.rpcs';
+import { UsersAssignRoles } from '@shared/rpc-contracts/app-rpcs/users.rpcs';
 import { and, eq, getTableName } from 'drizzle-orm';
 import * as PgDrizzle from 'drizzle-orm/effect-postgres';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
@@ -56,7 +57,6 @@ import {
   eventRegistrations,
   eventTemplateCategories,
   eventTemplates,
-  platformAuditEntries,
   registrationAcquisitionComponents,
   registrationAcquisitionPayments,
   registrationAcquisitions,
@@ -69,7 +69,6 @@ import {
   users,
   usersToTenants,
 } from '../../db/schema';
-import { PlatformAdministratorAuthority } from '../../types/custom/platform-authority';
 import { Tenant } from '../../types/custom/tenant';
 import { EventRegistrationService } from '../effect/rpc/handlers/events/event-registration.service';
 import { eventQueryHandlers } from '../effect/rpc/handlers/events/events-query.handlers';
@@ -77,8 +76,8 @@ import {
   cancelRegistrationForTenant,
   eventRegistrationHandlers,
 } from '../effect/rpc/handlers/events/events-registration.handlers';
-import { platformTenantAdminHandlers } from '../effect/rpc/handlers/platform/platform-tenant-admin.handlers';
 import { RpcAccess } from '../effect/rpc/handlers/shared/rpc-access.service';
+import { userHandlers } from '../effect/rpc/handlers/users.handlers';
 import { buildCheckoutSessionExpiresAt } from '../integrations/stripe-checkout';
 import { StripeClient } from '../stripe-client';
 import {
@@ -479,9 +478,6 @@ const cleanFixture = async (database: TestDatabase, fixture: Fixture) => {
     .delete(emailOutbox)
     .where(eq(emailOutbox.tenantId, fixture.tenantId));
   await database
-    .delete(platformAuditEntries)
-    .where(eq(platformAuditEntries.targetTenantId, fixture.tenantId));
-  await database
     .delete(rolesToTenantUsers)
     .where(eq(rolesToTenantUsers.tenantId, fixture.tenantId));
   await database.delete(roles).where(eq(roles.tenantId, fixture.tenantId));
@@ -820,6 +816,43 @@ const makeBarrierLayer = (url: string, stripe: Stripe) => {
     ),
     Layer.succeed(StripeClient, stripe),
   );
+};
+
+const assignRolesOptions = () => ({
+  client: new Rpc.ServerClient(1),
+  headers: Headers.empty,
+  requestId: RpcMessage.RequestId(1),
+  rpc: UsersAssignRoles.middleware(RpcRequestContextMiddleware),
+});
+
+const roleAdministratorContext = (
+  tenant: Tenant,
+  adminId: string,
+): RpcRequestContextShape => {
+  const permissions: RpcRequestContextShape['permissions'] = [
+    'users:assignRoles',
+  ];
+  return {
+    authData: { sub: `auth0|${adminId}` },
+    authenticated: true,
+    permissions,
+    tenant,
+    user: {
+      auth0Id: `auth0|${adminId}`,
+      communicationEmail: `${adminId}@example.com`,
+      email: `${adminId}@example.com`,
+      firstName: 'Role',
+      homeTenantId: undefined,
+      homeTenantName: undefined,
+      iban: undefined,
+      id: adminId,
+      lastName: 'Administrator',
+      paypalEmail: undefined,
+      permissions,
+      roleIds: [],
+    },
+    userAssigned: true,
+  };
 };
 
 const isTableLock = (statement: string, table: string) =>
@@ -1620,7 +1653,7 @@ describe('post-registration add-on purchase concurrency', () => {
     expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
   }, 15_000);
 
-  it('serializes platform role revocation after an eligible sign-up without deadlock', async () => {
+  it('serializes role revocation after an eligible sign-up without deadlock', async () => {
     const fixture = await seedFixture(database, { paid: false, stock: 1 });
     const participantId = createId();
     fixtures.push({ ...fixture, userIds: [...fixture.userIds, participantId] });
@@ -1656,16 +1689,11 @@ describe('post-registration add-on purchase concurrency', () => {
       }),
       'tenant',
     );
-    const authority = PlatformAdministratorAuthority.make({
-      actorEmail: 'platform@example.com',
-      actorId: 'auth0|platform-lock-order',
-      kind: 'platformAdministrator',
-    });
     const stripe = createAddonStripeTestClient();
     const outcomes = await Effect.runPromise(
       Effect.gen(function* () {
         const registrationHasMembership = yield* Deferred.make<undefined>();
-        // The corrected assignment blocks at tenant, before it can attempt membership.
+        // The assignment blocks at its membership lock attempt while registration holds it.
         const assignmentNeedsTenant = yield* Deferred.make<undefined>();
         const registration = withQueryBarriers(
           EventRegistrationService.registerForEvent({
@@ -1703,29 +1731,21 @@ describe('post-registration add-on purchase concurrency', () => {
         const assignment = Deferred.await(registrationHasMembership).pipe(
           Effect.andThen(
             withQueryBarriers(
-              platformTenantAdminHandlers['platform.tenantUsers.assignRoles'](
-                {
-                  reason:
-                    'Remove expired eligibility after current registration',
-                  roleIds: [],
-                  targetTenantId: fixture.tenantId,
-                  userId: participantId,
-                },
-                undefined,
+              userHandlers['users.assignRoles'](
+                { roleIds: [], userId: participantId },
+                assignRolesOptions(),
               ).pipe(
                 Effect.provide(RpcAccess.Default),
-                Effect.provideService(RpcRequestContext, {
-                  authData: { sub: authority.actorId },
-                  authenticated: true,
-                  permissions: [],
-                  platformAuthority: authority,
-                  tenant: Schema.decodeUnknownSync(Tenant)(tenant),
-                  user: null,
-                  userAssigned: false,
-                }),
+                Effect.provideService(
+                  RpcRequestContext,
+                  roleAdministratorContext(
+                    Schema.decodeUnknownSync(Tenant)(tenant),
+                    'role-administrator-lock-order',
+                  ),
+                ),
               ),
               (statement) =>
-                isTableLock(statement, getTableName(tenants))
+                isTableLock(statement, getTableName(usersToTenants))
                   ? Deferred.succeed(assignmentNeedsTenant, undefined).pipe(
                       Effect.asVoid,
                     )
@@ -1763,28 +1783,6 @@ describe('post-registration add-on purchase concurrency', () => {
         where: { tenantId: fixture.tenantId, userTenantId: membership.id },
       }),
     ).toEqual([]);
-    expect(
-      await database.query.platformAuditEntries.findMany({
-        where: { targetTenantId: fixture.tenantId },
-      }),
-    ).toMatchObject([
-      {
-        action: 'user.assignRoles',
-        actorEmail: authority.actorEmail,
-        actorId: authority.actorId,
-        after: {
-          resourceId: participantId,
-          resourceType: 'userRoleAssignment',
-          state: { roleIds: [], userId: participantId },
-        },
-        before: {
-          resourceId: participantId,
-          resourceType: 'userRoleAssignment',
-          state: { roleIds: [roleId], userId: participantId },
-        },
-        targetTenantId: fixture.tenantId,
-      },
-    ]);
     expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
   }, 20_000);
 
@@ -1824,43 +1822,30 @@ describe('post-registration add-on purchase concurrency', () => {
       }),
       'tenant',
     );
-    const authority = PlatformAdministratorAuthority.make({
-      actorEmail: 'platform@example.com',
-      actorId: 'auth0|platform-lock-order-assignment-first',
-      kind: 'platformAdministrator',
-    });
     const stripe = createAddonStripeTestClient();
     const outcomes = await Effect.runPromise(
       Effect.gen(function* () {
         const assignmentNeedsTenant = yield* Deferred.make<undefined>();
         const registrationNeedsMembership = yield* Deferred.make<undefined>();
-        // Start assignment first and pause BEFORE its tenant lock. In the faulty
-        // order it already owns membership; in the fixed order it does not.
+        // Start assignment first and pause BEFORE its membership lock, so it
+        // does not own membership when registration attempts it.
         // Registration can reach its membership ATTEMPT in either version.
         const assignment = withQueryBarriers(
-          platformTenantAdminHandlers['platform.tenantUsers.assignRoles'](
-            {
-              reason:
-                'Remove expired eligibility after overlapping registration',
-              roleIds: [],
-              targetTenantId: fixture.tenantId,
-              userId: participantId,
-            },
-            undefined,
+          userHandlers['users.assignRoles'](
+            { roleIds: [], userId: participantId },
+            assignRolesOptions(),
           ).pipe(
             Effect.provide(RpcAccess.Default),
-            Effect.provideService(RpcRequestContext, {
-              authData: { sub: authority.actorId },
-              authenticated: true,
-              permissions: [],
-              platformAuthority: authority,
-              tenant: Schema.decodeUnknownSync(Tenant)(tenant),
-              user: null,
-              userAssigned: false,
-            }),
+            Effect.provideService(
+              RpcRequestContext,
+              roleAdministratorContext(
+                Schema.decodeUnknownSync(Tenant)(tenant),
+                'role-administrator-assignment-first',
+              ),
+            ),
           ),
           (statement) =>
-            isTableLock(statement, getTableName(tenants))
+            isTableLock(statement, getTableName(usersToTenants))
               ? Deferred.succeed(assignmentNeedsTenant, undefined).pipe(
                   Effect.andThen(Deferred.await(registrationNeedsMembership)),
                 )
@@ -1950,28 +1935,6 @@ describe('post-registration add-on purchase concurrency', () => {
         where: { tenantId: fixture.tenantId, userTenantId: membership.id },
       }),
     ).toEqual([]);
-    expect(
-      await database.query.platformAuditEntries.findMany({
-        where: { targetTenantId: fixture.tenantId },
-      }),
-    ).toMatchObject([
-      {
-        action: 'user.assignRoles',
-        actorEmail: authority.actorEmail,
-        actorId: authority.actorId,
-        after: {
-          resourceId: participantId,
-          resourceType: 'userRoleAssignment',
-          state: { roleIds: [], userId: participantId },
-        },
-        before: {
-          resourceId: participantId,
-          resourceType: 'userRoleAssignment',
-          state: { roleIds: [roleId], userId: participantId },
-        },
-        targetTenantId: fixture.tenantId,
-      },
-    ]);
     expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
   }, 20_000);
 

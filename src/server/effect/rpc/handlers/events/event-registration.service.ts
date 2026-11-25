@@ -297,10 +297,6 @@ const resolveDiscount = ({
 export interface ApproveManualRegistrationArguments {
   executiveUserId: null | string;
   expectedEventId?: string;
-  onApproved?: (
-    tx: Pick<DatabaseClient, 'insert' | 'select' | 'update'>,
-    transition: ManualRegistrationApprovalTransition,
-  ) => Effect.Effect<void, unknown, never>;
   registrationId: string;
   targetTenant: Pick<
     Tenant,
@@ -313,18 +309,6 @@ export interface ApproveManualRegistrationArguments {
     | 'stripeAccountId'
     | 'timezone'
   >;
-}
-
-export interface ManualRegistrationApprovalTransition {
-  readonly eventId: string;
-  readonly guestCount: number;
-  readonly registrationId: string;
-  readonly registrationOptionId: string;
-  readonly statusAfter: 'CONFIRMED' | 'PENDING';
-  readonly statusBefore: 'PENDING';
-  readonly transactionId: null | string;
-  readonly transactionStatus: 'pending' | null;
-  readonly userId: string;
 }
 
 const buildRegistrationCheckoutParameters = ({
@@ -1991,7 +1975,6 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
       )(function* ({
         executiveUserId,
         expectedEventId,
-        onApproved = () => Effect.void,
         registrationId,
         targetTenant: tenant,
       }: ApproveManualRegistrationArguments) {
@@ -2376,20 +2359,6 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
         } satisfies RegistrationCheckoutSnapshot;
         const candidateTransactionId = createId();
         const claimSelection = registrationPaymentClaimSelection;
-        const approvalTransition = (
-          statusAfter: ManualRegistrationApprovalTransition['statusAfter'],
-          transactionId: null | string,
-        ): ManualRegistrationApprovalTransition => ({
-          eventId,
-          guestCount: registration.guestCount,
-          registrationId: registration.id,
-          registrationOptionId: registration.registrationOptionId,
-          statusAfter,
-          statusBefore: 'PENDING',
-          transactionId,
-          transactionStatus: transactionId ? 'pending' : null,
-          userId: registration.userId,
-        });
 
         const approvalResult = yield* Database.use((database) =>
           database
@@ -2859,7 +2828,6 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                     tenant: notificationTenant,
                     to: notificationEmail,
                   });
-                  yield* onApproved(tx, approvalTransition('CONFIRMED', null));
                   return { _tag: 'Confirmed' as const };
                 }
 
@@ -2875,10 +2843,6 @@ export class EventRegistrationService extends Context.Service<EventRegistrationS
                     }),
                   );
                 }
-                yield* onApproved(
-                  tx,
-                  approvalTransition('PENDING', paymentClaim.id),
-                );
                 return {
                   _tag: 'PaymentClaim' as const,
                   claim: paymentClaim,
