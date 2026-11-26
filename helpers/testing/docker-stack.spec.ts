@@ -295,6 +295,44 @@ assert.equal(client.database, environment.POSTGRES_DB);`,
     );
   });
 
+  it.each([
+    { clock: '2026-09-15T12:00:00.000Z', pinned: true },
+    { clock: ' 2026-09-15T12:00:00.000Z ', pinned: true },
+    { clock: '', pinned: false },
+    { clock: ' \t ', pinned: false },
+  ])(
+    'points a started stack with clock $clock at the walkthrough start only when pinned',
+    async ({ clock, pinned }) => {
+      const { environment } = createFakeRuntime();
+      const result = await runFakeStack('start', {
+        ...environment,
+        E2E_NOW_ISO: clock,
+      });
+
+      expect(result.status, result.stderr).toBe(0);
+      if (pinned) {
+        expect(result.stdout).toContain(
+          'Seed data and the app clock are pinned to E2E_NOW_ISO=2026-09-15T12:00:00.000Z.',
+        );
+        expect(result.stdout).toContain('bun run docker:start:walkthrough');
+      } else {
+        expect(result.stdout).not.toContain('E2E_NOW_ISO');
+        expect(result.stdout).not.toContain('docker:start:walkthrough');
+      }
+    },
+  );
+
+  it('does not point a failed startup at the walkthrough start', async () => {
+    const { environment } = createFakeRuntime({ upStatus: 17 });
+    const result = await runFakeStack('start', {
+      ...environment,
+      E2E_NOW_ISO: '2026-09-15T12:00:00.000Z',
+    });
+
+    expect(result.status, result.stderr).toBe(17);
+    expect(result.stdout).not.toContain('docker:start:walkthrough');
+  });
+
   it('surfaces state and logs when teardown reaches its wall-clock limit', async () => {
     const { dockerLogPath, environment } = createFakeRuntime({
       downStatus: 124,

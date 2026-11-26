@@ -94,6 +94,7 @@ describe('Docker project lifecycle lease', () => {
       'docker:resume',
       'docker:start',
       'docker:start:foreground',
+      'docker:start:walkthrough',
       'docker:start:watch',
       'docker:stop',
       'docker:webserver',
