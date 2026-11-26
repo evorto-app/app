@@ -414,15 +414,17 @@ export interface PersistedCheckoutSessionBinding {
   readonly type: 'addon' | 'other' | 'refund' | 'registration';
 }
 
+type CheckoutBindingAction =
+  'expire' | 'inspectFailure' | ReturnType<typeof asyncCheckoutFailureAction>;
+
 interface CheckoutSessionBindingInput {
-  readonly allowFinalizedExpiry?: boolean | undefined;
+  readonly action: CheckoutBindingAction;
   readonly eventAccount: null | string | undefined;
   readonly metadata: null | Readonly<Record<string, string | undefined>>;
   readonly paymentIntentId: string | undefined;
   readonly persisted: PersistedCheckoutSessionBinding;
   readonly registrationStatus?:
     'CANCELLED' | 'CONFIRMED' | 'PENDING' | 'WAITLIST' | undefined;
-  readonly requirePaymentIntent: boolean;
   readonly sessionId: string;
   readonly stripeAccountId: null | string | undefined;
 }
@@ -459,13 +461,12 @@ export const checkoutSessionBindingsMatch = (
   candidate.transactionType === expected.transactionType;
 
 export const validateCheckoutSessionBinding = ({
-  allowFinalizedExpiry = false,
+  action,
   eventAccount,
   metadata,
   paymentIntentId,
   persisted,
   registrationStatus,
-  requirePaymentIntent,
   sessionId,
   stripeAccountId,
 }: CheckoutSessionBindingInput): CheckoutSessionBindingResult => {
@@ -515,7 +516,7 @@ export const validateCheckoutSessionBinding = ({
   }
 
   if (
-    (requirePaymentIntent && !paymentIntentId) ||
+    (action !== 'expire' && !paymentIntentId) ||
     (persisted.stripePaymentIntentId !== null &&
       persisted.stripePaymentIntentId !== paymentIntentId)
   ) {
@@ -525,7 +526,8 @@ export const validateCheckoutSessionBinding = ({
     };
   }
   if (
-    allowFinalizedExpiry &&
+    action === 'expire' &&
+    persisted.type === 'registration' &&
     persisted.status === 'cancelled' &&
     registrationStatus === 'CANCELLED'
   ) {
@@ -535,7 +537,22 @@ export const validateCheckoutSessionBinding = ({
     persisted.type === 'registration' &&
     persisted.status === 'successful' &&
     (registrationStatus === 'CONFIRMED' || registrationStatus === 'CANCELLED');
-  if (persisted.status !== 'pending' && !isTerminalSuccessfulRegistration) {
+  // Add-on finalizers lock the order and transaction and verify the committed
+  // outcome. Async failures first inspect Stripe to choose completion or expiry.
+  const isTerminalAddonCandidate =
+    persisted.type === 'addon' &&
+    ((persisted.status === 'successful' &&
+      persisted.stripePaymentIntentId !== null &&
+      (action === 'complete' || action === 'inspectFailure')) ||
+      (persisted.status === 'cancelled' &&
+        (action === 'expire' ||
+          action === 'cancel' ||
+          action === 'inspectFailure')));
+  if (
+    persisted.status !== 'pending' &&
+    !isTerminalSuccessfulRegistration &&
+    !isTerminalAddonCandidate
+  ) {
     return { type: 'state-conflict' };
   }
 
@@ -553,10 +570,7 @@ export const validateCheckoutSessionBinding = ({
 const resolveCheckoutSession = (
   event: Stripe.Event,
   eventSession: Stripe.Checkout.Session,
-  options: {
-    readonly allowFinalizedExpiry?: boolean | undefined;
-    readonly requirePaymentIntent: boolean;
-  },
+  action: CheckoutBindingAction,
 ) =>
   databaseEffect((database) =>
     Effect.gen(function* () {
@@ -581,9 +595,9 @@ const resolveCheckoutSession = (
 
       const persistedRegistration =
         persisted.eventRegistrationId &&
-        ((options.allowFinalizedExpiry && persisted.status === 'cancelled') ||
-          (persisted.type === 'registration' &&
-            persisted.status === 'successful'))
+        persisted.type === 'registration' &&
+        ((action === 'expire' && persisted.status === 'cancelled') ||
+          persisted.status === 'successful')
           ? yield* database.query.eventRegistrations.findFirst({
               columns: { status: true },
               where: {
@@ -598,13 +612,12 @@ const resolveCheckoutSession = (
         where: { id: persisted.tenantId },
       });
       const binding = validateCheckoutSessionBinding({
-        allowFinalizedExpiry: options.allowFinalizedExpiry,
+        action,
         eventAccount: event.account,
         metadata: eventSession.metadata,
         paymentIntentId,
         persisted,
         registrationStatus: persistedRegistration?.status,
-        requirePaymentIntent: options.requirePaymentIntent,
         sessionId: eventSession.id,
         stripeAccountId: tenant?.stripeAccountId,
       });
@@ -985,7 +998,7 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
           const checkoutSession = yield* resolveCheckoutSession(
             event,
             eventSession,
-            { requirePaymentIntent: true },
+            'complete',
           );
           if (checkoutSession.type === 'unresolved') {
             return responseText('Missing checkout session mapping', 400);
@@ -1091,7 +1104,7 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
           const checkoutSession = yield* resolveCheckoutSession(
             event,
             eventSession,
-            { requirePaymentIntent: true },
+            'inspectFailure',
           );
           if (checkoutSession.type === 'unresolved') {
             return responseText('Missing checkout session mapping', 400);
@@ -1125,40 +1138,51 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
             return responseText('Payment intent missing', 400);
           }
 
+          const addonOrder =
+            transactionType === 'addon'
+              ? yield* resolvePersistedAddonPurchaseOrder({
+                  metadata: eventSession.metadata,
+                  registrationId,
+                  tenantId,
+                  transactionId,
+                })
+              : undefined;
+          if (addonOrder && addonOrder.type !== 'resolved') {
+            return responseText(
+              addonOrder.type === 'metadata-conflict'
+                ? 'Add-on order metadata conflicts with persisted state'
+                : 'Persisted add-on order not found',
+              400,
+            );
+          }
           const currentSession = yield* retrieveHostedCheckoutSession(
             eventSession.id,
             stripeAccount,
           );
           const failureAction = asyncCheckoutFailureAction(currentSession);
-          if (failureAction === 'complete') {
+          if (failureAction === 'complete' || transactionType === 'addon') {
             const currentBinding = yield* resolveCheckoutSession(
               event,
               currentSession,
-              { requirePaymentIntent: true },
+              failureAction,
             );
             if (currentBinding.type === 'state-conflict') {
               return responseText('Checkout transaction state conflict', 409);
             }
             if (
-              !checkoutSessionBindingsMatch(checkoutSession, currentBinding)
+              currentSession.id !== eventSession.id ||
+              !checkoutSessionBindingsMatch(checkoutSession, currentBinding) ||
+              (addonOrder &&
+                currentSession.metadata?.['addonPurchaseOrderId'] !==
+                  undefined &&
+                currentSession.metadata['addonPurchaseOrderId'] !==
+                  addonOrder.orderId)
             ) {
               return responseText('Invalid checkout session binding', 400);
             }
-            if (transactionType === 'addon') {
-              const addonOrder = yield* resolvePersistedAddonPurchaseOrder({
-                metadata: currentSession.metadata,
-                registrationId,
-                tenantId,
-                transactionId,
-              });
-              if (addonOrder.type !== 'resolved') {
-                return responseText(
-                  addonOrder.type === 'metadata-conflict'
-                    ? 'Add-on order metadata conflicts with persisted state'
-                    : 'Persisted add-on order not found',
-                  400,
-                );
-              }
+          }
+          if (failureAction === 'complete') {
+            if (addonOrder) {
               yield* completePaidAddonPurchaseCheckout(
                 {
                   orderId: addonOrder.orderId,
@@ -1225,22 +1249,8 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
               : responseText('Checkout transaction state conflict', 409);
           }
 
-          if (transactionType === 'addon') {
-            const addonOrder = yield* resolvePersistedAddonPurchaseOrder({
-              metadata: currentSession.metadata,
-              registrationId,
-              tenantId,
-              transactionId,
-            });
-            if (addonOrder.type !== 'resolved') {
-              return responseText(
-                addonOrder.type === 'metadata-conflict'
-                  ? 'Add-on order metadata conflicts with persisted state'
-                  : 'Persisted add-on order not found',
-                400,
-              );
-            }
-            yield* expirePaidAddonPurchaseCheckout({
+          if (addonOrder) {
+            const expiry = yield* expirePaidAddonPurchaseCheckout({
               now: new Date(),
               orderId: addonOrder.orderId,
               registrationId,
@@ -1250,7 +1260,9 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
               tenantId,
               transactionId,
             });
-            return responseText('Payment failed; add-on stock released');
+            return expiry === 'alreadyCompleted'
+              ? responseText('Checkout transaction state conflict', 409)
+              : responseText('Payment failed; add-on stock released');
           }
           const cancellation = yield* cancelTerminalBoundRegistrationCheckout({
             registrationId,
@@ -1281,10 +1293,7 @@ export const handleStripeWebhookWebRequest = (request: Request) =>
           const checkoutSession = yield* resolveCheckoutSession(
             event,
             eventSession,
-            {
-              allowFinalizedExpiry: true,
-              requirePaymentIntent: false,
-            },
+            'expire',
           );
           if (checkoutSession.type === 'already-finalized-expiry') {
             return responseText('Success');

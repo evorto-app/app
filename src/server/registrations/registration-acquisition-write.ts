@@ -382,6 +382,67 @@ const componentMatches = (
   persisted.taxRateInclusive === expected.taxRateInclusive &&
   persisted.taxRatePercentage === expected.taxRatePercentage;
 
+/** Match the original payment's acquisition even after the registration changes owners. */
+export const hasSettledAddonAcquisition = Effect.fn(
+  'hasSettledAddonAcquisition',
+)(function* (
+  tx: Pick<DatabaseClient, 'select'>,
+  input: {
+    readonly component: SettledAcquisitionComponent;
+    readonly currency: AcquisitionCurrency;
+    readonly eventId: string;
+    readonly ownerUserId: string;
+    readonly registrationId: string;
+    readonly tenantId: string;
+    readonly transactionId: string;
+  },
+) {
+  const rows = yield* tx
+    .select({
+      component: registrationAcquisitionComponents,
+      paymentId: registrationAcquisitionPayments.id,
+    })
+    .from(registrationAcquisitionPayments)
+    .innerJoin(
+      registrationAcquisitions,
+      eq(
+        registrationAcquisitions.id,
+        registrationAcquisitionPayments.acquisitionId,
+      ),
+    )
+    .innerJoin(
+      registrationAcquisitionComponents,
+      eq(
+        registrationAcquisitionComponents.acquisitionPaymentId,
+        registrationAcquisitionPayments.id,
+      ),
+    )
+    .where(
+      and(
+        eq(registrationAcquisitionPayments.transactionId, input.transactionId),
+        eq(
+          registrationAcquisitionPayments.registrationId,
+          input.registrationId,
+        ),
+        eq(registrationAcquisitionPayments.tenantId, input.tenantId),
+        eq(registrationAcquisitionPayments.eventId, input.eventId),
+        eq(registrationAcquisitions.ownerUserId, input.ownerUserId),
+      ),
+    )
+    .for('share');
+  const row = rows[0];
+  return (
+    rows.length === 1 &&
+    row !== undefined &&
+    componentMatches(
+      row.component,
+      input.component,
+      row.paymentId,
+      input.currency,
+    )
+  );
+});
+
 /**
  * Resolves only the rows originally requested by an idempotent operation.
  * Later add-ons may have appended more payments and components to the epoch.
