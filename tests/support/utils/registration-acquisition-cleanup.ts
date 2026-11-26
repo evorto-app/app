@@ -85,3 +85,52 @@ export const deleteRegistrationAcquisitionLedger = async ({
       ),
     );
 };
+
+export const deleteRegistrationsWithAcquisitionLedger = async ({
+  database,
+  eventId,
+  registrationOptionId,
+  tenantId,
+  userId,
+}: {
+  database: Pick<TestDatabase, 'delete' | 'select'>;
+  eventId: string;
+  registrationOptionId?: string;
+  tenantId: string;
+  userId: string;
+}): Promise<void> => {
+  const registrations = await database
+    .select({ id: schema.eventRegistrations.id })
+    .from(schema.eventRegistrations)
+    .where(
+      and(
+        eq(schema.eventRegistrations.eventId, eventId),
+        eq(schema.eventRegistrations.tenantId, tenantId),
+        eq(schema.eventRegistrations.userId, userId),
+        registrationOptionId === undefined
+          ? undefined
+          : eq(
+              schema.eventRegistrations.registrationOptionId,
+              registrationOptionId,
+            ),
+      ),
+    );
+  const registrationIds = registrations.map((registration) => registration.id);
+  if (registrationIds.length === 0) {
+    return;
+  }
+
+  await deleteRegistrationAcquisitionLedger({
+    database,
+    registrationIds,
+    tenantId,
+  });
+  await database
+    .delete(schema.eventRegistrations)
+    .where(
+      and(
+        inArray(schema.eventRegistrations.id, registrationIds),
+        eq(schema.eventRegistrations.tenantId, tenantId),
+      ),
+    );
+};

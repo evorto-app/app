@@ -3,7 +3,10 @@ import { and, eq } from 'drizzle-orm';
 import * as schema from '../../../src/db/schema';
 import { expect, test } from '../../support/fixtures/parallel-test';
 import { waitForRegistrationPage } from '../../support/utils/event-registration-page';
-import { deleteRegistrationAcquisitionLedger } from '../../support/utils/registration-acquisition-cleanup';
+import {
+  deleteRegistrationAcquisitionLedger,
+  deleteRegistrationsWithAcquisitionLedger,
+} from '../../support/utils/registration-acquisition-cleanup';
 import { futureServerEventWindow } from '../../support/utils/server-test-clock';
 
 const regularUser = usersToAuthenticate.find((user) => user.roles === 'user');
@@ -92,15 +95,12 @@ test('register for a free event as regular user', async ({
     }
   });
   registerDatabaseCleanup(async () => {
-    await database
-      .delete(schema.eventRegistrations)
-      .where(
-        and(
-          eq(schema.eventRegistrations.eventId, targetEventId),
-          eq(schema.eventRegistrations.tenantId, tenant.id),
-          eq(schema.eventRegistrations.userId, user.id),
-        ),
-      );
+    await deleteRegistrationsWithAcquisitionLedger({
+      database,
+      eventId: targetEventId,
+      tenantId: tenant.id,
+      userId: user.id,
+    });
   });
   registerDatabaseCleanup(async () => {
     if (createdRegistrationId) {
@@ -133,15 +133,12 @@ test('register for a free event as regular user', async ({
     });
   });
   {
-    await database
-      .delete(schema.eventRegistrations)
-      .where(
-        and(
-          eq(schema.eventRegistrations.eventId, targetEventId),
-          eq(schema.eventRegistrations.tenantId, tenant.id),
-          eq(schema.eventRegistrations.userId, user.id),
-        ),
-      );
+    await deleteRegistrationsWithAcquisitionLedger({
+      database,
+      eventId: targetEventId,
+      tenantId: tenant.id,
+      userId: user.id,
+    });
     await database
       .update(schema.eventRegistrationOptions)
       .set({
