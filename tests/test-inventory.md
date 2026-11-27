@@ -700,6 +700,11 @@ ESNcard provider credential path.
     the current participant creates the private offer and the recipient reviews
     and accepts it. The retired organizer dialog and direct-transfer handlers
     have no remaining callers.
+  - Flaky-network check-in coverage in the scanner spec aborts the first
+    check-in request (retry succeeds, counted once) and drops the response of a
+    check-in the server already committed (retry is recognized as the same
+    intent, so spots are counted once, not twice); the generated guide explains
+    the retry and "Check-in not confirmed" behavior.
   - Keep scanned-registration action guards aligned with the write/refetch
     lifecycle. Local app coverage now pins that the check-in action is disabled
     when scan state disallows it, no spots are selected, the write is pending,
@@ -711,6 +716,11 @@ ESNcard provider credential path.
     success state is recorded for both buyer-plus-guest and later-guest-arrival
     flows, and both page-backed scanner paths now assert the organizer overview
     checked-in aggregate after scanner writes.
+  - Ticket QR deep links (EVO-26): `specs/scanning/scanner.test.ts` proves a
+    signed-out visitor is redirected to sign-in with the ticket path as the
+    return target and no check-in, a phone-sized signed-in helper sees the
+    ticket preview with no write until Confirm is pressed, and a user without
+    scanner access gets the load error and no write.
 - Tenant/global admin:
   - Authenticated Browser review for the global-admin tenant list and
     tenant-create/edit flows. The global-admin tenant Playwright spec now

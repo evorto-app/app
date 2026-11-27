@@ -1,5 +1,7 @@
 import { Routes } from '@angular/router';
 
+import type { HandleRegistrationComponent } from './handle-registration/handle-registration.component';
+
 export const SCANNING_ROUTES: Routes = [
   {
     loadComponent: () =>
@@ -8,6 +10,9 @@ export const SCANNING_ROUTES: Routes = [
     pathMatch: 'full',
   },
   {
+    canDeactivate: [
+      (component: HandleRegistrationComponent) => component.canLeaveTicket(),
+    ],
     loadComponent: () =>
       import('./handle-registration/handle-registration.component').then(
         (m) => m.HandleRegistrationComponent,

@@ -236,19 +236,17 @@ The scanner also warns when the ticket belongs to the signed-in organizer, check
       .update(eventRegistrations)
       .set({ status: 'PENDING' })
       .where(eq(eventRegistrations.id, registrationId));
-    const addonFulfillmentResponsePromise = page.waitForResponse((response) => {
+    const scanTicketResponsePromise = page.waitForResponse((response) => {
       const request = response.request();
       return (
         new URL(request.url()).pathname.replace(/\/+$/u, '') === '/rpc' &&
         request.method() === 'POST' &&
-        (request.postData() ?? '').includes(
-          'events.getRegistrationAddonFulfillment',
-        )
+        (request.postData() ?? '').includes('events.scanTicket')
       );
     });
     await page.goto(`/scan/registration/${registrationId}`);
-    const addonFulfillmentResponse = await addonFulfillmentResponsePromise;
-    expect(addonFulfillmentResponse.ok()).toBe(true);
+    const scanTicketResponse = await scanTicketResponsePromise;
+    expect(scanTicketResponse.ok()).toBe(true);
     const pendingRegistrationAlert = page
       .getByRole('alert')
       .filter({ hasText: 'Sign-up pending' });
@@ -262,9 +260,6 @@ The scanner also warns when the ticket belongs to the signed-in organizer, check
     await expect(
       page.getByRole('button', { name: 'Confirm check-in' }),
     ).toBeDisabled();
-    await expect(
-      page.getByRole('status').filter({ hasText: 'Loading add-ons' }),
-    ).toHaveCount(0);
     await takeScreenshot(
       testInfo,
       page.locator('app-handle-registration'),
@@ -359,6 +354,15 @@ The scanner also warns when the ticket belongs to the signed-in organizer, check
         checkedInGuestCount: 1,
         checkedInSpots: optionBefore.checkedInSpots + 2,
       });
+
+    await testInfo.attach('markdown', {
+      body: `
+### If the connection drops
+
+- If the connection is weak, the scanner tries again by itself and tells you that it is retrying. Keep the page open while it waits for a connection.
+- **Check-in not confirmed** means it is unclear whether the check-in was saved. Select **Try again**. The attendee and guests are not counted twice.
+`,
+    });
 
     await testInfo.attach('markdown', {
       body: `
