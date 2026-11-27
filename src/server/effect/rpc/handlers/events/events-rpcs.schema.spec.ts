@@ -444,16 +444,18 @@ describe('events RPC cancellation precondition schema', () => {
 
 describe('events RPC check-in payload schema', () => {
   it('treats a payload without a check-in method as a scan', () => {
-    expect(
-      Schema.decodeUnknownSync(EventsCheckInRegistration.payloadSchema)({
-        guestCheckInCount: 0,
-        registrationId: 'registration-1',
-      }),
-    ).toEqual({
-      checkInMethod: 'scan',
+    const scanPayload = {
+      expectedAttendeeCheckedIn: false,
+      expectedCheckedInGuestCount: 0,
       guestCheckInCount: 0,
+      operationKey: 'operation-1',
       registrationId: 'registration-1',
-    });
+    };
+    expect(
+      Schema.decodeUnknownSync(EventsCheckInRegistration.payloadSchema)(
+        scanPayload,
+      ),
+    ).toEqual({ ...scanPayload, checkInMethod: 'scan' });
     expect(
       Schema.decodeUnknownSync(EventsRegistrationScanned.payloadSchema)({
         registrationId: 'registration-1',
@@ -462,25 +464,24 @@ describe('events RPC check-in payload schema', () => {
   });
 
   it('carries the attendee a manual check-in expects', () => {
-    expect(
-      Schema.decodeUnknownSync(EventsCheckInRegistration.payloadSchema)({
-        checkInMethod: 'manual',
-        expectedUserId: 'attendee-1',
-        guestCheckInCount: 1,
-        registrationId: 'registration-1',
-      }),
-    ).toEqual({
+    const manualPayload = {
       checkInMethod: 'manual',
+      expectedAttendeeCheckedIn: true,
+      expectedCheckedInGuestCount: 0,
       expectedUserId: 'attendee-1',
       guestCheckInCount: 1,
+      operationKey: 'operation-1',
       registrationId: 'registration-1',
-    });
+    };
+    expect(
+      Schema.decodeUnknownSync(EventsCheckInRegistration.payloadSchema)(
+        manualPayload,
+      ),
+    ).toEqual(manualPayload);
     expect(() =>
       Schema.decodeUnknownSync(EventsCheckInRegistration.payloadSchema)({
-        checkInMethod: 'manual',
+        ...manualPayload,
         expectedUserId: '',
-        guestCheckInCount: 0,
-        registrationId: 'registration-1',
       }),
     ).toThrow();
   });
