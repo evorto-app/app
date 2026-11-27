@@ -556,6 +556,7 @@ describe('scanGuestCheckInCountFromInput', () => {
 
 describe('scanCheckInRetryPayload', () => {
   const previous = {
+    checkInMethod: 'scan' as const,
     expectedAttendeeCheckedIn: false,
     expectedCheckedInGuestCount: 0,
     guestCheckInCount: 1,

@@ -29,6 +29,7 @@ const EVENTS_GROUP = {
     'editAll',
     'review',
     'organizeAll',
+    'checkInManually',
     'seeDrafts',
   ] as const,
 } as const;
@@ -150,6 +151,11 @@ const PERMISSION_METADATA = {
     description:
       'Choose which organization roles can find announcements without sign-up choices. People with a direct link can still open them, and this choice does not give members new permissions or send them a message.',
     label: 'Change who can find announcements',
+  },
+  'events:checkInManually': {
+    description:
+      'Check in attendees and their guests from the attendee list of events you can organize, without scanning their ticket.',
+    label: 'Manual check-in',
   },
   'events:create': {
     description:

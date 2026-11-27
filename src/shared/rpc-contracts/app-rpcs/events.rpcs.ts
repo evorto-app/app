@@ -173,6 +173,29 @@ export const EventsApproveRegistration = asRpcMutation(
   }),
 );
 
+/**
+ * How a helper reached the ticket: by scanning its QR code, or from the
+ * event's attendee list. A manual check-in also requires
+ * `events:checkInManually`.
+ */
+export const EventCheckInMethod = Schema.Literals(['manual', 'scan']);
+
+export type EventCheckInMethod = Schema.Schema.Type<typeof EventCheckInMethod>;
+
+/**
+ * Scanner tabs opened before the method existed omit it; they scan.
+ */
+const EventCheckInMethodInput = EventCheckInMethod.pipe(
+  Schema.withDecodingDefaultTypeKey(Effect.succeed('scan' as const)),
+);
+
+/**
+ * The attendee the organizer picked from the attendee list. A ticket
+ * transfer keeps the registration but changes its owner, so a manual
+ * check-in names the person it expects; the scanner has no such person.
+ */
+const ExpectedCheckInUserIdInput = Schema.optionalKey(Schema.NonEmptyString);
+
 /** The ticket state a scanner sees: eligibility, counts and attendee details. */
 export const EventsRegistrationScanResult = Schema.Struct({
   allowCheckin: Schema.Boolean,
@@ -195,6 +218,7 @@ export const EventsRegistrationScanResult = Schema.Struct({
   sameUserIssue: Schema.Boolean,
   user: Schema.Struct({
     firstName: Schema.NonEmptyString,
+    id: Schema.NonEmptyString,
     lastName: Schema.NonEmptyString,
   }),
 });
@@ -207,6 +231,7 @@ export const EventsCheckInRegistration = asRpcMutation(
   Rpc.make('events.checkInRegistration', {
     error: EventsCheckInRegistrationMutationError,
     payload: Schema.Struct({
+      checkInMethod: EventCheckInMethodInput,
       /**
        * Whether the helper saw the attendee as already checked in. A new
        * check-in that admits guests is applied only while the ticket still
@@ -219,6 +244,7 @@ export const EventsCheckInRegistration = asRpcMutation(
        * changed the ticket and the helper reviews it again.
        */
       expectedCheckedInGuestCount: nonNegativeNumber,
+      expectedUserId: ExpectedCheckInUserIdInput,
       guestCheckInCount: nonNegativeNumber,
       /**
        * Unique per confirmed check-in intent. A retry sends the same key and
@@ -523,6 +549,8 @@ export const EventsGetOrganizeOverviewUser = Schema.Struct({
   paymentPending: Schema.Boolean,
   paymentSetupRequired: Schema.Boolean,
   registrationId: Schema.NonEmptyString,
+  /** Guest places on this ticket that are not checked in yet. */
+  remainingGuestCount: NonNegativeInteger,
   status: EventsRegistrationStatus,
   userId: Schema.NonEmptyString,
 });
@@ -530,6 +558,8 @@ export const EventsGetOrganizeOverviewUser = Schema.Struct({
 export const EventsGetOrganizeOverviewOption = Schema.Struct({
   canApproveRegistrations: Schema.Boolean,
   canCancelRegistrations: Schema.Boolean,
+  /** The viewer may check in this event's attendees from the list. */
+  canCheckInManually: Schema.Boolean,
   organizingRegistration: Schema.Boolean,
   registrationOptionId: Schema.NonEmptyString,
   registrationOptionTitle: Schema.NonEmptyString,
@@ -828,6 +858,7 @@ export const EventsRegistrationScanned = asRpcQuery(
   Rpc.make('events.registrationScanned', {
     error: EventsRegistrationScannedError,
     payload: Schema.Struct({
+      checkInMethod: EventCheckInMethodInput,
       registrationId: Schema.NonEmptyString,
     }),
     success: EventsRegistrationScanResult,

@@ -177,7 +177,8 @@
                         @let approvalInFlight =
                           approvalPending(user.registrationId);
                         <div
-                          class="border-outline-variant flex flex-wrap items-start justify-between gap-3 border-b py-3"
+                          data-testid="event-organize-registration"
+                          class="border-outline-variant grid gap-3 border-b py-3"
                           [attr.aria-busy]="approvalInFlight || null"
                         >
                           <div class="grid gap-1">
@@ -242,13 +243,48 @@
                               </p>
                             }
                           </div>
+                          @let checkInAction =
+                            manualCheckInAction(user, registrationOption);
                           @if (
                             (registrationOption.canApproveRegistrations &&
                               user.manualApprovalAvailable &&
                               !user.paymentSetupRequired) ||
-                            registrationOption.canCancelRegistrations
+                            registrationOption.canCancelRegistrations ||
+                            checkInAction !== null
                           ) {
                             <div class="flex flex-wrap gap-2">
+                              @if (checkInAction !== null) {
+                                <button
+                                  mat-flat-button
+                                  type="button"
+                                  [attr.aria-label]="
+                                    (checkInAction === 'checkInGuests'
+                                      ? 'Check in guests of '
+                                      : 'Check in ') +
+                                    user.firstName +
+                                    ' ' +
+                                    user.lastName
+                                  "
+                                  (click)="
+                                    checkInRegistration(
+                                      user,
+                                      checkInAction === 'checkInGuests'
+                                        ? 'guests'
+                                        : 'attendee'
+                                    )
+                                  "
+                                  [disabled]="
+                                    approveRegistrationMutation.isPending() ||
+                                    cancelRegistrationMutation.isPending()
+                                  "
+                                >
+                                  {{
+                                    checkInAction === "checkInGuests"
+                                      ? "Check in guests"
+                                      : "Check in"
+                                  }}
+                                </button>
+                              }
                               @if (
                                 registrationOption.canApproveRegistrations &&
                                 user.manualApprovalAvailable &&

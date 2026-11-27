@@ -69,6 +69,9 @@ export const eventOrganizeCapabilities = ({
     canCancelRegistrations:
       canManageRegistrations &&
       includesPermission('events:cancelRegistrations', permissions),
+    canCheckInManually:
+      canManageRegistrations &&
+      includesPermission('events:checkInManually', permissions),
     canViewOverview:
       canManageRegistrations ||
       includesPermission('finance:manageReceipts', permissions),
@@ -1123,8 +1126,10 @@ export const eventQueryHandlers = {
             appliedDiscountedPrice: true,
             appliedDiscountType: true,
             basePriceAtRegistration: true,
+            checkedInGuestCount: true,
             checkInTime: true,
             discountAmount: true,
+            guestCount: true,
             id: true,
             registrationOptionId: true,
             status: true,
@@ -1281,6 +1286,10 @@ export const eventQueryHandlers = {
                 lastName: registration.user.lastName,
                 ...approvalState,
                 registrationId: registration.id,
+                remainingGuestCount: Math.max(
+                  0,
+                  registration.guestCount - registration.checkedInGuestCount,
+                ),
                 status: registration.status,
                 userId: registration.user.id,
               };
@@ -1289,6 +1298,7 @@ export const eventQueryHandlers = {
           return {
             canApproveRegistrations: capabilities.canApproveRegistrations,
             canCancelRegistrations: capabilities.canCancelRegistrations,
+            canCheckInManually: capabilities.canCheckInManually,
             organizingRegistration:
               registrationRows[0].registrationOption.organizingRegistration,
             registrationOptionId,

@@ -716,6 +716,27 @@ ESNcard provider credential path.
     success state is recorded for both buyer-plus-guest and later-guest-arrival
     flows, and both page-backed scanner paths now assert the organizer overview
     checked-in aggregate after scanner writes.
+  - Organize-list check-in (EVO-67): the scanner spec checks in a confirmed
+    attendee only from the organizer overview's row action, then the later
+    guests through "Check in guests" (dialog starts at 1 guest, singular
+    snackbar), asserting that the attendee check-in time stays unchanged, the
+    guest count and option counter update, the action disappears after the
+    last guest and the checked-in aggregate matches. A scanner-only organizer
+    (confirmed organizing ticket, role without `events:checkInManually`) sees
+    no check-in action, and gets it once the permission is granted. The
+    confirm dialog still blocks check-in outside the window.
+    `docs/scanning/check-in.doc.ts` documents the same flow, the "Manual
+    check-in" permission and the later-guest step. App and server coverage
+    pins row-action visibility (`canCheckInManually`, confirmed, not
+    checked in or guests left, not the viewer's own row), the dialog's guest
+    bounds (Signal Forms field, locked while the write is pending), blocking
+    states (a failed or offline-paused ticket reload, a ticket transferred
+    to someone else) and error copy. Server coverage refuses a manual
+    check-in whose expected attendee no longer owns the ticket, before and
+    under the registration lock, and decodes a payload without a method as
+    a scan. The dialog sends EVO-26's operation key (kept across a retry
+    whose outcome is unknown) and the expected attendee and guest state it
+    showed.
   - Ticket QR deep links (EVO-26): `specs/scanning/scanner.test.ts` proves a
     signed-out visitor is redirected to sign-in with the ticket path as the
     return target and no check-in, a phone-sized signed-in helper sees the

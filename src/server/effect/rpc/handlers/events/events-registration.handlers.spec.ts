@@ -406,8 +406,10 @@ const scannedRegistrationValues = (registration: ScannedRegistrationRead) => [
 ];
 
 const createScanReadDatabaseLayer = ({
+  organizerRegistration = false,
   registration,
 }: {
+  readonly organizerRegistration?: boolean;
   readonly registration: null | ScannedRegistrationRead;
 }) =>
   createRegistrationDatabaseTestLayer({
@@ -438,7 +440,9 @@ const createScanReadDatabaseLayer = ({
             'tenant-1',
             'scanner-1',
           ]);
-          return [];
+          return organizerRegistration
+            ? [['organizer-registration-1', { organizingRegistration: true }]]
+            : [];
         }
         throw new Error('Unexpected registration scan fixture SQL statement');
       }),
@@ -454,6 +458,8 @@ type CheckInDatabaseStep =
   | {
       readonly guestIncrement: number;
       readonly operation: 'writeRegistrationCheckIn';
+      /** Guest-only check-in: the first check-in time is left untouched. */
+      readonly preservesCheckInTime?: boolean;
       readonly row: Pick<
         typeof eventRegistrations.$inferSelect,
         'checkedInGuestCount' | 'checkInTime' | 'id'
@@ -477,7 +483,11 @@ type CheckInDatabaseStep =
       readonly operation: 'readCheckInOperation';
       readonly row?: CheckInOperationRow;
     }
-  | { readonly operation: 'readOrganizerRegistration' }
+  | {
+      readonly operation: 'readOrganizerRegistration';
+      /** Whether the user organizes this event; defaults to true. */
+      readonly organizer?: boolean;
+    }
   | {
       readonly operation: 'readRegistrationScan';
       readonly row: ScannedRegistrationRead;
@@ -561,6 +571,8 @@ const checkInStatements = {
     'select "d0"."id" as "id", "registrationOption"."r" as "registrationOption" from "event_registrations" as "d0" left join lateral(select row_to_json("t".*) "r" from (select "d1"."organizingRegistration" as "organizingRegistration" from "event_registration_options" as "d1" where "d0"."registrationOptionId" = "d1"."id" limit $1) as "t") as "registrationOption" on true where (("d0"."eventId" = $2) and ("d0"."status" = $3) and ("d0"."tenantId" = $4) and ("d0"."userId" = $5))',
   readRegistration:
     'select "d0"."checked_in_guest_count" as "checkedInGuestCount", "d0"."checkInTime" as "checkInTime", "d0"."eventId" as "eventId", "d0"."guest_count" as "guestCount", "d0"."id" as "id", "d0"."registrationOptionId" as "registrationOptionId", "d0"."status" as "status", "d0"."userId" as "userId" from "event_registrations" as "d0" where (("d0"."id" = $1) and ("d0"."tenantId" = $2)) limit $3',
+  writeGuestOnlyCheckIn:
+    'update "event_registrations" set "updatedAt" = $1, "checked_in_guest_count" = "event_registrations"."checked_in_guest_count" + $2 where (("event_registrations"."id" = $3) and ("event_registrations"."tenantId" = $4) and ("event_registrations"."status" = $5) and ("event_registrations"."userId" = $6)) returning "checked_in_guest_count", "checkInTime", "id"',
   writeRegistrationCheckIn:
     'update "event_registrations" set "updatedAt" = $1, "checked_in_guest_count" = "event_registrations"."checked_in_guest_count" + $2, "checkInTime" = $3 where (("event_registrations"."id" = $4) and ("event_registrations"."tenantId" = $5) and ("event_registrations"."status" = $6) and ("event_registrations"."userId" = $7)) returning "checked_in_guest_count", "checkInTime", "id"',
 };
@@ -716,9 +728,14 @@ const createCheckInDatabaseFixture = (
                 'scanner-1',
               ]);
               completed.push(step.operation);
-              return [
-                ['organizer-registration-1', { organizingRegistration: true }],
-              ];
+              return step.organizer === false
+                ? []
+                : [
+                    [
+                      'organizer-registration-1',
+                      { organizingRegistration: true },
+                    ],
+                  ];
             }
             case 'readRegistration': {
               expect(statement).toBe(checkInStatements.readRegistration);
@@ -727,20 +744,33 @@ const createCheckInDatabaseFixture = (
               return [checkInRegistrationValues(step.row)];
             }
             case 'writeRegistrationCheckIn': {
-              expect(statement).toBe(
-                checkInStatements.writeRegistrationCheckIn,
+              const timestamp = expect.stringMatching(
+                /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/,
               );
-              expect(parameters).toEqual([
-                expect.stringMatching(
-                  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/,
-                ),
-                step.guestIncrement,
-                checkInNowIso,
-                'registration-1',
-                'tenant-1',
-                'CONFIRMED',
-                'attendee-1',
-              ]);
+              if (step.preservesCheckInTime) {
+                expect(statement).toBe(checkInStatements.writeGuestOnlyCheckIn);
+                expect(parameters).toEqual([
+                  timestamp,
+                  step.guestIncrement,
+                  'registration-1',
+                  'tenant-1',
+                  'CONFIRMED',
+                  'attendee-1',
+                ]);
+              } else {
+                expect(statement).toBe(
+                  checkInStatements.writeRegistrationCheckIn,
+                );
+                expect(parameters).toEqual([
+                  timestamp,
+                  step.guestIncrement,
+                  checkInNowIso,
+                  'registration-1',
+                  'tenant-1',
+                  'CONFIRMED',
+                  'attendee-1',
+                ]);
+              }
               completed.push(step.operation);
               writes.push(step.operation);
               return [
@@ -5799,7 +5829,7 @@ describe('event registration scan handlers', () => {
       const error = yield* eventRegistrationHandlers[
         'events.registrationScanned'
       ](
-        { registrationId: 'registration-1' },
+        { checkInMethod: 'scan', registrationId: 'registration-1' },
         handlerOptions('events.registrationScanned'),
       ).pipe(
         Effect.flip,
@@ -5826,7 +5856,7 @@ describe('event registration scan handlers', () => {
       const error = yield* eventRegistrationHandlers[
         'events.registrationScanned'
       ](
-        { registrationId: 'registration-1' },
+        { checkInMethod: 'scan', registrationId: 'registration-1' },
         handlerOptions('events.registrationScanned'),
       ).pipe(
         Effect.flip,
@@ -5852,7 +5882,7 @@ describe('event registration scan handlers', () => {
       const result = yield* eventRegistrationHandlers[
         'events.registrationScanned'
       ](
-        { registrationId: 'registration-1' },
+        { checkInMethod: 'scan', registrationId: 'registration-1' },
         handlerOptions('events.registrationScanned'),
       ).pipe(
         Effect.provide(
@@ -5887,7 +5917,7 @@ describe('event registration scan handlers', () => {
       const result = yield* eventRegistrationHandlers[
         'events.registrationScanned'
       ](
-        { registrationId: 'registration-1' },
+        { checkInMethod: 'scan', registrationId: 'registration-1' },
         handlerOptions('events.registrationScanned'),
       ).pipe(
         Effect.provide(
@@ -5922,7 +5952,7 @@ describe('event registration scan handlers', () => {
         const result = yield* eventRegistrationHandlers[
           'events.registrationScanned'
         ](
-          { registrationId: 'registration-1' },
+          { checkInMethod: 'scan', registrationId: 'registration-1' },
           handlerOptions('events.registrationScanned'),
         ).pipe(
           Effect.provide(
@@ -5957,7 +5987,7 @@ describe('event registration scan handlers', () => {
         const error = yield* eventRegistrationHandlers[
           'events.registrationScanned'
         ](
-          { registrationId: 'registration-1' },
+          { checkInMethod: 'scan', registrationId: 'registration-1' },
           handlerOptions('events.registrationScanned'),
         ).pipe(
           Effect.flip,
@@ -6004,7 +6034,7 @@ describe('event registration scan handlers', () => {
         const error = yield* eventRegistrationHandlers[
           'events.registrationScanned'
         ](
-          { registrationId: 'registration-1' },
+          { checkInMethod: 'scan', registrationId: 'registration-1' },
           handlerOptions('events.registrationScanned'),
         ).pipe(
           Effect.flip,
@@ -6050,7 +6080,7 @@ describe('event registration scan handlers', () => {
         const result = yield* eventRegistrationHandlers[
           'events.registrationScanned'
         ](
-          { registrationId: 'registration-1' },
+          { checkInMethod: 'scan', registrationId: 'registration-1' },
           handlerOptions('events.registrationScanned'),
         ).pipe(
           Effect.provide(
@@ -6085,7 +6115,7 @@ describe('event registration scan handlers', () => {
         const result = yield* eventRegistrationHandlers[
           'events.registrationScanned'
         ](
-          { registrationId: 'registration-1' },
+          { checkInMethod: 'scan', registrationId: 'registration-1' },
           handlerOptions('events.registrationScanned'),
         ).pipe(
           Effect.provide(
@@ -6309,6 +6339,7 @@ describe('event registration scan handlers', () => {
               'events.checkInRegistration'
             ](
               {
+                checkInMethod: 'scan',
                 expectedAttendeeCheckedIn: false,
                 expectedCheckedInGuestCount: 0,
                 guestCheckInCount: 0,
@@ -6369,6 +6400,7 @@ describe('event registration scan handlers', () => {
           'events.checkInRegistration'
         ](
           {
+            checkInMethod: 'scan',
             expectedAttendeeCheckedIn: false,
             expectedCheckedInGuestCount: 0,
             guestCheckInCount: 0,
@@ -6414,6 +6446,7 @@ describe('event registration scan handlers', () => {
           'events.checkInRegistration'
         ](
           {
+            checkInMethod: 'scan',
             expectedAttendeeCheckedIn: false,
             expectedCheckedInGuestCount: 0,
             guestCheckInCount: 0,
@@ -6762,6 +6795,7 @@ describe('event registration scan handlers', () => {
         'events.checkInRegistration'
       ](
         {
+          checkInMethod: 'scan',
           expectedAttendeeCheckedIn: false,
           expectedCheckedInGuestCount: 0,
           guestCheckInCount: 2,
@@ -6861,6 +6895,7 @@ describe('event registration scan handlers', () => {
         'events.checkInRegistration'
       ](
         {
+          checkInMethod: 'scan',
           expectedAttendeeCheckedIn: false,
           expectedCheckedInGuestCount: 0,
           guestCheckInCount: 2,
@@ -6904,6 +6939,7 @@ describe('event registration scan handlers', () => {
           'events.checkInRegistration'
         ](
           {
+            checkInMethod: 'scan',
             expectedAttendeeCheckedIn: false,
             expectedCheckedInGuestCount: 0,
             guestCheckInCount: -1,
@@ -6955,6 +6991,7 @@ describe('event registration scan handlers', () => {
           'events.checkInRegistration'
         ](
           {
+            checkInMethod: 'scan',
             expectedAttendeeCheckedIn: true,
             expectedCheckedInGuestCount: 1,
             guestCheckInCount: 2,
@@ -7002,6 +7039,7 @@ describe('event registration scan handlers', () => {
         'events.checkInRegistration'
       ](
         {
+          checkInMethod: 'scan',
           expectedAttendeeCheckedIn: false,
           expectedCheckedInGuestCount: 0,
           guestCheckInCount: 0,
@@ -7053,6 +7091,7 @@ describe('event registration scan handlers', () => {
         'events.checkInRegistration'
       ](
         {
+          checkInMethod: 'scan',
           expectedAttendeeCheckedIn: false,
           expectedCheckedInGuestCount: 0,
           guestCheckInCount: 0,
@@ -7111,6 +7150,7 @@ describe('event registration scan handlers', () => {
         'events.checkInRegistration'
       ](
         {
+          checkInMethod: 'scan',
           expectedAttendeeCheckedIn: false,
           expectedCheckedInGuestCount: 0,
           guestCheckInCount: 0,
@@ -7187,6 +7227,7 @@ describe('event registration scan handlers', () => {
         'events.checkInRegistration'
       ](
         {
+          checkInMethod: 'scan',
           expectedAttendeeCheckedIn: false,
           expectedCheckedInGuestCount: 0,
           guestCheckInCount: 0,
@@ -7356,6 +7397,7 @@ describe('event registration scan handlers', () => {
         'events.checkInRegistration'
       ](
         {
+          checkInMethod: 'scan',
           expectedAttendeeCheckedIn: false,
           expectedCheckedInGuestCount: 0,
           guestCheckInCount: 0,
@@ -7402,6 +7444,7 @@ describe('event registration scan handlers', () => {
           'events.checkInRegistration'
         ](
           {
+            checkInMethod: 'scan',
             expectedAttendeeCheckedIn: false,
             expectedCheckedInGuestCount: 0,
             guestCheckInCount: 0,
@@ -7427,4 +7470,465 @@ describe('event registration scan handlers', () => {
       }),
     );
   }
+});
+
+describe('manual check-in access', () => {
+  const manualLookup = ({
+    checkInMethod,
+    organizerRegistration,
+    permissions,
+  }: {
+    checkInMethod: 'manual' | 'scan';
+    organizerRegistration: boolean;
+    permissions: readonly Permission[];
+  }) =>
+    eventRegistrationHandlers['events.registrationScanned'](
+      { checkInMethod, registrationId: 'registration-1' },
+      handlerOptions('events.registrationScanned'),
+    ).pipe(
+      Effect.provide(
+        createSqlContextLayer({
+          databaseLayer: createScanReadDatabaseLayer({
+            organizerRegistration,
+            registration: scannedRegistration,
+          }),
+          user: createUser({ permissions }),
+        }),
+      ),
+    );
+
+  it.effect(
+    'looks up a ticket manually for an event organizer with access',
+    () =>
+      Effect.gen(function* () {
+        const result = yield* manualLookup({
+          checkInMethod: 'manual',
+          organizerRegistration: true,
+          permissions: ['events:checkInManually'],
+        });
+        expect(result.allowCheckin).toBe(true);
+        expect(result.user.id).toBe(scannedRegistration.userId);
+      }),
+  );
+
+  it.effect('keeps scan lookups available without the manual permission', () =>
+    Effect.gen(function* () {
+      const result = yield* manualLookup({
+        checkInMethod: 'scan',
+        organizerRegistration: true,
+        permissions: [],
+      });
+      expect(result.allowCheckin).toBe(true);
+    }),
+  );
+
+  it.effect('refuses a manual lookup without the manual permission', () =>
+    Effect.gen(function* () {
+      const error = yield* manualLookup({
+        checkInMethod: 'manual',
+        organizerRegistration: true,
+        permissions: [],
+      }).pipe(Effect.flip);
+      expect(error['_tag']).toBe('RpcForbiddenError');
+      expect(error).toMatchObject({
+        message: 'Missing required manual check-in access',
+        permission: 'events:checkInManually',
+      });
+    }),
+  );
+
+  it.effect(
+    'keeps the event access error when the permission holder organizes another event',
+    () =>
+      Effect.gen(function* () {
+        const error = yield* manualLookup({
+          checkInMethod: 'manual',
+          organizerRegistration: false,
+          permissions: ['events:checkInManually'],
+        }).pipe(Effect.flip);
+        expect(error['_tag']).toBe('RpcForbiddenError');
+        expect(error).toMatchObject({
+          message: 'Missing required event check-in access',
+          permission: 'events:organizeAll',
+        });
+      }),
+  );
+
+  it.effect('allows a manual lookup with organizeAll and the permission', () =>
+    Effect.gen(function* () {
+      const result = yield* manualLookup({
+        checkInMethod: 'manual',
+        organizerRegistration: false,
+        permissions: ['events:organizeAll', 'events:checkInManually'],
+      });
+      expect(result.allowCheckin).toBe(true);
+    }),
+  );
+
+  it.effect('refuses a manual lookup with organizeAll but no permission', () =>
+    Effect.gen(function* () {
+      const error = yield* manualLookup({
+        checkInMethod: 'manual',
+        organizerRegistration: false,
+        permissions: ['events:organizeAll'],
+      }).pipe(Effect.flip);
+      expect(error).toMatchObject({ permission: 'events:checkInManually' });
+    }),
+  );
+
+  const manualCheckIn = ({
+    checkInMethod = 'manual',
+    expectedAttendeeCheckedIn = false,
+    expectedCheckedInGuestCount = 0,
+    expectedUserId,
+    guestCheckInCount = 0,
+    permissions,
+    steps,
+  }: {
+    checkInMethod?: 'manual' | 'scan';
+    expectedAttendeeCheckedIn?: boolean;
+    expectedCheckedInGuestCount?: number;
+    expectedUserId?: string;
+    guestCheckInCount?: number;
+    permissions: readonly Permission[];
+    steps: readonly CheckInDatabaseStep[];
+  }) => {
+    const fixture = createCheckInDatabaseFixture(steps);
+    const effect = eventRegistrationHandlers['events.checkInRegistration'](
+      {
+        checkInMethod,
+        ...(expectedUserId !== undefined && { expectedUserId }),
+        expectedAttendeeCheckedIn,
+        expectedCheckedInGuestCount,
+        guestCheckInCount,
+        operationKey: 'operation-1',
+        registrationId: 'registration-1',
+      },
+      handlerOptions('events.checkInRegistration'),
+    ).pipe(
+      Effect.provide(
+        createSqlContextLayer({
+          databaseLayer: fixture.databaseLayer,
+          nowIso: checkInNowIso,
+          user: createUser({ permissions }),
+        }),
+      ),
+    );
+    return { effect, fixture };
+  };
+
+  /**
+   * The locked write, the stored operation and the read after commit. That
+   * read checks event access again, which needs the organizer lookup unless
+   * the user has `events:organizeAll`.
+   */
+  const checkInWriteSteps = (
+    registration: CheckInRegistrationRow,
+    { organizerLookup = true }: { organizerLookup?: boolean } = {},
+  ): readonly CheckInDatabaseStep[] => [
+    { operation: 'BEGIN' },
+    { operation: 'lockRegistration', row: registration },
+    { operation: 'readCheckInOperation' },
+    { operation: 'lockBlockingTransfer' },
+    { operation: 'lockEvent', row: checkInEvent },
+    {
+      guestIncrement: 0,
+      operation: 'writeRegistrationCheckIn',
+      row: {
+        checkedInGuestCount: 0,
+        checkInTime: new Date(checkInNowIso),
+        id: 'registration-1',
+      },
+    },
+    { operation: 'incrementOptionCheckIns', spotIncrement: 1 },
+    { operation: 'insertCheckInOperation' },
+    { operation: 'COMMIT' },
+    {
+      operation: 'readRegistrationScan',
+      row: checkInScanRow({ checkInTime: new Date(checkInNowIso) }),
+    },
+    ...(organizerLookup
+      ? [{ operation: 'readOrganizerRegistration' } as const]
+      : []),
+  ];
+
+  it.effect('checks in manually for an event organizer with access', () =>
+    Effect.gen(function* () {
+      const { effect, fixture } = manualCheckIn({
+        permissions: ['events:checkInManually'],
+        steps: [
+          { operation: 'readRegistration', row: checkInRegistration },
+          { operation: 'readOrganizerRegistration' },
+          ...checkInWriteSteps(checkInRegistration),
+        ],
+      });
+      const result = yield* effect;
+      expect(result.alreadyCheckedIn).toBe(false);
+      expect(result.checkInTime).toBe(checkInNowIso);
+      expect(result.registration?.user.id).toBe(checkInRegistration.userId);
+      expect(fixture.writes).toEqual([
+        'writeRegistrationCheckIn',
+        'incrementOptionCheckIns',
+        'insertCheckInOperation',
+      ]);
+      fixture.expectComplete();
+    }),
+  );
+
+  it.effect('keeps scan check-in available without the manual permission', () =>
+    Effect.gen(function* () {
+      const { effect, fixture } = manualCheckIn({
+        checkInMethod: 'scan',
+        permissions: [],
+        steps: [
+          { operation: 'readRegistration', row: checkInRegistration },
+          { operation: 'readOrganizerRegistration' },
+          ...checkInWriteSteps(checkInRegistration),
+        ],
+      });
+      const result = yield* effect;
+      expect(result.alreadyCheckedIn).toBe(false);
+      fixture.expectComplete();
+    }),
+  );
+
+  it.effect(
+    'refuses manual check-in without the permission and writes nothing',
+    () =>
+      Effect.gen(function* () {
+        const { effect, fixture } = manualCheckIn({
+          permissions: [],
+          steps: [
+            { operation: 'readRegistration', row: checkInRegistration },
+            { operation: 'readOrganizerRegistration' },
+          ],
+        });
+        const error = yield* effect.pipe(Effect.flip);
+        expect(error['_tag']).toBe('RpcForbiddenError');
+        expect(error).toMatchObject({
+          message: 'Missing required manual check-in access',
+          permission: 'events:checkInManually',
+        });
+        expect(fixture.writes).toEqual([]);
+        expect(fixture.commands).toEqual([]);
+        fixture.expectComplete();
+      }),
+  );
+
+  it.effect(
+    'keeps the event access error for manual check-in at another event',
+    () =>
+      Effect.gen(function* () {
+        const { effect, fixture } = manualCheckIn({
+          permissions: ['events:checkInManually'],
+          steps: [
+            { operation: 'readRegistration', row: checkInRegistration },
+            { operation: 'readOrganizerRegistration', organizer: false },
+          ],
+        });
+        const error = yield* effect.pipe(Effect.flip);
+        expect(error['_tag']).toBe('RpcForbiddenError');
+        expect(error).toMatchObject({
+          message: 'Missing required event check-in access',
+          permission: 'events:organizeAll',
+        });
+        expect(fixture.writes).toEqual([]);
+        fixture.expectComplete();
+      }),
+  );
+
+  it.effect('allows manual check-in with organizeAll and the permission', () =>
+    Effect.gen(function* () {
+      const { effect, fixture } = manualCheckIn({
+        permissions: ['events:organizeAll', 'events:checkInManually'],
+        steps: [
+          { operation: 'readRegistration', row: checkInRegistration },
+          ...checkInWriteSteps(checkInRegistration, {
+            organizerLookup: false,
+          }),
+        ],
+      });
+      const result = yield* effect;
+      expect(result.alreadyCheckedIn).toBe(false);
+      fixture.expectComplete();
+    }),
+  );
+
+  it.effect('refuses manual check-in with organizeAll but no permission', () =>
+    Effect.gen(function* () {
+      const { effect, fixture } = manualCheckIn({
+        permissions: ['events:organizeAll'],
+        steps: [{ operation: 'readRegistration', row: checkInRegistration }],
+      });
+      const error = yield* effect.pipe(Effect.flip);
+      expect(error).toMatchObject({ permission: 'events:checkInManually' });
+      expect(fixture.writes).toEqual([]);
+      fixture.expectComplete();
+    }),
+  );
+
+  it.effect(
+    'checks in later guests manually and keeps the first check-in time',
+    () =>
+      Effect.gen(function* () {
+        const firstCheckIn = new Date('2026-09-15T12:05:00.000Z');
+        const registration: CheckInRegistrationRow = {
+          ...checkInRegistration,
+          checkedInGuestCount: 0,
+          checkInTime: firstCheckIn,
+          guestCount: 2,
+        };
+        const { effect, fixture } = manualCheckIn({
+          expectedAttendeeCheckedIn: true,
+          expectedCheckedInGuestCount: 0,
+          guestCheckInCount: 2,
+          permissions: ['events:checkInManually'],
+          steps: [
+            { operation: 'readRegistration', row: registration },
+            { operation: 'readOrganizerRegistration' },
+            { operation: 'BEGIN' },
+            { operation: 'lockRegistration', row: registration },
+            { operation: 'readCheckInOperation' },
+            { operation: 'lockBlockingTransfer' },
+            { operation: 'lockEvent', row: checkInEvent },
+            {
+              guestIncrement: 2,
+              operation: 'writeRegistrationCheckIn',
+              preservesCheckInTime: true,
+              row: {
+                checkedInGuestCount: 2,
+                checkInTime: firstCheckIn,
+                id: 'registration-1',
+              },
+            },
+            { operation: 'incrementOptionCheckIns', spotIncrement: 2 },
+            { operation: 'insertCheckInOperation' },
+            { operation: 'COMMIT' },
+            {
+              operation: 'readRegistrationScan',
+              row: checkInScanRow({
+                checkedInGuestCount: 2,
+                checkInTime: firstCheckIn,
+                guestCount: 2,
+              }),
+            },
+            { operation: 'readOrganizerRegistration' },
+          ],
+        });
+        const result = yield* effect;
+        expect(result.alreadyCheckedIn).toBe(false);
+        expect(result.checkInTime).toBe(firstCheckIn.toISOString());
+        expect(result.registration).toMatchObject({
+          attendeeCheckedIn: true,
+          checkedInGuestCount: 2,
+          remainingGuestCount: 0,
+        });
+        fixture.expectComplete();
+      }),
+  );
+
+  it.effect(
+    'checks in manually when the expected attendee owns the ticket',
+    () =>
+      Effect.gen(function* () {
+        const { effect, fixture } = manualCheckIn({
+          expectedUserId: checkInRegistration.userId,
+          permissions: ['events:checkInManually'],
+          steps: [
+            { operation: 'readRegistration', row: checkInRegistration },
+            { operation: 'readOrganizerRegistration' },
+            ...checkInWriteSteps(checkInRegistration),
+          ],
+        });
+        const result = yield* effect;
+        expect(result.alreadyCheckedIn).toBe(false);
+        fixture.expectComplete();
+      }),
+  );
+
+  it.effect(
+    'refuses a manual check-in after the ticket moved to someone else',
+    () =>
+      Effect.gen(function* () {
+        const { effect, fixture } = manualCheckIn({
+          expectedUserId: 'previous-owner',
+          permissions: ['events:checkInManually'],
+          steps: [
+            { operation: 'readRegistration', row: checkInRegistration },
+            { operation: 'readOrganizerRegistration' },
+          ],
+        });
+        const error = yield* effect.pipe(Effect.flip);
+        expect(error['_tag']).toBe('EventRegistrationConflictError');
+        expect(error.message).toBe(
+          'This ticket now belongs to someone else. No change was made. Check the sign-up list again.',
+        );
+        expect(fixture.writes).toEqual([]);
+        expect(fixture.commands).toEqual([]);
+        fixture.expectComplete();
+      }),
+  );
+
+  it.effect(
+    'refuses a manual check-in when the ticket moves before the lock',
+    () =>
+      Effect.gen(function* () {
+        const { effect, fixture } = manualCheckIn({
+          expectedUserId: checkInRegistration.userId,
+          permissions: ['events:checkInManually'],
+          steps: [
+            { operation: 'readRegistration', row: checkInRegistration },
+            { operation: 'readOrganizerRegistration' },
+            { operation: 'BEGIN' },
+            {
+              operation: 'lockRegistration',
+              row: { ...checkInRegistration, userId: 'transfer-recipient' },
+            },
+            { operation: 'readCheckInOperation' },
+            { operation: 'ROLLBACK' },
+          ],
+        });
+        const error = yield* effect.pipe(Effect.flip);
+        expect(error['_tag']).toBe('EventRegistrationConflictError');
+        expect(error.message).toBe(
+          'This ticket now belongs to someone else. No change was made. Check the sign-up list again.',
+        );
+        expect(fixture.writes).toEqual([]);
+        expect(fixture.commands).toEqual(['BEGIN', 'ROLLBACK']);
+        fixture.expectComplete();
+      }),
+  );
+
+  it.effect('enforces the guest limit for manual guest-only check-in', () =>
+    Effect.gen(function* () {
+      const registration: CheckInRegistrationRow = {
+        ...checkInRegistration,
+        checkedInGuestCount: 1,
+        checkInTime: new Date('2026-09-15T12:05:00.000Z'),
+        guestCount: 2,
+      };
+      const { effect, fixture } = manualCheckIn({
+        expectedAttendeeCheckedIn: true,
+        expectedCheckedInGuestCount: 1,
+        guestCheckInCount: 2,
+        permissions: ['events:checkInManually'],
+        steps: [
+          { operation: 'readRegistration', row: registration },
+          { operation: 'readOrganizerRegistration' },
+          { operation: 'BEGIN' },
+          { operation: 'lockRegistration', row: registration },
+          { operation: 'readCheckInOperation' },
+          { operation: 'lockBlockingTransfer' },
+          { operation: 'lockEvent', row: checkInEvent },
+          { operation: 'ROLLBACK' },
+        ],
+      });
+      const error = yield* effect.pipe(Effect.flip);
+      expect(error['_tag']).toBe('EventRegistrationConflictError');
+      expect(error.message).toBe('Enter no more than 1 additional guest.');
+      expect(fixture.writes).toEqual([]);
+      expect(fixture.commands).toEqual(['BEGIN', 'ROLLBACK']);
+      fixture.expectComplete();
+    }),
+  );
 });

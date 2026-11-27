@@ -59,6 +59,8 @@ import {
   EventOrganize,
   groupEventOrganizeRegistrationOptions,
   invalidateEventOrganizeStateQueries,
+  manualCheckInSuccessMessage,
+  organizerManualCheckInAction,
   organizerRegistrationActionDisabled,
   organizerRegistrationApprovalDisabled,
   organizerRegistrationApprovalLabel,
@@ -117,6 +119,21 @@ describe('event organizer error notifications', () => {
             manualApprovalAvailable: true, paymentSetupRequired: false,
             registrationId: 'registration-1'
           })">Approve application</button>
+          <button type="button" (click)="checkInRegistration({
+            firstName: 'Alex', lastName: 'Able', registrationId: 'registration-1', userId: 'attendee-1'
+          }, 'attendee')">Check in registration</button>
+          <button type="button" (click)="checkInRegistration({
+            firstName: 'Alex', lastName: 'Able', registrationId: 'registration-1', userId: 'attendee-1'
+          }, 'guests')">Check in guests registration</button>
+          @if (manualCheckInAction({ checkedIn: false, remainingGuestCount: 0, status: 'CONFIRMED', userId: 'attendee-1' }, { canCheckInManually: true }) === 'checkIn') {
+            <span>Check-in available for attendee-1</span>
+          }
+          @if (manualCheckInAction({ checkedIn: true, remainingGuestCount: 2, status: 'CONFIRMED', userId: 'attendee-2' }, { canCheckInManually: true }) === 'checkInGuests') {
+            <span>Guest check-in available for attendee-2</span>
+          }
+          @if (manualCheckInAction({ checkedIn: false, remainingGuestCount: 0, status: 'CONFIRMED', userId: 'self-1' }, { canCheckInManually: true }) !== null) {
+            <span>Check-in available for self-1</span>
+          }
         `,
       },
     });
@@ -189,6 +206,7 @@ describe('event organizer error notifications', () => {
             users: {
               canUseScanner: inactiveQuery('scanner-access'),
               events: inactiveQuery('user-events'),
+              maybeSelf: inactiveQuery('self'),
             },
           },
         },
@@ -201,6 +219,136 @@ describe('event organizer error notifications', () => {
     queryClient.clear();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+  });
+
+  it('opens the manual check-in dialog and confirms a completed check-in', async () => {
+    dialogOpen.mockReturnValue({
+      afterClosed: () =>
+        of({ alreadyCheckedIn: false, checkedInGuestCount: 0 }),
+    });
+    clickAction('Check in registration');
+
+    await vi.waitFor(() => {
+      expect(showSuccess).toHaveBeenCalledExactlyOnceWith(
+        'Alex Able is checked in',
+      );
+    });
+    expect(dialogOpen).toHaveBeenCalledOnce();
+    expect(dialogOpen.mock.calls[0]?.[1]).toMatchObject({
+      data: {
+        attendeeName: 'Alex Able',
+        mode: 'attendee',
+        registrationId: 'registration-1',
+        userId: 'attendee-1',
+      },
+    });
+    expect(queryClient.invalidateQueries).toHaveBeenCalledWith(
+      { exact: true, queryKey: ['organizer-overview'] },
+      { throwOnError: true },
+    );
+    expect(showError).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { count: 1, message: '1 guest of Alex Able is checked in' },
+    { count: 3, message: '3 guests of Alex Able are checked in' },
+  ])(
+    'opens the guest check-in and reports $count guests',
+    async ({ count, message }) => {
+      dialogOpen.mockReturnValue({
+        afterClosed: () =>
+          of({ alreadyCheckedIn: true, checkedInGuestCount: count }),
+      });
+      clickAction('Check in guests registration');
+
+      await vi.waitFor(() => {
+        expect(showSuccess).toHaveBeenCalledExactlyOnceWith(message);
+      });
+      expect(dialogOpen.mock.calls[0]?.[1]).toMatchObject({
+        data: {
+          attendeeName: 'Alex Able',
+          mode: 'guests',
+          registrationId: 'registration-1',
+          userId: 'attendee-1',
+        },
+      });
+      expect(queryClient.invalidateQueries).toHaveBeenCalledWith(
+        { exact: true, queryKey: ['organizer-overview'] },
+        { throwOnError: true },
+      );
+      expect(showError).not.toHaveBeenCalled();
+    },
+  );
+
+  it('reports a refresh failure after a completed manual check-in', async () => {
+    dialogOpen.mockReturnValue({
+      afterClosed: () =>
+        of({ alreadyCheckedIn: false, checkedInGuestCount: 0 }),
+    });
+    vi.mocked(queryClient.invalidateQueries).mockRejectedValue(
+      new Error('Private refresh detail'),
+    );
+    clickAction('Check in registration');
+
+    await vi.waitFor(() => {
+      expect(showError).toHaveBeenCalledExactlyOnceWith(
+        'The page could not be updated. Load the page again to check the current sign-up details.',
+      );
+    });
+    expect(showSuccess).toHaveBeenCalledExactlyOnceWith(
+      'Alex Able is checked in',
+    );
+  });
+
+  it('reports an already checked-in ticket', async () => {
+    dialogOpen.mockReturnValue({
+      afterClosed: () => of({ alreadyCheckedIn: true, checkedInGuestCount: 0 }),
+    });
+    clickAction('Check in registration');
+
+    await vi.waitFor(() => {
+      expect(showSuccess).toHaveBeenCalledExactlyOnceWith(
+        'Alex Able was already checked in',
+      );
+    });
+  });
+
+  it('shows nothing when the manual check-in dialog is cancelled', async () => {
+    dialogOpen.mockReturnValue({ afterClosed: () => of(undefined) });
+    clickAction('Check in registration');
+
+    await vi.waitFor(() => {
+      expect(dialogOpen).toHaveBeenCalledOnce();
+    });
+    expect(showSuccess).not.toHaveBeenCalled();
+    expect(showError).not.toHaveBeenCalled();
+    expect(queryClient.invalidateQueries).not.toHaveBeenCalled();
+  });
+
+  it('offers manual check-in from the option capability and the current user', async () => {
+    const rpc = TestBed.inject(APP_RPC_CLIENT);
+    const users = rpc.users;
+    const resolving = (name: string, data: unknown) => ({
+      queryKey: () => [name],
+      queryOptions: () => ({
+        queryFn: () => Promise.resolve(data),
+        queryKey: [name],
+      }),
+    });
+    Object.assign(users, {
+      maybeSelf: resolving('self', { id: 'self-1' }),
+    });
+    const fixture = TestBed.createComponent(EventOrganize);
+    fixture.componentRef.setInput('eventId', 'event-1');
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      const text = fixture.nativeElement.textContent ?? '';
+      expect(text).toContain('Check-in available for attendee-1');
+      expect(text).toContain('Guest check-in available for attendee-2');
+    });
+    expect(fixture.nativeElement.textContent).not.toContain(
+      'Check-in available for self-1',
+    );
   });
 
   const clickAction = (label: string) => {
@@ -288,6 +436,135 @@ describe('event organizer error notifications', () => {
       },
     );
   }
+});
+
+describe('organizerManualCheckInAction', () => {
+  const eligible = {
+    canCheckInManually: true,
+    checkedIn: false,
+    remainingGuestCount: 0,
+    selfUserId: 'organizer-1',
+    status: 'CONFIRMED',
+    userId: 'attendee-1',
+  } as const;
+
+  it.each([
+    {
+      expected: 'checkIn',
+      name: 'confirmed attendee who has not arrived',
+      overrides: {},
+    },
+    {
+      expected: 'checkIn',
+      name: 'confirmed attendee with guests who has not arrived',
+      overrides: { remainingGuestCount: 2 },
+    },
+    {
+      expected: null,
+      name: 'no manual check-in capability',
+      overrides: { canCheckInManually: false },
+    },
+    {
+      expected: null,
+      name: 'pending sign-up',
+      overrides: { status: 'PENDING' },
+    },
+    {
+      expected: null,
+      name: 'waitlist sign-up',
+      overrides: { status: 'WAITLIST' },
+    },
+    {
+      expected: null,
+      name: 'own ticket',
+      overrides: { userId: 'organizer-1' },
+    },
+    {
+      expected: null,
+      name: 'unknown current user',
+      overrides: { selfUserId: null },
+    },
+    {
+      expected: null,
+      name: 'checked in without remaining guests',
+      overrides: { checkedIn: true, remainingGuestCount: 0 },
+    },
+    {
+      expected: 'checkInGuests',
+      name: 'checked in with remaining guests',
+      overrides: { checkedIn: true, remainingGuestCount: 1 },
+    },
+    {
+      expected: null,
+      name: 'checked in with remaining guests but no capability',
+      overrides: {
+        canCheckInManually: false,
+        checkedIn: true,
+        remainingGuestCount: 1,
+      },
+    },
+    {
+      expected: null,
+      name: 'checked in with remaining guests on own ticket',
+      overrides: {
+        checkedIn: true,
+        remainingGuestCount: 1,
+        userId: 'organizer-1',
+      },
+    },
+  ] as const)('is $expected for $name', ({ expected, overrides }) => {
+    expect(organizerManualCheckInAction({ ...eligible, ...overrides })).toBe(
+      expected,
+    );
+  });
+});
+
+describe('manualCheckInSuccessMessage', () => {
+  it.each([
+    {
+      expected: 'Alex Able is checked in',
+      mode: 'attendee',
+      result: { alreadyCheckedIn: false, checkedInGuestCount: 0 },
+    },
+    {
+      expected: 'Alex Able was already checked in',
+      mode: 'attendee',
+      result: { alreadyCheckedIn: true, checkedInGuestCount: 0 },
+    },
+    {
+      expected: 'Alex Able and 1 guest are checked in',
+      mode: 'attendee',
+      result: { alreadyCheckedIn: false, checkedInGuestCount: 1 },
+    },
+    {
+      expected: 'Alex Able and 2 guests are checked in',
+      mode: 'attendee',
+      result: { alreadyCheckedIn: false, checkedInGuestCount: 2 },
+    },
+    {
+      expected: '1 guest of Alex Able is checked in',
+      mode: 'guests',
+      result: { alreadyCheckedIn: true, checkedInGuestCount: 1 },
+    },
+    {
+      expected: '2 guests of Alex Able are checked in',
+      mode: 'guests',
+      result: { alreadyCheckedIn: true, checkedInGuestCount: 2 },
+    },
+    {
+      expected: 'Alex Able was already checked in',
+      mode: 'guests',
+      result: { alreadyCheckedIn: true, checkedInGuestCount: 0 },
+    },
+  ] as const)('says "$expected"', ({ expected, mode, result }) => {
+    expect(
+      manualCheckInSuccessMessage({
+        attendeeName: 'Alex Able',
+        mode,
+        result,
+      }),
+    ).toBe(expected);
+  });
 });
 
 describe('computeEventOrganizeStats', () => {
@@ -628,6 +905,10 @@ describe('organizer cancellation outcome feedback', () => {
             users: {
               canUseScanner: { queryKey: () => ['scanner-access'] },
               events: { queryKey: () => ['user-events'] },
+              maybeSelf: {
+                queryKey: () => ['self'],
+                queryOptions: () => ({ enabled: false, queryKey: ['self'] }),
+              },
             },
           },
         },
@@ -1166,6 +1447,14 @@ describe('EventOrganize receipt submission outcomes', () => {
               },
             },
             queryFilter,
+            users: {
+              canUseScanner: { queryKey: () => ['scanner-access'] },
+              events: { queryKey: () => ['user-events'] },
+              maybeSelf: {
+                queryKey: () => ['self'],
+                queryOptions: () => ({ enabled: false, queryKey: ['self'] }),
+              },
+            },
           },
         },
       ],
@@ -2455,6 +2744,7 @@ describe('EventOrganize email list copying', () => {
     paymentPending: false,
     paymentSetupRequired: false,
     registrationId: `registration-${email}`,
+    remainingGuestCount: 0,
     status: 'CONFIRMED',
     userId: `user-${email}`,
   });
@@ -2465,6 +2755,7 @@ describe('EventOrganize email list copying', () => {
   ): Overview['registrationOptions'][number] => ({
     canApproveRegistrations: false,
     canCancelRegistrations: false,
+    canCheckInManually: false,
     organizingRegistration,
     registrationOptionId: id,
     registrationOptionTitle: id,
@@ -2537,6 +2828,11 @@ describe('EventOrganize email list copying', () => {
                   }),
                 },
                 submit: { mutationOptions: () => ({ mutationKey: ['s'] }) },
+              },
+            },
+            users: {
+              maybeSelf: {
+                queryOptions: () => ({ enabled: false, queryKey: ['self'] }),
               },
             },
           },

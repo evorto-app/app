@@ -24,6 +24,7 @@ import {
   EventRegistrationNotFoundError,
 } from '@shared/rpc-contracts/app-rpcs/events.errors';
 import {
+  type EventCheckInMethod,
   type EventsCancellableRegistrationStatus,
   type EventsOutgoingRegistrationTransferRecord,
   type EventsRegistrationStatusRecord,
@@ -642,6 +643,52 @@ const ensureCanScanEventRegistration = ({
     );
   });
 
+/**
+ * A ticket transfer keeps the registration but changes its owner. A manual
+ * check-in names the attendee picked from the list, so it must not check in
+ * the new owner under the old name.
+ */
+const checkInOwnerChangedConflict = () =>
+  new EventRegistrationConflictError({
+    message:
+      'This ticket now belongs to someone else. No change was made. Check the sign-up list again.',
+  });
+
+/**
+ * Check-in access for the lookup and confirmation RPCs. A scan keeps the
+ * event check-in rules; a manual check-in additionally needs
+ * `events:checkInManually`, after the event access guard so tenant and event
+ * errors stay the same.
+ */
+const ensureCanCheckInRegistration = ({
+  checkInMethod,
+  eventId,
+  tenantId,
+  user,
+}: {
+  checkInMethod: EventCheckInMethod;
+  eventId: string;
+  tenantId: string;
+  user: {
+    id: string;
+    permissions: readonly Permission[];
+  };
+}) =>
+  Effect.gen(function* () {
+    yield* ensureCanScanEventRegistration({ eventId, tenantId, user });
+    if (
+      checkInMethod === 'manual' &&
+      !includesPermission('events:checkInManually', user.permissions)
+    ) {
+      return yield* Effect.fail(
+        new RpcForbiddenError({
+          message: 'Missing required manual check-in access',
+          permission: 'events:checkInManually',
+        }),
+      );
+    }
+  });
+
 const ensureRegistrationAddonFulfillmentAccess = Effect.fn(
   'ensureRegistrationAddonFulfillmentAccess',
 )(function* (input: {
@@ -671,10 +718,12 @@ const ensureRegistrationAddonFulfillmentAccess = Effect.fn(
 });
 
 const loadRegistrationScan = Effect.fn('loadRegistrationScan')(function* ({
+  checkInMethod,
   registrationId,
   tenantId,
   user,
 }: {
+  readonly checkInMethod: EventCheckInMethod;
   readonly registrationId: string;
   readonly tenantId: string;
   readonly user: {
@@ -742,7 +791,8 @@ const loadRegistrationScan = Effect.fn('loadRegistrationScan')(function* ({
     );
   }
 
-  yield* ensureCanScanEventRegistration({
+  yield* ensureCanCheckInRegistration({
+    checkInMethod,
     eventId: registration.eventId,
     tenantId,
     user,
@@ -801,6 +851,7 @@ const loadRegistrationScan = Effect.fn('loadRegistrationScan')(function* ({
     sameUserIssue: isSameUserIssue,
     user: {
       firstName: registration.user.firstName,
+      id: registration.userId,
       lastName: registration.user.lastName,
     },
   };
@@ -2491,8 +2542,10 @@ export const eventRegistrationHandlers = {
     }).pipe(Effect.catch(mapRegistrationScanInternalError)),
   'events.checkInRegistration': (
     {
+      checkInMethod,
       expectedAttendeeCheckedIn,
       expectedCheckedInGuestCount,
+      expectedUserId,
       guestCheckInCount,
       operationKey,
       registrationId,
@@ -2549,11 +2602,19 @@ export const eventRegistrationHandlers = {
         );
       }
 
-      yield* ensureCanScanEventRegistration({
+      yield* ensureCanCheckInRegistration({
+        checkInMethod,
         eventId: registration.eventId,
         tenantId: tenant.id,
         user,
       });
+
+      if (
+        expectedUserId !== undefined &&
+        registration.userId !== expectedUserId
+      ) {
+        return yield* Effect.fail(checkInOwnerChangedConflict());
+      }
 
       if (registration.userId === user.id) {
         return yield* Effect.fail(
@@ -2649,6 +2710,12 @@ export const eventRegistrationHandlers = {
               };
             }
 
+            if (
+              expectedUserId !== undefined &&
+              lockedRegistration.userId !== expectedUserId
+            ) {
+              return yield* Effect.fail(checkInOwnerChangedConflict());
+            }
             if (lockedRegistration.status !== 'CONFIRMED') {
               return yield* Effect.fail(
                 new EventRegistrationConflictError({
@@ -2892,6 +2959,7 @@ export const eventRegistrationHandlers = {
       // The check-in is committed. A failed ticket read must not turn it into
       // an error: the helper would retry and could not tell what happened.
       const scannedRegistration = yield* loadRegistrationScan({
+        checkInMethod,
         registrationId,
         tenantId: tenant.id,
         user,
@@ -3698,12 +3766,13 @@ export const eventRegistrationHandlers = {
         },
       });
     }).pipe(Effect.catch(mapRegistrationMutationInternalError)),
-  'events.registrationScanned': ({ registrationId }, _options) =>
+  'events.registrationScanned': ({ checkInMethod, registrationId }, _options) =>
     Effect.gen(function* () {
       yield* RpcAccess.ensureAuthenticated();
       const { tenant } = yield* RpcAccess.current();
       const user = yield* RpcAccess.requireUser();
       return yield* loadRegistrationScan({
+        checkInMethod,
         registrationId,
         tenantId: tenant.id,
         user,
@@ -3715,6 +3784,8 @@ export const eventRegistrationHandlers = {
       const { tenant } = yield* RpcAccess.current();
       const user = yield* RpcAccess.requireUser();
       const registration = yield* loadRegistrationScan({
+        // The scanner reached this ticket by its QR code.
+        checkInMethod: 'scan',
         registrationId,
         tenantId: tenant.id,
         user,

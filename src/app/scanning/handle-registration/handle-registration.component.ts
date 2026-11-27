@@ -1,5 +1,6 @@
 import type { EventCheckInTimingIssue } from '@shared/event-check-in';
 import type {
+  EventCheckInMethod,
   EventsRegistrationAddonCancellationBlockedReason,
   EventsRegistrationAddonFulfillmentRecord,
   EventsRegistrationAddonRefundStatus,
@@ -43,6 +44,8 @@ import {
 } from './registration-addon-cancellation-dialog.component';
 
 export interface ScanCheckInPayload {
+  /** How the ticket was reached; `scanCheckInPayload` always sends `scan`. */
+  checkInMethod: EventCheckInMethod;
   /** Whether the helper saw the attendee as already checked in. */
   expectedAttendeeCheckedIn: boolean;
   expectedCheckedInGuestCount: number;
@@ -418,6 +421,7 @@ export const scanCheckInPayload = ({
   guestCheckInCount: number;
   registrationId: string;
 }): ScanCheckInPayload => ({
+  checkInMethod: 'scan',
   expectedAttendeeCheckedIn,
   expectedCheckedInGuestCount,
   guestCheckInCount,

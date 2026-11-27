@@ -647,6 +647,7 @@ const runCheckIn = ({
   return Effect.runPromise(
     eventRegistrationHandlers['events.checkInRegistration'](
       {
+        checkInMethod: 'scan',
         expectedAttendeeCheckedIn,
         expectedCheckedInGuestCount,
         guestCheckInCount,

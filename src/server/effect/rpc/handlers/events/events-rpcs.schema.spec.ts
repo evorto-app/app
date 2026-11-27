@@ -23,6 +23,7 @@ import {
   EventsCancelEventRegistration,
   EventsCancellableRegistrationStatus,
   EventsCancelRegistration,
+  EventsCheckInRegistration,
   EventsCreateRegistrationOptionInput,
   EventsEventListInput,
   EventsEventListRecord,
@@ -36,6 +37,7 @@ import {
   EventsPurchaseRegistrationAddonResult,
   EventsRegisterForEventPayload,
   EventsRegistrationAddonRecord,
+  EventsRegistrationScanned,
   EventsRegistrationStatus,
   EventsRegistrationStatusRecord,
 } from '../../../../../shared/rpc-contracts/app-rpcs/events.rpcs';
@@ -392,6 +394,7 @@ describe('events RPC registration status schema', () => {
         paymentPending: false,
         paymentSetupRequired: false,
         registrationId: 'registration-1',
+        remainingGuestCount: 0,
         status: 'CONFIRMED',
         userId: 'user-1',
       }),
@@ -434,6 +437,51 @@ describe('events RPC cancellation precondition schema', () => {
       Schema.decodeUnknownSync(EventsCancelRegistration.payloadSchema)({
         expectedStatus: 'CONFIRMED',
         registrationId: 'registration-1',
+      }),
+    ).toThrow();
+  });
+});
+
+describe('events RPC check-in payload schema', () => {
+  it('treats a payload without a check-in method as a scan', () => {
+    const scanPayload = {
+      expectedAttendeeCheckedIn: false,
+      expectedCheckedInGuestCount: 0,
+      guestCheckInCount: 0,
+      operationKey: 'operation-1',
+      registrationId: 'registration-1',
+    };
+    expect(
+      Schema.decodeUnknownSync(EventsCheckInRegistration.payloadSchema)(
+        scanPayload,
+      ),
+    ).toEqual({ ...scanPayload, checkInMethod: 'scan' });
+    expect(
+      Schema.decodeUnknownSync(EventsRegistrationScanned.payloadSchema)({
+        registrationId: 'registration-1',
+      }),
+    ).toEqual({ checkInMethod: 'scan', registrationId: 'registration-1' });
+  });
+
+  it('carries the attendee a manual check-in expects', () => {
+    const manualPayload = {
+      checkInMethod: 'manual',
+      expectedAttendeeCheckedIn: true,
+      expectedCheckedInGuestCount: 0,
+      expectedUserId: 'attendee-1',
+      guestCheckInCount: 1,
+      operationKey: 'operation-1',
+      registrationId: 'registration-1',
+    };
+    expect(
+      Schema.decodeUnknownSync(EventsCheckInRegistration.payloadSchema)(
+        manualPayload,
+      ),
+    ).toEqual(manualPayload);
+    expect(() =>
+      Schema.decodeUnknownSync(EventsCheckInRegistration.payloadSchema)({
+        ...manualPayload,
+        expectedUserId: '',
       }),
     ).toThrow();
   });
