@@ -78,6 +78,14 @@ const RegistrationAddonOperationKey = Schema.String.check(
   Schema.isMinLength(1),
   Schema.isMaxLength(100),
 );
+/** PostgreSQL text cannot hold NUL, so control characters are rejected. */
+const CheckInOperationKey = Schema.String.check(
+  Schema.isTrimmed(),
+  Schema.isMinLength(1),
+  Schema.isMaxLength(100),
+  // eslint-disable-next-line no-control-regex -- rejects control characters on purpose
+  Schema.isPattern(/^[^\u{0}-\u{1F}\u{7F}]+$/u),
+);
 const RegistrationAddonCancellationReason = Schema.String.check(
   Schema.isTrimmed(),
   Schema.isMinLength(1),
@@ -188,18 +196,71 @@ const EventCheckInMethodInput = EventCheckInMethod.pipe(
  */
 const ExpectedCheckInUserIdInput = Schema.optionalKey(Schema.NonEmptyString);
 
+/** The ticket state a scanner sees: eligibility, counts and attendee details. */
+export const EventsRegistrationScanResult = Schema.Struct({
+  allowCheckin: Schema.Boolean,
+  alreadyCheckedInIssue: Schema.Boolean,
+  appliedDiscountType: Schema.NullOr(Schema.Literal('esnCard')),
+  attendeeCheckedIn: Schema.Boolean,
+  checkedInGuestCount: Schema.Number,
+  checkInTimingIssue: Schema.NullOr(EventCheckInTimingIssue),
+  event: Schema.Struct({
+    start: Schema.NonEmptyString,
+    title: Schema.NonEmptyString,
+  }),
+  guestCount: Schema.Number,
+  registrationOption: Schema.Struct({
+    title: Schema.NonEmptyString,
+  }),
+  registrationStatus: EventsRegistrationStatus,
+  registrationStatusIssue: Schema.Boolean,
+  remainingGuestCount: Schema.Number,
+  sameUserIssue: Schema.Boolean,
+  user: Schema.Struct({
+    firstName: Schema.NonEmptyString,
+    id: Schema.NonEmptyString,
+    lastName: Schema.NonEmptyString,
+  }),
+});
+
+export type EventsRegistrationScanResult = Schema.Schema.Type<
+  typeof EventsRegistrationScanResult
+>;
+
 export const EventsCheckInRegistration = asRpcMutation(
   Rpc.make('events.checkInRegistration', {
     error: EventsCheckInRegistrationMutationError,
     payload: Schema.Struct({
       checkInMethod: EventCheckInMethodInput,
+      /**
+       * Whether the helper saw the attendee as already checked in. A new
+       * check-in that admits guests is applied only while the ticket still
+       * shows this state.
+       */
+      expectedAttendeeCheckedIn: Schema.Boolean,
+      /**
+       * The checked-in guest count the helper saw. A new check-in is applied
+       * only while the ticket still shows this count; otherwise another device
+       * changed the ticket and the helper reviews it again.
+       */
+      expectedCheckedInGuestCount: nonNegativeNumber,
       expectedUserId: ExpectedCheckInUserIdInput,
       guestCheckInCount: nonNegativeNumber,
+      /**
+       * Unique per confirmed check-in intent. A retry sends the same key and
+       * gets the stored outcome instead of counting anyone twice.
+       */
+      operationKey: CheckInOperationKey,
       registrationId: Schema.NonEmptyString,
     }),
     success: Schema.Struct({
       alreadyCheckedIn: Schema.Boolean,
       checkInTime: Schema.NonEmptyString,
+      /**
+       * The ticket state after the check-in committed, or null when that read
+       * failed after the commit. The check-in itself is recorded either way.
+       */
+      registration: Schema.NullOr(EventsRegistrationScanResult),
     }),
   }),
 );
@@ -800,31 +861,7 @@ export const EventsRegistrationScanned = asRpcQuery(
       checkInMethod: EventCheckInMethodInput,
       registrationId: Schema.NonEmptyString,
     }),
-    success: Schema.Struct({
-      allowCheckin: Schema.Boolean,
-      alreadyCheckedInIssue: Schema.Boolean,
-      appliedDiscountType: Schema.NullOr(Schema.Literal('esnCard')),
-      attendeeCheckedIn: Schema.Boolean,
-      checkedInGuestCount: Schema.Number,
-      checkInTimingIssue: Schema.NullOr(EventCheckInTimingIssue),
-      event: Schema.Struct({
-        start: Schema.NonEmptyString,
-        title: Schema.NonEmptyString,
-      }),
-      guestCount: Schema.Number,
-      registrationOption: Schema.Struct({
-        title: Schema.NonEmptyString,
-      }),
-      registrationStatus: EventsRegistrationStatus,
-      registrationStatusIssue: Schema.Boolean,
-      remainingGuestCount: Schema.Number,
-      sameUserIssue: Schema.Boolean,
-      user: Schema.Struct({
-        firstName: Schema.NonEmptyString,
-        id: Schema.NonEmptyString,
-        lastName: Schema.NonEmptyString,
-      }),
-    }),
+    success: EventsRegistrationScanResult,
   }),
 );
 
@@ -890,15 +927,25 @@ export type EventsRegistrationAddonFulfillmentRecord = Schema.Schema.Type<
   typeof EventsRegistrationAddonFulfillmentRecord
 >;
 
-export const EventsGetRegistrationAddonFulfillment = asRpcQuery(
-  Rpc.make('events.getRegistrationAddonFulfillment', {
-    error: EventsRegistrationAddonFulfillmentError,
+/** One scanner lookup: the ticket, its check-in eligibility and its add-ons. */
+export const EventsScanTicket = asRpcQuery(
+  Rpc.make('events.scanTicket', {
+    error: EventsRegistrationScannedError,
     payload: Schema.Struct({
       registrationId: Schema.NonEmptyString,
     }),
     success: Schema.Struct({
-      addOns: Schema.Array(EventsRegistrationAddonFulfillmentRecord),
-      registrationId: Schema.NonEmptyString,
+      /**
+       * The ticket's add-ons, or why they cannot be shown or changed right now
+       * (for example an open ticket transfer). The ticket loads either way.
+       */
+      addOns: Schema.Union([
+        Schema.TaggedStruct('Available', {
+          items: Schema.Array(EventsRegistrationAddonFulfillmentRecord),
+        }),
+        Schema.TaggedStruct('Unavailable', { message: Schema.NonEmptyString }),
+      ]),
+      registration: EventsRegistrationScanResult,
     }),
   }),
 );
@@ -1087,7 +1134,6 @@ export class EventsRpcs extends RpcGroup.make(
   EventsEventList,
   EventsFindOne,
   EventsFindGraphForEdit,
-  EventsGetRegistrationAddonFulfillment,
   EventsGetOrganizeOverview,
   EventsGetPendingReviews,
   EventsGetRegistrationStatus,
@@ -1097,6 +1143,7 @@ export class EventsRpcs extends RpcGroup.make(
   EventsRedeemRegistrationAddon,
   EventsRegistrationScanned,
   EventsReviewEvent,
+  EventsScanTicket,
   EventsSubmitForReview,
   EventsUpdateGraph,
   EventsUpdateAnnouncementDiscovery,

@@ -79,6 +79,10 @@ describe('ManualCheckInDialogComponent', () => {
                 mutationOptions: () => ({ mutationFn: checkIn }),
               },
               registrationScanned: {
+                queryKey: (input: { registrationId: string }) => [
+                  'registration-scanned',
+                  input.registrationId,
+                ],
                 queryOptions: (input: {
                   checkInMethod: string;
                   registrationId: string;
@@ -240,8 +244,11 @@ describe('ManualCheckInDialogComponent', () => {
     });
     expect(checkIn.mock.calls[0]?.[0]).toEqual({
       checkInMethod: 'manual',
+      expectedAttendeeCheckedIn: false,
+      expectedCheckedInGuestCount: 0,
       expectedUserId: 'attendee-1',
       guestCheckInCount: 1,
+      operationKey: expect.any(String),
       registrationId: 'registration-1',
     });
   });
@@ -289,10 +296,103 @@ describe('ManualCheckInDialogComponent', () => {
     });
     expect(checkIn.mock.calls[0]?.[0]).toEqual({
       checkInMethod: 'manual',
+      expectedAttendeeCheckedIn: true,
+      expectedCheckedInGuestCount: 1,
       expectedUserId: 'attendee-1',
       guestCheckInCount: 1,
+      operationKey: expect.any(String),
       registrationId: 'registration-1',
     });
+  });
+
+  it('resends the same request after an unconfirmed check-in', async () => {
+    checkIn
+      .mockRejectedValueOnce({
+        _tag: 'EventRegistrationInternalError',
+        message: 'Internal detail',
+      })
+      .mockResolvedValueOnce({
+        alreadyCheckedIn: false,
+        checkInTime: '2026-11-10T10:00:00.000Z',
+        registration: null,
+      });
+    const { button, closedResults, guestInput, settle, text } =
+      await openDialog();
+
+    await settle(() => {
+      expect(button('Confirm check-in').disabled).toBe(false);
+    });
+    button('Confirm check-in').click();
+
+    await settle(() => {
+      expect(text()).toContain('Check-in not confirmed');
+    });
+    expect(text()).toContain(
+      'The server could not confirm whether this check-in was saved.',
+    );
+    expect(text()).not.toContain('Internal detail');
+    expect(guestInput()?.disabled).toBe(true);
+    expect(button('Try again').disabled).toBe(false);
+    button('Try again').click();
+
+    await settle(() => {
+      expect(closedResults).toEqual([
+        { alreadyCheckedIn: false, checkedInGuestCount: 0 },
+      ]);
+    });
+    expect(checkIn).toHaveBeenCalledTimes(2);
+    expect(checkIn.mock.calls[1]?.[0]).toEqual(checkIn.mock.calls[0]?.[0]);
+  });
+
+  it('sends a new operation key for each new confirmation', async () => {
+    checkIn.mockRejectedValue(
+      new EventCheckInUnavailableError({
+        message: 'Check-in opens one hour before this event starts.',
+        reason: 'notOpen',
+      }),
+    );
+    const { button, settle } = await openDialog();
+
+    await settle(() => {
+      expect(button('Confirm check-in').disabled).toBe(false);
+    });
+    button('Confirm check-in').click();
+    await settle(() => {
+      expect(checkIn).toHaveBeenCalledOnce();
+      expect(button('Confirm check-in').disabled).toBe(false);
+    });
+    button('Confirm check-in').click();
+
+    await settle(() => {
+      expect(checkIn).toHaveBeenCalledTimes(2);
+    });
+    // Same ticket and count, so only a new operation key tells them apart.
+    expect(checkIn.mock.calls[1]?.[0]).toMatchObject({
+      operationKey: expect.any(String),
+    });
+    expect(checkIn.mock.calls[1]?.[0]).not.toEqual(checkIn.mock.calls[0]?.[0]);
+  });
+
+  it('reloads the ticket when another device changed it', async () => {
+    checkIn.mockRejectedValue({
+      _tag: 'EventRegistrationConflictError',
+      message:
+        'This ticket changed on another device. Review the current check-in count, then confirm again.',
+    });
+    const { button, closedResults, settle } = await openDialog();
+
+    await settle(() => {
+      expect(button('Confirm check-in').disabled).toBe(false);
+    });
+    button('Confirm check-in').click();
+
+    await settle(() => {
+      expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
+        exact: true,
+        queryKey: ['registration-scanned', 'registration-1'],
+      });
+    });
+    expect(closedResults).toEqual([]);
   });
 
   it('keeps confirmation disabled while the ticket reloads', async () => {

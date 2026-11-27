@@ -40,7 +40,7 @@ import {
   or,
   sql,
 } from 'drizzle-orm';
-import { Effect, Option, Result } from 'effect';
+import { Cause, Effect, Option, Result } from 'effect';
 
 import type { AppRpcHandlers } from '../shared/handler-types';
 
@@ -53,6 +53,7 @@ import {
   eventRegistrationAddonPurchaseLots,
   eventRegistrationAddonPurchaseOrders,
   eventRegistrationAddonPurchases,
+  eventRegistrationCheckIns,
   eventRegistrationOptions,
   eventRegistrations,
   registrationAcquisitionRefundAllocations,
@@ -92,7 +93,6 @@ import {
 import { readRegistrationPriceSnapshot } from '../../../../registrations/registration-price-snapshot';
 import {
   ensureRegistrationMutationHasNoActiveTransfer,
-  registrationTransferMutationBlockingStatuses,
   RegistrationTransferMutationConflict,
   registrationTransferOpenDeadlinePredicate,
 } from '../../../../registrations/registration-transfer-mutation-guard';
@@ -588,20 +588,6 @@ const findActiveRegistrationTransfer = (
     },
   });
 
-const findCheckInBlockingRegistrationTransfer = (
-  database: DatabaseClient,
-  input: { readonly registrationId: string; readonly tenantId: string },
-) =>
-  database.query.registrationTransfers.findFirst({
-    columns: { id: true },
-    where: {
-      RAW: registrationTransferOpenDeadlinePredicate,
-      sourceRegistrationId: input.registrationId,
-      status: { in: [...registrationTransferMutationBlockingStatuses] },
-      tenantId: input.tenantId,
-    },
-  });
-
 const ensureCanScanEventRegistration = ({
   eventId,
   tenantId,
@@ -658,12 +644,6 @@ const ensureCanScanEventRegistration = ({
   });
 
 /**
- * Check-in access for the lookup and confirmation RPCs. A scan keeps the
- * event check-in rules; a manual check-in additionally needs
- * `events:checkInManually`, after the event access guard so tenant and event
- * errors stay the same.
- */
-/**
  * A ticket transfer keeps the registration but changes its owner. A manual
  * check-in names the attendee picked from the list, so it must not check in
  * the new owner under the old name.
@@ -674,6 +654,12 @@ const checkInOwnerChangedConflict = () =>
       'This ticket now belongs to someone else. No change was made. Check the sign-up list again.',
   });
 
+/**
+ * Check-in access for the lookup and confirmation RPCs. A scan keeps the
+ * event check-in rules; a manual check-in additionally needs
+ * `events:checkInManually`, after the event access guard so tenant and event
+ * errors stay the same.
+ */
 const ensureCanCheckInRegistration = ({
   checkInMethod,
   eventId,
@@ -729,6 +715,146 @@ const ensureRegistrationAddonFulfillmentAccess = Effect.fn(
     tenantId: input.tenantId,
     user: input.user,
   });
+});
+
+const loadRegistrationScan = Effect.fn('loadRegistrationScan')(function* ({
+  checkInMethod,
+  registrationId,
+  tenantId,
+  user,
+}: {
+  readonly checkInMethod: EventCheckInMethod;
+  readonly registrationId: string;
+  readonly tenantId: string;
+  readonly user: {
+    readonly id: string;
+    readonly permissions: readonly Permission[];
+  };
+}) {
+  const registration = yield* databaseEffect((database) =>
+    database.query.eventRegistrations.findFirst({
+      columns: {
+        appliedDiscountedPrice: true,
+        appliedDiscountType: true,
+        basePriceAtRegistration: true,
+        checkedInGuestCount: true,
+        checkInTime: true,
+        discountAmount: true,
+        eventId: true,
+        guestCount: true,
+        status: true,
+        userId: true,
+      },
+      where: { id: registrationId, tenantId },
+      with: {
+        event: {
+          columns: {
+            end: true,
+            start: true,
+            title: true,
+          },
+        },
+        registrationOption: {
+          columns: {
+            title: true,
+          },
+        },
+        transactions: {
+          columns: {
+            status: true,
+            type: true,
+          },
+          where: {
+            type: 'registration',
+          },
+        },
+        user: {
+          columns: {
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
+    }),
+  );
+  if (
+    !registration ||
+    !registration.user ||
+    !registration.event ||
+    !registration.registrationOption
+  ) {
+    return yield* Effect.fail(
+      new EventRegistrationNotFoundError({
+        message:
+          'Ticket not found. Check the QR code or ask an organizer for help.',
+      }),
+    );
+  }
+
+  yield* ensureCanCheckInRegistration({
+    checkInMethod,
+    eventId: registration.eventId,
+    tenantId,
+    user,
+  });
+
+  const isSameUserIssue = registration.userId === user.id;
+  const isRegistrationStatusIssue = registration.status !== 'CONFIRMED';
+  const remainingGuestCount = Math.max(
+    0,
+    registration.guestCount - registration.checkedInGuestCount,
+  );
+  const isAlreadyCheckedInIssue =
+    registration.checkInTime !== null && remainingGuestCount === 0;
+  const now = yield* registrationHandlerNow;
+  const timingIssue = eventCheckInTimingIssue({
+    end: registration.event.end,
+    now,
+    start: registration.event.start,
+  });
+  const isAllowCheckin =
+    !isRegistrationStatusIssue &&
+    !isSameUserIssue &&
+    timingIssue === null &&
+    !isAlreadyCheckedInIssue;
+  const priceSnapshot = readRegistrationPriceSnapshot({
+    appliedDiscountedPrice: registration.appliedDiscountedPrice,
+    appliedDiscountType: registration.appliedDiscountType,
+    basePriceAtRegistration: registration.basePriceAtRegistration,
+    discountAmount: registration.discountAmount,
+    paymentPending: registration.transactions.some(
+      (transaction) =>
+        transaction.status === 'pending' && transaction.type === 'registration',
+    ),
+    registrationId,
+    status: registration.status,
+  });
+
+  return {
+    allowCheckin: isAllowCheckin,
+    alreadyCheckedInIssue: isAlreadyCheckedInIssue,
+    appliedDiscountType: priceSnapshot.appliedDiscountType,
+    attendeeCheckedIn: registration.checkInTime !== null,
+    checkedInGuestCount: registration.checkedInGuestCount,
+    checkInTimingIssue: timingIssue,
+    event: {
+      start: registration.event.start.toISOString(),
+      title: registration.event.title,
+    },
+    guestCount: registration.guestCount,
+    registrationOption: {
+      title: registration.registrationOption.title,
+    },
+    registrationStatus: registration.status,
+    registrationStatusIssue: isRegistrationStatusIssue,
+    remainingGuestCount,
+    sameUserIssue: isSameUserIssue,
+    user: {
+      firstName: registration.user.firstName,
+      id: registration.userId,
+      lastName: registration.user.lastName,
+    },
+  };
 });
 
 export interface CancelRegistrationForTenantArguments {
@@ -2415,7 +2541,15 @@ export const eventRegistrationHandlers = {
       });
     }).pipe(Effect.catch(mapRegistrationScanInternalError)),
   'events.checkInRegistration': (
-    { checkInMethod, expectedUserId, guestCheckInCount, registrationId },
+    {
+      checkInMethod,
+      expectedAttendeeCheckedIn,
+      expectedCheckedInGuestCount,
+      expectedUserId,
+      guestCheckInCount,
+      operationKey,
+      registrationId,
+    },
     _options,
   ) =>
     Effect.gen(function* () {
@@ -2426,6 +2560,16 @@ export const eventRegistrationHandlers = {
         return yield* Effect.fail(
           new EventRegistrationConflictError({
             message: 'Enter a whole number of guests, starting at zero.',
+          }),
+        );
+      }
+      if (
+        !Number.isInteger(expectedCheckedInGuestCount) ||
+        expectedCheckedInGuestCount < 0
+      ) {
+        return yield* Effect.fail(
+          new EventRegistrationConflictError({
+            message: 'Reload the ticket and try again.',
           }),
         );
       }
@@ -2480,36 +2624,6 @@ export const eventRegistrationHandlers = {
         );
       }
 
-      const activeTransfer = yield* databaseEffect((database) =>
-        findCheckInBlockingRegistrationTransfer(database, {
-          registrationId: registration.id,
-          tenantId: tenant.id,
-        }),
-      );
-      if (activeTransfer) {
-        return yield* Effect.fail(activeRegistrationTransferConflict());
-      }
-
-      if (registration.status !== 'CONFIRMED') {
-        return yield* Effect.fail(
-          new EventRegistrationConflictError({
-            message: 'This ticket is not ready for check-in.',
-          }),
-        );
-      }
-
-      const remainingGuestCount = Math.max(
-        0,
-        registration.guestCount - registration.checkedInGuestCount,
-      );
-      if (guestCheckInCount > remainingGuestCount) {
-        return yield* Effect.fail(
-          new EventRegistrationConflictError({
-            message: guestCheckInLimitMessage(remainingGuestCount),
-          }),
-        );
-      }
-
       const checkedInRegistration = yield* Database.use((database) =>
         database.transaction((tx) =>
           Effect.gen(function* () {
@@ -2541,18 +2655,66 @@ export const eventRegistrationHandlers = {
                 }),
               );
             }
-            if (
-              expectedUserId !== undefined &&
-              lockedRegistration.userId !== expectedUserId
-            ) {
-              return yield* Effect.fail(checkInOwnerChangedConflict());
-            }
             if (lockedRegistration.userId === user.id) {
               return yield* Effect.fail(
                 new EventRegistrationConflictError({
                   message: 'Ask another organizer to check in this ticket.',
                 }),
               );
+            }
+            // A recorded operation is replayed before any state check: the
+            // retry must succeed after the window closed or after another
+            // operation changed the counts.
+            const recordedCheckIns = yield* tx
+              .select({
+                actorUserId: eventRegistrationCheckIns.actorUserId,
+                attendeeCheckedIn: eventRegistrationCheckIns.attendeeCheckedIn,
+                checkInTime: eventRegistrationCheckIns.checkInTime,
+                expectedAttendeeCheckedIn:
+                  eventRegistrationCheckIns.expectedAttendeeCheckedIn,
+                expectedCheckedInGuestCount:
+                  eventRegistrationCheckIns.expectedCheckedInGuestCount,
+                guestCheckInCount: eventRegistrationCheckIns.guestCheckInCount,
+              })
+              .from(eventRegistrationCheckIns)
+              .where(
+                and(
+                  eq(eventRegistrationCheckIns.registrationId, registration.id),
+                  eq(eventRegistrationCheckIns.operationKey, operationKey),
+                  eq(eventRegistrationCheckIns.tenantId, tenant.id),
+                ),
+              );
+            const recordedCheckIn = recordedCheckIns[0];
+            if (recordedCheckIn) {
+              if (
+                recordedCheckIn.guestCheckInCount !== guestCheckInCount ||
+                recordedCheckIn.expectedCheckedInGuestCount !==
+                  expectedCheckedInGuestCount ||
+                recordedCheckIn.expectedAttendeeCheckedIn !==
+                  expectedAttendeeCheckedIn ||
+                recordedCheckIn.actorUserId !== user.id
+              ) {
+                return yield* Effect.fail(
+                  new EventRegistrationConflictError({
+                    message:
+                      'This check-in request does not match the one already recorded. Reload the ticket and confirm again.',
+                  }),
+                );
+              }
+              return {
+                _tag: 'CheckedIn' as const,
+                alreadyCheckedIn:
+                  !recordedCheckIn.attendeeCheckedIn &&
+                  recordedCheckIn.guestCheckInCount === 0,
+                checkInTime: recordedCheckIn.checkInTime,
+              };
+            }
+
+            if (
+              expectedUserId !== undefined &&
+              lockedRegistration.userId !== expectedUserId
+            ) {
+              return yield* Effect.fail(checkInOwnerChangedConflict());
             }
             if (lockedRegistration.status !== 'CONFIRMED') {
               return yield* Effect.fail(
@@ -2621,6 +2783,31 @@ export const eventRegistrationHandlers = {
                 }),
               );
             }
+            if (
+              lockedRegistration.checkedInGuestCount !==
+              expectedCheckedInGuestCount
+            ) {
+              return yield* Effect.fail(
+                new EventRegistrationConflictError({
+                  message:
+                    'This ticket changed on another device. Review the current check-in count, then confirm again.',
+                }),
+              );
+            }
+            const lockedAttendeeCheckedIn =
+              lockedRegistration.checkInTime !== null;
+            if (
+              (lockedAttendeeCheckedIn !== expectedAttendeeCheckedIn &&
+                guestCheckInCount > 0) ||
+              (!lockedAttendeeCheckedIn && expectedAttendeeCheckedIn)
+            ) {
+              return yield* Effect.fail(
+                new EventRegistrationConflictError({
+                  message:
+                    'This ticket changed on another device. Review the current check-in count, then confirm again.',
+                }),
+              );
+            }
             const lockedRemainingGuestCount =
               lockedRegistration.guestCount -
               lockedRegistration.checkedInGuestCount;
@@ -2644,6 +2831,18 @@ export const eventRegistrationHandlers = {
               };
             }
             if (lockedRegistration.checkInTime && guestCheckInCount === 0) {
+              // Stored so a lost response can be replayed after the window.
+              yield* tx.insert(eventRegistrationCheckIns).values({
+                actorUserId: user.id,
+                attendeeCheckedIn: false,
+                checkInTime: lockedRegistration.checkInTime,
+                expectedAttendeeCheckedIn,
+                expectedCheckedInGuestCount,
+                guestCheckInCount: 0,
+                operationKey,
+                registrationId: lockedRegistration.id,
+                tenantId: tenant.id,
+              });
               return {
                 _tag: 'CheckedIn' as const,
                 alreadyCheckedIn: true,
@@ -2731,6 +2930,18 @@ export const eventRegistrationHandlers = {
               );
             }
 
+            yield* tx.insert(eventRegistrationCheckIns).values({
+              actorUserId: user.id,
+              attendeeCheckedIn: !lockedRegistration.checkInTime,
+              checkInTime: updatedRegistration.checkInTime,
+              expectedAttendeeCheckedIn,
+              expectedCheckedInGuestCount,
+              guestCheckInCount,
+              operationKey,
+              registrationId: lockedRegistration.id,
+              tenantId: tenant.id,
+            });
+
             return {
               _tag: 'CheckedIn' as const,
               alreadyCheckedIn: false,
@@ -2745,30 +2956,37 @@ export const eventRegistrationHandlers = {
           checkInUnavailableError(checkedInRegistration.reason),
         );
       }
-      return {
-        alreadyCheckedIn: checkedInRegistration.alreadyCheckedIn,
-        checkInTime: checkedInRegistration.checkInTime.toISOString(),
-      };
-    }).pipe(Effect.catch(mapCheckInMutationInternalError)),
-  'events.getRegistrationAddonFulfillment': ({ registrationId }, _options) =>
-    Effect.gen(function* () {
-      yield* RpcAccess.ensureAuthenticated();
-      const { tenant } = yield* RpcAccess.current();
-      const user = yield* RpcAccess.requireUser();
-      yield* ensureRegistrationAddonFulfillmentAccess({
+      // The check-in is committed. A failed ticket read must not turn it into
+      // an error: the helper would retry and could not tell what happened.
+      const scannedRegistration = yield* loadRegistrationScan({
+        checkInMethod,
         registrationId,
         tenantId: tenant.id,
         user,
-      });
-      return yield* getRegistrationAddonFulfillment({
-        canCancel: includesPermission(
-          'events:cancelRegistrations',
-          user.permissions,
+      }).pipe(
+        // An interrupted request stays interrupted; only a failed read is
+        // reported as a check-in without fresh ticket details.
+        Effect.catchCause((cause) =>
+          Cause.hasInterruptsOnly(cause)
+            ? Effect.failCause(cause)
+            : Effect.logError(
+                'Ticket read failed after a committed check-in',
+              ).pipe(
+                Effect.annotateLogs({
+                  cause: Cause.pretty(cause),
+                  registrationId,
+                  tenantId: tenant.id,
+                }),
+                Effect.as(null),
+              ),
         ),
-        registrationId,
-        tenantId: tenant.id,
-      });
-    }).pipe(Effect.catch(mapRegistrationScanInternalError)),
+      );
+      return {
+        alreadyCheckedIn: checkedInRegistration.alreadyCheckedIn,
+        checkInTime: checkedInRegistration.checkInTime.toISOString(),
+        registration: scannedRegistration,
+      };
+    }).pipe(Effect.catch(mapCheckInMutationInternalError)),
   'events.getRegistrationStatus': ({ eventId }, _options) =>
     Effect.gen(function* () {
       const { tenant } = yield* RpcAccess.current();
@@ -3553,132 +3771,69 @@ export const eventRegistrationHandlers = {
       yield* RpcAccess.ensureAuthenticated();
       const { tenant } = yield* RpcAccess.current();
       const user = yield* RpcAccess.requireUser();
-
-      const registration = yield* databaseEffect((database) =>
-        database.query.eventRegistrations.findFirst({
-          columns: {
-            appliedDiscountedPrice: true,
-            appliedDiscountType: true,
-            basePriceAtRegistration: true,
-            checkedInGuestCount: true,
-            checkInTime: true,
-            discountAmount: true,
-            eventId: true,
-            guestCount: true,
-            status: true,
-            userId: true,
-          },
-          where: { id: registrationId, tenantId: tenant.id },
-          with: {
-            event: {
-              columns: {
-                end: true,
-                start: true,
-                title: true,
-              },
-            },
-            registrationOption: {
-              columns: {
-                title: true,
-              },
-            },
-            transactions: {
-              columns: {
-                status: true,
-                type: true,
-              },
-              where: {
-                type: 'registration',
-              },
-            },
-            user: {
-              columns: {
-                firstName: true,
-                lastName: true,
-              },
-            },
-          },
-        }),
-      );
-      if (
-        !registration ||
-        !registration.user ||
-        !registration.event ||
-        !registration.registrationOption
-      ) {
-        return yield* Effect.fail(
-          new EventRegistrationNotFoundError({
-            message:
-              'Ticket not found. Check the QR code or ask an organizer for help.',
-          }),
-        );
-      }
-
-      yield* ensureCanCheckInRegistration({
+      return yield* loadRegistrationScan({
         checkInMethod,
-        eventId: registration.eventId,
+        registrationId,
         tenantId: tenant.id,
         user,
       });
-
-      const isSameUserIssue = registration.userId === user.id;
-      const isRegistrationStatusIssue = registration.status !== 'CONFIRMED';
-      const remainingGuestCount = Math.max(
-        0,
-        registration.guestCount - registration.checkedInGuestCount,
-      );
-      const isAlreadyCheckedInIssue =
-        registration.checkInTime !== null && remainingGuestCount === 0;
-      const now = yield* registrationHandlerNow;
-      const timingIssue = eventCheckInTimingIssue({
-        end: registration.event.end,
-        now,
-        start: registration.event.start,
+    }).pipe(Effect.catch(mapRegistrationScanInternalError)),
+  'events.scanTicket': ({ registrationId }, _options) =>
+    Effect.gen(function* () {
+      yield* RpcAccess.ensureAuthenticated();
+      const { tenant } = yield* RpcAccess.current();
+      const user = yield* RpcAccess.requireUser();
+      const registration = yield* loadRegistrationScan({
+        // The scanner reached this ticket by its QR code.
+        checkInMethod: 'scan',
+        registrationId,
+        tenantId: tenant.id,
+        user,
       });
-      const isAllowCheckin =
-        !isRegistrationStatusIssue &&
-        !isSameUserIssue &&
-        timingIssue === null &&
-        !isAlreadyCheckedInIssue;
-      const priceSnapshot = readRegistrationPriceSnapshot({
-        appliedDiscountedPrice: registration.appliedDiscountedPrice,
-        appliedDiscountType: registration.appliedDiscountType,
-        basePriceAtRegistration: registration.basePriceAtRegistration,
-        discountAmount: registration.discountAmount,
-        paymentPending: registration.transactions.some(
-          (transaction) =>
-            transaction.status === 'pending' &&
-            transaction.type === 'registration',
+      // The ticket stays readable when only its add-ons cannot be shown, for
+      // example during an open transfer. Defects and interrupts still fail.
+      const addOns = yield* getRegistrationAddonFulfillment({
+        canCancel: includesPermission(
+          'events:cancelRegistrations',
+          user.permissions,
         ),
         registrationId,
-        status: registration.status,
-      });
-
-      return {
-        allowCheckin: isAllowCheckin,
-        alreadyCheckedInIssue: isAlreadyCheckedInIssue,
-        appliedDiscountType: priceSnapshot.appliedDiscountType,
-        attendeeCheckedIn: registration.checkInTime !== null,
-        checkedInGuestCount: registration.checkedInGuestCount,
-        checkInTimingIssue: timingIssue,
-        event: {
-          start: registration.event.start.toISOString(),
-          title: registration.event.title,
-        },
-        guestCount: registration.guestCount,
-        registrationOption: {
-          title: registration.registrationOption.title,
-        },
-        registrationStatus: registration.status,
-        registrationStatusIssue: isRegistrationStatusIssue,
-        remainingGuestCount,
-        sameUserIssue: isSameUserIssue,
-        user: {
-          firstName: registration.user.firstName,
-          id: registration.userId,
-          lastName: registration.user.lastName,
-        },
-      };
+        tenantId: tenant.id,
+      }).pipe(
+        Effect.map((fulfillment) => ({
+          _tag: 'Available' as const,
+          items: fulfillment.addOns,
+        })),
+        Effect.catchTags({
+          EventRegistrationConflictError: (error) =>
+            Effect.succeed({
+              _tag: 'Unavailable' as const,
+              message: error.message,
+            }),
+          // Not every internal add-on failure is logged by the service, and
+          // its wording is meant for administrators: log it here and show the
+          // helper a plain message.
+          EventRegistrationInternalError: (error) =>
+            Effect.logError('Ticket add-ons could not be read for a scan').pipe(
+              Effect.annotateLogs({
+                message: error.message,
+                registrationId,
+                tenantId: tenant.id,
+              }),
+              Effect.as({
+                _tag: 'Unavailable' as const,
+                message:
+                  'Add-ons cannot be shown right now. Contact an Evorto administrator.',
+              }),
+            ),
+          EventRegistrationNotFoundError: (error) =>
+            Effect.succeed({
+              _tag: 'Unavailable' as const,
+              message: error.message,
+            }),
+        }),
+      );
+      return { addOns, registration };
     }).pipe(Effect.catch(mapRegistrationScanInternalError)),
   'events.undoRegistrationAddonRedemption': (
     { operationKey, redemptionEventId, registrationAddonId, registrationId },

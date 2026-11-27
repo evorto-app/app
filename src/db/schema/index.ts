@@ -7,6 +7,7 @@ export * from './event-registration-addon-purchase-lots';
 export * from './event-registration-addon-purchase-orders';
 export * from './event-registration-addon-purchases';
 export * from './event-registration-addon-refund-allocations';
+export * from './event-registration-check-ins';
 export * from './event-registration-option-discounts';
 export * from './event-registration-options';
 export * from './event-registration-question-answers';
