@@ -77,7 +77,7 @@
     "@heddendorp/effect-angular-query": "0.2.1",
     "@heddendorp/effect-platform-angular": "0.1.1",
     "@material/material-color-utilities": "0.4.0",
-    "@opentelemetry/exporter-trace-otlp-http": "0.223.0",
+    "@opentelemetry/exporter-trace-otlp-http": "0.301.2",
     "@opentelemetry/sdk-trace-base": "2.12.0",
     "@opentelemetry/sdk-trace-node": "2.12.0",
     "@paralleldrive/cuid2": "^3.3.0",
