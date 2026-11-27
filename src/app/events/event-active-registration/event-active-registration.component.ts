@@ -223,7 +223,13 @@ export const registrationCancellationCopy = (registration: {
   const confirmedPlaceNoun =
     registration.guestCount > 0 ? 'all selected places' : 'your place';
 
-  if (recipientTransferCheckoutPending(registration)) {
+  // Only the open/Checkout ownership handoff locks the ticket. After ownership
+  // moved, a previous-owner refund that is pending or failed does not stop the
+  // current owner from cancelling under the normal rules.
+  if (
+    registration.activeTransfer?.status === 'open' ||
+    registration.activeTransfer?.status === 'checkout_pending'
+  ) {
     return null;
   }
 

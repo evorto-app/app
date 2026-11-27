@@ -6,9 +6,9 @@ import {
 import { PgDialect } from 'drizzle-orm/pg-core';
 import { Effect } from 'effect';
 
+import { activeRegistrationTransferMutationPredicate } from '../../../../registrations/registration-transfer-mutation-guard';
 import {
   mapPlatformRegistrationMutationError,
-  platformRegistrationActiveTransferPredicate,
   platformRegistrationCancellationBlockedReason,
   platformRegistrationCancellationRefundPreview,
 } from './platform-registrations.handlers';
@@ -148,8 +148,8 @@ describe('platform registration mutation errors', () => {
 });
 
 describe('platform registration cancellation refund preview', () => {
-  it('blocks platform cancellation for an active source transfer', () => {
-    const predicate = platformRegistrationActiveTransferPredicate({
+  it('blocks platform cancellation only during the open or Checkout ownership handoff', () => {
+    const predicate = activeRegistrationTransferMutationPredicate({
       registrationId: 'registration-1',
       tenantId: 'tenant-1',
     });
@@ -161,9 +161,9 @@ describe('platform registration cancellation refund preview', () => {
       'registration-1',
       'open',
       'checkout_pending',
-      'refund_pending',
-      'refund_failed',
     ]);
+    expect(query.params).not.toContain('refund_pending');
+    expect(query.params).not.toContain('refund_failed');
     expect(query.sql).toContain(
       '"registration_transfers"."source_registration_id" = $2',
     );

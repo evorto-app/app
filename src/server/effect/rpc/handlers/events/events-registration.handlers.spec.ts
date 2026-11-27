@@ -2812,18 +2812,18 @@ const readCancellationPreflight = ({
     return;
   }
   if (statement.includes(` from "${getTableName(registrationTransfers)}"`)) {
+    // Only the open/Checkout ownership handoff blocks cancellation. A completed
+    // transfer whose previous-owner refund is pending or failed must not.
     expect(parameters).toEqual([
       registration.id,
       'open',
       'checkout_pending',
-      'refund_pending',
-      'refund_failed',
       tenant.id,
       1,
     ]);
     expect(
       statement.endsWith(
-        ` where ((("d0"."${registrationTransfers.status.name}" <> 'open' OR "d0"."${registrationTransfers.expiresAt.name}" > statement_timestamp())) and ("d0"."${registrationTransfers.sourceRegistrationId.name}" = $1) and ("d0"."${registrationTransfers.status.name}" in ($2, $3, $4, $5)) and ("d0"."${registrationTransfers.tenantId.name}" = $6)) limit $7`,
+        ` where ((("d0"."${registrationTransfers.status.name}" <> 'open' OR "d0"."${registrationTransfers.expiresAt.name}" > statement_timestamp())) and ("d0"."${registrationTransfers.sourceRegistrationId.name}" = $1) and ("d0"."${registrationTransfers.status.name}" in ($2, $3)) and ("d0"."${registrationTransfers.tenantId.name}" = $4)) limit $5`,
       ),
     ).toBe(true);
     return activeTransferId ? [[activeTransferId]] : [];

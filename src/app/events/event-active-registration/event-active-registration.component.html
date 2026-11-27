@@ -290,7 +290,9 @@
                   </button>
                 }
               </div>
-            } @else if (cancellationCopy(registration); as cancellation) {
+            }
+
+            @if (cancellationCopy(registration); as cancellation) {
               <div class="flex flex-col items-start gap-2">
                 @if (
                   !cancellation.buttonLabel ||
